@@ -66,6 +66,11 @@ let is_Space =
   | Space => true
   | _ => false;
 
+let is_UserOp =
+  fun
+  | UserOp(_) => true
+  | _ => false;
+
 let operator_of_char =
   fun
   | '+' => Plus

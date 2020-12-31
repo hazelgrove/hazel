@@ -87,20 +87,19 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
 
   let op_err_holes = {
     let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
-
     hole_list
-    |> List.filter_map((CursorPath.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, steps}) => {
          switch (sort) {
          | TypHole => None
          | PatHole(_, _) => None
          | ExpHole(_, shape) =>
            switch (shape) {
-           | Empty => None
-           | VarErr
-           | TypeErr => Some(steps)
+           | TypeErr
+           | VarErr => None
+           | Empty => Some(steps)
            }
          }
-       );
+       });
   };
 
   let var_uses =

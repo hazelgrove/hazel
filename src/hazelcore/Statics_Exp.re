@@ -852,16 +852,13 @@ and syn_fix_holes_skel =
           Hole,
         );
       // TODO (corlaban): This toggles the appearence of holes???
-      let var_reason = VarErrStatus.HoleReason.Free;
-      let reason = ErrStatus.HoleReason.OperatorError(var_reason);
 
       let (_u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        BinOp(InHole(reason, u_gen), UserOp(op), skel1, skel2),
-        seq,
-        Hole,
-        u_gen,
-      );
+      let var_reason = VarErrStatus.HoleReason.Free;
+      let reason = ErrStatus.HoleReason.OperatorError(var_reason);
+      let err_status = ErrStatus.InHole(reason, u_gen);
+
+      (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
     }
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =

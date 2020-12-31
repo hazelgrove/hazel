@@ -13,6 +13,7 @@ let is_empty = (dpaths: t): bool =>
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
+  && ListUtil.is_empty(dpaths.op_err_holes)
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
@@ -38,10 +39,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
-    | BinOp({op_index, _}) =>
-      print_endline("bin op is current" ++ string_of_int(op_index));
-      let _ = List.map(x => print_endline(string_of_int(x)), steps);
-      steps == [op_index];
+    | BinOp({op_index, _}) => steps == [op_index]
     | Operand
     | Case
     | Rule => steps == []
@@ -61,11 +59,10 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
-  let op_err_holes =
-    dpaths.op_err_holes
-    |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.VarErrHole)
-    |> Option.to_list;
+  // let op_err_holes =
+  //   dpaths.op_err_holes
+  //   |> List.find_opt(is_current)
+  //   |> Option.to_list;
   let current_term =
     switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
@@ -77,7 +74,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     err_holes,
     var_err_holes,
     var_uses,
-    op_err_holes,
+    // op_err_holes,
     current_term,
   ]);
 };

@@ -146,51 +146,34 @@ let decoration_views =
         let stepped = UHDecorationPaths.take_step(step, dpaths);
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Token({shape: Op, _}) =>
-        print_endline("in token case of annot");
-        let offset = start.col - indent;
-        let origin = MeasuredPosition.{row: start.row, col: indent};
-        let height = lazy(MeasuredLayout.height(m));
-        let width = lazy(MeasuredLayout.width(~offset, m));
-
-        let shape = TermShape.BinOp({op_index: 2});
-        // let shape = TermShape.Operand;
-        // let sort = TermSort.Exp;
-        // Todo(corlaban): Decorations around tokens vvvv this is just experimental
-
-        let current_vs =
-          UHDecorationPaths.current(shape, dpaths)
-          |> List.filter_map((dshape: UHDecorationShape.t) => {
-               UHDecoration.(
-                 switch (dshape) {
-                 | VarErrHole =>
-                   print_endline("in varr err hole");
-                   let (cls, decoration) = (
-                     "var-err-hole",
-                     VarErrHole.view(
-                       ~contains_current_term=
-                         Option.is_some(dpaths.current_term),
-                       ~corner_radii,
-                       (offset, m),
-                     ),
-                   );
-                   Some(
-                     decoration_container(
-                       ~font_metrics,
-                       ~height=Lazy.force(height),
-                       ~width=Lazy.force(width),
-                       ~origin,
-                       ~cls,
-                       [decoration],
-                     ),
-                   );
-                 | _ => None
-                 }
-               )
-             });
-
-        go'(~tl=current_vs @ tl, dpaths, m);
+        if (List.length(dpaths.op_err_holes) > 0) {
+          let offset = start.col - indent;
+          let origin = MeasuredPosition.{row: start.row, col: indent};
+          let height = lazy(MeasuredLayout.height(m));
+          let width = lazy(MeasuredLayout.width(~offset, m));
+          let (cls, decoration) = (
+            "var-err-hole",
+            UHDecoration.VarErrHole.view(
+              ~contains_current_term=Option.is_some(dpaths.current_term),
+              ~corner_radii,
+              (offset, m),
+            ),
+          );
+          let current_vs =
+            decoration_container(
+              ~font_metrics,
+              ~height=Lazy.force(height),
+              ~width=Lazy.force(width),
+              ~origin,
+              ~cls,
+              [decoration],
+            );
+          go'(~tl=[current_vs, ...tl], dpaths, m);
+        } else {
+          print_endline("nothing in holes");
+          go'(~tl, dpaths, m);
+        }
       | Term({shape, sort, _}) =>
-        print_endline("in term case of annot");
         let offset = start.col - indent;
         let current_vs =
           UHDecorationPaths.current(shape, dpaths)

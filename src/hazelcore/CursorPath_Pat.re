@@ -150,6 +150,9 @@ let rec holes =
        ~holes_operand,
        ~hole_sort=hole_sort(TypeErr),
        ~is_space=Operators_Pat.is_Space,
+       ~is_user_op=
+         fun
+         | _ => false,
        ~rev_steps,
        p,
      )
@@ -193,6 +196,9 @@ and holes_zopseq =
     ~holes_zoperand,
     ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Pat.is_Space,
+    ~is_user_op=
+      fun
+      | _ => false,
     ~rev_steps,
     ~erase_zopseq=ZPat.erase_zopseq,
     zopseq,
