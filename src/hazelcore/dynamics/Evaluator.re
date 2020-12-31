@@ -215,6 +215,21 @@ let rec evaluate = (d: DHExp.t): result =>
   | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     evaluate_case(Some((u, i, sigma)), d1, rules, n)
+  | If(d1, d2, d3) =>
+    switch (evaluate(d1), evaluate(d2), evaluate(d3)) {
+    | (InvalidInput(msg), _, _)
+    | (_, InvalidInput(msg), _)
+    | (_, _, InvalidInput(msg)) => InvalidInput(msg)
+    | (Indet(d1), Indet(d2), Indet(d3))
+    | (BoxedValue(d1), Indet(d2), Indet(d3))
+    | (Indet(d1), BoxedValue(d2), Indet(d3))
+    | (Indet(d1), Indet(d2), BoxedValue(d3))
+    | (Indet(d1), BoxedValue(d2), BoxedValue(d3))
+    | (BoxedValue(d1), Indet(d2), BoxedValue(d3))
+    | (BoxedValue(d1), BoxedValue(d2), Indet(d3)) => Indet(If(d1, d2, d3))
+    | (BoxedValue(d1), BoxedValue(d2), BoxedValue(d3)) =>
+      BoxedValue(If(d1, d2, d3))
+    }
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     switch (evaluate(d1)) {

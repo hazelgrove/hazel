@@ -1251,6 +1251,21 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
+  | If(NotInHole, t1, t2, t3) =>
+    switch (ana_elab(ctx, delta, t1)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, _, delta) =>
+      switch (ana_elab(ctx, delta, t2)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, _, delta) =>
+        switch (ana_elab(ctx, delta, t3)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d3, ty, delta) =>
+          let d = DHExp.If(d1, d2, d3);
+          Elaborates(d, ty, delta);
+        }
+      }
+    }
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate

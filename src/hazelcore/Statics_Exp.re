@@ -995,6 +995,17 @@ and syn_fix_holes_operand =
         u_gen,
       )
     };
+
+  | If(_, t1, t2, t3) =>
+    let (t1, ty1, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
+    let (t2, ty2, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
+    let (t3, ty3, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
+
+    (If(NotInHole, t1, t2, t3), ty2, u_gen);
+
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
