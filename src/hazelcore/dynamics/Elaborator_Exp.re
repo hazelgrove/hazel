@@ -1252,13 +1252,13 @@ and ana_elab_operand =
       }
     }
   | If(NotInHole, t1, t2, t3) =>
-    switch (ana_elab(ctx, delta, t1)) {
+    switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
-      switch (ana_elab(ctx, delta, t2)) {
+      switch (syn_elab(ctx, delta, t2)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, _, delta) =>
-        switch (ana_elab(ctx, delta, t3)) {
+        switch (syn_elab(ctx, delta, t3)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d3, ty, delta) =>
           let d = DHExp.If(d1, d2, d3);

@@ -1533,7 +1533,7 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | If(e, _, _, _) | Parenthesized(e)) as operand,
       ),
     ) =>
     let place_cursor =

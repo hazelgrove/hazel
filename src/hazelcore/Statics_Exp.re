@@ -1468,6 +1468,14 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+  | If(_, t1, t2, t3) =>
+    let (t1, ty1, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
+    let (t2, ty2, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
+    let (t3, ty3, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
+    (If(NotInHole, t1, t2, t3), ty2, u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
