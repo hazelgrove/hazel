@@ -689,59 +689,58 @@ and syn_elab_skel =
         };
       }
     }
-  // | BinOp(
-  //     NotInHole,
-  //     UserOp(InVarHole(_reason, _m_var), _op),
-  //     _skel1,
-  //     _skel2,
-  //   ) =>
-  //   print_endline("does not elaborate, in var hole");
-  //   DoesNotElaborate;
-  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    // TODO (corlaban):
-    switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
-    | Some(ty) =>
-      switch (HTyp.matched_two_ary_arrow(ty)) {
-      | Some((ty1, (ty2, ty3))) =>
-        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty1', delta) =>
-          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty1);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
+  | BinOp(
+      InHole(OperatorError(_), u),
+      UserOp(op),
+      skel1,
+      skel2,
+    ) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let delta =
+      MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
 
-            let d = DHExp.BoundUserOp(op, dc1, dc2);
-            Elaborates(d, ty3, delta);
-          }
-        }
-      | _ => DoesNotElaborate
+    switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1', delta) =>
+      switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2', delta) =>
+        let dc1 = DHExp.cast(d1, ty1', Hole);
+        let dc2 = DHExp.cast(d2, ty2', Hole);
+        let d = DHExp.FreeUserOp(u, 0, sigma, op, dc1, dc2);
+        Elaborates(d, Hole, delta);
       }
-    | None =>
-      //TODO (corlaban): Need to add VarErrStatus as a field to Operators Exp
-      let (u, _) = MetaVarGen.next(0);
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
-      let delta =
-        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
-
-      switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+    };
+  | BinOp(InHole(OperatorError(_), u), _, _, _) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let d = DHExp.EmptyHole(u, 0, sigma);
+    Elaborates(d, Hole, delta);
+  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+    let op_ty =
+      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      | None => HTyp.Hole
+      | Some(ty) => ty
+      };
+    switch (HTyp.matched_two_ary_arrow(op_ty)) {
+    | Some((ty1, (ty2, ty3))) =>
+      switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty1', delta) =>
-        switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+        switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2', delta) =>
-          let dc1 = DHExp.cast(d1, ty1', Hole);
-          let dc2 = DHExp.cast(d2, ty2', Hole);
-          print_endline("goes into correct free user op area");
-          // TODO (corlaban): Need to figure out the correct type of sigma
-          // let d = DHExp.FreeUserOp(op, dc1, dc2);
-          let d = DHExp.FreeUserOp(u, 0, sigma, op, dc1, dc2);
-          Elaborates(d, Hole, delta);
+          let dc1 = DHExp.cast(d1, ty1', ty1);
+          let dc2 = DHExp.cast(d2, ty2', ty2);
+
+          let d = DHExp.BoundUserOp(op, dc1, dc2);
+          Elaborates(d, ty3, delta);
         }
-      };
-    }
+      }
+    | _ => DoesNotElaborate
+    };
+
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -784,15 +783,16 @@ and syn_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _, _)
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
+  | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
+    DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1087,7 +1087,7 @@ and ana_elab_opseq =
     } else {
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(TypeInconsistent | OperatorError(_), _) => DoesNotElaborate
       | InHole(WrongLength as reason, u) =>
         switch (
           syn_elab_opseq(
@@ -1125,6 +1125,7 @@ and ana_elab_skel =
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, en, ty);
+  | BinOp(InHole(OperatorError(_) as reason, u), op, skel1, skel2)
   | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -1214,15 +1215,16 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(d, e_ty, delta);
     }
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _, _)
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
+  | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
