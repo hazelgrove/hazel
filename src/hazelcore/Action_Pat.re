@@ -99,7 +99,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };

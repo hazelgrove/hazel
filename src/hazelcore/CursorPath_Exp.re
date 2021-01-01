@@ -67,12 +67,9 @@ and follow_line =
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
-    print_endline("failed in follow opseq");
-    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq));
+    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
   | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
-    print_endline("failed in line");
-
-    line |> ZExp.place_cursor_line(cursor);
+    line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
@@ -108,9 +105,7 @@ and follow_operator =
     : option(ZExp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZExp.place_cursor_operator(cursor)
-  | [_, ..._] =>
-    print_endline("failed in follow operator >");
-    None;
+  | [_, ..._] => None
   }
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHExp.operand)
@@ -125,9 +120,7 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) =>
-      print_endline("failed in follow operand");
-      None;
+    | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>

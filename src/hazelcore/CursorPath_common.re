@@ -168,8 +168,7 @@ let holes_skel_ =
   let rec go = (skel: Skel.t(_), hs) =>
     switch (skel) {
     | Placeholder(n) =>
-      print_endline("hole in holes_skel_");
-      hs |> holes_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps]);
+      hs |> holes_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps])
     | BinOp(err, op, skel1, skel2) when op |> is_space =>
       // If this skel is rooted at a Space, then we know
       // that all subskels are rooted at a Space.
@@ -196,6 +195,7 @@ let holes_skel_ =
         switch (err) {
         | NotInHole => hs
         | InHole(_, u) =>
+          print_endline("user binop ends up in hole");
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           [
             {sort: ExpHole(u, Empty), steps: List.rev([step, ...rev_steps])},

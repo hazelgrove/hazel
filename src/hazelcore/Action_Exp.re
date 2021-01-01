@@ -1746,13 +1746,15 @@ and syn_perform_operand =
       ),
     )
   | (Construct(SLet), CursorE(_, operand)) =>
+    print_endline("let 1");
+
     Succeeded(
       mk_SynExpandsToLet(
         ~u_gen,
         ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
         (),
       ),
-    )
+    );
 
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
