@@ -94,7 +94,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | PatHole(_, _) => None
          | ExpHole(_, shape) =>
            switch (shape) {
-           | TypeErr
+           | TypeErr => Some(steps)
            | VarErr => None
            | Empty => Some(steps)
            }

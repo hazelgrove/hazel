@@ -8,6 +8,11 @@ let ctx_for_let =
     : (Contexts.t, option(Var.t)) =>
   switch (p, e) {
   | (
+      OpSeq(_, S(UserOp(_, NotInVarHole, x), E)),
+      [ExpLine(OpSeq(_, S(_, E)))],
+    ) =>
+    (Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty)), Some(x));
+  | (
       OpSeq(_, S(Var(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     )
@@ -809,6 +814,7 @@ and syn_fix_holes_skel =
             seq,
             t2,
           );
+
         (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
       | _ =>
         let (skel1, seq, u_gen) =
@@ -829,7 +835,12 @@ and syn_fix_holes_skel =
             seq,
             Hole,
           );
-        (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, Hole, u_gen);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let var_reason = OperatorErrStatus.HoleReason.TypeInconsistent;
+        let reason = ErrStatus.HoleReason.OperatorError(var_reason);
+        let err_status = ErrStatus.InHole(reason, u);
+
+        (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
       }
     | _ =>
       // if user op is not in this context, then it is a free var hole
@@ -853,10 +864,10 @@ and syn_fix_holes_skel =
         );
       // TODO (corlaban): This toggles the appearence of holes???
 
-      let (_u, u_gen) = MetaVarGen.next(u_gen);
-      let var_reason = VarErrStatus.HoleReason.Free;
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let var_reason = OperatorErrStatus.HoleReason.Free;
       let reason = ErrStatus.HoleReason.OperatorError(var_reason);
-      let err_status = ErrStatus.InHole(reason, u_gen);
+      let err_status = ErrStatus.InHole(reason, u);
 
       (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
     }
