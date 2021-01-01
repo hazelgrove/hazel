@@ -78,7 +78,10 @@ and syn_operand =
   | UserOp(NotInHole, NotInVarHole, x) =>
     Var.check_valid_operator(
       x,
-      Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
+      Some((
+        HTyp.Hole,
+        Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), Hole)),
+      )),
     )
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
@@ -412,7 +415,7 @@ and syn_fix_holes_operand =
       u_gen,
     )
   | UserOp(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), Hole));
     (operand_nih, Hole, ctx, u_gen);
   | IntLit(_, _) => (operand_nih, Int, ctx, u_gen)
   | FloatLit(_, _) => (operand_nih, Float, ctx, u_gen)
@@ -674,7 +677,7 @@ and ana_fix_holes_operand =
   | UserOp(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | UserOp(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | UserOp(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty));
     (operand_nih, ctx, u_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
