@@ -10,8 +10,10 @@ let ctx_for_let =
   | (
       OpSeq(_, S(UserOp(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(_, E)))],
-    ) =>
-    (Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty)), Some(x));
+    ) => (
+      Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty)),
+      Some(x),
+    )
   | (
       OpSeq(_, S(Var(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
