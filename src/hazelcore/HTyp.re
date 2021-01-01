@@ -87,7 +87,11 @@ let matched_arrow =
 let matched_two_ary_arrow =
   fun
   | Hole => Some((Hole, (Hole, Hole)))
-  | Arrow(ty1, Arrow(ty2, ty3)) => Some((ty1, (ty2, ty3)))
+  | Arrow(ty1, ty2') =>
+    switch (matched_arrow(ty2')) {
+    | Some((ty2, ty3)) => Some((ty1, (ty2, ty3)))
+    | _ => None
+    }
   | _ => None;
 
 let get_prod_elements: t => list(t) =
