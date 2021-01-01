@@ -4,7 +4,8 @@ module HoleReason = {
   type t =
     | TypeInconsistent
     | WrongLength
-    | OperatorError(VarErrStatus.HoleReason.t);
+    | OperatorError(OperatorErrStatus.HoleReason.t);
+  // TODO(corlaban): operator error needs new variant type
 };
 
 /* Variable: `err` */
