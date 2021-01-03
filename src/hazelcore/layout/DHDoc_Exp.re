@@ -223,11 +223,11 @@ let rec mk =
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | If(d1, d2, d3) =>
         hseps([
-            hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
-            mk_cast(go'(d2)),
-            DHDoc_common.Delim.open_Else,
-            mk_cast(go'(d3)))
-        ]);
+          hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          mk_cast(go'(d2)),
+          DHDoc_common.Delim.open_Else,
+          mk_cast(go'(d3)),
+        ])
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
