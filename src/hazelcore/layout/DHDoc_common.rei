@@ -54,6 +54,9 @@ module Delim: {
   let open_Case: t;
   let close_Case: t;
 
+  let open_If: t;
+  let open_Else: t;
+
   let bar_Rule: t;
   let arrow_Rule: t;
 

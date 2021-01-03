@@ -222,12 +222,12 @@ let rec mk =
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | If(d1, d2, d3) =>
-        let doc1 = go'(d1);
-        let doc2 = go'(d2);
-        let doc3 = go'(d3);
-        doc1;
-        doc2;
-        doc3;
+        hseps([
+            hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+            mk_cast(go'(d2)),
+            DHDoc_common.Delim.open_Else,
+            mk_cast(go'(d3)))
+        ]);
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
