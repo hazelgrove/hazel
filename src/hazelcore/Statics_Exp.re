@@ -137,7 +137,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | If(InHole(TypeInconsistent, _), _, _, _)
+  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
@@ -149,7 +149,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(InHole(WrongLength, _), _, _, _)
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
@@ -208,7 +208,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | None => None
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
-  | If(NotInHole, t1, t2, t3) =>
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
     switch (ana(ctx, t1, Bool)) {
     | None => None
     | Some(_) =>
@@ -369,7 +369,7 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | If(InHole(TypeInconsistent, _), _, _, _)
+  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
@@ -384,7 +384,7 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(InHole(WrongLength, _), _, _, _)
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
@@ -440,7 +440,7 @@ and ana_operand =
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
     }
-  | If(NotInHole, t1, t2, t3) =>
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
     switch (ana(ctx, t1, Bool)) {
     | None => None
     | Some(_) =>
@@ -1004,7 +1004,7 @@ and syn_fix_holes_operand =
     let (t3, _, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
 
-    (If(NotInHole, t1, t2, t3), ty2, u_gen);
+    (If(StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
 
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1475,7 +1475,7 @@ and ana_fix_holes_operand =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
     let (t3, _, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
-    (If(NotInHole, t1, t2, t3), u_gen);
+    (If(StandardErrStatus(NotInHole), t1, t2, t3), u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
