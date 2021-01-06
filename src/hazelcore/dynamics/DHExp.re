@@ -165,9 +165,15 @@ type t =
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
-  | Case(t, list(rule), int)
+  | Case(t, list(rule), int) 
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t); /* ? */
+
+/* | ConsistentIf(ifs)
+and ifs =
+  | If(t, list(line), list(line))
+and line =
+  | Line(DHPat.t); */
 
 let constructor_string = (d: t): string =>
   switch (d) {

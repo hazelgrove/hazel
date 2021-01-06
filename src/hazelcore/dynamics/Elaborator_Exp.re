@@ -702,7 +702,7 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | If(InHole(TypeInconsistent as reason, u), _, _, _)
+  | If(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -722,7 +722,7 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(InHole(WrongLength, _), _, _, _)
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -755,6 +755,21 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
+    } 
+  | If(InconsistentBranches(branch_types, u), t1, t2, t3) =>
+    switch (syn_elab(ctx, delta, t1)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, pat_ty, delta) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let then_branch = syn_elab(ctx, delta, t2);
+      let else_branch = syn_elab(ctx, delta, t3);
+      switch ((then_branch, else_branch)) {
+      | (Elaborates(_, _, _), Elaborates(_, _, _)) => 
+        let d = DHExp.If(d1, t2, t3)
+        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+      | (_, _) => DoesNotElaborate
+      }
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -841,7 +856,7 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | If(NotInHole, t1, t2, t3) =>
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
     switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
@@ -1139,7 +1154,7 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | If(InHole(TypeInconsistent as reason, u), _, _, _)
+  | If(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -1151,6 +1166,7 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
+  | If(InconsistentBranches(_, u), _, _, _)
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1168,7 +1184,7 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(InHole(WrongLength, _), _, _, _)
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -1251,7 +1267,7 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
-  | If(NotInHole, t1, t2, t3) =>
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
     switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
