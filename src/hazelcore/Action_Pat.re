@@ -917,12 +917,7 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None =>
-      print_endline("operator shape causes fail");
-      // Failed
-      let success_status = ana_perform_operand(ctx, u_gen, a, zoperand, ty);
-      print_endline("ana perform operand complete");
-      success_status;
+    | None => Failed
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -1184,7 +1179,6 @@ and ana_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
   | (Construct(SOp(os)), CursorP(OnDelim(_, side), Wild(_))) =>
-    print_endline("ana perform operand -- add operator after wildcard 2");
     let index =
       switch (side) {
       | Before => 0
@@ -1198,10 +1192,9 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
-  /* This is the case of closing a user defined operator */
+  /* Closing a user defined operator in a pattern*/
   | (Construct(SChar(s)), CursorP(OnText(j), UserOp(_, _, x)))
       when s == "_" =>
-    print_endline("mark 6");
     ana_insert_text(ctx, u_gen, (j, s), x, ty);
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
