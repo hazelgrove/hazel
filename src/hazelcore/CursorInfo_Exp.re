@@ -968,9 +968,9 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | IfZ1(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | IfZ2(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | IfZ1(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ2(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, body) =>

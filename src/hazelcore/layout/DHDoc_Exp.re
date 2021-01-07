@@ -46,9 +46,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
-  | If(_, _, _)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
@@ -220,8 +221,16 @@ let rec mk =
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
       | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | InconsistentBranchesIf(u, i, _sigma, If(d1, d2, d3)) =>
+        vseps([
+          hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          mk_cast(go'(d2)),
+          DHDoc_common.Delim.open_Else,
+          mk_cast(go'(d3)),
+        ])
+        |> annot(DHAnnot.InconsistentBranchesIf((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
-      | If(d1, d2, d3) =>
+      | ConsistentIf(If(d1, d2, d3)) =>
         hseps([
           hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
           mk_cast(go'(d2)),

@@ -173,6 +173,23 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         None;
       };
     }
+  | If(InconsistentBranches(branch_types, _), t1, t2, t3) =>
+    switch (ana(ctx, t1, HTyp.Bool)) {
+    | None => None
+    | Some(_) =>
+      let syn_t2 = syn(ctx, t2);
+      let syn_t3 = syn(ctx, t3);
+      let is_consistent = 
+        switch (syn_t2, syn_t3) {
+        | (Some(ty2), Some(ty3)) => HTyp.consistent(syn_t2, syn_t3)
+        | _ => false
+        }
+      if (is_consistent) {
+        Some(HTyp.Hole);
+      } else {
+        None;
+      };
+    }
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
@@ -209,16 +226,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    switch (ana(ctx, t1, Bool)) {
+    switch (ana(ctx, t1, HTyp.Bool)) {
     | None => None
     | Some(_) =>
       switch (syn(ctx, t2), syn(ctx, t3)) {
-      | (Some(ty2), Some(ty3)) =>
-        if (ty2 == ty3) {
-          Some(ty2);
-        } else {
-          None;
-        }
+      | (Some(ty2), Some(ty3)) => HTyp.consistent(ty2, ty3)
       | _ => None
       }
     }
@@ -389,6 +401,7 @@ and ana_operand =
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
+  | If(InconsistentBranches (_, _), _, _, _) => None
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
@@ -441,7 +454,7 @@ and ana_operand =
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    switch (ana(ctx, t1, Bool)) {
+    switch (ana(ctx, t1, HTyp.Bool)) {
     | None => None
     | Some(_) =>
       switch (ana(ctx, t2, ty), ana(ctx, t3, ty)) {
@@ -1004,7 +1017,7 @@ and syn_fix_holes_operand =
     let (t3, _, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
 
-    (If(StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
+    ( StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
 
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);

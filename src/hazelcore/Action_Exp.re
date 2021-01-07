@@ -2006,7 +2006,8 @@ and syn_perform_operand =
         )
       | Succeeded((zt1, ty1, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later?? */
-        let new_ze = ZExp.ZBlock.wrap(IfZ1(NotInHole, zt1, t2, t3));
+        let new_ze =
+          ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
         Succeeded(SynDone((new_ze, ty1, u_gen)));
       }
     }
@@ -2024,7 +2025,8 @@ and syn_perform_operand =
         )
       | Succeeded((zt2, ty1, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later?? */
-        let new_ze = ZExp.ZBlock.wrap(IfZ2(NotInHole, t1, zt2, t3));
+        let new_ze =
+          ZExp.ZBlock.wrap(IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3));
         Succeeded(SynDone((new_ze, ty1, u_gen)));
       }
     }
@@ -2042,7 +2044,8 @@ and syn_perform_operand =
         )
       | Succeeded((zt3, ty1, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later?? */
-        let new_ze = ZExp.ZBlock.wrap(IfZ3(NotInHole, t1, t2, zt3));
+        let new_ze =
+          ZExp.ZBlock.wrap(IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3));
         Succeeded(SynDone((new_ze, ty1, u_gen)));
       }
     }

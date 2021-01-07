@@ -75,11 +75,17 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let rules = subst_var_rules(d1, x, rules);
     let sigma' = subst_var_env(d1, x, sigma);
     InconsistentBranches(u, i, sigma', Case(d3, rules, n));
-  | If(d3, d4, d5) =>
+  | ConsistentIf(If(d3, d4, d5)) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     let d5 = subst_var(d1, x, d5);
-    If(d3, d4, d5);
+    ConsistentIf(If(d3, d4, d5));
+  | InconsistentBranchesIf(u, i, sigma, If(d3, d4, d5)) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    let sigma' = subst_var_env(d1, x, sigma);
+    InconsistentBranchesIf(u, i, sigma, If(d3, d4, d5));
   | EmptyHole(u, i, sigma) =>
     let sigma' = subst_var_env(d1, x, sigma);
     EmptyHole(u, i, sigma');
@@ -300,7 +306,8 @@ and matches_cast_Inj =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | If(_, _, _) => DoesNotMatch
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -361,7 +368,8 @@ and matches_cast_Pair =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | If(_, _, _) => DoesNotMatch
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -420,7 +428,8 @@ and matches_cast_Cons =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | If(_, _, _) => DoesNotMatch
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -755,7 +764,7 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    } 
+    }
   | If(InconsistentBranches(branch_types, u), t1, t2, t3) =>
     switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -764,12 +773,12 @@ and syn_elab_operand =
       let sigma = id_env(gamma);
       let then_branch = syn_elab(ctx, delta, t2);
       let else_branch = syn_elab(ctx, delta, t3);
-      switch ((then_branch, else_branch)) {
-      | (Elaborates(_, _, _), Elaborates(_, _, _)) => 
-        let d = DHExp.If(d1, t2, t3)
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+      switch (then_branch, else_branch) {
+      | (Elaborates(d2, _, _), Elaborates(d3, _, _)) =>
+        let d = DHExp.If(d1, d2, d3);
+        Elaborates(InconsistentBranchesIf(u, 0, sigma, d), Hole, delta);
       | (_, _) => DoesNotElaborate
-      }
+      };
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -866,7 +875,7 @@ and syn_elab_operand =
         switch (syn_elab(ctx, delta, t3)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d3, ty, delta) =>
-          let d = DHExp.If(d1, d2, d3);
+          let d = DHExp.ConsistentIf(If(d1, d2, d3));
           Elaborates(d, ty, delta);
         }
       }
@@ -1277,7 +1286,7 @@ and ana_elab_operand =
         switch (syn_elab(ctx, delta, t3)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d3, ty, delta) =>
-          let d = DHExp.If(d1, d2, d3);
+          let d = DHExp.ConsistentIf(If(d1, d2, d3));
           Elaborates(d, ty, delta);
         }
       }
@@ -1403,7 +1412,7 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
-  | If(d1, d2, d3) =>
+  | ConsistentIf(If(d1, d2, d3)) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     let (d3, hii) = renumber_result_only(path, hii, d3);

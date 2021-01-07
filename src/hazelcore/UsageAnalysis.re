@@ -92,10 +92,10 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
          )
       |> List.concat;
     scrut_uses @ rules_uses;
-  | If(StandardErrStatus(InHole(_)), t1, t2, t3) =>
+  | If(StandardErrStatus(NotInHole) | InconsistentBranches(_), t1, t2, t3) =>
     let t1_rules = find_uses(~steps=steps @ [0], x, t1);
-    let t2_rules = find_uses(~steps=steps @ [0], x, t2);
-    let t3_rules = find_uses(~steps=steps @ [0], x, t3);
+    let t2_rules = find_uses(~steps=steps @ [1], x, t2);
+    let t3_rules = find_uses(~steps=steps @ [2], x, t3);
     t1_rules @ t2_rules @ t3_rules;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }

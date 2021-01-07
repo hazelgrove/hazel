@@ -73,14 +73,17 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | If(t, t, t)
+  | ConsistentIf(ifs)
+  | InconsistentBranchesIf(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ifs)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t)
+and ifs =
+  | If(t, t, t);
 
 let constructor_string: t => string;
 

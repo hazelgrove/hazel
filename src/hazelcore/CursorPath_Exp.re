@@ -526,10 +526,10 @@ and holes_operand =
     |> holes_case_err(err, rev_steps)
   | If(err, t1, t2, t3) =>
     hs
+    |> holes(t3, [2, ...rev_steps])
+    |> holes(t2, [1, ...rev_steps])
     |> holes(t1, [0, ...rev_steps])
-    |> holes(t2, [0, ...rev_steps])
-    |> holes(t3, [0, ...rev_steps])
-    |> holes_err(err, rev_steps)
+    |> holes_case_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
@@ -830,8 +830,9 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), If(err, t1, t2, t3)) =>
     let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
-      | NotInHole => None
-      | InHole(_, u) =>
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_t1 = holes(t1, [0, ...rev_steps], []);
@@ -1006,8 +1007,9 @@ and holes_zoperand =
   | IfZ1(err, zt1, t2, t3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | NotInHole => []
-      | InHole(_, u) => [
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
@@ -1024,8 +1026,9 @@ and holes_zoperand =
   | IfZ2(err, t1, zt2, t3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | NotInHole => []
-      | InHole(_, u) => [
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
@@ -1042,8 +1045,9 @@ and holes_zoperand =
   | IfZ3(err, t1, t2, zt3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | NotInHole => []
-      | InHole(_, u) => [
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
