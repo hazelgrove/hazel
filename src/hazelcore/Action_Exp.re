@@ -1212,7 +1212,6 @@ and syn_perform_opseq =
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     switch (op) {
     | UserOp(sym) when String.length(sym) > 1 =>
-      // let new_op = String.sub(sym, 0, String.length(sym) - 1);
       let new_op = StringUtil.backspace(String.length(sym) - 1, sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
@@ -1256,20 +1255,12 @@ and syn_perform_opseq =
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   | (Backspace, ZOperator((OnText(i), oper), seq)) =>
-    let (old_op, new_op, is_op_destroyed) =
-      Operators_Exp.(
-        to_string(oper)
-        |> (
-          fun
-          | op_str => {
-              let old_op = string_to_operator(op_str);
-              let new_op_str = StringUtil.backspace(i, op_str);
-              let new_op = string_to_operator(new_op_str);
-              let is_op_destroyed = String.length(new_op_str) == 0;
-              (old_op, new_op, is_op_destroyed);
-            }
-        )
-      );
+    let op_str = Operators_Exp.to_string(oper);
+    let old_op = Operators_Exp.string_to_operator(op_str);
+    let new_op_str = StringUtil.backspace(i, op_str);
+    let new_op = Operators_Exp.string_to_operator(new_op_str);
+
+    let is_op_destroyed = String.length(new_op_str) == 0;
 
     let new_zseq =
       switch (new_op, old_op) {
@@ -1284,13 +1275,13 @@ and syn_perform_opseq =
     Succeeded(SynDone((exp, ty, meta_var)));
 
   | (Delete, ZOperator((OnText(i), oper), seq)) =>
-    let new_op = StringUtil.delete(i, Operators_Exp.to_string(oper));
-
+    let new_op_str = StringUtil.delete(i, Operators_Exp.to_string(oper));
+    let new_op = Operators_Exp.string_to_operator(new_op_str);
     let new_zoperator =
-      switch (Operators_Exp.string_to_operator(new_op)) {
+      switch (new_op) {
       | Some(UserOp(_)) => (
           CursorPosition.OnText(i),
-          Operators_Exp.UserOp(new_op),
+          Operators_Exp.UserOp(new_op_str),
         )
       | Some(op) => (CursorPosition.OnOp(After), op)
       | None => (CursorPosition.OnOp(After), oper) // do nothing
@@ -1625,8 +1616,6 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
-  // | (Delete, CursorE(OnText(j), UserOp(_, _, x))) =>
-  //   syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -1738,15 +1727,13 @@ and syn_perform_operand =
       ),
     )
   | (Construct(SLet), CursorE(_, operand)) =>
-    print_endline("let 1");
-
     Succeeded(
       mk_SynExpandsToLet(
         ~u_gen,
         ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
         (),
       ),
-    );
+    )
 
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
@@ -3067,8 +3054,6 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
-  // | (Delete, CursorE(OnText(j), UserOp(_, _, x))) =>
-  //   ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
