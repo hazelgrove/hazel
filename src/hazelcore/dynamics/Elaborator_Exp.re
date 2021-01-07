@@ -689,12 +689,7 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(
-      InHole(OperatorError(_), u),
-      UserOp(op),
-      skel1,
-      skel2,
-    ) =>
+  | BinOp(InHole(OperatorError(_), u), UserOp(op), skel1, skel2) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let delta =
