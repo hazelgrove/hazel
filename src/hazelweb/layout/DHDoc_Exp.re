@@ -98,7 +98,11 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
-let mk_bin_user_op = (op: Var.t): DHDoc.t => Doc.text(op);
+let mk_bound_user_op = (op: Var.t): DHDoc.t => Doc.text(op);
+let mk_free_user_op = (op: Var.t, u, i): DHDoc.t =>
+  Doc.text(op)
+  // |> Doc.annot(DHAnnot.NonEmptyHole(OperatorError(Free), (u, i)));
+  |> Doc.annot(DHAnnot.VarHole(Free, (u, i)));
 
 let rec mk =
         (
@@ -196,8 +200,6 @@ let rec mk =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | BoundUserOp(op, d1, d2) =>
-        // Todo (corlaban): Figure out freevar holes for exp elaboration
-        // annot(DHAnnot.VarHole(Free, (2, 2)), text(sym))
         let (doc1, doc2) =
           switch (Operators_Exp.associativity(UserOp(op))) {
           | Left =>
@@ -205,9 +207,16 @@ let rec mk =
           | Right =>
             mk_right_associative_operands(precedence_bin_user_op(op), d1, d2)
           };
-        hseps([mk_cast(doc1), mk_bin_user_op(op), mk_cast(doc2)]);
-      | FreeUserOp(u, i, _sigma, sym, _, _) =>
-        text(sym) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        hseps([mk_cast(doc1), mk_bound_user_op(op), mk_cast(doc2)]);
+      | FreeUserOp(u, i, _sigma, op, d1, d2) =>
+        let (doc1, doc2) =
+          switch (Operators_Exp.associativity(UserOp(op))) {
+          | Left =>
+            mk_left_associative_operands(precedence_bin_user_op(op), d1, d2)
+          | Right =>
+            mk_right_associative_operands(precedence_bin_user_op(op), d1, d2)
+          };
+        hseps([mk_cast(doc1), mk_free_user_op(op, u, i), mk_cast(doc2)]);
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =

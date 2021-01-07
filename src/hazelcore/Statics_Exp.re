@@ -512,7 +512,7 @@ and ana_nth_type_mode' =
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent | OperatorError(_), _), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -522,6 +522,7 @@ and ana_nth_type_mode' =
         n <= Skel.rightmost_tm_index(skel1)
           ? go(skel1, ty_elt) : go(skel2, ty)
       }
+    | BinOp(InHole(OperatorError(_), _), _, _, _) => syn_go(skel)
     | BinOp(
         NotInHole,
         And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |

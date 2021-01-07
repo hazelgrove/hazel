@@ -715,9 +715,12 @@ and syn_elab_skel =
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
     let op_ty =
       switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
-      | None => HTyp.Hole
+      | None =>
+        // TODO (corlaban): this case should be unreachable, make this not elaborate
+        HTyp.Hole
       | Some(ty) => ty
       };
+
     switch (HTyp.matched_two_ary_arrow(op_ty)) {
     | Some((ty1, (ty2, ty3))) =>
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
@@ -1120,7 +1123,6 @@ and ana_elab_skel =
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, en, ty);
-  | BinOp(InHole(OperatorError(_) as reason, u), op, skel1, skel2)
   | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -1151,6 +1153,7 @@ and ana_elab_skel =
         };
       }
     }
+  | BinOp(InHole(OperatorError(_), _), _, _, _)
   | BinOp(
       _,
       Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
