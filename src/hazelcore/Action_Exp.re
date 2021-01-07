@@ -524,9 +524,7 @@ let rec syn_move =
   | MoveLeft =>
     switch (ZExp.move_cursor_left(ze)) {
     | None => CursorEscaped(Before)
-    | Some(ze) =>
-      print_endline("move left succeded");
-      Succeeded(SynDone((ze, ty, u_gen)));
+    | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
     }
   | MoveRight =>
     switch (ZExp.move_cursor_right(ze)) {
@@ -616,9 +614,7 @@ let rec syn_perform =
         )
         : ActionOutcome.t(syn_done) => {
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-  | (Failed | CursorEscaped(_)) as err =>
-    print_endline("failure in  syn perform");
-    err;
+  | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
   | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
     let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
@@ -1046,18 +1042,13 @@ and syn_perform_line =
 
   | (_, ExpLineZ(zopseq)) =>
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
-    | None =>
-      print_endline("statics do not syn type");
-      Failed;
+    | None => Failed
     | Some(ty) =>
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
-      | (Failed | CursorEscaped(_)) as err =>
-        print_endline("failed syn perform in expline");
-        err;
+      | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
-        print_endline("syn perform opseq succeeded");
-        Succeeded(LineDone((ze, ctx, u_gen)));
+        Succeeded(LineDone((ze, ctx, u_gen)))
       }
     }
 
@@ -1197,9 +1188,9 @@ and syn_perform_opseq =
     };
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
-    // TODO corlaban: delete before != Backspace after, when we have user operators
     switch (op) {
     | UserOp(sym) =>
+      // delete before != Backspace after, when we have user operators
       let new_op = String.sub(sym, 1, String.length(sym) - 1);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
@@ -1221,11 +1212,12 @@ and syn_perform_opseq =
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     switch (op) {
     | UserOp(sym) when String.length(sym) > 1 =>
-      let new_op = String.sub(sym, 0, String.length(sym) - 1);
+      // let new_op = String.sub(sym, 0, String.length(sym) - 1);
+      let new_op = StringUtil.backspace(String.length(sym) - 1, sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(After), op')
-        | _ => (CursorPosition.OnOp(After), op) // do nothing
+        | None => (CursorPosition.OnOp(After), op) // do nothing
         };
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
@@ -1339,7 +1331,7 @@ and syn_perform_opseq =
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
   | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
     let old_op = Operators_Exp.to_string(oper);
-    let new_op = String.sub(Action_common.shape_to_string(SOp(os)), 0, 1);
+    let new_op = String.make(1, Action_common.shape_to_string(SOp(os)).[0]);
 
     let (pos', oper') =
       switch (pos, oper) {
