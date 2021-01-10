@@ -85,7 +85,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     let d5 = subst_var(d1, x, d5);
     let sigma' = subst_var_env(d1, x, sigma);
-    InconsistentBranchesIf(u, i, sigma, If(d3, d4, d5));
+    InconsistentBranchesIf(u, i, sigma', If(d3, d4, d5));
   | EmptyHole(u, i, sigma) =>
     let sigma' = subst_var_env(d1, x, sigma);
     EmptyHole(u, i, sigma');
@@ -765,10 +765,11 @@ and syn_elab_operand =
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
     }
-  | If(InconsistentBranches(branch_types, u), t1, t2, t3) =>
+  | If(InconsistentBranches(_, u), t1, t2, t3) =>
+    /* might need to check  ^ branch types later */
     switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, pat_ty, delta) =>
+    | Elaborates(d1, _, delta) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let then_branch = syn_elab(ctx, delta, t2);
@@ -1416,7 +1417,13 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     let (d3, hii) = renumber_result_only(path, hii, d3);
-    (If(d1, d2, d3), hii);
+    (ConsistentIf(If(d1, d2, d3)), hii);
+  | InconsistentBranchesIf(u, _, sigma, If(d1, d2, d3)) =>
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (InconsistentBranchesIf(u, i, sigma, If(d1, d2, d3)), hii);
   | EmptyHole(u, _, sigma) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (EmptyHole(u, i, sigma), hii);
@@ -1516,11 +1523,18 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
-  | If(d1, d2, d3) =>
+  | ConsistentIf(If(d1, d2, d3)) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     let (d3, hii) = renumber_sigmas_only(path, hii, d3);
-    (If(d1, d2, d3), hii);
+    (ConsistentIf(If(d1, d2, d3)), hii);
+  | InconsistentBranchesIf(u, i, sigma, If(d1, d2, d3)) =>
+    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (InconsistentBranchesIf(u, i, sigma, If(d1, d2, d3)), hii);
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
