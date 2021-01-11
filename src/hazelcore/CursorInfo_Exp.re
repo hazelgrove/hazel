@@ -1128,10 +1128,7 @@ and ana_cursor_info_zoperand =
       }
     | ApLivelit(
         _,
-        InHole(
-          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-          _,
-        ),
+        InHole(TypeInconsistent(Some(InsufficientParams)), _),
         _,
         _,
         _,
@@ -1148,7 +1145,18 @@ and ana_cursor_info_zoperand =
           ),
         )
       }
-
+    | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        _,
+        _,
+        _,
+        _,
+      ) =>
+      print_endline("cursorinfo ana: ll does nto expand");
+      Some(
+        CursorInfo_common.mk(AnaLivelitDoesNotExpand(ty), ctx, cursor_term),
+      );
     | FreeLivelit(_, _) =>
       Some(CursorInfo_common.mk(AnaFreeLivelit(ty), ctx, cursor_term))
     | ListNil(NotInHole)

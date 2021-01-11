@@ -2290,7 +2290,8 @@ and syn_perform_operand =
     ) =>
     let (_, livelit_ctx) = ctx;
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
-    | None => Failed
+    | None =>
+      Failed;
     | Some((livelit_defn, _)) =>
       let update_cmd =
         livelit_defn.update(serialized_model, serialized_action);

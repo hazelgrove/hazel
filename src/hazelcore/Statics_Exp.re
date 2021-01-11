@@ -1672,6 +1672,7 @@ module rec M: Statics_Exp_Sig.S = {
       | Success(_) => false
       | Failure(_) => true
       };
+    print_endline("ZZZZT syn_fix_holes_livelit");
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
@@ -1681,6 +1682,7 @@ module rec M: Statics_Exp_Sig.S = {
           u_gen,
         );
       } else if (does_not_expand) {
+        print_endline("BLAAAAAA");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           HTyp.Hole,
@@ -1690,6 +1692,9 @@ module rec M: Statics_Exp_Sig.S = {
       } else {
         (expansion_ty, NotInHole, u_gen);
       };
+    print_endline(
+      Sexplib.Sexp.to_string_hum(ErrStatus.sexp_of_t(err_status)),
+    );
     (
       UHExp.ApLivelit(llu, err_status, base_lln, lln, model, splice_info),
       typ,

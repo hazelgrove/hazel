@@ -1229,14 +1229,18 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         }
       }
     | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        _,
+        _,
+        _,
+        _,
+      ) =>
+      //TODO(andrew): not sure this makes sense
+      Elaborates(Triv, Hole, delta)
+    | ApLivelit(
         llu,
-        (
-          NotInHole |
-          InHole(
-            TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-            _,
-          )
-        ) as err_status,
+        (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
         _,
         name,
         serialized_model,
