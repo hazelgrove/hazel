@@ -377,14 +377,42 @@ and evaluate_case =
     }
   }
 and evaluate_if =
-    (inconsistent_info, d1: DHExp.t, d2: DHExp.t, d3: DHExp.t): result =>
-  switch (evaluate(d1)) {
+    (
+      inconsistent_info, 
+      d1: DHExp.t, 
+      d2: DHExp.t, 
+      d3: DHExp.t,
+    )
+    : result =>
+  /* switch (evaluate(d1)) {
   | InvalidInput(msg) => InvalidInput(msg)
   | BoxedValue(d1)
   | Indet(d1) =>
+    switch (d1) {
+    | True => evaluate(d2)
+    | False => evaluate(d3)
+    | 
+    }
     let ifs = DHExp.If(d1, d2, d3);
     switch (inconsistent_info) {
     | None => Indet(ConsistentIf(ifs))
     | Some((u, i, sigma)) => Indet(InconsistentBranchesIf(u, i, sigma, ifs))
-    };
+    }; */
+    
+  switch (inconsistent_info) {
+    | None => 
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d1)
+      | Indet(d1) =>
+        switch (d1) {
+        | True => evaluate(d2)
+        | False => evaluate(d3)
+        | _ => 
+          let ifs = DHExp.If(d1, d2, d3);
+          Indet(ConsistentIf(ifs));
+    | Some((u, i, sigma)) => 
+      let ifs = DHExp.If(d1, d2, d3);
+      Indet(InconsistentBranchesIf(u, i, sigma, ifs))
+  }
   };
