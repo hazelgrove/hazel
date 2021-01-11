@@ -303,14 +303,23 @@ let decoration_views =
                       );
                     let container = Dom_html.(createDiv(document));
                     container##setAttribute(
-                      Js.string("class"),
-                      Js.string("user-defined-livelit-container"),
-                    );
-                    container##setAttribute(
                       Js.string("style"),
                       Js.string(container_position_style),
                     );
-                    container##.innerHTML := Js.string(llview(llu, model));
+                    switch (llview(llu, model)) {
+                    | None =>
+                      container##setAttribute(
+                        Js.string("class"),
+                        Js.string("user-defined-livelit-container-error"),
+                      );
+                      container##.innerHTML := Js.string("Livelit View Error");
+                    | Some(view_str) =>
+                      container##setAttribute(
+                        Js.string("class"),
+                        Js.string("user-defined-livelit-container"),
+                      );
+                      container##.innerHTML := Js.string(view_str);
+                    };
                     ((), container);
                   },
                 (),
@@ -432,6 +441,17 @@ let decoration_views =
             let left = Float.of_int(start.col) *. font_metrics.col_width;
             let dim_attr =
               switch (shape) {
+              | InvalidShape =>
+                Vdom.Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+                    13, // TODO(andrew): is this right?
+                    font_metrics.row_height,
+                    top,
+                    left,
+                  ),
+                )
               | Inline(width) =>
                 Vdom.Attr.create(
                   "style",
@@ -460,6 +480,7 @@ let decoration_views =
                   Attr.classes([
                     "LivelitView",
                     switch (shape) {
+                    | InvalidShape => "InvalidShape"
                     | Inline(_) => "Inline"
                     | MultiLine(_) => "MultiLine"
                     },

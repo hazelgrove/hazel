@@ -954,6 +954,7 @@ h1 {
   border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
 }
+
 .LivelitView.Inline {
   display: inline-block;
   padding: 0 10px;
@@ -973,6 +974,13 @@ h1 {
   z-index: var(--livelit-view-z);
   white-space: normal;
   position: absolute;
+}
+
+.code.presentation .user-defined-livelit-container-error {
+  z-index: var(--livelit-view-z);
+  white-space: normal;
+  position: absolute;
+  color: #b00;
 }
 
 .grid-container {

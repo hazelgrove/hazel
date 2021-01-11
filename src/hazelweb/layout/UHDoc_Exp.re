@@ -42,7 +42,6 @@ let mk_NTuple =
       ~mk_operator: UHExp.operator => UHDoc.t,
       ~enforce_inline: bool,
       ~llview_ctx: Statics.livelit_web_view_ctx,
-      // andrew: added above but it didn't cause type errors????
       opseq: OpSeq.t('a, UHExp.operator),
     )
     : UHDoc.t =>
@@ -63,7 +62,7 @@ let mk_NTuple =
 let livelit_handler = (~enforce_inline, go, seq, skel) =>
   switch (LivelitUtil.check_livelit_skel(seq, skel)) {
   | Some((ApLivelitData(llu, base_llname, llname, model, _), _)) =>
-    // TODO(livelit definitions): thread ctx
+    // TODO(livelit definitions): thread ctx?
     let ctx = Livelits.initial_livelit_view_ctx;
     switch (VarMap.lookup(ctx, base_llname)) {
     | None => assert(false)
@@ -73,6 +72,7 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
       let llview_doc = {
         let spaceholder =
           switch (shape) {
+          | InvalidShape => Doc.text("Invalid Shape")
           | Inline(width) => Doc.text(String.make(width, ' '))
           | MultiLine(height) =>
             enforce_inline
@@ -124,7 +124,7 @@ and mk_doc = (expr, child_step) => {
     mk,
     ~memoize=false,
     ~enforce_inline=false,
-    // TODO livelit view ctx
+    // TODO livelit view ctx?
     (IntMap.empty, expr),
   )
   |> UHDoc_common.annot_Step(child_step);

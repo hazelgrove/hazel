@@ -55,7 +55,7 @@ module LivelitAdapter = (L: LIVELIT) => {
           serialize_monad,
         ),
       expand: serialized_model =>
-        L.expand(L.model_of_sexp(serialized_model)),
+        Success(L.expand(L.model_of_sexp(serialized_model))),
     };
 
   let serialized_view_fn = (serialized_model, trigger, sync) =>

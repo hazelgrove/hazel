@@ -822,6 +822,7 @@ let rec mk_BinOp =
         }),
       );
     switch (shape) {
+    | InvalidShape => Doc.hcat(llexp, Doc.text("\xC2\xA0Invalid Shape"))
     | Inline(width) =>
       let spaceholder =
         Doc.text(StringUtil.replicat(width, UnicodeConstants.nbsp));

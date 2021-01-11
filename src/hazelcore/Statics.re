@@ -16,4 +16,6 @@ type livelit_def_ctx = VarMap.t_(livelit_view_data);
 type livelit_view_ctx = MetaVarMap.t(livelit_view_data);
 [@deriving sexp]
 type livelit_web_view_ctx =
-  MetaVarMap.t(((int, SerializedModel.t) => string, LivelitShape.t));
+  MetaVarMap.t(
+    ((int, SerializedModel.t) => option(string), LivelitShape.t),
+  );

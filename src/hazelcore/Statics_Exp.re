@@ -58,7 +58,7 @@ module rec M: Statics_Exp_Sig.S = {
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let dh_init = Elaborator.syn_elab(Contexts.empty, Delta.empty, init);
     switch (dh_init) {
-    | DoesNotElaborate => failwith("mk_ll_init ERROR")
+    | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
     | Elaborates(dh_init, _, _) => serialize_ll_monad(dh_init)
     };
   };
@@ -69,36 +69,35 @@ module rec M: Statics_Exp_Sig.S = {
     let model_dhexp = DHExp.t_of_sexp(model);
     let update_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, update)) {
-      | DoesNotElaborate => failwith("mk_ll_update elab ERROR")
+      | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
       | Elaborates(update, _, _) => update
       };
     let term = DHExp.Ap(update_dhexp, DHExp.Pair(action_dhexp, model_dhexp));
-    print_endline("mk_ll_update");
-    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
-    | InvalidInput(_)
-    | Indet(_) => failwith("mk_ll_update eval ERROR")
-    | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
+    | InvalidInput(_) => failwith("mk_ll_update eval InvalidInput")
+    | Indet(new_model)
+    | BoxedValue(new_model) => serialize_ll_monad(new_model)
     };
   };
 
-  let mk_ll_view = (view: UHExp.t, llu: int, model: SerializedModel.t): string => {
-    // TODO(andrew): handle failure cases more better
+  let mk_ll_view =
+      (view: UHExp.t, llu: int, model: SerializedModel.t): option(string) => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let llu_dhexp = DHExp.IntLit(llu);
     switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
+    | DoesNotElaborate => failwith("mk_ll_view elab DoesNotElaborate")
     | Elaborates(view_dhexp, _, _) =>
       let term = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
       switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
-      | BoxedValue(StringLit(str)) => str
-      | _ => failwith("mk_ll_view eval ERROR")
+      | BoxedValue(StringLit(str)) =>
+        // TODO(andrew): strip casts
+        Some(str)
+      | _ => None
       };
-    | _ => failwith("mk_ll_view elab ERROR")
     };
   };
 
   let mk_ll_shape = (shape: UHExp.t): LivelitShape.t => {
-    // TODO(andrew): handle failure cases more better
     switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, shape)) {
     | Elaborates(Pair(BoolLit(flag), IntLit(num)), _, _) =>
       if (flag) {
@@ -106,28 +105,37 @@ module rec M: Statics_Exp_Sig.S = {
       } else {
         MultiLine(num);
       }
-    | _ => failwith("mk_ll_shape ERROR")
+    | _ => InvalidShape
     };
   };
 
-  let mk_ll_expand = (expand: UHExp.t, model: SerializedModel.t) => {
-    let model_dhexp = model |> DHExp.t_of_sexp;
+  let mk_ll_expand =
+      (expand: UHExp.t, model: SerializedModel.t)
+      : LivelitDefinition.livelit_expand_result => {
+    let model_dhexp = DHExp.t_of_sexp(model);
     let expand_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
       | Elaborates(expand, _, _) => expand
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
-    //print_endline("mk_ll_expand");
-    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(StringLit(str)) =>
-      // TODO(andrew) : catch exceptions here
-      str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
-    | BoxedValue(_) => failwith("mk_ll_expand eval otherval")
-    | InvalidInput(code) =>
-      failwith("mk_ll_expand eval invalidinput" ++ string_of_int(code))
-    | Indet(_) => failwith("mk_ll_expand eval indet")
+      // TODO (andrew): string with casts match on boxedval(v) and strip casts
+      let maybeSexp =
+        try(Some(Sexplib.Sexp.of_string(str))) {
+        | _ => None
+        };
+      switch (maybeSexp) {
+      | None => Failure(NotSexp)
+      | Some(sexp) =>
+        try(Success(UHExp.t_of_sexp(sexp))) {
+        | _ => Failure(NotUHExp)
+        }
+      };
+    | BoxedValue(_)
+    | InvalidInput(_)
+    | Indet(_) => Failure(NotStringlit)
     };
   };
 
@@ -190,7 +198,6 @@ module rec M: Statics_Exp_Sig.S = {
         } as llrecord,
       ) =>
       // TODO: captures
-      // TODO: errstatus for name
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
       let results = [
@@ -473,7 +480,13 @@ module rec M: Statics_Exp_Sig.S = {
       }
     | ApLivelit(
         _,
-        (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        (
+          NotInHole |
+          InHole(
+            TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+            _,
+          )
+        ) as err_status,
         _,
         name,
         serialized_model,
@@ -544,10 +557,13 @@ module rec M: Statics_Exp_Sig.S = {
     | Some(splice_ctx) =>
       let expansion_ty = livelit_defn.expansion_ty;
       let expand = livelit_defn.expand;
-      let expansion = expand(serialized_model);
-      switch (ana(splice_ctx, expansion, expansion_ty)) {
-      | None => None
-      | Some(_) => Some(expansion_ty)
+      switch (expand(serialized_model)) {
+      | Failure(_) => None
+      | Success(expansion) =>
+        switch (ana(splice_ctx, expansion, expansion_ty)) {
+        | None => None
+        | Some(_) => Some(expansion_ty)
+        }
       };
     }
   and ana_splice_map_and_params =
@@ -713,7 +729,10 @@ module rec M: Statics_Exp_Sig.S = {
       ana_subsume_operand(ctx, operand', ty);
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        InHole(
+          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+          _,
+        ),
         _,
         _,
         _,
@@ -1512,11 +1531,9 @@ module rec M: Statics_Exp_Sig.S = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
       (Subscript(NotInHole, target, start_, end_), String, u_gen);
     | ApLivelit(llu, _, _, lln, model, splice_info) =>
-      print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
-        print_endline("ZZZT");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, lln), Hole, u_gen);
       | Some((livelit_defn, closed_tys)) =>
@@ -1650,12 +1667,24 @@ module rec M: Statics_Exp_Sig.S = {
       (~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
     let expansion_ty = livelit_defn.expansion_ty;
     let base_lln = livelit_defn.name;
+    let does_not_expand =
+      switch (livelit_defn.expand(model)) {
+      | Success(_) => false
+      | Failure(_) => true
+      };
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           HTyp.Hole,
           ErrStatus.InHole(TypeInconsistent(Some(InsufficientParams)), u),
+          u_gen,
+        );
+      } else if (does_not_expand) {
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (
+          HTyp.Hole,
+          ErrStatus.InHole(TypeInconsistent(Some(DoesNotExpand)), u),
           u_gen,
         );
       } else {
@@ -2323,12 +2352,8 @@ module rec M: Statics_Exp_Sig.S = {
           MetaVarMap.singleton(metavar, (view, shape))
         };
       let new_view_ctx2 = build_ll_view_ctx_splice_info(spliceinfo, def_ctx);
-      let ret_ctx = MetaVarMap.shadowed_merge(new_view_ctx2, new_view_ctx1);
-      // TODO (andrew): make merge fn here more better
-      ret_ctx;
-    | FreeLivelit(_metavar, _name) =>
-      // not sure about this case -andrew
-      MetaVarMap.empty
+      MetaVarMap.shadowed_merge(new_view_ctx2, new_view_ctx1);
+    | FreeLivelit(_metavar, _name) => MetaVarMap.empty
     };
   }
   and build_ll_view_ctx_splice_info =

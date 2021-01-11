@@ -612,7 +612,10 @@ and syn_cursor_info_skel =
             };
           | Some(
               StandardErr(
-                InHole(TypeInconsistent(Some(InsufficientParams)), _),
+                InHole(
+                  TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+                  _,
+                ),
               ),
             ) =>
             Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
@@ -1125,7 +1128,10 @@ and ana_cursor_info_zoperand =
       }
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        InHole(
+          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+          _,
+        ),
         _,
         _,
         _,

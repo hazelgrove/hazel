@@ -1,7 +1,8 @@
 module SubReason: {
   [@deriving sexp]
   type t =
-    | InsufficientParams;
+    | InsufficientParams
+    | DoesNotExpand;
 };
 
 module HoleReason: {

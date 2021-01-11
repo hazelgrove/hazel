@@ -522,6 +522,7 @@ module LivelitExpression = {
           Attr.create(
             "height",
             switch (shape) {
+            | InvalidShape
             | Inline(_) => string_of_int(MeasuredLayout.height(subject))
             | MultiLine(_) =>
               string_of_float(
@@ -533,6 +534,7 @@ module LivelitExpression = {
           Attr.create(
             "y",
             switch (shape) {
+            | InvalidShape
             | Inline(_) => "0.05"
             | MultiLine(_) => "0"
             },

@@ -1230,7 +1230,13 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       }
     | ApLivelit(
         llu,
-        (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        (
+          NotInHole |
+          InHole(
+            TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+            _,
+          )
+        ) as err_status,
         _,
         name,
         serialized_model,
@@ -1287,103 +1293,107 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     let expansion_ty = livelit_defn.expansion_ty;
     let expand = livelit_defn.expand;
     let proto_expansion = expand(serialized_model);
-    let proto_elaboration_ctx = to_ctx(si, all_param_tys);
-    let proto_elaboration_result =
-      ana_elab(
-        ~livelit_holes,
-        proto_elaboration_ctx,
-        delta,
-        proto_expansion,
-        expansion_ty,
-      );
-    switch (proto_elaboration_result) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(proto_elaboration, _, delta) =>
-      // Like List.combine, but pads missing args with None
-      let rec params_args = (p, a) =>
-        switch (p, a) {
-        | ([], _) => []
-        | ([ph, ...pt], []) => [(ph, None), ...params_args(pt, [])]
-        | ([ph, ...pt], [ah, ...at]) => [
-            (ph, Some(ah)),
-            ...params_args(pt, at),
-          ]
-        };
-      // expand the args
-      let dargs_opt =
-        params_args(reqd_param_tys, args)
-        |> ListUtil.map_with_accumulator_opt(
-             (delta, ((name, ty), arg_opt)) =>
-               switch (arg_opt) {
-               | None => Some((delta, (name, ty, None)))
-               | Some(arg) =>
-                 switch (ana_elab(~livelit_holes, ctx, delta, arg, ty)) {
-                 | DoesNotElaborate => None
-                 | Elaborates(d, _, delta) =>
-                   Some((delta, (name, ty, Some(d))))
-                 }
-               },
-             delta,
-           );
-      switch (dargs_opt) {
-      | None => DoesNotElaborate
-      | Some((delta, dargs)) =>
-        // expand the splices
-        let si_opt =
-          IntMap.fold(
-            (name, (ty, exp), acc_opt) =>
-              Option.bind(
-                acc_opt, ((delta, ds: IntMap.t((HTyp.t, DHExp.t)))) =>
-                switch (ana_elab(~livelit_holes, ctx, delta, exp, ty)) {
-                | DoesNotElaborate => None
-                | Elaborates(d, _, delta) =>
-                  Some((delta, IntMap.add(name, (ty, d), ds)))
-                }
-              ),
-            si.splice_map,
-            Some((delta, IntMap.empty)),
-          );
-        switch (si_opt) {
+    switch (proto_expansion) {
+    | Failure(_err) => DoesNotElaborate
+    | Success(proto_expansion) =>
+      let proto_elaboration_ctx = to_ctx(si, all_param_tys);
+      let proto_elaboration_result =
+        ana_elab(
+          ~livelit_holes,
+          proto_elaboration_ctx,
+          delta,
+          proto_expansion,
+          expansion_ty,
+        );
+      switch (proto_elaboration_result) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(proto_elaboration, _, delta) =>
+        // Like List.combine, but pads missing args with None
+        let rec params_args = (p, a) =>
+          switch (p, a) {
+          | ([], _) => []
+          | ([ph, ...pt], []) => [(ph, None), ...params_args(pt, [])]
+          | ([ph, ...pt], [ah, ...at]) => [
+              (ph, Some(ah)),
+              ...params_args(pt, at),
+            ]
+          };
+        // expand the args
+        let dargs_opt =
+          params_args(reqd_param_tys, args)
+          |> ListUtil.map_with_accumulator_opt(
+               (delta, ((name, ty), arg_opt)) =>
+                 switch (arg_opt) {
+                 | None => Some((delta, (name, ty, None)))
+                 | Some(arg) =>
+                   switch (ana_elab(~livelit_holes, ctx, delta, arg, ty)) {
+                   | DoesNotElaborate => None
+                   | Elaborates(d, _, delta) =>
+                     Some((delta, (name, ty, Some(d))))
+                   }
+                 },
+               delta,
+             );
+        switch (dargs_opt) {
         | None => DoesNotElaborate
-        | Some((delta, sim)) =>
-          let si =
-            SpliceInfo.update_splice_map(
-              si,
-              sim |> IntMap.map(((ty, d)) => (ty, Some(d))),
+        | Some((delta, dargs)) =>
+          // expand the splices
+          let si_opt =
+            IntMap.fold(
+              (name, (ty, exp), acc_opt) =>
+                Option.bind(
+                  acc_opt, ((delta, ds: IntMap.t((HTyp.t, DHExp.t)))) =>
+                  switch (ana_elab(~livelit_holes, ctx, delta, exp, ty)) {
+                  | DoesNotElaborate => None
+                  | Elaborates(d, _, delta) =>
+                    Some((delta, IntMap.add(name, (ty, d), ds)))
+                  }
+                ),
+              si.splice_map,
+              Some((delta, IntMap.empty)),
             );
-          let dargs_opt' =
-            dargs
-            |> ListUtil.map_with_accumulator_opt(
-                 ((), (v, t, arg_opt)) =>
-                   arg_opt |> Option.map(arg => ((), (v, t, arg))),
-                 (),
-               );
-          let rslt =
-            switch (dargs_opt') {
-            | Some(((), dargs')) when !livelit_holes =>
-              // subst each splice and arg into the elab
-              wrap_proto_expansion(
-                proto_elaboration,
-                sim,
-                closed_dargs @ dargs',
-              )
-            | _ =>
-              let gamma = Contexts.gamma(ctx);
-              let sigma = id_env(gamma);
-              let closed_dargs =
-                closed_dargs
-                |> List.map(((s, ty, darg)) => (s, ty, Some(darg)));
-              DHExp.LivelitHole(
-                llu,
-                0,
-                sigma,
-                lln,
+          switch (si_opt) {
+          | None => DoesNotElaborate
+          | Some((delta, sim)) =>
+            let si =
+              SpliceInfo.update_splice_map(
                 si,
-                closed_dargs @ dargs,
-                proto_elaboration,
+                sim |> IntMap.map(((ty, d)) => (ty, Some(d))),
               );
-            };
-          Elaborates(rslt, expansion_ty, delta);
+            let dargs_opt' =
+              dargs
+              |> ListUtil.map_with_accumulator_opt(
+                   ((), (v, t, arg_opt)) =>
+                     arg_opt |> Option.map(arg => ((), (v, t, arg))),
+                   (),
+                 );
+            let rslt =
+              switch (dargs_opt') {
+              | Some(((), dargs')) when !livelit_holes =>
+                // subst each splice and arg into the elab
+                wrap_proto_expansion(
+                  proto_elaboration,
+                  sim,
+                  closed_dargs @ dargs',
+                )
+              | _ =>
+                let gamma = Contexts.gamma(ctx);
+                let sigma = id_env(gamma);
+                let closed_dargs =
+                  closed_dargs
+                  |> List.map(((s, ty, darg)) => (s, ty, Some(darg)));
+                DHExp.LivelitHole(
+                  llu,
+                  0,
+                  sigma,
+                  lln,
+                  si,
+                  closed_dargs @ dargs,
+                  proto_elaboration,
+                );
+              };
+            Elaborates(rslt, expansion_ty, delta);
+          };
         };
       };
     };
@@ -1850,7 +1860,11 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | Subscript(NotInHole, _, _, _)
     | ApLivelit(
         _,
-        NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        NotInHole |
+        InHole(
+          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+          _,
+        ),
         _,
         _,
         _,
