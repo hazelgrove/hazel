@@ -45,10 +45,14 @@ let init = (): t => {
       all_hidden_history_expand: false,
       disable_auto_scrolling: false,
       preview_on_hover: true,
-      hover_recover_group_id: 0,
-      hover_recover_elt_id: 0,
-      cur_group_id: 0,
-      cur_elt_id: 0,
+      hover_recover_id: {
+        group_id: 0,
+        elt_id: 0,
+      },
+      cur_id: {
+        group_id: 0,
+        elt_id: 0,
+      },
     };
   };
   let settings = Settings.init;

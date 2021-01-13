@@ -12,12 +12,9 @@ type move_input =
 
 [@deriving sexp]
 type shift_history_info = {
-  group_id: int,
-  elt_id: int,
+  id: UndoHistory.id,
   call_by_mouseenter: bool,
 };
-[@deriving sexp]
-type group_id = int;
 [@deriving sexp]
 type t =
   | EditAction(EditAction.t)
@@ -38,7 +35,7 @@ type t =
   | Undo
   | ShiftHistory(shift_history_info)
   | ShiftWhenScroll
-  | ToggleHistoryGroup(group_id)
+  | ToggleHistoryGroup(UndoHistory.group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
