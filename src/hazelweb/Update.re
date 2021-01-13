@@ -162,28 +162,16 @@ let apply_action =
         }
 
       | LivelitAction(llu, serialized_action) =>
-        print_endline("Update.re: livelit action recieved:");
-        print_endline(
-          Sexplib.Sexp.to_string_hum(
-            SerializedAction.sexp_of_t(serialized_action),
-          ),
-        );
         let program = Model.get_program(model);
-        print_endline("Update.re: got model");
         let performed =
           model
           |> Model.perform_action(
                Program.move_to_node(Livelit, llu, program),
              )
           |> Model.perform_action(PerformLivelitAction(serialized_action));
-        print_endline("Update.re: performed action");
         switch (Program.get_path(program)) {
-        | None =>
-          print_endline("Update.re: failed to get path");
-          performed;
-        | Some(path) =>
-          print_endline("Update.re: got path");
-          Model.perform_action(MoveTo(path), performed);
+        | None => performed
+        | Some(path) => Model.perform_action(MoveTo(path), performed)
         };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)

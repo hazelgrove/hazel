@@ -214,19 +214,31 @@ module rec M: Statics_Exp_Sig.S = {
         let new_ll_def: LivelitDefinition.t = {
           name: name_str,
           expansion_ty: UHTyp.expand(expansion_type),
-          param_tys: [], // TODO(andrew): params
+          param_tys: [], // TODO: params
           init_model: mk_ll_init(init),
           update: mk_ll_update(update),
           expand: mk_ll_expand(expand),
         };
-        print_endline("EXTENDING LIVELIT CTX");
-        print_endline(name_str);
-
+        /* NOTE(andrew): Extend the livelit context only if all
+         * fields typecheck; otherwise we have a litany of possible
+         * failure cases to contend with at the ap site, most of which
+         * are already indicated by type holes in the definition. An
+         * alternate approach to consider is adding an error field to
+         * livelitdefs and dealing with these heterogenously at
+         * the ap site. */
+        let ll_def_valid =
+          UHExp.is_complete(init, false)
+          && UHExp.is_complete(update, false)
+          && UHExp.is_complete(view, false)
+          && UHExp.is_complete(shape, false)
+          && UHExp.is_complete(expand, false);
         let livelit_ctx =
-          LivelitCtx.extend(
-            livelit_ctx,
-            (name_str, (new_ll_def, [])) // TODO(andrew): params
-          );
+          ll_def_valid
+            ? LivelitCtx.extend(
+                livelit_ctx,
+                (name_str, (new_ll_def, [])) // TODO: params
+              )
+            : livelit_ctx;
         Some((gamma, livelit_ctx));
       };
     | AbbrevLine(lln_new, err_status, lln_old, args) =>
@@ -1672,7 +1684,6 @@ module rec M: Statics_Exp_Sig.S = {
       | Success(_) => false
       | Failure(_) => true
       };
-    print_endline("ZZZZT syn_fix_holes_livelit");
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
@@ -1682,7 +1693,6 @@ module rec M: Statics_Exp_Sig.S = {
           u_gen,
         );
       } else if (does_not_expand) {
-        print_endline("BLAAAAAA");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           HTyp.Hole,
@@ -1692,9 +1702,6 @@ module rec M: Statics_Exp_Sig.S = {
       } else {
         (expansion_ty, NotInHole, u_gen);
       };
-    print_endline(
-      Sexplib.Sexp.to_string_hum(ErrStatus.sexp_of_t(err_status)),
-    );
     (
       UHExp.ApLivelit(llu, err_status, base_lln, lln, model, splice_info),
       typ,
@@ -2346,13 +2353,7 @@ module rec M: Statics_Exp_Sig.S = {
     | ApLivelit(metavar, _, _base_name, name, _, spliceinfo) =>
       let new_view_ctx1 =
         switch (VarMap.lookup(def_ctx, name)) {
-        | None =>
-          print_endline(
-            "WARNING: build_ll_view: livelit name not found: "
-            ++ name
-            ++ "\n(this is fine if it's a built-in livelit)",
-          );
-          MetaVarMap.empty;
+        | None => MetaVarMap.empty
         | Some((view, shape)) =>
           MetaVarMap.singleton(metavar, (view, shape))
         };

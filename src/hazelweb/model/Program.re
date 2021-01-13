@@ -291,11 +291,6 @@ let get_doc = (~settings: Settings.t, program) => {
 let get_layout = (~settings: Settings.t, program) => {
   let width = program.width;
   let (doc, splice_docs) = get_doc(~settings, program);
-  // print_endline("get_layout");
-  // splice_docs
-  // |> MetaVarMap.to_seq
-  // |> List.of_seq
-  // |> List.iter(((u, _)) => print_endline(string_of_int(u)));
   let layout =
     TimeUtil.measure_time(
       "LayoutOfDoc.layout_of_doc",

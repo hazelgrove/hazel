@@ -615,7 +615,7 @@ let syn_perform_ll_line =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, new_lldef: ZExp.zline)
     : ActionOutcome.t(line_success) => {
   switch (Statics_Exp.syn_line(ctx, ZExp.erase_zline(new_lldef))) {
-  | None => Failed
+  | None => Failed // precondition: synthesis should succeed
   | Some(ctx) => Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)))
   };
 };
@@ -1256,6 +1256,7 @@ and syn_perform_line =
           update,
           view,
         });
+      //TODO(andrew): check what this looks like as below is failing
       syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (
@@ -2290,8 +2291,7 @@ and syn_perform_operand =
     ) =>
     let (_, livelit_ctx) = ctx;
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
-    | None =>
-      Failed;
+    | None => Failed
     | Some((livelit_defn, _)) =>
       let update_cmd =
         livelit_defn.update(serialized_model, serialized_action);
