@@ -91,6 +91,7 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | SwapRight
   | SwapUp
   | SwapDown
+  | RenumberHoles
   | Init =>
     failwith(
       __LOC__
@@ -217,6 +218,8 @@ and perform_opseq =
         );
       }
     }
+  | (RenumberHoles, _) =>
+    failwith("Renumbering action should not be performed.")
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_operand =
@@ -327,5 +330,7 @@ and perform_operand =
       perform_operand(Action_common.escape(side), zoperand)
     | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
     }
+  | (RenumberHoles, _) =>
+    failwith("Renumbering action should not be performed.")
   | (Init, _) => failwith("Init action should not be performed.")
   };
