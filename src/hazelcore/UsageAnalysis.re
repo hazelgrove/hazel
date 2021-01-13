@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type uses_list = list(CursorPath_common.steps);
+type uses_list = list(CursorPath.steps);
 
 let rec binds_var = (x: Var.t, p: UHPat.t): bool => binds_var_opseq(x, p)
 and binds_var_opseq = (x, OpSeq(_, seq): UHPat.opseq): bool =>
@@ -24,7 +24,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   };
 
 let rec find_uses =
-        (~steps: CursorPath_common.steps, x: Var.t, e: UHExp.t): uses_list =>
+        (~steps: CursorPath.steps, x: Var.t, e: UHExp.t): uses_list =>
   find_uses_block(~steps, x, e)
 and find_uses_block =
     (~offset=0, ~steps, x: Var.t, block: UHExp.block): uses_list => {
@@ -45,6 +45,7 @@ and find_uses_block =
 }
 and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
   switch (line) {
+  | CommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_uses_opseq(~steps, x, opseq), false)
   | EmptyLine => ([], false)
   | LetLine(p, _, def) => (

@@ -15,6 +15,7 @@ type t =
   | Colon
   | Equals
   | Enter
+  | Shift_Enter
   | Backslash
   | Plus
   | Minus

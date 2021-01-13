@@ -499,13 +499,14 @@ and syn_elab_line =
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
       LinesExpand(prelude, ctx, delta);
     }
-  | EmptyLine => LinesExpand(d => d, ctx, delta)
+  | EmptyLine
+  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
       let (ctx1, is_recursive_fn) =
-        Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
+        Statics_Exp.ctx_for_let(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>

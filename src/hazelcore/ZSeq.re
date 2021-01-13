@@ -15,10 +15,10 @@ let erase =
   switch (zseq) {
   | ZOperand(zoperand, (prefix, suffix)) =>
     let operand = zoperand |> erase_zoperand;
-    Seq.affix_seq(prefix, S(operand, suffix));
+    Seq.prefix_seq(prefix, S(operand, suffix));
   | ZOperator(zoperator, (S(prefix_hd, prefix_tl), suffix)) =>
     let operator = zoperator |> erase_zoperator;
-    Seq.affix_seq(prefix_tl, S(prefix_hd, A(operator, suffix)));
+    Seq.prefix_seq(prefix_tl, S(prefix_hd, A(operator, suffix)));
   };
 
 let is_before =
@@ -38,26 +38,6 @@ let is_after =
   | ZOperand(_, (_, A(_))) => false
   | ZOperand(zoperand, (_, E)) => is_after_zoperand(zoperand)
   };
-
-let place_before =
-    (
-      ~place_before_operand: 'operand => 'zoperand,
-      seq: Seq.t('operand, 'operator),
-    )
-    : t('operand, 'operator, 'zoperand, 'zoperator) => {
-  let (first, suffix) = seq |> Seq.split_first_and_suffix;
-  ZOperand(first |> place_before_operand, (E, suffix));
-};
-
-let place_after =
-    (
-      ~place_after_operand: 'operand => 'zoperand,
-      seq: Seq.t('operand, 'operator),
-    )
-    : t('operand, 'operator, 'zoperand, 'zoperator) => {
-  let (prefix, last) = seq |> Seq.split_prefix_and_last;
-  ZOperand(last |> place_after_operand, (prefix, E));
-};
 
 let move_cursor_left =
     (

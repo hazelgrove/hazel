@@ -1,10 +1,12 @@
-[@deriving sexp]
-type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
-
-type type_mode =
-  | Syn
-  | Ana(HTyp.t);
-
+/**
+ * Given a `skel` in analytic position against type `ty`,
+ * `tuple_zip(~get_tuple_elements, skel, ty)` attempts to
+ * zip together the tuple components of `skel` and `ty`.
+ * Zipping succeeds either when `skel` and `ty` have the
+ * same number of tuple components, when `skel` consists of
+ * a single tuple components, or when `ty` consists of a
+ * single tuple component that is `Hole`.
+ */
 let tuple_zip =
     (
       ~get_tuple_elements: Skel.t('op) => list(Skel.t('op)),

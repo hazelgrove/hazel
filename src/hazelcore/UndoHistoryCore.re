@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -33,8 +33,8 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
+  | ConstructEdit(Action.shape)
+  /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
@@ -181,6 +181,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Line(_, line) =>
     switch (line) {
     | EmptyLine => MinLen
+    | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }

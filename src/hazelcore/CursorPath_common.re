@@ -1,29 +1,4 @@
-open Sexplib.Std;
-
-/*
- module Steps : {
-   type t;
-   let prepend_step : ChildIndex.t => t => t;
-   let append_step : t => ChildIndex.t => t;
-   let to_list : t => list(ChildIndex.t);
- } = {
-   type t = list(ChildIndex.t);
-
-   let prepend_step = (step, steps) => [step, ...steps];
-   let append_step = (steps, step) => steps ++ [step];
-   let to_list = steps => steps;
- }
- */
-
-[@deriving sexp]
-type steps = list(ChildIndex.t);
-[@deriving sexp]
-type rev_steps = steps;
-
-[@deriving sexp]
-type t = (steps, CursorPosition.t);
-[@deriving sexp]
-type rev_t = (CursorPosition.t, rev_steps);
+open CursorPath;
 
 let rev = ((cursor, rev_steps): rev_t): t => (
   rev_steps |> List.rev,
@@ -47,30 +22,6 @@ let of_zopseq_ =
     let length = Seq.length(prefix) + Seq.length(suffix);
     ([length + Seq.length(prefix) - 1], cursor);
   };
-
-[@deriving sexp]
-type hole_sort =
-  | TypHole
-  | PatHole(MetaVar.t)
-  | ExpHole(MetaVar.t);
-
-[@deriving sexp]
-type hole_info = {
-  sort: hole_sort,
-  is_empty: bool,
-  steps,
-};
-
-[@deriving sexp]
-type hole_list = list(hole_info);
-
-/* two hole lists, one for before the cursor, one for after */
-[@deriving sexp]
-type zhole_list = {
-  holes_before: hole_list,
-  hole_selected: option(hole_info),
-  holes_after: hole_list,
-};
 
 let mk_zholes =
     (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
@@ -118,13 +69,13 @@ let follow_opseq_ =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_operand((xs, cursor))
-      |> OptUtil.map(zoperand =>
+      |> Option.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
          )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_operator((xs, cursor))
-      |> OptUtil.map(zoperator =>
+      |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -149,11 +100,11 @@ let of_steps_opseq_ =
     | (None, None) => None
     | (Some((operand, _)), _) =>
       let path = operand |> of_steps_operand(xs, ~side);
-      path |> OptUtil.map(path => cons'(x, path));
+      path |> Option.map(path => cons'(x, path));
     | (_, Some((operator, _))) =>
       operator
       |> of_steps_operator(xs, ~side)
-      |> OptUtil.map(path => cons'(x, path))
+      |> Option.map(path => cons'(x, path))
     }
   };
 
@@ -167,7 +118,7 @@ let holes_err =
   switch (err) {
   | NotInHole => hs
   | InHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -182,7 +133,7 @@ let holes_verr =
   switch (verr) {
   | NotInVarHole => hs
   | InVarHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -197,7 +148,7 @@ let holes_case_err =
   switch (err) {
   | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
   | InconsistentBranches(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -231,11 +182,7 @@ let holes_skel_ =
       | InHole(_, u) =>
         let step = skel1 |> Skel.leftmost_tm_index;
         [
-          {
-            sort: hole_sort(u),
-            steps: List.rev([step, ...rev_steps]),
-            is_empty: false,
-          },
+          {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
           ...hs,
         ];
       };
@@ -247,11 +194,7 @@ let holes_skel_ =
         | InHole(_, u) =>
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           [
-            {
-              sort: hole_sort(u),
-              steps: List.rev([step, ...rev_steps]),
-              is_empty: false,
-            },
+            {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
             ...hs,
           ];
         };
@@ -330,7 +273,6 @@ let holes_zopseq_ =
               Some({
                 sort: hole_sort(u),
                 steps: List.rev([step, ...rev_steps]),
-                is_empty: false,
               });
             };
           if (n == preceding_operand_index) {
@@ -341,9 +283,7 @@ let holes_zopseq_ =
               (),
             );
           } else {
-            // convert option to list
-            let binop_holes =
-              binop_hole |> OptUtil.map_default(~default=[], hole => [hole]);
+            let binop_holes = Option.to_list(binop_hole);
             if (n < preceding_operand_index) {
               let holes1 = holes_skel(skel1);
               let zholes2 = go(skel2);
@@ -392,11 +332,7 @@ let holes_zopseq_ =
             | InHole(_, u) =>
               let step = skel1 |> Skel.leftmost_tm_index;
               [
-                {
-                  sort: hole_sort(u),
-                  steps: List.rev([step, ...rev_steps]),
-                  is_empty: false,
-                },
+                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
               ];
             };
           if (zoperand_index <= Skel.rightmost_tm_index(skel1)) {
@@ -427,11 +363,7 @@ let holes_zopseq_ =
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
               [
-                {
-                  sort: hole_sort(u),
-                  steps: List.rev([step, ...rev_steps]),
-                  is_empty: false,
-                },
+                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
               ];
             };
           if (zoperand_index <= n) {
@@ -459,18 +391,13 @@ let holes_zopseq_ =
   };
 };
 
-let append = ((appendee_steps, appendee_cursor): t, steps): t => (
-  steps @ appendee_steps,
-  appendee_cursor,
-);
-
 let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
       ({sort, _}) =>
         switch (sort) {
-        | ExpHole(u')
-        | PatHole(u') => MetaVar.eq(u, u')
+        | ExpHole(u', _)
+        | PatHole(u', _) => MetaVar.eq(u, u')
         | TypHole => false
         },
       hole_list,
@@ -478,36 +405,6 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   ) {
   | None => None
   | Some({steps, _}) => Some(steps)
-  };
-
-let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
-  let {holes_before, hole_selected, holes_after} = zhole_list;
-  switch (steps_to_hole(holes_before, u)) {
-  | Some(_) as res => res
-  | None =>
-    switch (hole_selected) {
-    | Some({sort: ExpHole(u'), steps, _})
-    | Some({sort: PatHole(u'), steps, _}) =>
-      MetaVar.eq(u, u') ? Some(steps) : steps_to_hole(holes_after, u)
-    | Some({sort: TypHole, _})
-    | None => steps_to_hole(holes_after, u)
-    }
-  };
-};
-
-let opt_steps_to_opt_path =
-    (cursor: CursorPosition.t, opt_steps: option(steps)): option(t) =>
-  switch (opt_steps) {
-  | None => None
-  | Some(steps) => Some((List.rev(steps), cursor))
-  };
-
-let rec is_prefix_of = (steps, prefix) =>
-  switch (prefix, steps) {
-  | ([], _) => true
-  | ([_, ..._], []) => false
-  | ([prefix_first, ...prefix_rest], [steps_first, ...steps_rest]) =>
-    prefix_first == steps_first && prefix_rest |> is_prefix_of(steps_rest)
   };
 
 let rec compare_steps = (steps1, steps2) =>

@@ -1,4 +1,4 @@
-let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
+let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   fun
   | SComma => Some(Comma)
   | SSpace => Some(Space)
@@ -15,11 +15,12 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SArrow
   | SVBar => None;
 
-let shape_of_operator: UHPat.operator => Action_common.operator_shape =
-  fun
+let shape_of_operator = (op: UHPat.operator): Action.operator_shape =>
+  switch (op) {
   | Comma => SComma
   | Space => SSpace
-  | Cons => SCons;
+  | Cons => SCons
+  };
 
 let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
@@ -159,7 +160,7 @@ let syn_split_text =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
-      sop: Action_common.operator_shape,
+      sop: Action.operator_shape,
       text: string,
     )
     : ActionOutcome.t(syn_success) => {
@@ -185,7 +186,7 @@ let ana_split_text =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
-      sop: Action_common.operator_shape,
+      sop: Action.operator_shape,
       text: string,
       ty: HTyp.t,
     )
@@ -256,7 +257,7 @@ let resurround_z =
   };
 
 let rec syn_move =
-        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action_common.t, zp: ZPat.t)
+        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
@@ -309,7 +310,7 @@ let rec syn_move =
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
 
@@ -317,7 +318,7 @@ let rec ana_move =
         (
           ctx: Contexts.t,
           u_gen: MetaVarGen.t,
-          a: Action_common.t,
+          a: Action.t,
           zp: ZPat.t,
           ty: HTyp.t,
         )
@@ -373,19 +374,19 @@ let rec ana_move =
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
 
 let rec syn_perform =
-        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action_common.t, zp: ZPat.t)
+        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   syn_perform_opseq(ctx, u_gen, a, zp)
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      a: Action_common.t,
+      a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
     )
     : ActionOutcome.t(syn_success) =>
@@ -545,7 +546,7 @@ and syn_perform_operand =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      a: Action_common.t,
+      a: Action.t,
       zoperand: ZPat.zoperand,
     )
     : ActionOutcome.t(syn_success) => {
@@ -570,7 +571,10 @@ and syn_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
+      Construct(
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
+      ) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
@@ -782,7 +786,7 @@ and ana_perform =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      a: Action_common.t,
+      a: Action.t,
       zp: ZPat.t,
       ty: HTyp.t,
     )
@@ -792,7 +796,7 @@ and ana_perform_opseq =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      a: Action_common.t,
+      a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
@@ -966,7 +970,7 @@ and ana_perform_operand =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      a: Action_common.t,
+      a: Action.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
@@ -992,7 +996,10 @@ and ana_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
+      Construct(
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
+      ) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,

@@ -2,200 +2,364 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
-open ViewUtil;
 
-let clss_of_err: ErrStatus.t => list(cls) =
-  fun
-  | NotInHole => []
-  | InHole(_) => ["InHole"];
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
 
-let clss_of_verr: VarErrStatus.t => list(cls) =
-  fun
-  | NotInVarHole => []
-  | InVarHole(_) => ["InVarHole"];
+/**
+ * A buffered container for SVG elements so that strokes along
+ * the bounding box of the elements do not get clipped by the
+ * viewBox boundaries
+ */
+let decoration_container =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~origin: MeasuredPosition.t,
+      ~height: int,
+      ~width: int,
+      ~cls: string,
+      svgs: list(Vdom.Node.t),
+    )
+    : Vdom.Node.t => {
+  let buffered_height = height + 1;
+  let buffered_width = width + 1;
 
-let clss_of_case_err: CaseErrStatus.t => list(cls) =
-  fun
-  | StandardErrStatus(err) => clss_of_err(err)
-  | InconsistentBranches(_) => ["InconsistentBranches"];
+  let buffered_height_px =
+    Float.of_int(buffered_height) *. font_metrics.row_height;
+  let buffered_width_px =
+    Float.of_int(buffered_width) *. font_metrics.col_width;
 
-let cursor_clss = (has_cursor: bool): list(cls) =>
-  has_cursor ? ["Cursor"] : [];
+  let container_origin_x =
+    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
+  let container_origin_y =
+    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
 
-let sort_clss: TermSort.t => list(cls) =
-  fun
-  | Typ => ["Typ"]
-  | Pat => ["Pat"]
-  | Exp => ["Exp"];
-
-let shape_clss: TermShape.t => list(cls) =
-  fun
-  | Rule => ["Rule"]
-  | Invalid => ["Invalid"]
-  | Case({err}) => ["Case", ...clss_of_case_err(err)]
-  | Var({err, verr, show_use}) =>
-    ["Operand", "Var", ...clss_of_err(err)]
-    @ clss_of_verr(verr)
-    @ (show_use ? ["show-use"] : [])
-  | Operand({err}) => ["Operand", ...clss_of_err(err)]
-  | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
-  | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
-  | SubBlock(_) => ["SubBlock"];
-
-let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
-  List.concat([
-    has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
-    has_para_OpenChild ? ["has-Para-OpenChild"] : [],
-  ]);
-
-let has_child_clss = (has_child: bool) =>
-  has_child ? ["has-child"] : ["no-children"];
-
-let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
-  let pos_attr =
-    Vdom.Attr.style(
-      Css_gen.combine(
-        Css_gen.left(`Px(int_of_float(Float.round(x)))),
-        Css_gen.top(`Px(int_of_float(Float.round(y)))),
-      ),
-    );
-  Vdom.Node.span(
-    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [],
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes([
+          "decoration-container",
+          Printf.sprintf("%s-container", cls),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: calc(%fpx - 1px); left: %fpx;",
+            container_origin_x,
+            container_origin_y,
+          ),
+        ),
+      ],
+      [
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes([cls]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "-0.5 -0.5 %d %d",
+                buffered_width,
+                buffered_height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", buffered_height_px),
+            ),
+            Attr.create("preserveAspectRatio", "none"),
+          ],
+          svgs,
+        ),
+      ],
+    )
   );
+};
+
+let decoration_cls: UHDecorationShape.t => string =
+  fun
+  | ErrHole => "err-hole"
+  | VarErrHole => "var-err-hole"
+  | VarUse => "var-use"
+  | CurrentTerm => "current-term";
+
+let decoration_view =
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      ~term_sort: TermSort.t,
+      ~term_shape: TermShape.t,
+      shape: UHDecorationShape.t,
+    ) =>
+  UHDecoration.(
+    switch (shape) {
+    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+    | VarUse => VarUse.view(~corner_radii)
+    | CurrentTerm =>
+      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    }
+  );
+
+let decoration_views =
+    (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
+    : list(Vdom.Node.t) => {
+  let corner_radius = 2.5;
+  let corner_radii = (
+    corner_radius /. font_metrics.col_width,
+    corner_radius /. font_metrics.row_height,
+  );
+
+  let rec go =
+          (
+            ~tl: list(Vdom.Node.t)=[], // tail-recursive
+            ~indent=0, // indentation level of `m`
+            ~start=MeasuredPosition.zero, // start position of `m`
+            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
+            m: UHMeasuredLayout.t,
+          )
+          : list(Vdom.Node.t) => {
+    let go' = go(~indent, ~start);
+    switch (m.layout) {
+    | Linebreak
+    | Text(_) => tl
+    | Cat(m1, m2) =>
+      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
+      let mid_col = {
+        let (leading, MeasuredLayout.{width: last_width, _}) =
+          ListUtil.split_last(m1.metrics);
+        let offset =
+          switch (leading) {
+          | [] => start.col
+          | [_, ..._] => indent
+          };
+        offset + last_width;
+      };
+      let mid_tl =
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
+      go'(~tl=mid_tl, dpaths, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
+    | Annot(annot, m) =>
+      switch (annot) {
+      | Step(step) =>
+        let stepped = UHDecorationPaths.take_step(step, dpaths);
+        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      | Term({shape, sort, _}) =>
+        let offset = start.col - indent;
+        let current_vs =
+          UHDecorationPaths.current(shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let cls = decoration_cls(dshape);
+               let view =
+                 decoration_view(
+                   ~contains_current_term=Option.is_some(dpaths.current_term),
+                   ~corner_radii,
+                   ~term_shape=shape,
+                   ~term_sort=sort,
+                   dshape,
+                   (offset, m),
+                 );
+               decoration_container(
+                 ~font_metrics,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
+                 ~cls,
+                 [view],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
+      | _ => go'(~tl, dpaths, m)
+      }
+    };
+  };
+
+  go(dpaths, UHMeasuredLayout.mk(l));
+};
+
+let key_handlers =
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+  open Vdom;
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  [
+    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keydown(evt => {
+      switch (MoveKey.of_key(Key.get_key(evt))) {
+      | Some(move_key) =>
+        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
+      | None =>
+        switch (HazelKeyCombos.of_evt(evt)) {
+        | Some(Ctrl_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Undo);
+          }
+        | Some(Meta_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Undo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(Ctrl_Shift_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Redo);
+          }
+        | Some(Meta_Shift_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Redo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(kc) =>
+          prevent_stop_inject(
+            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+          )
+        | None =>
+          switch (JSUtil.is_single_key(evt)) {
+          | None => Event.Ignore
+          | Some(single_key) =>
+            prevent_stop_inject(
+              ModelAction.EditAction(
+                Construct(SChar(JSUtil.single_key_string(single_key))),
+              ),
+            )
+          }
+        }
+      }
+    }),
+  ];
+};
+
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
+let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box)
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | _ => vs
+        };
+      }
+    }
+  );
+};
+
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
 };
 
 let view =
     (
-      ~measure: bool,
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~caret_pos: option((int, int)),
-      l: UHLayout.t,
+      ~is_mac: bool,
+      ~settings: Settings.t,
+      program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
 
-      let rec go: UHLayout.t => _ =
-        fun
-        | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | Linebreak => [Node.br([])]
-        | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-        | Cat(l1, l2) => go(l1) @ go(l2)
+      let l = Program.get_layout(~settings, program);
 
-        | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
+      let code_text = view_of_box(UHBox.mk(l));
+      let decorations = {
+        let dpaths = Program.get_decoration_paths(program);
+        decoration_views(~font_metrics, dpaths, l);
+      };
+      let caret = {
+        let caret_pos = Program.get_caret_position(~settings, program);
+        program.is_focused
+          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+      };
 
-        | Annot(Token({shape, _}), l) => {
-            let clss =
-              switch (shape) {
-              | Text => ["code-text"]
-              | Op => ["code-op"]
-              | Delim(_) => ["code-delim"]
-              };
-            [Node.span([Attr.classes(clss)], go(l))];
-          }
-        | Annot(DelimGroup, l) => [
-            Node.span([Attr.classes(["DelimGroup"])], go(l)),
-          ]
-        | Annot(LetLine, l) => [
-            Node.span([Attr.classes(["LetLine"])], go(l)),
-          ]
+      let key_handlers =
+        program.is_focused
+          ? key_handlers(
+              ~inject,
+              ~is_mac,
+              ~cursor_info=Program.get_cursor_info(program),
+            )
+          : [];
 
-        | Annot(Padding, l) => [
-            Node.span([Attr.classes(["Padding"])], go(l)),
-          ]
-        | Annot(Indent, l) => [
-            Node.span([Attr.classes(["Indent"])], go(l)),
-          ]
-
-        | Annot(HoleLabel({len}), l) => {
-            let width = Css_gen.width(`Ch(float_of_int(len)));
-            [
-              Node.span(
-                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                [Node.span([Attr.classes(["HoleNumber"])], go(l))],
-              ),
-            ];
-          }
-        | Annot(UserNewline, l) => [
-            Node.span([Attr.classes(["UserNewline"])], go(l)),
-          ]
-
-        | Annot(OpenChild({is_inline}), l) => [
-            Node.span(
-              [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
-              go(l),
-            ),
-          ]
-        | Annot(ClosedChild({is_inline}), l) => [
-            Node.span(
-              [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
-              go(l),
-            ),
-          ]
-
-        | Annot(Term({has_cursor, shape, sort}), l) => [
-            Node.span(
-              [
-                Attr.classes(
-                  List.concat([
-                    ["Term"],
-                    cursor_clss(has_cursor),
-                    sort_clss(sort),
-                    shape_clss(shape),
-                    open_child_clss(
-                      l |> UHLayout.has_inline_OpenChild,
-                      l |> UHLayout.has_para_OpenChild,
-                    ),
-                    has_child_clss(l |> UHLayout.has_child),
-                  ]),
-                ),
-              ],
-              go(l),
-            ),
-          ];
-
-      let children =
-        switch (caret_pos) {
-        | None => go(l)
-        | Some((row, col)) =>
-          let x = float_of_int(col) *. font_metrics.col_width;
-          let y = float_of_int(row) *. font_metrics.row_height;
-          let caret = caret_from_pos(x, y);
-          [caret, ...go(l)];
-        };
-      let id = "code-root";
-      Node.div(
-        [
-          Attr.id(id),
-          Attr.classes(["code", "presentation"]),
-          // need to use mousedown instead of click to fire
-          // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt => {
-            let container_rect =
-              JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-            let (target_x, target_y) = (
-              float_of_int(evt##.clientX),
-              float_of_int(evt##.clientY),
-            );
-            let row_col = (
+      let click_handler = evt => {
+        let container_rect =
+          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+        let (target_x, target_y) = (
+          float_of_int(evt##.clientX),
+          float_of_int(evt##.clientY),
+        );
+        let caret_pos =
+          MeasuredPosition.{
+            row:
               Float.to_int(
                 (target_y -. container_rect##.top) /. font_metrics.row_height,
               ),
+            col:
               Float.to_int(
                 Float.round(
                   (target_x -. container_rect##.left) /. font_metrics.col_width,
                 ),
               ),
-            );
-            inject(ModelAction.MoveAction(Click(row_col)));
-          }),
+          };
+        inject(ModelAction.MoveAction(Click(caret_pos)));
+      };
+
+      Node.div(
+        [
+          Attr.id(root_id),
+          Attr.classes(["code", "presentation"]),
+          // need to use mousedown instead of click to fire
+          // (and move caret) before cell focus event handler
+          Attr.on_mousedown(click_handler),
+          // necessary to make cell focusable
+          Attr.create("tabindex", "0"),
+          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          ...key_handlers,
         ],
-        children,
+        caret
+        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
