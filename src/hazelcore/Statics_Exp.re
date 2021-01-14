@@ -173,21 +173,20 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         None;
       };
     }
-  | If(InconsistentBranches(branch_types, _), t1, t2, t3) =>
+  | If(InconsistentBranches(_, _), t1, t2, t3) =>
     switch (ana(ctx, t1, HTyp.Bool)) {
     | None => None
     | Some(_) =>
       let syn_t2 = syn(ctx, t2);
       let syn_t3 = syn(ctx, t3);
-      let is_consistent = 
-        switch (syn_t2, syn_t3) {
-        | (Some(ty2), Some(ty3)) => HTyp.consistent(syn_t2, syn_t3)
-        | _ => false
+      switch (syn_t2, syn_t3) {
+      | (Some(ty2), Some(ty3)) =>
+        if (HTyp.consistent(ty2, ty3)) {
+          Some(HTyp.Hole);
+        } else {
+          None;
         }
-      if (is_consistent) {
-        Some(HTyp.Hole);
-      } else {
-        None;
+      | _ => None
       };
     }
   /* not in hole */
@@ -230,7 +229,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | None => None
     | Some(_) =>
       switch (syn(ctx, t2), syn(ctx, t3)) {
-      | (Some(ty2), Some(ty3)) => HTyp.consistent(ty2, ty3)
+      | (Some(_), Some(_)) => Some(HTyp.Bool)
       | _ => None
       }
     }
@@ -401,7 +400,7 @@ and ana_operand =
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
-  | If(InconsistentBranches (_, _), _, _, _) => None
+  | If(InconsistentBranches(_, _), _, _, _) => None
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
@@ -1008,17 +1007,24 @@ and syn_fix_holes_operand =
         u_gen,
       )
     };
-
   | If(_, t1, t2, t3) =>
-    let (t1, _, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
+    let (t1, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
     let (t2, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
-    let (t3, _, u_gen) =
+    let (t3, ty3, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
-
-    ( StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
-
+    if (HTyp.consistent(ty2, ty3)) {
+      (If(StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
+    } else {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let branch_types = [ty2, ty3];
+      (
+        If(InconsistentBranches(branch_types, u), t1, t2, t3),
+        HTyp.Hole,
+        u_gen,
+      );
+    };
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1482,13 +1488,23 @@ and ana_fix_holes_operand =
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
   | If(_, t1, t2, t3) =>
-    let (t1, _, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
-    let (t2, _, u_gen) =
+    /* check later for ana for both branches */
+    let (_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
+    let (t2, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
-    let (t3, _, u_gen) =
+    let (t3, ty3, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
-    (If(StandardErrStatus(NotInHole), t1, t2, t3), u_gen);
+    let is_consistent2 = HTyp.consistent(ty, ty2);
+    let is_consistent3 = HTyp.consistent(ty, ty3);
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    switch (is_consistent2, is_consistent3) {
+    | (true, true) => (If(StandardErrStatus(NotInHole), t1, t2, t3), u_gen)
+    | (_, _) => (
+        If(StandardErrStatus(InHole(TypeInconsistent, u)), t1, t2, t3),
+        u_gen,
+      )
+    };
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

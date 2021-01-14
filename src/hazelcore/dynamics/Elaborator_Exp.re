@@ -766,8 +766,7 @@ and syn_elab_operand =
       };
     }
   | If(InconsistentBranches(_, u), t1, t2, t3) =>
-    /* might need to check  ^ branch types later */
-    switch (syn_elab(ctx, delta, t1)) {
+    switch (ana_elab(ctx, delta, t1, HTyp.Bool)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
       let gamma = Contexts.gamma(ctx);
@@ -777,10 +776,11 @@ and syn_elab_operand =
       switch (then_branch, else_branch) {
       | (Elaborates(d2, _, _), Elaborates(d3, _, _)) =>
         let d = DHExp.If(d1, d2, d3);
-        Elaborates(InconsistentBranchesIf(u, 0, sigma, d), Hole, delta);
+        Elaborates(InconsistentBranchesIf(u, 0, sigma, d), HTyp.Hole, delta);
       | (_, _) => DoesNotElaborate
       };
-    } /* not in hole */
+    }
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -867,7 +867,7 @@ and syn_elab_operand =
       }
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    switch (syn_elab(ctx, delta, t1)) {
+    switch (ana_elab(ctx, delta, t1, HTyp.Bool)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
       switch (syn_elab(ctx, delta, t2)) {
