@@ -727,7 +727,9 @@ and syn_perform_operand =
     mk_syn_result(
       ctx,
       u_gen,
-      ZOpSeq.wrap(ZPat.ListLitZ(NotInHole, ZOpSeq.wrap(zoperand))),
+      ZOpSeq.wrap(
+        ZPat.ListLitZ(StandardErrStatus(NotInHole), ZOpSeq.wrap(zoperand)),
+      ),
     )
   | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);

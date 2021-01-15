@@ -60,7 +60,7 @@ and syn_operand =
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListLit(InHole(TypeInconsistent, _), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand')
@@ -70,7 +70,8 @@ and syn_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(InHole(WrongLength, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
+  | ListLit(InconsistentBranches(_, _), None)
   // | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
@@ -86,7 +87,7 @@ and syn_operand =
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   // | ListNil(NotInHole) => Some((List(Hole), ctx))
-  | ListLit(NotInHole, None) => Some((List(Hole), ctx))
+  | ListLit(StandardErrStatus(NotInHole), None) => Some((List(Hole), ctx))
   | Inj(NotInHole, inj_side, p1) =>
     switch (syn(ctx, p1)) {
     | None => None
@@ -191,7 +192,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   // | ListNil(InHole(TypeInconsistent, _))
-  | ListLit(InHole(TypeInconsistent, _), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(((_, ctx)) => ctx);
@@ -201,7 +202,8 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   // | ListNil(InHole(WrongLength, _))
-  | ListLit(InHole(WrongLength, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
+  | ListLit(InconsistentBranches(_, _), None)
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
@@ -223,7 +225,7 @@ and ana_operand =
       }
     }
   // | ListNil(NotInHole) =>
-  | ListLit(NotInHole, None) =>
+  | ListLit(StandardErrStatus(NotInHole), None) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(_) => Some(ctx)
@@ -718,10 +720,14 @@ and ana_fix_holes_operand =
     };
   | ListLit(_, None) =>
     switch (HTyp.matched_list(ty)) {
-    | Some(_) => (ListLit(NotInHole, None), ctx, u_gen)
+    | Some(_) => (ListLit(StandardErrStatus(NotInHole), None), ctx, u_gen)
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ListLit(InHole(TypeInconsistent, u), None), ctx, u_gen);
+      (
+        ListLit(StandardErrStatus(InHole(TypeInconsistent, u)), None),
+        ctx,
+        u_gen,
+      );
     }
   | Parenthesized(p1) =>
     let (p1, ctx, u_gen) =

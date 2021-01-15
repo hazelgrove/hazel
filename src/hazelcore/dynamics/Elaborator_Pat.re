@@ -108,7 +108,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListLit(InHole(TypeInconsistent as reason, u), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -124,7 +124,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(InHole(WrongLength, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -157,8 +157,9 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
-  | ListLit(NotInHole, None) =>
+  | ListLit(StandardErrStatus(NotInHole), None) =>
     Elaborates(ListLit(List(Hole), []), List(Hole), ctx, delta)
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
   | ListLit(_, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
     let subskels = UHPat.get_tuple_elements(skel);
@@ -351,7 +352,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListLit(InHole(TypeInconsistent as reason, u), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -367,7 +368,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(InHole(WrongLength, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -385,7 +386,8 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | ListLit(NotInHole, None) =>
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
+  | ListLit(StandardErrStatus(NotInHole), None) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>

@@ -62,7 +62,10 @@ let%test "operator precedence test" = {
         Operators_Exp.Cons,
         Seq.S(
           UHExp.IntLit(NotInHole, "4"),
-          Seq.A(Operators_Exp.Cons, Seq.S(UHExp.ListNil(NotInHole), Seq.E)),
+          Seq.A(
+            Operators_Exp.Cons,
+            Seq.S(UHExp.ListLit(StandardErrStatus(NotInHole), None), Seq.E),
+          ),
         ),
       ),
     );
@@ -125,7 +128,10 @@ let%test "holey operator precedence test" = {
         Operators_Exp.Cons,
         Seq.S(
           UHExp.IntLit(NotInHole, "4"),
-          Seq.A(Operators_Exp.Cons, Seq.S(UHExp.ListNil(NotInHole), Seq.E)),
+          Seq.A(
+            Operators_Exp.Cons,
+            Seq.S(UHExp.ListLit(StandardErrStatus(NotInHole), None), Seq.E),
+          ),
         ),
       ),
     );

@@ -38,6 +38,8 @@ let tuple_zip =
   };
 };
 
+let inconsistent = (ty1, ty2) => !HTyp.consistent(ty1, ty2);
+
 let glb = (types: list(HTyp.t)): option(HTyp.t) => {
   switch (types) {
   | [] => None
@@ -47,7 +49,7 @@ let glb = (types: list(HTyp.t)): option(HTyp.t) => {
       switch (l) {
       | [] => false
       | [hd, ...tl] =>
-        if (List.exists(HTyp.inconsistent(hd), tl)) {
+        if (List.exists(inconsistent(hd), tl)) {
           true;
         } else {
           exist_inconsistencies(tl);
