@@ -127,6 +127,8 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =
   );
 let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
+let annot_List = (~sort: TermSort.t, ~err: ListErrStatus.t): (t => t) =>
+  Doc.annot(UHAnnot.mk_Term(~sort, ~shape=List({err: err}), ()));
 let annot_Invalid = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=TermShape.Invalid, ()));
 
@@ -283,14 +285,15 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
 };
 
 let mk_ListLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, body: option(formatted_child)): t => {
+    (~sort: TermSort.t, ~err: ListErrStatus.t, body: option(formatted_child))
+    : t => {
   switch (body) {
-  | None => mk_text("[]") |> annot_Operand(~sort, ~err)
+  | None => mk_text("[]") |> annot_List(~sort, ~err)
   | Some(body) =>
     let open_group = Delim.open_List() |> annot_DelimGroup;
     let close_group = Delim.close_List() |> annot_DelimGroup;
     Doc.hcats([open_group, body |> pad_open_child, close_group])
-    |> annot_Operand(~sort, ~err);
+    |> annot_List(~sort, ~err);
   };
 };
 

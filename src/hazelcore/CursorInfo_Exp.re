@@ -891,7 +891,7 @@ and ana_cursor_info_zoperand =
          )
     | ListLit(_, Some(opseq)) =>
       Statics_Exp.ana_opseq(ctx, opseq, ty)
-      |> OptUtil.map(_ =>
+      |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
     | ListLit(_, None) => None

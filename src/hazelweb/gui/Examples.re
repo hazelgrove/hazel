@@ -183,7 +183,7 @@ let qsort_example: UHExp.t = {
           Block.wrap(var("xs")),
           [
             Rule(
-              OpSeq.wrap(UHPat.ListLit(NotInHole, None)),
+              OpSeq.wrap(UHPat.ListLit(StandardErrStatus(NotInHole), None)),
               Block.wrap(
                 Parenthesized(
                   Block.wrap'(

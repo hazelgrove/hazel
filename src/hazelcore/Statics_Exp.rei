@@ -40,6 +40,7 @@ let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
+let ana_opseq: (Contexts.t, UHExp.opseq, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 

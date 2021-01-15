@@ -16,7 +16,8 @@ let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
 let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
   UHDoc_common.mk_BoolLit(~sort=Pat);
 let mk_ListLit:
-  (~err: ErrStatus.t, option(UHDoc_common.formatted_child)) => UHDoc_common.t =
+  (~err: ListErrStatus.t, option(UHDoc_common.formatted_child)) =>
+  UHDoc_common.t =
   UHDoc_common.mk_ListLit(~sort=Pat);
 let mk_Var:
   (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc_common.t =

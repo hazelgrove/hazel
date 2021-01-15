@@ -186,6 +186,20 @@ let holes_case_err =
       ...hs,
     ]
   };
+let holes_list_err =
+    (
+      ~hole_sort: MetaVar.t => hole_sort,
+      err: ListErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (err) {
+  | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
+  | InconsistentBranches(_, u) => [
+      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      ...hs,
+    ]
+  };
 
 let holes_skel_ =
     (

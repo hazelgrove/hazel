@@ -432,7 +432,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListLit(InHole(TypeInconsistent, _), None)
+    | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
@@ -453,7 +453,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListLit(InHole(WrongLength, _), None)
+    | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
     | Inj(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
@@ -477,10 +477,20 @@ and ana_cursor_info_zoperand =
         ),
       )
     | Wild(NotInHole)
-    | ListLit(NotInHole, None) =>
+    | ListLit(StandardErrStatus(NotInHole), None) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+        ),
+      )
+    | ListLit(InconsistentBranches(list_of_types, _), None) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(
+            SynInconsistentBranches(list_of_types, steps),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | IntLit(NotInHole, _) =>

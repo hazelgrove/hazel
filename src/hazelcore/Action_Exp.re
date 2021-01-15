@@ -1681,7 +1681,8 @@ and syn_perform_operand =
 
   | (Construct(SListLit), CursorE(_, EmptyHole(_))) =>
     let new_ze =
-      ZExp.CursorE(OnText(1), ListLit(NotInHole, None)) |> ZExp.ZBlock.wrap;
+      ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
+      |> ZExp.ZBlock.wrap;
     let new_ty = HTyp.List(Hole);
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
   | (Construct(SListLit), CursorE(_)) =>
