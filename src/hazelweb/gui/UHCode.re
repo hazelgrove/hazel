@@ -446,7 +446,7 @@ let decoration_views =
                   "style",
                   Printf.sprintf(
                     "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                    13, // TODO(andrew): is this right?
+                    13,
                     font_metrics.row_height,
                     top,
                     left,

@@ -44,6 +44,7 @@ module LivelitAdapter = (L: LIVELIT) => {
     LivelitDefinition.{
       name: L.name,
       expansion_ty: L.expansion_ty,
+      model_ty: HTyp.Hole, // HACK(andrew)
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>

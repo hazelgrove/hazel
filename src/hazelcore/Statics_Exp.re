@@ -194,6 +194,7 @@ module rec M: Statics_Exp_Sig.S = {
           shape,
           expand,
           expansion_type,
+          model_type,
           _,
         } as llrecord,
       ) =>
@@ -213,6 +214,7 @@ module rec M: Statics_Exp_Sig.S = {
         let (gamma, livelit_ctx) = ctx;
         let new_ll_def: LivelitDefinition.t = {
           name: name_str,
+          model_ty: UHTyp.expand(model_type),
           expansion_ty: UHTyp.expand(expansion_type),
           param_tys: [], // TODO: params
           init_model: mk_ll_init(init),
@@ -232,6 +234,7 @@ module rec M: Statics_Exp_Sig.S = {
           && UHExp.is_complete(view, false)
           && UHExp.is_complete(shape, false)
           && UHExp.is_complete(expand, false);
+
         let livelit_ctx =
           ll_def_valid
             ? LivelitCtx.extend(
@@ -490,15 +493,10 @@ module rec M: Statics_Exp_Sig.S = {
         | (_, _) => None
         }
       }
+
     | ApLivelit(
         _,
-        (
-          NotInHole |
-          InHole(
-            TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-            _,
-          )
-        ) as err_status,
+        (NotInHole | InHole(TypeInconsistent(Some(_)), _)) as err_status,
         _,
         name,
         serialized_model,
@@ -512,6 +510,10 @@ module rec M: Statics_Exp_Sig.S = {
         let reqd_param_tys =
           all_param_tys |> ListUtil.drop(List.length(closed_tys));
         switch (err_status, reqd_param_tys) {
+        | (InHole(TypeInconsistent(Some(DoesNotExpand)), _), []) =>
+          // NOTE(andrew):
+          // should we return a type here hmmm
+          Some(Hole)
         | (NotInHole, [_, ..._])
         | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
           None

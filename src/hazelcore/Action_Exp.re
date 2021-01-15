@@ -1256,7 +1256,6 @@ and syn_perform_line =
           update,
           view,
         });
-      //TODO(andrew): check what this looks like as below is failing
       syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (
@@ -2292,11 +2291,33 @@ and syn_perform_operand =
     let (_, livelit_ctx) = ctx;
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
     | None => Failed
-    | Some((livelit_defn, _)) =>
-      let update_cmd =
-        livelit_defn.update(serialized_model, serialized_action);
+    | Some(({update, _ /*model_ty,*/} as livelit_defn, _)) =>
+      print_endline("BLAH0");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          SerializedModel.sexp_of_t(serialized_model),
+        ),
+      );
+      print_endline("BLAH1");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          SerializedModel.sexp_of_t(serialized_action),
+        ),
+      );
+      print_endline("BLAH2");
+      let update_cmd = update(serialized_model, serialized_action);
       let (serialized_model, splice_info, u_gen) =
         SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          SerializedModel.sexp_of_t(serialized_model),
+        ),
+      );
+      //TODO(andrew): need to typecheck here somehow to avoid crash
+      // even with ll_def_valid 'hack'
+      // try to return a well-formed dhexp which is the wrong type
+      // there are no checks. this eventually results in a failedaction crash
+      //Statics_Exp.ana(ctx, DHExp.t_of_sexp(serialized_model))
       let (splice_map, u_gen) =
         Statics_Exp.ana_fix_holes_splice_map(
           ctx,
@@ -2322,6 +2343,7 @@ and syn_perform_operand =
             ),
           )
         );
+      print_endline("does print");
       Succeeded(SynDone((new_ze, expansion_ty, u_gen)));
     };
   | (PerformLivelitAction(_), CursorE(_)) => Failed

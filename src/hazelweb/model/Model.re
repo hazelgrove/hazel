@@ -155,6 +155,7 @@ let next_card = model => {
 
 let perform_action =
     (~move_via: option(MoveInput.t)=?, a: Action.t, model: t): t => {
+  print_endline("perform ACTION");
   let settings = model.settings;
   TimeUtil.measure_time(
     "Model.perform_action",

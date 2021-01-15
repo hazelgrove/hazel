@@ -66,7 +66,7 @@ module CurrentTerm = {
       (start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
     [
       // TODO relax assumption
-      // andrew commented out the below assertion as it was displeasing to him
+      // andrew commented out the below assertion as it was displeasing
       //assert(MeasuredLayout.height(m) == 1);
       // make singleton skinny rect along bottom
       SvgUtil.Rect.{

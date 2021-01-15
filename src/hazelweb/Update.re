@@ -163,12 +163,16 @@ let apply_action =
 
       | LivelitAction(llu, serialized_action) =>
         let program = Model.get_program(model);
+        print_endline("does print 1111");
         let performed =
           model
           |> Model.perform_action(
                Program.move_to_node(Livelit, llu, program),
              )
+          // andrew: this is whre crash happens when livelit view
+          // returns an action with the wrong type
           |> Model.perform_action(PerformLivelitAction(serialized_action));
+        print_endline("doesn't print if wrong type");
         switch (Program.get_path(program)) {
         | None => performed
         | Some(path) => Model.perform_action(MoveTo(path), performed)
