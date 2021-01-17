@@ -23,6 +23,12 @@ let emphasize_text = (~only_right=false, msg: string) => {
 let colon =
   Vdom.Node.div([Vdom.Attr.classes(["colon"])], [Vdom.Node.text(":")]);
 
+let mk_expecting_of_type = (~article, ~term_tag) => [
+  Vdom.Node.text("Expecting " ++ article),
+  term_tag,
+  Vdom.Node.text("of type"),
+];
+
 let advanced_summary =
     (typed: CursorInfo_common.typed, tag_type: TermTag.tag_typ) => {
   let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
@@ -179,30 +185,17 @@ let novice_summary =
     | Pat
     | Typ => "a"
     };
+  let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
   let rec message = (typed: CursorInfo_common.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
-        [HTypCode.view(ty)],
-      )
+    | PatAnalyzed(ty) => (expecting_of_type, [HTypCode.view(ty)])
     /* Use the got type if not just a Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       switch (got_ty) {
-      | HTyp.Hole => (
-          [
-            Vdom.Node.text("Expecting " ++ article),
-            term_tag,
-            Vdom.Node.text("of type"),
-          ],
-          [HTypCode.view(expected_ty)],
-        )
+      | HTyp.Hole => (expecting_of_type, [HTypCode.view(expected_ty)])
       | _ => (
           [
             Vdom.Node.text("Got " ++ article),
@@ -244,11 +237,7 @@ let novice_summary =
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           TypDiffCode.view(expected_diff),
           Vdom.Node.text("but got inconsistent type"),
@@ -269,11 +258,7 @@ let novice_summary =
       )
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           emphasize_text(string_of_int(expected_len) ++ "-tuple"),
           Vdom.Node.text("but got"),
@@ -282,11 +267,7 @@ let novice_summary =
       )
     | AnaInvalid(expected_ty)
     | PatAnaInvalid(expected_ty) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Vdom.Node.text("but got"),
@@ -310,11 +291,7 @@ let novice_summary =
         ],
       )
     | AnaFree(expected_ty) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Vdom.Node.text("but got a"),
@@ -339,11 +316,7 @@ let novice_summary =
       )
     | AnaKeyword(expected_ty, _)
     | PatAnaKeyword(expected_ty, _) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Vdom.Node.text("but got a"),
@@ -382,11 +355,7 @@ let novice_summary =
         } else {
           let (ty_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           (
-            [
-              Vdom.Node.text("Expecting " ++ article),
-              term_tag,
-              Vdom.Node.text("of type"),
-            ],
+            expecting_of_type,
             [
               TypDiffCode.view(ty_diff),
               Vdom.Node.text("but got inconsistent type"),
