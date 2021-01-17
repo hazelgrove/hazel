@@ -1,4 +1,7 @@
-module EditAction = Action_common;
+module EditAction = {
+  include Action;
+  include Action_common;
+};
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
@@ -44,7 +47,7 @@ type t =
   //
   | ToggleMemoizeDoc
   | SelectHoleInstance(HoleInstance.t)
-  | SelectCaseBranch(CursorPath_common.steps, int)
+  | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
   | FocusCell
   | BlurCell
