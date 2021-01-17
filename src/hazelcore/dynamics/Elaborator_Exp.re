@@ -802,7 +802,9 @@ and syn_elab_operand =
       let then_branch = syn_elab(ctx, delta, t2);
       let else_branch = syn_elab(ctx, delta, t3);
       switch (then_branch, else_branch) {
-      | (Elaborates(d2, _, _), Elaborates(d3, _, _)) =>
+      | (Elaborates(d2, _, delta), Elaborates(d3, _, _)) =>
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
         let d = DHExp.If(d1, d2, d3);
         Elaborates(InconsistentBranchesIf(u, 0, sigma, d), HTyp.Hole, delta);
       | (_, _) => DoesNotElaborate

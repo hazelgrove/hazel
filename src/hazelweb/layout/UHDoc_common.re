@@ -25,7 +25,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some((m: memoization_value('v))) =>
+      | Some(m: memoization_value('v)) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
@@ -90,6 +90,10 @@ module Delim = {
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
+
+  let if_If = (): t => mk(~index=0, "if");
+  let then_If = (): t => mk(~index=1, "then");
+  let else_If = (): t => mk(~index=2, "else");
 
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
@@ -338,6 +342,24 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
     )
   )
   |> annot_Case;
+};
+
+let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t => {
+  let if_delim = Delim.if_If() |> annot_Tessera;
+  let then_delim = Delim.then_If() |> annot_Tessera;
+  let else_delim = Delim.else_If() |> annot_Tessera;
+  Doc.hcats([
+    if_delim,
+    Delim.open_Parenthesized(),
+    t1 |> pad_left_delimited_open_child(~inline_padding=space_),
+    Delim.close_Parenthesized(),
+    then_delim,
+    t2 |> pad_left_delimited_open_child(~inline_padding=space_),
+    else_delim,
+    t3 |> pad_left_delimited_open_child(~inline_padding=space_),
+  ])
+  |> annot_Tessera
+  |> annot_Operand(~sort=Exp);
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {

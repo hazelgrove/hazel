@@ -1987,10 +1987,10 @@ and syn_perform_operand =
       }
     }
   | (_, IfZ1(_, zt1, t2, t3)) =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(zt1))) {
+    switch (Statics_Exp.ana(ctx, ZExp.erase(zt1), HTyp.Bool)) {
     | None => Failed
-    | Some(ty1) =>
-      switch (syn_perform(ctx, a, (zt1, ty1, u_gen))) {
+    | Some(_) =>
+      switch (syn_perform(ctx, a, (zt1, ty, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
@@ -2004,6 +2004,14 @@ and syn_perform_operand =
           ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
         Succeeded(SynDone((new_ze, ty1, u_gen)));
       }
+    /* switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
+       | Failed => Failed
+       | CursorEscaped(side) => escape(side)
+       | Succeeded((new_zclause, u_gen)) =>
+         let new_zrules =
+           zrules |> ZList.replace_z(ZExp.RuleZE(p, new_zclause));
+         Succeeded((new_zrules, u_gen));
+       } */
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
@@ -2889,6 +2897,29 @@ and ana_perform_operand =
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
+  /* | ((Construct SList, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct (SChar(_)),
+     (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SCase, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SLet, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SAsc, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SParenthesized,
+     (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct (SInj(_)), (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SLam, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct (SOp(_)), (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Construct SLine, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (SwapLeft, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (SwapRight, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (SwapUp, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (SwapDown, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Backspace, CursorE (OnDelim (_, After), If (_, _, _, _)))|
+     (Backspace, CursorE (OnText(_), If (_, _, _, _)))|
+     (Backspace, CursorE (OnOp(_), If (_, _, _, _)))|
+     (Backspace, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))|
+     (Delete, CursorE (OnText(_), If (_, _, _, _)))|
+     (Delete, CursorE (OnOp(_), If (_, _, _, _)))|
+     (Delete, (IfZ1 (_, _, _, _)|IfZ2 (_, _, _, _)|IfZ3 (_, _, _, _)))) */
   | (
       _,
       CursorE(
@@ -2898,7 +2929,7 @@ and ana_perform_operand =
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) | If(_) |
         Parenthesized(_) |
         ApPalette(_),
       ),
@@ -3028,7 +3059,10 @@ and ana_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (
+          Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | If(_, e, _, _) |
+          Parenthesized(e)
+        ) as operand,
       ),
     ) =>
     let place_cursor =
@@ -3421,7 +3455,72 @@ and ana_perform_operand =
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
-
+  | (_, IfZ1(_, zt1, t2, t3)) =>
+    switch (Statics_Exp.ana(ctx, ZExp.erase(zt1), HTyp.Bool)) {
+    | None => Failed
+    | Some(_) =>
+      switch (ana_perform(ctx, a, (zt1, u_gen), ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, u_gen),
+          ty,
+        )
+      | Succeeded((new_zt1, u_gen)) =>
+        /* Statics_Exp.syn_fix_holes() add later?? */
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            IfZ1(StandardErrStatus(NotInHole), new_zt1, t2, t3),
+          );
+        Succeeded(AnaDone((new_ze, u_gen)));
+      }
+    }
+  | (_, IfZ2(_, t1, zt2, t3)) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
+    | None => Failed
+    | Some(ty) =>
+      switch (ana_perform(ctx, a, (zt2, u_gen), ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, u_gen),
+          ty,
+        )
+      | Succeeded((new_zt2, u_gen)) =>
+        /* Statics_Exp.syn_fix_holes() add later?? */
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            IfZ2(StandardErrStatus(NotInHole), t1, new_zt2, t3),
+          );
+        Succeeded(AnaDone((new_ze, u_gen)));
+      }
+    }
+  | (_, IfZ3(_, t1, t2, zt3)) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zt3))) {
+    | None => Failed
+    | Some(ty) =>
+      switch (ana_perform(ctx, a, (zt3, u_gen), ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, u_gen),
+          ty,
+        )
+      | Succeeded((new_zt3, u_gen)) =>
+        /* Statics_Exp.syn_fix_holes() add later?? */
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            IfZ3(StandardErrStatus(NotInHole), t1, t2, new_zt3),
+          );
+        Succeeded(AnaDone((new_ze, u_gen)));
+      }
+    }
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)

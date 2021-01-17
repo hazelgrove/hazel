@@ -819,7 +819,7 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), If(err, t1, t2, t3)) =>
-    let hole_selected: option(CursorPath_common.hole_info) =
+    let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
@@ -996,7 +996,7 @@ and holes_zoperand =
       holes_after: holes_after @ holes_suffix,
     };
   | IfZ1(err, zt1, t2, t3) =>
-    let holes_err: list(CursorPath_common.hole_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
@@ -1004,7 +1004,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+    let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zt1, [0, ...rev_steps]);
     let holes_t2 = holes(t2, [1, ...rev_steps], []);
     let holes_t3 = holes(t3, [2, ...rev_steps], []);
@@ -1015,7 +1015,7 @@ and holes_zoperand =
       (),
     );
   | IfZ2(err, t1, zt2, t3) =>
-    let holes_err: list(CursorPath_common.hole_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
@@ -1023,7 +1023,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+    let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zt2, [1, ...rev_steps]);
     let holes_t1 = holes(t1, [0, ...rev_steps], []);
     let holes_t3 = holes(t3, [2, ...rev_steps], []);
@@ -1034,7 +1034,7 @@ and holes_zoperand =
       (),
     );
   | IfZ3(err, t1, t2, zt3) =>
-    let holes_err: list(CursorPath_common.hole_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
@@ -1042,7 +1042,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+    let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zt3, [2, ...rev_steps]);
     let holes_t1 = holes(t1, [0, ...rev_steps], []);
     let holes_t2 = holes(t2, [1, ...rev_steps], []);
