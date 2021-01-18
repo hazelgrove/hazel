@@ -3503,16 +3503,22 @@ and ana_perform_operand =
       | Failed
       | CursorEscaped(_) => Failed
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
-      | Succeeded(SynDone((ze, ty1, u_gen))) =>
+      | Succeeded(
+          SynDone((
+            ([], ExpLineZ(ZOpSeq(_, ZOperand(zoperand_, _))), []),
+            _,
+            u_gen,
+          )),
+        ) =>
         switch (
-          Statics_Exp.syn_operand(
+          Statics_Exp.syn(
             ctx,
-            ZExp.erase_zoperand(PrjZE(err, ze, label)),
+            ZExp.erase(ZExp.ZBlock.wrap(PrjZE(err, zoperand_, label))),
           )
         ) {
         | None => Failed
         | Some(ty1) =>
-          let new_ze = ZExp.ZBlock.wrap(PrjZE(err, ze, label));
+          let new_ze = ZExp.ZBlock.wrap(PrjZE(err, zoperand_, label));
           if (HTyp.consistent(ty, ty1)) {
             Succeeded(AnaDone((new_ze, u_gen)));
           } else {
@@ -3520,6 +3526,8 @@ and ana_perform_operand =
             Succeeded(AnaDone((ze, u_gen)));
           };
         }
+      // Any SynDone states that are not just one zoperand should fail, since projection only binds at the operand level
+      | Succeeded(SynDone(_)) => Failed
       }
     }
   /* Invalid actions at the expression level */
