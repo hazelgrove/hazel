@@ -1152,28 +1152,13 @@ and syn_perform_opseq =
       Delete,
       ZOperator(
         (OnOp(After), operator),
-        (
-          S(left_operand, prefix_of_left_operand) as prefix,
-          S(right_operand, suffix_of_right_operand),
-        ),
+        (prefix, S(right_operand, suffix_of_right_operand)),
       ),
     )
-      when
-        unop_of_binop(operator) != None
-        && (
-          switch (left_operand, right_operand) {
-          | (_, EmptyHole(_)) => false
-          | (UHExp.EmptyHole(_), _) => true
-          | _ => false
-          }
-        ) =>
+      when unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
-      let new_prefix =
-        switch (left_operand) {
-        | UHExp.EmptyHole(_) => prefix_of_left_operand
-        | _ => Seq.A(Operators_Exp.Space, prefix)
-        };
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand =
         ZExp.UnaryOpZ(
           NotInHole,
@@ -1190,8 +1175,7 @@ and syn_perform_opseq =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    print_endline("escaped due to delete");
-    syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, ty, u_gen));
+    syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, ty, u_gen))
 
   /* Backspace "." from Float Op to get Int Op */
   /* ( +.<| ) ==> ( + ) */
@@ -1604,7 +1588,6 @@ and syn_perform_operand =
 
   | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
   | (Delete, CursorE(OnOp(Before), UnaryOp(_, _, child))) =>
-    print_endline("here here here here!");
     let new_zoperand =
       ZExp.set_err_status_zoperand(
         NotInHole,
@@ -3020,7 +3003,6 @@ and ana_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
-    print_endline("hit this case...");
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_prefix, u_gen) =
@@ -3033,7 +3015,7 @@ and ana_perform_opseq =
       let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => failwith("unop has no binop")
-    };
+    }
 
   | (Construct(SOp(SSpace)), ZOperand(UnaryOpZ(_, unop, zchild), (E, E)))
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
@@ -3244,7 +3226,6 @@ and ana_perform_operand =
 
   | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
   | (Delete, CursorE(OnOp(Before), UnaryOp(_, _, child))) =>
-    print_endline("here here!");
     let (child, u_gen) =
       Statics_Exp.ana_fix_holes_operand(ctx, u_gen, child, ty);
     let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(child));
