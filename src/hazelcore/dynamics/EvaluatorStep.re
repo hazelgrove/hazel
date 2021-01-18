@@ -238,3 +238,39 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   //   )
   | _ => d
   };
+
+let instruction_step = (d: DHExp.t): option(DHExp.t) =>
+  switch (d) {
+  // | Let(dp, d1, d2) =>
+
+  // | FixF(Var.t, HTyp.t, t)
+  // | Lam(DHPat.t, HTyp.t, t)
+  // | Ap(t, t)
+  // | BoolLit(bool)
+  // | IntLit(int)
+  // | FloatLit(float)
+  // | BinBoolOp(BinBoolOp.t, t, t)
+  // | BinIntOp(BinIntOp.t, t, t)
+  // | BinFloatOp(BinFloatOp.t, t, t)
+  // | ListNil(HTyp.t)
+  // | Cons(t, t)
+  // | Inj(HTyp.t, InjSide.t, t)
+  // | Pair(t, t)
+  // | Triv
+  // | ConsistentCase(case)
+  // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  // | Cast(t, HTyp.t, HTyp.t)
+  // | FailedCast(t, HTyp.t, HTyp.t)
+  // | InvalidOperation(t, InvalidOperationError.t)
+  | _ => None
+  };
+
+let evaluate_step = (d: DHExp.t): option(DHExp.t) => {
+  let (ctx, d0) = decompose(d);
+  let res = instruction_step(d0);
+  if (res == None) {
+    None;
+  } else {
+    Some(compose((ctx, d)));
+  };
+};
