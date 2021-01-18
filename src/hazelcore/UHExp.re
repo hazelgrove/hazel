@@ -26,7 +26,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, operand, operand)
+  | Prj(ErrStatus.t, operand, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -65,7 +65,7 @@ let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t): operand =>
   Label(err, l);
 
 let prj = (~err: ErrStatus.t=NotInHole, op: operand, l: Label.t): operand =>
-  Prj(err, op, Label(NotInLabelHole, l));
+  Prj(err, op, l);
 
 let lam =
     (
@@ -178,9 +178,6 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
-// ECD: You are here, need to write find and set label tuples to go through list finding labels and then calling set duplicate label tuples
-// to find if any duplicate labels exist.  If so, set them to be duplicate and then in find and set labels tuples
-// set the offending duplicate label to also be a duplicate
 let rec set_duplicate_tuple_labels =
         (
           elements: list(skel),
@@ -559,9 +556,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   | Prj(InHole(_), _, _) => false
-  | Prj(NotInHole, op, label) =>
-    is_complete_operand(op, check_type_holes)
-    && is_complete_operand(label, check_type_holes)
+  | Prj(NotInHole, op, _) => is_complete_operand(op, check_type_holes)
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

@@ -285,6 +285,28 @@ let zcase_of_scrut_and_suffix =
   };
 };
 
+let syn_prj =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      new_prj: UHExp.operand,
+      new_label: Label.t,
+      caret: int,
+    )
+    : ActionOutcome.t(syn_success) => {
+  let text_cursor = CursorPosition.OnText(caret);
+  if (Label.empty(new_label)) {
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, new_prj));
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  } else {
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, new_prj));
+    switch (Statics_Exp.syn_operand(ctx, new_prj)) {
+    | None => Failed
+    | Some(typ) => Succeeded(SynDone((ze, typ, u_gen)))
+    };
+  };
+};
+
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
@@ -1540,8 +1562,10 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
   | (Delete, CursorE(OnText(j), Label(_, l))) =>
     syn_delete_text(ctx, u_gen, j, l)
-  | (Delete, CursorE(OnText(j), Prj(_, _, pl))) =>
-    syn_delete_text(ctx, u_gen, j, pl)
+  | (Delete, CursorE(OnText(j), Prj(err, exp, pl))) =>
+    let new_label = Label.delete(j, pl);
+    let new_prj = UHExp.prj(exp, new_label, ~err);
+    syn_prj(ctx, u_gen, new_prj, new_label, j);
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1554,8 +1578,10 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), Label(_, l))) =>
     syn_backspace_text(ctx, u_gen, j, l)
-  | (Backspace, CursorE(OnText(j), Prj(_, _, pl))) =>
-    syn_backspace_text(ctx, u_gen, j, pl)
+  | (Backspace, CursorE(OnText(j), Prj(err, exp, pl))) =>
+    let new_label = Label.backspace(j, pl);
+    let new_prj = UHExp.prj(exp, new_label, ~err);
+    syn_prj(ctx, u_gen, new_prj, new_label, j);
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -1703,8 +1729,10 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
     syn_insert_text(ctx, u_gen, (j, s), l)
-  | (Construct(SChar(s)), CursorE(OnText(j), Prj(_, _, pl))) =>
-    syn_insert_text(ctx, u_gen, (j, s), pl)
+  | (Construct(SChar(s)), CursorE(OnText(j), Prj(err, exp, pl))) =>
+    let new_label = Label.insert(j, s, pl);
+    let new_prj = UHExp.prj(exp, new_label, ~err);
+    syn_prj(ctx, u_gen, new_prj, new_label, j);
   // Failing here for label projection
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
@@ -2051,20 +2079,12 @@ and syn_perform_operand =
         };
       }
     }
+  | (_, PrjZE(_, zoperand_, _)) =>
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand_))) {
+    | None => Failed
+    | Some(ty_) => syn_perform_operand(ctx, a, (zoperand_, ty_, u_gen))
+    }
   | (Init, _) => failwith("Init action should not be performed.")
-  // switch (syn_perform(ctx, a, (body, ty, u_gen))) {
-  // | Failed => Failed
-  // | CursorEscaped(side) =>
-  //   syn_perform_operand(
-  //     ctx,
-  //     Action_common.escape(side),
-  //     (zoperand, ty, u_gen),
-  //   )
-  // // ECD You are here:
-  // | Succeeded((new_zbody, new_ty, u_gen)) =>
-  //   let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
-  //   Succeeded(SynDone((new_ze, new_ty, u_gen)));
-  // }
   };
 }
 and syn_perform_rules =
@@ -3473,6 +3493,35 @@ and ana_perform_operand =
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+  // ECD You are here: need to figure out how to apply the action to the projection, and check if the ana is sucessful if the projeciton changes
+  // after the action has been applied
+  | (_, PrjZE(err, zoperand_, label)) =>
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand_))) {
+    | None => Failed
+    | Some(ty1) =>
+      switch (syn_perform_operand(ctx, a, (zoperand_, ty1, u_gen))) {
+      | Failed
+      | CursorEscaped(_) => Failed
+      | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
+      | Succeeded(SynDone((ze, ty1, u_gen))) =>
+        switch (
+          Statics_Exp.syn_operand(
+            ctx,
+            ZExp.erase_zoperand(PrjZE(err, ze, label)),
+          )
+        ) {
+        | None => Failed
+        | Some(ty1) =>
+          let new_ze = ZExp.ZBlock.wrap(PrjZE(err, ze, label));
+          if (HTyp.consistent(ty, ty1)) {
+            Succeeded(AnaDone((new_ze, u_gen)));
+          } else {
+            let (ze, u_gen) = new_ze |> ZExp.mk_inconsistent(u_gen);
+            Succeeded(AnaDone((ze, u_gen)));
+          };
+        }
+      }
+    }
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
   }

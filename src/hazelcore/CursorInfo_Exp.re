@@ -24,6 +24,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
+  | PrjZE(_, zoperand, _) => extract_from_zexp_operand(zoperand)
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
@@ -87,6 +88,7 @@ and get_zoperand_from_zexp_operand =
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  | PrjZE(_, zoperand_, _) => get_zoperand_from_zexp_operand(zoperand_)
   };
 }
 and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
@@ -143,6 +145,8 @@ and get_outer_zrules_from_zexp_operand =
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  | PrjZE(_, zoperand_, _) =>
+    get_outer_zrules_from_zexp_operand(zoperand_, outer_zrules)
   };
 }
 and get_outer_zrules_from_zrules = (zrules: ZExp.zrules): option(ZExp.zrules) => {
@@ -626,6 +630,9 @@ and syn_cursor_info_zoperand =
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
+  | PrjZE(_, zoperand_, _) =>
+    // ECD TODO: check if steps actually needs the appended 0 and check if needs to be analyzed to labeled type
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand_)
   };
 }
 and ana_cursor_info =
@@ -942,14 +949,16 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
-  | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
+  | ApPaletteZ(InHole(WrongLength, _), _, _, _)
+  | PrjZE(InHole(WrongLength, _), _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _)
+  | PrjZE(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -1013,6 +1022,8 @@ and ana_cursor_info_zoperand =
     }
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
+  | PrjZE(NotInHole, zoperand_, _) =>
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand_)
   };
 }
 and syn_cursor_info_rule =

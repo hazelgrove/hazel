@@ -155,7 +155,6 @@ let mk_ana_text =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
-  | Prj(_, _) => failwith("No label projections at the pattern level")
   };
 };
 

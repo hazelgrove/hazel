@@ -32,8 +32,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
     let zhole_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
     cons'(n, of_z(ze));
-  | PrjZE1(_, zexp, _) => cons'(0, of_zoperand(zexp))
-  | PrjZE1(_, _, zlabel) => cons'(1, of_zoperand(zexp))
+  | PrjZE(_, zoperand_, _) => cons'(0, of_zoperand(zoperand_))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath_common.t => {
   let (cursor, _) = zoperator;
@@ -708,7 +707,8 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
-  | CursorE(_, ListNil(err)) =>
+  | CursorE(_, ListNil(err))
+  | CursorE(OnText(_), Prj(err, _, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -819,9 +819,20 @@ and holes_zoperand =
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
-  | CursorE(_, Prj(_)) =>
-    // ECD: You are here, implmenting function holes_zoperand for prj, PrjZE1, and PrjZE2
-    failwith(__LOC__ ++ " Unimplemented Label Projection")
+  | CursorE(OnDelim(k, _), Prj(err, exp, _)) =>
+    let hole_selected: option(CursorPath_common.hole_info) =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, u) =>
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+      };
+    let holes_exp = holes_operand(exp, [0, ...rev_steps], []);
+    // ECD TODO: Check if this is using the right delim indexing
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(~hole_selected, ~holes_after=holes_exp, ())
+    | _ => CursorPath_common.no_holes
+    };
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, ann, body) =>
     let holes_err: list(CursorPath_common.hole_info) =
@@ -994,6 +1005,22 @@ and holes_zoperand =
       hole_selected,
       holes_after: holes_after @ holes_splices_after,
     };
+  | PrjZE(err, zoperand_, _) =>
+    let holes_err: list(CursorPath_common.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_zoperand(zoperand_, [0, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath_common.rev_steps) =>
   switch (zrule) {
