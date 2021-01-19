@@ -116,8 +116,8 @@ and of_steps_binop =
   | [] =>
     let place_cursor =
       switch (side) {
-      | Before => ZPat.place_before_operator
-      | After => ZPat.place_after_operator
+      | Before => ZPat.place_before_binop
+      | After => ZPat.place_after_binop
       };
     switch (place_cursor(operator)) {
     | Some(zop) => Some(of_zoperator(zop))

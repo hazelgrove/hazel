@@ -8,7 +8,7 @@ let wrap = zoperand => ZOperand(zoperand, (E, E));
 let erase =
     (
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       zseq: t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : Seq.t('operand, 'operator) =>
@@ -17,7 +17,7 @@ let erase =
     let operand = zoperand |> erase_zoperand;
     Seq.prefix_seq(prefix, S(operand, suffix));
   | ZOperator(zoperator, (S(prefix_hd, prefix_tl), suffix)) =>
-    let operator = zoperator |> erase_zoperator;
+    let operator = zoperator |> erase_zbinop;
     Seq.prefix_seq(prefix_tl, S(prefix_hd, A(operator, suffix)));
   };
 
@@ -42,11 +42,11 @@ let is_after =
 let move_cursor_left =
     (
       ~move_cursor_left_zoperand: 'zoperand => option('zoperand),
-      ~move_cursor_left_zoperator: 'zoperator => option('zoperator),
+      ~move_cursor_left_zbinop: 'zoperator => option('zoperator),
       ~place_after_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => option('zoperator),
+      ~place_after_binop: 'operator => option('zoperator),
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       zseq: t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
@@ -55,7 +55,7 @@ let move_cursor_left =
     switch (move_cursor_left_zoperand(zoperand), surround) {
     | (None, (E, _)) => None
     | (None, (A(prefix_hd, prefix_tl), suffix)) =>
-      switch (prefix_hd |> place_after_operator) {
+      switch (prefix_hd |> place_after_binop) {
       | None =>
         let S(operand, new_prefix) = prefix_tl;
         let new_zoperand = operand |> place_after_operand;
@@ -70,10 +70,10 @@ let move_cursor_left =
     | (Some(zoperand), _) => Some(ZOperand(zoperand, surround))
     }
   | ZOperator(zop, surround) =>
-    switch (move_cursor_left_zoperator(zop), surround) {
+    switch (move_cursor_left_zbinop(zop), surround) {
     | (None, (S(prefix_hd, new_prefix), suffix)) =>
       let zoperand = prefix_hd |> place_after_operand;
-      let new_suffix = Seq.A(zop |> erase_zoperator, suffix);
+      let new_suffix = Seq.A(zop |> erase_zbinop, suffix);
       Some(ZOperand(zoperand, (new_prefix, new_suffix)));
     | (Some(zop), _) => Some(ZOperator(zop, surround))
     }
@@ -82,11 +82,11 @@ let move_cursor_left =
 let move_cursor_right =
     (
       ~move_cursor_right_zoperand: 'zoperand => option('zoperand),
-      ~move_cursor_right_zoperator: 'zoperator => option('zoperator),
+      ~move_cursor_right_zbinop: 'zoperator => option('zoperator),
       ~place_before_operand: 'operand => 'zoperand,
-      ~place_before_operator: 'operator => option('zoperator),
+      ~place_before_binop: 'operator => option('zoperator),
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       zseq: t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
@@ -95,7 +95,7 @@ let move_cursor_right =
     switch (move_cursor_right_zoperand(zoperand), surround) {
     | (None, (_, E)) => None
     | (None, (prefix, A(suffix_hd, suffix_tl))) =>
-      switch (suffix_hd |> place_before_operator) {
+      switch (suffix_hd |> place_before_binop) {
       | None =>
         let S(operand, new_suffix) = suffix_tl;
         let new_zoperand = operand |> place_before_operand;
@@ -110,10 +110,10 @@ let move_cursor_right =
     | (Some(zoperand), _) => Some(ZOperand(zoperand, surround))
     }
   | ZOperator(zop, surround) =>
-    switch (move_cursor_right_zoperator(zop), surround) {
+    switch (move_cursor_right_zbinop(zop), surround) {
     | (None, (prefix, S(suffix_hd, new_suffix))) =>
       let zoperand = suffix_hd |> place_before_operand;
-      let new_prefix = Seq.A(zop |> erase_zoperator, prefix);
+      let new_prefix = Seq.A(zop |> erase_zbinop, prefix);
       Some(ZOperand(zoperand, (new_prefix, new_suffix)));
     | (Some(zop), _) => Some(ZOperator(zop, surround))
     }

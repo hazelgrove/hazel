@@ -210,12 +210,12 @@ let ana_split_text =
 };
 
 let delete_operator =
-  Action_common.delete_operator_(
+  Action_common.delete_binop_(
     ~space=Operators_Pat.Space,
     ~is_EmptyHole=UHPat.is_EmptyHole,
     ~place_before_operand=ZPat.place_before_operand,
     ~place_after_operand=ZPat.place_after_operand,
-    ~place_after_operator=ZPat.place_after_operator,
+    ~place_after_binop=ZPat.place_after_binop,
   );
 
 let construct_operator_before_zoperand =
@@ -224,7 +224,7 @@ let construct_operator_before_zoperand =
     ~new_EmptyHole=UHPat.new_EmptyHole,
     ~erase_zoperand=ZPat.erase_zoperand,
     ~place_before_operand=ZPat.place_before_operand,
-    ~place_after_operator=ZPat.place_after_operator,
+    ~place_after_binop=ZPat.place_after_binop,
   );
 let construct_operator_after_zoperand =
   Action_common.construct_operator_after_zoperand_(
@@ -232,7 +232,7 @@ let construct_operator_after_zoperand =
     ~new_EmptyHole=UHPat.new_EmptyHole,
     ~erase_zoperand=ZPat.erase_zoperand,
     ~place_before_operand=ZPat.place_before_operand,
-    ~place_after_operator=ZPat.place_after_operator,
+    ~place_after_binop=ZPat.place_after_binop,
   );
 
 let complete_tuple =

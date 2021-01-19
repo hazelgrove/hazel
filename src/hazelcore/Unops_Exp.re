@@ -9,5 +9,3 @@ let to_string =
   | FNegate => "-.";
 
 let to_parse_string = to_string;
-
-// let is_Space = _ => false;

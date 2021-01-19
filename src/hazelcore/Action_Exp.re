@@ -97,13 +97,13 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   };
 
 //TBD
-let delete_operator =
-  Action_common.delete_operator_(
+let delete_binop =
+  Action_common.delete_binop_(
     ~space=Operators_Exp.Space,
     ~is_EmptyHole=UHExp.is_EmptyHole,
     ~place_before_operand=ZExp.place_before_operand,
     ~place_after_operand=ZExp.place_after_operand,
-    ~place_after_operator=ZExp.place_after_binop,
+    ~place_after_binop=ZExp.place_after_binop,
   );
 
 //TBD
@@ -113,7 +113,7 @@ let construct_operator_before_zoperand =
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
-    ~place_after_operator=ZExp.place_after_binop,
+    ~place_after_binop=ZExp.place_after_binop,
   );
 
 //TBD
@@ -123,7 +123,7 @@ let construct_operator_after_zoperand =
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
-    ~place_after_operator=ZExp.place_after_binop,
+    ~place_after_binop=ZExp.place_after_binop,
   );
 
 //TBD
@@ -1221,7 +1221,7 @@ and syn_perform_opseq =
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    let new_zseq = delete_operator(surround);
+    let new_zseq = delete_binop(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
@@ -2794,7 +2794,7 @@ and ana_perform_opseq =
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    let new_zseq = delete_operator(surround);
+    let new_zseq = delete_binop(surround);
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 

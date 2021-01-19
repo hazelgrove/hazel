@@ -71,18 +71,18 @@ let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
 and erase_zopseq =
   fun
   | ZOpSeq(skel, zseq) => OpSeq(skel, zseq |> erase_zseq)
-and erase_zseq = zseq => zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator)
+and erase_zseq = zseq => zseq |> ZSeq.erase(~erase_zoperand, ~erase_zbinop)
 and erase_zoperand =
   fun
   | CursorP(_, operand) => operand
   | InjZ(err, inj_side, zp) => Inj(err, inj_side, erase(zp))
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
-and erase_zoperator =
+and erase_zbinop =
   fun
   | (_, op) => op;
 
 let mk_ZOpSeq =
-  ZOpSeq.mk(~associate=UHPat.associate, ~erase_zoperand, ~erase_zoperator);
+  ZOpSeq.mk(~associate=UHPat.associate, ~erase_zoperand, ~erase_zbinop);
 
 let rec is_before = (zp: t): bool => is_before_zopseq(zp)
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
@@ -143,7 +143,7 @@ and place_before_operand = operand =>
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
-let place_before_operator = (op: UHPat.operator): option(zoperator) =>
+let place_before_binop = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
   | Space => None
   | _ => Some((OnOp(Before), op))
@@ -165,7 +165,7 @@ and place_after_operand = operand =>
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   };
-let place_after_operator = (op: UHPat.operator): option(zoperator) =>
+let place_after_binop = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
   | Space => None
   | _ => Some((OnOp(After), op))
@@ -188,7 +188,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 
 let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
-let move_cursor_left_zoperator: zoperator => option(zoperator) =
+let move_cursor_left_zbinop: zoperator => option(zoperator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
@@ -199,11 +199,11 @@ let rec move_cursor_left = (zp: t): option(t) =>
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
-    ~move_cursor_left_zoperator,
+    ~move_cursor_left_zbinop,
     ~place_after_operand,
-    ~place_after_operator,
+    ~place_after_binop,
     ~erase_zoperand,
-    ~erase_zoperator,
+    ~erase_zbinop,
     zopseq,
   )
 and move_cursor_left_zoperand =
@@ -238,7 +238,7 @@ and move_cursor_left_zoperand =
     | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp))))
     };
 
-let move_cursor_right_zoperator: zoperator => option(zoperator) =
+let move_cursor_right_zbinop: zoperator => option(zoperator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
@@ -249,11 +249,11 @@ let rec move_cursor_right = (zp: t): option(t) =>
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
-    ~move_cursor_right_zoperator,
+    ~move_cursor_right_zbinop,
     ~place_before_operand,
-    ~place_before_operator,
+    ~place_before_binop,
     ~erase_zoperand,
-    ~erase_zoperator,
+    ~erase_zbinop,
     zopseq,
   )
 and move_cursor_right_zoperand =

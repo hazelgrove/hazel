@@ -318,7 +318,6 @@ and is_outer_zoperand =
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, UnaryOp(_))
-  | UnaryOpZ(_)
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_))
   | CursorE(_, ApPalette(_)) => true
@@ -327,6 +326,7 @@ and is_outer_zoperand =
   | LamZA(_)
   | LamZE(_)
   | InjZ(_)
+  | UnaryOpZ(_)
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false;
@@ -475,7 +475,7 @@ and erase_zline =
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
 and erase_zopseq = zopseq =>
-  ZOpSeq.erase(~erase_zoperand, ~erase_zoperator=erase_zbinop, zopseq)
+  ZOpSeq.erase(~erase_zoperand, ~erase_zbinop, zopseq)
 and erase_zbinop =
   fun
   | (_, binop) => binop
@@ -507,14 +507,10 @@ and erase_zrule =
   | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
   | RuleZE(p, zclause) => Rule(p, erase(zclause));
 
-let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator=erase_zbinop);
+let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zbinop);
 
 let mk_ZOpSeq =
-  ZOpSeq.mk(
-    ~associate=UHExp.associate,
-    ~erase_zoperand,
-    ~erase_zoperator=erase_zbinop,
-  );
+  ZOpSeq.mk(~associate=UHExp.associate, ~erase_zoperand, ~erase_zbinop);
 
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>
@@ -711,11 +707,11 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
-    ~move_cursor_left_zoperator=move_cursor_left_zbinop,
+    ~move_cursor_left_zbinop,
     ~place_after_operand,
-    ~place_after_operator=place_after_binop,
+    ~place_after_binop,
     ~erase_zoperand,
-    ~erase_zoperator=erase_zbinop,
+    ~erase_zbinop,
     zopseq,
   )
 and move_cursor_left_zbinop =
@@ -951,11 +947,11 @@ and move_cursor_right_zline =
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
-    ~move_cursor_right_zoperator=move_cursor_right_zbinop,
+    ~move_cursor_right_zbinop,
     ~place_before_operand,
-    ~place_before_operator=place_before_binop,
+    ~place_before_binop,
     ~erase_zoperand,
-    ~erase_zoperator=erase_zbinop,
+    ~erase_zbinop,
     zopseq,
   )
 and move_cursor_right_zbinop =

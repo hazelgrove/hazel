@@ -109,8 +109,8 @@ and of_steps_binop =
   | [] =>
     let place_cursor =
       switch (side) {
-      | Before => ZTyp.place_before_operator
-      | After => ZTyp.place_after_operator
+      | Before => ZTyp.place_before_binop
+      | After => ZTyp.place_after_binop
       };
     switch (place_cursor(operator)) {
     | Some(zty) => Some(of_zoperator(zty))
