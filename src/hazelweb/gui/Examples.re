@@ -105,6 +105,108 @@ let map_example: UHExp.t = {
   UHExp.[letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)];
 };
 
+let foldr: UHExp.line = {
+  let case_node =
+    UHExp.(
+      case(
+        Block.wrap(var("xs")),
+        [
+          Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(var("acc"))),
+          Rule(
+            UHPat.(
+              Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
+              |> mk_OpSeq
+            ),
+            Operators_Exp.(
+              Block.wrap'(
+                Seq.mk(
+                  var("f"),
+                  [
+                    (Space, var("y")),
+                    (
+                      Space,
+                      Parenthesized(
+                        Block.wrap'(
+                          Seq.mk(
+                            var("foldr"),
+                            [
+                              (Space, var("f")),
+                              (Space, var("acc")),
+                              (Space, var("ys")),
+                            ],
+                          )
+                          |> mk_OpSeq,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+                |> mk_OpSeq,
+              )
+            ),
+          ),
+        ],
+      )
+    );
+  let lam_node =
+    UHExp.(
+      lam(
+        OpSeq.wrap(UHPat.var("f")),
+        Block.wrap(
+          lam(
+            OpSeq.wrap(UHPat.var("acc")),
+            Block.wrap(
+              lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(case_node)),
+            ),
+          ),
+        ),
+      )
+    );
+
+  UHExp.(
+    letline(
+      OpSeq.wrap(UHPat.var("foldr")),
+      ~ann=
+        Operators_Typ.(
+          UHTyp.(
+            Seq.mk(
+              Parenthesized(
+                Seq.mk(Int, [(Arrow, Int), (Arrow, Int)]) |> mk_OpSeq,
+              ),
+              [
+                (Arrow, Int),
+                (Arrow, List(OpSeq.wrap(Int))),
+                (Arrow, Int),
+              ],
+            )
+            |> mk_OpSeq
+          )
+        ),
+      Block.wrap(lam_node),
+    )
+  );
+};
+
+let succ: UHExp.line = {
+  UHExp.(
+    letline(
+      OpSeq.wrap(UHPat.var("succ")),
+      ~ann=Operators_Typ.(UHTyp.(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq)),
+      Block.wrap(
+        UHExp.(
+          lam(
+            OpSeq.wrap(UHPat.var("n")),
+            Block.wrap'(
+              Seq.mk(intlit("1"), [(Operators_Exp.Plus, var("n"))])
+              |> mk_OpSeq,
+            ),
+          )
+        ),
+      ),
+    )
+  );
+};
+
 let qsort_example: UHExp.t = {
   let append_case =
     UHExp.(
@@ -543,6 +645,36 @@ let shmyth_case_nat =
       ),
     ],
   );
+
+let length_template: UHExp.t = [
+  foldr,
+  succ,
+  LetLine(
+    OpSeq.wrap(UHPat.var("length")),
+    Some(UHTyp.contract(Arrow(List(Int), Int))),
+    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+  ),
+  mk_app_equality_assert(1, "length", [UHExp.listnil()], UHExp.intlit("0")),
+  mk_app_equality_assert(
+    2,
+    "length",
+    [shmyth_parens(shmyth_cons(UHExp.intlit("2"), [UHExp.listnil()]))],
+    UHExp.intlit("1"),
+  ),
+  mk_app_equality_assert(
+    3,
+    "length",
+    [
+      shmyth_parens(
+        shmyth_cons(
+          UHExp.intlit("2"),
+          [UHExp.intlit("1"), UHExp.listnil()],
+        ),
+      ),
+    ],
+    UHExp.intlit("2"),
+  ),
+];
 
 let append_template: UHExp.t = [
   shmyth_let(
@@ -1059,6 +1191,7 @@ let examples =
     |> add("qsort_example_30", qsort_n(30))
     |> add("qsort_example_100", qsort_n(100))
     |> add("add_template", addition_template)
+    |> add("length_template", length_template)
     |> add("max_template", max_template)
     |> add("odd_template", odd_template)
     |> add("mult_template", mult_template)
