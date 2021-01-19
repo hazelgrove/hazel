@@ -449,14 +449,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
-      | TypeAnn => Some(Exp)
+      | TypeAnn => Some(Pat)
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam
-      | SAsc => Some(Exp)
+      | SLam => Some(Exp)
+      | SAsc => Some(Pat)
       | _ =>
         Some(
           get_cursor_term_tag_typ(

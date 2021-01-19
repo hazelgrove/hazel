@@ -241,14 +241,15 @@ and move_cursor_left_zoperand =
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
+  | CursorP(OnDelim(_k, Before), TypeAnn(err, p, a)) =>
+    Some(TypeAnnZP(err, place_after_operand(p), a))
   | CursorP(OnDelim(_k, Before), Inj(err, side, p)) =>
     // _k == 1
     Some(InjZ(err, side, place_after(p)))
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _) |
-      TypeAnn(_),
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
@@ -298,6 +299,8 @@ and move_cursor_right_zoperand =
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_k, After), TypeAnn(err, p, a)) =>
+    Some(TypeAnnZA(err, p, ZTyp.place_before(a)))
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(p)))
@@ -307,8 +310,7 @@ and move_cursor_right_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _) |
-      TypeAnn(_),
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None

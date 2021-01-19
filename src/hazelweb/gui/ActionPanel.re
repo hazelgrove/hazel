@@ -292,7 +292,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SLet),
         ),
-        combo(Colon, simple("Type ascription")),
+        combo(Colon, simple("Type annotation")),
       ],
     ),
     section(
