@@ -10,11 +10,11 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
       | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
       | _ => Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Construct(SOp(SAnd))),
+    (Ampersand, _ => Construct(SOp(SUserOp("&")))),
     (VBar, _ => Construct(SOp(SUserOp("|")))),
     (LeftParen, _ => Construct(SParenthesized)),
     (Colon, _ => Construct(SAsc)),
-    (Equals, _ => Construct(SOp(SEquals))),
+    (Equals, _ => Construct(SOp(SUserOp("=")))),
     (Enter, _ => Construct(SLine)),
     (Backslash, _ => Construct(SLam)),
     (Plus, _ => Construct(SOp(SPlus))),

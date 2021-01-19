@@ -1188,8 +1188,9 @@ and syn_perform_opseq =
     };
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+    let sym = Operators_Exp.to_string(op);
     switch (op) {
-    | UserOp(sym) =>
+    | _ when String.length(sym) > 1 =>
       // delete before != Backspace after, when we have user operators
       let new_op = String.sub(sym, 1, String.length(sym) - 1);
       let new_zoperator =
@@ -1206,12 +1207,14 @@ and syn_perform_opseq =
           ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
         );
       syn_perform(ctx, Backspace, (new_ze, ty, u_gen)) |> wrap_in_SynDone;
-    }
+    };
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
+    let sym = Operators_Exp.to_string(op);
+
     switch (op) {
-    | UserOp(sym) when String.length(sym) > 1 =>
+    | op when String.length(sym) > 1 =>
       let new_op = StringUtil.backspace(String.length(sym), sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
@@ -1220,11 +1223,10 @@ and syn_perform_opseq =
         };
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-
     | _ =>
       let new_zseq = delete_operator(surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-    }
+    };
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -1256,18 +1258,20 @@ and syn_perform_opseq =
 
   | (Backspace, ZOperator((OnText(i), oper), seq)) =>
     let op_str = Operators_Exp.to_string(oper);
-    let old_op = Operators_Exp.string_to_operator(op_str);
+    // let old_op = Operators_Exp.string_to_operator(op_str);
     let new_op_str = StringUtil.backspace(i, op_str);
     let new_op = Operators_Exp.string_to_operator(new_op_str);
 
     let is_op_destroyed = String.length(new_op_str) == 0;
 
     let new_zseq =
-      switch (new_op, old_op) {
-      | (Some(UserOp(_) as new_op'), _) when !is_op_destroyed =>
-        ZSeq.ZOperator((CursorPosition.OnText(i - 1), new_op'), seq)
-      | (Some(ty), _) =>
-        ZSeq.ZOperator((CursorPosition.OnOp(Before), ty), seq)
+      switch (new_op) {
+      | Some(UserOp(_) as new_op') when !is_op_destroyed =>
+        print_endline(new_op_str);
+        ZSeq.ZOperator((CursorPosition.OnText(i - 1), new_op'), seq);
+      | Some(ty) =>
+        print_endline(new_op_str);
+        ZSeq.ZOperator((CursorPosition.OnOp(Before), ty), seq);
       | _ => delete_operator(seq)
       };
 
