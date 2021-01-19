@@ -321,7 +321,7 @@ let mk_syn_text =
       | UserOp(x) => x
       | _ => "_"
       };
-    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+    switch (VarMap.lookup(ctx |> Contexts.gamma, Var.surround_underscore(x))) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
@@ -1212,7 +1212,7 @@ and syn_perform_opseq =
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     switch (op) {
     | UserOp(sym) when String.length(sym) > 1 =>
-      let new_op = StringUtil.backspace(String.length(sym) - 1, sym);
+      let new_op = StringUtil.backspace(String.length(sym), sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(After), op')
@@ -1321,8 +1321,9 @@ and syn_perform_opseq =
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
   | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
-    let old_op = Operators_Exp.to_string(oper);
-    let new_op = String.make(1, Action_common.shape_to_string(SOp(os)).[0]);
+    let old_op_str = Operators_Exp.to_string(oper);
+    let new_op_char =
+      String.make(1, Action_common.shape_to_string(SOp(os)).[0]);
 
     let (pos', oper') =
       switch (pos, oper) {
@@ -1332,24 +1333,19 @@ and syn_perform_opseq =
           FEquals,
         ) => (
           pos,
-          None,
+          "",
         )
       | (OnText(i), _) =>
-        let oper' =
-          Operators_Exp.UserOp(StringUtil.insert(i, new_op, old_op));
-        (OnText(i + 1), Some(oper'));
+        let oper' = StringUtil.insert(i, new_op_char, old_op_str);
+        (OnText(i + 1), oper');
       | (OnDelim(_, _), _)
-      | (OnOp(After), _) => (
-          pos,
-          Some(Operators_Exp.UserOp(old_op ++ new_op)),
-        )
-      | (OnOp(Before), _) => (
-          OnText(1),
-          Some(Operators_Exp.UserOp(new_op ++ old_op)),
-        )
+      | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
+      | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
       };
 
-    switch (pos', oper') {
+    // let new_op = Operators_Exp.string_to_operator(new_op_str);
+
+    switch (pos', Operators_Exp.string_to_operator(oper')) {
     | (pos', Some(new_operator)) =>
       let new_zoperator = (pos', new_operator);
       let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
