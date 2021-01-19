@@ -518,8 +518,8 @@ and syn_cursor_info_zoperand =
       uses |> deferred_ci;
     };
   | LamZE(_, p, zbody) =>
-    let* (ty, ctx) = Statics_Pat.syn_opseq(ctx, p);
-    ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty);
+    let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
+    syn_cursor_info(~steps=steps @ [2], body_ctx, zbody);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
