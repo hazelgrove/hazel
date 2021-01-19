@@ -70,8 +70,8 @@ module BinIntOp = {
     | Comma => None
     };
 
-  let to_op = (bio: t): UHExp.binop =>
-    switch (bio) {
+  let to_op = (op: t): UHExp.binop =>
+    switch (op) {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
@@ -91,8 +91,8 @@ module UnIntOp = {
     | Negate => Some((Negate, Int))
     | _ => None
     };
-  let to_op = (bio: t): UHExp.unop =>
-    switch (bio) {
+  let to_op = (op: t): UHExp.unop =>
+    switch (op) {
     | Negate => Negate
     };
 };
@@ -106,8 +106,8 @@ module UnFloatOp = {
     | FNegate => Some((FNegate, Float))
     | _ => None
     };
-  let to_op = (bio: t): UHExp.unop =>
-    switch (bio) {
+  let to_op = (op: t): UHExp.unop =>
+    switch (op) {
     | FNegate => FNegate
     };
 };
@@ -146,8 +146,8 @@ module BinFloatOp = {
     | Comma => None
     };
 
-  let to_op = (bfo: t): UHExp.binop =>
-    switch (bfo) {
+  let to_op = (op: t): UHExp.binop =>
+    switch (op) {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
