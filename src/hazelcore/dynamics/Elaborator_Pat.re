@@ -373,9 +373,8 @@ and ana_elab_operand =
   | UserOp(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | UserOp(NotInHole, NotInVarHole, x) =>
-    let op = Var.extract_op_exp(x);
-    let ctx = Contexts.extend_gamma(ctx, (op, ty));
-    Elaborates(Var(op), ty, ctx, delta);
+    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
   | IntLit(NotInHole, _)

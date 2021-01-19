@@ -11,7 +11,7 @@ let ctx_for_let =
       OpSeq(_, S(UserOp(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(_, E)))],
     ) => (
-      Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty)),
+      Contexts.extend_gamma(ctx, (x, ty)),
       Some(x),
     )
   | (
@@ -93,7 +93,7 @@ and syn_skel =
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+    switch (VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))) {
     | Some(ty) =>
       switch (HTyp.matched_two_ary_arrow(ty)) {
       | Some((ty1, (ty2, ty3))) =>
@@ -460,7 +460,9 @@ and syn_nth_type_mode' =
         ana_go(skel2, ty1);
       }
     | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      switch (
+        VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))
+      ) {
       | Some(ty) =>
         switch (HTyp.matched_two_ary_arrow(ty)) {
         | Some((ty1, (ty2, _))) =>
@@ -795,7 +797,7 @@ and syn_fix_holes_skel =
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
-    switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+    switch (VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))) {
     | Some(ty) =>
       switch (HTyp.matched_two_ary_arrow(ty)) {
       | Some((t1, (t2, tout))) =>

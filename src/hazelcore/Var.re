@@ -55,6 +55,8 @@ let split = (pos, name) => {
   (left_var, right_var);
 };
 
+let surround_underscore = s => "_" ++ s ++ "_";
+
 /* return the user op w/out underscores if the pattern is valid
    i.e. matches _<some ops>_ */
 let extract_op_exp = s =>

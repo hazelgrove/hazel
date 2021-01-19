@@ -99,7 +99,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), Hole));
+    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
@@ -117,7 +117,6 @@ let mk_ana_text =
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
-    print_endline("invalid mk ana text shape");
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
@@ -125,7 +124,7 @@ let mk_ana_text =
       let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
       Succeeded((zp, ctx, u_gen));
-    };
+    }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
     Succeeded((zp, ctx, u_gen));
@@ -152,7 +151,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   | UserOp(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty));
+    let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, ctx, u_gen));
   };
@@ -917,7 +916,9 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      let success_status = ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+      success_status;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -1195,7 +1196,7 @@ and ana_perform_operand =
   /* Closing a user defined operator in a pattern*/
   | (Construct(SChar(s)), CursorP(OnText(j), UserOp(_, _, x)))
       when s == "_" =>
-    ana_insert_text(ctx, u_gen, (j, s), x, ty);
+    ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>

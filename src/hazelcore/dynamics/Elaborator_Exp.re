@@ -714,7 +714,9 @@ and syn_elab_skel =
     Elaborates(d, Hole, delta);
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
     let op_ty =
-      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      switch (
+        VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))
+      ) {
       | None =>
         // TODO (corlaban): this case should be unreachable, make this not elaborate
         HTyp.Hole
