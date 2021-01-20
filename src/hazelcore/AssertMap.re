@@ -10,9 +10,7 @@ let empty = [];
 let extend = (xa: (AssertNumber.t, AssertResult.t), ctx: t): t => {
   let (x, res) = xa;
   switch (List.assoc_opt(x, ctx)) {
-  | Some(a) =>
-    print_endline("assertextended");
-    [(x, List.append(a, [res])), ...List.remove_assoc(x, ctx)];
+  | Some(a) => [(x, List.append(a, [res])), ...List.remove_assoc(x, ctx)]
   | None => [(x, [res]), ...ctx]
   };
 };

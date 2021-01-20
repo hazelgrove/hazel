@@ -7,14 +7,13 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
 type t = {
-  edit_state: Statics_common.edit_state,
+  edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
 };
 
-let mk =
-    (~width: int, ~is_focused=false, edit_state: Statics_common.edit_state): t => {
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
@@ -100,7 +99,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, steps}) =>
          switch (sort) {
          | TypHole => None
          | PatHole(_, shape)
@@ -114,7 +113,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
        )
     |> List.partition(
          fun
-         | (CursorPath_common.TypeErr, _) => true
+         | (CursorPath.TypeErr, _) => true
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
@@ -123,6 +122,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
+  let _assert_results = failwith("todo sean");
   {current_term, err_holes, var_uses, var_err_holes};
 };
 
@@ -137,7 +137,6 @@ let perform_edit_action = (a, program) => {
     let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        print_endline("hit here2");
         (ze, ty, IDGen.init_hole(id_gen));
       } else {
         (ze, ty, id_gen);
@@ -156,14 +155,14 @@ let move_to_hole = (u, program) => {
     let e = ZExp.erase(ze);
     switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => Action_common.MoveTo(hole_path)
+    | Some(hole_path) => Action.MoveTo(hole_path)
     };
   };
 };
 
-let move_to_case_branch = (steps_to_case, branch_index): Action_common.t => {
+let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  Action_common.MoveTo((steps_to_branch, OnDelim(1, After)));
+  Action.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
@@ -238,7 +237,7 @@ let move_via_click =
       target: MeasuredPosition.t,
       program,
     )
-    : (t, Action_common.t) => {
+    : (t, Action.t) => {
   let m =
     get_measured_layout(
       ~measure_program_get_doc,
@@ -264,7 +263,7 @@ let move_via_key =
       move_key: MoveKey.t,
       program,
     )
-    : (t, Action_common.t) => {
+    : (t, Action.t) => {
   let caret_position =
     get_caret_position(
       ~measure_program_get_doc,
