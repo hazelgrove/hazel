@@ -468,7 +468,7 @@ and syn_nth_type_mode' =
         | Some((ty1, (ty2, _))) =>
           n <= Skel.rightmost_tm_index(skel1)
             ? ana_go(skel1, ty1) : ana_go(skel2, ty2)
-        | _ => None
+        | _ => n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
         }
       | None =>
         n <= Skel.rightmost_tm_index(skel1)
