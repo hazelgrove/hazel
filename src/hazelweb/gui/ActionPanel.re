@@ -63,9 +63,9 @@ let mono_text = content => {
 
 let action_button =
     (
-      is_action_allowed: Action_common.t => bool,
+      is_action_allowed: Action.t => bool,
       inject: ModelAction.t => Vdom.Event.t,
-      a: Action_common.t,
+      a: Action.t,
       lbl: list(Vdom.Node.t),
       key_combo,
     ) => {
@@ -149,9 +149,9 @@ let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
 
 let action_list =
     (
-      is_action_allowed: Action_common.t => bool,
+      is_action_allowed: Action.t => bool,
       inject: ModelAction.t => Vdom.Event.t,
-      actions: list((KeyCombo.t, Action_common.t)),
+      actions: list((KeyCombo.t, Action.t)),
       label: string,
     ) => {
   let item = ((combo, action)) => {
@@ -311,7 +311,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("\"let \""),
             text(" to enter a let expression"),
           ],
-          Action_common.Construct(SLet),
+          Action.Construct(SLet),
         ),
         combo(Colon, simple("Type ascription")),
       ],
@@ -332,7 +332,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("\"B\""),
             text(" to insert a Bool type"),
           ],
-          Action_common.Construct(SChar("B")),
+          Action.Construct(SChar("B")),
         ),
         operator_list(~on_type=false, "Operators", [Ampersand, VBar]),
       ],
@@ -352,7 +352,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("Int"),
             text(" type"),
           ],
-          Action_common.Construct(SChar("I")),
+          Action.Construct(SChar("I")),
         ),
         info_action(
           [
@@ -362,7 +362,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("Float"),
             text(" type"),
           ],
-          Action_common.Construct(SChar("F")),
+          Action.Construct(SChar("F")),
         ),
         operator_list(
           ~on_type=false,
@@ -445,7 +445,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
   let cursor_info = Model.get_cursor_info(model);
 
-  let is_action_allowed = (a: Action_common.t): bool => {
+  let is_action_allowed = (a: Action.t): bool => {
     switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
     | Failed => false
     | CursorEscaped(_)
@@ -470,7 +470,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 type ack_checkin =
   | Added;
 
-let _check_actions = (a: Action_common.t) =>
+let _check_actions = (a: Action.t) =>
   switch (a) {
   /* Used */
   | Backspace => Added

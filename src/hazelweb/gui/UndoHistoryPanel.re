@@ -258,7 +258,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let cursor_term_view =
-      (cursor_term: CursorInfo_common.cursor_term, show_indicate_word: bool) => {
+      (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
@@ -300,7 +300,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action_common.shape) => {
+  let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>
@@ -434,8 +434,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ =
-      (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
+  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
     switch (cursor_term) {
     | Exp(_, _) => Exp
     | Pat(_, _) => Pat

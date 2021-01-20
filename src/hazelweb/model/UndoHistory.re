@@ -8,7 +8,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
-  previous_action: Action_common.t,
+  previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
 };
@@ -462,7 +462,7 @@ let get_new_action_group =
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
-      ~action: Action_common.t,
+      ~action: Action.t,
     )
     : option(UndoHistoryCore.action_group) =>
   if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
@@ -689,7 +689,7 @@ let push_edit_state =
       undo_history: t,
       new_cardstacks_before: ZCardstacks.t,
       new_cardstacks_after: ZCardstacks.t,
-      action: Action_common.t,
+      action: Action.t,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);

@@ -293,8 +293,6 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | BoolLit(b) => (boollit(b), id_gen)
   | AssertLit =>
     let (u, id_gen) = IDGen.next_assert(id_gen);
-    print_endline("hit here");
-    print_endline(Sexplib.Sexp.to_string(AssertNumber.sexp_of_t(u)));
     (assertlit(u), id_gen);
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>

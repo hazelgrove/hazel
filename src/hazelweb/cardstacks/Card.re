@@ -1,7 +1,7 @@
 [@deriving sexp]
 type t = {
   info: CardInfo.t,
-  edit_state: Statics_common.edit_state,
+  edit_state: Statics.edit_state,
 };
 
 let mk = (info: CardInfo.t): t => {

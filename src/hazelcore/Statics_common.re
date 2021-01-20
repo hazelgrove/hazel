@@ -1,13 +1,3 @@
-[@deriving sexp]
-type edit_state = (ZExp.t, HTyp.t, IDGen.t);
-
-/**
- * The typing mode for some subexpression in the program
- */
-type type_mode =
-  | Syn
-  | Ana(HTyp.t);
-
 /**
  * Given a `skel` in analytic position against type `ty`,
  * `tuple_zip(~get_tuple_elements, skel, ty)` attempts to
