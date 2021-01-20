@@ -258,7 +258,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~compute_results=model.compute_results,
                     program,
                   ),
-                  UndoHistoryPanel.view(~inject, model),
+                  //UndoHistoryPanel.view(~inject, model),
+                  //AssertPanel.view(program),
                   OptionsPanel.view(~inject, model),
                 ]
               ),

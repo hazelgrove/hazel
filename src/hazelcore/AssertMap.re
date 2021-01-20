@@ -33,6 +33,16 @@ let extend = (xa: (AssertNumber.t, AssertResult.t), ctx: t): t => {
        }
    }
  }*/
+let rec to_list = (map: t): list(string) => {
+  switch (map) {
+  | [x, ...xs] =>
+    switch (x) {
+    | (num, _) => [string_of_int(num), ...to_list(xs)]
+    //| _ => failwith("unexpected on to_list")
+    }
+  | [] => []
+  };
+};
 
 let rec check = (result: list(AssertResult.t)): AssertResult.t =>
   switch (result) {
