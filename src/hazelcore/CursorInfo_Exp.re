@@ -393,7 +393,7 @@ and syn_cursor_info_skel =
           ) {
           | Some(ty) =>
             switch (HTyp.matched_two_ary_arrow(ty)) {
-            | Some(_) => CursorInfo.Synthesized(ty)
+            | Some((_, (_, ty_out))) => CursorInfo.Synthesized(ty_out)
             | _ => CursorInfo.SynErrorArrow(free_arrow_type, ty)
             }
           | _ => SynFreeArrow(free_arrow_type)
@@ -420,7 +420,6 @@ and syn_cursor_info_skel =
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, UserOp(op), skel1, skel2) =>
-
       let op_typ =
         Option.value(
           VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op)),
@@ -817,19 +816,10 @@ and ana_cursor_info_skel =
                }
              );
       | InHole(OperatorError(TypeInconsistent), _) =>
-        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
-        Statics_Exp.syn_opseq(ctx, opseq')
-        |> Option.map(ty' =>
-             switch (HTyp.matched_two_ary_arrow(ty')) {
-             | Some((ty1, (ty2, ty3))) =>
-               CursorInfo_common.mk(
-                 SynErrorArrow(ty1, Arrow(ty2, ty3)),
-                 ctx,
-                 cursor_term,
-               )
-             | None => CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
-             }
-           );
+        // This case occurs when a user operator is constructed with
+        // some expression that is not a 2-ary function. Let subsumption
+        // take care of this case to say that Int ~/~ _ -> _ -> _ for example.
+        syn_cursor_info_skel(~steps, ctx, skel, zseq)
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
