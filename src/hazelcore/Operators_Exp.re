@@ -76,11 +76,13 @@ let operator_of_char =
   | '+' => Plus
   | '-' => Minus
   | '*' => Times
+  | '/' => Divide
   | '=' => Equals
   | '&' => And
   | '|' => Or
   | '<' => LessThan
   | '>' => GreaterThan
+  | ':' => Cons
   | _ =>
     failwith("Error: Create user defined operator with an invalid symbol.");
 
@@ -94,6 +96,7 @@ let first_op_of_user_op = (op: string) => {
   };
 };
 
+// Todo: Refactor precedence into an ordered list, and insert user defined operators properly. 
 let rec precedence =
   fun
   | Comma => 2
