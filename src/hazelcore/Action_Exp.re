@@ -301,7 +301,7 @@ let syn_prj =
   } else {
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, new_prj));
     switch (Statics_Exp.syn_operand(ctx, new_prj)) {
-    | None => Failed
+    | None => failwith("Failed here :(" ++ __LOC__)
     | Some(typ) => Succeeded(SynDone((ze, typ, u_gen)))
     };
   };
@@ -1672,12 +1672,24 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, l)
-  | (Construct(SOp(sop)), CursorE(OnText(j), Prj(_, _, pl)))
+  | (Construct(SOp(sop)), CursorE(OnText(j), Prj(err, exp, pl)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, pl)
-
+    let (l, r) = pl |> StringUtil.split_string(j);
+    let (roperand, u_gen) = UHExp.text_operand(u_gen, TextShape.of_text(r));
+    let loperand = UHExp.prj(exp, l, ~err);
+    switch (operator_of_shape(sop)) {
+    | None => Failed
+    | Some(op) =>
+      let new_ze = {
+        let zoperand = roperand |> ZExp.place_before_operand;
+        let zopseq =
+          ZExp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZExp.ZBlock.wrap'(zopseq);
+      };
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+    };
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
       mk_SynExpandsToCase(
