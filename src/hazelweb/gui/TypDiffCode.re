@@ -10,7 +10,7 @@ let view_of_layout =
         Node.br([]),
         Node.span(
           [],
-          [Node.text(StringUtil.replicat(indent, UnicodeConstants.nbsp))],
+          [Node.text(StringUtil.replicat(indent, Unicode.nbsp))],
         ),
       ],
       imp_of_annot: (annot: TypDiffAnnot.t, vs) =>

@@ -1,5 +1,6 @@
 open Virtual_dom;
 
+let root_id: string;
 let focus: unit => unit;
 
 /**
@@ -9,9 +10,8 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~font_metrics: FontMetrics.t,
-    ~measure: bool,
     ~is_mac: bool,
-    ~cursor_inspector: Model.cursor_inspector,
+    ~settings: Settings.t,
     Program.t
   ) =>
   Vdom.Node.t;

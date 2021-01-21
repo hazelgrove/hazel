@@ -58,9 +58,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
 let view =
     (
       ~inject,
-      ~show_casts: bool,
-      ~show_fn_bodies: bool,
-      ~show_case_clauses: bool,
+      ~settings: Settings.Evaluation.t,
       ~selected_instance: option(HoleInstance.t),
       ~width: int,
       ~pos=0,
@@ -68,13 +66,7 @@ let view =
     )
     : Vdom.Node.t => {
   d
-  |> DHDoc_Exp.mk(
-       ~show_casts,
-       ~show_fn_bodies,
-       ~show_case_clauses,
-       ~enforce_inline=false,
-       ~selected_instance,
-     )
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -88,14 +80,13 @@ let view_of_hole_instance =
       ~width: int,
       ~pos=0,
       ~selected_instance,
+      ~settings: Settings.Evaluation.t,
       (u, i): HoleInstance.t,
     )
     : Vdom.Node.t =>
   view(
     ~inject,
-    ~show_casts=false,
-    ~show_fn_bodies=false,
-    ~show_case_clauses=false,
+    ~settings,
     ~selected_instance,
     ~width,
     ~pos,
