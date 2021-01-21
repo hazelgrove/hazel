@@ -80,6 +80,15 @@ let scroll_cursor_into_view_if_needed = caret_elem => {
   };
 };
 
+let move_cursor_inspector_in_view = ci_elem => {
+  let ci_rect = ci_elem##getBoundingClientRect;
+  let classList = ci_elem##.classList;
+  if (ci_rect##.top < 0.0) {
+    classList##remove(Js.string("above"));
+    classList##add(Js.string("below"));
+  };
+};
+
 let scroll_history_panel_entry = entry_elem => {
   let panel_rect =
     JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
@@ -129,6 +138,11 @@ let create =
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
+
+            if (model.cursor_inspector.visible) {
+              let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
+              move_cursor_inspector_in_view(ci_elem);
+            };
           };
         },
       model,
