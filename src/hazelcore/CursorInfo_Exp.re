@@ -381,15 +381,26 @@ and syn_cursor_info_skel =
         ctx,
         zoperand,
       )
-    | ZOperator(_) =>
+    | ZOperator((_, op), _) =>
       // if the operator synthesizes a hole, it must have been a free user op,
       // so we want match it to a 2 argument function.
-      let syn_ty = ty =>
-        switch (ty) {
-        | HTyp.Hole =>
-          CursorInfo.SynFreeArrow(Arrow(Hole, Arrow(Hole, Hole)))
-        | ty => Synthesized(ty)
+      let free_arrow_type = HTyp.Arrow(Hole, Arrow(Hole, Hole));
+      let syn_ty = (ty: HTyp.t) => {
+        switch (op) {
+        | UserOp(sym) =>
+          switch (
+            VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(sym))
+          ) {
+          | Some(ty) =>
+            switch (HTyp.matched_two_ary_arrow(ty)) {
+            | Some(_) => CursorInfo.Synthesized(ty)
+            | _ => CursorInfo.SynErrorArrow(free_arrow_type, ty)
+            }
+          | _ => SynFreeArrow(free_arrow_type)
+          }
+        | _ => Synthesized(ty)
         };
+      };
 
       Statics_Exp.syn_skel(ctx, skel, seq)
       |> Option.map(ty => {
@@ -409,26 +420,24 @@ and syn_cursor_info_skel =
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, UserOp(op), skel1, skel2) =>
-      let mk = typed =>
-        CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
 
       let op_typ =
-        switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
-        | Some(ty) => ty
-        | None => Hole
-        };
+        Option.value(
+          VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op)),
+          ~default=Hole,
+        );
 
       switch (HTyp.matched_two_ary_arrow(op_typ)) {
-      | Some((ty1, (ty2, ty3))) =>
+      | Some((ty1, (ty2, _))) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
         | Some(_) as result => result
-        | None =>
-          switch (ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)) {
-          | Some(_) as result => result
-          | None => Some(mk(Synthesized(Arrow(ty1, Arrow(ty2, ty3)))))
-          }
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
         }
-      | _ => Some(mk(SynErrorArrow(Hole, Hole)))
+      | _ =>
+        switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+        | Some(_) as result => result
+        | _ => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+        }
       };
 
     | BinOp(
@@ -789,11 +798,37 @@ and ana_cursor_info_skel =
         |> Option.map(_ =>
              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
            )
-      | InHole(OperatorError(_), _) =>
+      | InHole(OperatorError(Free), _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        print_endline("free operator error");
+        Statics_Exp.syn_opseq(ctx, opseq')
+        |> Option.map(ty'
+             //  print_endline(Sexplib.Sexp.to_string(ty'));
+             =>
+               switch (HTyp.matched_two_ary_arrow(ty')) {
+               | Some((ty1, (ty2, ty3))) =>
+                 CursorInfo_common.mk(
+                   SynFreeArrow(Arrow(ty1, Arrow(ty2, ty3))),
+                   ctx,
+                   cursor_term,
+                 )
+               | None =>
+                 CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
+               }
+             );
+      | InHole(OperatorError(TypeInconsistent), _) =>
         let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
         Statics_Exp.syn_opseq(ctx, opseq')
-        |> Option.map(_ =>
-             CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
+        |> Option.map(ty' =>
+             switch (HTyp.matched_two_ary_arrow(ty')) {
+             | Some((ty1, (ty2, ty3))) =>
+               CursorInfo_common.mk(
+                 SynErrorArrow(ty1, Arrow(ty2, ty3)),
+                 ctx,
+                 cursor_term,
+               )
+             | None => CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
+             }
            );
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
