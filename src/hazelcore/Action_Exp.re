@@ -74,6 +74,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
+  | If => Construct(SIf)
   };
 
 //TBD
@@ -232,6 +233,8 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_SynExpandsToIf = (~u_gen, ~prefix=[], ~suffix=[], ~guard, ()) =>
+  SynExpands({kw: Let, u_gen, prefix, suffix, subject: guard});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -246,6 +249,8 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_AnaExpandsToIf = (~u_gen, ~prefix=[], ~suffix=[], ~guard, ()) =>
+  AnaExpands({kw: If, u_gen, prefix, suffix, subject: guard});
 let wrap_in_AnaDone:
   ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
@@ -415,6 +420,7 @@ let syn_split_text =
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
+      | If => mk_SynExpandsToIf(~u_gen, ~guard=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -455,6 +461,7 @@ let ana_split_text =
       switch (kw) {
       | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
+      | If => mk_AnaExpandsToIf(~u_gen, ~guard=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -609,7 +616,13 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
-}
+  | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
+    let (zt1_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let zif1 = ZExp.IfZ1(ZOpSeq.wrap(zt1_hole), None, subject)
+    let new_ze = (prefix, zif1, suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    /* START HERE!! */
+  }
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -1611,6 +1624,14 @@ and syn_perform_operand =
   | (Construct(SLet), CursorE(_, operand)) =>
     Succeeded(
       mk_SynExpandsToLet(
+        ~u_gen,
+        ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        (),
+      ),
+    )
+  | (Construct(SIf), CursorE(_, operand)) =>
+    Succeeded(
+      mk_SynExpandsToIf(
         ~u_gen,
         ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
         (),

@@ -109,7 +109,8 @@ and perform_opseq =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
+        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SIf |
+        SApPalette(_),
       ) |
       SwapUp |
       SwapDown,
@@ -226,7 +227,8 @@ and perform_operand =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
+        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SIf |
+        SApPalette(_) |
         SCommentLine,
       ) |
       SwapUp |

@@ -572,7 +572,7 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase | SIf |
         SCommentLine,
       ) |
       UpdateApPalette(_) |
@@ -997,7 +997,7 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase | SIf |
         SCommentLine,
       ) |
       UpdateApPalette(_) |
