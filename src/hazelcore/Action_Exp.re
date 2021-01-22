@@ -1207,15 +1207,17 @@ and syn_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     let sym = Operators_Exp.to_string(op);
+    let op_len = String.length(sym);
 
     switch (op) {
-    | op when String.length(sym) > 1 =>
-      let new_op = StringUtil.backspace(String.length(sym), sym);
+    | op when op_len > 1 =>
+      let new_op = StringUtil.backspace(op_len, sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(After), op')
         | None => (CursorPosition.OnOp(After), op) // do nothing
         };
+
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | _ =>
@@ -1252,21 +1254,23 @@ and syn_perform_opseq =
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   | (Backspace, ZOperator((OnText(i), oper), seq)) =>
-    let op_str = Operators_Exp.to_string(oper);
-    // let old_op = Operators_Exp.string_to_operator(op_str);
-    let new_op_str = StringUtil.backspace(i, op_str);
+    let new_op_str = StringUtil.backspace(i, oper |> Operators_Exp.to_string);
     let new_op = Operators_Exp.string_to_operator(new_op_str);
 
-    let is_op_destroyed = String.length(new_op_str) == 0;
+    let mk_zoperator = op => {
+      let position =
+        if (i - 1 == 0) {
+          CursorPosition.OnOp(Before);
+        } else {
+          CursorPosition.OnText(i - 1);
+        };
+      ZSeq.ZOperator((position, op), seq);
+    };
 
     let new_zseq =
       switch (new_op) {
-      | Some(UserOp(_) as new_op') when !is_op_destroyed =>
-        print_endline(new_op_str);
-        ZSeq.ZOperator((CursorPosition.OnText(i - 1), new_op'), seq);
-      | Some(ty) =>
-        print_endline(new_op_str);
-        ZSeq.ZOperator((CursorPosition.OnOp(Before), ty), seq);
+      | Some(UserOp(_) as new_op') => mk_zoperator(new_op')
+      | Some(new_op') => mk_zoperator(new_op')
       | _ => delete_operator(seq)
       };
 
