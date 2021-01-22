@@ -1181,13 +1181,12 @@ and syn_perform_opseq =
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => Failed
     };
-  /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
     let sym = Operators_Exp.to_string(op);
     switch (op) {
     | _ when String.length(sym) > 1 =>
-      // delete before != Backspace after, when we have user operators
-      let new_op = String.sub(sym, 1, String.length(sym) - 1);
+      /* Delete before == Delete first character, when operator is many character */
+      let new_op = StringUtil.delete(0, sym);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(Before), op')
@@ -1197,6 +1196,7 @@ and syn_perform_opseq =
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | _ =>
+      /* Delete before operator == Backspace after operator, when operator is single character */
       let new_ze =
         ZExp.ZBlock.wrap'(
           ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
