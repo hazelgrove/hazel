@@ -315,12 +315,7 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-  | UserOp(_) as shape =>
-    let x =
-      switch (shape) {
-      | UserOp(x) => x
-      | _ => "_"
-      };
+  | UserOp(x) =>
     switch (VarMap.lookup(ctx |> Contexts.gamma, Var.surround_underscore(x))) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
@@ -330,7 +325,7 @@ let mk_syn_text =
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, u_gen)));
-    };
+    }
   | Underscore as shape
   | Var(_) as shape =>
     let x =
@@ -1323,6 +1318,9 @@ and syn_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
+  // TODO(corlaban): Space construction on top of multi character operator should
+  // insert a new hole inbetween the split character.
+
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
   | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
     let old_op_str = Operators_Exp.to_string(oper);
