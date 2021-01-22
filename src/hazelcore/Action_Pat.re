@@ -916,9 +916,7 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None =>
-      let success_status = ana_perform_operand(ctx, u_gen, a, zoperand, ty);
-      success_status;
+    | None => ana_perform_operand(ctx, u_gen, a, zoperand, ty)
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -1185,8 +1183,8 @@ and ana_perform_operand =
       | Before => 0
       | After => 1
       };
-    let operator_char = Action_common.shape_to_string(SOp(os));
-    ana_insert_text(ctx, u_gen, (index, operator_char), "_", ty);
+    let operator = Action_common.shape_to_string(SOp(os));
+    ana_insert_text(ctx, u_gen, (index, operator), "_", ty);
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
