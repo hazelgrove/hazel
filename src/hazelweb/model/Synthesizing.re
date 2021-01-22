@@ -345,3 +345,17 @@ let step_out = (e: UHExp.t, (steps, z): t): option(t) => {
   let+ z = go(~rev_sketch=[(e, F(HoleMap.empty), steps)], z);
   (steps, z);
 };
+
+let synthesize_all = (e: UHExp.t) => {
+  switch (Shmyth.solve_all(e)) {
+  | Some([results, ..._]) =>
+    Some(
+      List.fold_right(
+        ((hole, filling), expr) => UHExp.fill_hole(hole, filling, expr),
+        results,
+        e,
+      ),
+    )
+  | _ => None
+  };
+};

@@ -66,6 +66,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
   | SynthesizeHole(_)
+  | SynthesizeAll
   | ScrollFilling(_)
   | AcceptFilling
   | StepInFilling
@@ -133,10 +134,11 @@ let apply_action =
       | PrevCard => Model.prev_card(model)
       | SynthesizeHole(u) =>
         Model.map_program(Program.begin_synthesizing(u), model)
+      | SynthesizeAll => Model.map_program(Program.accept_all, model)
       | ScrollFilling(up) =>
         Model.map_program(Program.scroll_synthesized_selection(up), model)
-      | AcceptFilling => Model.map_program(Program.accept_synthesized, model)
       | StepInFilling => Model.map_program(Program.step_in_synthesized, model)
+      | AcceptFilling => Model.map_program(Program.accept_synthesized, model)
       | StepOutFilling =>
         Model.map_program(Program.step_out_synthesized, model)
       | NextSynthesisHole =>

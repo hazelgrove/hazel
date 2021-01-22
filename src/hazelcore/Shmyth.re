@@ -860,6 +860,26 @@ let process_constraints = (hconstraints, hole_number) => {
 //type solve_result = list(list((MetaVar.t, UHExp.t)));
 type solve_result = (list(UHExp.t), constraint_data);
 
+type hole_fillings = list(list((MetaVar.t, UHExp.t)));
+
+let solve_all = (e: UHExp.t): option(hole_fillings) => {
+  let* sm_prog = top_hexp_to_smprog(e);
+  switch (Smyth.Endpoint.solve_program(sm_prog)) {
+  | Error(_) => None
+  | Ok({hole_fillings, _}) =>
+    hole_fillings
+    |> List.map(hole_filling =>
+         hole_filling
+         |> List.map(((u, smexp)) => {
+              let+ e = smexp_to_uhexp(smexp);
+              (u, e);
+            })
+         |> OptUtil.sequence
+       )
+    |> OptUtil.sequence
+  };
+};
+
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
   /*print_endline(

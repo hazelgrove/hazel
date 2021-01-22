@@ -356,3 +356,12 @@ let accept_synthesized = program =>
     let edit_state = (ZExp.place_before(e), ty, id_gen);
     {...program, edit_state, is_focused: false, synthesizing: None};
   };
+
+let accept_all = program =>
+  switch (Synthesizing.synthesize_all(get_uhexp(program))) {
+  | None => program
+  | Some(syn) =>
+    let (_, ty, id) = program.edit_state;
+    let edit_state = (ZExp.place_before(syn), ty, id);
+    {...program, edit_state, is_focused: false, synthesizing: None};
+  };
