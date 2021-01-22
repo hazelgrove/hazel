@@ -424,8 +424,12 @@ and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         UHExp.mk_OpSeq(Seq.seq_op_seq(hz_hd, Operators_Exp.Cons, hz_tl)),
       );
     }
-  | ECtor(name, _, _) => {
+  | ECtor(name, _, _e) => {
       Format.printf("bad list constructor: %s%!", name);
+      Format.printf(
+        "argument: %s%!",
+        Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_exp(_e)),
+      );
       assert(false);
     }
   | exp => smexp_to_uhexp_opseq(exp)
