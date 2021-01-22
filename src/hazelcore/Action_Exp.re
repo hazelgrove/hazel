@@ -1278,7 +1278,7 @@ and syn_perform_opseq =
     Succeeded(SynDone((exp, ty, meta_var)));
 
   | (Delete, ZOperator((OnText(i), oper), seq)) =>
-    let new_op_str = StringUtil.delete(i, Operators_Exp.to_string(oper));
+    let new_op_str = StringUtil.delete(i, oper |> Operators_Exp.to_string);
     let new_op = Operators_Exp.string_to_operator(new_op_str);
     let new_zoperator =
       switch (new_op) {
@@ -1322,14 +1322,15 @@ and syn_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
+
   // TODO(corlaban): Space construction on top of multi character operator should
-  // insert a new hole inbetween the split character.
+  // insert a new hole in between the split characters.
 
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
-  | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
+  | (Construct(SOp(_) as sop), ZOperator((pos, oper), seq)) =>
     let old_op_str = Operators_Exp.to_string(oper);
     let new_op_char =
-      String.make(1, Action_common.shape_to_string(SOp(os)).[0]);
+      Action_common.shape_to_string(sop).[0] |> String.make(1);
 
     let (pos', oper') =
       switch (pos, oper) {
@@ -1349,13 +1350,12 @@ and syn_perform_opseq =
       | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
       };
 
-    // let new_op = Operators_Exp.string_to_operator(new_op_str);
-
     switch (pos', Operators_Exp.string_to_operator(oper')) {
     | (pos', Some(new_operator)) =>
       let new_zoperator = (pos', new_operator);
       let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
       let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+
       Succeeded(SynDone((exp, ty, meta_var)));
     | _ => Failed
     };
