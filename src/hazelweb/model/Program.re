@@ -361,7 +361,14 @@ let accept_all = program =>
   switch (Synthesizing.synthesize_all(get_uhexp(program))) {
   | None => program
   | Some(syn) =>
-    let (_, ty, id) = program.edit_state;
-    let edit_state = (ZExp.place_before(syn), ty, id);
+    let id_gen = get_id_gen(program);
+    let (e, ty, id_gen) =
+      Statics_Exp.syn_fix_holes(
+        Contexts.empty,
+        id_gen,
+        ~renumber_empty_holes=true,
+        syn,
+      );
+    let edit_state = (ZExp.place_before(e), ty, id_gen);
     {...program, edit_state, is_focused: false, synthesizing: None};
   };
