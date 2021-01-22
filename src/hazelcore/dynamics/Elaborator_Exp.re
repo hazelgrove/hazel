@@ -60,7 +60,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
   | BoundUserOp(op, d3, d4) =>
-    if (Var.is_operator(x) && x |> Var.extract_op_exp |> Var.eq(op)) {
+    if (Var.is_operator(x) && Var.eq(Var.surround_underscore(op), x)) {
       Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
     } else {
       let d3 = subst_var(d1, x, d3);
