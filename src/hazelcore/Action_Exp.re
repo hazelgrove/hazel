@@ -328,6 +328,7 @@ let mk_syn_text =
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   | LivelitName(lln) =>
+    print_endline("111111111");
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let ze =
       ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.FreeLivelit(u, lln)));

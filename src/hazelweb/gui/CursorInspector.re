@@ -202,15 +202,26 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_livelit_indicator;
       (ind1, ind2, BindingError);
-    | AnaLivelitDoesNotExpand(_expected_ty) =>
-      //TODO(andrew): finish this 66666666
-      let expected_msg = "Invalid";
-      let ind1 =
+    | AnaLivelitDoesNotExpand(expected_ty) =>
+      //TODO(andrew): finish this
+      let ind1 = expected_ty_indicator(expected_ty);
+      let expected_msg = "No Expansion";
+      let ind2 =
         expected_indicator(
           "Livelit Expansion Invalid",
           special_msg_bar(expected_msg),
         );
-      (ind1, ind1, InsufficientLivelitArgs); //TODO(andrew): fix this
+      (ind1, ind2, TypeInconsistency); //TODO(andrew): fix this
+    | SynLivelitDoesNotExpand =>
+      //TODO(andrew): finish this
+      let expected_msg = "No Expansion";
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        expected_indicator(
+          "Livelit Expansion Invalid",
+          special_msg_bar(expected_msg),
+        );
+      (ind1, ind2, TypeInconsistency); //TODO(andrew): fix this
     | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_insufficient_livelit_args_indicator(got_ty);

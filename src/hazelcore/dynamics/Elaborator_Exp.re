@@ -1248,7 +1248,12 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       ) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
-      | None => DoesNotElaborate
+      | None =>
+        print_endline(
+          "this is the problem for llaps in lldefs; livelit lookup fails",
+        );
+        print_endline(name);
+        DoesNotElaborate;
       | Some((livelit_defn, closed_dargs)) =>
         let reqd_param_tys =
           livelit_defn.param_tys |> ListUtil.drop(List.length(closed_dargs));

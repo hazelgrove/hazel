@@ -712,6 +712,8 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, ApLivelit(_)) =>
+    Some(CursorInfo_common.mk(SynLivelitDoesNotExpand, ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -1156,10 +1158,9 @@ and ana_cursor_info_zoperand =
         _,
         _,
       ) =>
-      print_endline("cursorinfo ana: ll does nto expand");
       Some(
         CursorInfo_common.mk(AnaLivelitDoesNotExpand(ty), ctx, cursor_term),
-      );
+      )
     | FreeLivelit(_, _) =>
       Some(CursorInfo_common.mk(AnaFreeLivelit(ty), ctx, cursor_term))
     | ListNil(NotInHole)

@@ -55,7 +55,15 @@ module rec M: Statics_Exp_Sig.S = {
   let serialize_ll_monad = model =>
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
-  let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+  let mk_ll_init =
+      (init: UHExp.t, livelit_ctx: LivelitCtx.t(HTyp.t))
+      : SpliceGenCmd.t(SerializedModel.t) => {
+    print_endline("BLAH");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
+    let _ctx = (VarCtx.empty, livelit_ctx);
+    // TODO(andrew): make above work. need to pass livelit ctx
+    // to allow livelit aps within defs
+    // (also need to do this for update etc)
     let dh_init = Elaborator.syn_elab(Contexts.empty, Delta.empty, init);
     switch (dh_init) {
     | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
@@ -139,6 +147,51 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
+  let extend_livelit_ctx = (ctx: Contexts.t, llrecord) => {
+    let (gamma, livelit_ctx) = ctx;
+    let {
+      name: (_, name_str),
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      expansion_type,
+      model_type,
+      _,
+    }: UHExp.livelit_record = llrecord;
+    let new_ll_def: LivelitDefinition.t = {
+      name: name_str,
+      model_ty: UHTyp.expand(model_type),
+      expansion_ty: UHTyp.expand(expansion_type),
+      param_tys: [], // TODO: params
+      init_model: mk_ll_init(init, livelit_ctx),
+      update: mk_ll_update(update),
+      expand: mk_ll_expand(expand),
+    };
+    /* NOTE(andrew): Extend the livelit context only if all
+     * fields typecheck; otherwise we have a litany of possible
+     * failure cases to contend with at the ap site, most of which
+     * are already indicated by type holes in the definition. An
+     * alternate approach to consider is adding an error field to
+     * livelitdefs and dealing with these heterogenously at
+     * the ap site. */
+    let ll_def_valid =
+      UHExp.is_complete(init, false)
+      && UHExp.is_complete(update, false)
+      && UHExp.is_complete(view, false)
+      && UHExp.is_complete(shape, false)
+      && UHExp.is_complete(expand, false);
+    let new_livelit_ctx =
+      ll_def_valid
+        ? LivelitCtx.extend(
+            livelit_ctx,
+            (name_str, (new_ll_def, [])) // TODO: params
+          )
+        : livelit_ctx;
+    (gamma, new_livelit_ctx);
+  };
+
   /**
  * Synthesize a type, if possible, for e
  */
@@ -185,65 +238,18 @@ module rec M: Statics_Exp_Sig.S = {
         | Some(ty) => Statics_Pat.ana(ctx, p, ty)
         }
       }
-    | LivelitDefLine(
-        {
-          name: (_, name_str),
-          init,
-          update,
-          view,
-          shape,
-          expand,
-          expansion_type,
-          model_type,
-          _,
-        } as llrecord,
-      ) =>
+    | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       // TODO: captures
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
-      let results = [
+      OptUtil.sequence([
         ana(ctx, init, init_ty),
         ana(ctx, update, update_ty),
         ana(ctx, view, view_ty),
         ana(ctx, shape, shape_ty),
         ana(ctx, expand, expand_ty),
-      ];
-      switch (OptUtil.sequence(results)) {
-      | None => None
-      | Some(_) =>
-        let (gamma, livelit_ctx) = ctx;
-        let new_ll_def: LivelitDefinition.t = {
-          name: name_str,
-          model_ty: UHTyp.expand(model_type),
-          expansion_ty: UHTyp.expand(expansion_type),
-          param_tys: [], // TODO: params
-          init_model: mk_ll_init(init),
-          update: mk_ll_update(update),
-          expand: mk_ll_expand(expand),
-        };
-        /* NOTE(andrew): Extend the livelit context only if all
-         * fields typecheck; otherwise we have a litany of possible
-         * failure cases to contend with at the ap site, most of which
-         * are already indicated by type holes in the definition. An
-         * alternate approach to consider is adding an error field to
-         * livelitdefs and dealing with these heterogenously at
-         * the ap site. */
-        let ll_def_valid =
-          UHExp.is_complete(init, false)
-          && UHExp.is_complete(update, false)
-          && UHExp.is_complete(view, false)
-          && UHExp.is_complete(shape, false)
-          && UHExp.is_complete(expand, false);
-
-        let livelit_ctx =
-          ll_def_valid
-            ? LivelitCtx.extend(
-                livelit_ctx,
-                (name_str, (new_ll_def, [])) // TODO: params
-              )
-            : livelit_ctx;
-        Some((gamma, livelit_ctx));
-      };
+      ])
+      |> Option.map(_ => extend_livelit_ctx(ctx, llrecord));
     | AbbrevLine(lln_new, err_status, lln_old, args) =>
       let (gamma, livelit_ctx) = ctx;
       let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
@@ -1114,7 +1120,7 @@ module rec M: Statics_Exp_Sig.S = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, expand, expand_ty);
       (
         LivelitDefLine({...llrecord, init, update, view, shape, expand}),
-        ctx,
+        extend_livelit_ctx(ctx, llrecord),
         u_gen,
       );
     | AbbrevLine(lln_new, _, lln_old, args) =>
@@ -1545,9 +1551,12 @@ module rec M: Statics_Exp_Sig.S = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
       (Subscript(NotInHole, target, start_, end_), String, u_gen);
     | ApLivelit(llu, _, _, lln, model, splice_info) =>
+      print_endline("222222222");
       let livelit_ctx = Contexts.livelit_ctx(ctx);
+      print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
+        print_endline("NONE CASE");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, lln), Hole, u_gen);
       | Some((livelit_defn, closed_tys)) =>
