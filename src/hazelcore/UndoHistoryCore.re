@@ -164,6 +164,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
+    | UnaryOp(_)
     | Inj(_, _, _) => MaxLen
     }
   | Typ(_, operand) =>

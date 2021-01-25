@@ -158,6 +158,14 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
+  | (UnIntOp(Negate, dp), UnIntOp(Negate, d)) => matches(dp, d)
+  | (UnIntOp(Negate, dp), Cast(d, Int, Hole)) => matches(dp, d)
+  | (UnIntOp(Negate, dp), Cast(d, Hole, Int)) => matches(dp, d)
+  | (UnIntOp(Negate, _), _) => DoesNotMatch
+  | (UnFloatOp(FNegate, dp), UnFloatOp(FNegate, d)) => matches(dp, d)
+  | (UnFloatOp(FNegate, dp), Cast(d, Float, Hole)) => matches(dp, d)
+  | (UnFloatOp(FNegate, dp), Cast(d, Hole, Float)) => matches(dp, d)
+  | (UnFloatOp(_, _), _) => DoesNotMatch
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {

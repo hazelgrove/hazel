@@ -1,4 +1,4 @@
-let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
+let operator_of_shape: Action.operator_shape => option(UHPat.binop) =
   fun
   | SComma => Some(Comma)
   | SSpace => Some(Space)
@@ -15,7 +15,7 @@ let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   | SArrow
   | SVBar => None;
 
-let shape_of_operator = (op: UHPat.operator): Action.operator_shape =>
+let shape_of_operator = (op: UHPat.binop): Action.operator_shape =>
   switch (op) {
   | Comma => SComma
   | Space => SSpace

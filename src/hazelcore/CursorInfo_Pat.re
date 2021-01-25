@@ -19,6 +19,7 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
+  | UnaryOpZ(_, _, zchild) => extract_from_zpat_operand(zchild)
   };
 };
 
@@ -41,6 +42,7 @@ and get_zoperand_from_zpat_operand =
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | UnaryOpZ(_, _, zchild) => get_zoperand_from_zpat_operand(zchild)
   };
 };
 let rec syn_cursor_info =
@@ -215,6 +217,9 @@ and syn_cursor_info_zoperand =
        )
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | UnaryOpZ(_, unop, zchild) =>
+    let ty_u = Statics_Pat.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   }
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
@@ -426,6 +431,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
+    | UnaryOp(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
@@ -447,6 +453,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | UnaryOp(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
@@ -507,6 +514,16 @@ and ana_cursor_info_zoperand =
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )
          )
+    | UnaryOp(NotInHole, _, _) =>
+      switch (Statics_Pat.syn_operand(ctx, ZPat.erase_zoperand(zoperand))) {
+      | None => None
+      | Some((ty', ctx)) =>
+        Some(
+          CursorNotOnDeferredVarPat(
+            CursorInfo_common.mk(PatAnaSubsumed(ty, ty'), ctx, cursor_term),
+          ),
+        )
+      }
     }
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
@@ -520,5 +537,8 @@ and ana_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+  | UnaryOpZ(_, unop, zchild) =>
+    let ty_u = Statics_Pat.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   };
 };

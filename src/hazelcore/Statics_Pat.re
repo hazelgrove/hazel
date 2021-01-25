@@ -51,6 +51,7 @@ and syn_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, gamma) = syn_operand(ctx, operand');
@@ -61,6 +62,7 @@ and syn_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
@@ -75,6 +77,7 @@ and syn_operand =
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
+  | UnaryOp(NotInHole, unop, _) => Some((syn_unop(ctx, unop), ctx))
   | Inj(NotInHole, inj_side, p1) =>
     let+ (ty1, ctx) = syn(ctx, p1);
     let ty =
@@ -85,6 +88,12 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   }
+and syn_unop = (_: Contexts.t, unop: UHPat.unop): HTyp.t => {
+  switch (unop) {
+  | Unops_Pat.Negate => Int
+  | Unops_Pat.FNegate => Float
+  };
+}
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
 and ana_opseq =
@@ -144,6 +153,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, ctx) = syn_operand(ctx, operand');
@@ -154,6 +164,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
@@ -175,6 +186,16 @@ and ana_operand =
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
+  | UnaryOp(NotInHole, _, _) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some((ty', ctx)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Some(ctx);
+      } else {
+        None;
+      }
+    }
   };
 
 let rec syn_nth_type_mode =
@@ -390,6 +411,11 @@ and syn_fix_holes_operand =
   | FloatLit(_, _) => (operand_nih, Float, ctx, u_gen)
   | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)
   | ListNil(_) => (operand_nih, List(Hole), ctx, u_gen)
+  | UnaryOp(_, unop, child) =>
+    let ty_u = syn_unop(ctx, unop);
+    let (new_child, ctx, u_gen) =
+      ana_fix_holes_operand(ctx, u_gen, child, ty_u);
+    (UnaryOp(NotInHole, unop, new_child), ty_u, ctx, u_gen);
   | Parenthesized(p) =>
     let (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
@@ -654,6 +680,19 @@ and ana_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
         UHPat.set_err_status_operand(InHole(TypeInconsistent, u), operand'),
+        ctx,
+        u_gen,
+      );
+    };
+  | UnaryOp(_, _, _) =>
+    let (e, ty', ctx, u_gen) =
+      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
+    if (HTyp.consistent(ty, ty')) {
+      (UHPat.set_err_status_operand(NotInHole, e), ctx, u_gen);
+    } else {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHPat.set_err_status_operand(InHole(TypeInconsistent, u), e),
         ctx,
         u_gen,
       );

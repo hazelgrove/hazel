@@ -851,7 +851,6 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    /* TODO */
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
       ~hole_selected,

@@ -20,6 +20,7 @@ let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
   (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));
 let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
+let syn_unop: (Contexts.t, UHPat.unop) => HTyp.t;
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `p` against `ty` and

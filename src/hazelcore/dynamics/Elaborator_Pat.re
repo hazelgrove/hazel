@@ -175,18 +175,16 @@ and syn_elab_operand =
   | UnaryOp(NotInHole, Negate, child) =>
     switch (ana_elab_operand(ctx, delta, child, HTyp.Int)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      let dc1 = DHExp.cast(d1, ty1, Int);
-      let d = DHExp.UnIntOp(Negate, dc1);
-      Elaborates(d, Int, delta);
+    | Elaborates(d1, _, ctx, delta) =>
+      let d = DHPat.UnIntOp(Negate, d1);
+      Elaborates(d, Int, ctx, delta);
     }
   | UnaryOp(NotInHole, FNegate, child) =>
     switch (ana_elab_operand(ctx, delta, child, HTyp.Float)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      let dc1 = DHExp.cast(d1, ty1, Float);
-      let d = DHExp.UnFloatOp(FNegate, dc1);
-      Elaborates(d, Float, delta);
+    | Elaborates(d1, _, ctx, delta) =>
+      let d = DHPat.UnFloatOp(FNegate, d1);
+      Elaborates(d, Float, ctx, delta);
     }
   }
 and ana_elab =
@@ -434,6 +432,12 @@ let rec renumber_result_only =
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, k), hii);
+  | UnIntOp(op, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (UnIntOp(op, d1), hii);
+  | UnFloatOp(op, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (UnFloatOp(op, d1), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);
