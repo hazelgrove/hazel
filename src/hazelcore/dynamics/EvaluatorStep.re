@@ -239,29 +239,86 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | _ => d
   };
 
+// Copy from Evaluator.re
+// Those things will be deleted!
+
+let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
+  switch (op) {
+  | And => BoolLit(b1 && b2)
+  | Or => BoolLit(b1 || b2)
+  };
+
+let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+  switch (op) {
+  | Minus => IntLit(n1 - n2)
+  | Plus => IntLit(n1 + n2)
+  | Times => IntLit(n1 * n2)
+  | Divide => IntLit(n1 / n2)
+  | LessThan => BoolLit(n1 < n2)
+  | GreaterThan => BoolLit(n1 > n2)
+  | Equals => BoolLit(n1 == n2)
+  };
+};
+
+let eval_bin_float_op =
+    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
+  switch (op) {
+  | FPlus => FloatLit(f1 +. f2)
+  | FMinus => FloatLit(f1 -. f2)
+  | FTimes => FloatLit(f1 *. f2)
+  | FDivide => FloatLit(f1 /. f2)
+  | FLessThan => BoolLit(f1 < f2)
+  | FGreaterThan => BoolLit(f1 > f2)
+  | FEquals => BoolLit(f1 == f2)
+  };
+};
+
 let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   switch (d) {
-  // | Let(dp, d1, d2) =>
-
+  // | Ap(d1, d2) =>
+  //   switch(d1) {
+  //     | Lam(pat, ty, d0) => Some()
+  //   }
+  | Let(dp, d1, d2) =>
+    switch (Elaborator_Exp.matches(dp, d1)) {
+    | Indet => None // maybe they should be errors
+    | DoesNotMatch => None
+    | Matches(env) => Some(Elaborator_Exp.subst(env, d2))
+    }
+  | BinBoolOp(op, d1, d2) =>
+    switch (d1, d2) {
+    | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
+      Some(eval_bin_bool_op(op, b1, b2))
+    | _ => None
+    }
+  | BinIntOp(op, d1, d2) =>
+    switch (d1, d2) {
+    | (DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
+      Some(eval_bin_int_op(op, i1, i2))
+    | _ => None
+    }
+  | BinFloatOp(op, d1, d2) =>
+    switch (d1, d2) {
+    | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
+      Some(eval_bin_float_op(op, f1, f2))
+    | _ => None
+    }
   // | FixF(Var.t, HTyp.t, t)
-  // | Lam(DHPat.t, HTyp.t, t)
   // | Ap(t, t)
-  // | BoolLit(bool)
-  // | IntLit(int)
-  // | FloatLit(float)
-  // | BinBoolOp(BinBoolOp.t, t, t)
-  // | BinIntOp(BinIntOp.t, t, t)
-  // | BinFloatOp(BinFloatOp.t, t, t)
-  // | ListNil(HTyp.t)
-  // | Cons(t, t)
   // | Inj(HTyp.t, InjSide.t, t)
-  // | Pair(t, t)
-  // | Triv
-  // | ConsistentCase(case)
-  // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  // | Lam(DHPat.t, HTyp.t, t)
   // | Cast(t, HTyp.t, HTyp.t)
   // | FailedCast(t, HTyp.t, HTyp.t)
-  // | InvalidOperation(t, InvalidOperationError.t)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Cons(_, _)
+  | Pair(_, _)
+  | Triv
+  | ConsistentCase(_)
+  // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | InvalidOperation(_, _)
   | _ => None
   };
 
