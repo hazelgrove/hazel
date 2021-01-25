@@ -26,6 +26,8 @@ module type SElab = {
 
   let id_env: VarCtx.t => Environment.t;
 
+  let map_livelit_ctx: ('a => 'b, Contexts.t'('a)) => Contexts.t'('b);
+
   let syn_elab:
     (
       ~livelit_holes: bool=?,

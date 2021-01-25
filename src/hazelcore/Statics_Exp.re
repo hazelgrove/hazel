@@ -56,15 +56,12 @@ module rec M: Statics_Exp_Sig.S = {
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
   let mk_ll_init =
-      (init: UHExp.t, livelit_ctx: LivelitCtx.t(HTyp.t))
-      : SpliceGenCmd.t(SerializedModel.t) => {
+      (init: UHExp.t, ctx: Contexts.t): SpliceGenCmd.t(SerializedModel.t) => {
     print_endline("BLAH");
     print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
-    let _ctx = (VarCtx.empty, livelit_ctx);
-    // TODO(andrew): make above work. need to pass livelit ctx
-    // to allow livelit aps within defs
-    // (also need to do this for update etc)
-    let dh_init = Elaborator.syn_elab(Contexts.empty, Delta.empty, init);
+    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+    // TODO(andrew): make above work. hacked right now... all DHExps set to triv
+    let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
     | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
     | Elaborates(dh_init, _, _) => serialize_ll_monad(dh_init)
@@ -72,11 +69,17 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_update =
-      (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
+      (
+        update: UHExp.t,
+        ctx: Contexts.t,
+        action: SerializedAction.t,
+        model: SerializedModel.t,
+      ) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
+    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     let update_dhexp =
-      switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, update)) {
+      switch (Elaborator.syn_elab(elab_ctx, Delta.empty, update)) {
       | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
       | Elaborates(update, _, _) => update
       };
@@ -118,11 +121,12 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand =
-      (expand: UHExp.t, model: SerializedModel.t)
+      (expand: UHExp.t, ctx: Contexts.t, model: SerializedModel.t)
       : LivelitDefinition.livelit_expand_result => {
     let model_dhexp = DHExp.t_of_sexp(model);
+    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     let expand_dhexp =
-      switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, expand)) {
+      switch (Elaborator.syn_elab(elab_ctx, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
       | Elaborates(expand, _, _) => expand
       };
@@ -165,10 +169,14 @@ module rec M: Statics_Exp_Sig.S = {
       model_ty: UHTyp.expand(model_type),
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
-      init_model: mk_ll_init(init, livelit_ctx),
-      update: mk_ll_update(update),
-      expand: mk_ll_expand(expand),
+      init_model: mk_ll_init(init, ctx),
+      update: mk_ll_update(update, ctx),
+      expand: mk_ll_expand(expand, ctx),
     };
+    UHExp.is_complete(init, false)
+      ? print_endline("INIT COMPLETE") : print_endline("INIT INCOMP");
+    UHExp.is_complete(update, false)
+      ? print_endline("UPDATE COMPLETE") : print_endline("UPDATE INCOMP");
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
      * failure cases to contend with at the ap site, most of which
@@ -517,8 +525,6 @@ module rec M: Statics_Exp_Sig.S = {
           all_param_tys |> ListUtil.drop(List.length(closed_tys));
         switch (err_status, reqd_param_tys) {
         | (InHole(TypeInconsistent(Some(DoesNotExpand)), _), []) =>
-          // NOTE(andrew):
-          // should we return a type here hmmm
           Some(Hole)
         | (NotInHole, [_, ..._])
         | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
