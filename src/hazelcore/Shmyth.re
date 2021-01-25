@@ -572,7 +572,7 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       let p = {
         let operands =
           ListUtil.range(n)
-          |> List.map(j => j == i ? UHPat.var(x) : UHPat.wild())
+          |> List.map(j => 1 + j == i ? UHPat.var(x) : UHPat.wild())
           |> List.map(Seq.wrap);
         switch (operands) {
         | [] => assert(false)
