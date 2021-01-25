@@ -891,7 +891,11 @@ let solve_all = (e: UHExp.t): option(hole_fillings) => {
     |> List.map(hole_filling =>
          hole_filling
          |> List.map(((u, smexp)) => {
+              print_endline("smyth:");
+              print_endline(Smyth.Pretty.exp(smexp));
               let+ e = smexp_to_uhexp(smexp);
+              // print_endline("hazel:");
+              // print_endline(Serialization.string_of_exp(e));
               (u, e);
             })
          |> OptUtil.sequence
