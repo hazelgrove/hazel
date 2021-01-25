@@ -109,6 +109,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -125,6 +126,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -169,6 +171,22 @@ and syn_elab_operand =
         | R => HTyp.Sum(Hole, ty1)
         };
       Elaborates(dp, ty, ctx, delta);
+    }
+  | UnaryOp(NotInHole, Negate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Int)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      let dc1 = DHExp.cast(d1, ty1, Int);
+      let d = DHExp.UnIntOp(Negate, dc1);
+      Elaborates(d, Int, delta);
+    }
+  | UnaryOp(NotInHole, FNegate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Float)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      let dc1 = DHExp.cast(d1, ty1, Float);
+      let d = DHExp.UnFloatOp(FNegate, dc1);
+      Elaborates(d, Float, delta);
     }
   }
 and ana_elab =
@@ -327,6 +345,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -343,6 +362,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -382,6 +402,9 @@ and ana_elab_operand =
         Elaborates(Inj(side, dp1), ty, ctx, delta);
       };
     }
+  | UnaryOp(NotInHole, _, _) =>
+    /* subsumption */
+    syn_elab_operand(ctx, delta, operand)
   };
 
 let rec renumber_result_only =

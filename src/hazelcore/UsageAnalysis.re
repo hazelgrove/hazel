@@ -20,6 +20,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | Inj(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
+  | UnaryOp(_, _, child) => binds_var_operand(x, child)
   | Inj(NotInHole, _, body) => binds_var(x, body)
   };
 

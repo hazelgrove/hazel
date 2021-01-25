@@ -1,11 +1,14 @@
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators_Pat.t;
+type binop = Operators_Pat.t;
+
+[@deriving sexp]
+type unop = Unops_Pat.t;
 
 [@deriving sexp]
 type t = opseq
-and opseq = OpSeq.t(operand, operator)
+and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
@@ -16,13 +19,14 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
+  | UnaryOp(ErrStatus.t, unop, operand)
   | Inj(ErrStatus.t, InjSide.t, t);
 
 [@deriving sexp]
-type skel = OpSeq.skel(operator);
+type skel = OpSeq.skel(binop);
 
 [@deriving sexp]
-type seq = OpSeq.seq(operand, operator);
+type seq = OpSeq.seq(operand, binop);
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
@@ -73,6 +77,6 @@ let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
 let associate: seq => Skel.t(Operators_Pat.t);
 
-let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
+let mk_OpSeq: OpSeq.seq(operand, binop) => OpSeq.t(operand, binop);
 
 let is_complete: t => bool;
