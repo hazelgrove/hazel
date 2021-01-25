@@ -424,6 +424,7 @@ and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         UHExp.mk_OpSeq(Seq.seq_op_seq(hz_hd, Operators_Exp.Cons, hz_tl)),
       );
     }
+  | ECtor("Cons", _, EVar(x)) => Some(OpSeq.wrap(UHExp.var(x)))
   | ECtor(name, _, _e) => {
       Format.printf("bad list constructor: %s%!", name);
       Format.printf(
@@ -493,7 +494,22 @@ and smexp_branch_to_uhexp_rule =
           Seq.wrap(UHPat.var(x ++ "_tl")),
         ),
       ),
-      clause,
+      [
+        UHExp.letline(
+          OpSeq.wrap(UHPat.var(x)),
+          [
+            ExpLine(
+              UHExp.mk_OpSeq(
+                Seq.mk(
+                  UHExp.var(x ++ "_hd"),
+                  [(Operators_Exp.Comma, UHExp.var(x ++ "_tl"))],
+                ),
+              ),
+            ),
+          ],
+        ),
+        ...clause,
+      ],
     )
   | _ => assert(false)
   };
