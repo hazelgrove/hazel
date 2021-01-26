@@ -219,8 +219,8 @@ and syn_cursor_info_zoperand =
        })
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | TypeAnnZP(_, zop, _) =>
-    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zop)
+  | TypeAnnZP(_, zop, ty) =>
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
   | TypeAnnZA(_, _, zann) =>
     zann
     |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)

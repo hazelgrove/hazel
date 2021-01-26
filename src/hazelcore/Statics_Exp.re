@@ -33,7 +33,7 @@ let extend_let_def_ctx =
 let get_pattern_type = (ctx, UHExp.Rule(p, _)) =>
   p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty);
 
-let joint_pattern_type = (ctx, rules) => {
+let joined_pattern_type = (ctx, rules) => {
   let* tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
   HTyp.join_all(LUB, tys);
 };
@@ -64,7 +64,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
   | LetLine(p, def) =>
-    let* ty_def = syn(ctx, def);
+    let def_ctx = extend_let_def_ctx(ctx, p, def);
+    let* ty_def = syn(def_ctx, def);
     Statics_Pat.ana(ctx, p, ty_def);
   }
 and syn_opseq =

@@ -208,7 +208,7 @@ and is_after_zline =
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
   | LetLineZP(_)
@@ -598,9 +598,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(k, Before), LetLine(p, def)) =>
-    // k == 1 || k == 2
-    switch (k == 1) {
-    | true => Some(LetLineZP(ZPat.place_after(p), def))
+    switch (k) {
+    | 1 => Some(LetLineZP(ZPat.place_after(p), def))
     | _ => Some(LetLineZE(p, place_after(def)))
     }
   | ExpLineZ(zopseq) =>
@@ -794,15 +793,7 @@ and move_cursor_right_zline =
     switch (ZPat.move_cursor_right(zp)) {
     | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(
-        CursorL(
-          OnDelim(
-            1, // is this right??
-            Before,
-          ),
-          LetLine(ZPat.erase(zp), def),
-        ),
-      )
+      Some(CursorL(OnDelim(1, Before), LetLine(ZPat.erase(zp), def)))
     }
   | LetLineZE(p, zdef) =>
     switch (move_cursor_right(zdef)) {

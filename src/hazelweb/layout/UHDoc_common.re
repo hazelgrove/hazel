@@ -400,7 +400,7 @@ let mk_LetLine = (p: formatted_child, def: formatted_child): t => {
   ]);
 };
 
-let mk_PatternAnnotation =
+let mk_TypeAnn =
     (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
   Doc.hcats([
     op |> pad_right_delimited_open_child,
