@@ -38,6 +38,9 @@ let ana_skel:
 let syn_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
   (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
+let syn_fix_holes_opseq:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq) =>
+  (UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t);
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,
@@ -57,6 +60,15 @@ let ana_fix_holes_opseq:
     HTyp.t
   ) =>
   (UHPat.opseq, Contexts.t, MetaVarGen.t);
+let ana_fix_holes_operand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHPat.operand,
+    HTyp.t
+  ) =>
+  (UHPat.operand, Contexts.t, MetaVarGen.t);
 
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZPat.t) =>
