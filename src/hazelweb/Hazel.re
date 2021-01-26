@@ -80,6 +80,15 @@ let scroll_cursor_into_view_if_needed = caret_elem => {
   };
 };
 
+let move_cursor_inspector_in_view = ci_elem => {
+  let ci_rect = ci_elem##getBoundingClientRect;
+  let classList = ci_elem##.classList;
+  if (ci_rect##.top < 0.0) {
+    classList##remove(Js.string("above"));
+    classList##add(Js.string("below"));
+  };
+};
+
 let scroll_history_panel_entry = entry_elem => {
   let panel_rect =
     JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
@@ -101,13 +110,12 @@ let create =
   open Incr.Let_syntax;
   let%map model = model;
 
-  if (model.measurements.measurements) {
+  let performance = model.settings.performance;
+  if (performance.measure) {
     Printf.printf("\n== Hazel.create times ==\n");
   };
   TimeUtil.measure_time(
-    "Hazel.create",
-    model.measurements.measurements && model.measurements.hazel_create,
-    () =>
+    "Hazel.create", performance.measure && performance.hazel_create, () =>
     Component.create(
       ~apply_action=Update.apply_action(model),
       // for things that require actual DOM manipulation post-render
@@ -129,6 +137,11 @@ let create =
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
+
+            if (model.settings.cursor_inspector.visible) {
+              let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
+              move_cursor_inspector_in_view(ci_elem);
+            };
           };
         },
       model,

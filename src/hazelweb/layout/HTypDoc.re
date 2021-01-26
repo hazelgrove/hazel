@@ -57,7 +57,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           d1,
           hcats([
             choices([linebreak(), space()]),
-            text(UnicodeConstants.typeArrowSym ++ " "),
+            text(Unicode.typeArrowSym ++ " "),
           ]),
           d2,
         ]),
