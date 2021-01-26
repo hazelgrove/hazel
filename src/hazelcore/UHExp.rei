@@ -111,4 +111,4 @@ let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete: (t, bool) => bool;
+let is_complete: t => bool;
