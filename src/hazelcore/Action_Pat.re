@@ -567,14 +567,14 @@ and syn_perform_operand =
   | (
       _,
       CursorP(
-        OnText(_),
+        OnText(_) | OnOp(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
       ) |
       CursorP(
-        OnDelim(_),
+        OnDelim(_) | OnOp(_),
         InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
-      CursorP(OnOp(_), _),
+      CursorP(OnOp(After) | OnText(_) | OnDelim(_), UnaryOp(_)),
     ) =>
     Failed
   | (_, CursorP(cursor, operand))
@@ -630,6 +630,19 @@ and syn_perform_operand =
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
+
+  | (Backspace, CursorP(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
+  | (Delete, CursorP(OnOp(Before), UnaryOp(_, _, child))) =>
+    let new_zoperand =
+      ZPat.set_err_status_zoperand(
+        NotInHole,
+        ZPat.place_before_operand(child),
+      );
+    let new_zp = ZOpSeq.wrap(new_zoperand);
+    switch (Statics_Pat.syn_operand(ctx, ZPat.erase_zoperand(zoperand))) {
+    | None => Failed
+    | Some((ty, ctx)) => Succeeded((new_zp, ty, ctx, u_gen))
+    };
 
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
@@ -753,16 +766,33 @@ and syn_perform_operand =
     };
 
   | (Construct(SOp(os)), CursorP(_)) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZPat.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, (E, E));
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+    switch (os) {
+    | SMinus =>
+      let unop = Unops_Pat.Negate;
+      let ty_u = HTyp.Int;
+      let (child, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZPat.erase_zoperand(zoperand),
+          ty_u,
+        );
+      let zchild = ZPat.place_before_operand(child);
+      let new_zp =
+        ZOpSeq.wrap(ZPat.UnaryOpZ(ErrStatus.NotInHole, unop, zchild));
+      Succeeded((new_zp, ty_u, ctx, u_gen));
+    | _ =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZPat.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+      }
     }
 
   /* Invalid SwapLeft and SwapRight actions */
@@ -777,6 +807,85 @@ and syn_perform_operand =
     | Succeeded((zbody, ty, ctx, u_gen)) =>
       Succeeded((ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody)), ty, ctx, u_gen))
     }
+  | (_, UnaryOpZ(_, unop, zchild) as whole) =>
+    let ty_u = Statics_Pat.syn_unop(ctx, unop);
+    switch (a, unop, zchild) {
+    | (Construct(SChar(".")), Negate, CursorP(_, e))
+        when ZPat.is_before_zoperand(zchild) =>
+      // convert int negation - to float negation -.
+      let child = e;
+      let (new_child, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes_operand(ctx, u_gen, child, Float);
+      let new_zchild = ZPat.place_before_operand(new_child);
+      let new_zp =
+        ZOpSeq.wrap(ZPat.UnaryOpZ(NotInHole, FNegate, new_zchild));
+      Succeeded((new_zp, Float, ctx, u_gen));
+    | (Backspace, Negate, _) when ZPat.is_before_zoperand(zchild) =>
+      let zchild = ZPat.set_err_status_zoperand(NotInHole, zchild);
+      let new_zp = ZOpSeq.wrap(zchild);
+      switch (Statics_Pat.syn_operand(ctx, ZPat.erase_zoperand(zchild))) {
+      | None => Failed
+      | Some((ty, ctx)) => Succeeded((new_zp, ty, ctx, u_gen))
+      };
+    | (Backspace, FNegate, _) when ZPat.is_before_zoperand(zchild) =>
+      // convert -. float negation to - int negation
+      let (new_child, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZPat.erase_zoperand(zchild),
+          Int,
+        );
+      let new_zchild = ZPat.place_before_operand(new_child);
+      let new_zp = ZOpSeq.wrap(ZPat.UnaryOpZ(NotInHole, Negate, new_zchild));
+      Succeeded((new_zp, Int, ctx, u_gen));
+    | _ =>
+      switch (ana_perform_operand(ctx, u_gen, a, zchild, ty_u)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(ctx, u_gen, Action_common.escape(side), whole)
+      | Succeeded((zp, ctx, u_gen)) =>
+        let wrap_in_parentheses = zp => {
+          let new_zchild = ZPat.ParenthesizedZ(zp);
+          let new_zp =
+            ZOpSeq.wrap(ZPat.UnaryOpZ(NotInHole, unop, new_zchild));
+          ActionOutcome.Succeeded((new_zp, ty_u, ctx, u_gen));
+        };
+        switch (zp) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(zchild, (E, E)) =>
+            let new_zp = ZOpSeq.wrap(ZPat.UnaryOpZ(NotInHole, unop, zchild));
+            Succeeded((new_zp, ty_u, ctx, u_gen));
+          | ZOperand(_) =>
+            let is_before = ZPat.is_before_zopseq(zp);
+            let first_operand = Seq.nth_operand(0, ZPat.erase_zseq(seq));
+            let wrapped_first_operand =
+              UHPat.UnaryOp(NotInHole, unop, first_operand);
+            let seq' =
+              Seq.update_nth_operand(
+                0,
+                wrapped_first_operand,
+                ZPat.erase_zseq(seq),
+              );
+            let (zp, ty, ctx, u_gen) =
+              mk_and_syn_fix_OpSeq(ctx, u_gen, seq');
+            if (is_before) {
+              let placed_before = ZPat.place_before_opseq(zp);
+              let after_unop =
+                OptUtil.get(
+                  () => {failwith("could not place cursor after unop")},
+                  ZPat.move_cursor_right_zopseq(placed_before),
+                );
+              Succeeded((after_unop, ty, ctx, u_gen));
+            } else {
+              Succeeded((ZPat.place_after_opseq(zp), ty, ctx, u_gen));
+            };
+          | _ => wrap_in_parentheses(zp)
+          }
+        };
+      }
+    };
   | (_, InjZ(_, side, zbody)) =>
     switch (syn_perform(ctx, u_gen, a, zbody)) {
     | Failed => Failed
