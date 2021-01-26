@@ -283,8 +283,18 @@ and syn_cursor_info_line =
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, def) =>
+    let ty_def =
+      switch (Statics_Exp.syn(ctx, def)) {
+      | Some(ty) => ty
+      | None => HTyp.Hole
+      };
     switch (
-      CursorInfo_Pat.syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zp)
+      CursorInfo_Pat.ana_cursor_info_zopseq(
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        ty_def,
+      )
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
@@ -295,7 +305,7 @@ and syn_cursor_info_line =
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
-    }
+    };
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
@@ -519,15 +529,15 @@ and syn_cursor_info_zoperand =
     };
   | LamZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
-    syn_cursor_info(~steps=steps @ [2], body_ctx, zbody);
+    syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
-      switch (Statics_Exp.joint_pattern_type(ctx, rules)) {
+      switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
       | _ => HTyp.Hole
       };
-    /* Note that strictly speaking this should just be syn_cusor_info;
+    /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to
      * the user in the case where some of pattern branches are already
      * populated with patterns having a consistent type. */
@@ -899,7 +909,7 @@ and ana_cursor_info_zoperand =
     switch (defferrable) {
     | CursorNotOnDeferredVarPat(ci) => ci
     | CursorOnDeferredVarPat(deferred_ci, x) =>
-      let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
+      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
       uses |> deferred_ci;
     };
 
@@ -908,7 +918,7 @@ and ana_cursor_info_zoperand =
     switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
     | None => None
     | Some(body_ctx) =>
-      ana_cursor_info(~steps=steps @ [2], body_ctx, zbody, ty_body_given)
+      ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {

@@ -118,7 +118,7 @@ let fix_and_renumber_holes:
 
 let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
 
-let joint_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
+let joined_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
 
 /**
  * Currently we restrict recursive definitions to let lines with
@@ -139,5 +139,6 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
 /**
  * Extends the provided context, joining the type of the pattern
  * with the type of the defining expression.
+ * Precondition: provided pattern and expression have consistent types
  */
 let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;

@@ -29,9 +29,9 @@ let mk_NTuple:
     ~get_tuple_elements=UHPat.get_tuple_elements,
     ~inline_padding_of_operator,
   );
-let mk_PatternAnnotation:
+let mk_TypeAnn:
   (UHDoc_common.formatted_child, UHDoc_common.formatted_child) => UHDoc.t =
-  UHDoc_common.mk_PatternAnnotation(~sort=Pat);
+  UHDoc_common.mk_TypeAnn(~sort=Pat);
 
 let rec mk =
   lazy(
@@ -87,7 +87,7 @@ and mk_operand =
             enforce_inline
               ? UHDoc_common.EnforcedInline(formattable(~enforce_inline))
               : Unformatted(formattable);
-          mk_PatternAnnotation(op_child, ann_child);
+          mk_TypeAnn(op_child, ann_child);
         }: UHDoc.t
       )
     )
