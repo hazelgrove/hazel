@@ -226,7 +226,7 @@ let branch_vars_view = (ctx: Contexts.t) => {
 let other_arithmetic_options = cursor_info => {
   open Vdom;
   let int_options =
-    ["+", "-", "*", "/"]
+    ["+", "-", "*", "/", "<", ">", "=="]
     |> List.map(s => {
          Node.div(
            [Attr.classes(["mini-option"])],
@@ -238,7 +238,7 @@ let other_arithmetic_options = cursor_info => {
          )
        });
   let float_options =
-    ["+.", "-.", "*.", "/."]
+    ["+.", "-.", "*.", "/.", "<.", ">.", "==."]
     |> List.map(s => {
          Node.div(
            [Attr.classes(["mini-option"])],
@@ -246,6 +246,71 @@ let other_arithmetic_options = cursor_info => {
              code_node(s),
              Node.text(":"),
              HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Float))),
+           ],
+         )
+       });
+  let int_options_2 =
+    ["<", ">", "=="]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(HTyp.Int, HTyp.Arrow(Int, Bool))),
+           ],
+         )
+       });
+  let float_options_2 =
+    ["<.", ">.", "==."]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Bool))),
+           ],
+         )
+       });
+  let boolean_options =
+    ["&&", "||"]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(Bool, Arrow(Bool, Bool))),
+           ],
+         )
+       });
+  
+  let tuple_options =
+    [","]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(
+               HTyp.Arrow(Int, Arrow(Int, Prod([Int]))),
+             ),
+           ],
+         )
+       });
+  let list_options =
+    ["::"]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(
+               HTyp.Arrow(Int, Arrow(List(Int), List(Int))),
+             ),
            ],
          )
        });
