@@ -280,18 +280,11 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
-let mk_Unop =
-    (
-      ~sort: TermSort.t,
-      unop: UHExp.unop,
-      operand: UHExp.operand,
-      ~mk_operand: 'operand => t,
-    )
-    : t => {
-  let op_doc = mk_op(Unops_Exp.to_string(unop)) |> annot_Tessera;
+let mk_Unop = (~sort: TermSort.t, unop: string, operand: 'operand): t => {
+  let op_doc = mk_op(unop) |> annot_Tessera;
   Doc.hcats([
     op_doc,
-    mk_operand(operand)
+    operand
     |> annot_Step(0)
     |> Doc.annot(UHAnnot.OpenChild(InlineWithBorder)),
   ])

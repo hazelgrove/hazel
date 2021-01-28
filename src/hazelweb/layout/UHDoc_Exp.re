@@ -209,12 +209,10 @@ and mk_operand =
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
         | UnaryOp(_, unop, child) =>
-          UHDoc_common.mk_Unop(
-            ~sort=Exp,
-            ~mk_operand=Lazy.force(mk_operand, ~memoize, ~enforce_inline),
-            unop,
-            child,
-          )
+          let child =
+            Lazy.force(mk_operand, ~memoize, ~enforce_inline, child);
+          let unop = Unops_Exp.to_string(unop);
+          UHDoc_common.mk_Unop(~sort=Exp, unop, child);
         | Case(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();

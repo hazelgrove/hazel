@@ -14,6 +14,8 @@ let precedence = (dp: DHPat.t) =>
   | Inj(_)
   | Triv
   | ListNil
+  | UnIntOp(_)
+  | UnFloatOp(_)
   | Pair(_) => DHDoc_common.precedence_const
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
@@ -49,6 +51,12 @@ let rec mk =
         mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
       )
     | ListNil => DHDoc_common.Delim.list_nil
+    | UnIntOp(_, d1) =>
+      let doc1 = mk'(d1);
+      DHDoc_common.mk_Unop(doc1);
+    | UnFloatOp(_, d1) =>
+      let doc1 = mk'(d1);
+      DHDoc_common.mk_Unop(doc1);
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);

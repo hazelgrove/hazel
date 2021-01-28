@@ -1,4 +1,4 @@
-let inline_padding_of_operator: UHPat.operator => (UHDoc.t, UHDoc.t) =
+let inline_padding_of_operator: UHPat.binop => (UHDoc.t, UHDoc.t) =
   fun
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_)
   | Space
@@ -19,9 +19,9 @@ let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
-    ~mk_operator: UHPat.operator => UHDoc.t,
+    ~mk_operator: UHPat.binop => UHDoc.t,
     ~enforce_inline: bool,
-    OpSeq.t('a, UHPat.operator)
+    OpSeq.t('a, UHPat.binop)
   ) =>
   UHDoc.t =
   UHDoc_common.mk_NTuple(
@@ -50,7 +50,7 @@ and mk_opseq =
       )
     )
   )
-and mk_operator = (op: UHPat.operator): UHDoc.t =>
+and mk_operator = (op: UHPat.binop): UHDoc.t =>
   op |> Operators_Pat.is_Space
     ? UHDoc_common.mk_space_op
     : UHDoc_common.mk_op(Operators_Pat.to_string(op))
@@ -74,6 +74,11 @@ and mk_operand =
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
+        | UnaryOp(_, unop, child) =>
+          let child =
+            Lazy.force(mk_operand, ~memoize, ~enforce_inline, child);
+          let unop = Unops_Pat.to_string(unop);
+          UHDoc_common.mk_Unop(~sort=Pat, unop, child);
         }: UHDoc.t
       )
     )

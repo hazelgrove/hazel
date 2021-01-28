@@ -201,6 +201,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | UnaryOp(_, unop, _) => code_view(Unops_Pat.to_string(unop))
     };
   };
 
