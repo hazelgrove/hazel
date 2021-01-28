@@ -19,6 +19,11 @@ let clss_of_case_err: CaseErrStatus.t => list(cls) =
   | StandardErrStatus(err) => clss_of_err(err)
   | InconsistentBranches(_) => ["InconsistentBranches"];
 
+let clss_of_list_err: ListErrStatus.t => list(cls) =
+  fun
+  | StandardErrStatus(err) => clss_of_err(err)
+  | InconsistentBranches(_) => ["InconsistentBranches"];
+
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
@@ -33,6 +38,7 @@ let shape_clss: TermShape.t => list(cls) =
   | Rule => ["Rule"]
   | Invalid => ["Invalid"]
   | Case({err}) => ["Case", ...clss_of_case_err(err)]
+  | List({err}) => ["List", ...clss_of_list_err(err)]
   | Var({err, verr, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
     @ clss_of_verr(verr)

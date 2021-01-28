@@ -55,7 +55,7 @@ let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 // let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
 let listlit:
-  (~err: ListErrStatus.t=?, ~elems: option(opseq), unit) => operand;
+  (~err: ListErrStatus.t=?, ~elems: option(opseq)=?, unit) => operand;
 
 module Line: {
   let prune_empty_hole: line => line;

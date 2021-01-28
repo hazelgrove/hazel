@@ -84,7 +84,7 @@ let case =
 let listlit =
     (
       ~err: ListErrStatus.t=StandardErrStatus(NotInHole),
-      ~elems: option(opseq),
+      ~elems: option(opseq)=None,
       (),
     ) =>
   ListLit(err, elems);
