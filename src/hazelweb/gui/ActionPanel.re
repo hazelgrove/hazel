@@ -461,7 +461,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SAnd)) => Added
   | Construct(SOp(SOr)) => Added
   | Construct(SParenthesized) => Added
-  | Construct(SAsc) => Added
+  | Construct(SAnn) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added

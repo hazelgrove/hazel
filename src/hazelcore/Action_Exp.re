@@ -1020,18 +1020,29 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    switch (Action_Pat.syn_perform(ctx, u_gen, a, zp)) {
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
+    let ty_def =
+      switch (Statics_Exp.syn(def_ctx, def)) {
+      | None =>
+        failwith("syn_perform_line: LetLineZP: definition doesn't synthesize")
+      | Some(ty) => ty
+      };
+    switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty_def)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
-    | Succeeded((new_zp, ty_p, _, u_gen)) =>
-      let p = ZPat.erase(new_zp);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-      let (new_def, u_gen) =
-        Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
-      let new_zline = ZExp.LetLineZP(new_zp, new_def);
-      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-    }
+    | Succeeded((new_zp, _, u_gen)) =>
+      switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
+      | None => Failed //NOTE: Should not happen
+      | Some((ty_p, _)) =>
+        let p = ZPat.erase(new_zp);
+        let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+        let (new_def, u_gen) =
+          Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
+        let new_zline = ZExp.LetLineZP(new_zp, new_def);
+        let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+        Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
+      }
+    };
 
   | (_, LetLineZE(p, zdef)) =>
     switch (Statics_Pat.syn(ctx, p)) {
@@ -1560,7 +1571,7 @@ and syn_perform_operand =
         (),
       ),
     )
-  | (Construct(SAsc), CursorE(_)) => Failed
+  | (Construct(SAnn), CursorE(_)) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
@@ -2960,7 +2971,7 @@ and ana_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
 
-  | (Construct(SAsc), CursorE(_)) => Failed
+  | (Construct(SAnn), CursorE(_)) => Failed
 
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
