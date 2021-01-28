@@ -1,18 +1,6 @@
 let tuple_zip: (UHExp.skel, HTyp.t) => option(list((UHExp.skel, HTyp.t)));
 
 /**
- * Currently we restrict recursive definitions to let lines with
- * type annotations that bind a function to a single variable.
- * Given a let line with a pattern `p`, type annotation `ty`,
- * and a defining expression `e`, `ctx_for_let(ctx, p, ty, e)`
- * returns the context available to `e`. If the let line satifies
- * our conditions for recursion, then this function also returns
- * the recursively defined variable.
- */
-let ctx_for_let:
-  (Contexts.t, UHPat.t, HTyp.t, UHExp.t) => (Contexts.t, option(Var.t));
-
-/**
  * Get type mode of nth operand of an opseq in synthetic position
  */
 let syn_nth_type_mode:
@@ -129,3 +117,28 @@ let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
 
 let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
+
+let joined_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
+
+/**
+ * Currently we restrict recursive definitions to let lines with
+ * type annotations that bind a function to a single variable.
+ * Given a let line with a pattern `p`, and a defining expression `e`,
+ * `extend_let_def_ctx(ctx, p, e)` returns the context available to `e`.
+ */
+let extend_let_def_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
+
+/**
+ * Currently we restrict recursive definitions to let lines with
+ * type annotations that bind a function to a single variable.
+ * Given a let line with a pattern `p`, and a defining expression `e`,
+ * `recursive_let_id(ctx, p, e)` returns the name of the recursive reference, if any.
+ */
+let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
+
+/**
+ * Extends the provided context, joining the type of the pattern
+ * with the type of the defining expression.
+ * Precondition: provided pattern and expression have consistent types
+ */
+let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
