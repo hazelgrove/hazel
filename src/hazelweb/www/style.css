@@ -950,17 +950,17 @@ body {
 
 /* options panel */
 
-#OptionsPanel .labeled-checkbox {
+#SettingsPanel .labeled-checkbox {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.5ch;
   align-items: center;
 }
-#OptionsPanel .indented-option {
+#SettingsPanel .indented-option {
   position: relative;
   left: 2.5ch;
 }
-#OptionsPanel label[disabled] {
+#SettingsPanel label[disabled] {
   opacity: 0.5;
 }
 

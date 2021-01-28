@@ -61,8 +61,8 @@ let branch_vars = (ctx: Contexts.t) => {
  * Gets the type of the expression at the cursor.
  * Return HTyp.t
  */
-let get_type = (cursor_info: CursorInfo_common.t) => {
-  let rec my_type = (typed: CursorInfo_common.typed) =>
+let get_type = (cursor_info: CursorInfo.t) => {
+  let rec my_type = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) => Some(ty)
     | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
@@ -350,8 +350,8 @@ let other_arithmetic_options = cursor_info => {
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      cursor_inspector: Model.cursor_inspector,
-      cursor_info: CursorInfo_common.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
     ) => {
   let lit_t = cursor_inspector.type_assist_lit;
   let var_t = cursor_inspector.type_assist_var;
@@ -400,7 +400,11 @@ let view =
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssistLit),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_lit),
+                ),
+              ),
             ])
           ),
         ],
@@ -446,7 +450,11 @@ let view =
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssistVar),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_var),
+                ),
+              ),
             ])
           ),
         ],
@@ -473,7 +481,11 @@ let view =
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssistFun),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_fun),
+                ),
+              ),
             ])
           ),
         ],
@@ -512,7 +524,11 @@ let view =
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssistBranch),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_branch),
+                ),
+              ),
             ])
           }),
         ],
@@ -541,7 +557,11 @@ let view =
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssistOther),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_other),
+                ),
+              ),
             ])
           }),
         ],

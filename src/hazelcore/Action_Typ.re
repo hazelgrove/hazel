@@ -1,5 +1,4 @@
-let operator_of_shape =
-    (os: Action_common.operator_shape): option(UHTyp.operator) =>
+let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
@@ -17,7 +16,7 @@ let operator_of_shape =
   | SCons => None
   };
 
-let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
+let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   switch (op) {
   | Arrow => SArrow
   | Prod => SComma
@@ -45,7 +44,7 @@ let construct_operator =
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
 
-let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
+let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
@@ -96,14 +95,14 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
 
-let rec perform = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
+let rec perform = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   perform_opseq(a, zty)
 and perform_opseq =
-    (a: Action_common.t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq)
+    (a: Action.t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq)
     : ActionOutcome.t(ZTyp.t) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
@@ -221,7 +220,7 @@ and perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_operand =
-    (a: Action_common.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
+    (a: Action.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (

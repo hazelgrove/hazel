@@ -6,7 +6,7 @@ type t =
 
 let to_string =
   fun
-  | Arrow => UnicodeConstants.typeArrowSym
+  | Arrow => Unicode.typeArrowSym
   | Prod => ","
   | Sum => "|";
 

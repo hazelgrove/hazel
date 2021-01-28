@@ -4,7 +4,6 @@ let promote_annot =
   fun
   | HTypAnnot.HoleLabel => DHAnnot.HoleLabel
   | HTypAnnot.Delim => DHAnnot.Delim;
-let promote = (d: HTypDoc.t): DHDoc_common.t =>
-  d |> Doc.map_annot(promote_annot);
-let mk = (~enforce_inline: bool, ty: HTyp.t): DHDoc_common.t =>
+let promote = (d: HTypDoc.t): DHDoc.t => d |> Doc.map_annot(promote_annot);
+let mk = (~enforce_inline: bool, ty: HTyp.t): DHDoc.t =>
   ty |> HTypDoc.mk(~enforce_inline) |> promote;
