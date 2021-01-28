@@ -286,6 +286,8 @@ let zcase_of_scrut_and_suffix =
   };
 };
 
+let zif_of_guard_and_suffix = 
+
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
@@ -606,7 +608,7 @@ let rec syn_perform =
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
   | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
     let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
-    let new_ze =
+    let new_ze = 
       (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
       |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
@@ -615,14 +617,24 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  };
   | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
-    let (zt1_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zif1 = ZExp.IfZ1(ZOpSeq.wrap(zt1_hole), None, subject)
+    let (zt1_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+    let zif1 =
+      ZExp.IfZ1(
+        StandardErrStatus(NotInHole),
+        ZOpSeq.wrap(zt1_hole),
+        None,
+        subject,
+      );
     let new_ze = (prefix, zif1, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-    /* START HERE!! */
-  }
+  /* Don't worry about then and else branches yet (no need to separate from suffix), 
+     just put "then" and "else" and an empty hole for each.
+     Subject is everything on the same line as the opseq: if I type "if" in front
+     of an existing expression, it should automatically be registered as the guard
+  */
+  };
+}
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -1633,7 +1645,7 @@ and syn_perform_operand =
     Succeeded(
       mk_SynExpandsToIf(
         ~u_gen,
-        ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        ~guard=UHExp.Block.wrap'(OpSeq.wrap(operand)),
         (),
       ),
     )
