@@ -115,7 +115,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListNil(_) => indicate_words_view("empty list")
-    | Lam(_, _, _, _) => indicate_words_view("function")
+    | Lam(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {
@@ -200,6 +200,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | TypeAnn(_, _, _) => indicate_words_view("type annotation")
     };
   };
 
@@ -269,7 +270,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             )
           );
         }
-      | LetLine(_, _, _) =>
+      | LetLine(_) =>
         Vdom.(
           Node.span(
             [],
@@ -315,7 +316,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SListNil
     | SLine
     | SCommentLine
-    | SAsc
+    | SAnn
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
@@ -448,14 +449,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
-      | TypeAnn => Some(Exp)
+      | TypeAnn => Some(Pat)
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam
-      | SAsc => Some(Exp)
+      | SLam => Some(Exp)
+      | SAnn => Some(Pat)
       | _ =>
         Some(
           get_cursor_term_tag_typ(
