@@ -816,7 +816,7 @@ and syn_perform_operand =
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
     }
 
-  | (Construct(SAsc), CursorP(_)) =>
+  | (Construct(SAnn), CursorP(_)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
     let new_zp =
       ZOpSeq.wrap(
@@ -1225,11 +1225,11 @@ and ana_perform_operand =
   /* Construct */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
-  | (Construct(SAsc), CursorP(_)) =>
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+  | (Construct(SAnn), CursorP(_)) =>
+    let zty = ty |> UHTyp.contract |> ZTyp.place_before;
     let new_zp =
       ZOpSeq.wrap(
-        ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
+        ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), zty),
       );
     mk_ana_result(ctx, u_gen, new_zp, ty);
   | (Construct(_) as a, CursorP(OnDelim(_, side), _))
@@ -1393,6 +1393,10 @@ and ana_perform_operand =
         ty,
       )
     | Succeeded((ZOpSeq(_, zseq), ctx, u_gen)) =>
+      // NOTE: Type annotations cannot be directly implemented as infix operators
+      // since the sorts on both sides differ. Thus an annotation is not parsed
+      // systematically as part of an opseq, so we have to reassociate the annotation
+      // onto the trailing operand.
       let newseq = annotate_last_operand(zseq, ann);
       let (zpat, ctx, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, newseq, ty);
       Succeeded((zpat, ctx, u_gen));

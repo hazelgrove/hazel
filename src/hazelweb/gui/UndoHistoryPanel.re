@@ -316,7 +316,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SListNil
     | SLine
     | SCommentLine
-    | SAsc
+    | SAnn
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
@@ -456,7 +456,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SLet
       | SCase
       | SLam => Some(Exp)
-      | SAsc => Some(Pat)
+      | SAnn => Some(Pat)
       | _ =>
         Some(
           get_cursor_term_tag_typ(
