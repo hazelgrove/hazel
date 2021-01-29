@@ -25,6 +25,7 @@ type shape =
   | SChar(string)
   | SAsc
   | SLam
+  | SExpand
   | SListNil
   | SInj(InjSide.t)
   | SLet

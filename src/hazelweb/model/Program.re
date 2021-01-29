@@ -357,8 +357,52 @@ let accept_synthesized = program =>
     {...program, edit_state, is_focused: false, synthesizing: None};
   };
 
+let try_perform_edit_action = (a, program) => {
+  let edit_state = program.edit_state;
+  switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+  | Succeeded(new_edit_state) =>
+    let (ze, ty, id_gen) = new_edit_state;
+    let new_edit_state =
+      if (UHExp.is_complete(ZExp.erase(ze), false)) {
+        (ze, ty, IDGen.init_hole(id_gen));
+      } else {
+        (ze, ty, id_gen);
+      };
+    Some(program |> put_edit_state(new_edit_state));
+  | _ => None
+  };
+};
+let eta_expand_all = program => {
+  let (ze, _ty, _id_gen) = program.edit_state;
+  let exp_holes: list(MetaVar.t) =
+    CursorPath_Exp.holes(ZExp.erase(ze), [], [])
+    |> List.filter_map(info =>
+         switch (info) {
+         | {
+             CursorPath.sort: CursorPath.ExpHole(u, Empty),
+             CursorPath.steps: _,
+           } =>
+           Some(u)
+         | _ => None
+         }
+       );
+  let rec expand_hole = p =>
+    switch (try_perform_edit_action(Action.Construct(SExpand), p)) {
+    | None => p
+    | Some(p) => expand_hole(perform_edit_action(Action.MoveToNextHole, p))
+    };
+
+  let program =
+    List.fold_right(
+      (u, p) => expand_hole(perform_edit_action(move_to_hole(u, p), p)),
+      exp_holes,
+      program,
+    );
+
+  {...program, is_focused: true};
+};
 let accept_all = program =>
-  switch (Synthesizing.synthesize_all(get_uhexp(program))) {
+  switch (Synthesizing.synthesize_all(get_uhexp(eta_expand_all(program)))) {
   | None => program
   | Some(syn) =>
     let id_gen = get_id_gen(program);
