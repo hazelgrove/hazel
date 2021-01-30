@@ -615,14 +615,14 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  };
   | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
     let (zt1_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zif1 = ZExp.IfZ1(ZOpSeq.wrap(zt1_hole), None, subject)
+    let zif1 = ZExp.IfZ1(ZOpSeq.wrap(zt1_hole), None, subject);
     let new_ze = (prefix, zif1, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-    /* START HERE!! */
-  }
+  /* START HERE!! */
+  };
+}
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -1498,8 +1498,9 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | If(_, e, _, _) | 
-        Parenthesized(e)
+        (
+          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | If(_, e, _, _) |
+          Parenthesized(e)
         ) as operand,
       ),
     ) =>
