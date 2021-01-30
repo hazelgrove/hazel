@@ -350,9 +350,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | If(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _, _) =>
     false
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    is_complete(t1, check_type_holes)
-    && is_complete(t2, check_type_holes)
-    && is_complete(t3, check_type_holes)
+    is_complete(t1) && is_complete(t2) && is_complete(t3)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
