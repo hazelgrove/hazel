@@ -279,3 +279,9 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
     d,
     casts,
   );
+
+let rec strip_casts = (d: t): t =>
+  switch (d) {
+  | Cast(d, _, _) => strip_casts(d)
+  | _ => d
+  };

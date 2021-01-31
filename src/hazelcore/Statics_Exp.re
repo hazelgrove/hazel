@@ -92,9 +92,11 @@ module rec M: Statics_Exp_Sig.S = {
     | Elaborates(view_dhexp, _, _) =>
       let term = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
       switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
-      | BoxedValue(StringLit(str)) =>
-        // TODO(andrew): strip casts
-        Some(str)
+      | BoxedValue(v) =>
+        switch (DHExp.strip_casts(v)) {
+        | StringLit(str) => Some(str)
+        | _ => None
+        }
       | _ => None
       };
     };
@@ -113,7 +115,12 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand =
-      (expand: UHExp.t, model: SerializedModel.t)
+      (
+        expand: UHExp.t,
+        _captures: UHExp.t,
+        _name_str: string,
+        model: SerializedModel.t,
+      )
       : LivelitDefinition.livelit_expand_result => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
@@ -124,20 +131,22 @@ module rec M: Statics_Exp_Sig.S = {
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
-    | BoxedValue(StringLit(str)) =>
-      // TODO (andrew): string with casts match on boxedval(v) and strip casts
-      let maybeSexp =
-        try(Some(Sexplib.Sexp.of_string(str))) {
-        | _ => None
+    | BoxedValue(v) =>
+      switch (DHExp.strip_casts(v)) {
+      | StringLit(str) =>
+        let maybeSexp =
+          try(Some(Sexplib.Sexp.of_string(str))) {
+          | _ => None
+          };
+        switch (maybeSexp) {
+        | None => Failure(NotSexp)
+        | Some(sexp) =>
+          try(Success(UHExp.t_of_sexp(sexp))) {
+          | _ => Failure(NotUHExp)
+          }
         };
-      switch (maybeSexp) {
-      | None => Failure(NotSexp)
-      | Some(sexp) =>
-        try(Success(UHExp.t_of_sexp(sexp))) {
-        | _ => Failure(NotUHExp)
-        }
-      };
-    | BoxedValue(_)
+      | _ => Failure(NotStringlit)
+      }
     | InvalidInput(_)
     | Indet(_) => Failure(NotStringlit)
     };
@@ -154,6 +163,7 @@ module rec M: Statics_Exp_Sig.S = {
       expand,
       expansion_type,
       model_type,
+      captures,
       _,
     }: UHExp.livelit_record = llrecord;
     let new_ll_def: LivelitDefinition.t = {
@@ -163,7 +173,7 @@ module rec M: Statics_Exp_Sig.S = {
       param_tys: [], // TODO: params
       init_model: mk_ll_init(init),
       update: mk_ll_update(update),
-      expand: mk_ll_expand(expand),
+      expand: mk_ll_expand(expand, captures, name_str),
     };
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
