@@ -74,6 +74,7 @@ module Delim = {
   let close_Case = mk("end");
 
   let open_If = mk("if");
+  let open_Then = mk("then");
   let open_Else = mk("else");
 
   let bar_Rule = mk("|");

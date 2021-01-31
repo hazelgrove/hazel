@@ -215,8 +215,12 @@ let rec mk =
       | InconsistentBranchesIf(u, i, _sigma, If(d1, d2, d3)) =>
         vseps([
           hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          DHDoc_common.Delim.open_Then,
+          linebreak(),
           mk_cast(go'(d2)),
+          linebreak(),
           DHDoc_common.Delim.open_Else,
+          linebreak(),
           mk_cast(go'(d3)),
         ])
         |> annot(DHAnnot.InconsistentBranchesIf((u, i)))
@@ -224,8 +228,12 @@ let rec mk =
       | ConsistentIf(If(d1, d2, d3)) =>
         hseps([
           hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          DHDoc_common.Delim.open_Then,
+          linebreak(),
           mk_cast(go'(d2)),
+          linebreak(),
           DHDoc_common.Delim.open_Else,
+          linebreak(),
           mk_cast(go'(d3)),
         ])
       | Cast(d, _, _) =>
