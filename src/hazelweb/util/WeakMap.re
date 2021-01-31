@@ -5,8 +5,8 @@ module type MAP = {
   type key;
 
   let mk: unit => t('k, 'v);
-  let get: 'k => option('v);
-  let set: ('k, 'v) => t('k, 'v);
+  let get: (t('k, 'v), 'k) => option('v);
+  let set: (t('k, 'v), 'k, 'v) => t('k, 'v);
 };
 
 module JS_MAP = {
@@ -29,6 +29,19 @@ module JsMap = (T: AnyType) => {
       %js
       new c;
     };
+
+  let get: (t('k, 'v), 'k) => option('v) = {
+    (m, k) => {
+      Js.Optdef.to_option(m##get(k));
+    };
+  };
+
+  let set: (t('k, 'v), 'k, 'v) => t('k, 'v) = {
+    (m, k, v) => {
+      ignore(m##set(k, v));
+      m;
+    };
+  };
 };
 
 module JsWeakMap = (T: AnyType) => {
@@ -41,6 +54,19 @@ module JsWeakMap = (T: AnyType) => {
       %js
       new c;
     };
+
+  let get: (t('k, 'v), 'k) => option('v) = {
+    (m, k) => {
+      Js.Optdef.to_option(m##get(k));
+    };
+  };
+
+  let set: (t('k, 'v), 'k, 'v) => t('k, 'v) = {
+    (m, k, v) => {
+      ignore(m##set(k, v));
+      m;
+    };
+  };
 };
 
 module OcamlMap = (T: Map.OrderedType) => {
@@ -53,62 +79,18 @@ module OcamlMap = (T: Map.OrderedType) => {
       M.empty;
     };
 
-  let get: 'k => option('v) = {
-    k => {
-      switch (M.find(k)) {
+  let get: (t('k, 'v), 'k) => option('v) = {
+    (m, k) => {
+      switch (M.find(k, m)) {
       | v => Some(v)
       | exception Not_found => None
       };
     };
   };
 
-  let set: ('k, 'v) => t('k, 'v) = {
-    (k, v) => {
-      M.add(k, v, M.empty);
+  let set: (t('k, 'v), 'k, 'v) => t('k, 'v) = {
+    (m, k, v) => {
+      M.add(k, v, m);
     };
   };
 };
-
-/*
-
- let is_primitive_representation_impl: Js.Unsafe.top => Js.t(bool) =
-   // Based on https://stackoverflow.com/questions/8511281/check-if-a-value-is-an-object-in-javascript
-   Js.Unsafe.pure_js_expr(
-     "
-   function (val) {
-     return (val === null) || (typeof val !== 'function') && (typeof val !== 'object');
-   }",
-   );
-
- let is_primitive_representation: 'a. 'a => bool =
-   x => Js.to_bool(is_primitive_representation_impl(Obj.magic(x)));
-
- type t('k, 'v) = {
-   primitive_keys: JsMap.t('k, 'v),
-   non_primitive_keys: JsWeakMap.t('k, 'v),
- };
-
- let mk = (): t('k, 'v) => {
-   {primitive_keys: JsMap.mk(), non_primitive_keys: JsWeakMap.mk()};
- };
-
- let get = (t: t('k, 'v), k: 'k): option('v) => {
-   let map =
-     if (is_primitive_representation(k)) {
-       t.primitive_keys;
-     } else {
-       t.non_primitive_keys;
-     };
-   Js.Optdef.to_option(map##get(k));
- };
-
- let set = (t: t('k, 'v), k: 'k, v: 'v): unit => {
-   let map =
-     if (is_primitive_representation(k)) {
-       t.primitive_keys;
-     } else {
-       t.non_primitive_keys;
-     };
-   ignore(map##set(k, v));
- };
-   */
