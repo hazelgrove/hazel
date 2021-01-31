@@ -619,11 +619,10 @@ and syn_cursor_info_skel =
                 ),
               ),
             ) =>
-            print_endline("6666 syn_cursor_info_skell doesnotexpand");
             Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
             |> Option.map(ty =>
                  mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
-               );
+               )
           | Some(VarErr(Free)) =>
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some(VarErr(Keyword(k))) =>
@@ -800,7 +799,6 @@ and syn_cursor_info_zoperand =
   | SubscriptZE3(_, _, _, zend_) =>
     ana_cursor_info(~steps=steps @ [2], ctx, zend_, Int)
   | ApLivelitZ(_, _, _, _, _, zsi) =>
-    print_endline("111111");
     let (n, (ty, zblock)) = ZIntMap.prj_z_kv(zsi.zsplice_map);
     ana_cursor_info(~steps=steps @ [n], ctx, zblock, ty);
   };

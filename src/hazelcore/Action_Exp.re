@@ -328,7 +328,6 @@ let mk_syn_text =
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   | LivelitName(lln) =>
-    print_endline("111111111");
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let ze =
       ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.FreeLivelit(u, lln)));
@@ -2293,32 +2292,9 @@ and syn_perform_operand =
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
     | None => Failed
     | Some(({update, _ /*model_ty,*/} as livelit_defn, _)) =>
-      print_endline("BLAH0");
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          SerializedModel.sexp_of_t(serialized_model),
-        ),
-      );
-      print_endline("BLAH1");
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          SerializedModel.sexp_of_t(serialized_action),
-        ),
-      );
-      print_endline("BLAH2");
       let update_cmd = update(serialized_model, serialized_action);
       let (serialized_model, splice_info, u_gen) =
         SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          SerializedModel.sexp_of_t(serialized_model),
-        ),
-      );
-      //TODO(andrew): need to typecheck here somehow to avoid crash
-      // even with ll_def_valid 'hack'
-      // try to return a well-formed dhexp which is the wrong type
-      // there are no checks. this eventually results in a failedaction crash
-      //Statics_Exp.ana(ctx, DHExp.t_of_sexp(serialized_model))
       let (splice_map, u_gen) =
         Statics_Exp.ana_fix_holes_splice_map(
           ctx,
@@ -2344,7 +2320,6 @@ and syn_perform_operand =
             ),
           )
         );
-      print_endline("does print");
       Succeeded(SynDone((new_ze, expansion_ty, u_gen)));
     };
   | (PerformLivelitAction(_), CursorE(_)) => Failed

@@ -357,7 +357,6 @@ let text_operand =
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
   | LivelitName(lln) =>
-    print_endline("33333333");
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     (FreeLivelit(u, lln), u_gen);
   | ExpandingKeyword(kw) =>

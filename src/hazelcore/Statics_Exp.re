@@ -55,11 +55,8 @@ module rec M: Statics_Exp_Sig.S = {
   let serialize_ll_monad = model =>
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
-  let mk_ll_init =
-      (init: UHExp.t, ctx: Contexts.t): SpliceGenCmd.t(SerializedModel.t) => {
-    print_endline("BLAH");
-    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
-    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+  let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     // TODO(andrew): make above work. hacked right now... all DHExps set to triv
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
@@ -69,15 +66,10 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_update =
-      (
-        update: UHExp.t,
-        ctx: Contexts.t,
-        action: SerializedAction.t,
-        model: SerializedModel.t,
-      ) => {
+      (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
-    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     let update_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, update)) {
       | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
@@ -121,10 +113,10 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand =
-      (expand: UHExp.t, ctx: Contexts.t, model: SerializedModel.t)
+      (expand: UHExp.t, model: SerializedModel.t)
       : LivelitDefinition.livelit_expand_result => {
     let model_dhexp = DHExp.t_of_sexp(model);
-    let elab_ctx = ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     let expand_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
@@ -169,14 +161,10 @@ module rec M: Statics_Exp_Sig.S = {
       model_ty: UHTyp.expand(model_type),
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
-      init_model: mk_ll_init(init, ctx),
-      update: mk_ll_update(update, ctx),
-      expand: mk_ll_expand(expand, ctx),
+      init_model: mk_ll_init(init),
+      update: mk_ll_update(update),
+      expand: mk_ll_expand(expand),
     };
-    UHExp.is_complete(init, false)
-      ? print_endline("INIT COMPLETE") : print_endline("INIT INCOMP");
-    UHExp.is_complete(update, false)
-      ? print_endline("UPDATE COMPLETE") : print_endline("UPDATE INCOMP");
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
      * failure cases to contend with at the ap site, most of which
@@ -1557,12 +1545,10 @@ module rec M: Statics_Exp_Sig.S = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
       (Subscript(NotInHole, target, start_, end_), String, u_gen);
     | ApLivelit(llu, _, _, lln, model, splice_info) =>
-      print_endline("222222222");
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
-        print_endline("NONE CASE");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, lln), Hole, u_gen);
       | Some((livelit_defn, closed_tys)) =>
