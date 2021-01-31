@@ -25,7 +25,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some((m: memoization_value('v))) =>
+      | Some(m: memoization_value('v)) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
@@ -377,12 +377,12 @@ let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t =
   Doc.hcats([
     if_delim,
     Delim.open_Parenthesized(),
-    t1 |> pad_left_delimited_open_child(~inline_padding=space_),
+    t1 |> pad_left_delimited_open_child(~with_border=false),
     Delim.close_Parenthesized(),
     then_delim,
-    t2 |> pad_left_delimited_open_child(~inline_padding=space_),
+    t2 |> pad_left_delimited_open_child(~with_border=false),
     else_delim,
-    t3 |> pad_left_delimited_open_child(~inline_padding=space_),
+    t3 |> pad_left_delimited_open_child(~with_border=false),
   ])
   |> annot_Tessera
   |> annot_Operand(~sort=Exp);

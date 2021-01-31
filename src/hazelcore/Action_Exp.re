@@ -286,7 +286,7 @@ let zcase_of_scrut_and_suffix =
   };
 };
 
-let zif_of_guard_and_suffix = 
+/* let zif_of_guard_and_suffix = */
 
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
@@ -608,7 +608,7 @@ let rec syn_perform =
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
   | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
     let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
-    let new_ze = 
+    let new_ze =
       (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
       |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
@@ -618,29 +618,25 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
-<<<<<<< HEAD
-    let (zt1_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+    let zt1_hole = subject |> ZExp.place_before;
+    let (if_then, u_gen) = u_gen |> UHExp.new_EmptyHole;
+    let (if_else, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let zif1 =
       ZExp.IfZ1(
         StandardErrStatus(NotInHole),
-        ZOpSeq.wrap(zt1_hole),
-        None,
-        subject,
+        zt1_hole,
+        [ExpLine(OpSeq.wrap(if_then))],
+        [ExpLine(OpSeq.wrap(if_else))],
       );
-    let new_ze = (prefix, zif1, suffix) |> ZExp.prune_empty_hole_lines;
+    let new_ze =
+      (prefix, ZExp.ExpLineZ(zif1 |> ZOpSeq.wrap), suffix)
+      |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  /* Don't worry about then and else branches yet (no need to separate from suffix), 
-     just put "then" and "else" and an empty hole for each.
-     Subject is everything on the same line as the opseq: if I type "if" in front
-     of an existing expression, it should automatically be registered as the guard
-  */
-=======
-    let (zt1_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zif1 = ZExp.IfZ1(ZOpSeq.wrap(zt1_hole), None, subject);
-    let new_ze = (prefix, zif1, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  /* START HERE!! */
->>>>>>> faa14c7c3e49978c8c970c222347446b7946016b
+  /* Don't worry about then and else branches yet (no need to separate from suffix),
+        just put "then" and "else" and an empty hole for each.
+        Subject is everything on the same line as the opseq: if I type "if" in front
+        of an existing expression, it should automatically be registered as the guard
+     */
   };
 }
 and syn_perform_block =
@@ -2326,6 +2322,21 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+  | Succeeded(AnaExpands({kw: If, prefix, subject, suffix, u_gen})) =>
+    let zt1_hole = subject |> ZExp.place_before;
+    let (if_then, u_gen) = u_gen |> UHExp.new_EmptyHole;
+    let (if_else, u_gen) = u_gen |> UHExp.new_EmptyHole;
+    let zif1 =
+      ZExp.IfZ1(
+        StandardErrStatus(NotInHole),
+        zt1_hole,
+        [ExpLine(OpSeq.wrap(if_then))],
+        [ExpLine(OpSeq.wrap(if_else))],
+      );
+    let new_ze =
+      (prefix, ZExp.ExpLineZ(zif1 |> ZOpSeq.wrap), suffix)
+      |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
   }
 and ana_perform_block =
     (
@@ -3076,6 +3087,10 @@ and ana_perform_operand =
   | (Construct(SLet), CursorE(_, operand)) =>
     Succeeded(
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
+    )
+  | (Construct(SIf), CursorE(_, operand)) =>
+    Succeeded(
+      mk_AnaExpandsToIf(~u_gen, ~guard=UHExp.Block.wrap(operand), ()),
     )
 
   // TODO consider relaxing guards and

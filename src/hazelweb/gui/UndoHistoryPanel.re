@@ -313,6 +313,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
+    | SIf =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("if"), indicate_words_view(" expression")],
+        )
+      )
     | SList
     | SListNil
     | SLine

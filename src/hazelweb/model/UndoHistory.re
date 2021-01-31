@@ -502,6 +502,7 @@ let get_new_action_group =
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SIf => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
@@ -614,6 +615,25 @@ let get_new_action_group =
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
+
+              | If =>
+                switch (
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
+                ) {
+                | OnText(pos) =>
+                  if (pos == 4) {
+                    /* the caret is at the end of "case" */
+                    Some(
+                      ConstructEdit(SIf),
+                    );
+                  } else {
+                    Some(ConstructEdit(SOp(SSpace)));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
               }
             | Var(_, _, var) =>
               switch (pos) {
@@ -637,7 +657,6 @@ let get_new_action_group =
           | _ => Some(ConstructEdit(SOp(SSpace)))
           }
         }
-
       | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | SwapUp => Some(SwapEdit(Up))
