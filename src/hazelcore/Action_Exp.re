@@ -234,7 +234,7 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let mk_SynExpandsToIf = (~u_gen, ~prefix=[], ~suffix=[], ~guard, ()) =>
-  SynExpands({kw: Let, u_gen, prefix, suffix, subject: guard});
+  SynExpands({kw: If, u_gen, prefix, suffix, subject: guard});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
