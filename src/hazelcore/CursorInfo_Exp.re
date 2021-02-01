@@ -382,12 +382,10 @@ and syn_cursor_info_skel =
         zoperand,
       )
     | ZOperator((_, op), _) =>
-      // if the operator synthesizes a hole, it must have been a free user op,
-      // so we want match it to a 2 argument function.
-      let free_arrow_type = HTyp.Arrow(Hole, Arrow(Hole, Hole));
       let syn_ty = (ty: HTyp.t) => {
         switch (op) {
         | UserOp(sym) =>
+          let free_arrow_type = HTyp.Arrow(Hole, Arrow(Hole, Hole));
           switch (
             VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(sym))
           ) {
@@ -397,7 +395,7 @@ and syn_cursor_info_skel =
             | _ => CursorInfo.SynErrorArrow(free_arrow_type, ty)
             }
           | _ => SynFreeArrow(free_arrow_type)
-          }
+          };
         | _ => Synthesized(ty)
         };
       };
@@ -729,11 +727,13 @@ and ana_cursor_info_zopseq =
           cursor_term,
         ),
       );
-    | InHole(OperatorError(_), _) =>
-      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-    // let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
-    // Statics_Exp.syn_opseq(ctx, opseq')
-    // |> Option.map(_ => CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term));
+    | InHole(OperatorError(Free), _) =>
+      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+      Statics_Exp.syn_opseq(ctx, opseq')
+      |> Option.map(ty' =>
+           CursorInfo_common.mk(AnaFree(ty'), ctx, cursor_term)
+         );
+    | InHole(OperatorError(TypeInconsistent), _)
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
       Statics_Exp.syn_opseq(ctx, opseq')
@@ -799,22 +799,18 @@ and ana_cursor_info_skel =
            )
       | InHole(OperatorError(Free), _) =>
         let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
-        print_endline("free operator error");
         Statics_Exp.syn_opseq(ctx, opseq')
-        |> Option.map(ty'
-             //  print_endline(Sexplib.Sexp.to_string(ty'));
-             =>
-               switch (HTyp.matched_two_ary_arrow(ty')) {
-               | Some((ty1, (ty2, ty3))) =>
-                 CursorInfo_common.mk(
-                   SynFreeArrow(Arrow(ty1, Arrow(ty2, ty3))),
-                   ctx,
-                   cursor_term,
-                 )
-               | None =>
-                 CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
-               }
-             );
+        |> Option.map(ty' =>
+             switch (HTyp.matched_two_ary_arrow(ty')) {
+             | Some((ty1, (ty2, ty3))) =>
+               CursorInfo_common.mk(
+                 SynFreeArrow(Arrow(ty1, Arrow(ty2, ty3))),
+                 ctx,
+                 cursor_term,
+               )
+             | None => CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
+             }
+           );
       | InHole(OperatorError(TypeInconsistent), _) =>
         // This case occurs when a user operator is constructed with
         // some expression that is not a 2-ary function. Let subsumption

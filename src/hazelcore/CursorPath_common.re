@@ -195,7 +195,6 @@ let holes_skel_ =
         switch (err) {
         | NotInHole => hs
         | InHole(_, u) =>
-          print_endline("user binop ends up in hole");
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           [
             {sort: ExpHole(u, Empty), steps: List.rev([step, ...rev_steps])},
