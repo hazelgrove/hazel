@@ -62,7 +62,6 @@ let get_cursor_info = (program: t) => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  // TODO (corlaban): this is where to add decorations.
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])

@@ -59,10 +59,6 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
-  // let op_err_holes =
-  //   dpaths.op_err_holes
-  //   |> List.find_opt(is_current)
-  //   |> Option.to_list;
   let current_term =
     switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
@@ -70,11 +66,5 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  List.concat([
-    err_holes,
-    var_err_holes,
-    var_uses,
-    // op_err_holes,
-    current_term,
-  ]);
+  List.concat([err_holes, var_err_holes, var_uses, current_term]);
 };

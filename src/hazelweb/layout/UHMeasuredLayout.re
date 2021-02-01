@@ -332,8 +332,6 @@ let nearest_path_within_row =
              | Text =>
                let offset = min(from_start, len);
                (OnText(offset), offset);
-             // Todo  (corlaban): May need to change measured back
-             //  | Op => (OnText(from_start), from_start) // is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>
                is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)
