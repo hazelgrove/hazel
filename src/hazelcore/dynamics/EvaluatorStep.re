@@ -275,10 +275,22 @@ let eval_bin_float_op =
 
 let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   switch (d) {
-  // | Ap(d1, d2) =>
-  //   switch(d1) {
-  //     | Lam(pat, ty, d0) => Some()
-  //   }
+  | Ap(d1, d2) =>
+    switch (d1) {
+    | Lam(pat, _, d0) =>
+      switch (Elaborator_Exp.matches(pat, d2)) {
+      | DoesNotMatch => None
+      | Indet => None
+      | Matches(env) => Some(Elaborator_Exp.subst(env, d0))
+      }
+    | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
+      if (HTyp.eq(t1, t1') && HTyp.eq(t2, t2')) {
+        None;
+      } else {
+        Some(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
+      }
+    | _ => None
+    }
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
     | Indet => None // maybe they should be errors
@@ -304,9 +316,7 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
     | _ => None
     }
   // | FixF(Var.t, HTyp.t, t)
-  // | Ap(t, t)
   // | Inj(HTyp.t, InjSide.t, t)
-  // | Lam(DHPat.t, HTyp.t, t)
   // | Cast(t, HTyp.t, HTyp.t)
   // | FailedCast(t, HTyp.t, HTyp.t)
   | BoolLit(_)
@@ -316,6 +326,7 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   | Cons(_, _)
   | Pair(_, _)
   | Triv
+  | Lam(_, _, _)
   | ConsistentCase(_)
   // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | InvalidOperation(_, _)
