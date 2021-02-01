@@ -16,7 +16,6 @@ let precedence_GreaterThan = Operators_Exp.precedence(GreaterThan);
 let precedence_And = Operators_Exp.precedence(And);
 let precedence_Or = Operators_Exp.precedence(Or);
 let precedence_Comma = Operators_Exp.precedence(Comma);
-// let precedence_UserOp = Operators_Exp.precedence(UserOp());
 let precedence_max = Operators_Exp.precedence_max;
 
 let pad_child =
