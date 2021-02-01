@@ -1190,7 +1190,7 @@ and syn_perform_opseq =
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(Before), op')
-        | None => (CursorPosition.OnOp(Before), op) // do nothing
+        | None => (CursorPosition.OnOp(Before), op)
         };
 
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
@@ -1215,7 +1215,7 @@ and syn_perform_opseq =
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
         | Some(op') => (CursorPosition.OnOp(After), op')
-        | None => (CursorPosition.OnOp(After), op) // do nothing
+        | None => (CursorPosition.OnOp(After), op)
         };
 
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
@@ -1287,7 +1287,7 @@ and syn_perform_opseq =
           Operators_Exp.UserOp(new_op_str),
         )
       | Some(op) => (CursorPosition.OnOp(After), op)
-      | None => (CursorPosition.OnOp(After), oper) // do nothing
+      | None => (CursorPosition.OnOp(After), oper)
       };
 
     let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
