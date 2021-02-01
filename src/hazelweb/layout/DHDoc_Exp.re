@@ -100,9 +100,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
 
 let mk_bound_user_op = (op: Var.t): DHDoc.t => Doc.text(op);
 let mk_free_user_op = (op: Var.t, u, i): DHDoc.t =>
-  Doc.text(op)
-  // |> Doc.annot(DHAnnot.NonEmptyHole(OperatorError(Free), (u, i)));
-  |> Doc.annot(DHAnnot.VarHole(Free, (u, i)));
+  Doc.text(op) |> Doc.annot(DHAnnot.VarHole(Free, (u, i)));
 
 let rec mk =
         (
@@ -218,14 +216,22 @@ let rec mk =
           };
         hseps([mk_cast(doc1), mk_free_user_op(op, u, i), mk_cast(doc2)]);
       | BinIntOp(op, d1, d2) =>
-        // TODO assumes all bin int ops are left associative
+        let uhexp_op = DHExp.BinIntOp.to_op(op);
+        let precedence = precedence_bin_int_op(op);
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
+          switch (Operators_Exp.associativity(uhexp_op)) {
+          | Left => mk_left_associative_operands(precedence, d1, d2)
+          | Right => mk_right_associative_operands(precedence, d1, d2)
+          };
         hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
       | BinFloatOp(op, d1, d2) =>
-        // TODO assumes all bin float ops are left associative
+        let uhexp_op = DHExp.BinFloatOp.to_op(op);
+        let precedence = precedence_bin_float_op(op);
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
+          switch (Operators_Exp.associativity(uhexp_op)) {
+          | Left => mk_left_associative_operands(precedence, d1, d2)
+          | Right => mk_right_associative_operands(precedence, d1, d2)
+          };
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
