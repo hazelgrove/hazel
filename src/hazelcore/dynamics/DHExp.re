@@ -131,13 +131,6 @@ module BinFloatOp = {
     };
 };
 
-// module BinUserOp = {
-//   [@deriving sexp]
-//   type t =
-//     | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-//     | BoundUserOp(Var.t);
-// };
-
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
