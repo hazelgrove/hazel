@@ -848,7 +848,6 @@ and syn_fix_holes_skel =
         (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
       }
     | _ =>
-      // if user op is not in this context, then it is a free var hole
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -867,7 +866,6 @@ and syn_fix_holes_skel =
           seq,
           Hole,
         );
-      // TODO (corlaban): This toggles the appearence of holes???
 
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let var_reason = OperatorErrStatus.HoleReason.Free;
