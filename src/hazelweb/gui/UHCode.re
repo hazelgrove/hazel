@@ -170,7 +170,6 @@ let decoration_views =
             );
           go'(~tl=[current_vs, ...tl], dpaths, m);
         } else {
-          print_endline("nothing in holes");
           go'(~tl, dpaths, m);
         }
       | Term({shape, sort, _}) =>
