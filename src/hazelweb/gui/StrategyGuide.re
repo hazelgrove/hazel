@@ -245,6 +245,55 @@ let other_arithmetic_options = cursor_info => {
            ],
          )
        });
+  let int_options_2 =
+    ["<", ">", "=="]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(HTyp.Int, HTyp.Arrow(Int, Bool))),
+           ],
+         )
+       });
+  let float_options_2 =
+    ["<.", ">.", "==."]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Bool))),
+           ],
+         )
+       });
+  let boolean_options =
+    ["&&", "||"]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(Bool, Arrow(Bool, Bool))),
+           ],
+         )
+       });
+
+  let list_options = t2 =>
+    ["::"]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(t2, Arrow(List(t2), List(t2)))),
+           ],
+         )
+       });
 
   let arithmetic_options_wrapper = options => [
     Node.div(
@@ -258,11 +307,38 @@ let other_arithmetic_options = cursor_info => {
     ),
   ];
 
+  let boolean_options_wrapper = options => [
+    Node.div(
+      [Attr.classes(["option"])],
+      [
+        Node.div(
+          [Attr.classes([])],
+          [Node.text("Boolean operation")] @ options,
+        ),
+      ],
+    ),
+  ];
+
+  let list_options_wrapper = options => [
+    Node.div(
+      [Attr.classes(["option"])],
+      [
+        Node.div(
+          [Attr.classes([])],
+          [Node.text("List operation")] @ options,
+        ),
+      ],
+    ),
+  ];
+
   let ty: option(HTyp.t) = get_type(cursor_info);
   switch (ty) {
   | Some(Hole) => arithmetic_options_wrapper(int_options @ float_options)
   | Some(Int) => arithmetic_options_wrapper(int_options)
   | Some(Float) => arithmetic_options_wrapper(float_options)
+  | Some(Bool) =>
+    boolean_options_wrapper(int_options_2 @ float_options_2 @ boolean_options)
+  | Some(List(t2)) => list_options_wrapper(list_options(t2))
   | _ => []
   };
 };
