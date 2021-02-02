@@ -100,7 +100,6 @@ let mk_syn_text =
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    // let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
@@ -153,7 +152,6 @@ let mk_ana_text =
     Succeeded((zp, ctx, u_gen));
   | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
-    // let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   };
@@ -636,8 +634,6 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
-  // | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
-  //   syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -649,8 +645,6 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
-  // | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
-  //   syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -702,11 +696,6 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, x)
-  // | (Construct(SOp(sop)), CursorP(OnText(j), UserOp(_, _, x)))
-  //     when
-  //       !ZPat.is_before_zoperand(zoperand)
-  //       && !ZPat.is_after_zoperand(zoperand) =>
-  //   syn_split_text(ctx, u_gen, j, sop, x)
   | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1113,8 +1102,6 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
-  // | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
-  //   ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1126,8 +1113,6 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
-  // | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
-  //   ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     ana_backspace_text(ctx, u_gen, j, n, ty)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1182,9 +1167,6 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, x, ty)
-  // | (Construct(SOp(_) as op), CursorP(OnText(j), UserOp(_, _, x))) =>
-  //   let operator_string = Action_common.shape_to_string(op);
-  //   ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
   | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1223,10 +1205,6 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
-  /* Closing a user defined operator in a pattern*/
-  // | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x)))
-  //     when s == "_" =>
-  //   ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>

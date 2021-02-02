@@ -1323,9 +1323,6 @@ and syn_perform_opseq =
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
 
-  // TODO(corlaban): Space construction on top of multi character operator should
-  // insert a new hole in between the split characters.
-
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
   | (Construct(SOp(_) as sop), ZOperator((pos, oper), seq)) =>
     let old_op_str = Operators_Exp.to_string(oper);

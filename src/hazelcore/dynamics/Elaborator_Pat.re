@@ -106,7 +106,6 @@ and syn_elab_operand =
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
   | Var(InHole(TypeInconsistent as reason, u), _, _)
-  // | UserOp(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -123,7 +122,6 @@ and syn_elab_operand =
     };
   | Wild(InHole(WrongLength | OperatorError(_), _))
   | Var(InHole(WrongLength | OperatorError(_), _), _, _)
-  // | UserOp(InHole(WrongLength | OperatorError(_), _), _, _)
   | IntLit(InHole(WrongLength | OperatorError(_), _), _)
   | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
@@ -148,12 +146,6 @@ and syn_elab_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);
-  // | UserOp(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  // | UserOp(NotInHole, InVarHole(Keyword(k), u), _) =>
-  //   Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
-  // | UserOp(NotInHole, NotInVarHole, x) =>
-  //   let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-  //   Elaborates(Var(x), Hole, ctx, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, ctx, delta)
@@ -335,7 +327,6 @@ and ana_elab_operand =
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
   | Var(InHole(TypeInconsistent as reason, u), _, _)
-  // | UserOp(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -352,7 +343,6 @@ and ana_elab_operand =
     };
   | Wild(InHole(WrongLength | OperatorError(_), _))
   | Var(InHole(WrongLength | OperatorError(_), _), _, _)
-  // | UserOp(InHole(WrongLength | OperatorError(_), _), _, _)
   | IntLit(InHole(WrongLength | OperatorError(_), _), _)
   | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
@@ -369,12 +359,6 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
-  // | UserOp(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  // | UserOp(NotInHole, InVarHole(Keyword(k), u), _) =>
-  //   Elaborates(Keyword(u, 0, k), ty, ctx, delta)
-  // | UserOp(NotInHole, NotInVarHole, x) =>
-  //   let ctx = Contexts.extend_gamma(ctx, (x, ty));
-  //   Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
   | IntLit(NotInHole, _)

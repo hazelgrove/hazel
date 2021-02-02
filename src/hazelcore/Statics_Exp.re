@@ -7,13 +7,6 @@ let ctx_for_let =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
     : (Contexts.t, option(Var.t)) =>
   switch (p, e) {
-  // | (
-  //     OpSeq(_, S(UserOp(_, NotInVarHole, x), E)),
-  //     [ExpLine(OpSeq(_, S(_, E)))],
-  //   ) => (
-  //     Contexts.extend_gamma(ctx, (x, ty)),
-  //     Some(x),
-  //   )
   | (
       OpSeq(_, S(Var(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],

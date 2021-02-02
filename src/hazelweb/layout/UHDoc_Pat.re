@@ -64,7 +64,6 @@ and mk_operand =
         | Wild(_) => UHDoc_common.mk_Wild()
         | InvalidText(_, t) => mk_InvalidText(t)
         | Var(_, _, x) => mk_Var(x)
-        // | UserOp(_, _, x) => mk_Var(x)
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)

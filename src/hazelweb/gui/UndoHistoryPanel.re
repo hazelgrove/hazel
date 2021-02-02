@@ -163,17 +163,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(var_str);
       };
-    // | UserOp(_, _, var_str) =>
-    //   if (show_indicate_word) {
-    //     Vdom.(
-    //       Node.span(
-    //         [],
-    //         [indicate_words_view("user operator: "), code_view(var_str)],
-    //       )
-    //     );
-    //   } else {
-    //     code_view(var_str);
-    //   }
     | IntLit(_, num) =>
       if (show_indicate_word) {
         Vdom.(
