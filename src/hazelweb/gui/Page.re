@@ -46,6 +46,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("length template")],
         ),
         Node.option(
+          [Attr.value("sort_template")],
+          [Node.text("sort template")],
+        ),
+        Node.option(
           [Attr.value("max_template")],
           [Node.text("max template")],
         ),
