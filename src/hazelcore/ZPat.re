@@ -226,7 +226,7 @@ and move_cursor_left_zoperand =
     Some(InjZ(err, side, place_after(p)))
   | CursorP(
       OnDelim(_, _),
-      InvalidText(_, _) | Var(_, _, _) /*| UserOp(_, _, _)*/ | BoolLit(_, _) |
+      InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) |
       IntLit(_, _) |
       FloatLit(_, _),
     ) =>
@@ -276,7 +276,7 @@ and move_cursor_right_zoperand =
     Some(InjZ(err, side, place_before(p)))
   | CursorP(
       OnDelim(_, _),
-      InvalidText(_, _) | Var(_, _, _) | BoolLit /*UserOp(_, _, _) |*/(_, _) |
+      InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) |
       IntLit(_, _) |
       FloatLit(_, _),
     ) =>

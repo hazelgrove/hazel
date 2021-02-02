@@ -94,11 +94,8 @@ let mk_syn_text =
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | UserOp(x)
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.Hole, ctx, u_gen));
-  | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
@@ -146,11 +143,8 @@ let mk_ana_text =
     let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
+  | UserOp(x)
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, ctx, u_gen));
-  | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
@@ -570,7 +564,7 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ IntLit(_) | FloatLit(_) |
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) |
         BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
@@ -1014,7 +1008,7 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ IntLit(_) | FloatLit(_) |
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) |
         BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
