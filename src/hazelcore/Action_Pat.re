@@ -917,6 +917,8 @@ and ana_perform_opseq =
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
     | None =>
+      // When operators are constructed we want to construct a variable for a
+      // user defined operator within the surrounding pattern.
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
       | Failed => Failed
       | CursorEscaped(side) =>
