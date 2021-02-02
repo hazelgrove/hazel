@@ -173,7 +173,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _) =>
+        | Case(InconsistentBranches(types, _), _, _)
+        | If(InconsistentBranches(types, _), _, _, _) =>
           InconsistentBranchesErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
@@ -519,6 +520,14 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, If(InconsistentBranches(branch_types, _), _, _, _)) =>
+    Some(
+      CursorInfo_common.mk(
+        SynInconsistentBranches(branch_types, steps),
+        ctx,
+        cursor_term,
+      ),
+    )
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -596,6 +605,7 @@ and syn_cursor_info_zoperand =
         )
       };
     }
+  /* Prob need to fix later */
   | IfZ1(_, t1, _, _) => syn_cursor_info(~steps=steps @ [0], ctx, t1)
   | IfZ2(_, _, t2, _) => syn_cursor_info(~steps=steps @ [1], ctx, t2)
   | IfZ3(_, _, _, t3) => syn_cursor_info(~steps=steps @ [2], ctx, t3)

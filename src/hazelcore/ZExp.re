@@ -92,7 +92,11 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     }
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
-  | If(_) => CursorPosition.delim_cursors(2)
+  | If(_) => {
+      CursorPosition.delim_cursors_k(0)
+      @ CursorPosition.delim_cursors_k(1)
+      @ CursorPosition.delim_cursors_k(2);
+    }
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
@@ -719,12 +723,11 @@ and move_cursor_left_zoperand =
     }
   | CursorE(OnDelim(k, Before), If(err, t1, t2, t3)) =>
     // k == 1 || k == 2 || k == 3
-    if (k == 1) {
-      Some(IfZ1(err, place_after(t1), t2, t3));
-    } else if (k == 2) {
-      Some(IfZ2(err, t1, place_after(t2), t3));
-    } else {
-      Some(IfZ3(err, t1, t2, place_after(t3)));
+    switch (k) {
+    | 0 => Some(IfZ1(err, place_before(t1), t2, t3))
+    | 1 => Some(IfZ2(err, t1, place_before(t2), t3))
+    | 2 => Some(IfZ3(err, t1, t2, place_before(t3)))
+    | _ => None
     }
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
@@ -778,13 +781,13 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zt2)) {
     | Some(zt2) => Some(IfZ2(err, t1, zt2, t3))
     | None =>
-      Some(CursorE(OnDelim(0, After), If(err, t1, erase(zt2), t3)))
+      Some(CursorE(OnDelim(1, After), If(err, t1, erase(zt2), t3)))
     }
   | IfZ3(err, t1, t2, zt3) =>
     switch (move_cursor_left(zt3)) {
     | Some(zt3) => Some(IfZ3(err, t1, t2, zt3))
     | None =>
-      Some(CursorE(OnDelim(0, After), If(err, t1, t2, erase(zt3))))
+      Some(CursorE(OnDelim(2, After), If(err, t1, t2, erase(zt3))))
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_left_zrules =
@@ -916,13 +919,12 @@ and move_cursor_right_zoperand =
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(OnDelim(k, After), If(err, t1, t2, t3)) =>
-    // k == 1 || k == 2 || k == 3
-    if (k == 1) {
-      Some(IfZ1(err, place_before(t1), t2, t3));
-    } else if (k == 2) {
-      Some(IfZ2(err, t1, place_before(t2), t3));
-    } else {
-      Some(IfZ3(err, t1, t2, place_before(t3)));
+    // k == 0 || k == 1 || k == 2
+    switch (k) {
+    | 0 => Some(IfZ1(err, place_before(t1), t2, t3))
+    | 1 => Some(IfZ2(err, t1, place_before(t2), t3))
+    | 2 => Some(IfZ3(err, t1, t2, place_before(t3)))
+    | _ => None
     }
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
@@ -987,13 +989,13 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zt2)) {
     | Some(zt2) => Some(IfZ2(err, t1, zt2, t3))
     | None =>
-      Some(CursorE(OnDelim(0, Before), If(err, t1, erase(zt2), t3)))
+      Some(CursorE(OnDelim(1, Before), If(err, t1, erase(zt2), t3)))
     }
   | IfZ3(err, t1, t2, zt3) =>
     switch (move_cursor_right(zt3)) {
     | Some(zt3) => Some(IfZ3(err, t1, t2, zt3))
     | None =>
-      Some(CursorE(OnDelim(0, Before), If(err, t1, t2, erase(zt3))))
+      Some(CursorE(OnDelim(2, Before), If(err, t1, t2, erase(zt3))))
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_right_zrules =

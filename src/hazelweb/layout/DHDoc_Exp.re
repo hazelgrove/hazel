@@ -214,12 +214,12 @@ let rec mk =
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | InconsistentBranchesIf(u, i, _sigma, If(d1, d2, d3)) =>
         vseps([
-          hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          DHDoc_common.Delim.open_If,
+          mk_cast(go'(d1)),
           DHDoc_common.Delim.open_Then,
           linebreak(),
           mk_cast(go'(d2)),
-          linebreak(),
-          DHDoc_common.Delim.open_Else,
+          hcat(linebreak(), DHDoc_common.Delim.open_Else),
           linebreak(),
           mk_cast(go'(d3)),
         ])
@@ -227,12 +227,12 @@ let rec mk =
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | ConsistentIf(If(d1, d2, d3)) =>
         hseps([
-          hcat(DHDoc_common.Delim.open_If, mk_cast(go'(d1))),
+          DHDoc_common.Delim.open_If,
+          mk_cast(go'(d1)),
           DHDoc_common.Delim.open_Then,
           linebreak(),
           mk_cast(go'(d2)),
-          linebreak(),
-          DHDoc_common.Delim.open_Else,
+          hcat(linebreak(), DHDoc_common.Delim.open_Else),
           linebreak(),
           mk_cast(go'(d3)),
         ])
