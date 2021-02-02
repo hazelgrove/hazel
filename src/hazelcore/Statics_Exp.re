@@ -115,13 +115,16 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand =
-      (
-        expand: UHExp.t,
-        _captures: UHExp.t,
-        _name_str: string,
-        model: SerializedModel.t,
-      )
+      (expand: UHExp.t, name_str: string, model: SerializedModel.t)
       : LivelitDefinition.livelit_expand_result => {
+    //TODO(andrew): captures
+    /*
+     "(ExpLine(OpSeq(Placeholder 0)
+      (S(Lam NotInHole(OpSeq(Placeholder 0)
+       (S(Var NotInHole NotInVarHole slidy)E))()
+        ((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 50)E)))))E)))"
+             */
+    // strategy for captures
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
     let expand_dhexp =
@@ -130,20 +133,40 @@ module rec M: Statics_Exp_Sig.S = {
       | Elaborates(expand, _, _) => expand
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
+    print_endline("mk_ll_expand");
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(v) =>
+      //print_endline("mk_ll_expand: boxed_val");
       switch (DHExp.strip_casts(v)) {
       | StringLit(str) =>
+        //print_endline("mk_ll_expand: stripped str");
         let maybeSexp =
           try(Some(Sexplib.Sexp.of_string(str))) {
-          | _ => None
+          | _ =>
+            //print_endline("mk_Ll_EXPAND: NOSEXP!!");
+            None
           };
         switch (maybeSexp) {
         | None => Failure(NotSexp)
         | Some(sexp) =>
-          try(Success(UHExp.t_of_sexp(sexp))) {
+          let ap_wrap = u =>
+            UHExp.Block.wrap'(
+              Seq.mk(u, [(Operators_Exp.Space, UHExp.var(name_str))])
+              |> UHExp.mk_OpSeq,
+            );
+          print_endline("mk_ll_expand: expansion:");
+          let blag = ap_wrap(UHExp.operand_of_sexp(sexp));
+          print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(blag)));
+          /*((ExpLine
+            (OpSeq (BinOp NotInHole Space (Placeholder 0) (Placeholder 1))
+             (S
+              (Lam NotInHole
+               (OpSeq (Placeholder 0) (S (Var NotInHole NotInVarHole x) E)) ()
+               ((ExpLine (OpSeq (Placeholder 0) (S (IntLit NotInHole 50) E)))))
+               (A Space (S (Var NotInHole NotInVarHole $slidy) E))))))*/
+          try(Success(ap_wrap(UHExp.operand_of_sexp(sexp)))) {
           | _ => Failure(NotUHExp)
-          }
+          };
         };
       | _ => Failure(NotStringlit)
       }
@@ -163,7 +186,6 @@ module rec M: Statics_Exp_Sig.S = {
       expand,
       expansion_type,
       model_type,
-      captures,
       _,
     }: UHExp.livelit_record = llrecord;
     let new_ll_def: LivelitDefinition.t = {
@@ -173,7 +195,7 @@ module rec M: Statics_Exp_Sig.S = {
       param_tys: [], // TODO: params
       init_model: mk_ll_init(init),
       update: mk_ll_update(update),
-      expand: mk_ll_expand(expand, captures, name_str),
+      expand: mk_ll_expand(expand, name_str),
     };
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
@@ -245,7 +267,7 @@ module rec M: Statics_Exp_Sig.S = {
         }
       }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
-      // TODO: captures
+      // TODO: captures?
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
       OptUtil.sequence([
@@ -1556,7 +1578,6 @@ module rec M: Statics_Exp_Sig.S = {
       (Subscript(NotInHole, target, start_, end_), String, u_gen);
     | ApLivelit(llu, _, _, lln, model, splice_info) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
-      print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);

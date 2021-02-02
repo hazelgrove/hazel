@@ -643,7 +643,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         delta: Delta.t,
         block: UHExp.block,
       )
-      : ElaborationResult.t =>
+      : ElaborationResult.t => {
     switch (block |> UHExp.Block.split_conclusion) {
     | None => DoesNotElaborate
     | Some((leading, conclusion)) =>
@@ -655,7 +655,8 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
         }
       }
-    }
+    };
+  }
   and syn_elab_lines =
       (
         ~livelit_holes,
@@ -733,15 +734,22 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
           }
         }
       }
-    | LivelitDefLine(_) =>
-      // TODO: introduce captures to ctx (see ICFP2018 fig. 14)
+    | LivelitDefLine({name: (_, name_str), captures, _}) =>
+      // TODO: params
       let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
       switch (S.syn_lines(ctx', [line])) {
       | None => LinesDoNotExpand
       | Some(new_ctx) =>
-        // TODO: params, captures
         let ctx'' = new_ctx |> map_livelit_ctx(ty => (DHExp.Triv, ty));
-        LinesExpand(d => d, ctx'', delta);
+        switch (syn_elab(ctx, delta, captures)) {
+        | DoesNotElaborate => LinesDoNotExpand
+        | Elaborates(d_captures, _ty, delta) =>
+          // NOTE: introduce captures to ctx via let binding (see ICFP2018 fig. 14)
+          let prelude = d => DHExp.Let(Var(name_str), d_captures, d);
+          //TODO(Andrew): fix/eliminate below
+          let ctx3 = Contexts.extend_gamma(ctx'', (name_str, HTyp.Hole));
+          LinesExpand(prelude, ctx3, delta);
+        };
       };
     | AbbrevLine(lln_new, err_status, lln_old, args) =>
       let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
@@ -1302,7 +1310,11 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
     | Success(proto_expansion) =>
-      let proto_elaboration_ctx = to_ctx(si, all_param_tys);
+      //HACK(andrew): this was crashing elab
+      //as llname was not bound in this 'proto_elaboration_ctx'
+      let (gamma, _) = ctx;
+      let (gamma2, ll2) = to_ctx(si, all_param_tys);
+      let proto_elaboration_ctx = (VarMap.union(gamma, gamma2), ll2);
       let proto_elaboration_result =
         ana_elab(
           ~livelit_holes,
@@ -1312,7 +1324,9 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
           expansion_ty,
         );
       switch (proto_elaboration_result) {
-      | DoesNotElaborate => DoesNotElaborate
+      | DoesNotElaborate =>
+        print_endline("ELABORATOR LIVELITAP CASE DNE!!!!!!!!");
+        DoesNotElaborate;
       | Elaborates(proto_elaboration, _, delta) =>
         // Like List.combine, but pads missing args with None
         let rec params_args = (p, a) =>

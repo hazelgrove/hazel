@@ -395,9 +395,6 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
   | LivelitDefLine({
-      //err,
-      //captures,
-      //name,
       expansion_type,
       model_type,
       action_type,
@@ -407,7 +404,6 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
       expand,
       _,
     }) =>
-    // TODO: is name complete? captures?
     let types_complete =
       UHTyp.is_complete(expansion_type)
       && UHTyp.is_complete(model_type)

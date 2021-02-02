@@ -145,7 +145,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
 module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp);
 
 exception DoesNotElaborate;
-let elaborate__livelit_holes_false =
+let elaborate__livelit_holes_false = {
   Memo.general(
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
@@ -154,7 +154,8 @@ let elaborate__livelit_holes_false =
       Delta.empty,
     ),
   );
-let elaborate__livelit_holes_true =
+};
+let elaborate__livelit_holes_true = {
   Memo.general(
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
@@ -163,12 +164,15 @@ let elaborate__livelit_holes_true =
       Delta.empty,
     ),
   );
+};
 let elaborate = (~livelit_holes) =>
   livelit_holes
     ? elaborate__livelit_holes_true : elaborate__livelit_holes_false;
 let get_elaboration = (~livelit_holes=false, program: t): DHExp.t => {
   switch (program |> get_uhexp |> elaborate(~livelit_holes)) {
-  | DoesNotElaborate => raise(DoesNotElaborate)
+  | DoesNotElaborate =>
+    print_endline("DOESNOTELAB");
+    raise(DoesNotElaborate);
   | Elaborates(d, _, _) => d
   };
 };
