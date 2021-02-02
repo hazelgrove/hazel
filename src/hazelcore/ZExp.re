@@ -96,7 +96,11 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  /* inner nodes */
+  | StringLit(_, s) =>
+    List.append(
+      CursorPosition.delim_cursors(2),
+      CursorPosition.text_cursors(String.length(s)),
+    ) /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =
         switch (ann) {
@@ -169,6 +173,7 @@ and is_before_zoperand =
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
+  | CursorE(cursor, StringLit(_))
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
@@ -253,6 +258,7 @@ and is_after_zoperand =
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
+  | CursorE(cursor, StringLit(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
@@ -302,6 +308,7 @@ and is_outer_zoperand =
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
+  | CursorE(_, StringLit(_))
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
@@ -343,6 +350,7 @@ and place_before_operand = operand =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
+  | StringLit(_)
   | Lam(_)
   | Inj(_)
   | Case(_)
@@ -382,6 +390,7 @@ and place_after_operand = operand =>
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
+  | StringLit(_) => CursorE(OnDelim(1, After), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
@@ -694,6 +703,8 @@ and move_cursor_left_zoperand =
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
+    Some(CursorE(OnText(String.length(s)), operand))
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
@@ -921,6 +932,8 @@ and move_cursor_right_zoperand =
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_zero, After), StringLit(_) as operand) =>
+    Some(CursorE(OnText(0), operand))
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
