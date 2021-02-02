@@ -44,13 +44,14 @@ let branch_vars = (ctx: Contexts.t) => {
   let (vars, _) = ctx;
   let can_branch_on = ((_, ty: HTyp.t)) => {
     switch (ty) {
+    | Hole
     | Int
     | Float
     | Bool
     | Sum(_, _)
     | Prod(_)
     | List(_) => true
-    | _ => false
+    | Arrow(_, _) => false
     };
   };
   let branchable_vars = vars |> VarMap.filter(can_branch_on);
@@ -208,12 +209,7 @@ let branch_vars_view = (ctx: Contexts.t) => {
     Vdom.(
       Node.div(
         [Attr.classes(["option"])],
-        [
-          Node.div(
-            [Attr.classes([])],
-            [code_node("case ...")] @ mini_options,
-          ),
-        ],
+        [Node.div([], [code_node("case ...")] @ mini_options)],
       )
     ),
   ];
@@ -354,16 +350,16 @@ let view =
     };
   let vars_view =
     if (VarMap.is_empty(var_ctx)) {
-      [
-        Vdom.(
-          Node.div(
-            [Attr.classes(["option", "empty-vars"])],
-            [Node.text("No variables of expected type in context")],
-          )
-        ),
-      ];
+      Vdom.(
+        Node.div(
+          [Attr.classes(["option", "empty-vars"])],
+          [Node.text("No variables of expected type in context")],
+        )
+      );
     } else {
-      list_vars_view(var_ctx);
+      Vdom.(
+        Node.div([Attr.classes(["options"])], list_vars_view(var_ctx))
+      );
     };
   let var =
     Vdom.(
@@ -387,7 +383,10 @@ let view =
     );
   let var_body =
     Vdom.(
-      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], vars_view)
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [vars_view],
+      )
     );
   let _ = var_body;
   let arrow_func =
@@ -420,17 +419,22 @@ let view =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        list_vars_view(fun_vars(ctx, typ))
-        @ [
+        [
           Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create and apply new function: "),
-              HTypCode.view(Arrow(Hole, typ)),
-            ],
+            [Attr.classes(["options"])],
+            list_vars_view(fun_vars(ctx, typ))
+            @ [
+              Node.div(
+                [Attr.classes(["option"])],
+                [
+                  Node.text("Create and apply new function: "),
+                  HTypCode.view(Arrow(Hole, typ)),
+                ],
+              ),
+            ]
+            @ other_arithmetic_options(cursor_info),
           ),
-        ]
-        @ other_arithmetic_options(cursor_info),
+        ],
       )
     );
   let arrow_branch =
@@ -463,7 +467,12 @@ let view =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        branch_vars_view(cursor_info.ctx),
+        [
+          Node.div(
+            [Attr.classes(["options"])],
+            branch_vars_view(cursor_info.ctx),
+          ),
+        ],
       )
     );
   let arrow_other =

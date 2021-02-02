@@ -381,9 +381,14 @@ body {
 
 .mini-option {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   padding-left: 10px;
   cursor: default;
+}
+
+.options {
+  max-height: 100px;
+  overflow-y: auto;
 }
 
 .fill-arrow {
@@ -412,12 +417,12 @@ body {
 
 .body-bar .option {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   background-color: #FEFEEA;
   color: black;
   padding: 3px;
   padding-left: 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: normal;
   cursor: default;
 }
@@ -428,6 +433,7 @@ body {
 
 .body-bar .HTypCode {
   font-size: 13px;
+  font-weight: bold;
   margin-left: 7px;
 }
 

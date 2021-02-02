@@ -14,8 +14,8 @@ type t = {
 let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
-  HazelTutorCards.cardstack,
   TutorialCards.cardstack,
+  // HazelTutorCards.cardstack,
   // RCStudyCards.cardstack,
 ];
 
