@@ -120,6 +120,7 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
+    | StringLit(_, _)
     | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
@@ -316,6 +317,7 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
+    | StringLit(_, _)
     | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
@@ -470,6 +472,7 @@ and holes_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
@@ -679,6 +682,7 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
+  | CursorE(_, StringLit(err, _))
   | CursorE(_, ListNil(err)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes

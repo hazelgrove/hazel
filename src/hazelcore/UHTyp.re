@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | String
   | Parenthesized(t)
   | List(t);
 
@@ -31,6 +32,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
+  | String
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
@@ -119,6 +121,7 @@ and expand_operand =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  | String => String
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
 
@@ -129,6 +132,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
+  | String => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
