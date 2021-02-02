@@ -424,7 +424,7 @@ and ana_cursor_info_zoperand =
       )
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _)
-    | UserOp(InHole(TypeInconsistent, _), _, _)
+    // | UserOp(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
@@ -446,7 +446,7 @@ and ana_cursor_info_zoperand =
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
-    | UserOp(InHole(WrongLength, _), _, _)
+    // | UserOp(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
@@ -462,16 +462,16 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
         ),
       )
-    | UserOp(
-        NotInHole | InHole(OperatorError(_), _),
-        InVarHole(Keyword(k), _),
-        _,
-      ) =>
-      Some(
-        CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
-        ),
-      )
+    // | UserOp(
+    //     NotInHole | InHole(OperatorError(_), _),
+    //     InVarHole(Keyword(k), _),
+    //     _,
+    //   ) =>
+    //   Some(
+    //     CursorNotOnDeferredVarPat(
+    //       CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
+    //     ),
+    //   )
     // not in hole
     | InvalidText(_) =>
       Some(
@@ -487,14 +487,14 @@ and ana_cursor_info_zoperand =
           x,
         ),
       )
-    | UserOp(NotInHole | InHole(OperatorError(_), _), _, x) =>
-      Some(
-        CursorOnDeferredVarPat(
-          uses =>
-            CursorInfo_common.mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
-          x,
-        ),
-      )
+    // | UserOp(NotInHole | InHole(OperatorError(_), _), _, x) =>
+    //   Some(
+    //     CursorOnDeferredVarPat(
+    //       uses =>
+    //         CursorInfo_common.mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
+    //       x,
+    //     ),
+    //   )
     | Wild(NotInHole | InHole(OperatorError(_), _))
     | ListNil(NotInHole | InHole(OperatorError(_), _)) =>
       Some(
