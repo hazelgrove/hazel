@@ -26,7 +26,8 @@ module BinBoolOp = {
     | FEquals
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (op: t): UHExp.operator =>

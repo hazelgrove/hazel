@@ -1222,7 +1222,8 @@ and ana_fix_holes_operand =
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | StringLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
