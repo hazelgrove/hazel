@@ -100,7 +100,8 @@ let mk_syn_text =
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
+    // let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
 };
@@ -152,7 +153,8 @@ let mk_ana_text =
     Succeeded((zp, ctx, u_gen));
   | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
+    // let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   };
 };
@@ -179,7 +181,9 @@ let syn_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (_, None, _) => Failed
+  | (_, None, _) =>
+    print_endline("fails in syn split text");
+    Failed;
   | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -206,7 +210,9 @@ let ana_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (_, None, _) => Failed
+  | (_, None, _) =>
+    print_endline("fails in ana split text");
+    Failed;
   | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -389,8 +395,10 @@ let rec ana_move =
 
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) =>
-  syn_perform_opseq(ctx, u_gen, a, zp)
+        : ActionOutcome.t(syn_success) => {
+  print_endline("syn perform opseq");
+  syn_perform_opseq(ctx, u_gen, a, zp);
+}
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
@@ -401,7 +409,9 @@ and syn_perform_opseq =
     : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
-  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) =>
+    print_endline("invalid cursor position 1");
+    Failed;
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
@@ -473,7 +483,9 @@ and syn_perform_opseq =
       ZPat.is_before_zoperator(zoperator)
         ? ZPat.move_cursor_left : ZPat.move_cursor_right;
     switch (zopseq |> move_cursor) {
-    | None => Failed
+    | None =>
+      print_endline("fails in operator construction");
+      Failed;
     | Some(zp) => syn_perform(ctx, u_gen, a, zp)
     };
 
@@ -481,7 +493,9 @@ and syn_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      print_endline("fails in operator construction on operand");
+      Failed;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -529,7 +543,9 @@ and syn_perform_opseq =
     switch (
       Statics_Pat.syn_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq)
     ) {
-    | None => Failed
+    | None =>
+      print_endline("fails in syn nth type mode pat");
+      Failed;
     | Some(Syn) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | Failed => Failed
@@ -569,15 +585,18 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | UserOp(_) | IntLit(_) | FloatLit(_) |
+        InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ IntLit(_) | FloatLit(_) |
         BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
-    Failed
+    print_endline("invalid cursor position 3");
+    Failed;
   | (_, CursorP(cursor, operand))
       when !ZPat.is_valid_cursor_operand(cursor, operand) =>
-    Failed
+    print_endline("invalid cursor position 4");
+
+    Failed;
 
   /* Invalid actions */
   | (
@@ -633,8 +652,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
-  | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
-    syn_delete_text(ctx, u_gen, j, x)
+  // | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
+  //   syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -646,8 +665,8 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
-  | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
-    syn_backspace_text(ctx, u_gen, j, x)
+  // | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
+  //   syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -676,7 +695,9 @@ and syn_perform_operand =
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     ) {
     | Failed
-    | CursorEscaped(_) => Failed
+    | CursorEscaped(_) =>
+      print_endline("invalid cursor position 5");
+      Failed;
     | Succeeded((zp, _, _, u_gen)) => syn_perform(ctx, u_gen, a, zp)
     }
 
@@ -687,16 +708,23 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
+  | (Construct(SOp(_) as op), CursorP(OnText(j), Var(_, _, x)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand)
+        && Var.is_operator(x) =>
+    let operator_string = Action_common.shape_to_string(op);
+    syn_insert_text(ctx, u_gen, (j, operator_string), x);
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, x)
-  | (Construct(SOp(sop)), CursorP(OnText(j), UserOp(_, _, x)))
-      when
-        !ZPat.is_before_zoperand(zoperand)
-        && !ZPat.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, x)
+  // | (Construct(SOp(sop)), CursorP(OnText(j), UserOp(_, _, x)))
+  //     when
+  //       !ZPat.is_before_zoperand(zoperand)
+  //       && !ZPat.is_after_zoperand(zoperand) =>
+  //   syn_split_text(ctx, u_gen, j, sop, x)
   | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -809,8 +837,9 @@ and ana_perform =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
-  ana_perform_opseq(ctx, u_gen, a, zp, ty)
+    : ActionOutcome.t(ana_success) => {
+  ana_perform_opseq(ctx, u_gen, a, zp, ty);
+}
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -822,7 +851,9 @@ and ana_perform_opseq =
     : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
-  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) =>
+    print_endline("ana perform opseq 1");
+    Failed;
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
@@ -892,7 +923,9 @@ and ana_perform_opseq =
       ZPat.is_before_zoperator(zoperator)
         ? ZPat.move_cursor_left : ZPat.move_cursor_right;
     switch (zopseq |> move_cursor) {
-    | None => Failed
+    | None =>
+      print_endline("ana perform opseq 2");
+      Failed;
     | Some(zp) => ana_perform(ctx, u_gen, a, zp, ty)
     };
 
@@ -916,8 +949,21 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => ana_perform_operand(ctx, u_gen, a, zoperand, ty)
+    | None =>
+      switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq, ty)
+      | Succeeded((zp, _, u_gen)) =>
+        let new_zseq = resurround_z(zp, surround);
+        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+      }
+    // print_endline("ana perform operand");
+    // ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+    // let new_zseq = resurround_z(zp, surround);
+    // Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
     | Some(operator) =>
+      print_endline("bonk?");
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -956,14 +1002,18 @@ and ana_perform_opseq =
 
   /* Zipper */
   | (_, ZOperand(zoperand, (E, E))) =>
-    ana_perform_operand(ctx, u_gen, a, zoperand, ty)
+    print_endline("ana perform operand 2");
+
+    ana_perform_operand(ctx, u_gen, a, zoperand, ty);
 
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Pat.ana_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq, ty)
     ) {
-    | None => Failed
+    | None =>
+      print_endline("ana nth type mode fails");
+      Failed;
     | Some(Syn) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | Failed => Failed
@@ -974,14 +1024,17 @@ and ana_perform_opseq =
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
     | Some(Ana(ty_zoperand)) =>
+      print_endline("here we go again ");
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("ana perform operand 3 fails");
+        Failed;
       | CursorEscaped(side) =>
         ana_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq, ty)
       | Succeeded((zp, _, u_gen)) =>
         let new_zseq = resurround_z(zp, surround);
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
-      }
+      };
     };
   | (Init, _) => failwith("Init action should not be performed.")
   }
@@ -1004,15 +1057,18 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | UserOp(_) | IntLit(_) | FloatLit(_) |
+        InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ IntLit(_) | FloatLit(_) |
         BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
-    Failed
+    print_endline("rip1");
+    Failed;
   | (_, CursorP(cursor, operand))
       when !ZPat.is_valid_cursor_operand(cursor, operand) =>
-    Failed
+    print_endline("rip2");
+
+    Failed;
 
   /* Invalid actions */
   | (
@@ -1094,8 +1150,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
-  | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
-    ana_delete_text(ctx, u_gen, j, x, ty)
+  // | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
+  //   ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1107,8 +1163,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
-  | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
-    ana_backspace_text(ctx, u_gen, j, x, ty)
+  // | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
+  //   ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     ana_backspace_text(ctx, u_gen, j, n, ty)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1143,8 +1199,12 @@ and ana_perform_operand =
         ty,
       )
     ) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, _, u_gen)) => ana_perform(ctx, u_gen, a, zp, ty)
+    | (Failed | CursorEscaped(_)) as err =>
+      print_endline("rip2");
+      err;
+    | Succeeded((zp, _, u_gen)) =>
+      print_endline("not rip?");
+      ana_perform(ctx, u_gen, a, zp, ty);
     }
 
   // TODO consider relaxing guards and
@@ -1154,14 +1214,20 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
+  | (Construct(SOp(_) as op), CursorP(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) =>
+    print_endline("rip4");
+
+    let operator_string = Action_common.shape_to_string(op);
+    ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, x, ty)
-  | (Construct(SOp(_) as op), CursorP(OnText(j), UserOp(_, _, x))) =>
-    let operator_string = Action_common.shape_to_string(op);
-    ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
+  // | (Construct(SOp(_) as op), CursorP(OnText(j), UserOp(_, _, x))) =>
+  //   let operator_string = Action_common.shape_to_string(op);
+  //   ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
   | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1183,8 +1249,33 @@ and ana_perform_operand =
       | Before => 0
       | After => 1
       };
+    print_endline("rip5");
+
     let operator = Action_common.shape_to_string(SOp(os));
-    ana_insert_text(ctx, u_gen, (index, operator), "_", ty);
+    let output = ana_insert_text(ctx, u_gen, (index, operator), "_", ty);
+    switch (output) {
+    | Succeeded((zpat, _, _)) =>
+      let output = Sexplib.Sexp.to_string(ZPat.sexp_of_zopseq(zpat));
+      print_endline(output);
+    | _ => print_endline("")
+    };
+    output;
+  | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
+    print_endline("rip ?");
+    let index =
+      switch (side) {
+      | Before => 0
+      | After => 1
+      };
+
+    let output = ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+    switch (output) {
+    | Succeeded((zpat, _, _)) =>
+      let output = Sexplib.Sexp.to_string(ZPat.sexp_of_zopseq(zpat));
+      print_endline(output);
+    | _ => print_endline("")
+    };
+    output;
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
@@ -1192,9 +1283,9 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   /* Closing a user defined operator in a pattern*/
-  | (Construct(SChar(s)), CursorP(OnText(j), UserOp(_, _, x)))
-      when s == "_" =>
-    ana_insert_text(ctx, u_gen, (j, s), x, ty)
+  // | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x)))
+  //     when s == "_" =>
+  //   ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1234,9 +1325,12 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
 
-  | (Construct(SOp(os)), CursorP(_)) =>
+  | (Construct(SOp(os)), CursorP(_) as pos) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      print_endline("rip6");
+      print_endline(Sexplib.Sexp.to_string(ZPat.sexp_of_zoperand(pos)));
+      Failed;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)

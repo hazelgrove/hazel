@@ -152,24 +152,28 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         code_view(inv_str);
       }
     | Var(_, _, var_str) =>
-      if (show_indicate_word) {
-        Vdom.(
-          Node.span([], [indicate_words_view("var: "), code_view(var_str)])
-        );
-      } else {
-        code_view(var_str);
-      }
-    | UserOp(_, _, var_str) =>
+      let word_view = Var.is_operator(var_str) ? "user operator: " : "var: ";
       if (show_indicate_word) {
         Vdom.(
           Node.span(
             [],
-            [indicate_words_view("user operator: "), code_view(var_str)],
+            [indicate_words_view(word_view), code_view(var_str)],
           )
         );
       } else {
         code_view(var_str);
-      }
+      };
+    // | UserOp(_, _, var_str) =>
+    //   if (show_indicate_word) {
+    //     Vdom.(
+    //       Node.span(
+    //         [],
+    //         [indicate_words_view("user operator: "), code_view(var_str)],
+    //       )
+    //     );
+    //   } else {
+    //     code_view(var_str);
+    //   }
     | IntLit(_, num) =>
       if (show_indicate_word) {
         Vdom.(
