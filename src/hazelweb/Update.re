@@ -145,7 +145,7 @@ let apply_action =
             // the type of model dhexp returned from update; latter requires implementing
             // a typechecker for DHExp.
             print_endline(
-              "ERROR: Livelit action returned from js has wrong type",
+              "ERROR: Livelit action exception: possibly action from js has wrong type",
             );
             model;
           };
