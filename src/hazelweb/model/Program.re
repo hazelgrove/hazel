@@ -370,7 +370,7 @@ let eta_expand_all = program => {
     |> List.filter_map(info =>
          CursorPath.(
            switch (info.sort) {
-           | CursorPath.ExpHole(u, Empty) => Some(u)
+           | ExpHole(u, Empty) => Some(u)
            | _ => None
            }
          )
