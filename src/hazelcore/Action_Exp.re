@@ -2732,6 +2732,37 @@ and ana_perform_opseq =
       when ZExp.is_after_zoperator(zoperator) =>
     ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), ty)
   /* ...or construction after movement */
+  | (Construct(SOp(_) as sop), ZOperator((pos, oper), seq)) =>
+    let old_op_str = Operators_Exp.to_string(oper);
+    let new_op_char =
+      Action_common.shape_to_string(sop).[0] |> String.make(1);
+    let (pos', oper') =
+      switch (pos, oper) {
+      | (
+          _,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
+        ) => (
+          pos,
+          "",
+        )
+      | (OnText(i), _) =>
+        let oper' = StringUtil.insert(i, new_op_char, old_op_str);
+        (OnText(i + 1), oper');
+      | (OnDelim(_, _), _)
+      | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
+      | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
+      };
+
+    switch (pos', Operators_Exp.string_to_operator(oper')) {
+    | (pos', Some(new_operator)) =>
+      let new_zoperator = (pos', new_operator);
+      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+      let (zexp, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
+
+      Succeeded(AnaDone((zexp, u_gen)));
+    | _ => Failed
+    };
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)

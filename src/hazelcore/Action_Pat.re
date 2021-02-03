@@ -564,8 +564,7 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) |
-        BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -1008,8 +1007,7 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) |
-        BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
