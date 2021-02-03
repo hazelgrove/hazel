@@ -10,3 +10,9 @@ val typ : typ -> string
 
 val exp : exp -> string
 (** Pretty-prints an expression. *)
+
+val res : res -> string
+(** Pretty-prints a result. *)
+
+val value : value -> string
+(** Pretty-prints a value. *)
