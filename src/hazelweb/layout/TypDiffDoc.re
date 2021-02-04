@@ -33,7 +33,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
     mk'(~parenthesize=TypDiff.precedence(diff1) <= precedence_op, diff1),
     mk'(~parenthesize=TypDiff.precedence(diff2) < precedence_op, diff2),
   );
-  let doc =
+  let (doc, parenthesize) =
     switch (diff) {
     | Hole(highlight_diff) =>
       let a =
@@ -41,16 +41,20 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
           TypDiffAnnot.TypAnnot(HTypAnnot.Delim),
           annot(TypDiffAnnot.TypAnnot(HTypAnnot.HoleLabel), text("?")),
         );
-      highlight_diff ? annot(TypDiffAnnot.Diff, a) : a;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, a), parenthesize) : (a, parenthesize);
     | Int(highlight_diff) =>
       let t = text("Int");
-      highlight_diff ? annot(TypDiffAnnot.Diff, t) : t;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, t), parenthesize) : (t, parenthesize);
     | Float(highlight_diff) =>
       let t = text("Float");
-      highlight_diff ? annot(TypDiffAnnot.Diff, t) : t;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, t), parenthesize) : (t, parenthesize);
     | Bool(highlight_diff) =>
       let t = text("Bool");
-      highlight_diff ? annot(TypDiffAnnot.Diff, t) : t;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, t), parenthesize) : (t, parenthesize);
     | List(diff, highlight_diff) =>
       let h =
         hcats([
@@ -58,7 +62,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
           mk(diff) |> pad_child(~enforce_inline),
           mk_delim("]"),
         ]);
-      highlight_diff ? annot(TypDiffAnnot.Diff, h) : h;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, h), parenthesize) : (h, parenthesize);
     | Arrow(diff1, diff2, highlight_diff) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Arrow, diff1, diff2);
@@ -71,10 +76,12 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
           ]),
           d2,
         ]);
-      highlight_diff ? annot(TypDiffAnnot.Diff, h) : h;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, h), parenthesize) : (h, parenthesize);
     | Prod([], highlight_diff) =>
       let t = text("()");
-      highlight_diff ? annot(TypDiffAnnot.Diff, t) : t;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, t), parenthesize) : (t, parenthesize);
     | Prod([head, ...tail], highlight_diff) =>
       let h =
         [
@@ -96,7 +103,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
              hcats([text(","), choices([linebreak(), space()])]),
            )
         |> hcats;
-      highlight_diff ? annot(TypDiffAnnot.Diff, h) : h;
+      highlight_diff ? (annot(TypDiffAnnot.Diff, h), true) : (h, true);
     | Sum(ty1, ty2, highlight_diff) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
@@ -106,7 +113,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, diff: TypDiff.t): t =>
           hcats([choices([linebreak(), space()]), text("| ")]),
           d2,
         ]);
-      highlight_diff ? annot(TypDiffAnnot.Diff, h) : h;
+      highlight_diff
+        ? (annot(TypDiffAnnot.Diff, h), parenthesize) : (h, parenthesize);
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

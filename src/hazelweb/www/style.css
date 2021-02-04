@@ -361,6 +361,10 @@ body {
   flex-grow: 1;
 }
 
+.type-driven {
+  font-family: Montserrat, sans-serif;
+}
+
 .type-driven .title-bar.fill-bar {
   display: flex;
   align-items: flex-start; 
@@ -411,10 +415,6 @@ body {
   padding-right: 5px;
 }
 
-.type-driven {
-  font-family: Montserrat, sans-serif;
-}
-
 .body-bar .option {
   display: flex;
   align-items: flex-start;
@@ -442,7 +442,6 @@ body {
   align-items: flex-start;
 }
 
-/* TODO Hannah if stick with this, see if can combine with circle icons somehow - maybe do some refactoring */
 .type-info-summary .consistency-symbol {
   background-color:white;
   color: #bb0707;
@@ -497,30 +496,6 @@ body {
   background-color: #f1760a;
 }
 
-/*.cursor-OK.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #0b6d3e;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #f1760a;
-}
-
-.cursor-OK.cursor-inspector .emphasize-text {
-  background-color: #0b6d3e;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .emphasize-text {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .emphasize-text {
-  background-color: #f1760a;
-}*/
-
 .type-info-summary .colon {
   margin-left: 10px;
   font-weight: bolder;
@@ -558,63 +533,6 @@ body {
   margin-left: 10px;
   margin-right: 10px;
 }
-/*
-.cursor-OK.cursor-inspector {
-  outline: 1px solid var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency.cursor-inspector {
-  outline: 1px solid #8e0000;
-}
-
-.cursor-BindingError.cursor-inspector {
-  outline: 1px solid #ce5f00;
-}
-
-.cursor-Keyword.cursor-inspector {
-  outline: 1px solid #ce5f00;
-}*/
-
-/*.cursor-OK .title-bar {
-  background-color: var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency .title-bar {
-  background-color: #8e0000;
-}
-
-.cursor-BindingError .title-bar {
-  background-color: #ce5f00;
-}
-
-.cursor-Keyword .titlebar {
-	background-color: #ce5f00;
-}*/
-
-/* TODO: Hannah maybe refactor these colors (if don't change them) -- probably at least make CSS vars */
-/*.cursor-OK .type-info-summary {
-  background-color: var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency .type-info-summary {
-  background-color: #8e0000;
-}
-
-.cursor-BindingError .type-info-summary {
-  background-color: #ce5f00;
-}
-
-.cursor-TypeInconsistency .type-info-summary .inconsistent-symbol {
-  color: #8e0000;
-}
-
-.cursor-BindingError .type-info-summary .inconsistent-symbol {
-  color: #ce5f00;
-}
-
-.cursor-OK .type-info-summary .consistent-symbol {
-  color: var(--title-bar-color);
-}*/
 
 .typebar, .infobar {
   font-size: 125%;
