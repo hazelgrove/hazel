@@ -12,6 +12,9 @@ type t =
   | Ampersand
   | VBar
   | LeftParen
+  | RightParen
+  | RightBrace
+  | RightSquareBracket
   | Colon
   | Equals
   | Enter
@@ -31,7 +34,9 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
+  | Ctrl_Space
   | Ctrl_S
+  | Ctrl_Shift_S
   | CtrlOrCmd_Z
   | CtrlOrCmd_Shift_Z
   | Up

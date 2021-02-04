@@ -313,13 +313,11 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-  | Underscore as shape
-  | Var(_) as shape =>
-    let x =
-      switch (shape) {
-      | Var(x) => x
-      | _ => "_"
-      };
+  | Underscore =>
+    let (it, u_gen) = UHExp.new_InvalidText(u_gen, "_");
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  | Var(x) =>
     switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
@@ -329,7 +327,7 @@ let mk_syn_text =
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, u_gen)));
-    };
+    }
   };
 };
 
@@ -632,6 +630,11 @@ and syn_perform_block =
   /* Backspace & Delete */
   // Handle 2 special cases for CommentLines
   // Case 1
+  // e.g.,
+  //  #  comment 1
+  //  #| comment 2
+  //    =( Backspace )=>
+  //  #  comment 1|comment 2
   | Backspace when ZExp.is_begin_of_comment(zblock) =>
     switch (prefix |> ListUtil.split_last_opt) {
     | Some((new_prefix, pre_zline)) =>
@@ -650,6 +653,11 @@ and syn_perform_block =
     }
 
   // Case 2
+  // e.g.,
+  //  # comment 1|
+  //  # comment 2
+  //    =( Delete )=>
+  //  # comment 1|comment 2
   | Delete when ZExp.is_end_of_comment(zblock) =>
     switch (suffix, zline) {
     | (
@@ -917,10 +925,19 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
+  /* #| some comment => | */
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
     mk_result(u_gen, new_zblock);
 
+  /*
+     # some comment|
+     _
+       =( Delete )=>
+     # some comment
+     |_
+   */
+  /* # some co|mment => # some co|ment */
   | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == String.length(comment)) {
       escape(u_gen, After);
@@ -933,6 +950,14 @@ and syn_perform_line =
       mk_result(u_gen, new_zblock);
     }
 
+  /*
+     x
+     |# some comment
+       =( Backspace )=>
+     x|
+     # some comment
+   */
+  /* # some co|mment => # some c|mment */
   | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == 0) {
       escape(u_gen, Before);
@@ -967,8 +992,8 @@ and syn_perform_line =
     mk_result(u_gen, new_zblock);
 
   | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
+    let new_comment = comment |> StringUtil.insert(j, s);
     let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, s);
       let new_line: UHExp.line = CommentLine(new_comment);
       ([], ZExp.CursorL(OnText(j + 1), new_line), []);
     };
@@ -1398,7 +1423,7 @@ and syn_perform_operand =
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1423,6 +1448,7 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1639,6 +1665,75 @@ and syn_perform_operand =
         LamZP(NotInHole, ZOpSeq.wrap(zhole), UHExp.Block.wrap(operand)),
       );
     Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), u_gen)));
+
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
+
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseBraces), CursorE(_)) => Failed
 
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1925,8 +2020,7 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2256,6 +2350,38 @@ and ana_perform_block =
     ana_move(ctx, a, (zblock, u_gen), ty)
 
   /* Backspace & Delete */
+  | (Backspace, _) when ZExp.is_begin_of_comment(zblock) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((new_prefix, pre_zline)) =>
+      switch (pre_zline, zline) {
+      | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
+        let new_zline =
+          ZExp.CursorL(
+            OnText(String.length(pre_comment)),
+            CommentLine(pre_comment ++ comment),
+          );
+        let new_ze = (new_prefix, new_zline, suffix);
+        Succeeded(AnaDone((new_ze, u_gen)));
+      | _ => Failed
+      }
+    | _ => Failed
+    }
+
+  | (Delete, _) when ZExp.is_end_of_comment(zblock) =>
+    switch (suffix, zline) {
+    | (
+        [CommentLine(post_comment), ...new_suffix],
+        CursorL(_, CommentLine(comment)),
+      ) =>
+      let new_zline =
+        ZExp.CursorL(
+          OnText(String.length(comment)),
+          CommentLine(comment ++ post_comment),
+        );
+      let new_ze = (prefix, new_zline, new_suffix);
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | _ => Failed
+    }
 
   | (Delete, _) when ZExp.is_after_zline(zline) =>
     switch (zline |> ZExp.erase_zline, suffix) {
@@ -2844,6 +2970,8 @@ and ana_perform_operand =
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
 
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
+
   /* Backspace & Delete */
 
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
@@ -3060,6 +3188,71 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, u_gen)));
     };
+
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseBraces), CursorE(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
 
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
