@@ -27,7 +27,9 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   );
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
-  | _ => [OnOp(Before), OnOp(After)];
+  | op =>
+    CursorPosition.text_cursors(Var.length(Operators_Pat.to_string(op)))
+    @ [OnOp(Before), OnOp(After)];
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
