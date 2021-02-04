@@ -124,6 +124,12 @@ module CursorInspector = {
     show_expanded: bool,
     term_novice_message_mode: bool,
     type_novice_message_mode: bool,
+    type_assist: bool,
+    type_assist_lit: bool,
+    type_assist_var: bool,
+    type_assist_fun: bool,
+    type_assist_branch: bool,
+    type_assist_other: bool,
   };
 
   let init = {
@@ -131,6 +137,12 @@ module CursorInspector = {
     show_expanded: false,
     term_novice_message_mode: false,
     type_novice_message_mode: false,
+    type_assist: false,
+    type_assist_lit: false,
+    type_assist_var: false,
+    type_assist_fun: false,
+    type_assist_branch: false,
+    type_assist_other: false,
   };
 
   [@deriving sexp]
@@ -139,7 +151,13 @@ module CursorInspector = {
     | Toggle_show_expanded
     | Toggle_novice_mode
     | Toggle_term_novice_message_mode
-    | Toggle_type_novice_message_mode;
+    | Toggle_type_novice_message_mode
+    | Toggle_type_assist
+    | Toggle_type_assist_lit
+    | Toggle_type_assist_var
+    | Toggle_type_assist_fun
+    | Toggle_type_assist_branch
+    | Toggle_type_assist_other;
 
   let novice_mode = settings =>
     settings.term_novice_message_mode && settings.type_novice_message_mode;
@@ -163,6 +181,27 @@ module CursorInspector = {
         ...settings,
         term_novice_message_mode: !novice_mode(settings),
         type_novice_message_mode: !novice_mode(settings),
+      }
+    | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
+    | Toggle_type_assist_lit => {
+        ...settings,
+        type_assist_lit: !settings.type_assist_lit,
+      }
+    | Toggle_type_assist_var => {
+        ...settings,
+        type_assist_var: !settings.type_assist_var,
+      }
+    | Toggle_type_assist_fun => {
+        ...settings,
+        type_assist_fun: !settings.type_assist_fun,
+      }
+    | Toggle_type_assist_branch => {
+        ...settings,
+        type_assist_branch: !settings.type_assist_branch,
+      }
+    | Toggle_type_assist_other => {
+        ...settings,
+        type_assist_other: !settings.type_assist_other,
       }
     };
 };

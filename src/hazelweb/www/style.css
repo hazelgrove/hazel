@@ -350,14 +350,91 @@ body {
   padding: 3px;
 }
 
-.type-info-summary {
+.code.presentation .type-info-summary {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   color: white;
   padding: 2px;
   font-family: Montserrat, sans-serif;
+}
+.code.presentation .type-info-summary .filler {
+  flex-grow: 1;
+}
+
+.type-driven .title-bar.fill-bar {
+  display: flex;
+  align-items: flex-start; 
+  justify-content: space-between;
   cursor: pointer;
+  background-color: #678a61;
+  border-top: 1px solid  #073f24;
+}
+
+.type-driven .title-bar.main-fill {
+  background-color: #073f24;
+  
+}
+
+.type-driven .title-bar.main-fill .words{
+  max-width: 305px;
+}
+
+.mini-option {
+  display: flex;
+  align-items: flex-start;
+  padding-left: 10px;
+  cursor: default;
+}
+
+.options {
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.fill-arrow {
+  color: white;
+  margin-left: 5px;
+  margin-top: -2px;
+}
+
+.body-bar {
+ text-transform: none;
+}
+
+.body-bar .option .code-font {
+  font-family: var(--code-font-family);  
+}
+
+.body-bar .option .code-font.shortcut {
+  font-family: var(--code-font-family); 
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.type-driven {
+  font-family: Montserrat, sans-serif;
+}
+
+.body-bar .option {
+  display: flex;
+  align-items: flex-start;
+  background-color: #FEFEEA;
+  color: black;
+  padding: 3px;
+  padding-left: 10px;
+  font-size: 13px;
+  font-weight: normal;
+  cursor: default;
+}
+
+.body-bar .option {
+  border-top: 1px solid #678a61;
+}
+
+.body-bar .HTypCode {
+  font-size: 13px;
+  font-weight: bold;
+  margin-left: 7px;
 }
 
 .type-info-summary .subsection {
@@ -368,17 +445,13 @@ body {
 /* TODO Hannah if stick with this, see if can combine with circle icons somehow - maybe do some refactoring */
 .type-info-summary .consistency-symbol {
   background-color:white;
-  color: #444;
+  color: #bb0707;
+  box-shadow: 0 0 0 1px #bb0707;
   font-size: var(--code-font-size);
   font-weight: bold;
   font-family: var(--code-font-family);
   border-radius:100%;
   text-align: center;
-}
-
-.type-info-summary .consistent-symbol {
-  cursor: pointer;
-  margin-right: 5px;
 }
 
 .type-info-summary .circle-icon {
@@ -400,8 +473,20 @@ body {
   background-color: #444;
 }
 
+.cursor-OK.cursor-inspector .term-tag {
+  box-shadow: 0 0 0 1px #073f24 inset;
+} 
+
+.cursor-TypeInconsistency.cursor-inspector .term-tag {
+  box-shadow: 0 0 0 1px #bb0707 inset;
+}
+
+.cursor-BindingError.cursor-inspector .term-tag {
+  box-shadow: 0 0 0 1px #f1760a;
+}
+
 .cursor-OK.cursor-inspector .circle-icon {
-  background-color: #0b6d3e;
+  background-color: #073f24;
 }
 
 .cursor-TypeInconsistency.cursor-inspector .circle-icon {
@@ -448,6 +533,10 @@ body {
   font-family: var(--code-font-family);
 }
 
+.type-info-summary .clickable{
+  cursor: pointer;
+}
+
 .HTypCode .Diff {
   text-decoration: underline;
 }
@@ -455,7 +544,6 @@ body {
 .type-info-summary .emphasize-text {
   margin: 0 10px;
   font-weight: bolder;
-  font-family: var(--code-font-family);
 }
 
 .type-info-summary .emphasize-text.only-right {
@@ -464,7 +552,6 @@ body {
 
 .cursor-inspector-arrow {
   color: white;
-  margin-right: 15px;
 }
 
 .type-info-summary .novice-mode .term-tag {

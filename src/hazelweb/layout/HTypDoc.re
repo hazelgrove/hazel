@@ -32,57 +32,70 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
     mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
   );
-  let doc =
+  let (doc, parenthesize) =
     switch (ty) {
-    | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
-    | Int => text("Int")
-    | Float => text("Float")
-    | Bool => text("Bool")
-    | List(ty) =>
-      hcats([
-        mk_delim("["),
-        mk(ty) |> pad_child(~enforce_inline),
-        mk_delim("]"),
-      ])
+    | Hole => (
+        annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
+        parenthesize,
+      )
+    | Int => (text("Int"), parenthesize)
+    | Float => (text("Float"), parenthesize)
+    | Bool => (text("Bool"), parenthesize)
+    | List(ty) => (
+        hcats([
+          mk_delim("["),
+          mk(ty) |> pad_child(~enforce_inline),
+          mk_delim("]"),
+        ]),
+        parenthesize,
+      )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
-      hcats([
-        d1,
+      (
         hcats([
-          choices([linebreak(), space()]),
-          text(Unicode.typeArrowSym ++ " "),
+          d1,
+          hcats([
+            choices([linebreak(), space()]),
+            text(Unicode.typeArrowSym ++ " "),
+          ]),
+          d2,
         ]),
-        d2,
-      ]);
-    | Prod([]) => text("()")
+        parenthesize,
+      );
+    | Prod([]) => (text("()"), parenthesize)
     | Prod([head, ...tail]) =>
-      [
-        mk'(
-          ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
-          head,
-        ),
-        ...List.map(
-             ty =>
-               mk'(
-                 ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
-                 ty,
-               ),
-             tail,
-           ),
-      ]
-      |> ListUtil.join(
-           hcats([text(","), choices([linebreak(), space()])]),
-         )
-      |> hcats
+      let center =
+        [
+          mk'(
+            ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+            head,
+          ),
+          ...List.map(
+               ty =>
+                 mk'(
+                   ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                   ty,
+                 ),
+               tail,
+             ),
+        ]
+        |> ListUtil.join(
+             hcats([text(","), choices([linebreak(), space()])]),
+           )
+        |> hcats;
+      (center, true);
     | Sum(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
-      hcats([
-        d1,
-        hcats([choices([linebreak(), space()]), text("| ")]),
-        d2,
-      ]);
+      (
+        hcats([
+          d1,
+          hcats([choices([linebreak(), space()]), text("| ")]),
+          d2,
+        ]),
+        parenthesize,
+      );
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

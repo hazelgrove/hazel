@@ -14,15 +14,6 @@ let inconsistent_symbol =
     [Node.text(Unicode.inconsistent)],
   );
 
-let consistent_symbol =
-  Node.div(
-    [
-      Attr.classes(["consistent-symbol", "colon"]),
-      Attr.create("title", "Of Consistent Type"),
-    ],
-    [Node.text(":"), Node.text("~")],
-  );
-
 let emphasize_text = (~only_right=false, msg: string) => {
   let classes =
     only_right ? ["emphasize-text", "only-right"] : ["emphasize-text"];
@@ -31,8 +22,14 @@ let emphasize_text = (~only_right=false, msg: string) => {
 
 let colon = Node.div([Attr.classes(["colon"])], [Node.text(":")]);
 
-let advanced_summary = (typed: CursorInfo.typed, tag_type: TermSort.t) => {
-  let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
+let mk_expecting_of_type = (~article, ~term_tag) => [
+  Node.text("Expecting " ++ article),
+  term_tag,
+  Node.text("of type"),
+];
+
+let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
+  let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
@@ -48,13 +45,8 @@ let advanced_summary = (typed: CursorInfo.typed, tag_type: TermSort.t) => {
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty, HTyp.eq(expected_ty, got_ty)) {
-      | (HTyp.Hole, true) => ([colon], [HTypCode.view(expected_ty)])
-      | (HTyp.Hole, false) => (
-          [consistent_symbol],
-          [HTypCode.view(expected_ty)],
-        )
-      | (_, false) => ([consistent_symbol], [HTypCode.view(got_ty)])
+      switch (got_ty) {
+      | HTyp.Hole => ([colon], [HTypCode.view(expected_ty)])
       | _ => ([colon], [HTypCode.view(got_ty)])
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
@@ -190,46 +182,17 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
     | Pat
     | Typ => "a"
     };
+  let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty) => (
-        [
-          Node.text("Expecting " ++ article),
-          term_tag,
-          Node.text("of type"),
-        ],
-        [HTypCode.view(ty)],
-      )
+    | PatAnalyzed(ty) => (expecting_of_type, [HTypCode.view(ty)])
     /* Use the got type if not just a Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty, HTyp.eq(expected_ty, got_ty)) {
-      | (HTyp.Hole, true) => (
-          [
-            Node.text("Expecting " ++ article),
-            term_tag,
-            Node.text("of type"),
-          ],
-          [HTypCode.view(expected_ty)],
-        )
-      | (HTyp.Hole, false) => (
-          [
-            Node.text("Expecting " ++ article),
-            term_tag,
-            Node.text("of type consistent with"),
-          ],
-          [HTypCode.view(expected_ty)],
-        )
-      | (_, false) => (
-          [
-            Node.text("Got " ++ article),
-            term_tag,
-            Node.text("of consistent type"),
-          ],
-          [HTypCode.view(got_ty)],
-        )
+      switch (got_ty) {
+      | HTyp.Hole => (expecting_of_type, [HTypCode.view(expected_ty)])
       | _ => (
           [Node.text("Got " ++ article), term_tag, Node.text("of type")],
           [HTypCode.view(got_ty)],
@@ -255,7 +218,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       (
-        [Node.text("Expecting " ++ article), term_tag, Node.text("of type")],
+        expecting_of_type,
         [
           TypDiffCode.view(expected_diff),
           Node.text("but got inconsistent type"),
@@ -272,11 +235,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       )
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) => (
-        [
-          Node.text("Expecting " ++ article),
-          term_tag,
-          Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           emphasize_text(string_of_int(expected_len) ++ "-tuple"),
           Node.text("but got"),
@@ -285,11 +244,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       )
     | AnaInvalid(expected_ty)
     | PatAnaInvalid(expected_ty) => (
-        [
-          Node.text("Expecting " ++ article),
-          term_tag,
-          Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Node.text("but got"),
@@ -309,11 +264,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         ],
       )
     | AnaFree(expected_ty) => (
-        [
-          Node.text("Expecting " ++ article),
-          term_tag,
-          Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Node.text("but got a"),
@@ -334,11 +285,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       )
     | AnaKeyword(expected_ty, _)
     | PatAnaKeyword(expected_ty, _) => (
-        [
-          Node.text("Expecting " ++ article),
-          term_tag,
-          Node.text("of type"),
-        ],
+        expecting_of_type,
         [
           HTypCode.view(expected_ty),
           Node.text("but got a"),
@@ -363,21 +310,13 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       | (JoinTy(ty), Synthesized(got_ty)) =>
         if (HTyp.consistent(ty, got_ty)) {
           (
-            [
-              Node.text("Got " ++ article),
-              term_tag,
-              Node.text("consistent with type"),
-            ],
+            [Node.text("Got " ++ article), term_tag, Node.text("of type")],
             [HTypCode.view(ty)],
           );
         } else {
           let (ty_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           (
-            [
-              Node.text("Expecting " ++ article),
-              term_tag,
-              Node.text("of type"),
-            ],
+            expecting_of_type,
             [
               TypDiffCode.view(ty_diff),
               Node.text("but got inconsistent type"),
@@ -422,16 +361,36 @@ let summary_bar =
       ~inject: ModelAction.t => Event.t,
       ci: CursorInfo.t,
       err_state_b: err_state_b,
+      show: bool,
       show_expanded: bool,
       term_novice_message_mode: bool,
       type_novice_message_mode: bool,
+      show_strategy_guide: bool,
     ) => {
-  let arrow =
+  let arrow_direction =
     if (show_expanded) {
       Icons.down_arrow(["cursor-inspector-arrow"]);
     } else {
       Icons.left_arrow(["cursor-inspector-arrow"]);
     };
+  let arrow =
+    Node.div(
+      [
+        Attr.classes(["clickable"]),
+        Attr.on_click(_ =>
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(
+              ModelAction.UpdateSettings(
+                CursorInspector(Toggle_show_expanded),
+              ),
+            ),
+          ])
+        ),
+      ],
+      [arrow_direction],
+    );
   let err_icon =
     switch (err_state_b) {
     | TypeInconsistency
@@ -449,7 +408,8 @@ let summary_bar =
           [
             Attr.classes(
               term_novice_message_mode
-                ? ["novice-mode", "subsection"] : ["subsection"],
+                ? ["novice-mode", "subsection", "clickable"]
+                : ["subsection", "clickable"],
             ),
             Attr.on_click(_ =>
               Event.Many([
@@ -469,7 +429,8 @@ let summary_bar =
           [
             Attr.classes(
               term_novice_message_mode
-                ? ["novice-mode", "subsection"] : ["subsection"],
+                ? ["novice-mode", "subsection", "clickable"]
+                : ["subsection", "clickable"],
             ),
             Attr.on_click(_ =>
               Event.Many([
@@ -487,23 +448,31 @@ let summary_bar =
         ),
       ],
     );
-  Node.div(
-    [
-      Attr.classes(["type-info-summary"]),
-      Attr.on_click(_ =>
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(
-            ModelAction.UpdateSettings(
-              CursorInspector(Toggle_show_expanded),
+  let fill_icon =
+    Node.div(
+      [
+        Attr.classes(["clickable"]),
+        Attr.on_click(_ =>
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(
+              ModelAction.UpdateSettings(
+                CursorInspector(Toggle_type_assist),
+              ),
             ),
-          ),
-        ])
-      ),
-    ],
-    [summary, arrow, err_icon],
-  );
+          ])
+        ),
+      ],
+      [Node.text("💡")],
+    );
+  let fill_space = Node.span([Attr.classes(["filler"])], []);
+  let body = show ? [summary, fill_space, arrow] : [summary];
+  let body =
+    show_strategy_guide
+      ? List.append(body, [fill_space, fill_icon, err_icon])
+      : List.append(body, [err_icon]);
+  Node.div([Attr.classes(["type-info-summary"])], body);
 };
 
 let view =
@@ -653,19 +622,19 @@ let view =
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       let ind1 = expected_ty_indicator_diff(expected_diff);
       let ind2 = got_inconsistent_indicator_diff(got_diff);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -679,46 +648,46 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | AnaInvalid(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | SynInvalid =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -730,7 +699,7 @@ let view =
           )
         | _ => got_indicator("Got", typebar(syn_ty))
         };
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | SynKeywordArrow(matched_ty, _k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -738,7 +707,7 @@ let view =
           "Got a keyword ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynInvalidArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -746,7 +715,7 @@ let view =
           "Got invalid text ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -754,9 +723,9 @@ let view =
           "Got a free variable ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynBranchClause(join, typed, branch_index) =>
-      let (ind1, ind2, err_state_b) = get_indicator_info(typed);
+      let (ind1, ind2, err_state_b, _) = get_indicator_info(typed);
       let ind1 =
         switch (join) {
         | NoBranches => ind1
@@ -771,42 +740,58 @@ let view =
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
         switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-        | (true, true) => (ind1, got_as_expected_ty_indicator(got_ty), OK)
-        | (true, false) => (ind1, got_consistent_indicator(got_ty), OK)
+        | (true, true) => (
+            ind1,
+            got_as_expected_ty_indicator(got_ty),
+            OK,
+            false,
+          )
+        | (true, false) => (
+            ind1,
+            got_consistent_indicator(got_ty),
+            OK,
+            false,
+          )
         | (false, _) =>
           let (expected_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           (
             expected_ty_indicator_consistent_diff(expected_diff),
             got_inconsistent_indicator_diff(got_diff),
             TypeInconsistency,
+            false,
           );
         }
-      | (InconsistentBranchTys(_), _) => (ind1, ind2, TypeInconsistency)
-      | _ => (ind1, ind2, err_state_b)
+      | (InconsistentBranchTys(_), _) => (
+          ind1,
+          ind2,
+          TypeInconsistency,
+          true,
+        )
+      | _ => (ind1, ind2, err_state_b, false)
       };
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, true);
     | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       let ind1 = expected_ty_indicator_pat_diff(expected_diff);
       let ind2 = got_inconsistent_indicator_diff(got_diff);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -820,43 +805,44 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | PatAnaInvalid(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(cursor_info.typed);
+  let (ind1, ind2, err_state_b, show) =
+    get_indicator_info(cursor_info.typed);
 
   // this determines the color
   let cls_of_err_state_b =
@@ -878,20 +864,45 @@ let view =
     | Exp(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
+  let on_empty_hole =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => true
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => false
+    | Typ(_, _) => false
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
   let summary =
     summary_bar(
       ~inject,
       cursor_info,
       err_state_b,
+      show,
       cursor_inspector.show_expanded,
       cursor_inspector.term_novice_message_mode,
       cursor_inspector.type_novice_message_mode,
+      on_empty_hole,
     );
   let content =
-    if (cursor_inspector.show_expanded) {
+    if (cursor_inspector.show_expanded && show) {
       [summary, ind1, ind2];
     } else {
       [summary];
+    };
+  let content =
+    if (cursor_inspector.type_assist && on_empty_hole) {
+      List.append(
+        content,
+        [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],
+      );
+    } else {
+      content;
     };
   Node.div(
     [
