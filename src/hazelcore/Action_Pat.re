@@ -383,9 +383,8 @@ let rec ana_move =
 
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) => {
-  syn_perform_opseq(ctx, u_gen, a, zp);
-}
+        : ActionOutcome.t(syn_success) =>
+  syn_perform_opseq(ctx, u_gen, a, zp)
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
@@ -801,9 +800,8 @@ and ana_perform =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) => {
-  ana_perform_opseq(ctx, u_gen, a, zp, ty);
-}
+    : ActionOutcome.t(ana_success) =>
+  ana_perform_opseq(ctx, u_gen, a, zp, ty)
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -910,7 +908,7 @@ and ana_perform_opseq =
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
     | None =>
-      // When operators are constructed we want to construct a variable for a
+      // When expression operators are constructed, we construct a variable for a
       // user defined operator within the surrounding pattern.
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
       | Failed => Failed
