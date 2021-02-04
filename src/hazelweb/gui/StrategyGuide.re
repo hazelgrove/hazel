@@ -349,23 +349,44 @@ let view =
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
-  let lit_t = cursor_inspector.type_assist_lit;
-  let var_t = cursor_inspector.type_assist_var;
-  let func_t = cursor_inspector.type_assist_fun;
-  let branch_t = cursor_inspector.type_assist_branch;
-  let other_t = cursor_inspector.type_assist_other;
+  let lit_open = cursor_inspector.type_assist_lit;
+  let var_open = cursor_inspector.type_assist_var;
+  let fun_open = cursor_inspector.type_assist_fun;
+  let branch_open = cursor_inspector.type_assist_branch;
+  let other_open = cursor_inspector.type_assist_other;
 
   let ty = get_type(cursor_info);
   let ctx = cursor_info.ctx;
-
-  let _ = ty;
-  let _ = ctx;
 
   let typ =
     switch (ty) {
     | Some(my_ty) => my_ty
     | None => raise(Invalid_argument("Should have a type..."))
     };
+
+  let subsection_header = (setting, text, open_section) => {
+    let subsection_arrow =
+      if (open_section) {
+        Icons.down_arrow(["fill-arrow"]);
+      } else {
+        Icons.left_arrow(["fill-arrow"]);
+      };
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ => {
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+            ])
+          }),
+        ],
+        [Node.text(text), subsection_arrow],
+      )
+    );
+  };
 
   let var_ctx = extract_vars(ctx, typ);
 
@@ -381,34 +402,12 @@ let view =
         ],
       )
     );
-  let lit_arrow =
-    if (lit_t) {
-      Icons.down_arrow(["fill-arrow"]);
-    } else {
-      Icons.left_arrow(["fill-arrow"]);
-    };
+
   let lit =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist_lit),
-                ),
-              ),
-            ])
-          ),
-        ],
-        [
-          Node.text("Fill with " ++ type_to_str(ty) ++ " literal"),
-          lit_arrow,
-        ],
-      )
+    subsection_header(
+      Toggle_type_assist_lit,
+      "Fill with " ++ type_to_str(ty) ++ " literal",
+      lit_open,
     );
   let lit_body =
     Vdom.(
@@ -418,12 +417,6 @@ let view =
       )
     );
 
-  let var_arrow =
-    if (var_t) {
-      Icons.down_arrow(["fill-arrow"]);
-    } else {
-      Icons.left_arrow(["fill-arrow"]);
-    };
   let vars_view =
     if (VarMap.is_empty(var_ctx)) {
       Vdom.(
@@ -438,24 +431,10 @@ let view =
       );
     };
   let var =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist_var),
-                ),
-              ),
-            ])
-          ),
-        ],
-        [Node.text("Fill with a Variable"), var_arrow],
-      )
+    subsection_header(
+      Toggle_type_assist_var,
+      "Fill with a Variable",
+      var_open,
     );
   let var_body =
     Vdom.(
@@ -464,34 +443,10 @@ let view =
         [vars_view],
       )
     );
-  let _ = var_body;
-  let arrow_func =
-    if (func_t) {
-      Icons.down_arrow(["fill-arrow"]);
-    } else {
-      Icons.left_arrow(["fill-arrow"]);
-    };
-  let func =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist_fun),
-                ),
-              ),
-            ])
-          ),
-        ],
-        [Node.text("Apply a Function"), arrow_func],
-      )
-    );
-  let func_body =
+
+  let fun_h =
+    subsection_header(Toggle_type_assist_fun, "Apply a Function", fun_open);
+  let fun_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
@@ -513,31 +468,12 @@ let view =
         ],
       )
     );
-  let arrow_branch =
-    if (branch_t) {
-      Icons.down_arrow(["fill-arrow"]);
-    } else {
-      Icons.left_arrow(["fill-arrow"]);
-    };
+
   let branch =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ => {
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist_branch),
-                ),
-              ),
-            ])
-          }),
-        ],
-        [Node.text("Consider by cases"), arrow_branch],
-      )
+    subsection_header(
+      Toggle_type_assist_branch,
+      "Consider by cases",
+      branch_open,
     );
   let branch_body =
     Vdom.(
@@ -551,32 +487,9 @@ let view =
         ],
       )
     );
-  let arrow_other =
-    if (other_t) {
-      Icons.down_arrow(["fill-arrow"]);
-    } else {
-      Icons.left_arrow(["fill-arrow"]);
-    };
+
   let other =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ => {
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist_other),
-                ),
-              ),
-            ])
-          }),
-        ],
-        [Node.text("Other"), arrow_other],
-      )
-    );
+    subsection_header(Toggle_type_assist_other, "Other", other_open);
   let other_body =
     Vdom.(
       Node.div(
@@ -590,34 +503,34 @@ let view =
       )
     );
   let body =
-    if (lit_t) {
-      List.append([fill_hole_msg], [lit, lit_body]);
+    if (lit_open) {
+      [fill_hole_msg, lit, lit_body];
     } else {
-      List.append([fill_hole_msg], [lit]);
+      [fill_hole_msg, lit];
     };
   let body =
-    if (var_t) {
-      List.append(body, [var, var_body]);
+    if (var_open) {
+      body @ [var, var_body];
     } else {
-      List.append(body, [var]);
+      body @ [var];
     };
   let body =
-    if (func_t) {
-      List.append(body, [func, func_body]);
+    if (fun_open) {
+      body @ [fun_h, fun_body];
     } else {
-      List.append(body, [func]);
+      body @ [fun_h];
     };
   let body =
-    if (branch_t) {
-      List.append(body, [branch, branch_body]);
+    if (branch_open) {
+      body @ [branch, branch_body];
     } else {
-      List.append(body, [branch]);
+      body @ [branch];
     };
   let body =
-    if (other_t) {
-      List.append(body, [other, other_body]);
+    if (other_open) {
+      body @ [other, other_body];
     } else {
-      List.append(body, [other]);
+      body @ [other];
     };
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));

@@ -464,7 +464,7 @@ let summary_bar =
           ])
         ),
       ],
-      [Node.text("💡")],
+      [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body = show ? [summary, fill_space, arrow] : [summary];

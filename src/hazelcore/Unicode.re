@@ -9,6 +9,7 @@ let inconsistent = "≁"; //  U+2241 "Not Tilde"
 let check_mark = "✓"; // U+2713 "Check Mark"
 let ballot_x = "✗"; // U+2717 "Ballot X"
 let no_symbol = "⚠"; // U+26A0 "Warning"
+let light_bulb = "💡"; // U+1F4A1 "Electric Light Bulb"
 
 let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 
