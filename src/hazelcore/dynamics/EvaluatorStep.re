@@ -24,19 +24,43 @@ module EvalCtx = {
         //TODO: VarMap.t_(t),
         t,
       )
+    | FixF(Var.t, HTyp.t, t)
     | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t);
+    | FailedCast(t, HTyp.t, HTyp.t)
+    | InvalidOperation(t, InvalidOperationError.t);
 };
 
-let is_ground = (ty: HTyp.t): bool =>
+//Copy from Evaluator.re
+[@deriving sexp]
+type ground_cases =
+  | Hole
+  | Ground
+  | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
+
+let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
+let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
+let grounded_Prod = length =>
+  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
+let grounded_List = NotGroundOrHole(List(Hole));
+
+let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
+  | Hole => Hole
   | Bool
   | Int
   | Float
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
-  | List(Hole) => true
-  | _ => false
+  | List(Hole) => Ground
+  | Prod(tys) =>
+    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
+      Ground;
+    } else {
+      tys |> List.length |> grounded_Prod;
+    }
+  | Arrow(_, _) => grounded_Arrow
+  | Sum(_, _) => grounded_Sum
+  | List(_) => grounded_List
   };
 
 let is_val = (d: DHExp.t): bool =>
@@ -55,7 +79,7 @@ let rec is_boxedval = (d: DHExp.t): bool =>
   switch (d) {
   | Cast(d1, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
     is_boxedval(d1) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
-  | Cast(d1, ty, Hole) => is_ground(ty) && is_boxedval(d1)
+  | Cast(d1, ty, Hole) => ground_cases_of(ty) == Ground && is_boxedval(d1)
   | _ => is_val(d)
   };
 
@@ -66,13 +90,16 @@ and is_indet = (d: DHExp.t): bool =>
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
   | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
   | Ap(d1, d2) => is_indet(d1) && is_final(d2)
-  | Cast(d1, ty, Hole) => is_indet(d1) && is_ground(ty)
+  | Cast(d1, ty, Hole) => is_indet(d1) && ground_cases_of(ty) == Ground
   | Cast(Cast(_, _, Hole), Hole, _) => false
-  | Cast(d1, Hole, ty) => is_indet(d1) && is_ground(ty)
+  | Cast(d1, Hole, ty) => is_indet(d1) && ground_cases_of(ty) == Ground
   | Cast(d, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
     is_indet(d) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
   | FailedCast(d1, ty1, ty2) =>
-    is_final(d1) && is_ground(ty1) && is_ground(ty2) && !HTyp.eq(ty1, ty2)
+    is_final(d1)
+    && ground_cases_of(ty1) == Ground
+    && ground_cases_of(ty2) == Ground
+    && !HTyp.eq(ty1, ty2)
   | _ => false
   };
 
@@ -201,10 +228,22 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
       let (ctx, d0) = decompose(d1);
       (Inj(ty, side, ctx), d0);
     }
-  // | FixF(Var.t, HTyp.t, t)
+  | FixF(var, ty, d1) =>
+    if (is_final(d1)) {
+      (Mark, d);
+    } else {
+      let (ctx, d0) = decompose(d1);
+      (FixF(var, ty, ctx), d0);
+    }
+  | InvalidOperation(d1, err) =>
+    if (is_final(d1)) {
+      (Mark, d);
+    } else {
+      let (ctx, d0) = decompose(d1);
+      (InvalidOperation(ctx, err), d0);
+    }
   // | ConsistentCase(case)
   // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  // | InvalidOperation(t, InvalidOperationError.t)
   | _ => (Mark, d)
   };
 
@@ -226,14 +265,15 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | Let1(dp, ctx1, d1) => Let(dp, compose((ctx1, d)), d1)
   | Let2(dp, d1, ctx1) => Let(dp, d1, compose((ctx1, d)))
   | Inj(ty, side, ctx1) => Inj(ty, side, compose((ctx1, d)))
-
   | Cast(ctx1, ty1, ty2) => Cast(compose((ctx1, d)), ty1, ty2)
   | FailedCast(ctx1, ty1, ty2) => FailedCast(compose((ctx1, d)), ty1, ty2)
+  | FixF(var, ty, ctx1) => FixF(var, ty, compose((ctx1, d)))
+  | InvalidOperation(ctx1, err) => InvalidOperation(compose((ctx1, d)), err)
   // | NonEmptyHole(
   //     ErrStatus.HoleReason.t,
   //     MetaVar.t,
   //     MetaVarInst.t,
-  //     // VarMap.t_(t),
+  //     //TODO: VarMap.t_(t),
   //     t,
   //   )
   | _ => d
@@ -315,9 +355,24 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
       Some(eval_bin_float_op(op, f1, f2))
     | _ => None
     }
-  // | FixF(Var.t, HTyp.t, t)
-  // | Inj(HTyp.t, InjSide.t, t)
-  // | Cast(t, HTyp.t, HTyp.t)
+  | FixF(x, _, d1) => Some(Elaborator_Exp.subst_var(d, x, d1))
+  | Cast(d1, ty1, ty2) =>
+    switch (ground_cases_of(ty1), ground_cases_of(ty2)) {
+    | (Hole, Hole)
+    | (Ground, Ground) => Some(d1)
+    | (Hole, Ground) =>
+      switch (d1) {
+      | Cast(d1', ty1', Hole) =>
+        if (HTyp.eq(ty1', ty1)) {
+          Some(d1');
+        } else {
+          Some(FailedCast(d1, ty1, ty2));
+        }
+      | _ => None //Error
+      }
+    | _ => None
+    }
+
   // | FailedCast(t, HTyp.t, HTyp.t)
   | BoolLit(_)
   | IntLit(_)
