@@ -1060,17 +1060,17 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zp, _, u_gen)) =>
-      switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-      | None => Failed //NOTE: Should not happen
-      | Some((ty_p, _)) =>
-        let p = ZPat.erase(new_zp);
-        let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-        let (new_def, u_gen) =
-          Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
-        let new_zline = ZExp.LetLineZP(new_zp, new_def);
-        let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-        Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-      }
+      // NOTE: Need to fix holes since ana_perform may have created
+      // holes if ty_def is inconsistent with pattern type
+      let (new_zp, ty_p, _, u_gen) =
+        Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
+      let p = ZPat.erase(new_zp);
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let (new_def, u_gen) =
+        Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
+      let new_zline = ZExp.LetLineZP(new_zp, new_def);
+      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     };
 
   | (_, LetLineZE(p, zdef)) =>

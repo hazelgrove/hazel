@@ -1008,7 +1008,25 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      /* If the cursor is immeditely after a type annotation, and we're trying
+       * to insert an operator that Pat doesn't recognize, delegate the action
+       * to Typ.perform. Note that in the case of the one currently existing overlap,
+       * SComma, this means that Pat gets priority, and one must insert parens around
+       * a type annotation to express a product type.
+       *  */
+      switch (zoperand) {
+      | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
+        switch (Action_Typ.perform(a, zann)) {
+        | Succeeded(new_zann) =>
+          let new_zseq =
+            ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
+          let ty' = UHTyp.expand(ZTyp.erase(new_zann));
+          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
+        | _ => Failed
+        }
+      | _ => Failed
+      }
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
