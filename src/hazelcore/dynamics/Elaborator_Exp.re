@@ -41,6 +41,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => d2
   | Cons(d3, d4) =>
@@ -59,6 +60,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | BinStrOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinStrOp(op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -152,6 +157,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
+  | (_, BinStrOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -180,6 +186,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
+  | (StringLit(s1), StringLit(s2)) =>
+    if (UnescapedString.equal(s1, s2)) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
+  | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
+  | (StringLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -296,12 +311,14 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
+  | BinStrOp(_, _, _)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | ListNil(_)
+  | Cons(_, _)
+  | Pair(_, _)
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
@@ -361,12 +378,14 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
+  | BinStrOp(_, _, _)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | Inj(_, _, _)
+  | ListNil(_)
+  | Cons(_, _)
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
@@ -432,12 +451,14 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
+  | BinStrOp(_, _, _)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | Inj(_, _, _)
+  | ListNil(_)
+  | Pair(_, _)
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
@@ -708,6 +729,23 @@ and syn_elab_skel =
         };
       }
     }
+  | BinOp(NotInHole, Caret as op, skel1, skel2) =>
+    switch (ana_elab_skel(ctx, delta, skel1, seq, String)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      switch (ana_elab_skel(ctx, delta, skel2, seq, String)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2, delta) =>
+        let dc1 = DHExp.cast(d1, ty1, String);
+        let dc2 = DHExp.cast(d2, ty2, String);
+        switch (DHExp.BinStrOp.of_op(op)) {
+        | None => DoesNotElaborate
+        | Some((op, ty)) =>
+          let d = DHExp.BinStrOp(op, dc1, dc2);
+          Elaborates(d, ty, delta);
+        };
+      }
+    }
   }
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
@@ -818,6 +856,12 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
+  | StringLit(NotInHole, s) =>
+    Elaborates(
+      StringLit(StringLitBody.to_unescaped_string(s)),
+      String,
+      delta,
+    )
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
@@ -1117,7 +1161,8 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Space,
+      Space |
+      Caret,
       _,
       _,
     ) =>
@@ -1140,6 +1185,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -1168,6 +1214,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -1269,6 +1316,7 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
+  | StringLit(NotInHole, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
@@ -1327,6 +1375,7 @@ let rec renumber_result_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
@@ -1355,6 +1404,10 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinStrOp(op, d1, d2) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1425,6 +1478,7 @@ let rec renumber_sigmas_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
@@ -1453,6 +1507,10 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinStrOp(op, d1, d2) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);

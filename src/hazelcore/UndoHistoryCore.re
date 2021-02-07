@@ -143,7 +143,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
-    | StringLit(_, s) => Len(String.length(s) + 2)
+    | StringLit(_, s) => Len(String.length(StringLitBody.to_string(s)) + 2)
     | BoolLit(_, _)
     | ListNil(_)
     | Lam(_, _, _, _)
@@ -160,7 +160,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
-    | StringLit(_, s) => Len(String.length(s) + 2)
+    | StringLit(_, s) => Len(String.length(StringLitBody.to_string(s)) + 2)
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
@@ -173,6 +173,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Int
     | Float
     | Bool
+    | String
     | Parenthesized(_)
     | List(_) => MaxLen
     }

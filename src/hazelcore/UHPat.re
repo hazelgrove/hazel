@@ -16,7 +16,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, string)
+  | StringLit(ErrStatus.t, StringLitBody.t)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);

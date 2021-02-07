@@ -85,6 +85,10 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel1, seq, Float)
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
+  | BinOp(NotInHole, Caret, skel1, skel2) =>
+    let+ _ = ana_skel(ctx, skel1, seq, String)
+    and+ _ = ana_skel(ctx, skel2, seq, String);
+    HTyp.String;
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
@@ -267,6 +271,7 @@ and ana_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
+      Caret |
       Space,
       _,
       _,
@@ -407,6 +412,7 @@ and syn_nth_type_mode' =
         skel1,
         skel2,
       ) =>
+      // TODO: this is a precondition, so else branch should be a failure case I think
       n <= Skel.rightmost_tm_index(skel1)
         ? ana_go(skel1, Int) : ana_go(skel2, Int)
     | BinOp(
@@ -434,6 +440,9 @@ and syn_nth_type_mode' =
         let* ty1 = syn_skel(ctx, skel1, seq);
         ana_go(skel2, ty1);
       }
+    | BinOp(NotInHole, Caret, skel1, skel2) =>
+      n <= Skel.rightmost_tm_index(skel1)
+        ? ana_go(skel1, String) : ana_go(skel2, String)
     };
   go(skel);
 }
@@ -494,6 +503,7 @@ and ana_nth_type_mode' =
         FLessThan |
         FGreaterThan |
         FEquals |
+        Caret |
         Space,
         _,
         _,
@@ -725,6 +735,26 @@ and syn_fix_holes_skel =
         HTyp.Float,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+  | BinOp(_, Caret as op, skel1, skel2) =>
+    let (skel1, seq, u_gen) =
+      ana_fix_holes_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel1,
+        seq,
+        HTyp.String,
+      );
+    let (skel2, seq, u_gen) =
+      ana_fix_holes_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel2,
+        seq,
+        HTyp.String,
+      );
+    (BinOp(NotInHole, op, skel1, skel2), seq, String, u_gen);
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ty1, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -1187,6 +1217,7 @@ and ana_fix_holes_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
+      Caret |
       Space,
       _,
       _,

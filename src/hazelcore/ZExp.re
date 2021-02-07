@@ -99,7 +99,9 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | StringLit(_, s) =>
     List.append(
       CursorPosition.delim_cursors(2),
-      CursorPosition.text_cursors(String.length(s)),
+      CursorPosition.text_cursors(
+        String.length(StringLitBody.to_string(s)),
+      ),
     ) /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =
@@ -704,7 +706,9 @@ and move_cursor_left_zoperand =
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
-    Some(CursorE(OnText(String.length(s)), operand))
+    Some(
+      CursorE(OnText(String.length(StringLitBody.to_string(s))), operand),
+    )
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))

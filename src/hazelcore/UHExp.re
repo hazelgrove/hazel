@@ -19,7 +19,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, string)
+  | StringLit(ErrStatus.t, StringLitBody.t)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
@@ -60,7 +60,7 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
-let stringlit = (~err: ErrStatus.t=NotInHole, s: string): operand =>
+let stringlit = (~err: ErrStatus.t=NotInHole, s: StringLitBody.t): operand =>
   StringLit(err, s);
 
 let lam =

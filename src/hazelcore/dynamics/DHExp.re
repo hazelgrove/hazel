@@ -68,7 +68,8 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -114,7 +115,8 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -126,6 +128,41 @@ module BinFloatOp = {
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
+    };
+};
+
+module BinStrOp = {
+  [@deriving sexp]
+  type t =
+    | Caret;
+
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | Caret => Some((Caret, String))
+    | Minus
+    | Plus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    | And
+    | Or
+    | Space
+    | Cons
+    | Comma
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
+    };
+
+  let to_op = (bso: t): UHExp.operator =>
+    switch (bso) {
+    | Caret => Caret
     };
 };
 
@@ -151,9 +188,11 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | StringLit(UnescapedString.t)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | BinStrOp(BinStrOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -184,9 +223,11 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
+  | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | BinStrOp(_, _, _) => "BinStrOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

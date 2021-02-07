@@ -16,6 +16,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Inj(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y

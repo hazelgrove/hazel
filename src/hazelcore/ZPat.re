@@ -22,7 +22,10 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | StringLit(_, s) =>
-      List.append(delim_cursors(2), text_cursors(String.length(s)))
+      List.append(
+        delim_cursors(2),
+        text_cursors(String.length(StringLitBody.to_string(s))),
+      )
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
@@ -221,7 +224,9 @@ and move_cursor_left_zoperand =
     Some(CursorP(OnDelim(k, Before), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_one, Before), StringLit(_, s) as operand) =>
-    Some(CursorP(OnText(String.length(s)), operand))
+    Some(
+      CursorP(OnText(String.length(StringLitBody.to_string(s))), operand),
+    )
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
