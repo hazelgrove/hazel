@@ -272,7 +272,7 @@ and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
          ; app_combine head_solution_nd rel_arg_solution_nd
            (* HACK: disallow rel_binding to be used in both the function and
               its argument, so that foldr is not used too much *)
-           (* app_combine rel_head_solution_nd rel_arg_solution_nd*) ]
+         ; app_combine rel_head_solution_nd rel_arg_solution_nd ]
   | _ ->
       Log.warn
         ( "integer partition is incorrect size (is "

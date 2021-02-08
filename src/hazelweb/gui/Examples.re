@@ -838,6 +838,11 @@ let sort_template: UHExp.t = [
   lte,
   insert,
   LetLine(
+    OpSeq.wrap(UHPat.var("nil")),
+    Some(UHTyp.contract(List(Int))),
+    [ExpLine(OpSeq.wrap(UHExp.listnil()))],
+  ),
+  LetLine(
     OpSeq.wrap(UHPat.var("sort")),
     Some(UHTyp.contract(Arrow(List(Int), List(Int)))),
     [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
