@@ -44,7 +44,7 @@ module LivelitAdapter = (L: LIVELIT) => {
     LivelitDefinition.{
       name: L.name,
       expansion_ty: L.expansion_ty,
-      captures_ty: HTyp.Hole, // NOTE(andrew): used only for user-defined livelits
+      captures_ty: None, // NOTE(andrew): used only for user-defined livelits
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>
@@ -2290,39 +2290,22 @@ module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
 module DataFrameLivelitAdapter = LivelitAdapter(DataFrameLivelit);
 module GrayscaleLivelitAdapter = LivelitAdapter(GrayscaleLivelit);
-let empty_livelit_contexts = LivelitContexts.empty;
+
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
-  LivelitContexts.extend(
-    LivelitContexts.extend(
-      LivelitContexts.extend(
-        LivelitContexts.extend(
-          LivelitContexts.extend(
-            LivelitContexts.extend(
-              LivelitContexts.extend(
-                LivelitContexts.extend(
-                  LivelitContexts.extend(
-                    LivelitContexts.extend(
-                      LivelitContexts.extend(
-                        empty_livelit_contexts,
-                        GrayscaleLivelitAdapter.contexts_entry,
-                      ),
-                      DataFrameLivelitAdapter.contexts_entry,
-                    ),
-                    GradeCutoffLivelitAdapter.contexts_entry,
-                  ),
-                  MatrixLivelitAdapter.contexts_entry,
-                ),
-                LiveMatrixLivelitAdapter.contexts_entry,
-              ),
-              PairLivelitAdapter.contexts_entry,
-            ),
-            CheckboxLivelitAdapter.contexts_entry,
-          ),
-          SliderLivelitAdapter.contexts_entry,
-        ),
-        ColorLivelitAdapter.contexts_entry,
-      ),
+  List.fold_left(
+    LivelitContexts.extend,
+    LivelitContexts.empty,
+    [
+      GrayscaleLivelitAdapter.contexts_entry,
+      DataFrameLivelitAdapter.contexts_entry,
+      GradeCutoffLivelitAdapter.contexts_entry,
+      MatrixLivelitAdapter.contexts_entry,
+      LiveMatrixLivelitAdapter.contexts_entry,
+      PairLivelitAdapter.contexts_entry,
+      CheckboxLivelitAdapter.contexts_entry,
+      SliderLivelitAdapter.contexts_entry,
+      ColorLivelitAdapter.contexts_entry,
       GradientLivelitAdapter.contexts_entry,
-    ),
-    SliderLivelitMinAdapter.contexts_entry,
+      SliderLivelitMinAdapter.contexts_entry,
+    ],
   );

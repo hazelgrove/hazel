@@ -170,8 +170,8 @@ module rec M: Statics_Exp_Sig.S = {
     }: UHExp.livelit_record = llrecord;
     let captures_ty =
       switch (syn(ctx, captures)) {
-      | Some(ty) => ty
-      | None => HTyp.Hole
+      | Some(ty) => Some(ty)
+      | None => Some(HTyp.Hole)
       };
     let new_ll_def: LivelitDefinition.t = {
       name: name_str,
@@ -583,7 +583,11 @@ module rec M: Statics_Exp_Sig.S = {
       switch (expand(serialized_model)) {
       | Failure(_) => None
       | Success(expansion) =>
-        let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+        let expansion_ap_ty =
+          switch (captures_ty) {
+          | None => expansion_ty
+          | Some(captures_ty) => HTyp.Arrow(captures_ty, expansion_ty)
+          };
         switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
         | None => None
         | Some(_) => Some(expansion_ty)

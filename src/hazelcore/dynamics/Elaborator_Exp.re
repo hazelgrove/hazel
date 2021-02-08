@@ -1293,20 +1293,23 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         lln,
         serialized_model,
         si,
-        {name, captures_ty, _} as livelit_defn,
+        {name, expansion_ty, captures_ty, param_tys, expand, _},
         closed_dargs,
         reqd_param_tys,
         args,
       ) => {
-    let all_param_tys = livelit_defn.param_tys;
+    let all_param_tys = param_tys;
     let closed_dargs =
       all_param_tys
       |> ListUtil.take(closed_dargs |> List.length)
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
-    let expansion_ty = livelit_defn.expansion_ty;
-    let expand = livelit_defn.expand;
     let proto_expansion = expand(serialized_model);
+    let proto_expansion_ty =
+      switch (captures_ty) {
+      | None => expansion_ty
+      | Some(captures_ty) => HTyp.Arrow(captures_ty, expansion_ty)
+      };
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
     | Success(proto_expansion) =>
@@ -1317,7 +1320,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
           proto_elaboration_ctx,
           delta,
           proto_expansion,
-          HTyp.Arrow(captures_ty, expansion_ty),
+          proto_expansion_ty,
         );
       switch (proto_elaboration_result) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1381,14 +1384,18 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                      arg_opt |> Option.map(arg => ((), (v, t, arg))),
                    (),
                  );
-            let elaborated_proto_expansion_ap =
-              DHExp.Ap(proto_elaboration, DHExp.BoundVar(name));
+            let proto_elaboration =
+              switch (captures_ty) {
+              //NOTE(andrew): user-defined livelits get ap-wrapped
+              | None => proto_elaboration
+              | Some(_) => DHExp.Ap(proto_elaboration, DHExp.BoundVar(name))
+              };
             let rslt =
               switch (dargs_opt') {
               | Some(((), dargs')) when !livelit_holes =>
                 // subst each splice and arg into the elab
                 wrap_proto_expansion(
-                  elaborated_proto_expansion_ap,
+                  proto_elaboration,
                   sim,
                   closed_dargs @ dargs',
                 )
@@ -1405,7 +1412,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                   lln,
                   si,
                   closed_dargs @ dargs,
-                  elaborated_proto_expansion_ap,
+                  proto_elaboration,
                 );
               };
             Elaborates(rslt, expansion_ty, delta);
