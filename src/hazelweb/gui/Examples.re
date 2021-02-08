@@ -883,6 +883,38 @@ let sort_template: UHExp.t = [
     ),
   ),
 ];
+let sort_degenerate: UHExp.t = [
+  lte,
+  insert,
+  LetLine(
+    OpSeq.wrap(UHPat.var("test")),
+    Some(UHTyp.contract(List(Int))),
+    [
+      ExpLine(
+        shmyth_app(
+          "insert",
+          [
+            UHExp.intlit("2"),
+            shmyth_parens(
+              shmyth_app(
+                "insert",
+                [UHExp.intlit("1"), UHExp.EmptyHole(0)],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+  mk_app_equality_assert(
+    3,
+    "test",
+    [],
+    shmyth_parens(
+      shmyth_cons(UHExp.intlit("1"), [UHExp.intlit("2"), UHExp.listnil()]),
+    ),
+  ),
+];
 
 let append_template: UHExp.t = [
   shmyth_let(
@@ -1401,6 +1433,7 @@ let examples =
     |> add("add_template", addition_template)
     |> add("length_template", length_template)
     |> add("sort_template", sort_template)
+    |> add("sort_degenerate", sort_degenerate)
     |> add("max_template", max_template)
     |> add("odd_template", odd_template)
     |> add("mult_template", mult_template)

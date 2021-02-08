@@ -50,6 +50,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("sort template")],
         ),
         Node.option(
+          [Attr.value("sort_degenerate")],
+          [Node.text("sort degenerate")],
+        ),
+        Node.option(
           [Attr.value("max_template")],
           [Node.text("max template")],
         ),
