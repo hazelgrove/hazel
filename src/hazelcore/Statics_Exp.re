@@ -250,11 +250,6 @@ module rec M: Statics_Exp_Sig.S = {
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
-      let _ =
-        switch (ana(ctx, expand, expand_ty)) {
-        | Some(_) => print_endline("SOME")
-        | None => print_endline("NONE")
-        };
       OptUtil.sequence([
         ana(ctx, init, init_ty),
         ana(ctx, update, update_ty),

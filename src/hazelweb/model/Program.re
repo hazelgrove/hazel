@@ -170,9 +170,7 @@ let elaborate = (~livelit_holes) =>
     ? elaborate__livelit_holes_true : elaborate__livelit_holes_false;
 let get_elaboration = (~livelit_holes=false, program: t): DHExp.t => {
   switch (program |> get_uhexp |> elaborate(~livelit_holes)) {
-  | DoesNotElaborate =>
-    print_endline("DOESNOTELAB");
-    raise(DoesNotElaborate);
+  | DoesNotElaborate => raise(DoesNotElaborate)
   | Elaborates(d, _, _) => d
   };
 };

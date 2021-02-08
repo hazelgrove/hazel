@@ -615,9 +615,7 @@ let syn_perform_ll_line =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, new_lldef: ZExp.zline)
     : ActionOutcome.t(line_success) => {
   switch (Statics_Exp.syn_line(ctx, ZExp.erase_zline(new_lldef))) {
-  | None =>
-    print_endline("FFFFFFUKIN FAIIIIILLL");
-    Failed; // precondition: synthesis should succeed
+  | None => Failed // precondition: synthesis should succeed
   | Some(ctx) => Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)))
   };
 };
@@ -1233,26 +1231,26 @@ and syn_perform_line =
   | (
       _,
       LivelitDefLineZModelType(
-        {model_type, action_type, init, update, view, _} as llrecord,
+        {model_type, action_type, init, update, view, expand, _} as llrecord,
       ),
     ) =>
     switch (Action_Typ.perform(a, model_type)) {
-    | Failed =>
-      print_endline("FAILWHALE 2501");
-      Failed;
+    | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(model_ztype) =>
-      print_endline("NOFAIL 2501");
       let model_type = model_ztype |> ZTyp.erase;
       let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
       let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
       let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+      let expand_ty = Statics_Exp.ll_expand_ty(model_type, action_type);
       let (init, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, init, init_ty);
       let (update, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, update, update_ty);
       let (view, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, view, view_ty);
+      let (expand, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, expand, expand_ty);
       let new_lldef =
         ZExp.LivelitDefLineZModelType({
           ...llrecord,
@@ -1260,13 +1258,14 @@ and syn_perform_line =
           init,
           update,
           view,
+          expand,
         });
       syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (
       _,
       LivelitDefLineZActionType(
-        {model_type, action_type, init, update, view, _} as llrecord,
+        {model_type, action_type, init, update, view, expand, _} as llrecord,
       ),
     ) =>
     switch (Action_Typ.perform(a, action_type)) {
@@ -1277,12 +1276,15 @@ and syn_perform_line =
       let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
       let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
       let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+      let expand_ty = Statics_Exp.ll_expand_ty(model_type, action_type);
       let (init, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, init, init_ty);
       let (update, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, update, update_ty);
       let (view, u_gen) =
         Statics_Exp.ana_fix_holes(ctx, u_gen, view, view_ty);
+      let (expand, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, expand, expand_ty);
       let new_lldef =
         ZExp.LivelitDefLineZActionType({
           ...llrecord,
@@ -1290,6 +1292,7 @@ and syn_perform_line =
           init,
           update,
           view,
+          expand,
         });
       syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
