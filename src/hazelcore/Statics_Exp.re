@@ -56,8 +56,8 @@ module rec M: Statics_Exp_Sig.S = {
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
-    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
-    // TODO(andrew): make above work. hacked right now... all DHExps set to triv
+    let elab_ctx = Contexts.empty;
+    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
     | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
@@ -69,7 +69,8 @@ module rec M: Statics_Exp_Sig.S = {
       (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
-    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+    let elab_ctx = Contexts.empty;
+    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let update_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, update)) {
       | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
@@ -115,18 +116,11 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand =
-      (expand: UHExp.t, name_str: string, model: SerializedModel.t)
+      (expand: UHExp.t, model: SerializedModel.t)
       : LivelitDefinition.livelit_expand_result => {
-    //TODO(andrew): captures
-    /*
-     "(ExpLine(OpSeq(Placeholder 0)
-      (S(Lam NotInHole(OpSeq(Placeholder 0)
-       (S(Var NotInHole NotInVarHole slidy)E))()
-        ((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 50)E)))))E)))"
-             */
-    // strategy for captures
     let model_dhexp = DHExp.t_of_sexp(model);
-    let elab_ctx = Contexts.empty; //ctx |> Elaborator.map_livelit_ctx(ty => (DHExp.Triv, ty));
+    let elab_ctx = Contexts.empty;
+    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let expand_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
@@ -136,37 +130,18 @@ module rec M: Statics_Exp_Sig.S = {
     print_endline("mk_ll_expand");
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(v) =>
-      //print_endline("mk_ll_expand: boxed_val");
       switch (DHExp.strip_casts(v)) {
       | StringLit(str) =>
-        //print_endline("mk_ll_expand: stripped str");
         let maybeSexp =
           try(Some(Sexplib.Sexp.of_string(str))) {
-          | _ =>
-            //print_endline("mk_Ll_EXPAND: NOSEXP!!");
-            None
+          | _ => None
           };
         switch (maybeSexp) {
         | None => Failure(NotSexp)
         | Some(sexp) =>
-          let ap_wrap = u =>
-            UHExp.Block.wrap'(
-              Seq.mk(u, [(Operators_Exp.Space, UHExp.var(name_str))])
-              |> UHExp.mk_OpSeq,
-            );
-          print_endline("mk_ll_expand: expansion:");
-          let blag = ap_wrap(UHExp.operand_of_sexp(sexp));
-          print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(blag)));
-          /*((ExpLine
-            (OpSeq (BinOp NotInHole Space (Placeholder 0) (Placeholder 1))
-             (S
-              (Lam NotInHole
-               (OpSeq (Placeholder 0) (S (Var NotInHole NotInVarHole x) E)) ()
-               ((ExpLine (OpSeq (Placeholder 0) (S (IntLit NotInHole 50) E)))))
-               (A Space (S (Var NotInHole NotInVarHole $slidy) E))))))*/
-          try(Success(ap_wrap(UHExp.operand_of_sexp(sexp)))) {
+          try(Success(UHExp.Block.wrap(UHExp.operand_of_sexp(sexp)))) {
           | _ => Failure(NotUHExp)
-          };
+          }
         };
       | _ => Failure(NotStringlit)
       }
@@ -175,10 +150,16 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let extend_livelit_ctx = (ctx: Contexts.t, llrecord) => {
+  /**
+ * Synthesize a type, if possible, for e
+ */
+  let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
+    syn_block(ctx, e)
+  and extend_livelit_ctx = (ctx: Contexts.t, llrecord) => {
     let (gamma, livelit_ctx) = ctx;
     let {
       name: (_, name_str),
+      captures,
       init,
       update,
       view,
@@ -188,14 +169,20 @@ module rec M: Statics_Exp_Sig.S = {
       model_type,
       _,
     }: UHExp.livelit_record = llrecord;
+    let captures_ty =
+      switch (syn(ctx, captures)) {
+      | Some(ty) => ty
+      | None => HTyp.Hole
+      };
     let new_ll_def: LivelitDefinition.t = {
       name: name_str,
+      captures_ty,
       model_ty: UHTyp.expand(model_type),
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
       init_model: mk_ll_init(init),
       update: mk_ll_update(update),
-      expand: mk_ll_expand(expand, name_str),
+      expand: mk_ll_expand(expand),
     };
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
@@ -218,13 +205,7 @@ module rec M: Statics_Exp_Sig.S = {
           )
         : livelit_ctx;
     (gamma, new_livelit_ctx);
-  };
-
-  /**
- * Synthesize a type, if possible, for e
- */
-  let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
-    syn_block(ctx, e)
+  }
   and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
     switch (block |> UHExp.Block.split_conclusion) {
     | None => None
@@ -267,9 +248,13 @@ module rec M: Statics_Exp_Sig.S = {
         }
       }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
-      // TODO: captures?
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
+      let _ =
+        switch (ana(ctx, expand, expand_ty)) {
+        | Some(_) => print_endline("SOME")
+        | None => print_endline("NONE")
+        };
       OptUtil.sequence([
         ana(ctx, init, init_ty),
         ana(ctx, update, update_ty),
@@ -601,15 +586,15 @@ module rec M: Statics_Exp_Sig.S = {
     ) {
     | None => None
     | Some(splice_ctx) =>
-      let expansion_ty = livelit_defn.expansion_ty;
-      let expand = livelit_defn.expand;
+      let {expand, expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
       switch (expand(serialized_model)) {
       | Failure(_) => None
       | Success(expansion) =>
-        switch (ana(splice_ctx, expansion, expansion_ty)) {
+        let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+        switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
         | None => None
         | Some(_) => Some(expansion_ty)
-        }
+        };
       };
     }
   and ana_splice_map_and_params =

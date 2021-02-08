@@ -711,8 +711,6 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, ApLivelit(_)) =>
-    Some(CursorInfo_common.mk(SynLivelitDoesNotExpand, ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None

@@ -130,6 +130,11 @@ let apply_action =
 
       | LivelitAction(llu, serialized_action) =>
         let program = Model.get_program(model);
+        print_endline("UPDATE LIVELIT ACTION");
+        print_endline(Sexplib.Sexp.to_string_hum(serialized_action));
+        print_endline(
+          Sexplib.Sexp.to_string_hum(Program.sexp_of_t(program)),
+        );
         let performed =
           try(
             model

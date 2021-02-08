@@ -1293,7 +1293,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         lln,
         serialized_model,
         si,
-        livelit_defn,
+        {name, captures_ty, _} as livelit_defn,
         closed_dargs,
         reqd_param_tys,
         args,
@@ -1310,23 +1310,17 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
     | Success(proto_expansion) =>
-      //HACK(andrew): this was crashing elab
-      //as llname was not bound in this 'proto_elaboration_ctx'
-      let (gamma, _) = ctx;
-      let (gamma2, ll2) = to_ctx(si, all_param_tys);
-      let proto_elaboration_ctx = (VarMap.union(gamma, gamma2), ll2);
+      let proto_elaboration_ctx = to_ctx(si, all_param_tys);
       let proto_elaboration_result =
         ana_elab(
           ~livelit_holes,
           proto_elaboration_ctx,
           delta,
           proto_expansion,
-          expansion_ty,
+          HTyp.Arrow(captures_ty, expansion_ty),
         );
       switch (proto_elaboration_result) {
-      | DoesNotElaborate =>
-        print_endline("ELABORATOR LIVELITAP CASE DNE!!!!!!!!");
-        DoesNotElaborate;
+      | DoesNotElaborate => DoesNotElaborate
       | Elaborates(proto_elaboration, _, delta) =>
         // Like List.combine, but pads missing args with None
         let rec params_args = (p, a) =>
@@ -1387,12 +1381,14 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                      arg_opt |> Option.map(arg => ((), (v, t, arg))),
                    (),
                  );
+            let elaborated_proto_expansion_ap =
+              DHExp.Ap(proto_elaboration, DHExp.BoundVar(name));
             let rslt =
               switch (dargs_opt') {
               | Some(((), dargs')) when !livelit_holes =>
                 // subst each splice and arg into the elab
                 wrap_proto_expansion(
-                  proto_elaboration,
+                  elaborated_proto_expansion_ap,
                   sim,
                   closed_dargs @ dargs',
                 )
@@ -1409,7 +1405,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                   lln,
                   si,
                   closed_dargs @ dargs,
-                  proto_elaboration,
+                  elaborated_proto_expansion_ap,
                 );
               };
             Elaborates(rslt, expansion_ty, delta);
