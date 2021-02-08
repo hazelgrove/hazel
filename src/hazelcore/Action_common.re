@@ -1,55 +1,4 @@
-open Sexplib.Std;
-
-[@deriving sexp]
-type operator_shape =
-  | SMinus
-  | SPlus
-  | STimes
-  | SDivide
-  | SLessThan
-  | SGreaterThan
-  | SEquals
-  | SSpace
-  | SComma
-  | SArrow
-  | SVBar
-  | SCons
-  | SAnd
-  | SOr
-  | SDot;
-
-[@deriving sexp]
-type shape =
-  | SCommentLine
-  | SList
-  | SParenthesized
-  | SChar(string)
-  | SAsc
-  | SLam
-  | SListNil
-  | SInj(InjSide.t)
-  | SLet
-  | SLine
-  | SCase
-  | SOp(operator_shape)
-  | SApPalette(PaletteName.t);
-
-[@deriving sexp]
-type t =
-  | MoveTo(CursorPath_common.t)
-  | MoveLeft
-  | MoveRight
-  | MoveToNextHole
-  | MoveToPrevHole
-  | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
-  | Delete
-  | Backspace
-  | Construct(shape)
-  | SwapLeft
-  | SwapRight
-  | SwapUp
-  | SwapDown
-  | Init;
+open Action;
 
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
@@ -79,12 +28,11 @@ let shape_to_string = (shape: shape): string => {
     | SEquals => "=="
     | SSpace => "space"
     | SComma => ","
-    | SArrow => UnicodeConstants.typeArrowSym
+    | SArrow => Unicode.typeArrowSym
     | SVBar => "|"
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
-    | SDot => "."
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };

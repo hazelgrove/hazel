@@ -1,60 +1,56 @@
-let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
+let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
   [
-    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
-    (Delete, _ => Action_common.Delete),
-    (ShiftTab, _ => Action_common.MoveToPrevHole),
-    (Tab, _ => Action_common.MoveToNextHole),
+    (HazelKeyCombos.Backspace, _ => Action.Backspace),
+    (Delete, _ => Delete),
+    (ShiftTab, _ => MoveToPrevHole),
+    (Tab, _ => MoveToNextHole),
     (
       GT,
       fun
-      | {CursorInfo_common.typed: OnType, _} =>
-        Action_common.Construct(SOp(SArrow))
-      | _ => Action_common.Construct(SOp(SGreaterThan)),
+      | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
+      | _ => Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Action_common.Construct(SOp(SAnd))),
-    (VBar, _ => Action_common.Construct(SOp(SOr))),
-    (LeftParen, _ => Action_common.Construct(SParenthesized)),
-    (Colon, _ => Action_common.Construct(SAsc)),
-    (Equals, _ => Action_common.Construct(SOp(SEquals))),
-    (Enter, _ => Action_common.Construct(SLine)),
-    (Backslash, _ => Action_common.Construct(SLam)),
-    (Plus, _ => Action_common.Construct(SOp(SPlus))),
-    (Minus, _ => Action_common.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action_common.Construct(SOp(STimes))),
-    (Slash, _ => Action_common.Construct(SOp(SDivide))),
-    (LT, _ => Action_common.Construct(SOp(SLessThan))),
+    (Ampersand, _ => Construct(SOp(SAnd))),
+    (VBar, _ => Construct(SOp(SOr))),
+    (LeftParen, _ => Construct(SParenthesized)),
+    (Colon, _ => Construct(SAsc)),
+    (Equals, _ => Construct(SOp(SEquals))),
+    (Enter, _ => Construct(SLine)),
+    (Backslash, _ => Construct(SLam)),
+    (Plus, _ => Construct(SOp(SPlus))),
+    (Minus, _ => Construct(SOp(SMinus))),
+    (Asterisk, _ => Construct(SOp(STimes))),
+    (Slash, _ => Construct(SOp(SDivide))),
+    (LT, _ => Construct(SOp(SLessThan))),
     (
       Space,
       fun
-      | {CursorInfo_common.cursor_term: Line(_, CommentLine(_)), _} =>
-        Action_common.Construct(SChar(" "))
-      | _ => Action_common.Construct(SOp(SSpace)),
+      | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
+        Construct(SChar(" "))
+      | _ => Construct(SOp(SSpace)),
     ),
-    (Comma, _ => Action_common.Construct(SOp(SComma))),
+    (Comma, _ => Construct(SOp(SComma))),
     (
       LeftBracket,
       fun
-      | {CursorInfo_common.typed: OnType, _} =>
-        Action_common.Construct(SList)
-      | _ => Action_common.Construct(SListNil),
+      | {CursorInfo.typed: OnType, _} => Construct(SList)
+      | _ => Construct(SListNil),
     ),
-    (Semicolon, _ => Action_common.Construct(SOp(SCons))),
-    (Alt_L, _ => Action_common.Construct(SInj(L))),
-    (Alt_R, _ => Action_common.Construct(SInj(R))),
-    (Alt_C, _ => Action_common.Construct(SCase)),
-    (Pound, _ => Action_common.Construct(SCommentLine)),
-    (Shift_Enter, _ => Action_common.Construct(SCommentLine)),
-    (Ctrl_Alt_I, _ => Action_common.SwapUp),
-    (Ctrl_Alt_K, _ => Action_common.SwapDown),
-    (Ctrl_Alt_J, _ => Action_common.SwapLeft),
-    (Ctrl_Alt_L, _ => Action_common.SwapRight),
-    (Dot, _ => Action_common.Construct(SOp(SDot))),
+    (Semicolon, _ => Construct(SOp(SCons))),
+    (Alt_L, _ => Construct(SInj(L))),
+    (Alt_R, _ => Construct(SInj(R))),
+    (Alt_C, _ => Construct(SCase)),
+    (Pound, _ => Construct(SCommentLine)),
+    (Shift_Enter, _ => Construct(SCommentLine)),
+    (Ctrl_Alt_I, _ => SwapUp),
+    (Ctrl_Alt_K, _ => SwapDown),
+    (Ctrl_Alt_J, _ => SwapLeft),
+    (Ctrl_Alt_L, _ => SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let get =
-    (cursor_info: CursorInfo_common.t, kc: HazelKeyCombos.t): Action_common.t => {
+let get = (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): Action.t => {
   let action_of_ci = Hashtbl.find(table, kc);
   action_of_ci(cursor_info);
 };

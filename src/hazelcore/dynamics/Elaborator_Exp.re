@@ -198,7 +198,12 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
@@ -232,7 +237,12 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
@@ -334,7 +344,12 @@ and matches_cast_Pair =
   | Pair(d1, d2) =>
     switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -395,7 +410,20 @@ and matches_cast_Cons =
   | Cons(d1, d2) =>
     switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      let list_casts =
+        List.map(
+          (c: (HTyp.t, HTyp.t)) => {
+            let (ty1, ty2) = c;
+            (HTyp.List(ty1), HTyp.List(ty2));
+          },
+          elt_casts,
+        );
+      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      };
     | Matches(env1) =>
       let list_casts =
         List.map(
@@ -739,22 +767,6 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(NotInHole, Dot, skel1, Placeholder(n)) =>
-    let en = seq |> Seq.nth_operand(n);
-    switch (syn_elab_skel(ctx, delta, skel1, seq)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(_, _, delta) =>
-      switch (en) {
-      | Label(NotInLabelHole, l) =>
-        let skels = UHExp.get_tuple_elements(skel1);
-        switch (UHExp.get_projected_skel(skels, seq, l)) {
-        | None => DoesNotElaborate
-        | Some(skel) => syn_elab_skel(ctx, delta, skel, seq)
-        };
-      | _ => DoesNotElaborate
-      }
-    };
-  | BinOp(NotInHole, Dot, _, _) => DoesNotElaborate
   }
 
 and syn_elab_operand =
@@ -1195,8 +1207,7 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Space |
-      Dot,
+      Space,
       _,
       _,
     ) =>

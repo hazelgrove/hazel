@@ -1,4 +1,4 @@
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
@@ -250,16 +250,16 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
 };
 
 let rec syn_cursor_info =
-        (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo_common.t) => {
+        (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo.t) => {
   syn_cursor_info_zblock(~steps, ctx, ze);
 }
 and syn_cursor_info_zblock =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (Statics_Exp.syn_lines(ctx, prefix)) {
   | None => None
   | Some(ctx) =>
@@ -280,8 +280,8 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath_common.steps, ctx: Contexts.t, zline: ZExp.zline)
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_) =>
     Some(
@@ -336,11 +336,11 @@ and syn_cursor_info_line =
   }
 and syn_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   // handle n-tuples:
   // cannot simply defer to syn_cursor_info_skel here
   // because it assumes binary tupling -- this would
@@ -369,12 +369,12 @@ and syn_cursor_info_zopseq =
 }
 and syn_cursor_info_skel =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let seq = zseq |> ZExp.erase_zseq;
   if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
     // found cursor
@@ -518,18 +518,12 @@ and syn_cursor_info_skel =
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_list);
         }
       }
-    | BinOp(_, Dot, _, _) =>
-      failwith(__LOC__ ++ " Unimplemented Label Projection")
     };
   };
 }
 and syn_cursor_info_zoperand =
-    (
-      ~steps: CursorPath_common.steps,
-      ctx: Contexts.t,
-      zoperand: ZExp.zoperand,
-    )
-    : option(CursorInfo_common.t) => {
+    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
@@ -587,7 +581,7 @@ and syn_cursor_info_zoperand =
     | None => None
     | Some(pat_ty) =>
       /* lub of all of the branches except the one with the cursor */
-      let lub_opt: option(CursorInfo_common.join_of_branches) =
+      let lub_opt: option(CursorInfo.join_of_branches) =
         switch (prefix @ suffix) {
         | [] => Some(NoBranches)
         | other_branches =>
@@ -637,16 +631,16 @@ and syn_cursor_info_zoperand =
 }
 and ana_cursor_info =
     (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t)
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   ana_cursor_info_zblock(~steps, ctx, ze, ty)
 and ana_cursor_info_zblock =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (Statics_Exp.syn_lines(ctx, prefix)) {
   | None => None
   | Some(ctx) =>
@@ -689,12 +683,12 @@ and ana_cursor_info_zblock =
   }
 and ana_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
@@ -744,13 +738,13 @@ and ana_cursor_info_zopseq =
 and ana_cursor_info_skel =
     // steps of whole opseq
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
   let syn_go = skel => syn_cursor_info_skel(~steps, ctx, skel, zseq);
   let ana_go = (skel, ty) =>
@@ -822,8 +816,7 @@ and ana_cursor_info_skel =
         FEquals |
         And |
         Or |
-        Space |
-        Dot,
+        Space,
         _,
         _,
       ) =>
@@ -833,12 +826,12 @@ and ana_cursor_info_skel =
 }
 and ana_cursor_info_zoperand =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, e) =>
@@ -1028,14 +1021,14 @@ and ana_cursor_info_zoperand =
 }
 and syn_cursor_info_rule =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
-      lub: CursorInfo_common.join_of_branches,
+      lub: CursorInfo.join_of_branches,
       rule_index: int,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
@@ -1060,7 +1053,7 @@ and syn_cursor_info_rule =
       | (_, None) => None
       | (false, _) => cursor_info
       | (true, Some({typed, ctx, uses, _})) =>
-        let typed = CursorInfo_common.SynBranchClause(lub, typed, rule_index);
+        let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
         let cursor_term = extract_from_zrule(zrule);
         Some({cursor_term, typed, ctx, uses});
       };
@@ -1068,13 +1061,13 @@ and syn_cursor_info_rule =
   }
 and ana_cursor_info_rule =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))

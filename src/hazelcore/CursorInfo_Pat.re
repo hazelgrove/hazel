@@ -1,4 +1,4 @@
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
 let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
@@ -45,15 +45,15 @@ and get_zoperand_from_zpat_operand =
 };
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
-        : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+        : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   syn_cursor_info_zopseq(~steps, ctx, zp)
 and syn_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq): ZPat.zopseq,
     )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   // handle n-tuples:
   // cannot simply defer to syn_cursor_info_skel here
   // because it assumes binary tupling -- this would
@@ -115,12 +115,12 @@ and syn_cursor_info_zopseq =
 }
 and syn_cursor_info_skel =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
     )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   let seq = zseq |> ZPat.erase_zseq;
   if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
     // found cursor
@@ -175,12 +175,8 @@ and syn_cursor_info_skel =
   };
 }
 and syn_cursor_info_zoperand =
-    (
-      ~steps: CursorPath_common.steps,
-      ctx: Contexts.t,
-      zoperand: ZPat.zoperand,
-    )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZPat.zoperand)
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zoperand) {
   | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(
@@ -222,17 +218,17 @@ and syn_cursor_info_zoperand =
   }
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   ana_cursor_info_zopseq(~steps, ctx, zp, ty);
 }
 and ana_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   // handle n-tuples:
   // cannot simply defer to ana_cursor_info_skel here
   // because it assumes binary tupling -- this would
@@ -318,13 +314,13 @@ and ana_cursor_info_zopseq =
 }
 and ana_cursor_info_skel =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   let seq = zseq |> ZPat.erase_zseq;
   if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
     // found cursor
@@ -407,12 +403,12 @@ and ana_cursor_info_skel =
 }
 and ana_cursor_info_zoperand =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   let cursor_term = extract_from_zpat_operand(zoperand);
   switch (zoperand) {
   | CursorP(_, operand) =>

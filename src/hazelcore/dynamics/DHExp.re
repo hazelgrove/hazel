@@ -26,8 +26,7 @@ module BinBoolOp = {
     | FEquals
     | Space
     | Cons
-    | Comma
-    | Dot => None
+    | Comma => None
     };
 
   let to_op = (op: t): UHExp.operator =>
@@ -68,8 +67,7 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma
-    | Dot => None
+    | Comma => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -115,8 +113,7 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma
-    | Dot => None
+    | Comma => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
