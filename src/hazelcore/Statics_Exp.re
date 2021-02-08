@@ -166,7 +166,6 @@ module rec M: Statics_Exp_Sig.S = {
       shape,
       expand,
       expansion_type,
-      model_type,
       _,
     }: UHExp.livelit_record = llrecord;
     let captures_ty =
@@ -177,7 +176,6 @@ module rec M: Statics_Exp_Sig.S = {
     let new_ll_def: LivelitDefinition.t = {
       name: name_str,
       captures_ty,
-      model_ty: UHTyp.expand(model_type),
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
       init_model: mk_ll_init(init),

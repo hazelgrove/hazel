@@ -21,7 +21,6 @@ type t = {
   expansion_ty: HTyp.t,
   captures_ty: HTyp.t,
   param_tys: list((Var.t, HTyp.t)),
-  model_ty: HTyp.t,
   init_model: SpliceGenCmd.t(SerializedModel.t),
   update:
     (SerializedAction.t, SerializedModel.t) =>
