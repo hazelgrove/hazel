@@ -25,6 +25,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | Subscript(ErrStatus.t, t, t, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -198,6 +199,7 @@ and get_err_status_operand =
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
+  | Subscript(err, _, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
@@ -227,6 +229,8 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | Subscript(_, target, start_, end_) => 
+    Subscript(err, target, start_, end_)
   };
 
 let is_inconsistent = operand =>
@@ -259,6 +263,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
@@ -270,6 +275,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -378,6 +384,11 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
+  | Subscript(InHole(_), _, _, _) => false
+  | Subscript(NotInHole, target, start_, end_) => 
+    is_complete(target, check_type_holes) && 
+    is_complete(start_, check_type_holes) &&
+    is_complete(end_, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

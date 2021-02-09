@@ -13,7 +13,8 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   | SGreaterThan
   | SEquals
   | SSpace
-  | SCons => None
+  | SCons
+  | SCaret => None
   };
 
 let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
@@ -227,7 +228,8 @@ and perform_operand =
       UpdateApPalette(_) |
       Construct(
         SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
-        SCommentLine,
+        SCommentLine |
+        SQuote,
       ) |
       SwapUp |
       SwapDown,
@@ -263,7 +265,10 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-  | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
+  | (
+      Backspace,
+      CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String),
+    ) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
   /* ( _ )<|  ==>  _| */
@@ -294,6 +299,8 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+  | (Construct(SChar("S")), CursorT(_, Hole)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>

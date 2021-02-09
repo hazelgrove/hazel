@@ -15,12 +15,14 @@ type operator_shape =
   | SVBar
   | SCons
   | SAnd
-  | SOr;
+  | SOr
+  | SCaret;
 
 [@deriving sexp]
 type shape =
   | SCommentLine
   | SList
+  | SQuote
   | SParenthesized
   | SChar(string)
   | SAsc

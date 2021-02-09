@@ -3,6 +3,7 @@ open Action;
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
+  | SQuote => "new string literal"
   | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAsc => "type annotation"
@@ -33,6 +34,7 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
+    | SCaret => "^"
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };
