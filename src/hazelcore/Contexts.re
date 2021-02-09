@@ -2,7 +2,7 @@
 type t'('closed_llarg) = (VarCtx.t, LivelitCtx.t('closed_llarg));
 [@deriving sexp]
 type t = t'(HTyp.t);
-let empty = (BuiltinFunctions.ctx, LivelitCtx.empty);
+let empty = (BuiltinFunctions.ctx, BuiltinLivelits.ctx);
 
 let gamma = ((gamma, _): t'('a)): VarCtx.t => gamma;
 let extend_gamma = (ctx: t'('a), binding: (Var.t, HTyp.t)): t'('a) => {

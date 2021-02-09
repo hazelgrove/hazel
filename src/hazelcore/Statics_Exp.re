@@ -189,6 +189,10 @@ module rec M: Statics_Exp_Sig.S = {
      * alternate approach to consider is adding an error field to
      * livelitdefs and dealing with these heterogenously at
      * the ap site. */
+
+    // TODO(andrew):
+    // below approach is inadequate as it prevents using prebuilt livelits
+    // inside lldefs since UHExp.is_complete ApLivelit case is false for livelit aps
     let ll_def_valid =
       UHExp.is_complete(init, false)
       && UHExp.is_complete(update, false)

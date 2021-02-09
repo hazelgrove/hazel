@@ -241,8 +241,10 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
            (x, ty);
          });
     let var_ctx = VarCtx.of_list(splice_ctx_list @ param_tys);
-    let livelit_ctx = LivelitCtx.empty;
-    let ctx: Contexts.t'((DHExp.t, HTyp.t)) = (var_ctx, livelit_ctx);
+    let ctx: Contexts.t'((DHExp.t, HTyp.t)) = (
+      var_ctx,
+      BuiltinLivelits.ctx,
+    );
 
     ctx;
   };

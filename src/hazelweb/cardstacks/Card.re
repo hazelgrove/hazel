@@ -5,7 +5,7 @@ type t = {
 };
 
 let mk = (info: CardInfo.t): t => {
-  let init_ctx = (VarCtx.empty, Livelits.initial_livelit_ctx);
+  let init_ctx = (VarCtx.empty, BuiltinLivelits.ctx);
   let edit_state: Program.EditState.t =
     switch (info.init_term) {
     | Unfocused(e) =>

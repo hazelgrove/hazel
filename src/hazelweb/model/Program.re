@@ -91,10 +91,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info((
-      BuiltinFunctions.ctx,
-      Livelits.initial_livelit_ctx,
-    )),
+    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
   );
 let get_cursor_info = (program: t) => {
   switch (program.edit_state.term) {
@@ -150,7 +147,7 @@ let elaborate__livelit_holes_false = {
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
       ~livelit_holes=false,
-      (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx),
+      Contexts.empty,
       Delta.empty,
     ),
   );
@@ -158,11 +155,7 @@ let elaborate__livelit_holes_false = {
 let elaborate__livelit_holes_true = {
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(
-      ~livelit_holes=true,
-      (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx),
-      Delta.empty,
-    ),
+    Elaborator_Exp.syn_elab(~livelit_holes=true, Contexts.empty, Delta.empty),
   );
 };
 let elaborate = (~livelit_holes) =>
@@ -376,7 +369,7 @@ let perform_action =
     | _ =>
       let ze = EditState.get_focused_term(program.edit_state);
       let EditState.{ty, u_gen, _} = program.edit_state;
-      let init_ctx = (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx);
+      let init_ctx = Contexts.empty;
       switch (Action_Exp.syn_perform(init_ctx, a, (ze, ty, u_gen))) {
       | Failed => raise(FailedAction)
       | CursorEscaped(_) => raise(CursorEscaped)

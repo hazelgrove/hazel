@@ -17,6 +17,18 @@ module LivelitView = {
   type t = splice_and_param_getters => div_type;
 };
 
+module type LIVELIT_VIEW = {
+  [@deriving sexp]
+  type model;
+  [@deriving sexp]
+  type action;
+
+  type trigger = action => Event.t;
+  type sync = action => unit;
+  let view: (model, trigger, sync) => LivelitView.t;
+  let view_shape: model => LivelitShape.t;
+};
+
 module type LIVELIT = {
   let name: LivelitName.t;
   let expansion_ty: HTyp.t;
@@ -29,35 +41,40 @@ module type LIVELIT = {
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_model: SpliceGenCmd.t(model);
-  let update: (model, action) => SpliceGenCmd.t(model);
   let view: (model, trigger, sync) => LivelitView.t;
   let view_shape: model => LivelitShape.t;
+  let init_model: SpliceGenCmd.t(model);
+  let update: (model, action) => SpliceGenCmd.t(model);
   let expand: model => UHExp.t;
 };
+module MkLivelit =
+       (
+         LC: BuiltinLivelits.LIVELIT_CORE,
+         LV:
+           LIVELIT_VIEW with
+             type model := LC.model and type action := LC.action,
+       )
+       : LIVELIT => {
+  let name = LC.name;
+  let expansion_ty = LC.expansion_ty;
+  let param_tys = LC.param_tys;
 
-module LivelitAdapter = (L: LIVELIT) => {
+  [@deriving sexp]
+  type model = LC.model;
+  [@deriving sexp]
+  type action = LC.action;
+  type trigger = LV.trigger;
+  type sync = LV.sync;
+
+  let init_model = LC.init_model;
+  let update = LC.update;
+  let expand = LC.expand;
+  let view = LV.view;
+  let view_shape = LV.view_shape;
+};
+
+module LivelitViewAdapter = (L: LIVELIT) => {
   let serialize_monad = model => SpliceGenCmd.return(L.sexp_of_model(model));
-
-  /* generate livelit definition for Semantics */
-  let livelit_defn =
-    LivelitDefinition.{
-      name: L.name,
-      expansion_ty: L.expansion_ty,
-      captures_ty: None, // NOTE(andrew): used only for user-defined livelits
-      param_tys: L.param_tys,
-      init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
-      update: (serialized_model, serialized_action) =>
-        SpliceGenCmd.bind(
-          L.update(
-            L.model_of_sexp(serialized_model),
-            L.action_of_sexp(serialized_action),
-          ),
-          serialize_monad,
-        ),
-      expand: serialized_model =>
-        Success(L.expand(L.model_of_sexp(serialized_model))),
-    };
 
   let serialized_view_fn = (serialized_model, trigger, sync) =>
     L.view(
@@ -69,12 +86,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   let serialized_view_shape_fn = serialized_model =>
     L.view_shape(L.model_of_sexp(serialized_model));
 
-  let contexts_entry = (
-    L.name,
-    livelit_defn,
-    serialized_view_fn,
-    serialized_view_shape_fn,
-  );
+  let contexts_entry = (L.name, serialized_view_fn, serialized_view_shape_fn);
 };
 
 type trigger_serialized = SerializedAction.t => Event.t;
@@ -88,46 +100,20 @@ module LivelitViewCtx = {
   include VarMap;
 };
 
-module LivelitContexts = {
-  type t('a) = (LivelitCtx.t('a), LivelitViewCtx.t);
-  let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
+module LivelitViewContexts = {
+  type t = LivelitViewCtx.t;
+  let empty = LivelitViewCtx.empty;
   let extend =
       (
-        (livelit_ctx, livelit_view_ctx),
-        (
-          name,
-          def: LivelitDefinition.t,
-          serialized_view_fn,
-          serialized_view_shape_fn,
-        ),
+        livelit_view_ctx,
+        (name, serialized_view_fn, serialized_view_shape_fn),
       ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
     };
-    if (name != def.name) {
-      failwith(
-        "Livelit name " ++ name ++ " differs from def name " ++ def.name,
-      );
-    };
-    let (param_names, _) = List.split(def.param_tys);
-    let rec contains_dupl =
-      fun
-      | [] => false
-      | [hd, ...tl] => List.mem(hd, tl) || contains_dupl(tl);
-    if (contains_dupl(param_names)) {
-      failwith(
-        "Parameter names for livelit "
-        ++ name
-        ++ " must be unique: "
-        ++ String.concat(", ", param_names),
-      );
-    };
-    (
-      VarMap.extend(livelit_ctx, (name, (def, []))),
-      VarMap.extend(
-        livelit_view_ctx,
-        (name, (serialized_view_fn, serialized_view_shape_fn)),
-      ),
+    VarMap.extend(
+      livelit_view_ctx,
+      (name, (serialized_view_fn, serialized_view_shape_fn)),
     );
   };
 };
@@ -139,25 +125,13 @@ let attr_style = Attr.create("style");
 let prop_val = (prop: string, value: string) =>
   StringUtil.cat([prop, ": ", value, ";"]);
 
-module PairLivelit: LIVELIT = {
-  let name = "$pair";
-  let expansion_ty = HTyp.(Prod([Hole, Hole]));
-  let param_tys = [];
-
+module PairLivelitView = {
   [@deriving sexp]
   type model = (int, int);
   [@deriving sexp]
   type action = unit;
   type trigger = action => Event.t;
   type sync = action => unit;
-
-  let init_model =
-    SpliceGenCmd.bind(SpliceGenCmd.new_splice(HTyp.Hole), leftID =>
-      SpliceGenCmd.bind(SpliceGenCmd.new_splice(HTyp.Hole), rightID =>
-        SpliceGenCmd.return((leftID, rightID))
-      )
-    );
-  let update = (m, _) => SpliceGenCmd.return(m);
 
   let view =
       (
@@ -175,39 +149,16 @@ module PairLivelit: LIVELIT = {
       // TODO fix brittle magic constant
       20,
     );
-
-  let expand = ((leftID, rightID)) => {
-    let pair_seq =
-      Seq.mk(
-        _to_uhvar(leftID),
-        [(Operators_Exp.Comma, _to_uhvar(rightID))],
-      );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(pair_seq));
-  };
 };
 
-module type MAT_INFO = {
-  let name: LivelitName.t;
-  let is_live: bool;
-};
-
-module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
-  let name = I.name;
-  let expansion_ty = HTyp.(List(List(Int)));
-  let param_tys = [];
-
+module MatrixLivelitView = {
   // assume nonzero height and width
   [@deriving sexp]
-  type model = (SpliceName.t, list(list(SpliceName.t)));
+  type model = BuiltinLivelits.MatrixLivelitCore.model;
   [@deriving sexp]
-  type dim =
-    | Row
-    | Col;
+  type dim = BuiltinLivelits.MatrixLivelitCore.dim;
   [@deriving sexp]
-  type action =
-    | Select(SpliceName.t)
-    | Add(dim)
-    | Del(dim, int);
+  type action = BuiltinLivelits.MatrixLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
 
@@ -217,84 +168,6 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
   let get_height = (m: list(list(SpliceName.t))): int => List.length(m);
   let get_width = (m: list(list(SpliceName.t))): int =>
     List.length(List.hd(m));
-
-  let init_model =
-    SpliceGenCmd.(
-      MonadsUtil.bind_count(
-        init_height,
-        bind(
-          MonadsUtil.bind_count(
-            init_width,
-            bind(new_splice(HTyp.Int)),
-            return,
-          ),
-        ),
-        grid =>
-        return((grid |> List.hd |> List.hd, grid))
-      )
-    );
-
-  let update = ((selected, m)) =>
-    fun
-    | Select(to_select) => {
-        let to_select_in_grid =
-          !(m |> List.for_all(List.for_all(s => s != to_select)));
-        if (!to_select_in_grid) {
-          JSUtil.log(
-            Printf.sprintf(
-              "Attempt to select splice name %d, which is not in the matrix",
-              to_select,
-            ),
-          );
-        };
-        SpliceGenCmd.return((to_select_in_grid ? to_select : selected, m));
-      }
-    | Add(Row) =>
-      SpliceGenCmd.(
-        MonadsUtil.bind_count(
-          get_width(m), bind(new_splice(HTyp.Int)), new_row =>
-          return((selected, m @ [new_row]))
-        )
-      )
-    | Add(Col) =>
-      SpliceGenCmd.(
-        MonadsUtil.bind_count(
-          get_height(m), bind(new_splice(HTyp.Int)), new_col =>
-          return((selected, List.map2((c, r) => r @ [c], new_col, m)))
-        )
-      )
-    | Del(dim, i) => {
-        let drop = (to_drop, ret) => {
-          let selected_in_to_drop =
-            !(to_drop |> List.for_all(s => s != selected));
-          let to_select =
-            selected_in_to_drop ? ret |> List.hd |> List.hd : selected;
-          SpliceGenCmd.(
-            MonadsUtil.bind_list(
-              to_drop,
-              d => bind(drop_splice(d)),
-              _ => return((to_select, ret)),
-            )
-          );
-        };
-        switch (dim) {
-        | Row =>
-          if (get_height(m) <= 1) {
-            SpliceGenCmd.return((selected, m));
-          } else {
-            let (before, to_drop, after) = ListUtil.split_nth(i, m);
-            drop(to_drop, before @ after);
-          }
-        | Col =>
-          if (get_width(m) <= 1) {
-            SpliceGenCmd.return((selected, m));
-          } else {
-            let (before, to_drop, after) =
-              m |> List.map(r => ListUtil.split_nth(i, r)) |> ListUtil.split3;
-            drop(to_drop, List.map2((b, a) => b @ a, before, after));
-          }
-        };
-      };
 
   let grid_area = (row_start, col_start, row_end, col_end) =>
     prop_val(
@@ -324,7 +197,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
              [
                attr_style(grid_area(i + 3, 1, i + 4, 2)),
                Attr.classes(["row-header", "pure-button"]),
-               Attr.on_click(_ => trig(Del(Row, i))),
+               Attr.on_click(_ => trig(Del(Row, i): action)),
              ],
              [
                Node.span(
@@ -372,7 +245,8 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         [Node.text("+")],
       );
     let maybe_add_formula_bar = rest =>
-      if (!I.is_live) {
+      if (!true) {
+        // TODO: refactor to remove this check
         rest;
       } else {
         Node.div(
@@ -401,7 +275,8 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
            row
            |> List.mapi((j, splice) => {
                 let contents =
-                  if (!I.is_live) {
+                  if (!true) {
+                    // TODO: refactor to remove this check
                     Node.div(
                       [Attr.classes(["matrix-splice"])],
                       [uhcode(splice)],
@@ -475,143 +350,24 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
 
   let view_shape = ((_, matrix)) => {
     let num_rows = List.length(matrix);
-    LivelitShape.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
-  };
-
-  let expand = ((_, m)) => {
-    let to_uhexp_list =
-      fun
-      | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
-      | [fst, ...rest] => {
-          let rest' =
-            (rest |> List.map(item => (Operators_Exp.Cons, item)))
-            @ [(Operators_Exp.Cons, UHExp.ListNil(NotInHole))];
-          let seq = Seq.mk(fst, rest');
-          UHExp.Block.wrap'(UHExp.mk_OpSeq(seq));
-        };
-    let m' =
-      m
-      |> List.map(r =>
-           r
-           |> List.map(_to_uhvar)
-           |> to_uhexp_list
-           |> (q => UHExp.Parenthesized(q))
-         );
-    to_uhexp_list(m');
+    LivelitShape.MultiLine(3 * num_rows + 2 + (true ? 1 : 0)); // TODO: cleanup
   };
 };
 
-module MatrixLivelitInfo: MAT_INFO = {
-  let name = "$matrix";
-  let is_live = false;
-};
-module MatrixLivelit = MatrixLivelitFunctor(MatrixLivelitInfo);
-module LiveMatrixLivelitInfo: MAT_INFO = {
-  let name = "$live_matrix";
-  let is_live = true;
-};
-module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
-
-module GradeCutoffLivelit: LIVELIT = {
-  let name = "$grade_cutoffs";
-  let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
-  let param_tys = [("data", HTyp.(List(Int)))];
+module GradeCutoffLivelitView = {
+  [@deriving sexp]
+  type letter_grade = BuiltinLivelits.GradeCutoffLivelitCore.letter_grade;
 
   [@deriving sexp]
-  type letter_grade =
-    | A
-    | B
-    | C
-    | D;
+  type model = BuiltinLivelits.GradeCutoffLivelitCore.model;
 
   [@deriving sexp]
-  type model = {
-    a: int,
-    b: int,
-    c: int,
-    d: int,
-    selecting: option(letter_grade),
-  };
-
-  [@deriving sexp]
-  type action =
-    | UpdateCutoff(letter_grade, int)
-    | StartSelecting(letter_grade)
-    | StopSelecting;
+  type action = BuiltinLivelits.GradeCutoffLivelitCore.action;
 
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_model =
-    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selecting: None});
-
   let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
-
-  let rec update_a = (new_a, model): model =>
-    if (!is_valid_percentage(new_a)) {
-      model;
-    } else {
-      let updated = {...model, a: new_a};
-      if (updated.a < updated.b) {
-        update_b(updated.a - 1, updated);
-      } else {
-        updated;
-      };
-    }
-  and update_b = (new_b, model): model =>
-    if (!is_valid_percentage(new_b)) {
-      model;
-    } else {
-      let updated = {...model, b: new_b};
-      if (updated.a <= updated.b) {
-        update_a(updated.b + 1, updated);
-      } else if (updated.b <= updated.c) {
-        update_c(updated.b - 1, updated);
-      } else {
-        updated;
-      };
-    }
-  and update_c = (new_c, model): model =>
-    if (!is_valid_percentage(new_c)) {
-      model;
-    } else {
-      let updated = {...model, c: new_c};
-      if (updated.b <= updated.c) {
-        update_b(updated.c + 1, updated);
-      } else if (updated.c <= updated.d) {
-        update_d(updated.c - 1, updated);
-      } else {
-        updated;
-      };
-    }
-  and update_d = (new_d, model): model =>
-    if (!is_valid_percentage(new_d)) {
-      model;
-    } else {
-      let updated = {...model, d: new_d};
-      if (updated.c <= updated.d) {
-        update_c(updated.c + 1, updated);
-      } else {
-        updated;
-      };
-    };
-
-  let update = (model, action) =>
-    SpliceGenCmd.return(
-      switch (action) {
-      | StopSelecting => {...model, selecting: None}
-      | StartSelecting(letter) => {...model, selecting: Some(letter)}
-      | UpdateCutoff(letter, new_cutoff) =>
-        let update =
-          switch (letter) {
-          | A => update_a(new_cutoff)
-          | B => update_b(new_cutoff)
-          | C => update_c(new_cutoff)
-          | D => update_d(new_cutoff)
-          };
-        update(model);
-      },
-    );
 
   let grades_invalids_to_svgs = ((grades, invalid_count)) => {
     let valid_grades =
@@ -652,7 +408,7 @@ module GradeCutoffLivelit: LIVELIT = {
 
   let view =
       (
-        {a, b, c, d, selecting},
+        {a, b, c, d, selecting}: BuiltinLivelits.GradeCutoffLivelitCore.model,
         trigger,
         _,
         {dargs: _, _}: LivelitView.splice_and_param_getters,
@@ -741,7 +497,7 @@ module GradeCutoffLivelit: LIVELIT = {
               Attr.[
                 classes(["grade-cutoff-thumb"]),
                 create("vector-effect", "non-scaling-stroke"),
-                on_mousedown(_ => trigger(StartSelecting(letter))),
+                on_mousedown(_ => trigger(StartSelecting(letter): action)),
               ],
             [M(origin), ...thumb],
           ),
@@ -971,67 +727,22 @@ module GradeCutoffLivelit: LIVELIT = {
       6,
     );
   };
-
-  let expand = ({a, b, c, d, selecting: _}) => {
-    let tupl_seq =
-      UHExp.(
-        Seq.mk(
-          intlit'(a),
-          [
-            (Operators_Exp.Comma, intlit'(b)),
-            (Operators_Exp.Comma, intlit'(c)),
-            (Operators_Exp.Comma, intlit'(d)),
-          ],
-        )
-      );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(tupl_seq));
-  };
 };
 
-module GrayscaleLivelit: LIVELIT = {
-  let name = "$basic_adjustments";
-  let expansion_ty = HTyp.Int;
-  let param_tys = [("url", HTyp.String)];
-
+module GrayscaleLivelitView = {
   [@deriving sexp]
-  type model = {
-    brightness: SpliceName.t,
-    grayscale: SpliceName.t,
-  };
+  type model = BuiltinLivelits.GrayscaleLivelitCore.model;
   [@deriving sexp]
-  type action = unit;
+  type action = BuiltinLivelits.GrayscaleLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
-
-  let init_model =
-    SpliceGenCmd.(
-      bind(
-        new_splice(
-          ~init_uhexp_gen=
-            u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
-          HTyp.Int,
-        ),
-        brightness =>
-        bind(
-          new_splice(
-            ~init_uhexp_gen=
-              u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
-            HTyp.Int,
-          ),
-          grayscale =>
-          return({brightness, grayscale})
-        )
-      )
-    );
-
-  let update = (model, _) => SpliceGenCmd.return(model);
 
   let height = 17;
   let view_shape = _ => LivelitShape.MultiLine(height);
 
   let view =
       (
-        {brightness, grayscale},
+        {brightness, grayscale}: model,
         _,
         _,
         {dargs, dhcode, uhcode}: LivelitView.splice_and_param_getters,
@@ -1113,11 +824,9 @@ module GrayscaleLivelit: LIVELIT = {
       ],
     );
   };
-
-  let expand = _ => UHExp.Block.wrap(UHExp.intlit'(0));
 };
 
-module ColorLivelit: LIVELIT = {
+module ColorLivelitView = {
   let name = "$color";
   let expansion_ty = HTyp.Prod([Int, Int, Int, Int]);
   let param_tys = [];
@@ -1178,92 +887,16 @@ module ColorLivelit: LIVELIT = {
   };
 
   [@deriving sexp]
-  type model = {
-    rgb: (SpliceName.t, SpliceName.t, SpliceName.t),
-    a: SpliceName.t,
-    selecting_sat_val: bool,
-  };
-  let init_model = {
-    let (rval, gval, bval) = (255, 0, 0);
-    SpliceGenCmd.(
-      bind(
-        new_splice(
-          ~init_uhexp_gen=
-            u_gen => (UHExp.(Block.wrap(intlit'(rval))), u_gen),
-          HTyp.Int,
-        ),
-        r =>
-        bind(
-          new_splice(
-            ~init_uhexp_gen=
-              u_gen => (UHExp.(Block.wrap(intlit'(gval))), u_gen),
-            HTyp.Int,
-          ),
-          g =>
-          bind(
-            new_splice(
-              ~init_uhexp_gen=
-                u_gen => (UHExp.(Block.wrap(intlit'(bval))), u_gen),
-              HTyp.Int,
-            ),
-            b =>
-            bind(
-              new_splice(
-                ~init_uhexp_gen=
-                  u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
-                HTyp.Int,
-              ),
-              a =>
-              return({rgb: (r, g, b), a, selecting_sat_val: false})
-            )
-          )
-        )
-      )
-    );
-  };
+  type model = BuiltinLivelits.ColorLivelitCore.model;
 
   [@deriving sexp]
-  type action =
-    | StartSelectingSatVal
-    | StopSelectingSatVal
-    | SelectRGB((int, int, int));
+  type action = BuiltinLivelits.ColorLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let update = (m, action) =>
-    switch (action) {
-    | StartSelectingSatVal =>
-      SpliceGenCmd.return({...m, selecting_sat_val: true})
-    | StopSelectingSatVal =>
-      SpliceGenCmd.return({...m, selecting_sat_val: false})
-    | SelectRGB((rval, gval, bval)) =>
-      let (r, g, b) = m.rgb;
-      SpliceGenCmd.(
-        bind(
-          map_splice(r, (_, u_gen) =>
-            ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
-          ),
-          _ =>
-          bind(
-            map_splice(g, (_, u_gen) =>
-              ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
-            ),
-            _ =>
-            bind(
-              map_splice(b, (_, u_gen) =>
-                ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
-              ),
-              _ =>
-              return(m)
-            )
-          )
-        )
-      );
-    };
-
   let view =
       (
-        {rgb: (r, g, b), a, selecting_sat_val},
+        {rgb: (r, g, b), a, selecting_sat_val}: model,
         trigger,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -1320,7 +953,7 @@ module ColorLivelit: LIVELIT = {
             let v = (height -. offset_y) /. height;
             let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
             Event.Many([
-              trigger(StartSelectingSatVal),
+              trigger(StartSelectingSatVal: action),
               trigger(SelectRGB(rgb)),
             ]);
           };
@@ -1530,203 +1163,66 @@ module ColorLivelit: LIVELIT = {
   };
 
   let view_shape = _ => LivelitShape.MultiLine(9);
-
-  let expand = ({rgb: (r, g, b), a, _}) => {
-    let four_tuple =
-      Seq.mk(
-        _to_uhvar(r),
-        [
-          (Operators_Exp.Comma, _to_uhvar(g)),
-          (Operators_Exp.Comma, _to_uhvar(b)),
-          (Operators_Exp.Comma, _to_uhvar(a)),
-        ],
-      );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(four_tuple));
-  };
 };
 
-module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
+/*
+ module GradientLivelitView = {
+   let name = "$gradient";
+   let expansion_ty = ColorLivelitView.expansion_ty;
+   let param_tys = [];
 
-module GradientLivelit: LIVELIT = {
-  let name = "$gradient";
-  let expansion_ty = ColorLivelit.expansion_ty;
-  let param_tys = [];
+   [@deriving sexp]
+   type model = BuiltinLivelits.GradientLivelitCore.model;
+   [@deriving sexp]
+   type action = BuiltinLivelits.GradientLivelitCore.action;
+   type trigger = action => Event.t;
+   type sync = action => unit;
 
-  let (color_livelit_ctx, _) =
-    LivelitContexts.extend(
-      LivelitContexts.empty,
-      ColorLivelitAdapter.contexts_entry,
-    );
-  let color_ctx = (VarCtx.empty, color_livelit_ctx);
+   let slider_min = 0;
+   let slider_max = 100;
+   let init_slider_value = 50;
 
+   let view =
+       (
+         model: model,
+         trigger,
+         _,
+         {uhcode, _}: LivelitView.splice_and_param_getters,
+       ) => {
+     Node.span(
+       [Attr.classes(["gradient-livelit"])],
+       [
+         uhcode(model.lcolor),
+         Node.input(
+           [
+             Attr.classes(["slider"]),
+             Attr.type_("range"),
+             Attr.create("min", string_of_int(slider_min)),
+             Attr.create("max", string_of_int(slider_max)),
+             Attr.value(string_of_int(model.slider_value)),
+             Attr.on_change((_, value_str) => {
+               let new_value = int_of_string(value_str);
+               trigger(Slide(new_value): action);
+             }),
+           ],
+           [],
+         ),
+         uhcode(model.rcolor),
+       ],
+     );
+   };
+
+   let view_shape = _ => LivelitShape.Inline(10);
+ };
+ */
+
+module CheckboxLivelitView = {
   [@deriving sexp]
-  type model = {
-    lcolor: SpliceName.t,
-    rcolor: SpliceName.t,
-    slider_value: int,
-  };
+  type model = BuiltinLivelits.CheckboxLivelitCore.model;
   [@deriving sexp]
-  type action =
-    | Slide(int);
+  type action = BuiltinLivelits.CheckboxLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
-
-  let slider_min = 0;
-  let slider_max = 100;
-  let init_slider_value = 50;
-  let init_model = {
-    let init_uhexp_gen = u_gen => {
-      let (u, u_gen) = MetaVarGen.next_livelit(u_gen);
-      let (e, _, u_gen) =
-        Statics_Exp.syn_fix_holes(
-          color_ctx,
-          u_gen,
-          UHExp.Block.wrap(FreeLivelit(u, "$color")),
-        );
-      (e, u_gen);
-    };
-    SpliceGenCmd.(
-      bind(new_splice(~init_uhexp_gen, ColorLivelit.expansion_ty), lcolor =>
-        bind(new_splice(~init_uhexp_gen, ColorLivelit.expansion_ty), rcolor =>
-          return({lcolor, rcolor, slider_value: init_slider_value})
-        )
-      )
-    );
-  };
-
-  let update = (model, a) =>
-    switch (a) {
-    | Slide(n) => SpliceGenCmd.return({...model, slider_value: n})
-    };
-
-  let view =
-      (model, trigger, _, {uhcode, _}: LivelitView.splice_and_param_getters) => {
-    Node.span(
-      [Attr.classes(["gradient-livelit"])],
-      [
-        uhcode(model.lcolor),
-        Node.input(
-          [
-            Attr.classes(["slider"]),
-            Attr.type_("range"),
-            Attr.create("min", string_of_int(slider_min)),
-            Attr.create("max", string_of_int(slider_max)),
-            Attr.value(string_of_int(model.slider_value)),
-            Attr.on_change((_, value_str) => {
-              let new_value = int_of_string(value_str);
-              trigger(Slide(new_value));
-            }),
-          ],
-          [],
-        ),
-        uhcode(model.rcolor),
-      ],
-    );
-  };
-
-  let view_shape = _ => LivelitShape.Inline(10);
-
-  let expand = ({lcolor, rcolor, slider_value}) => {
-    let typ_opseq = (hd, tl) => UHTyp.mk_OpSeq(Seq.mk(hd, tl));
-    let pat_opseq = (hd, tl) => UHPat.mk_OpSeq(Seq.mk(hd, tl));
-    let exp_opseq = (hd, tl) => UHExp.mk_OpSeq(Seq.mk(hd, tl));
-    let typ_triple = (x1, x2, x3) =>
-      typ_opseq(x1, [(Operators_Typ.Prod, x2), (Operators_Typ.Prod, x3)]);
-    let pat_triple = (x1, x2, x3) =>
-      UHPat.(pat_opseq(var(x1), [(Comma, var(x2)), (Comma, var(x3))]));
-    let scalar =
-      UHExp.floatlit'(
-        float_of_int(slider_value) /. float_of_int(slider_max),
-      );
-    let interpolate_vars = (x1, x2) =>
-      UHExp.(
-        Parenthesized(
-          Block.wrap'(
-            exp_opseq(
-              var(x1),
-              [
-                (FPlus, scalar),
-                (
-                  FTimes,
-                  Parenthesized(
-                    Block.wrap'(exp_opseq(var(x2), [(FMinus, var(x1))])),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        )
-      );
-    let interpolate =
-      UHExp.lam(
-        UHPat.(
-          pat_opseq(
-            Parenthesized(pat_triple("r1", "g1", "b1")),
-            [(Comma, Parenthesized(pat_triple("r2", "g2", "b2")))],
-          )
-        ),
-        ~ann=
-          UHTyp.(
-            typ_opseq(
-              Parenthesized(typ_triple(Float, Float, Float)),
-              [
-                (
-                  Operators_Typ.Prod,
-                  Parenthesized(typ_triple(Float, Float, Float)),
-                ),
-              ],
-            )
-          ),
-        UHExp.(
-          Block.wrap'(
-            exp_opseq(
-              interpolate_vars("r1", "r2"),
-              [
-                (Comma, interpolate_vars("g1", "g2")),
-                (Comma, interpolate_vars("b1", "b2")),
-              ],
-            ),
-          )
-        ),
-      );
-    UHExp.(
-      Block.wrap'(
-        exp_opseq(
-          interpolate,
-          [
-            (
-              Space,
-              Parenthesized(
-                Block.wrap'(
-                  exp_opseq(
-                    _to_uhvar(lcolor),
-                    [(Comma, _to_uhvar(rcolor))],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      )
-    );
-  };
-};
-
-module CheckboxLivelit: LIVELIT = {
-  let name = "$checkbox";
-  let expansion_ty = HTyp.Bool;
-  let param_tys = [];
-
-  [@deriving sexp]
-  type model = bool;
-  [@deriving sexp]
-  type action =
-    | Toggle;
-  type trigger = action => Event.t;
-  type sync = action => unit;
-
-  let init_model = SpliceGenCmd.return(false);
-  let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
   let view = (m, trig, _) => {
     let checked_state = m ? [Attr.checked] : [];
@@ -1734,7 +1230,7 @@ module CheckboxLivelit: LIVELIT = {
       Node.input(
         [
           Attr.type_("checkbox"),
-          Attr.on_input((_, _) => trig(Toggle)),
+          Attr.on_input((_, _) => trig(Toggle: action)),
           ...checked_state,
         ],
         [],
@@ -1743,27 +1239,17 @@ module CheckboxLivelit: LIVELIT = {
   };
 
   let view_shape = _ => LivelitShape.Inline(/* TODO! */ 1);
-
-  let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
 
-module SliderLivelitMin: LIVELIT = {
-  let name = "$slidem";
-  let expansion_ty = HTyp.Int;
-  let param_tys = [];
-
+module SliderLivelitMinView = {
   [@deriving sexp]
-  type model = int;
+  type model = BuiltinLivelits.SliderLivelitMinCore.model;
   [@deriving sexp]
-  type action = int;
+  type action = BuiltinLivelits.SliderLivelitMinCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return(0);
-  let update = (_, n) => SpliceGenCmd.return(n);
   let view_shape = _ => LivelitShape.Inline(14);
-  let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
-
   let view = (model, trigger: trigger, _sync, _) => {
     let value = string_of_int(model);
     let on_input = (_, value_str) => trigger(int_of_string(value_str));
@@ -1786,33 +1272,18 @@ module SliderLivelitMin: LIVELIT = {
   };
 };
 
-module SliderLivelit: LIVELIT = {
-  let name = "$slider";
-  let expansion_ty = HTyp.Int;
-  let param_tys = [("min", HTyp.Int), ("max", HTyp.Int)];
-
+module SliderLivelitView = {
   [@deriving sexp]
   type endpoint =
     | Min
     | Max;
 
   [@deriving sexp]
-  type model = option(int);
-
+  type model = BuiltinLivelits.SliderLivelitCore.model;
   [@deriving sexp]
-  type action =
-    | InvalidParams
-    | Slide(int);
+  type action = BuiltinLivelits.SliderLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
-
-  let init_model = SpliceGenCmd.return(Some(0));
-
-  let update = (_, a) =>
-    switch (a) {
-    | InvalidParams => SpliceGenCmd.return(None)
-    | Slide(n) => SpliceGenCmd.return(Some(n))
-    };
 
   let view = (model, trigger: trigger, sync) => {
     let _endpoint_view = (cls, value) => {
@@ -1916,7 +1387,7 @@ module SliderLivelit: LIVELIT = {
           | Some(n) when min <= n && n <= max => n
           | _ =>
             let new_value = (min + max) / 2;
-            sync(Slide(new_value));
+            sync(Slide(new_value): action);
             new_value;
           };
         slider(~disabled=false, ~min, ~max, ~value, ());
@@ -1931,169 +1402,28 @@ module SliderLivelit: LIVELIT = {
   };
 
   let view_shape = _ => LivelitShape.Inline(14);
-
-  let expand =
-    fun
-    | None => UHExp.Block.wrap(UHExp.intlit'(0))
-    | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
 };
 
-module DataFrameLivelit: LIVELIT = {
+module DataFrameLivelitView = {
   let name = "$data_frame";
   let expansion_ty =
     HTyp.(Prod([List(String), List(Prod([String, List(Float)]))]));
   let param_tys = [];
 
   [@deriving sexp]
-  type row = {
-    header: SpliceName.t,
-    cells: list(SpliceName.t),
-  };
+  type row = BuiltinLivelits.DataFrameLivelitCore.row;
   // assume nonzero height and width
   [@deriving sexp]
-  type model = {
-    selected: SpliceName.t,
-    col_headers: list(SpliceName.t),
-    rows: list(row),
-  };
-
+  type model = BuiltinLivelits.DataFrameLivelitCore.model;
   [@deriving sexp]
-  type dim =
-    | Row
-    | Col;
+  type dim = BuiltinLivelits.DataFrameLivelitCore.dim;
   [@deriving sexp]
-  type action =
-    | Select(SpliceName.t)
-    | Add(dim)
-    | Del(dim, int);
+  type action = BuiltinLivelits.DataFrameLivelitCore.action;
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_height = 3;
-  let init_width = 5;
-
-  let get_height = (m: model): int => List.length(m.rows);
-  let get_width = (m: model): int => List.length(m.col_headers);
-
-  let init_model =
-    SpliceGenCmd.(
-      MonadsUtil.bind_count(
-        init_height,
-        bind(
-          MonadsUtil.bind_count(
-            init_width, bind(new_splice(HTyp.Float)), row_cells =>
-            bind(new_splice(HTyp.String), row_header =>
-              return({header: row_header, cells: row_cells})
-            )
-          ),
-        ),
-        rows =>
-        MonadsUtil.bind_count(
-          init_width, bind(new_splice(HTyp.String)), col_headers =>
-          return({selected: List.hd(col_headers), col_headers, rows})
-        )
-      )
-    );
-
-  let update = (m, u): SpliceGenCmd.t(model) =>
-    switch (u) {
-    | Select(splice) => SpliceGenCmd.return({...m, selected: splice})
-    | Add(Row) =>
-      SpliceGenCmd.(
-        MonadsUtil.bind_count(
-          get_width(m), bind(new_splice(HTyp.Float)), new_cells =>
-          bind(new_splice(HTyp.String), new_header =>
-            return({
-              ...m,
-              selected: new_header,
-              rows: m.rows @ [{header: new_header, cells: new_cells}],
-            })
-          )
-        )
-      )
-    | Add(Col) =>
-      SpliceGenCmd.(
-        MonadsUtil.bind_count(
-          get_height(m), bind(new_splice(HTyp.Float)), new_cells =>
-          bind(new_splice(HTyp.String), new_header =>
-            return({
-              selected: new_header,
-              col_headers: m.col_headers @ [new_header],
-              rows:
-                List.map2(
-                  (r, c) => {...r, cells: r.cells @ [c]},
-                  m.rows,
-                  new_cells,
-                ),
-            })
-          )
-        )
-      )
-    | Del(Row, i) =>
-      switch (ListUtil.split_nth_opt(i, m.rows)) {
-      | None
-      | Some(([], _, [])) => SpliceGenCmd.return(m)
-      | Some((prefix, row_to_drop, suffix)) =>
-        let row_to_drop = [row_to_drop.header, ...row_to_drop.cells];
-        let selected =
-          List.exists((==)(m.selected), row_to_drop)
-            ? switch (ListUtil.split_first_opt(suffix)) {
-              | Some((hd, _)) => hd.header
-              | None =>
-                let (_, last) = ListUtil.split_last(prefix);
-                last.header;
-              }
-            : m.selected;
-        SpliceGenCmd.(
-          MonadsUtil.bind_list(
-            row_to_drop,
-            splice => bind(drop_splice(splice)),
-            _ => return({...m, selected, rows: prefix @ suffix}),
-          )
-        );
-      }
-    | Del(Col, i) =>
-      if (get_width(m) <= 1) {
-        SpliceGenCmd.return(m);
-      } else {
-        let (hdr_prefix, hdr_to_drop, hdr_suffix) =
-          ListUtil.split_nth(i, m.col_headers);
-        let (prefixes, cells_to_drop, suffixes) =
-          m.rows
-          |> List.map(row => row.cells)
-          |> List.map(ListUtil.split_nth(i))
-          |> ListUtil.split3;
-        let col_to_drop = [hdr_to_drop, ...cells_to_drop];
-        let selected =
-          List.exists((==)(m.selected), col_to_drop)
-            ? {
-              let col =
-                switch (ListUtil.split_first_opt(suffixes)) {
-                | Some((hd, _)) => hd
-                | None =>
-                  let (_, last) = ListUtil.split_last(prefixes);
-                  last;
-                };
-              List.hd(col);
-            }
-            : m.selected;
-        let col_headers = hdr_prefix @ hdr_suffix;
-        let rows = {
-          let row_hdrs = List.map(row => row.header, m.rows);
-          List.combine(row_hdrs, List.combine(prefixes, suffixes))
-          |> List.map(((header, (prefix, suffix))) =>
-               {header, cells: prefix @ suffix}
-             );
-        };
-        SpliceGenCmd.(
-          MonadsUtil.bind_list(
-            col_to_drop,
-            splice => bind(drop_splice(splice)),
-            _ => return({selected, col_headers, rows}),
-          )
-        );
-      }
-    };
+  let get_height = BuiltinLivelits.DataFrameLivelitCore.get_height;
+  let get_width = BuiltinLivelits.DataFrameLivelitCore.get_width;
 
   let grid_area = ((row_start, col_start, row_end, col_end)) =>
     prop_val(
@@ -2124,7 +1454,7 @@ module DataFrameLivelit: LIVELIT = {
               ? "matrix-selected" : "matrix-unselected",
             ...clss,
           ]),
-          Attr.on_mousedown(_ => trig(Select(splice_name))),
+          Attr.on_mousedown(_ => trig(Select(splice_name): action)),
           // Attr.on_click(_ => trig(Del(Col, j))),
         ],
         [
@@ -2149,7 +1479,7 @@ module DataFrameLivelit: LIVELIT = {
          );
     let row_headers =
       m.rows
-      |> List.mapi((i, row) =>
+      |> List.mapi((i, row: row) =>
            splice(
              ~clss=["row-header"],
              ~grid_coordinates=(i + 2, 1, i + 3, 2),
@@ -2158,7 +1488,7 @@ module DataFrameLivelit: LIVELIT = {
          );
     let cells =
       m.rows
-      |> List.mapi((i, row) =>
+      |> List.mapi((i, row: row) =>
            row.cells
            |> List.mapi((j, cell) =>
                 splice(
@@ -2240,72 +1570,58 @@ module DataFrameLivelit: LIVELIT = {
   let view_shape = m => {
     LivelitShape.MultiLine(3 * get_height(m) + 1);
   };
-
-  let expand = m => {
-    let to_uhexp_list =
-      fun
-      | [] => Seq.wrap(UHExp.listnil())
-      | [fst, ...rest] => {
-          let rest' =
-            (rest |> List.map(item => (Operators_Exp.Cons, item)))
-            @ [(Operators_Exp.Cons, UHExp.listnil())];
-          Seq.mk(fst, rest');
-        };
-    let col_headers = m.col_headers |> List.map(_to_uhvar) |> to_uhexp_list;
-    let rows =
-      m.rows
-      |> List.map(row => {
-           let header = _to_uhvar(row.header);
-           let cells = row.cells |> List.map(_to_uhvar) |> to_uhexp_list;
-           UHExp.(
-             Parenthesized([
-               ExpLine(
-                 UHExp.mk_OpSeq(
-                   Seq.S(header, A(Operators_Exp.Comma, cells)),
-                 ),
-               ),
-             ])
-           );
-         })
-      |> to_uhexp_list;
-    UHExp.[
-      ExpLine(
-        mk_OpSeq(Seq.seq_op_seq(col_headers, Operators_Exp.Comma, rows)),
-      ),
-    ];
-  };
 };
 
 /* ----------
    stuff below is infrastructure
    ---------- */
 
-module GradientLivelitAdapter = LivelitAdapter(GradientLivelit);
-module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
-module PairLivelitAdapter = LivelitAdapter(PairLivelit);
-module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
-module SliderLivelitMinAdapter = LivelitAdapter(SliderLivelitMin);
-module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
-module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
-module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
-module DataFrameLivelitAdapter = LivelitAdapter(DataFrameLivelit);
-module GrayscaleLivelitAdapter = LivelitAdapter(GrayscaleLivelit);
+module PairLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.PairLivelitCore, PairLivelitView);
+module GradeCutoffLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.GradeCutoffLivelitCore, GradeCutoffLivelitView);
+module GrayscaleLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.GrayscaleLivelitCore, GrayscaleLivelitView);
+module ColorLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.ColorLivelitCore, ColorLivelitView);
+module CheckboxLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.CheckboxLivelitCore, CheckboxLivelitView);
+module SliderLivelitMin: LIVELIT =
+  MkLivelit(BuiltinLivelits.SliderLivelitMinCore, SliderLivelitMinView);
+module SliderLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.SliderLivelitCore, SliderLivelitView);
+module MatrixLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.MatrixLivelitCore, MatrixLivelitView);
+module DataFrameLivelit: LIVELIT =
+  MkLivelit(BuiltinLivelits.DataFrameLivelitCore, DataFrameLivelitView);
+//module GradientLivelit: LIVELIT =
+//  MkLivelit(BuiltinLivelits.GradientLivelitCore, GradientLivelitView);
 
-let (initial_livelit_ctx, initial_livelit_view_ctx) =
+module ColorLivelitViewAdapter = LivelitViewAdapter(ColorLivelit);
+module CheckboxLivelitViewAdapter = LivelitViewAdapter(CheckboxLivelit);
+module PairLivelitViewAdapter = LivelitViewAdapter(PairLivelit);
+module SliderLivelitViewAdapter = LivelitViewAdapter(SliderLivelit);
+module SliderLivelitMinViewAdapter = LivelitViewAdapter(SliderLivelitMin);
+module MatrixLivelitViewAdapter = LivelitViewAdapter(MatrixLivelit);
+module GradeCutoffLivelitViewAdapter = LivelitViewAdapter(GradeCutoffLivelit);
+module DataFrameLivelitViewAdapter = LivelitViewAdapter(DataFrameLivelit);
+module GrayscaleLivelitViewAdapter = LivelitViewAdapter(GrayscaleLivelit);
+//module GradientLivelitViewAdapter = LivelitViewAdapter(GradientLivelit);
+
+let initial_livelit_view_ctx =
   List.fold_left(
-    LivelitContexts.extend,
-    LivelitContexts.empty,
+    LivelitViewContexts.extend,
+    LivelitViewContexts.empty,
     [
-      GrayscaleLivelitAdapter.contexts_entry,
-      DataFrameLivelitAdapter.contexts_entry,
-      GradeCutoffLivelitAdapter.contexts_entry,
-      MatrixLivelitAdapter.contexts_entry,
-      LiveMatrixLivelitAdapter.contexts_entry,
-      PairLivelitAdapter.contexts_entry,
-      CheckboxLivelitAdapter.contexts_entry,
-      SliderLivelitAdapter.contexts_entry,
-      ColorLivelitAdapter.contexts_entry,
-      GradientLivelitAdapter.contexts_entry,
-      SliderLivelitMinAdapter.contexts_entry,
+      GrayscaleLivelitViewAdapter.contexts_entry,
+      DataFrameLivelitViewAdapter.contexts_entry,
+      GradeCutoffLivelitViewAdapter.contexts_entry,
+      MatrixLivelitViewAdapter.contexts_entry,
+      PairLivelitViewAdapter.contexts_entry,
+      CheckboxLivelitViewAdapter.contexts_entry,
+      SliderLivelitViewAdapter.contexts_entry,
+      ColorLivelitViewAdapter.contexts_entry,
+      SliderLivelitMinViewAdapter.contexts_entry,
+      //GradientLivelitViewAdapter.contexts_entry,
     ],
   );
