@@ -25,7 +25,7 @@ type shape =
   | SQuote
   | SParenthesized
   | SChar(string)
-  | SAsc
+  | SAnn
   | SLam
   | SListNil
   | SInj(InjSide.t)

@@ -52,7 +52,8 @@ and syn_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, gamma) = syn_operand(ctx, operand');
     (HTyp.Hole, gamma);
@@ -63,7 +64,8 @@ and syn_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
+  | Inj(InHole(WrongLength, _), _, _)
+  | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -87,6 +89,10 @@ and syn_operand =
       };
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
+  | TypeAnn(NotInHole, op, ann) =>
+    let ty_ann = UHTyp.expand(ann);
+    let+ op_ctx = ana_operand(ctx, op, ty_ann);
+    (ty_ann, op_ctx);
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
@@ -148,6 +154,7 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | TypeAnn(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, ctx) = syn_operand(ctx, operand');
@@ -159,6 +166,7 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
@@ -181,6 +189,9 @@ and ana_operand =
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
+  | TypeAnn(NotInHole, op, ann) =>
+    let ty_ann = UHTyp.expand(ann);
+    HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
   };
 
 let rec syn_nth_type_mode =
@@ -411,6 +422,11 @@ and syn_fix_holes_operand =
       | R => HTyp.Sum(Hole, ty1)
       };
     (p, ty, ctx, u_gen);
+  | TypeAnn(_, op, ann) =>
+    let ty = UHTyp.expand(ann);
+    let (op, ctx, u_gen) =
+      ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
+    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
   };
 }
 and ana_fix_holes =
@@ -690,6 +706,25 @@ and ana_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
+  | TypeAnn(err, op, ann) =>
+    let ty_ann = UHTyp.expand(ann);
+    if (HTyp.consistent(ty, ty_ann)) {
+      let (op, ctx, u_gen) =
+        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
+      (TypeAnn(NotInHole, op, ann), ctx, u_gen);
+    } else {
+      let (op, _, _, u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHPat.set_err_status_operand(
+          InHole(TypeInconsistent, u),
+          TypeAnn(err, op, ann),
+        ),
+        ctx,
+        u_gen,
+      );
+    };
   };
 };
 

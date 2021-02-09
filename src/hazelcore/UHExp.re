@@ -9,7 +9,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, option(UHTyp.t), t)
+  | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -21,7 +21,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, StringLitBody.t)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -40,8 +40,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
-  LetLine(p, ann, def);
+let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
 
 let var =
     (
@@ -64,15 +63,8 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 let stringlit = (~err: ErrStatus.t=NotInHole, s: StringLitBody.t): operand =>
   StringLit(err, s);
 
-let lam =
-    (
-      ~err: ErrStatus.t=NotInHole,
-      p: UHPat.t,
-      ~ann: option(UHTyp.t)=?,
-      body: t,
-    )
-    : operand =>
-  Lam(err, p, ann, body);
+let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
+  Lam(err, p, body);
 
 let case =
     (
@@ -197,7 +189,7 @@ and get_err_status_operand =
   | BoolLit(err, _)
   | StringLit(err, _)
   | ListNil(err)
-  | Lam(err, _, _, _)
+  | Lam(err, _, _)
   | Inj(err, _, _)
   | Subscript(err, _, _, _)
   | Case(StandardErrStatus(err), _, _)
@@ -224,12 +216,12 @@ and set_err_status_operand = (err, operand) =>
   | BoolLit(_, b) => BoolLit(err, b)
   | StringLit(_, s) => StringLit(err, s)
   | ListNil(_) => ListNil(err)
-  | Lam(_, p, ann, def) => Lam(err, p, ann, def)
+  | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Subscript(_, target, start_, end_) => 
+  | Subscript(_, target, start_, end_) =>
     Subscript(err, target, start_, end_)
   };
 
@@ -261,7 +253,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
+  | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Subscript(InHole(TypeInconsistent, _), _, _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -273,7 +265,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | StringLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Lam(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
   | Case(
@@ -315,39 +307,26 @@ let associate =
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
+let rec is_complete_line = (l: line): bool => {
   switch (l) {
   | EmptyLine
   | CommentLine(_) => true
-  | LetLine(pat, option_ty, body) =>
-    if (check_type_holes) {
-      switch (option_ty) {
-      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-      | Some(ty) =>
-        UHPat.is_complete(pat)
-        && is_complete(body, check_type_holes)
-        && UHTyp.is_complete(ty)
-      };
-    } else {
-      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
-    }
-  | ExpLine(body) =>
-    OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   };
 }
-and is_complete_block = (b: block, check_type_holes: bool): bool => {
-  b |> List.for_all(l => is_complete_line(l, check_type_holes));
+and is_complete_block = (b: block): bool => {
+  b |> List.for_all(l => is_complete_line(l));
 }
-and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
+and is_complete_rule = (rule: rule): bool => {
   switch (rule) {
-  | Rule(pat, body) =>
-    UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+  | Rule(pat, body) => UHPat.is_complete(pat) && is_complete(body)
   };
 }
-and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
-  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
+and is_complete_rules = (rules: rules): bool => {
+  rules |> List.for_all(l => is_complete_rule(l));
 }
-and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
+and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -364,36 +343,22 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | StringLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
-  | Lam(InHole(_), _, _, _) => false
-  | Lam(NotInHole, pat, option_ty, body) =>
-    if (check_type_holes) {
-      switch (option_ty) {
-      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-      | Some(ty) =>
-        UHPat.is_complete(pat)
-        && is_complete(body, check_type_holes)
-        && UHTyp.is_complete(ty)
-      };
-    } else {
-      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
-    }
+  | Lam(InHole(_), _, _) => false
+  | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
-  | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
+  | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
-    is_complete(body, check_type_holes)
-    && is_complete_rules(rules, check_type_holes)
+    is_complete(body) && is_complete_rules(rules)
   | Subscript(InHole(_), _, _, _) => false
-  | Subscript(NotInHole, target, start_, end_) => 
-    is_complete(target, check_type_holes) && 
-    is_complete(start_, check_type_holes) &&
-    is_complete(end_, check_type_holes)
-  | Parenthesized(body) => is_complete(body, check_type_holes)
+  | Subscript(NotInHole, target, start_, end_) =>
+    is_complete(target) && is_complete(start_) && is_complete(end_)
+  | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
 }
-and is_complete = (exp: t, check_type_holes: bool): bool => {
-  is_complete_block(exp, check_type_holes);
+and is_complete = (exp: t): bool => {
+  is_complete_block(exp);
 };

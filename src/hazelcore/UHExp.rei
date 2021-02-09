@@ -7,7 +7,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, option(UHTyp.t), t)
+  | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -19,9 +19,10 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, StringLitBody.t)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
+  | Subscript(ErrStatus.t, t, t, t)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
@@ -38,7 +39,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
+let letline: (UHPat.t, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
@@ -50,7 +51,7 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let stringlit: (~err: ErrStatus.t=?, StringLitBody.t) => operand;
 
-let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
+let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
@@ -114,4 +115,4 @@ let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete: (t, bool) => bool;
+let is_complete: t => bool;

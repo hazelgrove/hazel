@@ -6,7 +6,7 @@ let shape_to_string = (shape: shape): string => {
   | SQuote => "new string literal"
   | SParenthesized => "parentheses"
   | SChar(str) => str
-  | SAsc => "type annotation"
+  | SAnn => "type annotation"
   | SLam => "function"
   | SListNil => "empty list"
   | SInj(side) =>
