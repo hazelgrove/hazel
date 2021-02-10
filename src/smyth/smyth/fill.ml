@@ -14,15 +14,15 @@ let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
         @@ Nondet.lift_option
         @@ Refine.refine delta sigma synthesis_goal ]
   in
-  let* _, _, _, parent_depth =
+  let* _, _, _, _, parent_depth =
     Nondet.lift_option @@ List.assoc_opt hole_name delta
   in
   let match_depth = parent_depth + additional_depth in
   let delta' =
     List.map
       ( Pair2.map_snd
-      @@ fun ((gamma, goal_type, goal_dec), _) ->
-      (gamma, goal_type, goal_dec, match_depth) )
+      @@ fun ((gamma, goal_type, goal_dec, term_kind), _) ->
+      (gamma, goal_type, goal_dec, term_kind, match_depth) )
       subgoals
   in
   let solved_constraints = Hole_map.singleton hole_name exp in
@@ -40,7 +40,7 @@ let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
   (final_constraints, delta')
 
 let guess_and_check params delta sigma hf
-    (hole_name, (((_, goal_type, _) as gen_goal), worlds)) =
+    (hole_name, (((_, goal_type, _, _) as gen_goal), worlds)) =
   (* Only guess if we have not exhausted all time allotted for guessing *)
   let* _ = Nondet.guard (Timer.Multi.check Timer.Multi.Guess) in
   (* Only guess at base types *)
@@ -63,8 +63,8 @@ let guess_and_check params delta sigma hf
   in
   (merged_constraints, [])
 
-let defer _params _delta _sigma _hf (hole_name, ((_, goal_type, _), worlds))
-    =
+let defer _params _delta _sigma _hf
+    (hole_name, ((_, goal_type, _, _), worlds)) =
   if
     (not (Type.equal goal_type (TTuple [])))
     && List.length worlds > 0

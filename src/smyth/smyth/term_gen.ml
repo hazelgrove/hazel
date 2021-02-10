@@ -96,6 +96,8 @@ type term_kind = E | I
 type gen_input =
   { sigma: datatype_ctx
   ; term_kind: term_kind
+        (* Do we even need this argument if we already have a synthesis
+           goal?? *)
   ; term_size: int
   ; rel_binding: type_binding option
   ; goal: gen_goal }
@@ -130,7 +132,7 @@ let hash ({term_kind; term_size; rel_binding; goal} : gen_input) : string =
         name ^ ";" ^ hash_type tau ^ ";" ^ hash_bind_spec bind_spec
   in
   let goal_string =
-    let gamma, goal_type, goal_dec = goal in
+    let gamma, goal_type, goal_dec, _ = goal in
     (* Sigma never changes, so no need to keep track of it in the cache *)
     let gamma_type_string =
       gamma |> Type_ctx.all_type
@@ -165,6 +167,9 @@ let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
  * Term generation
  *)
 
+(* TODO: work away term_kind parameter and make sure that it is replaced
+   correctly everywhere *)
+
 (* --- Important info about the term generation helpers! ---
  *
  * Do NOT call gen_e, rel_gen_e, gen_i, or rel_gen_i from anywhere EXCEPT inside
@@ -178,28 +183,34 @@ let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
  *)
 
 let rec gen_e (sigma : datatype_ctx) (term_size : int)
-    ((gamma, goal_type, goal_dec) : gen_goal) : exp Nondet.t =
+    ((gamma, goal_type, goal_dec, term_kind) : gen_goal) : exp Nondet.t =
   match Type_ctx.peel_type gamma with
   | Some (binding, gamma_rest) ->
       Nondet.union
         [ gen
             { sigma
-            ; term_kind= E
+            ; term_kind=
+                E
+                (* TODO: use term_kind here, but also reconsider function
+                   name *)
             ; term_size
             ; rel_binding= Some binding
-            ; goal= (gamma_rest, goal_type, goal_dec) }
+            ; goal= (gamma_rest, goal_type, goal_dec, term_kind) }
         ; gen
             { sigma
-            ; term_kind= E
+            ; term_kind=
+                E
+                (* TODO: use term_kind here, but also reconsider function
+                   name *)
             ; term_size
             ; rel_binding= None
-            ; goal= (gamma_rest, goal_type, goal_dec) } ]
+            ; goal= (gamma_rest, goal_type, goal_dec, term_kind) } ]
   | None -> Nondet.none
 
 (* A helper for the application part of rel_gen_e *)
 and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
-    (rel_binding : type_binding) ((gamma, goal_type, goal_dec) : gen_goal) :
-    exp Nondet.t =
+    (rel_binding : type_binding)
+    ((gamma, goal_type, goal_dec, _term_kind) : gen_goal) : exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   let combined_gamma = Type_ctx.add_type rel_binding gamma in
   let app_combine (head_nd : exp Nondet.t) (arg_nd : exp Nondet.t) :
@@ -233,8 +244,13 @@ and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
   match partition with
   (* Will always happen*)
   | [k_head; k_arg] ->
-      let head_goal = (gamma, TArr (arg_type, goal_type), None) in
-      let arg_goal = (gamma, arg_type, None) in
+      let head_goal =
+        ( gamma
+        , TArr (arg_type, goal_type)
+        , None
+        , Lang.E (* TODO: is this correct here? *) )
+      in
+      let arg_goal = (gamma, arg_type, None, Lang.I (* TODO: ... *)) in
       let head_solution_nd =
         gen
           { sigma
@@ -284,7 +300,8 @@ and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
 
 and rel_gen_e (sigma : datatype_ctx) (term_size : int)
     ((rel_name, (rel_type, rel_bind_spec)) as rel_binding : type_binding)
-    ((gamma, goal_type, goal_dec) as goal : gen_goal) : exp Nondet.t =
+    ((gamma, goal_type, goal_dec, _term_kind) as goal : gen_goal) :
+    exp Nondet.t =
   match term_size with
   | 1 ->
       let* specialized_type, specialized_exp =
@@ -313,8 +330,8 @@ and rel_gen_e (sigma : datatype_ctx) (term_size : int)
   | _ -> rel_gen_e_app sigma term_size rel_binding goal
 
 and genp_i (sigma : datatype_ctx) (term_size : int) (tp : term_permission)
-    (rel_binding : type_binding) ((gamma, goal_type, goal_dec) : gen_goal) :
-    exp Nondet.t =
+    (rel_binding : type_binding)
+    ((gamma, goal_type, goal_dec, term_kind) : gen_goal) : exp Nondet.t =
   let rel_binding', gamma' =
     match tp with
     | Must -> (Some rel_binding, gamma)
@@ -326,10 +343,10 @@ and genp_i (sigma : datatype_ctx) (term_size : int) (tp : term_permission)
     ; term_kind= I
     ; term_size
     ; rel_binding= rel_binding'
-    ; goal= (gamma', goal_type, goal_dec) }
+    ; goal= (gamma', goal_type, goal_dec, term_kind) }
 
 and gen_i (sigma : datatype_ctx) (term_size : int)
-    ((gamma, goal_type, goal_dec) : gen_goal) : exp Nondet.t =
+    ((gamma, goal_type, goal_dec, term_kind) : gen_goal) : exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   match Type_ctx.peel_type gamma with
   | Some (binding, gamma_rest) ->
@@ -339,13 +356,15 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
             ; term_kind= I
             ; term_size
             ; rel_binding= Some binding
-            ; goal= (gamma_rest, goal_type, goal_dec) }
+            ; goal= (gamma_rest, goal_type, goal_dec, term_kind) }
+          (* TODO: we know that term_kind == I here, right? *)
         ; gen
             { sigma
             ; term_kind= I
             ; term_size
             ; rel_binding= None
-            ; goal= (gamma_rest, goal_type, goal_dec) } ]
+            ; goal= (gamma_rest, goal_type, goal_dec, term_kind) } ]
+      (* TODO: same here *)
   | None -> (
     match goal_type with
     | TArr (tau1, tau2) ->
@@ -363,7 +382,8 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
                     ; (f_name, (goal_type, Rec f_name)) ]
                     Type_ctx.empty
                 , tau2
-                , None ) }
+                , None
+                , Lang.I ) }
         in
         EFix (Some f_name, PatParam (PVar arg_name), body)
     | TTuple taus ->
@@ -383,7 +403,8 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
                  ; term_kind= I
                  ; term_size= n
                  ; rel_binding= None
-                 ; goal= (Type_ctx.empty, tau, None) })
+                 ; goal= (Type_ctx.empty, tau, None, Lang.I) })
+             (* TODO: ... *)
              taus partition
     | TData (datatype_name, datatype_args) ->
         let* ctor_name, arg_type =
@@ -397,7 +418,8 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
             ; term_kind= I
             ; term_size= term_size - 1 (* -1 for constructor *)
             ; rel_binding= None
-            ; goal= (Type_ctx.empty, arg_type, None) }
+            ; goal= (Type_ctx.empty, arg_type, None, Lang.I) }
+          (* TODO: ... *)
         in
         ECtor (ctor_name, datatype_args, arg)
     | TForall (a, bound_type) ->
@@ -407,7 +429,10 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
             ; term_kind= I
             ; term_size= term_size - 1 (* -1 for lambda *)
             ; rel_binding= None
-            ; goal= (Type_ctx.add_poly a Type_ctx.empty, bound_type, None) }
+            ; goal=
+                (Type_ctx.add_poly a Type_ctx.empty, bound_type, None, Lang.I)
+            }
+          (* TODO: ... *)
         in
         EFix (None, TypeParam a, body)
     | TVar _ ->
@@ -416,7 +441,8 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
 
 and rel_gen_i (sigma : datatype_ctx) (term_size : int)
     (rel_binding : type_binding)
-    ((gamma, goal_type, goal_dec) as goal : gen_goal) : exp Nondet.t =
+    ((gamma, goal_type, goal_dec, term_kind) as goal : gen_goal) :
+    exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   (* All E-forms are I-forms *)
   let e_option =
@@ -439,7 +465,8 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
                     ; (f_name, (goal_type, Rec f_name)) ]
                     gamma
                 , tau2
-                , None ) }
+                , None
+                , Lang.I ) }
         in
         EFix (Some f_name, PatParam (PVar arg_name), body)
     | TTuple taus ->
@@ -455,7 +482,7 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
         @@ Nondet.one_of_each
         @@ List2.map3
              (fun tau n tp ->
-               genp_i sigma n tp rel_binding (gamma, tau, None))
+               genp_i sigma n tp rel_binding (gamma, tau, None, term_kind))
              taus partition part
     | TData (datatype_name, datatype_args) ->
         let* ctor_name, arg_type =
@@ -469,7 +496,7 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
             ; term_kind= I
             ; term_size= term_size - 1 (* -1 for constructor *)
             ; rel_binding= Some rel_binding
-            ; goal= (gamma, arg_type, None) }
+            ; goal= (gamma, arg_type, None, Lang.I) }
         in
         ECtor (ctor_name, datatype_args, arg)
     | TForall (a, bound_type) ->
@@ -479,7 +506,7 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
             ; term_kind= I
             ; term_size= term_size - 1 (* -1 for lambda *)
             ; rel_binding= Some rel_binding
-            ; goal= (Type_ctx.add_poly a gamma, bound_type, None) }
+            ; goal= (Type_ctx.add_poly a gamma, bound_type, None, Lang.I) }
         in
         EFix (None, TypeParam a, body)
     | TVar _ ->

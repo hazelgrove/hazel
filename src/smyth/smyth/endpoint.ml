@@ -34,6 +34,7 @@ let solve_program : Desugar.program -> solve_result response =
   match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
   | Error e -> Error (TypeError e)
   | Ok delta -> (
+    (* delta should contain synthesis_ctx *)
     match Eval.eval Env.empty exp with
     | Error e -> Error (EvalError e)
     | Ok (_, assertions) ->

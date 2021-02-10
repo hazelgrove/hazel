@@ -163,6 +163,8 @@ let ctor_info :
 
 type state =
   { function_decrease_requirement: string option (* TODO: currently unused *)
+  ; term_kind: term_kind
+        (* TODO: we should know whether an expression is in E- or I-form *)
   ; match_depth: int
   ; arg_of: string option }
 
@@ -284,6 +286,7 @@ let rec check' :
           , ( gamma
             , tau
             , state.function_decrease_requirement
+            , state.term_kind
             , state.match_depth ) ) ]
   (* Nonstandard, but useful for let-bindings *)
   | EApp (_, head, EAExp (ETypeAnnotation (arg, arg_type))) ->
@@ -371,7 +374,15 @@ and infer' :
       (tau', delta)
 
 let check =
-  check' {function_decrease_requirement= None; match_depth= 0; arg_of= None}
+  check'
+    { function_decrease_requirement= None
+    ; term_kind= I
+    ; match_depth= 0
+    ; arg_of= None }
 
 let infer =
-  infer' {function_decrease_requirement= None; match_depth= 0; arg_of= None}
+  infer'
+    { function_decrease_requirement= None
+    ; term_kind= I
+    ; match_depth= 0
+    ; arg_of= None }

@@ -45,7 +45,7 @@ let distribute (delta : hole_ctx) (sigma : datatype_ctx) (hf : hole_filling)
       Nondet.none
 
 let branch max_scrutinee_size delta sigma hf
-    ((gamma, goal_type, goal_dec), worlds) =
+    ((gamma, goal_type, goal_dec, term_kind), worlds) =
   let open Nondet.Syntax in
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   let filtered_worlds = filter worlds in
@@ -61,7 +61,9 @@ let branch max_scrutinee_size delta sigma hf
     Term_gen.up_to_e sigma max_scrutinee_size
       ( gamma
       , TData (data_name, List.map (fun _ -> Type.wildcard) datatype_params)
-      , None )
+      , None
+      , term_kind )
+    (* TODO: should this be E? *)
   in
   let* datatype_args =
     Type.infer sigma gamma scrutinee
@@ -119,7 +121,8 @@ let branch max_scrutinee_size delta sigma hf
                      (arg_name, (arg_type, arg_bind_spec))
                      gamma
                  , goal_type
-                 , None )
+                 , None
+                 , term_kind )
                , distributed_worlds ) )
            in
            let branch = (ctor_name, (PVar arg_name, EHole hole_name)) in

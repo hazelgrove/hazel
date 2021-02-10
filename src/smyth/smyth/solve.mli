@@ -17,10 +17,7 @@ val solve_once :
   -> hole_ctx
   -> datatype_ctx
   -> (hole_filling * worlds hole_map) Nondet.t
-  -> ( hole_filling
-     * (hole_name * (type_ctx * typ * string option * int)) list
-     * worlds hole_map )
-     Nondet.t
+  -> (hole_filling * hole_ctx * worlds hole_map) Nondet.t
 (** [solve_once hole_name delta sigma possible_ks] tries to incrementally
     solve the constraint in [possible_ks] bound to [hole_name]. As soon as
     [solve_once] finds a solution to the named element of [possible_ks], it

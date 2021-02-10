@@ -34,12 +34,12 @@ module FuelLimited = struct
     let guesses (delta : hole_ctx) (sigma : datatype_ctx) (res : res) :
         hole_filling Nondet.t =
       let* hole_name = Nondet.lift_option @@ blocking_hole res in
-      let* gamma, tau, dec, _ =
+      let* gamma, tau, dec, term_kind, _ =
         Nondet.lift_option @@ List.assoc_opt hole_name delta
       in
       Nondet.map
         (Hole_map.singleton hole_name)
-        (Term_gen.up_to_e sigma 1 (gamma, tau, dec))
+        (Term_gen.up_to_e sigma 1 (gamma, tau, dec, term_kind))
     in
     let* _ = Nondet.guard (fuel > 0) in
     match (res, ex) with
