@@ -3,7 +3,7 @@ open Lang
 let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
-let refine _delta sigma ((gamma, goal_type, goal_dec, term_kind), worlds) =
+let refine _delta sigma ({gamma; goal_type; goal_dec; term_kind}, worlds) =
   let open Option2.Syntax in
   let* _ = Option2.guard (Option.is_none goal_dec) in
   let filtered_worlds = filter worlds in
@@ -34,13 +34,14 @@ let refine _delta sigma ((gamma, goal_type, goal_dec, term_kind), worlds) =
       in
       let new_goal =
         ( hole_name
-        , ( ( Type_ctx.concat_type
-                [ (f_name, (TArr (tau1, tau2), Rec f_name))
-                ; (x_name, (tau1, Arg f_name)) ]
-                gamma
-            , tau2
-            , None
-            , term_kind )
+        , ( { gamma=
+                Type_ctx.concat_type
+                  [ (f_name, (TArr (tau1, tau2), Rec f_name))
+                  ; (x_name, (tau1, Arg f_name)) ]
+                  gamma
+            ; goal_type= tau2
+            ; goal_dec= None
+            ; term_kind }
           , refined_worlds ) )
       in
       let exp =
@@ -64,7 +65,8 @@ let refine _delta sigma ((gamma, goal_type, goal_dec, term_kind), worlds) =
           List.map2
             (fun tau refined_worlds ->
               ( Fresh.gen_hole ()
-              , ((gamma, tau, None, term_kind), refined_worlds) ))
+              , ( {gamma; goal_type= tau; goal_dec= None; term_kind}
+                , refined_worlds ) ))
             taus refined_worldss
         in
         let exp =
@@ -96,7 +98,9 @@ let refine _delta sigma ((gamma, goal_type, goal_dec, term_kind), worlds) =
       in
       let hole_name = Fresh.gen_hole () in
       let new_goal =
-        (hole_name, ((gamma, arg_type, None, term_kind), refined_worlds))
+        ( hole_name
+        , ( {gamma; goal_type= arg_type; goal_dec= None; term_kind}
+          , refined_worlds ) )
       in
       let exp = ECtor (ctor_name, datatype_args, EHole hole_name) in
       (exp, [new_goal])
