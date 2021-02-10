@@ -148,7 +148,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
-    print_endline("Inconsistent case");
     /* Make sure the rule synthesizes the type the rule_types says it does */
     let correct_rule_types =
       List.for_all2(
