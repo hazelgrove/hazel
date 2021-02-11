@@ -61,21 +61,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
-  // | BoundUserOp(op, d3, d4) =>
-  //   if (Var.is_operator(x) && Var.eq(Var.surround_underscore(op), x)) {
-  //     print_endline("propoer sub");
-  //     print_endline(Sexplib.Sexp.to_string(DHExp.sexp_of_t(d1)));
-
-  //     let d1 = DHExp.Cast(d1, Hole, Arrow(Hole, Hole));
-  //     let ap1 =
-  //       DHExp.Cast(Ap(d1, subst_var(d1, x, d3)), Hole, Arrow(Hole, Hole));
-  //     Ap(ap1, subst_var(d1, x, d4));
-  //   } else {
-  //     let d3 = subst_var(d1, x, d3);
-  //     let d4 = subst_var(d1, x, d4);
-
-  //     BoundUserOp(op, d3, d4);
-  //   }
   | FreeUserOp(u, i, sigma, op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -173,7 +158,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  // | (_, BoundUserOp(_, _, _)) => Indet
   | (_, FreeUserOp(_, _, _, _, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
@@ -319,7 +303,6 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -386,7 +369,6 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -459,7 +441,6 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -762,9 +743,7 @@ and syn_elab_skel =
 
             let dcop = DHExp.Ap(dcop_left, dright);
 
-            // let d = DHExp.BoundUserOp(op, dc1, dc2);
             Elaborates(dcop, ty_out, delta);
-          // Elaborates(result1,)
           }
         }
       | _ => DoesNotElaborate
@@ -1425,10 +1404,6 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  // | BoundUserOp(op, d1, d2) =>
-  //   let (d1, hii) = renumber_result_only(path, hii, d1);
-  //   let (d2, hii) = renumber_result_only(path, hii, d2);
-  //   (BoundUserOp(op, d1, d2), hii);
   | FreeUserOp(u, _, sigma, op, d1, d2) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -1532,10 +1507,6 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  // | BoundUserOp(op, d1, d2) =>
-  //   let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-  //   let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-  //   (BoundUserOp(op, d1, d2), hii);
   | FreeUserOp(u, i, sigma, op, d1, d2) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);

@@ -157,7 +157,6 @@ type t =
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
   | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t, t, t)
-  // | BoundUserOp(Var.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -191,7 +190,6 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  // | BoundUserOp(_, _, _) => "BoundBinUserOp"
   | FreeUserOp(_, _, _, _, _, _) => "FreeBinUserOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
