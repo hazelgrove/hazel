@@ -1471,10 +1471,6 @@ let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
-  print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_t(ze)));
-  print_endline(
-    "Before: " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(ZExp.erase(ze))),
-  );
   let _ =
     CursorPath_Exp.follow(path, ZExp.erase(ze))
     |> OptUtil.get(() =>
@@ -1484,7 +1480,6 @@ let syn_fix_holes_z =
          )
        );
   let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
-  print_endline("After: " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)));
   // ECD You are here: syn fix holes is failing
   let ze =
     CursorPath_Exp.follow(path, e)

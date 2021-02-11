@@ -1346,12 +1346,9 @@ and syn_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    print_endline("in construct op");
     switch (operator_of_shape(os)) {
     | None => failwith(__LOC__ ++ "Failed")
     | Some(operator) =>
-      print_endline("in some operator case");
-      print_endline("");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -1359,7 +1356,7 @@ and syn_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    };
+    }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -1849,7 +1846,6 @@ and syn_perform_operand =
     switch (operator_of_shape(os)) {
     | None => failwith(__LOC__ ++ " Failed")
     | Some(operator) =>
-      print_endline("succeded action");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -2797,11 +2793,9 @@ and ana_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    print_endline(__LOC__ ++ " construct op");
     switch (operator_of_shape(os)) {
     | None => failwith(__LOC__ ++ " Failed")
     | Some(operator) =>
-      print_endline("succed action");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -2809,7 +2803,7 @@ and ana_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
-    };
+    }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -3270,7 +3264,6 @@ and ana_perform_operand =
     switch (operator_of_shape(os)) {
     | None => failwith(__LOC__ ++ "Failed")
     | Some(operator) =>
-      print_endline("In succeded operator case");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
