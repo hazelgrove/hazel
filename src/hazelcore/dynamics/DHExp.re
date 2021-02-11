@@ -198,6 +198,7 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
+  | Subscript(t, t, t)
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
@@ -233,6 +234,7 @@ let constructor_string = (d: t): string =>
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
+  | Subscript(_, _, _) => "Subscript"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"

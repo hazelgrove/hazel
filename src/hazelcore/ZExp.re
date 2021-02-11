@@ -49,7 +49,12 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(SubscriptZE1(_) | SubscriptZE2(_) | SubscriptZE3(_), _)))
+  | ExpLineZ(
+      ZOpSeq(
+        _,
+        ZOperand(SubscriptZE1(_) | SubscriptZE2(_) | SubscriptZE3(_), _),
+      ),
+    )
   | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => false
   };
@@ -254,7 +259,9 @@ and is_after_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | SubscriptZE1(_) | SubscriptZE2(_) | SubscriptZE3(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApPaletteZ(_) => false;
 let is_after_zrule =
   fun
@@ -305,7 +312,9 @@ and is_outer_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | SubscriptZE1(_) | SubscriptZE2(_) | SubscriptZE3(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApPaletteZ(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
@@ -459,9 +468,12 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
-  | SubscriptZE1(err, ztarget, start_, end_) => Subscript(err, erase(ztarget), start_, end_)
-  | SubscriptZE2(err, target, zstart_, end_) => Subscript(err, target, erase(zstart_), end_)
-  | SubscriptZE3(err, target, start_, zend_) => Subscript(err, target, start_, erase(zend_))
+  | SubscriptZE1(err, ztarget, start_, end_) =>
+    Subscript(err, erase(ztarget), start_, end_)
+  | SubscriptZE2(err, target, zstart_, end_) =>
+    Subscript(err, target, erase(zstart_), end_)
+  | SubscriptZE3(err, target, start_, zend_) =>
+    Subscript(err, target, start_, erase(zend_))
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
       ApPalette(err, palette_name, serialized_model, psi);
@@ -525,7 +537,7 @@ and set_err_status_zoperand = (err, zoperand) =>
     SubscriptZE2(err, target, start_, end_)
   | SubscriptZE3(_, target, start_, end_) =>
     SubscriptZE3(err, target, start_, end_)
- | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
+  | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -763,7 +775,7 @@ and move_cursor_left_zoperand =
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
-    | SubscriptZE1(err, ztarget, start_, end_) =>
+  | SubscriptZE1(err, ztarget, start_, end_) =>
     switch (move_cursor_left(ztarget)) {
     | Some(ztarget) => Some(SubscriptZE1(err, ztarget, start_, end_))
     | None => None
@@ -978,7 +990,7 @@ and move_cursor_right_zoperand =
         ),
       )
     }
-    | SubscriptZE1(err, ztarget, start_, end_) =>
+  | SubscriptZE1(err, ztarget, start_, end_) =>
     switch (move_cursor_right(ztarget)) {
     | Some(ztarget) => Some(SubscriptZE1(err, ztarget, start_, end_))
     | None =>

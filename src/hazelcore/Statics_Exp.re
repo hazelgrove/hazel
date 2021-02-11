@@ -136,6 +136,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
@@ -148,6 +149,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
+  | Subscript(InHole(WrongLength, _), _, _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -186,6 +188,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
+  | Subscript(NotInHole, target, start_, end_) =>
+    switch (syn(ctx, target)) {
+    | None => None
+    | Some(_) =>
+      switch (ana(ctx, start_, HTyp.Int), ana(ctx, end_, HTyp.Int)) {
+      | (Some(_), Some(_)) => Some(String)
+      | (_, _) => None
+      }
+    }
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
@@ -305,6 +316,7 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
@@ -318,6 +330,7 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | Subscript(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
@@ -343,6 +356,11 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
+  | Subscript(NotInHole, _, _, _) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some(_) => Some()
+    }
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
@@ -883,6 +901,14 @@ and syn_fix_holes_operand =
         u_gen,
       )
     };
+  | Subscript(_, target, start_, end_) =>
+    let (target, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, target, String);
+    let (start_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, start_, Int);
+    let (end_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
+    (Subscript(NotInHole, target, start_, end_), String, u_gen);
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1321,6 +1347,18 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+  | Subscript(_, _, _, _) =>
+    let (e', ty', u_gen) =
+      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+    if (HTyp.consistent(ty, ty')) {
+      (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
+    } else {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
+    };
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

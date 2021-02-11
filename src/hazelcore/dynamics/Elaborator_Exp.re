@@ -38,6 +38,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | Subscript(d3, d4, d5) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    Subscript(d3, d4, d5);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -319,7 +324,8 @@ and matches_cast_Inj =
   | ListNil(_)
   | Cons(_, _)
   | Pair(_, _)
-  | Triv => DoesNotMatch
+  | Triv
+  | Subscript(_, _, _) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
@@ -386,7 +392,8 @@ and matches_cast_Pair =
   | Inj(_, _, _)
   | ListNil(_)
   | Cons(_, _)
-  | Triv => DoesNotMatch
+  | Triv
+  | Subscript(_, _, _) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
@@ -459,7 +466,8 @@ and matches_cast_Cons =
   | Inj(_, _, _)
   | ListNil(_)
   | Pair(_, _)
-  | Triv => DoesNotMatch
+  | Triv
+  | Subscript(_, _, _) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
@@ -749,6 +757,7 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
+  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -769,6 +778,7 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | Subscript(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -880,6 +890,24 @@ and syn_elab_operand =
         | R => HTyp.Sum(Hole, ty1)
         };
       Elaborates(d, ty, delta);
+    }
+  | Subscript(NotInHole, target, start_, end_) =>
+    switch (syn_elab(ctx, delta, target)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      switch (syn_elab(ctx, delta, start_)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2, delta) =>
+        switch (syn_elab(ctx, delta, end_)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d3, ty3, delta) =>
+          let dc1 = DHExp.cast(d1, ty1, String);
+          let dc2 = DHExp.cast(d2, ty2, Int);
+          let dc3 = DHExp.cast(d3, ty3, Int);
+          let d = DHExp.Subscript(dc1, dc2, dc3);
+          Elaborates(d, String, delta);
+        }
+      }
     }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -1177,6 +1205,7 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
+  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -1206,6 +1235,7 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | Subscript(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -1293,6 +1323,7 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | StringLit(NotInHole, _)
+  | Subscript(NotInHole, _, _, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
@@ -1395,6 +1426,11 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Cons(d1, d2), hii);
+  | Subscript(d1, d2, d3) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (Subscript(d1, d2, d3), hii);
   | ConsistentCase(Case(d1, rules, n)) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
@@ -1471,6 +1507,11 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | Subscript(d1, d2, d3) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (Subscript(d1, d2, d3), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);

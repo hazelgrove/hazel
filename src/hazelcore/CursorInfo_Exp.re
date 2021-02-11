@@ -20,7 +20,10 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
+  | CaseZE(_, zexp, _)
+  | SubscriptZE1(_, zexp, _, _)
+  | SubscriptZE2(_, _, zexp, _)
+  | SubscriptZE3(_, _, _, zexp) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
