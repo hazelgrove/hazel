@@ -345,7 +345,6 @@ and syn_fix_holes_skel =
   | BinOp(_, Space, skel1, skel2) =>
     let arrow_case =
         (): (UHPat.skel, UHPat.seq, HTyp.t, Contexts.t, MetaVarGen.t) => {
-      print_endline("In arrow case :(");
       let (skel1, seq, ctx, u_gen) = {
         let (skel1, seq, ty, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -383,21 +382,17 @@ and syn_fix_holes_skel =
       let ty = HTyp.Hole;
       (skel, seq, ty, ctx, u_gen);
     };
-    print_endline("in fix holes syn");
     switch (skel1) {
     | Placeholder(n) =>
-      print_endline("In skel1 matching");
       let pn = Seq.nth_operand(n, seq);
       switch (pn) {
-      | Label(NotInLabelHole, l) =>
-        print_endline("in not in label hole case");
+      | Label(NotInLabelHole, l) =
         let (skel2, seq, ty, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
         let ty = HTyp.Label_Elt(l, ty);
         (skel, seq, ty, ctx, u_gen);
       | Label(InLabelHole(Standalone, _), l) =>
-        print_endline("In standalone label case :)");
         let seq =
           seq |> Seq.update_nth_operand(n, UHPat.Label(NotInLabelHole, l));
         let (skel2, seq, ty, ctx, u_gen) =
@@ -406,7 +401,6 @@ and syn_fix_holes_skel =
         let ty = HTyp.Label_Elt(l, ty);
         (skel, seq, ty, ctx, u_gen);
       | Label(InLabelHole(_, _), _) =>
-        print_endline("In generic label hole case");
         let (skel2, seq, _, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
