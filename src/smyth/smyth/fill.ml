@@ -14,15 +14,13 @@ let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
         @@ Nondet.lift_option
         @@ Refine.refine delta sigma synthesis_goal ]
   in
-  let* _, _, _, _, parent_depth =
+  let* _, parent_depth =
     Nondet.lift_option @@ List.assoc_opt hole_name delta
   in
   let match_depth = parent_depth + additional_depth in
   let delta' =
     List.map
-      ( Pair2.map_snd
-      @@ fun ({gamma; goal_type; goal_dec; term_kind}, _) ->
-      (gamma, goal_type, goal_dec, term_kind, match_depth) )
+      (Pair2.map_snd @@ fun (gen_goal, _) -> (gen_goal, match_depth))
       subgoals
   in
   let solved_constraints = Hole_map.singleton hole_name exp in

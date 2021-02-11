@@ -40,14 +40,14 @@ let rec iter_solve params delta sigma (hf, us_all) =
       current_solution_count := !current_solution_count + 1 ;
       Nondet.pure (hf, delta)
   | Some ((hole_name, worlds), us) ->
-      let* gamma, goal_type, goal_dec, term_kind, match_depth =
+      let* gen_goal, match_depth =
         Nondet.lift_option @@ List.assoc_opt hole_name delta
       in
       let* k_new, delta_new =
         Fill.fill
           {params with max_match_depth= params.max_match_depth - match_depth}
           delta sigma hf
-          (hole_name, ({gamma; goal_type; goal_dec; term_kind}, worlds))
+          (hole_name, (gen_goal, worlds))
       in
       let delta_merged = delta_new @ delta in
       let* k_merged =
@@ -74,7 +74,7 @@ let rec iter_solve_once_list holes params delta sigma (hf, us_all)
         current_solution_count := !current_solution_count + 1 ;
         Nondet.pure (hf, delta, us_all_init)
     | Some ((hole_name, worlds), us) ->
-        let* gamma, goal_type, goal_dec, term_kind, match_depth =
+        let* gen_goal, match_depth =
           Nondet.lift_option @@ List.assoc_opt hole_name delta
         in
         let* k_new, delta_new =
@@ -82,7 +82,7 @@ let rec iter_solve_once_list holes params delta sigma (hf, us_all)
             { params with
               max_match_depth= params.max_match_depth - match_depth }
             delta sigma hf
-            (hole_name, ({gamma; goal_type; goal_dec; term_kind}, worlds))
+            (hole_name, (gen_goal, worlds))
         in
         let delta_merged = delta_new @ delta in
         let* k_merged =
@@ -98,14 +98,14 @@ let _iter_solve_once hole_name params delta sigma (hf, us_all) =
   match Constraints.delete hole_name us_all with
   | None -> failwith __LOC__
   | Some ((_, worlds), us) ->
-      let* gamma, goal_type, goal_dec, term_kind, match_depth =
+      let* gen_goal, match_depth =
         Nondet.lift_option @@ List.assoc_opt hole_name delta
       in
       let* k_new, delta_new =
         Fill.fill
           {params with max_match_depth= params.max_match_depth - match_depth}
           delta sigma hf
-          (hole_name, ({gamma; goal_type; goal_dec; term_kind}, worlds))
+          (hole_name, (gen_goal, worlds))
       in
       let delta_merged = delta_new @ delta in
       let* hf', _ =

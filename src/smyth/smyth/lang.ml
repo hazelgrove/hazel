@@ -122,15 +122,20 @@ type datatype_ctx = (string * (string list * (string * typ) list)) list
 (** Term kinds. *)
 type term_kind = E | I
 
-(* TODO: refactor hole_ctx to be defined in terms of gen_goal *)
 (* TODO: should match_depth be in there too? *)
+
+(** Term generation ("guessing") goals. *)
+type gen_goal =
+  { gamma: type_ctx
+  ; goal_type: typ
+  ; goal_dec: string option
+  ; term_kind: term_kind }
 
 (** Hole contexts:
     [(hole name, type context, typ, decrease requirement, match depth)]. The
     "decrease requirement", if present, is a function that expressions must
     be decreasing on to fill the hole in question. *)
-type hole_ctx =
-  (hole_name * (type_ctx * typ * string option * term_kind * int)) list
+type hole_ctx = (hole_name * (gen_goal * int)) list
 
 (** "Simple" values. *)
 type value =
@@ -166,18 +171,6 @@ type resumption_assertion = res * value
 
 (** Multiple resumption assertions. *)
 type resumption_assertions = resumption_assertion list
-
-(* TODO: make gen_goal a record type so that it can be modified easier *)
-
-(** Term generation ("guessing") goals. *)
-
-(* type gen_goal = type_ctx * typ * string option * term_kind *)
-
-type gen_goal =
-  { gamma: type_ctx
-  ; goal_type: typ
-  ; goal_dec: string option
-  ; term_kind: term_kind }
 
 (** Basic synthesis goals. *)
 type synthesis_goal = gen_goal * worlds
