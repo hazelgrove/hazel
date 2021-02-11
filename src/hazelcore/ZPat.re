@@ -78,11 +78,19 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
   | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
+  | TypeAnnZP(
+      NotInHole | InHole(WrongLength | OperatorError(_), _),
+      zop,
+      ann,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
   | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
+  | TypeAnnZA(
+      NotInHole | InHole(WrongLength | OperatorError(_), _),
+      op,
+      zann,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), u_gen);
   };

@@ -524,7 +524,7 @@ and ana_cursor_info_zoperand =
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )
          )
-    | TypeAnn(NotInHole, op, _) =>
+    | TypeAnn(NotInHole | InHole(OperatorError(_), _), op, _) =>
       Statics_Pat.ana_operand(ctx, op, ty)
       |> Option.map(_ =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -549,6 +549,7 @@ and ana_cursor_info_zoperand =
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | InHole(OperatorError(_), _)
     | NotInHole =>
       let ty_ann = UHTyp.expand(ann);
       ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty_ann);
@@ -558,6 +559,7 @@ and ana_cursor_info_zoperand =
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | InHole(OperatorError(_), _)
     | NotInHole =>
       zann
       |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)

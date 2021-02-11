@@ -350,7 +350,8 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
   | ListNil(InHole(WrongLength | OperatorError(_), _))
   | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
-  | TypeAnn(InHole(WrongLength | OperatorError(_), _), _, _) => DoesNotElaborate
+  | TypeAnn(InHole(WrongLength | OperatorError(_), _), _, _) =>
+    DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);

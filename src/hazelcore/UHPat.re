@@ -164,7 +164,11 @@ and mk_inconsistent_operand =
       _,
       _,
     )
-  | TypeAnn(NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_)), _, _) =>
+  | TypeAnn(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

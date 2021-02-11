@@ -271,7 +271,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
       _,
       _,
-      _,
     )
   | Inj(
       NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),

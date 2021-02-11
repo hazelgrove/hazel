@@ -1018,20 +1018,14 @@ and ana_perform_opseq =
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
     | None =>
-      // When expression operators are constructed, we construct a variable for a
-      // user defined operator within the surrounding pattern.
-      // switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
-      // | Failed => Failed
-      // | CursorEscaped(side) =>
-      //   ana_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq, ty)
-      // | Succeeded((zp, _, u_gen)) =>
-      //   let new_zseq = resurround_z(zp, surround);
-      //   Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
       /* If the cursor is immeditely after a type annotation, and we're trying
        * to insert an operator that Pat doesn't recognize, delegate the action
        * to Typ.perform. Note that in the case of the one currently existing overlap,
        * SComma, this means that Pat gets priority, and one must insert parens around
        * a type annotation to express a product type.
+       *
+       * If the cursor is on a wildcard or a variable, we're trying to insert a user
+       * defined operator.
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
@@ -1042,6 +1036,21 @@ and ana_perform_opseq =
           let ty' = UHTyp.expand(ZTyp.erase(new_zann));
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
         | _ => Failed
+        }
+      | CursorP(_, Wild(_) | Var(_)) =>
+        switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform_opseq(
+            ctx,
+            u_gen,
+            Action_common.escape(side),
+            zopseq,
+            ty,
+          )
+        | Succeeded((zp, _, u_gen)) =>
+          let new_zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
         }
       | _ => Failed
       }

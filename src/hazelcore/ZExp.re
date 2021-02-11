@@ -533,12 +533,12 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | LamZP(
       NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
       _,
-      _
+      _,
     )
   | LamZE(
       NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
       _,
-      _
+      _,
     )
   | InjZ(
       NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),

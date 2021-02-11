@@ -875,7 +875,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(OperatorError(_), _), _)
     | BoolLit(InHole(OperatorError(_), _), _)
     | ListNil(InHole(OperatorError(_), _))
-    | Lam(InHole(OperatorError(_), _), _, _, _)
+    | Lam(InHole(OperatorError(_), _), _, _)
     | Inj(InHole(OperatorError(_), _), _, _)
     | Case(StandardErrStatus(InHole(OperatorError(_), _)), _, _)
     | ApPalette(InHole(OperatorError(_), _), _, _, _) =>
@@ -973,9 +973,8 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
-  | LamZP(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
-  | LamZA(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
-  | LamZE(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | LamZP(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | LamZE(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | InjZ(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | CaseZE(
       StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
