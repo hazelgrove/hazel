@@ -143,7 +143,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
-  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | Case(
       StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
@@ -313,7 +313,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
-  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | Case(
       StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
