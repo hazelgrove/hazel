@@ -2,7 +2,9 @@
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
   | BoundVar(y) =>
-    if (Var.eq(x, y)) {
+    if (Var.is_operator(x) && Var.eq(Var.surround_underscore(y), x)) {
+      d1;
+    } else if (Var.eq(x, y)) {
       d1;
     } else {
       d2;
@@ -59,14 +61,21 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
-  | BoundUserOp(op, d3, d4) =>
-    if (Var.is_operator(x) && Var.eq(Var.surround_underscore(op), x)) {
-      Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
-    } else {
-      let d3 = subst_var(d1, x, d3);
-      let d4 = subst_var(d1, x, d4);
-      BoundUserOp(op, d3, d4);
-    }
+  // | BoundUserOp(op, d3, d4) =>
+  //   if (Var.is_operator(x) && Var.eq(Var.surround_underscore(op), x)) {
+  //     print_endline("propoer sub");
+  //     print_endline(Sexplib.Sexp.to_string(DHExp.sexp_of_t(d1)));
+
+  //     let d1 = DHExp.Cast(d1, Hole, Arrow(Hole, Hole));
+  //     let ap1 =
+  //       DHExp.Cast(Ap(d1, subst_var(d1, x, d3)), Hole, Arrow(Hole, Hole));
+  //     Ap(ap1, subst_var(d1, x, d4));
+  //   } else {
+  //     let d3 = subst_var(d1, x, d3);
+  //     let d4 = subst_var(d1, x, d4);
+
+  //     BoundUserOp(op, d3, d4);
+  //   }
   | FreeUserOp(u, i, sigma, op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -164,7 +173,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, BoundUserOp(_, _, _)) => Indet
+  // | (_, BoundUserOp(_, _, _)) => Indet
   | (_, FreeUserOp(_, _, _, _, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
@@ -310,7 +319,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoundUserOp(_, _, _)
+  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -377,7 +386,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoundUserOp(_, _, _)
+  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -450,7 +459,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BoundUserOp(_, _, _)
+  // | BoundUserOp(_, _, _)
   | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
@@ -714,6 +723,7 @@ and syn_elab_skel =
         let dc1 = DHExp.cast(d1, ty1', Hole);
         let dc2 = DHExp.cast(d2, ty2', Hole);
         let d = DHExp.FreeUserOp(u, 0, sigma, op, dc1, dc2);
+
         Elaborates(d, Hole, delta);
       }
     };
@@ -727,18 +737,34 @@ and syn_elab_skel =
     | None => DoesNotElaborate
     | Some(ty) =>
       switch (HTyp.matched_two_ary_arrow(ty)) {
-      | Some((ty1, (ty2, ty3))) =>
-        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+      | Some((ty_left, (ty_right, ty_out))) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty_left)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty1', delta) =>
-          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+        | Elaborates(dleft, ty_left', delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty_right)) {
           | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty1);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
+          | Elaborates(dright, ty_right', delta) =>
+            let cop =
+              DHExp.cast(
+                DHExp.BoundVar(op),
+                ty,
+                Arrow(ty_left', Arrow(Hole, ty_out)),
+              );
 
-            let d = DHExp.BoundUserOp(op, dc1, dc2);
-            Elaborates(d, ty3, delta);
+            let dop_left = DHExp.Ap(cop, dleft);
+
+            let dcop_left =
+              DHExp.cast(
+                dop_left,
+                Arrow(Hole, ty_out),
+                HTyp.Arrow(ty_right', ty_out),
+              );
+
+            let dcop = DHExp.Ap(dcop_left, dright);
+
+            // let d = DHExp.BoundUserOp(op, dc1, dc2);
+            Elaborates(dcop, ty_out, delta);
+          // Elaborates(result1,)
           }
         }
       | _ => DoesNotElaborate
@@ -792,7 +818,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
   | ListNil(InHole(WrongLength | OperatorError(_), _))
-  | Lam(InHole(WrongLength | OperatorError(_), _), _, _, _)
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _)
   | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
   | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
@@ -1223,7 +1249,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
   | ListNil(InHole(WrongLength | OperatorError(_), _))
-  | Lam(InHole(WrongLength | OperatorError(_), _), _, _, _)
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _)
   | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
   | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
@@ -1399,10 +1425,10 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BoundUserOp(op, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BoundUserOp(op, d1, d2), hii);
+  // | BoundUserOp(op, d1, d2) =>
+  //   let (d1, hii) = renumber_result_only(path, hii, d1);
+  //   let (d2, hii) = renumber_result_only(path, hii, d2);
+  //   (BoundUserOp(op, d1, d2), hii);
   | FreeUserOp(u, _, sigma, op, d1, d2) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -1506,10 +1532,10 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BoundUserOp(op, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BoundUserOp(op, d1, d2), hii);
+  // | BoundUserOp(op, d1, d2) =>
+  //   let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+  //   let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+  //   (BoundUserOp(op, d1, d2), hii);
   | FreeUserOp(u, i, sigma, op, d1, d2) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);

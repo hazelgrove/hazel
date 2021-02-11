@@ -62,7 +62,8 @@ and syn_operand =
   | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
   | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
   | ListNil(InHole(WrongLength | OperatorError(_), _))
-  | Inj(InHole(WrongLength | OperatorError(_), _), _, _) => None
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | TypeAnn(InHole(WrongLength | OperatorError(_), _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -149,6 +150,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
   | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
+  | TypeAnn(InHole(TypeInconsistent | OperatorError(_), _), _, _)
   | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, ctx) = syn_operand(ctx, operand');
