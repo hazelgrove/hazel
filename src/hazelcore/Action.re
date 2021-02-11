@@ -24,7 +24,7 @@ type shape =
   | SList
   | SParenthesized
   | SChar(string)
-  | SAsc
+  | SAnn
   | SLam
   | SListNil
   | SInj(InjSide.t)

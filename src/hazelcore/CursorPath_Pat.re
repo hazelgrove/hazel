@@ -6,6 +6,9 @@ and of_zoperand =
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
+  | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
+  | TypeAnnZA(_, _, zann) =>
+    CursorPath_common.cons'(1, CursorPath_Typ.of_z(zann))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
@@ -49,6 +52,18 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZPat.InjZ(err, side, zbody))
+      | _ => None
+      }
+    | TypeAnn(err, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> follow_operand((xs, cursor))
+        |> Option.map(zop => ZPat.TypeAnnZP(err, zop, ann))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.follow((xs, cursor))
+        |> Option.map(zann => ZPat.TypeAnnZA(err, op, zann))
       | _ => None
       }
     }
@@ -110,6 +125,18 @@ and of_steps_operand =
         body
         |> of_steps(xs, ~side)
         |> Option.map(path => CursorPath_common.cons'(0, path))
+      | _ => None
+      }
+    | TypeAnn(_, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> of_steps_operand(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(0, path))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(1, path))
       | _ => None
       }
     }
@@ -179,6 +206,15 @@ and holes_operand =
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
+  | TypeAnn(err, op, ann) =>
+    hs
+    |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
+    |> holes_operand(op, [0, ...rev_steps])
+    |> CursorPath_common.holes_err(
+         ~hole_sort=u => PatHole(u, TypeErr),
+         err,
+         rev_steps,
+       )
   };
 
 let rec holes_z =
@@ -253,6 +289,16 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorP(OnDelim(k, _), TypeAnn(_, op, ann)) =>
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_operand(op, [0, ...rev_steps], []),
+        ~holes_after=CursorPath_Typ.holes(ann, [1, ...rev_steps], []),
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    }
   | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     let hole_selected: option(CursorPath.hole_info) =
@@ -272,7 +318,7 @@ and holes_zoperand =
       CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _)) =>
+  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | TypeAnn(_)) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
@@ -285,6 +331,40 @@ and holes_zoperand =
         holes_before: [
           {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
           ...zbody_holes.holes_before,
+        ],
+      }
+    };
+  | TypeAnnZP(err, zop, ann) =>
+    let zop_holes = holes_zoperand(zop, [0, ...rev_steps]);
+    let ann_holes = CursorPath_Typ.holes(ann, [1, ...rev_steps], []);
+    let all_holes = {
+      ...zop_holes,
+      holes_after: ann_holes @ zop_holes.holes_after,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ...all_holes.holes_before,
+        ],
+      }
+    };
+  | TypeAnnZA(err, op, zann) =>
+    let op_holes = holes_operand(op, [0, ...rev_steps], []);
+    let zann_holes = CursorPath_Typ.holes_z(zann, [1, ...rev_steps]);
+    let all_holes = {
+      ...zann_holes,
+      holes_before: op_holes @ zann_holes.holes_before,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ...all_holes.holes_before,
         ],
       }
     };
