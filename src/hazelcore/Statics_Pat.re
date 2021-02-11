@@ -386,7 +386,7 @@ and syn_fix_holes_skel =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       switch (pn) {
-      | Label(NotInLabelHole, l) =
+      | Label(NotInLabelHole, l) =>
         let (skel2, seq, ty, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
