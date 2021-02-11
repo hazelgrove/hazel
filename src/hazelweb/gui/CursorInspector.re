@@ -878,6 +878,20 @@ let view =
     | Line(_, _)
     | Rule(_, _) => false
     };
+  let on_type_hole =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => false
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => true
+    | Typ(_, _) => false
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
   let summary =
     summary_bar(
       ~inject,
@@ -887,7 +901,7 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.term_novice_message_mode,
       cursor_inspector.type_novice_message_mode,
-      on_empty_hole,
+      on_empty_hole || on_type_hole,
     );
   let content =
     if (cursor_inspector.show_expanded && show) {
@@ -900,6 +914,11 @@ let view =
       List.append(
         content,
         [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],
+      );
+    } else if (cursor_inspector.type_assist && on_type_hole) {
+      List.append(
+        content,
+        [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
       );
     } else {
       content;

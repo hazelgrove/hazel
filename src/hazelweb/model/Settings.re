@@ -130,6 +130,9 @@ module CursorInspector = {
     type_assist_fun: bool,
     type_assist_branch: bool,
     type_assist_other: bool,
+    type_assist_prim_ty: bool,
+    type_assist_comp_ty: bool,
+    type_assist_func_ty: bool,
   };
 
   let init = {
@@ -143,6 +146,9 @@ module CursorInspector = {
     type_assist_fun: false,
     type_assist_branch: false,
     type_assist_other: false,
+    type_assist_prim_ty: false,
+    type_assist_comp_ty: false,
+    type_assist_func_ty: false,
   };
 
   [@deriving sexp]
@@ -157,7 +163,10 @@ module CursorInspector = {
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
-    | Toggle_type_assist_other;
+    | Toggle_type_assist_other
+    | Toggle_type_assist_prim_ty
+    | Toggle_type_assist_comp_ty
+    | Toggle_type_assist_func_ty;
 
   let novice_mode = settings =>
     settings.term_novice_message_mode && settings.type_novice_message_mode;
@@ -202,6 +211,18 @@ module CursorInspector = {
     | Toggle_type_assist_other => {
         ...settings,
         type_assist_other: !settings.type_assist_other,
+      }
+    | Toggle_type_assist_prim_ty => {
+        ...settings,
+        type_assist_prim_ty: !settings.type_assist_prim_ty,
+      }
+    | Toggle_type_assist_comp_ty => {
+        ...settings,
+        type_assist_comp_ty: !settings.type_assist_comp_ty,
+      }
+    | Toggle_type_assist_func_ty => {
+        ...settings,
+        type_assist_func_ty: !settings.type_assist_func_ty,
       }
     };
 };
