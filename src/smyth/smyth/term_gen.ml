@@ -504,12 +504,8 @@ and gen (gen_input : gen_input) : exp Nondet.t =
 let clear_cache _ = Hashtbl.reset gen_cache
 
 (* TODO: make this just up_to, because the gen_goal determines i/e *)
-let up_to_e sigma max_size goal =
+let up_to sigma max_size goal =
   List2.range ~low:1 ~high:max_size
   |> List.map (fun term_size ->
-         gen
-           { sigma
-           ; rel_binding= None
-           ; term_size
-           ; goal= {goal with term_kind= E} })
+         gen {sigma; rel_binding= None; term_size; goal})
   |> Nondet.union

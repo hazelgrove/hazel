@@ -45,7 +45,7 @@ let distribute (delta : hole_ctx) (sigma : datatype_ctx) (hf : hole_filling)
       Nondet.none
 
 let branch max_scrutinee_size delta sigma hf
-    ({gamma; goal_type; goal_dec; term_kind}, worlds) =
+    (({gamma; goal_dec; _} as gen_goal), worlds) =
   let open Nondet.Syntax in
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   let filtered_worlds = filter worlds in
@@ -58,13 +58,12 @@ let branch max_scrutinee_size delta sigma hf
     |> Ctor_map.from_assoc
   in
   let* scrutinee =
-    Term_gen.up_to_e sigma max_scrutinee_size
-      { gamma
-      ; goal_type=
+    Term_gen.up_to sigma max_scrutinee_size
+      { gen_goal with
+        goal_type=
           TData (data_name, List.map (fun _ -> Type.wildcard) datatype_params)
-      ; goal_dec= None
-      ; term_kind }
-    (* TODO: should this be E? *)
+      ; term_kind= E }
+    (* TODO: remove term_kind=E? *)
   in
   let* datatype_args =
     Type.infer sigma gamma scrutinee
@@ -118,13 +117,13 @@ let branch max_scrutinee_size delta sigma hf
            let hole_name = Fresh.gen_hole () in
            let goal =
              ( hole_name
-             , ( { gamma=
+             , ( { gen_goal with
+                   gamma=
                      Type_ctx.add_type
                        (arg_name, (arg_type, arg_bind_spec))
                        gamma
-                 ; goal_type
-                 ; goal_dec= None
-                 ; term_kind }
+                 ; term_kind= E }
+                 (* TODO: remove term_kind=E? *)
                , distributed_worlds ) )
            in
            let branch = (ctor_name, (PVar arg_name, EHole hole_name)) in

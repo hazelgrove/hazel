@@ -45,7 +45,9 @@ let guess_and_check params delta sigma hf
   let* _ = Nondet.guard (Type.is_base goal_type) in
   let* exp =
     Timer.Multi.accumulate Timer.Multi.Guess
-    @@ fun () -> Term_gen.up_to_e sigma params.max_term_size gen_goal
+    @@ fun () ->
+    Term_gen.up_to sigma params.max_term_size {gen_goal with term_kind= E}
+    (* TODO: remove term_kind=E? *)
   in
   let binding = Hole_map.singleton hole_name exp in
   let* extended_hf =

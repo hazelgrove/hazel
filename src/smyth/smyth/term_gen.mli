@@ -31,6 +31,6 @@ val clear_cache : unit -> unit
     [clear_cache] once synthesis is fully complete for a problem, and not any
     sooner or later! *)
 
-val up_to_e : datatype_ctx -> int -> gen_goal -> exp Nondet.t
-(** [up_to_e sigma n goal] nondeterministically generates elimination forms
-    at a goal [goal] up to (and including) AST size [n]. *)
+val up_to : datatype_ctx -> int -> gen_goal -> exp Nondet.t
+(** [up_to_e sigma n goal] nondeterministically generates terms at a goal
+    [goal] up to (and including) AST size [n]. *)
