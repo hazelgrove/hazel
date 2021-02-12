@@ -4,7 +4,7 @@ let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
 let refine _delta sigma
-    (({gamma; goal_type; goal_dec; _} as gen_goal), worlds) =
+    (({gamma; idents; goal_type; goal_dec; _} as gen_goal), worlds) =
   let open Option2.Syntax in
   let* _ = Option2.guard (Option.is_none goal_dec) in
   let filtered_worlds = filter worlds in
@@ -12,9 +12,9 @@ let refine _delta sigma
   (* Refine-Fix *)
   | TArr (tau1, tau2) ->
       let hole_name = Fresh.gen_hole () in
-      let f_name = Term_gen.fresh_ident gamma Term_gen.function_char in
+      let f_name = Term_gen.fresh_ident idents Term_gen.function_char in
       (* print_endline ("generated function name " ^ f_name) ; *)
-      let x_name = Term_gen.fresh_ident gamma Term_gen.variable_char in
+      let x_name = Term_gen.fresh_ident idents Term_gen.variable_char in
       let+ refined_worlds =
         filtered_worlds
         |> List.map (fun (env, io_ex) ->
@@ -43,6 +43,7 @@ let refine _delta sigma
                   ; (x_name, (tau1, Arg f_name)) ]
                   gamma
                 (* TODO: should we set dec=None? *)
+            ; idents= idents @ [f_name; x_name]
             ; goal_type= tau2 }
           , refined_worlds ) )
       in

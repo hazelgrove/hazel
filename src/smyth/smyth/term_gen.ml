@@ -5,7 +5,7 @@ open Nondet.Syntax
  * Identifier generation
  *)
 
-let fresh_ident gamma first_char =
+let fresh_ident idents first_char =
   let extract_number (ident : string) : int option =
     let ident_len = String.length ident in
     if ident_len > 0 && Char.equal ident.[0] first_char then
@@ -15,7 +15,8 @@ let fresh_ident gamma first_char =
     else None
   in
   let fresh_number : int =
-    gamma |> Type_ctx.names
+    (* gamma |> Type_ctx.names *)
+    idents
     |> List.filter_map extract_number
     |> List2.maximum
     |> Option2.map (( + ) 1)
@@ -320,7 +321,8 @@ and genp_i (sigma : datatype_ctx) (term_size : int) (tp : term_permission)
     ; goal= {gen_goal with gamma= gamma'} }
 
 and gen_i (sigma : datatype_ctx) (term_size : int)
-    ({gamma; goal_type; goal_dec; _} as gen_goal : gen_goal) : exp Nondet.t =
+    ({gamma; idents; goal_type; goal_dec; _} as gen_goal : gen_goal) :
+    exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   (* TODO: why is there no e_option here, like in rel_gen_i *)
   match Type_ctx.peel_type gamma with
@@ -335,9 +337,9 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
   | None -> (
     match goal_type with
     | TArr (tau1, tau2) ->
-        let f_name = fresh_ident gamma function_char in
+        let f_name = fresh_ident idents function_char in
         (* print_endline ("generated function name " ^ f_name) ; *)
-        let arg_name = fresh_ident gamma variable_char in
+        let arg_name = fresh_ident idents variable_char in
         let+ body =
           gen
             { sigma
@@ -350,6 +352,7 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
                       [ (arg_name, (tau1, Dec f_name))
                       ; (f_name, (goal_type, Rec f_name)) ]
                       Type_ctx.empty
+                ; idents= idents @ [f_name; arg_name]
                 ; goal_type= tau2 } }
         in
         EFix (Some f_name, PatParam (PVar arg_name), body)
@@ -408,7 +411,8 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
 
 and rel_gen_i (sigma : datatype_ctx) (term_size : int)
     (rel_binding : type_binding)
-    ({gamma; goal_type; goal_dec; _} as gen_goal : gen_goal) : exp Nondet.t =
+    ({gamma; idents; goal_type; goal_dec; _} as gen_goal : gen_goal) :
+    exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   (* All E-forms are I-forms *)
   let e_option =
@@ -421,8 +425,8 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
   let i_option =
     match goal_type with
     | TArr (tau1, tau2) ->
-        let f_name = fresh_ident gamma function_char in
-        let arg_name = fresh_ident gamma variable_char in
+        let f_name = fresh_ident idents function_char in
+        let arg_name = fresh_ident idents variable_char in
         let+ body =
           gen
             { sigma
@@ -435,6 +439,7 @@ and rel_gen_i (sigma : datatype_ctx) (term_size : int)
                       [ (arg_name, (tau1, Dec f_name))
                       ; (f_name, (goal_type, Rec f_name)) ]
                       gamma
+                ; idents= idents @ [f_name; arg_name]
                 ; goal_type= tau2 } }
         in
         EFix (Some f_name, PatParam (PVar arg_name), body)

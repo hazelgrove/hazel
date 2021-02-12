@@ -12,7 +12,7 @@
 
 open Lang
 
-val fresh_ident : type_ctx -> char -> string
+val fresh_ident : string list -> char -> string
 (** [fresh_ident gamma c] returns an identifier starting with the character
     [c] that does not appear in the type context [gamma] *)
 

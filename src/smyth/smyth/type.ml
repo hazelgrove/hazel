@@ -284,6 +284,7 @@ let rec check' :
       Ok
         [ ( name
           , ( { gamma
+              ; idents= Type_ctx.names gamma
               ; goal_type= tau
               ; goal_dec= state.function_decrease_requirement
               ; term_kind= state.term_kind }

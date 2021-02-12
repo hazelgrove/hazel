@@ -45,11 +45,11 @@ let distribute (delta : hole_ctx) (sigma : datatype_ctx) (hf : hole_filling)
       Nondet.none
 
 let branch max_scrutinee_size delta sigma hf
-    (({gamma; goal_dec; _} as gen_goal), worlds) =
+    (({gamma; idents; goal_dec; _} as gen_goal), worlds) =
   let open Nondet.Syntax in
   let* _ = Nondet.guard (Option.is_none goal_dec) in
   let filtered_worlds = filter worlds in
-  let arg_name = Term_gen.fresh_ident gamma Term_gen.match_char in
+  let arg_name = Term_gen.fresh_ident idents Term_gen.match_char in
   let* data_name, (datatype_params, data_ctors) = Nondet.from_list sigma in
   let ctor_names = List.map fst data_ctors in
   let ctor_info : (string * typ) Ctor_map.t =

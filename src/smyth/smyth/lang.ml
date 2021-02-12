@@ -127,6 +127,7 @@ type term_kind = E | I
 (** Term generation ("guessing") goals. *)
 type gen_goal =
   { gamma: type_ctx
+  ; idents: string list
   ; goal_type: typ
   ; goal_dec: string option
   ; term_kind: term_kind }
