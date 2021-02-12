@@ -920,6 +920,45 @@ let sort_degenerate: UHExp.t = [
     ),
   ),
 ];
+let mistyped_uneval: UHExp.t = [
+  LetLine(
+    OpSeq.wrap(UHPat.var("foo")),
+    Some(
+      Operators_Typ.(
+        UHTyp.(
+          Seq.mk(
+            Parenthesized(
+              Seq.mk(
+                Int,
+                [
+                  (Arrow, List(OpSeq.wrap(Int))),
+                  (Arrow, List(OpSeq.wrap(Int))),
+                ],
+              )
+              |> mk_OpSeq,
+            ),
+            [(Arrow, List(OpSeq.wrap(Int)))],
+          )
+          |> mk_OpSeq
+        )
+      ),
+    ),
+    [
+      ExpLine(
+        shmyth_lam(
+          "f",
+          shmyth_app("f", [UHExp.intlit("0"), UHExp.listnil()]),
+        ),
+      ),
+    ],
+  ),
+  LetLine(
+    OpSeq.wrap(UHPat.var("bar")),
+    Some(UHTyp.contract(Arrow(List(Int), List(Int)))),
+    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+  ),
+  mk_app_equality_assert(3, "bar", [UHExp.listnil()], UHExp.listnil()),
+];
 
 let append_template: UHExp.t = [
   shmyth_let(
@@ -1439,6 +1478,7 @@ let examples =
     |> add("length_template", length_template)
     |> add("sort_template", sort_template)
     |> add("sort_degenerate", sort_degenerate)
+    |> add("mistyped_uneval", mistyped_uneval)
     |> add("max_template", max_template)
     |> add("odd_template", odd_template)
     |> add("mult_template", mult_template)
