@@ -212,6 +212,8 @@ and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
     let+ _ =
       Nondet.guard @@ Type.structurally_decreasing combined_gamma ~head ~arg
     in
+    (* print_endline ("applying " ^ Pretty.exp head ^ " to " ^ Pretty.exp
+       arg) ; *)
     EApp (special, head, EAExp arg)
   in
   let* arg_type =
@@ -260,8 +262,6 @@ and rel_gen_e_app (sigma : datatype_ctx) (term_size : int)
       Nondet.union
       @@ [ app_combine rel_head_solution_nd arg_solution_nd
          ; app_combine head_solution_nd rel_arg_solution_nd
-           (* HACK: disallow rel_binding to be used in both the function and
-              its argument, so that foldr is not used too much *)
          ; app_combine rel_head_solution_nd rel_arg_solution_nd ]
   | _ ->
       Log.warn
@@ -277,6 +277,8 @@ and rel_gen_e (sigma : datatype_ctx) (term_size : int)
     ({gamma; goal_type; goal_dec; _} as goal : gen_goal) : exp Nondet.t =
   match term_size with
   | 1 ->
+      (* print_endline "gamma:" ; gamma |> fst |> List.iter (fun (name, (typ,
+         _)) -> print_endline (name ^ " : " ^ Pretty.typ typ)) ; *)
       let* specialized_type, specialized_exp =
         instantiations sigma gamma rel_name rel_type
       in
@@ -320,6 +322,7 @@ and genp_i (sigma : datatype_ctx) (term_size : int) (tp : term_permission)
 and gen_i (sigma : datatype_ctx) (term_size : int)
     ({gamma; goal_type; goal_dec; _} as gen_goal : gen_goal) : exp Nondet.t =
   let* _ = Nondet.guard (Option.is_none goal_dec) in
+  (* TODO: why is there no e_option here, like in rel_gen_i *)
   match Type_ctx.peel_type gamma with
   | Some (binding, gamma_rest) ->
       let input =
@@ -332,8 +335,9 @@ and gen_i (sigma : datatype_ctx) (term_size : int)
   | None -> (
     match goal_type with
     | TArr (tau1, tau2) ->
-        let f_name = fresh_ident Type_ctx.empty function_char in
-        let arg_name = fresh_ident Type_ctx.empty variable_char in
+        let f_name = fresh_ident gamma function_char in
+        (* print_endline ("generated function name " ^ f_name) ; *)
+        let arg_name = fresh_ident gamma variable_char in
         let+ body =
           gen
             { sigma
@@ -486,7 +490,19 @@ and gen (gen_input : gen_input) : exp Nondet.t =
   if gen_input.term_size <= 0 then Nondet.none
   else
     match lookup gen_input with
-    | Some solution -> solution
+    | Some solution ->
+        let+ sol = solution in
+        (* ( match sol with | EVar x -> if String.equal x "f1" then match
+           List.assoc_opt "f1" (fst gen_input.goal.gamma) with | Some (typ,
+           _) -> if Type.matches typ gen_input.goal.goal_type then () else (
+           (* print_endline "got expr of type:" ; print_endline (Pretty.typ
+           typ) ; print_endline "expected expr of type:" ; print_endline
+           (Pretty.typ gen_input.goal.goal_type) ; print_endline
+           "gamma-hash:" ; print_endline (hash gen_input) *) (* print_endline
+           "lookup-hash:"; *) (* print_endline (hash ); *) ) | _ -> () else
+           () | _ -> () ) ; *)
+        (* match sol with | EVar (_e) -> () | _ -> () ; *)
+        sol
     | None -> (
         let {sigma; term_size; rel_binding; goal} = gen_input in
         record gen_input @@ Nondet.dedup
@@ -503,7 +519,6 @@ and gen (gen_input : gen_input) : exp Nondet.t =
 
 let clear_cache _ = Hashtbl.reset gen_cache
 
-(* TODO: make this just up_to, because the gen_goal determines i/e *)
 let up_to sigma max_size goal =
   List2.range ~low:1 ~high:max_size
   |> List.map (fun term_size ->

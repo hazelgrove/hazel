@@ -121,6 +121,7 @@ module FuelLimited = struct
         uneval fuel delta sigma hf arg (ExCtor (name, ex))
     | _ ->
         Log.warn "Mistyped uneval" ;
+        (* print_endline ("mistyped: " ^ Pretty.res res) ; *)
         Nondet.none
 
   and simplify_assertions fuel delta sigma rcs =

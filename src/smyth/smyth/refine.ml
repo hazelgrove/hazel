@@ -13,6 +13,7 @@ let refine _delta sigma
   | TArr (tau1, tau2) ->
       let hole_name = Fresh.gen_hole () in
       let f_name = Term_gen.fresh_ident gamma Term_gen.function_char in
+      (* print_endline ("generated function name " ^ f_name) ; *)
       let x_name = Term_gen.fresh_ident gamma Term_gen.variable_char in
       let+ refined_worlds =
         filtered_worlds
@@ -48,6 +49,7 @@ let refine _delta sigma
       let exp =
         EFix (Some f_name, PatParam (PVar x_name), EHole hole_name)
       in
+      (* print_endline ("refine: " ^ Pretty.exp exp) ; *)
       (exp, [new_goal])
   (* Refine-Tuple *)
   | TTuple taus ->

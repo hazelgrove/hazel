@@ -1,6 +1,11 @@
 open Lang
 open Nondet.Syntax
 
+(* NOTE: [refine] only works if all constraints agree, so excess constraints
+   can hamper it. In Myth, this means that [branch] should take over and
+   distribute the constraints which don't agree over different branches. In
+   Smyth, however, we might have branched by hand, without removing the
+   irrelevant constraints. *)
 let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
   let* additional_depth, ((exp, subgoals), choice_constraints) =
     (* Note: Try to branch FIRST! This results in more idiomatic solutions. *)
@@ -49,6 +54,7 @@ let guess_and_check params delta sigma hf
     Term_gen.up_to sigma params.max_term_size {gen_goal with term_kind= E}
     (* TODO: remove term_kind=E? *)
   in
+  (* print_endline ("guess: " ^ Pretty.exp exp) ; *)
   let binding = Hole_map.singleton hole_name exp in
   let* extended_hf =
     Nondet.lift_option @@ Constraints.merge_solved [binding; hf]
