@@ -383,7 +383,9 @@ let eta_expand_all = program => {
   );
 };
 let accept_all = program =>
-  switch (Synthesizing.synthesize_all(get_uhexp(eta_expand_all(program)))) {
+  // NOTE: turned off eta-expansion to experiment with mistyped uneval warning
+  // switch (Synthesizing.synthesize_all(get_uhexp(eta_expand_all(program)))) {
+  switch (Synthesizing.synthesize_all(get_uhexp(program))) {
   | None =>
     print_endline("Not on track");
     program;
