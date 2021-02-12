@@ -55,22 +55,8 @@ module MkLivelit =
              type model := LC.model and type action := LC.action,
        )
        : LIVELIT => {
-  let name = LC.name;
-  let expansion_ty = LC.expansion_ty;
-  let param_tys = LC.param_tys;
-
-  [@deriving sexp]
-  type model = LC.model;
-  [@deriving sexp]
-  type action = LC.action;
-  type trigger = LV.trigger;
-  type sync = LV.sync;
-
-  let init_model = LC.init_model;
-  let update = LC.update;
-  let expand = LC.expand;
-  let view = LV.view;
-  let view_shape = LV.view_shape;
+  include LC;
+  include LV;
 };
 
 module LivelitViewAdapter = (L: LIVELIT) => {
