@@ -54,6 +54,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("sort degenerate")],
         ),
         Node.option(
+          [Attr.value("mistyped_uneval")],
+          [Node.text("mistyped uneval")],
+        ),
+        Node.option(
           [Attr.value("max_template")],
           [Node.text("max template")],
         ),
