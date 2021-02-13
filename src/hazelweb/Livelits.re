@@ -1227,6 +1227,50 @@ module CheckboxLivelitView = {
   let view_shape = _ => LivelitShape.Inline(/* TODO! */ 1);
 };
 
+module SliderLivelitMinSpliceView = {
+  [@deriving sexp]
+  type model = BuiltinLivelits.SliderLivelitMinSpliceCore.model;
+  [@deriving sexp]
+  type action = BuiltinLivelits.SliderLivelitMinSpliceCore.action;
+  type trigger = action => Event.t;
+  type sync = action => unit;
+
+  let view_shape = _ => LivelitShape.Inline(14);
+  let view =
+      (
+        (endpoint_splice_number, current_value),
+        trigger: trigger,
+        _sync,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
+      ) => {
+    let endpoint_value =
+      switch (dhcode(endpoint_splice_number)) {
+      | Some((IntLit(endpoint_val), _)) => string_of_int(endpoint_val)
+      | _ => "100" // default
+      };
+    let splice_div = uhcode(endpoint_splice_number);
+    let value = string_of_int(current_value);
+    let on_input = (_, value_str) => trigger(int_of_string(value_str));
+    Node.span(
+      [Attr.classes(["slider-livelit"])],
+      [
+        Node.input(
+          [
+            Attr.classes(["slider"]),
+            Attr.type_("range"),
+            Attr.create("min", "0"),
+            Attr.create("max", endpoint_value),
+            Attr.value(value),
+            Attr.on_input(on_input),
+          ],
+          [],
+        ),
+        splice_div,
+      ],
+    );
+  };
+};
+
 module SliderLivelitMinView = {
   [@deriving sexp]
   type model = BuiltinLivelits.SliderLivelitMinCore.model;
@@ -1574,6 +1618,11 @@ module CheckboxLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.CheckboxLivelitCore, CheckboxLivelitView);
 module SliderLivelitMin: LIVELIT =
   MkLivelit(BuiltinLivelits.SliderLivelitMinCore, SliderLivelitMinView);
+module SliderLivelitMinSplice: LIVELIT =
+  MkLivelit(
+    BuiltinLivelits.SliderLivelitMinSpliceCore,
+    SliderLivelitMinSpliceView,
+  );
 module SliderLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.SliderLivelitCore, SliderLivelitView);
 module MatrixLivelit: LIVELIT =
@@ -1588,6 +1637,8 @@ module CheckboxLivelitViewAdapter = LivelitViewAdapter(CheckboxLivelit);
 module PairLivelitViewAdapter = LivelitViewAdapter(PairLivelit);
 module SliderLivelitViewAdapter = LivelitViewAdapter(SliderLivelit);
 module SliderLivelitMinViewAdapter = LivelitViewAdapter(SliderLivelitMin);
+module SliderLivelitMinSpliceViewAdapter =
+  LivelitViewAdapter(SliderLivelitMinSplice);
 module MatrixLivelitViewAdapter = LivelitViewAdapter(MatrixLivelit);
 module GradeCutoffLivelitViewAdapter = LivelitViewAdapter(GradeCutoffLivelit);
 module DataFrameLivelitViewAdapter = LivelitViewAdapter(DataFrameLivelit);
@@ -1608,6 +1659,7 @@ let initial_livelit_view_ctx =
       SliderLivelitViewAdapter.contexts_entry,
       ColorLivelitViewAdapter.contexts_entry,
       SliderLivelitMinViewAdapter.contexts_entry,
+      SliderLivelitMinSpliceViewAdapter.contexts_entry,
       //GradientLivelitViewAdapter.contexts_entry,
     ],
   );

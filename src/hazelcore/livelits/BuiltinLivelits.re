@@ -582,6 +582,52 @@ module CheckboxLivelitCore = {
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
 
+module SliderLivelitMinSpliceCore = {
+  let name = "$slidep";
+  let expansion_ty = HTyp.Int;
+  let param_tys = [];
+
+  [@deriving sexp]
+  type model = (SpliceName.t, int);
+  [@deriving sexp]
+  type action = int;
+
+  /*
+   what we need for init
+   string below is morally; actual would be much bigger
+   new_spliace assumes we'll rewrite to thread through u_gen,
+   and derive the type ourselves (can we always do this?)
+
+   bind(,
+    new_splice("UHExp.(Block.wrap(intlit'(100)))")
+    fun (endpoint_splice_number)
+     { return((endpoint_splice_number, 100))} )
+
+   changes to update and expand are minimal in this case conceptually.
+   still need to refactor expand to admit same data type;
+   also need new case "map_splice"
+   */
+
+  let init_model = {
+    SpliceGenCmd.(
+      bind(
+        new_splice(
+          ~init_uhexp_gen=
+            u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
+          HTyp.Int,
+        ),
+        endpoint_splice_number =>
+        return((endpoint_splice_number, 50))
+      )
+    );
+  };
+
+  let update = ((endpoint_splice_number, _), action) => {
+    SpliceGenCmd.(return((endpoint_splice_number, action)));
+  };
+  let expand = ((_, n)) => UHExp.Block.wrap(UHExp.intlit'(n));
+};
+
 module SliderLivelitMinCore = {
   let name = "$slidem";
   let expansion_ty = HTyp.Int;
@@ -879,6 +925,8 @@ module CheckboxLivelitCoreAdapter = LivelitCoreAdapter(CheckboxLivelitCore);
 module PairLivelitCoreAdapter = LivelitCoreAdapter(PairLivelitCore);
 module SliderLivelitCoreAdapter = LivelitCoreAdapter(SliderLivelitCore);
 module SliderLivelitMinCoreAdapter = LivelitCoreAdapter(SliderLivelitMinCore);
+module SliderLivelitMinSpliceCoreAdapter =
+  LivelitCoreAdapter(SliderLivelitMinSpliceCore);
 module MatrixLivelitCoreAdapter = LivelitCoreAdapter(MatrixLivelitCore);
 module GradeCutoffLivelitCoreAdapter =
   LivelitCoreAdapter(GradeCutoffLivelitCore);
@@ -900,6 +948,7 @@ let ctx =
       SliderLivelitCoreAdapter.contexts_entry,
       ColorLivelitCoreAdapter.contexts_entry,
       SliderLivelitMinCoreAdapter.contexts_entry,
+      SliderLivelitMinSpliceCoreAdapter.contexts_entry,
       //GradientLivelitCoreAdapter.contexts_entry,
     ],
   );

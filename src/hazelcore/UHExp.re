@@ -472,14 +472,13 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     && is_complete(start_, check_type_holes)
     && is_complete(end_, check_type_holes)
   | FreeLivelit(_) => false
-  | ApLivelit(_, _, _, _, _, splice_info) =>
-    // complete if splices are complete
-    let splices = splice_info.splice_map;
+  | ApLivelit(_, _, _, _, _, {splice_map, _}) =>
     IntMap.fold(
-      (_splice_name, (_ty, e), acc) => is_complete(e, false) && acc,
-      splices,
+      (_, (_, e), acc) => is_complete(e, false) && acc,
+      splice_map,
       true,
-    );
+    )
+  // complete if splices are complete
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool =>

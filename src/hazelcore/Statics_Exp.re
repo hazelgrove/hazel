@@ -1701,9 +1701,10 @@ module rec M: Statics_Exp_Sig.S = {
     let base_lln = livelit_defn.name;
     let does_not_expand =
       switch (livelit_defn.expand(model)) {
-      | Success(u) =>
-        // expansion must be complete
-        UHExp.is_complete(u, false)
+      | Success(_u) => false
+      // expansion must be complete
+      // TODO(andrew): but if I make it so, builtin livelits break...
+      //UHExp.is_complete(u, false)
       | Failure(_) => true
       };
     let (typ, err_status, u_gen) =
