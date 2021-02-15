@@ -127,7 +127,7 @@ module CursorInspector = {
   };
 
   let init = {
-    visible: true,
+    visible: false,
     show_expanded: false,
     term_novice_message_mode: false,
     type_novice_message_mode: false,
