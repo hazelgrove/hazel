@@ -446,7 +446,7 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
     } else {
       case1;
     };
-  | InconsistentBranches(u, i, sigma, case) =>
+  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     let case1 = evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
     if (case1 == Some(d)) {
       None;
