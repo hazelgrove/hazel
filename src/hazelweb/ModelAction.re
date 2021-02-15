@@ -29,6 +29,8 @@ type t =
   | NextCard
   | PrevCard
   | SynthesizeHole(MetaVar.t)
+  | SynthesizeAll
+  | EtaExpandAll
   | ScrollFilling(bool)
   | AcceptFilling
   | StepInFilling

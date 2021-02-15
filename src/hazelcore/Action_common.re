@@ -7,6 +7,7 @@ let shape_to_string = (shape: shape): string => {
   | SChar(str) => str
   | SAsc => "type annotation"
   | SLam => "function"
+  | SExpand => "eta expansion"
   | SListNil => "empty list"
   | SInj(side) =>
     switch (side) {

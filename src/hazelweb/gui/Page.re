@@ -42,6 +42,22 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("add template")],
         ),
         Node.option(
+          [Attr.value("length_template")],
+          [Node.text("length template")],
+        ),
+        Node.option(
+          [Attr.value("sort_template")],
+          [Node.text("sort template")],
+        ),
+        Node.option(
+          [Attr.value("sort_degenerate")],
+          [Node.text("sort degenerate")],
+        ),
+        Node.option(
+          [Attr.value("mistyped_uneval")],
+          [Node.text("mistyped uneval")],
+        ),
+        Node.option(
           [Attr.value("max_template")],
           [Node.text("max template")],
         ),
@@ -268,16 +284,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                       Node.button(
                         [
-                          Attr.on_click(_ => {
-                            let program = Model.get_program(model);
-                            let (ze, _, _) = program.edit_state;
-                            let holes_z = CursorPath_Exp.holes_z(ze, []);
-                            switch (holes_z.hole_selected) {
-                            | Some({sort: ExpHole(u, Empty), _}) =>
-                              inject(ModelAction.SynthesizeHole(u))
-                            | _ => Event.Many([])
-                            };
-                          }),
+                          Attr.on_click(_ => inject(ModelAction.EtaExpandAll)),
+                        ],
+                        [Node.text("Eta-expand")],
+                      ),
+                      Node.button(
+                        [
+                          Attr.on_click(_ =>
+                            inject(ModelAction.SynthesizeAll)
+                          ),
                         ],
                         [Node.text("Shmythesize")],
                       ),

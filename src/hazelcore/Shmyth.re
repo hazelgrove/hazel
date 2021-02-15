@@ -424,8 +424,13 @@ and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         UHExp.mk_OpSeq(Seq.seq_op_seq(hz_hd, Operators_Exp.Cons, hz_tl)),
       );
     }
-  | ECtor(name, _, _) => {
+  | ECtor("Cons", _, EVar(x)) => Some(OpSeq.wrap(UHExp.var(x)))
+  | ECtor(name, _, _e) => {
       Format.printf("bad list constructor: %s%!", name);
+      Format.printf(
+        "argument: %s%!",
+        Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_exp(_e)),
+      );
       assert(false);
     }
   | exp => smexp_to_uhexp_opseq(exp)
@@ -489,7 +494,22 @@ and smexp_branch_to_uhexp_rule =
           Seq.wrap(UHPat.var(x ++ "_tl")),
         ),
       ),
-      clause,
+      [
+        UHExp.letline(
+          OpSeq.wrap(UHPat.var(x)),
+          [
+            ExpLine(
+              UHExp.mk_OpSeq(
+                Seq.mk(
+                  UHExp.var(x ++ "_hd"),
+                  [(Operators_Exp.Comma, UHExp.var(x ++ "_tl"))],
+                ),
+              ),
+            ),
+          ],
+        ),
+        ...clause,
+      ],
     )
   | _ => assert(false)
   };
@@ -552,7 +572,7 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       let p = {
         let operands =
           ListUtil.range(n)
-          |> List.map(j => j == i ? UHPat.var(x) : UHPat.wild())
+          |> List.map(j => 1 + j == i ? UHPat.var(x) : UHPat.wild())
           |> List.map(Seq.wrap);
         switch (operands) {
         | [] => assert(false)
@@ -859,6 +879,30 @@ let process_constraints = (hconstraints, hole_number) => {
 
 //type solve_result = list(list((MetaVar.t, UHExp.t)));
 type solve_result = (list(UHExp.t), constraint_data);
+
+type hole_fillings = list(list((MetaVar.t, UHExp.t)));
+
+let solve_all = (e: UHExp.t): option(hole_fillings) => {
+  let* sm_prog = top_hexp_to_smprog(e);
+  switch (Smyth.Endpoint.solve_program(sm_prog)) {
+  | Error(_) => None
+  | Ok({hole_fillings, _}) =>
+    hole_fillings
+    |> List.map(hole_filling =>
+         hole_filling
+         |> List.map(((u, smexp)) => {
+              print_endline("smyth:");
+              print_endline(Smyth.Pretty.exp(smexp));
+              let+ e = smexp_to_uhexp(smexp);
+              // print_endline("hazel:");
+              // print_endline(Serialization.string_of_exp(e));
+              (u, e);
+            })
+         |> OptUtil.sequence
+       )
+    |> OptUtil.sequence
+  };
+};
 
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);

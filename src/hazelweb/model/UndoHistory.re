@@ -499,6 +499,7 @@ let get_new_action_group =
       | SList
       | SAsc
       | SLam
+      | SExpand
       | SListNil
       | SInj(_)
       | SLet

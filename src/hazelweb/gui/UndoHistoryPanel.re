@@ -318,6 +318,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
+    | SExpand
     | SList
     | SListNil
     | SLine
@@ -375,6 +376,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           )
         )
       | SLam => indicate_words_view("construct function")
+      | SExpand => indicate_words_view("eta-expand")
       | _ =>
         Vdom.(
           Node.span(
@@ -451,6 +453,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SLet
       | SCase
       | SLam
+      | SExpand
       | SAsc => Some(Exp)
       | _ =>
         Some(

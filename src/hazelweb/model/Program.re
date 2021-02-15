@@ -356,3 +356,49 @@ let accept_synthesized = program =>
     let edit_state = (ZExp.place_before(e), ty, id_gen);
     {...program, edit_state, is_focused: false, synthesizing: None};
   };
+
+let rec eta_expand_hole = program =>
+  switch (program |> perform_edit_action(Action.Construct(SExpand))) {
+  | exception FailedAction => program
+  | program =>
+    program |> perform_edit_action(Action.MoveToNextHole) |> eta_expand_hole
+  };
+let eta_expand_all = program => {
+  let (ze, _ty, _id_gen) = program.edit_state;
+  let exp_holes =
+    CursorPath_Exp.holes(ZExp.erase(ze), [], [])
+    |> List.filter_map(info =>
+         CursorPath.(
+           switch (info.sort) {
+           | ExpHole(u, Empty) => Some(u)
+           | _ => None
+           }
+         )
+       );
+  List.fold_right(
+    (u, p) =>
+      p |> perform_edit_action(move_to_hole(u, p)) |> eta_expand_hole,
+    exp_holes,
+    program,
+  );
+};
+let accept_all = program =>
+  // NOTE: turned off eta-expansion to experiment with mistyped uneval warning
+  // switch (Synthesizing.synthesize_all(get_uhexp(eta_expand_all(program)))) {
+  switch (Synthesizing.synthesize_all(get_uhexp(program))) {
+  | None =>
+    print_endline("Not on track");
+    program;
+  | Some(syn) =>
+    print_endline("On track!");
+    let id_gen = get_id_gen(program);
+    let (e, ty, id_gen) =
+      Statics_Exp.syn_fix_holes(
+        Contexts.empty,
+        id_gen,
+        ~renumber_empty_holes=true,
+        syn,
+      );
+    let edit_state = (ZExp.place_before(e), ty, id_gen);
+    {...program, edit_state, is_focused: false, synthesizing: None};
+  };

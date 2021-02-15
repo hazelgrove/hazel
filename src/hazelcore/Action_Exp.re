@@ -1714,7 +1714,7 @@ and syn_perform_operand =
         ),
       );
     Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), id_gen)));
-
+  | (Construct(SExpand), CursorE(_)) => Failed
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -3163,7 +3163,6 @@ and ana_perform_operand =
         ZExp.ZBlock.wrap(InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded(AnaDone((new_ze, id_gen)));
     }
-
   | (Construct(SLam), CursorE(_)) =>
     let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
     switch (HTyp.matched_arrow(ty)) {
@@ -3188,7 +3187,19 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, id_gen)));
     };
-
+  | (Construct(SExpand), CursorE(_)) =>
+    let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
+    switch (HTyp.matched_arrow(ty)) {
+    | Some((_, ty2)) =>
+      let (body, id_gen) = Statics_Exp.ana_fix_holes(ctx, id_gen, body, ty2);
+      let (i, id_gen) = id_gen |> IDGen.next_hole;
+      let zvar =
+        UHPat.var("x" ++ string_of_int(i)) |> ZPat.place_before_operand;
+      let new_ze =
+        ZExp.ZBlock.wrap(LamZP(NotInHole, ZOpSeq.wrap(zvar), None, body));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    | None => Failed
+    };
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     ana_perform_operand(ctx, MoveRight, (zoperand, id_gen), ty)
