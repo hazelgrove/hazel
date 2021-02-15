@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 module EvalCtx = {
   [@deriving sexp]
   type t =
@@ -21,13 +23,24 @@ module EvalCtx = {
         ErrStatus.HoleReason.t,
         MetaVar.t,
         MetaVarInst.t,
-        //TODO: VarMap.t_(t),
+        VarMap.t_(DHExp.t),
         t,
       )
     | FixF(Var.t, HTyp.t, t)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
-    | InvalidOperation(t, InvalidOperationError.t);
+    | InvalidOperation(t, InvalidOperationError.t)
+    | ConsistentCase(t, list(DHExp.rule), int)
+    | InconsistentBranches(
+        MetaVar.t,
+        MetaVarInst.t,
+        VarMap.t_(DHExp.t),
+        t,
+        list(DHExp.rule),
+        int,
+      );
+  // and rule =
+  //   | Rule(DHPat.t, DHExp.t);
 };
 
 //Copy from Evaluator.re
@@ -71,7 +84,8 @@ let is_val = (d: DHExp.t): bool =>
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
-  | FloatLit(_) => true
+  | FloatLit(_)
+  | Triv => true
   | _ => false
   };
 
@@ -128,12 +142,12 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
       let (ctx, d0) = decompose(d1);
       (Ap1(ctx, d2), d0);
     }
-  | NonEmptyHole(reason, mvar, mvarinst, _, d1) =>
+  | NonEmptyHole(reason, u, i, sigma, d1) =>
     if (is_final(d1)) {
       (Mark, d);
     } else {
       let (ctx, d0) = decompose(d1);
-      (NonEmptyHole(reason, mvar, mvarinst, ctx), d0);
+      (NonEmptyHole(reason, u, i, sigma, ctx), d0);
     }
   | BinBoolOp(op, d1, d2) =>
     if (is_final(d1)) {
@@ -242,9 +256,20 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
       let (ctx, d0) = decompose(d1);
       (InvalidOperation(ctx, err), d0);
     }
-  // | ConsistentCase(case)
-  // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | _ => (Mark, d)
+  | ConsistentCase(Case(d1, rule, n)) =>
+    if (is_final(d1)) {
+      (Mark, d);
+    } else {
+      let (ctx, d0) = decompose(d1);
+      (ConsistentCase(ctx, rule, n), d0);
+    }
+  | InconsistentBranches(u, i, sigma, Case(d1, rule, n)) =>
+    if (is_final(d1)) {
+      (Mark, d);
+    } else {
+      let (ctx, d0) = decompose(d1);
+      (InconsistentBranches(u, i, sigma, ctx, rule, n), d0);
+    }
   };
 
 let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
@@ -269,14 +294,12 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | FailedCast(ctx1, ty1, ty2) => FailedCast(compose((ctx1, d)), ty1, ty2)
   | FixF(var, ty, ctx1) => FixF(var, ty, compose((ctx1, d)))
   | InvalidOperation(ctx1, err) => InvalidOperation(compose((ctx1, d)), err)
-  // | NonEmptyHole(
-  //     ErrStatus.HoleReason.t,
-  //     MetaVar.t,
-  //     MetaVarInst.t,
-  //     //TODO: VarMap.t_(t),
-  //     t,
-  //   )
-  | _ => d
+  | NonEmptyHole(reason, u, i, sigma, ctx1) =>
+    NonEmptyHole(reason, u, i, sigma, compose((ctx1, d)))
+  | ConsistentCase(ctx1, rule, n) =>
+    ConsistentCase(Case(compose((ctx1, d)), rule, n))
+  | InconsistentBranches(u, i, sigma, ctx1, rule, n) =>
+    InconsistentBranches(u, i, sigma, Case(compose((ctx1, d)), rule, n))
   };
 
 // Copy from Evaluator.re
@@ -312,6 +335,40 @@ let eval_bin_float_op =
   | FEquals => BoolLit(f1 == f2)
   };
 };
+
+let rec evaluate_case_instruction =
+        (
+          inconsistent_info,
+          scrut: DHExp.t,
+          rules: list(DHExp.rule),
+          current_rule_index: int,
+        )
+        : option(DHExp.t) =>
+  switch (List.nth_opt(rules, current_rule_index)) {
+  | None =>
+    let case = DHExp.Case(scrut, rules, current_rule_index);
+    switch (inconsistent_info) {
+    | None => Some(ConsistentCase(case))
+    | Some((u, i, sigma)) => Some(InconsistentBranches(u, i, sigma, case))
+    };
+  | Some(Rule(dp, d)) =>
+    switch (Elaborator_Exp.matches(dp, scrut)) {
+    | Indet =>
+      let case = DHExp.Case(scrut, rules, current_rule_index);
+      switch (inconsistent_info) {
+      | None => Some(ConsistentCase(case))
+      | Some((u, i, sigma)) => Some(InconsistentBranches(u, i, sigma, case))
+      };
+    | Matches(env) => Some(Elaborator_Exp.subst(env, d))
+    | DoesNotMatch =>
+      evaluate_case_instruction(
+        inconsistent_info,
+        scrut,
+        rules,
+        current_rule_index + 1,
+      )
+    }
+  };
 
 let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   switch (d) {
@@ -370,10 +427,33 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
         }
       | _ => None //Error
       }
+    | (Hole, NotGroundOrHole(ty2_grounded)) =>
+      Some(Cast(Cast(d1, ty1, ty2_grounded), ty2_grounded, ty1))
+    | (NotGroundOrHole(ty1_grounded), Hole) =>
+      Some(Cast(Cast(d1, ty1, ty1_grounded), ty1_grounded, ty2))
+    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+      if (HTyp.eq(ty1, ty2)) {
+        Some(d1);
+      } else {
+        None;
+      }
     | _ => None
     }
-
-  // | FailedCast(t, HTyp.t, HTyp.t)
+  | ConsistentCase(Case(d1, rules, n)) =>
+    let case1 = evaluate_case_instruction(None, d1, rules, n);
+    if (case1 == Some(d)) {
+      None;
+    } else {
+      case1;
+    };
+  | InconsistentBranches(u, i, sigma, case) =>
+    let case1 = evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
+    if (case1 == Some(d)) {
+      None;
+    } else {
+      case1;
+    };
+  | FailedCast(_, _, _)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -382,8 +462,6 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   | Pair(_, _)
   | Triv
   | Lam(_, _, _)
-  | ConsistentCase(_)
-  // | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | InvalidOperation(_, _)
   | _ => None
   };
