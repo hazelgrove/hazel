@@ -483,3 +483,18 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
 }
 and is_complete = (exp: t, check_type_holes: bool): bool =>
   is_complete_block(exp, check_type_holes);
+
+let wrap_lambda = (body: t, param_name: string): t =>
+  Block.wrap'(
+    mk_OpSeq(
+      Seq.mk(
+        Lam(
+          NotInHole,
+          UHPat.mk_OpSeq(Seq.mk(UHPat.var(param_name), [])),
+          None,
+          body,
+        ),
+        [],
+      ),
+    ),
+  );

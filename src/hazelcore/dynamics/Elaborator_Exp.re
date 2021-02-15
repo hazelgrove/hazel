@@ -1307,11 +1307,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
     let proto_expansion = expand(serialized_model);
-    let proto_expansion_ty =
-      switch (captures_ty) {
-      | None => expansion_ty
-      | Some(captures_ty) => HTyp.Arrow(captures_ty, expansion_ty)
-      };
+    let proto_expansion_ty = HTyp.Arrow(captures_ty, expansion_ty);
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
     | Success(proto_expansion) =>
@@ -1386,12 +1382,13 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                      arg_opt |> Option.map(arg => ((), (v, t, arg))),
                    (),
                  );
-            let proto_elaboration =
+            let captures_value =
               switch (captures_ty) {
-              //NOTE(andrew): user-defined livelits get ap-wrapped
-              | None => proto_elaboration
-              | Some(_) => DHExp.Ap(proto_elaboration, DHExp.BoundVar(name))
+              | HTyp.Hole => DHExp.Triv
+              | _ => DHExp.BoundVar(name)
               };
+            let proto_elaboration =
+              DHExp.Ap(proto_elaboration, captures_value);
             let rslt =
               switch (dargs_opt') {
               | Some(((), dargs')) when !livelit_holes =>

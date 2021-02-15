@@ -16,6 +16,8 @@ module type LIVELIT_CORE = {
 
 let _to_uhvar = id => UHExp.var(SpliceInfo.var_of_splice_name(id));
 
+let wrap_lambda_dummy = u => UHExp.wrap_lambda(u, "dummy_param");
+
 module PairLivelitCore = {
   let name = "$pair";
   let expansion_ty = HTyp.(Prod([Hole, Hole]));
@@ -41,7 +43,7 @@ module PairLivelitCore = {
         _to_uhvar(leftID),
         [(Operators_Exp.Comma, _to_uhvar(rightID))],
       );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(pair_seq));
+    wrap_lambda_dummy(UHExp.Block.wrap'(UHExp.mk_OpSeq(pair_seq)));
   };
 };
 
@@ -167,7 +169,7 @@ module MatrixLivelitCore = {
            |> to_uhexp_list
            |> (q => UHExp.Parenthesized(q))
          );
-    to_uhexp_list(m');
+    wrap_lambda_dummy(to_uhexp_list(m'));
   };
 };
 
@@ -281,7 +283,7 @@ module GradeCutoffLivelitCore = {
           ],
         )
       );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(tupl_seq));
+    wrap_lambda_dummy(UHExp.Block.wrap'(UHExp.mk_OpSeq(tupl_seq)));
   };
 };
 
@@ -321,7 +323,7 @@ module GrayscaleLivelitCore = {
 
   let update = (model, _) => SpliceGenCmd.return(model);
 
-  let expand = _ => UHExp.Block.wrap(UHExp.intlit'(0));
+  let expand = _ => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(0)));
 };
 
 module ColorLivelitCore = {
@@ -421,7 +423,7 @@ module ColorLivelitCore = {
           (Operators_Exp.Comma, _to_uhvar(a)),
         ],
       );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(four_tuple));
+    wrap_lambda_dummy(UHExp.Block.wrap'(UHExp.mk_OpSeq(four_tuple)));
   };
 };
 
@@ -579,7 +581,8 @@ module CheckboxLivelitCore = {
   let init_model = SpliceGenCmd.return(false);
   let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
-  let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
+  let expand = m =>
+    wrap_lambda_dummy(UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m)));
 };
 
 module SliderLivelitMinSpliceCore = {
@@ -593,15 +596,15 @@ module SliderLivelitMinSpliceCore = {
   type action = int;
 
   /*
-   
+
    needed for init:
    return: a -> S(a)
    bind: S(a) -> (a->S(b)) -> S(b)
    newsplice: "SexpofUHExp" -> S(spliceno)
 
-   Newsplice above assumes we derive type and thread it in ourselves 
+   Newsplice above assumes we derive type and thread it in ourselves
    This also assumes we'll go back and thread u_gen thru on the backend
-   
+
    needed for update:
    mapsplice: spliceno -> (UHExp -> UHExp) -> S(UHExp)
    really just setsplice tho:  spliceno -> UHExp -> S(UHExp)
@@ -614,7 +617,7 @@ module SliderLivelitMinSpliceCore = {
    note: uhexp string would really be sexp and much bigger without helpers
 
    (changes to update are minimal in this case conceptually; need to update expand's params)
-   
+
    say we model the updatemonad as branches in a sum type.
    do we require that init/update BEGIN with an instance of this type?
    what if we wanted a letline first? can we allow interwoven hazel code
@@ -639,7 +642,8 @@ module SliderLivelitMinSpliceCore = {
   let update = ((endpoint_splice_number, _), action) => {
     SpliceGenCmd.(return((endpoint_splice_number, action)));
   };
-  let expand = ((_, n)) => UHExp.Block.wrap(UHExp.intlit'(n));
+  let expand = ((_, n)) =>
+    wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(n)));
 };
 
 module SliderLivelitMinCore = {
@@ -654,7 +658,7 @@ module SliderLivelitMinCore = {
 
   let init_model = SpliceGenCmd.return(0);
   let update = (_, n) => SpliceGenCmd.return(n);
-  let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
+  let expand = n => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(n)));
 };
 
 module SliderLivelitCore = {
@@ -685,8 +689,8 @@ module SliderLivelitCore = {
 
   let expand =
     fun
-    | None => UHExp.Block.wrap(UHExp.intlit'(0))
-    | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
+    | None => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(0)))
+    | Some(n) => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(n)));
 };
 
 module DataFrameLivelitCore = {
@@ -871,11 +875,13 @@ module DataFrameLivelitCore = {
            );
          })
       |> to_uhexp_list;
-    UHExp.[
-      ExpLine(
-        mk_OpSeq(Seq.seq_op_seq(col_headers, Operators_Exp.Comma, rows)),
-      ),
-    ];
+    wrap_lambda_dummy(
+      UHExp.[
+        ExpLine(
+          mk_OpSeq(Seq.seq_op_seq(col_headers, Operators_Exp.Comma, rows)),
+        ),
+      ],
+    );
   };
 };
 
@@ -887,7 +893,7 @@ module LivelitCoreAdapter = (L: LIVELIT_CORE) => {
     LivelitDefinition.{
       name: L.name,
       expansion_ty: L.expansion_ty,
-      captures_ty: None, // NOTE(andrew): used only for user-defined livelits
+      captures_ty: HTyp.Hole, // NOTE(andrew): morally should be unit type
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>

@@ -148,3 +148,5 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 let is_complete: (t, bool) => bool;
 
 let find_operand: t => option(operand);
+
+let wrap_lambda: (t, string) => t;
