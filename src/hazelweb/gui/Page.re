@@ -284,6 +284,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                       Node.button(
                         [
+                          Attr.on_click(_ => inject(ModelAction.EtaExpandAll)),
+                        ],
+                        [Node.text("Eta-expand")],
+                      ),
+                      Node.button(
+                        [
                           Attr.on_click(_ =>
                             inject(ModelAction.SynthesizeAll)
                           ),

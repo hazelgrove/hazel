@@ -67,6 +67,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateIsMac(_)
   | SynthesizeHole(_)
   | SynthesizeAll
+  | EtaExpandAll
   | ScrollFilling(_)
   | AcceptFilling
   | StepInFilling
@@ -135,6 +136,7 @@ let apply_action =
       | SynthesizeHole(u) =>
         Model.map_program(Program.begin_synthesizing(u), model)
       | SynthesizeAll => Model.map_program(Program.accept_all, model)
+      | EtaExpandAll => Model.map_program(Program.eta_expand_all, model)
       | ScrollFilling(up) =>
         Model.map_program(Program.scroll_synthesized_selection(up), model)
       | StepInFilling => Model.map_program(Program.step_in_synthesized, model)
