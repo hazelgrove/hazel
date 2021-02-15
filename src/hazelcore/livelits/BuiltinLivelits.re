@@ -593,19 +593,33 @@ module SliderLivelitMinSpliceCore = {
   type action = int;
 
   /*
-   what we need for init
-   string below is morally; actual would be much bigger
-   new_spliace assumes we'll rewrite to thread through u_gen,
-   and derive the type ourselves (can we always do this?)
+   
+   needed for init:
+   return: a -> S(a)
+   bind: S(a) -> (a->S(b)) -> S(b)
+   newsplice: "SexpofUHExp" -> S(spliceno)
+
+   Newsplice above assumes we derive type and thread it in ourselves 
+   This also assumes we'll go back and thread u_gen thru on the backend
+   
+   needed for update:
+   mapsplice: spliceno -> (UHExp -> UHExp) -> S(UHExp)
+   really just setsplice tho:  spliceno -> UHExp -> S(UHExp)
 
    bind(,
     new_splice("UHExp.(Block.wrap(intlit'(100)))")
     fun (endpoint_splice_number)
-     { return((endpoint_splice_number, 100))} )
+     { return((endpoint_splice_number, 50))} )
 
-   changes to update and expand are minimal in this case conceptually.
-   still need to refactor expand to admit same data type;
-   also need new case "map_splice"
+   note: uhexp string would really be sexp and much bigger without helpers
+
+   (changes to update are minimal in this case conceptually; need to update expand's params)
+   
+   say we model the updatemonad as branches in a sum type.
+   do we require that init/update BEGIN with an instance of this type?
+   what if we wanted a letline first? can we allow interwoven hazel code
+   inside this injection? eg having a letline inside a return around the argument
+
    */
 
   let init_model = {
