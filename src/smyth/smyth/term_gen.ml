@@ -283,6 +283,9 @@ and rel_gen_e (sigma : datatype_ctx) (term_size : int)
       let* specialized_type, specialized_exp =
         instantiations sigma gamma rel_name rel_type
       in
+      let* _ =
+        Nondet.guard (match rel_bind_spec with Rec _ -> false | _ -> true)
+      in
       if
         Type.matches goal_type specialized_type
         && Type.matches_dec goal_dec rel_bind_spec
