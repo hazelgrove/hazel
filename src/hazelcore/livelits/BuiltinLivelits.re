@@ -16,7 +16,7 @@ module type LIVELIT_CORE = {
 
 let _to_uhvar = id => UHExp.var(SpliceInfo.var_of_splice_name(id));
 
-let wrap_lambda_dummy = u => UHExp.wrap_lambda(u, "dummy_param");
+let wrap_lambda_dummy = u => UHExp.wrap_lambda(u, "_");
 
 module PairLivelitCore = {
   let name = "$pair";
@@ -597,31 +597,73 @@ module SliderLivelitMinSpliceCore = {
 
   /*
 
-   needed for init:
+   To implement spliceslider we need:
    return: a -> S(a)
    bind: S(a) -> (a->S(b)) -> S(b)
-   newsplice: "SexpofUHExp" -> S(spliceno)
+   newsplice: ("SexpofHTyp", "SexpofUHExp") -> S(spliceno)
+
+   To implement color picker we also need:
+   mapsplice: spliceno -> (("SexpofHTyp", "SexpofUHExp") -> ("SexpofHTyp", "SexpofUHExp")) -> S("SexpofUHExp")
+
+   To implement the rest of the prebuilts we also need:
+   SpliceGenCmd.drop_splice, MonadsUtil.bind_count, MonadsUtil.bind_list,
+
+   So:
+
+   Return(x) = inj[L](inj[L](x))
+   Bind(x, f) = inj[L](inj[R]((x, f)))
+   NewSplice(s) = inj[R](inj[L](s_ty, s_exp))
+   MapSplice(s) = inj[R](inj[R]((n, uf)))
 
    Newsplice above assumes we derive type and thread it in ourselves
    This also assumes we'll go back and thread u_gen thru on the backend
+   (for new_splice and map_splice)
 
-   needed for update:
-   mapsplice: spliceno -> (UHExp -> UHExp) -> S(UHExp)
-   really just setsplice tho:  spliceno -> UHExp -> S(UHExp)
 
-   bind(,
-    new_splice("UHExp.(Block.wrap(intlit'(100)))")
-    fun (endpoint_splice_number)
-     { return((endpoint_splice_number, 50))} )
+   spliceslider init (ADT):
 
-   note: uhexp string would really be sexp and much bigger without helpers
+   Bind(,
+    NewSplice("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, "100"), E)))])"*)
+    fun (spliceno) { Return((spliceno, 50))} )
 
-   (changes to update are minimal in this case conceptually; need to update expand's params)
+   spliceslider init (anon):
 
-   say we model the updatemonad as branches in a sum type.
-   do we require that init/update BEGIN with an instance of this type?
-   what if we wanted a letline first? can we allow interwoven hazel code
-   inside this injection? eg having a letline inside a return around the argument
+   inj[L](inj[R]((
+    inj[R](inj[L]("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, "100"), E)))])"*)),
+    fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
+
+   *: uhexp would need to be sexped
+
+   interpret_update_monad (x) =
+   //TODO: error handling.....
+   ...
+   Return(x) =>
+   // x will be?? evaluated dhexp of model
+   // should we serialize this?
+   // strip casts; check if model type;
+   SpliceGenCmd.return(serialize(x))
+
+   Bind(x, f) =>
+   SpliceGenCmd.bind(
+     interpret_update_monad(x),
+     spliceno => {
+       // read popl19 on casts
+       // strip casts; check if model type;
+       let hx = convert_to_hazel_int(spliceno);
+       hazel_evaluate(DHExp.App(f, hx))
+     }
+   )
+
+   NewSplice(str_of_sexp_of_typ, str_of_sexp_of_exp) =>
+    let ty = deserialize(str_of_sexp_of_typ);
+    let uhexp = deserialize(str_of_sexp_of_exp);
+    // handle none case for option(Exp)
+    SpliceGenCmd.new_splice(
+      ~init_uhexp_gen =
+        u_gen => (uhexp, u_gen),
+      ty
+    )
+
 
    */
 
