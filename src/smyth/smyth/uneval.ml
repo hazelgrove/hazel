@@ -39,8 +39,9 @@ module FuelLimited = struct
       in
       Nondet.map
         (Hole_map.singleton hole_name)
-        (Term_gen.up_to sigma 1 {gen_goal with term_kind= E})
-      (* TODO: can we remove term_kind=E? *)
+        (Term_gen.up_to sigma 2 gen_goal)
+      (* TODO: what size is reasonable? >=2 is needed for generating nullary
+         constructors *)
     in
     let* _ = Nondet.guard (fuel > 0) in
     match (res, ex) with

@@ -50,8 +50,7 @@ let guess_and_check params delta sigma hf
   let* _ = Nondet.guard (Type.is_base goal_type) in
   let* exp =
     Timer.Multi.accumulate Timer.Multi.Guess
-    @@ fun () ->
-    Term_gen.up_to sigma params.max_term_size {gen_goal with term_kind= E}
+    @@ fun () -> Term_gen.up_to sigma params.max_term_size gen_goal
     (* TODO: remove term_kind=E? *)
   in
   (* print_endline ("guess: " ^ Pretty.exp exp) ; *)
