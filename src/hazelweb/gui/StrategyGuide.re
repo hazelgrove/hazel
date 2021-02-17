@@ -627,13 +627,13 @@ let view =
 
 let get_shortcut = (typ: HTyp.t) => {
   switch (typ) {
-  | HTyp.Int => "(Enter 'I')"
-  | HTyp.Float => "(Enter 'F')"
-  | HTyp.Bool => "(Enter 'B')"
-  | HTyp.List(_) => "(Enter '[')"
-  | HTyp.Sum(_, _) => "(Enter '|')"
-  | HTyp.Prod(_) => "(Enter ',')"
-  | HTyp.Arrow(_, _) => "(Enter '>')"
+  | HTyp.Int => "(enter I)"
+  | HTyp.Float => "(enter F)"
+  | HTyp.Bool => "(enter B)"
+  | HTyp.List(_) => "(enter [)"
+  | HTyp.Sum(_, _) => "(enter |)"
+  | HTyp.Prod(_) => "(enter ,)"
+  | HTyp.Arrow(_, _) => "(enter >)"
   | _ => raise(Invalid_argument("Invalid HTyp"))
   };
 };
@@ -670,6 +670,8 @@ let list_compounds_view = () => {
            [Attr.classes(["option"])],
            [
              Node.text(type_to_str(Some(s))),
+             Node.text(" "),
+             Node.text(get_shortcut(s)),
              Node.text(": "),
              HTypCode.view(s),
            ],
@@ -687,6 +689,8 @@ let list_function_view = () => {
            [Attr.classes(["option"])],
            [
              Node.text(type_to_str(Some(s))),
+             Node.text(" "),
+             Node.text(get_shortcut(s)),
              Node.text(": "),
              HTypCode.view(s),
            ],
