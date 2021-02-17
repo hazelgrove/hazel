@@ -1,8 +1,20 @@
 open Sexplib.Std;
 
+module Index = {
+  [@deriving sexp]
+  type t = int;
+
+  /* TODO: What is identity function */
+  let of_int = x => x;
+
+  let eq = (==);
+};
+
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(Index.t, Var.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, Var.t) /* free type variables */
   | Hole
   | Int
   | Float
@@ -28,22 +40,32 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
+  | TyVar(_)
+  | TyVarHole(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
-/* equality
-   At the moment, this coincides with default equality,
-   but this will change when polymorphic types are implemented */
-let eq = (==);
+/* equality */
+let eq = (x, y) =>
+  switch (x, y) {
+  | (TyVarHole(_, id1), TyVarHole(_, id2)) => id1 == id2
+  | (TyVar(_), TyVar(_)) => x == y /* TODO: When you can bind type variables, look up in context */
+  | _ => x == y
+  };
 
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_)) => true
+  | (TyVar(i, _), TyVar(j, _)) => Index.eq(i, j) /* TODO: When we bind variables, do this properly */
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => false /* TODO: When we bind variables, do this properly */
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -79,7 +101,8 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -93,14 +116,16 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole => Some(Hole)
+  | Hole
+  | TyVarHole(_) => Some(Hole)
   | List(ty) => Some(ty)
   | _ => None;
 
@@ -108,6 +133,8 @@ let matched_list =
 let rec complete =
   fun
   | Hole => false
+  | TyVarHole(_) => false
+  | TyVar(_) => true
   | Int => true
   | Float => true
   | Bool => true
@@ -118,16 +145,21 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+  | (_, Hole)
+  | (_, TyVarHole(_)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole, _)
+  | (TyVarHole(_), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
     }
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => None /* TODO: Consider what happens when we bind them. Look at the Hazelnut paper */
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
