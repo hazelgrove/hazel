@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -28,6 +29,8 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
 
-let expand: t => HTyp.t;
+let expand: (TyVarCtx.t, t) => HTyp.t;
 
 let is_complete: t => bool;
+
+let to_string_exn: t => string;

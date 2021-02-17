@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -27,6 +28,7 @@ let rec get_prod_elements: skel => list(skel) =
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
+  | TyVar(_)
   | Unit
   | Int
   | Float
@@ -57,6 +59,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -92,29 +96,33 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
-and expand_opseq =
+let rec expand = (ctx: TyVarCtx.t, ty: t): HTyp.t => expand_opseq(ty)
+and expand_opseq = ctx =>
   fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
+  | OpSeq(skel, seq) => expand_skel(ctx, skel, seq)
+and expand_skel = (ctx, skel, seq) =>
   switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
+  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
   | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(ctx, skel1, seq);
+    let ty2 = expand_skel(ctx, skel2, seq);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
+      skel
+      |> get_prod_elements
+      |> List.map(skel => expand_skel(ctx, skel, seq)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(ctx, skel1, seq);
+    let ty2 = expand_skel(ctx, skel2, seq);
     Sum(ty1, ty2);
   }
-and expand_operand =
+and expand_operand = ctx =>
   fun
   | Hole => Hole
+  | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of_exn(ctx, t), t)
+  | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
   | Unit => Prod([])
   | Int => Int
   | Float => Float
@@ -125,6 +133,8 @@ and expand_operand =
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
+  | TyVar(NotInVarHole, _) => true
+  | TyVar(InVarHole(_), _) => false
   | Unit => true
   | Int => true
   | Float => true
@@ -146,3 +156,10 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
+
+let to_string_exn =
+  fun
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | _ => failwith("to_string_exn only works with int/float/bool for now");
