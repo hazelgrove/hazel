@@ -625,6 +625,19 @@ let view =
 
 /**************************   TYPES    ****************************/
 
+let get_shortcut = (typ: HTyp.t) => {
+  switch (typ) {
+  | HTyp.Int => "(Enter 'I')"
+  | HTyp.Float => "(Enter 'F')"
+  | HTyp.Bool => "(Enter 'B')"
+  | HTyp.List(_) => "(Enter '[')"
+  | HTyp.Sum(_, _) => "(Enter '|')"
+  | HTyp.Prod(_) => "(Enter ',')"
+  | HTyp.Arrow(_, _) => "(Enter '>')"
+  | _ => raise(Invalid_argument("Invalid HTyp"))
+  };
+};
+
 let list_primitives_view = () => {
   open Vdom;
   let primitive_options =
@@ -634,6 +647,8 @@ let list_primitives_view = () => {
            [Attr.classes(["option"])],
            [
              Node.text(type_to_str(Some(s))),
+             Node.text(" "),
+             Node.text(get_shortcut(s)),
              Node.text(": "),
              HTypCode.view(s),
            ],
@@ -647,7 +662,7 @@ let list_compounds_view = () => {
   let compound_options =
     [
       HTyp.Sum(HTyp.Hole, HTyp.Hole),
-      HTyp.Prod([HTyp.Hole, HTyp.Hole, HTyp.Hole]),
+      HTyp.Prod([HTyp.Hole]),
       HTyp.List(HTyp.Hole),
     ]
     |> List.map(s => {
