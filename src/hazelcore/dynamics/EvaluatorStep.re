@@ -39,8 +39,6 @@ module EvalCtx = {
         list(DHExp.rule),
         int,
       );
-  // and rule =
-  //   | Rule(DHPat.t, DHExp.t);
 };
 
 //Copy from Evaluator.re
@@ -453,6 +451,13 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
     } else {
       case1;
     };
+  | EmptyHole(_, _, _)
+  | NonEmptyHole(_, _, _, _, _)
+  | Keyword(_, _, _, _)
+  | FreeVar(_, _, _, _)
+  | InvalidText(_, _, _, _)
+  | BoundVar(_)
+  | Inj(_, _, _)
   | FailedCast(_, _, _)
   | BoolLit(_)
   | IntLit(_)
@@ -462,8 +467,8 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   | Pair(_, _)
   | Triv
   | Lam(_, _, _)
-  | InvalidOperation(_, _)
-  | _ => None
+  | InvalidOperation(_, _) => None
+  //| _ => None
   };
 
 let evaluate_step = (d: DHExp.t): option(DHExp.t) => {
@@ -473,5 +478,13 @@ let evaluate_step = (d: DHExp.t): option(DHExp.t) => {
     None;
   } else {
     Some(compose((ctx, d)));
+  };
+};
+
+let rec evaluate_steps = (d: DHExp.t): DHExp.t => {
+  let res = evaluate_step(d);
+  switch (res) {
+  | Some(d0) => evaluate_steps(d0)
+  | None => d
   };
 };
