@@ -15,6 +15,23 @@ let view = (~inject, model: Model.t) => {
     () => {
       open Vdom;
       let program = Model.get_program(model);
+      let mini_buffer =
+        switch (model.mini_buffer) {
+        | None => []
+        | Some(_) =>
+          print_endline("0");
+          [
+            Node.input(
+              [
+                Attr.id("mini-buffer"),
+                Attr.on_change((_, contents) =>
+                  inject(ModelAction.SubmitMiniBuffer(contents))
+                ),
+              ],
+              [],
+            ),
+          ];
+        };
       Node.div(
         [Attr.id(cell_id)],
         [
@@ -32,7 +49,8 @@ let view = (~inject, model: Model.t) => {
               ),
             ],
           ),
-        ],
+        ]
+        @ mini_buffer,
       );
     },
   );

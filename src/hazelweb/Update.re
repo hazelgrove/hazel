@@ -45,7 +45,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   switch (action) {
   | EditAction(_)
   | MoveAction(_)
-  | MoveToHole(_)
+  | OpenMiniBuffer(_)
+  | CloseMiniBuffer
+  | SubmitMiniBuffer(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -119,14 +121,10 @@ let apply_action =
           JSUtil.log("[Program.CursorEscaped]");
           model;
         }
-      | MoveToHole(n) =>
-        (
-          Model.get_program(model)
-          |> Program.move_to_hole(n)
-          |> Model.perform_edit_action
-        )(
-          model,
-        )
+      | CloseMiniBuffer => {...model, mini_buffer: None}
+      | OpenMiniBuffer(a) => {...model, mini_buffer: Some(a)}
+      | SubmitMiniBuffer(string) =>
+        Model.complete_mini_buffer_action(string, model)
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)

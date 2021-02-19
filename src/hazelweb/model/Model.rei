@@ -1,3 +1,7 @@
+[@deriving sexp]
+type mini_buffer_action =
+  | MoveToHole;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -16,6 +20,7 @@ type t = {
    */
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  mini_buffer: option(mini_buffer_action),
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -95,3 +100,5 @@ let load_cardstack: (t, int) => t;
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
 let map_program: (Program.t => Program.t, t) => t;
+
+let complete_mini_buffer_action: (string, t) => t;

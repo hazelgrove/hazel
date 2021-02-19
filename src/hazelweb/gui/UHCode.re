@@ -215,7 +215,8 @@ let key_handlers =
           } else {
             Event.Ignore;
           }
-        | Some(Ctrl_Alt_D) => prevent_stop_inject(ModelAction.MoveToHole(1))
+        | Some(Ctrl_Alt_D) =>
+          prevent_stop_inject(ModelAction.OpenMiniBuffer(MoveToHole))
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),

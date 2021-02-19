@@ -22,7 +22,9 @@ type group_id = int;
 type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)
-  | MoveToHole(int)
+  | OpenMiniBuffer(Model.mini_buffer_action)
+  | SubmitMiniBuffer(string)
+  | CloseMiniBuffer
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)

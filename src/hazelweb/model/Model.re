@@ -1,3 +1,7 @@
+[@deriving sexp]
+type mini_buffer_action =
+  | MoveToHole;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -9,6 +13,7 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  mini_buffer: option(mini_buffer_action),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -79,6 +84,7 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    mini_buffer: None,
   };
 };
 
@@ -100,6 +106,24 @@ let put_program = (program: Program.t, model: t): t => {
 let map_program = (f: Program.t => Program.t, model: t): t => {
   let new_program = f(model |> get_program);
   model |> put_program(new_program);
+};
+
+let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
+  switch (m.mini_buffer) {
+  | None => m
+  | Some(MoveToHole) =>
+    switch (int_of_string_opt(mini_buffer)) {
+    | None =>
+      // TODO: review whether incorrect contents should leave mini buffer open
+      m
+    | Some(n) =>
+      {...m, mini_buffer: None}
+      |> map_program(program => {
+           let action = Program.move_to_hole(n - 1, program);
+           Program.perform_edit_action(action, program);
+         })
+    }
+  };
 };
 
 let get_undo_history = (model: t): UndoHistory.t => model.undo_history;
