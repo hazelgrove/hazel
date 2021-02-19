@@ -29,8 +29,14 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
-    mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
-    mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+    annot(
+      HTypAnnot.Step(0),
+      mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
+    ),
+    annot(
+      HTypAnnot.Step(1),
+      mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+    ),
   );
   let (doc, parenthesize) =
     switch (ty) {
@@ -44,7 +50,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | List(ty) => (
         hcats([
           mk_delim("["),
-          mk(ty) |> pad_child(~enforce_inline),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
           mk_delim("]"),
         ]),
         parenthesize,
@@ -67,15 +77,22 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Prod([head, ...tail]) =>
       let center =
         [
-          mk'(
-            ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
-            head,
+          annot(
+            HTypAnnot.Step(0),
+            mk'(
+              ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+              head,
+            ),
           ),
-          ...List.map(
-               ty =>
-                 mk'(
-                   ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
-                   ty,
+          ...List.mapi(
+               (i, ty) =>
+                 annot(
+                   HTypAnnot.Step(i + 1),
+                   mk'(
+                     ~parenthesize=
+                       HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                     ty,
+                   ),
                  ),
                tail,
              ),
@@ -97,5 +114,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         parenthesize,
       );
     };
+  let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };
