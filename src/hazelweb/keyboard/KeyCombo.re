@@ -59,6 +59,6 @@ let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
 let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
 let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
 let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
-let ctrl_alt_d = ctrl_alt(Key.the_key("d"));
+let alt_h = alt(Key.the_key("h"));
 let meta_z = ctrl(Key.the_key("z"));
 let meta_shift_z = ctrl_shift(Key.the_key("Z"));

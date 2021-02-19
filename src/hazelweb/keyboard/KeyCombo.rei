@@ -44,6 +44,6 @@ let ctrl_alt_i: t;
 let ctrl_alt_k: t;
 let ctrl_alt_j: t;
 let ctrl_alt_l: t;
-let ctrl_alt_d: t;
+let alt_h: t;
 let meta_z: t;
 let meta_shift_z: t;

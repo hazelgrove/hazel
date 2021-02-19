@@ -36,7 +36,7 @@ type t =
   | Ctrl_Alt_K
   | Ctrl_Alt_J
   | Ctrl_Alt_L
-  | Ctrl_Alt_D
+  | Alt_H
   | Meta_Z
   | Meta_Shift_Z;
 
@@ -75,7 +75,7 @@ let get_details =
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
   | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
   | Ctrl_Alt_L => KeyCombo.ctrl_alt_l
-  | Ctrl_Alt_D => KeyCombo.ctrl_alt_d
+  | Alt_H => KeyCombo.alt_h
   | Meta_Z => KeyCombo.meta_z
   | Meta_Shift_Z => KeyCombo.meta_shift_z;
 
@@ -151,8 +151,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Ctrl_Alt_J);
   } else if (evt_matches(KeyCombo.ctrl_alt_l)) {
     Some(Ctrl_Alt_L);
-  } else if (evt_matches(KeyCombo.ctrl_alt_d)) {
-    Some(Ctrl_Alt_D);
+  } else if (evt_matches(KeyCombo.alt_h)) {
+    Some(Alt_H);
   } else {
     None;
   };

@@ -36,7 +36,7 @@ type t =
   | Ctrl_Alt_K
   | Ctrl_Alt_J
   | Ctrl_Alt_L
-  | Ctrl_Alt_D
+  | Alt_H
   | Meta_Z
   | Meta_Shift_Z;
 
