@@ -41,9 +41,11 @@ let mk_timestamped_action = (a: ModelAction.t) => (
 
 let log_action = (action: ModelAction.t, _: State.t): unit => {
   /* log interesting actions */
+  /* maybe this shouldn't be a switch? */
   switch (action) {
   | EditAction(_)
   | MoveAction(_)
+  | MoveToHole(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -117,6 +119,14 @@ let apply_action =
           JSUtil.log("[Program.CursorEscaped]");
           model;
         }
+      | MoveToHole(n) =>
+        (
+          Model.get_program(model)
+          |> Program.move_to_hole(n)
+          |> Model.perform_edit_action
+        )(
+          model,
+        )
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)

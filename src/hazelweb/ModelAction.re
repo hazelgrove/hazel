@@ -22,6 +22,7 @@ type group_id = int;
 type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)
+  | MoveToHole(int)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)
