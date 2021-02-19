@@ -3,6 +3,8 @@ module Index: {
   type t; /* we use de Bruijn */
 
   let of_int: int => t;
+
+  let lookup: (list('a), t) => 'a;
 };
 
 /* types with holes */

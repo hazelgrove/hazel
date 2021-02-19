@@ -33,4 +33,4 @@ let expand: (TyVarCtx.t, t) => HTyp.t;
 
 let is_complete: t => bool;
 
-let to_string_exn: t => string;
+let to_string_exn: operand => string;

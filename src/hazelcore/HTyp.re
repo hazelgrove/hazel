@@ -8,6 +8,9 @@ module Index = {
   let of_int = x => x;
 
   let eq = (==);
+
+  /* Lookup at the nth position in context */
+  let lookup = List.nth;
 };
 
 /* types with holes */

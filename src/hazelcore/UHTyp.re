@@ -59,8 +59,9 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
-      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
-      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, TyId.of_string(t)))
+      | TyVarHole(u, t) =>
+        Seq.wrap(TyVar(InVarHole(Free, u), TyId.of_string(t)))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -96,7 +97,7 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ctx: TyVarCtx.t, ty: t): HTyp.t => expand_opseq(ty)
+let rec expand = (ctx: TyVarCtx.t, ty: t): HTyp.t => expand_opseq(ctx, ty)
 and expand_opseq = ctx =>
   fun
   | OpSeq(skel, seq) => expand_skel(ctx, skel, seq)
@@ -121,14 +122,18 @@ and expand_skel = (ctx, skel, seq) =>
 and expand_operand = ctx =>
   fun
   | Hole => Hole
-  | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of_exn(ctx, t), t)
-  | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
+  | TyVar(NotInVarHole, t) =>
+    TyVar(
+      TyVarCtx.index_of_exn(ctx, t) |> HTyp.Index.of_int,
+      TyId.to_string(t),
+    )
+  | TyVar(InVarHole(_, u), t) => TyVarHole(u, TyId.to_string(t))
   | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
+  | Parenthesized(opseq) => expand(ctx, opseq)
+  | List(opseq) => List(expand(ctx, opseq));
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {

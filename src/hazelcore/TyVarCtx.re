@@ -30,5 +30,4 @@ let index_of_exn = (ctx: t, x: TyId.t): int =>
 let contains = (ctx: t, x: TyId.t): bool =>
   Option.is_some(index_of(ctx, x));
 
-let tyvar_with_idx = (ctx: t, idx: HTyp.Index.t): (TyId.t, Kind.t) =>
-  List.nth(ctx, HTyp.Index.to_int idx);
+let tyvar_with_idx = HTyp.Index.lookup;
