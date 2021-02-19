@@ -87,7 +87,7 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let ty_ann = UHTyp.expand(Contexts.tyvars(ctx), ann);
     let+ op_ctx = ana_operand(ctx, op, ty_ann);
     (ty_ann, op_ctx);
   }
@@ -184,7 +184,7 @@ and ana_operand =
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let ty_ann = UHTyp.expand(Contexts.tyvars(ctx), ann);
     HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
   };
 
@@ -416,7 +416,7 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let ty = UHTyp.expand(ann);
+    let ty = UHTyp.expand(Contexts.tyvars(ctx), ann);
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
@@ -699,7 +699,7 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let ty_ann = UHTyp.expand(Contexts.tyvars(ctx), ann);
     if (HTyp.consistent(ty, ty_ann)) {
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);

@@ -5,7 +5,7 @@ let to_list: t => list((TyId.t, Kind.t));
 
 let of_list: list((TyId.t, Kind.t)) => t;
 
-let empty: list('a);
+let empty: t;
 
 let index_of: (t, TyId.t) => option(int);
 

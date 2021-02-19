@@ -1,12 +1,23 @@
 [@deriving sexp]
-type t = (VarCtx.t, PaletteCtx.t);
-let empty = (VarCtx.empty, PaletteCtx.empty);
-
-let gamma = ((gamma, _): t): VarCtx.t => gamma;
-let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
-  let (gamma, palette_ctx) = ctx;
-  let gamma' = VarCtx.extend(gamma, binding);
-  (gamma', palette_ctx);
+type t = {
+  gamma: VarCtx.t,
+  palette: PaletteCtx.t,
+  tyvars: TyVarCtx.t,
+};
+let empty = {
+  gamma: VarCtx.empty,
+  palette: PaletteCtx.empty,
+  tyvars: TyVarCtx.empty,
 };
 
-let palette_ctx = ((_, palette_ctx): t): PaletteCtx.t => palette_ctx;
+let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
+  let gamma' = VarCtx.extend(ctx.gamma, binding);
+  {...ctx, gamma: gamma'};
+};
+
+let gamma: t => VarCtx.t = ({tyvars: _, gamma, palette: _}) => gamma;
+
+let palette_ctx: t => PaletteCtx.t =
+  ({tyvars: _, gamma: _, palette}) => palette;
+
+let tyvars: t => TyVarCtx.t = ({tyvars, gamma: _, palette: _}) => tyvars;
