@@ -160,6 +160,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
+    print_endline("ana inserted var in pat 163");
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
@@ -399,7 +400,7 @@ let rec ana_move =
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) => {
-  print_endline("syn_perform");
+  print_endline("syn_perform PAT");
   syn_perform_opseq(ctx, u_gen, a, zp);
 }
 and syn_perform_opseq =
@@ -793,6 +794,7 @@ and syn_perform_operand =
       let zchild = ZPat.place_before_operand(child);
       let new_zp =
         ZOpSeq.wrap(ZPat.UnaryOpZ(ErrStatus.NotInHole, unop, zchild));
+      print_endline("succeeded?????");
       Succeeded((new_zp, ty_u, ctx, u_gen));
     | _ =>
       switch (operator_of_shape(os)) {
@@ -854,7 +856,9 @@ and syn_perform_operand =
       Succeeded((new_zp, Int, ctx, u_gen));
     | _ =>
       switch (ana_perform_operand(ctx, u_gen, a, zchild, ty_u)) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("failed 857");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_operand(ctx, u_gen, Action_common.escape(side), whole)
       | Succeeded((zp, ctx, u_gen)) =>
@@ -925,7 +929,7 @@ and ana_perform =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  print_endline("ana_perform");
+  print_endline("ana_perform PAT");
   ana_perform_opseq(ctx, u_gen, a, zp, ty);
 }
 and ana_perform_opseq =
@@ -1371,6 +1375,7 @@ and ana_perform_operand =
             ZOpSeq.wrap(
               ZPat.UnaryOpZ(ErrStatus.NotInHole, unop, new_zchild),
             );
+          print_endline("suceeded??? 1378");
           Succeeded((new_zp, ctx, u_gen));
         }
         : {
@@ -1383,6 +1388,7 @@ and ana_perform_operand =
                 new_zchild,
               ),
             );
+          print_endline("succeeded ?? ? ? 1391");
           Succeeded((new_zp, ctx, u_gen));
         };
     | _ =>

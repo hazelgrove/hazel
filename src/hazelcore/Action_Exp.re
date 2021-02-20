@@ -335,6 +335,7 @@ let mk_syn_text =
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   | Underscore as shape
   | Var(_) as shape =>
+    print_endline("has var shape 338");
     let x =
       switch (shape) {
       | Var(x) => x
@@ -342,9 +343,11 @@ let mk_syn_text =
       };
     switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
+      print_endline("has some type 346");
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
     | None =>
+      print_endline("has no type 350");
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -614,6 +617,7 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
+  print_endline("syn_perform EXP");
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -1523,6 +1527,7 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
+  print_endline("syn_perform_operand EXP");
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1540,7 +1545,8 @@ and syn_perform_operand =
       ) |
       CursorE(OnOp(After) | OnText(_) | OnDelim(_), UnaryOp(_)),
     ) =>
-    Failed
+    print_endline("failed 1545");
+    Failed;
   | (_, CursorE(cursor, operand))
       when !ZExp.is_valid_cursor_operand(cursor, operand) =>
     Failed
@@ -1736,7 +1742,8 @@ and syn_perform_operand =
   | (Construct(SAsc), CursorE(_)) => Failed
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
-    syn_insert_text(ctx, u_gen, (0, s), "")
+    print_endline("construct schar syn_perform_operand 1742");
+    syn_insert_text(ctx, u_gen, (0, s), "");
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -2506,7 +2513,8 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
+  print_endline("ana_perform EXP");
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2521,7 +2529,8 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  }
+  };
+}
 and ana_perform_block =
     (
       ctx: Contexts.t,
