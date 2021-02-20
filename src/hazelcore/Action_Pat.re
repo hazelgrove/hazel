@@ -22,6 +22,12 @@ let shape_of_operator = (op: UHPat.binop): Action.operator_shape =>
   | Cons => SCons
   };
 
+let shape_is_of_unop = (os: Action.operator_shape): bool =>
+  switch (os) {
+  | SMinus => true
+  | _ => false
+  };
+
 let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
   |> ZPat.erase_zseq
@@ -392,8 +398,10 @@ let rec ana_move =
 
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) =>
-  syn_perform_opseq(ctx, u_gen, a, zp)
+        : ActionOutcome.t(syn_success) => {
+  print_endline("syn_perform");
+  syn_perform_opseq(ctx, u_gen, a, zp);
+}
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
@@ -482,9 +490,13 @@ and syn_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
+        ZPat.is_before_zoperand(zoperand)
+        && !shape_is_of_unop(os)
+        || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      print_endline("failed 490");
+      Failed;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -768,6 +780,7 @@ and syn_perform_operand =
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (os) {
     | SMinus =>
+      print_endline("sminus pattern syn!!!");
       let unop = Unops_Pat.Negate;
       let ty_u = HTyp.Int;
       let (child, ctx, u_gen) =
@@ -911,8 +924,10 @@ and ana_perform =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
-  ana_perform_opseq(ctx, u_gen, a, zp, ty)
+    : ActionOutcome.t(ana_success) => {
+  print_endline("ana_perform");
+  ana_perform_opseq(ctx, u_gen, a, zp, ty);
+}
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -1016,9 +1031,13 @@ and ana_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
+        ZPat.is_before_zoperand(zoperand)
+        && !shape_is_of_unop(os)
+        || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      print_endline("failed 1027");
+      Failed;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -1335,6 +1354,7 @@ and ana_perform_operand =
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (os) {
     | SMinus =>
+      print_endline("inserting sminus!");
       let unop = Unops_Pat.Negate;
       let ty_u = Statics_Pat.syn_unop(ctx, unop);
       let (child, ctx, u_gen) =
