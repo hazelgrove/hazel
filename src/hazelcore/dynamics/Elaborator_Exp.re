@@ -158,20 +158,22 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  | (UnIntOp(Negate, pchild), UnIntOp(Negate, dchild)) =>
-    matches(pchild, dchild)
+
+  | (UnIntOp(Negate, pchild), UnIntOp(Negate, d)) => matches(pchild, d)
   | (UnIntOp(Negate, pchild), IntLit(n)) when n < 0 =>
     matches(pchild, IntLit(- n))
-  | (UnIntOp(Negate, _), Cast(dchild, Int, Hole)) => matches(dp, dchild)
-  | (UnIntOp(Negate, _), Cast(dchild, Hole, Int)) => matches(dp, dchild)
+  | (UnIntOp(Negate, _), Cast(d, Int, Hole)) => matches(dp, d)
+  | (UnIntOp(Negate, _), Cast(d, Hole, Int)) => matches(dp, d)
   | (UnIntOp(Negate, _), _) => DoesNotMatch
-  | (UnFloatOp(FNegate, pchild), UnFloatOp(FNegate, dchild)) =>
-    matches(pchild, dchild)
+
+  | (UnFloatOp(FNegate, pchild), UnFloatOp(FNegate, d)) =>
+    matches(pchild, d)
   | (UnFloatOp(FNegate, pchild), FloatLit(n)) when n < 0.0 =>
     matches(pchild, FloatLit(-. n))
   | (UnFloatOp(FNegate, _), Cast(d, Float, Hole)) => matches(dp, d)
   | (UnFloatOp(FNegate, _), Cast(d, Hole, Float)) => matches(dp, d)
   | (UnFloatOp(FNegate, _), _) => DoesNotMatch
+
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
