@@ -283,7 +283,7 @@ body {
   width: 28px;
 }
 
-.circle-icon {
+.question-mark-circle {
   color: #fff;
   background-color:#000;
   width:14px;
@@ -453,15 +453,6 @@ body {
   margin-right: 10px;
 }
 
-.type-info-summary .circle-icon {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  font-size: 15px;
-}
-
 .cursor-inspector .type-info-summary .HTypCode,
 .cursor-inspector .emphasize-text {
   background-color: rgb(83, 83, 83);
@@ -482,18 +473,6 @@ body {
 
 .cursor-BindingError.cursor-inspector .term-tag {
   box-shadow: 0 0 0 1px #f1760a;
-}
-
-.cursor-OK.cursor-inspector .circle-icon {
-  background-color: #073f24;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .circle-icon {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .circle-icon {
-  background-color: #f1760a;
 }
 
 .type-info-summary .colon {

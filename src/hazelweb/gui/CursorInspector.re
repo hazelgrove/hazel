@@ -344,7 +344,6 @@ let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
       ci: CursorInfo.t,
-      err_state_b: err_state_b,
       show: bool,
       show_expanded: bool,
       novice_mode: bool,
@@ -374,12 +373,6 @@ let summary_bar =
       ],
       [arrow_direction],
     );
-  let err_icon =
-    switch (err_state_b) {
-    | TypeInconsistency
-    | BindingError => Icons.x_circle
-    | OK => Icons.check_circle
-    };
   let tag_type = TermTag.get_cursor_term_sort(ci.cursor_term);
   let summary =
     Node.div(
@@ -430,9 +423,7 @@ let summary_bar =
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
-    show_strategy_guide
-      ? List.append(body, [fill_space, fill_icon, err_icon])
-      : List.append(body, [err_icon]);
+    show_strategy_guide ? List.append(body, [fill_space, fill_icon]) : body;
   Node.div([Attr.classes(["type-info-summary"])], body);
 };
 
@@ -846,7 +837,6 @@ let view =
     summary_bar(
       ~inject,
       cursor_info,
-      err_state_b,
       show,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
