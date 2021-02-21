@@ -142,3 +142,5 @@ let opt_update_nth_operand:
 let opt_update_nth_operand_of_affix:
   (int, 'operand, affix('operand, 'operator)) =>
   option(affix('operand, 'operator));
+let update_last_operand:
+  ('operand => 'operand, t('operand, 'operator)) => t('operand, 'operator);

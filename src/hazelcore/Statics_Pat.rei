@@ -27,6 +27,7 @@ let syn_unop: (Contexts.t, UHPat.unop) => HTyp.t;
  * produces a new context with bindings introduced by `p` if successful
  */
 let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
+let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);
 
@@ -69,7 +70,6 @@ let ana_fix_holes_operand:
     HTyp.t
   ) =>
   (UHPat.operand, Contexts.t, MetaVarGen.t);
-
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZPat.t) =>
   (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);

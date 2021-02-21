@@ -8,6 +8,9 @@ and of_zoperand =
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | UnaryOpZ(_, _, zchild) =>
     CursorPath_common.cons'(0, of_zoperand(zchild))
+  | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
+  | TypeAnnZA(_, _, zann) =>
+    CursorPath_common.cons'(1, CursorPath_Typ.of_z(zann))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
@@ -54,6 +57,18 @@ and follow_operand =
         child
         |> follow_operand((xs, cursor))
         |> Option.map(zoperand => ZPat.UnaryOpZ(err, unop, zoperand))
+      | _ => None
+      }
+    | TypeAnn(err, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> follow_operand((xs, cursor))
+        |> Option.map(zop => ZPat.TypeAnnZP(err, zop, ann))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.follow((xs, cursor))
+        |> Option.map(zann => ZPat.TypeAnnZA(err, op, zann))
       | _ => None
       }
     }
@@ -125,6 +140,18 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
+    | TypeAnn(_, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> of_steps_operand(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(0, path))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(1, path))
+      | _ => None
+      }
     }
   }
 and of_steps_binop =
@@ -193,6 +220,15 @@ and holes_operand =
     hs
     |> holes_operand(child, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
+  | TypeAnn(err, op, ann) =>
+    hs
+    |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
+    |> holes_operand(op, [0, ...rev_steps])
+    |> CursorPath_common.holes_err(
+         ~hole_sort=u => PatHole(u, TypeErr),
+         err,
+         rev_steps,
+       )
   };
 
 let rec holes_z =
@@ -267,6 +303,16 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorP(OnDelim(k, _), TypeAnn(_, op, ann)) =>
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_operand(op, [0, ...rev_steps], []),
+        ~holes_after=CursorPath_Typ.holes(ann, [1, ...rev_steps], []),
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    }
   | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     let hole_selected: option(CursorPath.hole_info) =
@@ -289,7 +335,10 @@ and holes_zoperand =
   | CursorP(OnDelim(_), UnaryOp(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | CursorP(OnText(_), Parenthesized(_) | Inj(_) | UnaryOp(_)) =>
+  | CursorP(
+      OnText(_),
+      Parenthesized(_) | Inj(_, _, _) | TypeAnn(_) | UnaryOp(_),
+    ) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
@@ -321,4 +370,38 @@ and holes_zoperand =
       ~holes_after,
       (),
     );
+  | TypeAnnZP(err, zop, ann) =>
+    let zop_holes = holes_zoperand(zop, [0, ...rev_steps]);
+    let ann_holes = CursorPath_Typ.holes(ann, [1, ...rev_steps], []);
+    let all_holes = {
+      ...zop_holes,
+      holes_after: ann_holes @ zop_holes.holes_after,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ...all_holes.holes_before,
+        ],
+      }
+    };
+  | TypeAnnZA(err, op, zann) =>
+    let op_holes = holes_operand(op, [0, ...rev_steps], []);
+    let zann_holes = CursorPath_Typ.holes_z(zann, [1, ...rev_steps]);
+    let all_holes = {
+      ...zann_holes,
+      holes_before: op_holes @ zann_holes.holes_before,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ...all_holes.holes_before,
+        ],
+      }
+    };
   };

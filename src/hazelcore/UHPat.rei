@@ -12,6 +12,7 @@ and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)

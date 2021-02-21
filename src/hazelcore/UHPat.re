@@ -14,6 +14,7 @@ and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
@@ -91,6 +92,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | TypeAnn(err, _, _)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p)
   | UnaryOp(err, _, _) => err;
@@ -112,6 +114,7 @@ and set_err_status_operand = (err, operand) =>
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
   | UnaryOp(_, unop, child) => UnaryOp(err, unop, child)
+  | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -140,6 +143,7 @@ and mk_inconsistent_operand =
   | ListNil(InHole(TypeInconsistent, _))
   | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -148,7 +152,8 @@ and mk_inconsistent_operand =
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | UnaryOp(NotInHole | InHole(WrongLength, _), _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -213,6 +218,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Parenthesized(body) => is_complete(body)
   | UnaryOp(InHole(_), _, _) => false
   | UnaryOp(NotInHole, _, child) => is_complete_operand(child)
+  | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };
