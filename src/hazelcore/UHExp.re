@@ -189,9 +189,9 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | UnaryOp(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
-  | UnaryOp(err, _, _) => err
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
