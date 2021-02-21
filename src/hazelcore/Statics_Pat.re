@@ -77,7 +77,12 @@ and syn_operand =
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
-  | UnaryOp(NotInHole, unop, _) => Some((syn_unop(ctx, unop), ctx))
+  | UnaryOp(NotInHole, unop, child) =>
+    let ty_u = syn_unop(ctx, unop);
+    switch (ana_operand(ctx, child, ty_u)) {
+    | None => None
+    | Some(ctx) => Some((ty_u, ctx))
+    };
   | Inj(NotInHole, inj_side, p1) =>
     let+ (ty1, ctx) = syn(ctx, p1);
     let ty =
@@ -175,7 +180,8 @@ and ana_operand =
   | Wild(NotInHole) => Some(ctx)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | UnaryOp(NotInHole, _, _) =>
     let* (ty', ctx') = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some(ctx') : None;
   | ListNil(NotInHole) =>
@@ -186,16 +192,6 @@ and ana_operand =
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
-  | UnaryOp(NotInHole, _, _) =>
-    switch (syn_operand(ctx, operand)) {
-    | None => None
-    | Some((ty', ctx)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Some(ctx);
-      } else {
-        None;
-      }
-    }
   };
 
 let rec syn_nth_type_mode =
@@ -671,7 +667,8 @@ and ana_fix_holes_operand =
     (operand_nih, ctx, u_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | UnaryOp(_, _, _) =>
     let (operand', ty', ctx, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
     if (HTyp.consistent(ty, ty')) {
@@ -680,19 +677,6 @@ and ana_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
         UHPat.set_err_status_operand(InHole(TypeInconsistent, u), operand'),
-        ctx,
-        u_gen,
-      );
-    };
-  | UnaryOp(_, _, _) =>
-    let (e, ty', ctx, u_gen) =
-      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
-    if (HTyp.consistent(ty, ty')) {
-      (UHPat.set_err_status_operand(NotInHole, e), ctx, u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        UHPat.set_err_status_operand(InHole(TypeInconsistent, u), e),
         ctx,
         u_gen,
       );

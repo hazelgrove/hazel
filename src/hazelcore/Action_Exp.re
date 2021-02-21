@@ -783,10 +783,14 @@ and syn_perform_block =
   /* Zipper */
   | _ =>
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
-    | None => Failed
+    | None =>
+      print_endline("FAILED synlines");
+      Failed;
     | Some(ctx_zline) =>
       switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("FAILED syn_perform_line");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform(ctx, Action_common.escape(side), (zblock, ty, u_gen))
         |> wrap_in_SynDone
@@ -810,7 +814,9 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None =>
+            print_endline("FAILED after syn_block?");
+            Failed;
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -2180,11 +2186,14 @@ and syn_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
+    print_endline("Action_Exp CASEZR before pat");
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
       switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("FAILED syn_perform_rules 2188");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -2201,16 +2210,18 @@ and syn_perform_operand =
             ZExp.ZBlock.wrap(
               CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
             );
+          print_endline("suceeded casezr 2207");
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
             );
+          print_endline("succeeded casezR 2214");
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
       }
-    }
+    };
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
