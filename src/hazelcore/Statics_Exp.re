@@ -24,11 +24,6 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* ctx = syn_lines(ctx, leading);
   let result = syn_opseq(ctx, conclusion);
-  if (result == None) {
-    print_endline("GAVE NONE");
-  } else {
-    print_endline("DIDNT GAVE NONE");
-  };
   result;
 }
 and syn_lines =
@@ -177,11 +172,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     let result = syn_rules(ctx, rules, clause_ty);
-    if (result == None) {
-      print_endline("syn_rules GAVE NONE");
-    } else {
-      print_endline("syn_rules DIDNT give NONE");
-    };
     result;
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -202,7 +192,6 @@ and syn_unop = (_: Contexts.t, unop: UHExp.unop): HTyp.t => {
 }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
-  print_endline("ENTERED SYN_RULES");
   let* clause_types =
     List.fold_left(
       (types_opt, r) => {
@@ -213,26 +202,13 @@ and syn_rules =
       Some([]),
       rules,
     );
-  let result = HTyp.join_all(GLB, clause_types);
-  if (result == None) {
-    print_endline("join all returned None!");
-  } else {
-    print_endline("join all didn't return None ?F :D");
-  };
-  print_endline("before result of syn_rules");
-  result;
+  HTyp.join_all(GLB, clause_types);
 }
 and syn_rule =
     (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
   let Rule(p, clause) = rule;
   let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
-  let result = syn(ctx, clause);
-  if (result == None) {
-    print_endline("syn_rule returned NONE");
-  } else {
-    print_endline("syn_rule returned some");
-  };
-  result;
+  syn(ctx, clause);
 }
 and ana_splice_map =
     (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>

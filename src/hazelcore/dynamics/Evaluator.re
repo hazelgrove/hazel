@@ -380,13 +380,7 @@ and evaluate_case =
         };
       | Matches(env) => evaluate(Elaborator_Exp.subst(env, d))
       | DoesNotMatch =>
-        print_endline("DOES NOT MATCH IN EVALUATOR");
-        evaluate_case(
-          inconsistent_info,
-          scrut,
-          rules,
-          current_rule_index + 1,
-        );
+        evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
   };

@@ -335,7 +335,6 @@ let mk_syn_text =
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   | Underscore as shape
   | Var(_) as shape =>
-    print_endline("has var shape 338");
     let x =
       switch (shape) {
       | Var(x) => x
@@ -343,11 +342,9 @@ let mk_syn_text =
       };
     switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
-      print_endline("has some type 346");
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
     | None =>
-      print_endline("has no type 350");
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -617,7 +614,6 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  print_endline("syn_perform EXP");
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -783,14 +779,10 @@ and syn_perform_block =
   /* Zipper */
   | _ =>
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
-    | None =>
-      print_endline("FAILED synlines");
-      Failed;
+    | None => Failed
     | Some(ctx_zline) =>
       switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
-      | Failed =>
-        print_endline("FAILED syn_perform_line");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform(ctx, Action_common.escape(side), (zblock, ty, u_gen))
         |> wrap_in_SynDone
@@ -814,9 +806,7 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None =>
-            print_endline("FAILED after syn_block?");
-            Failed;
+          | None => Failed
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -1533,7 +1523,6 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
-  print_endline("syn_perform_operand EXP");
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1551,8 +1540,7 @@ and syn_perform_operand =
       ) |
       CursorE(OnOp(After) | OnText(_) | OnDelim(_), UnaryOp(_)),
     ) =>
-    print_endline("failed 1545");
-    Failed;
+    Failed
   | (_, CursorE(cursor, operand))
       when !ZExp.is_valid_cursor_operand(cursor, operand) =>
     Failed
@@ -1748,8 +1736,7 @@ and syn_perform_operand =
   | (Construct(SAsc), CursorE(_)) => Failed
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
-    print_endline("construct schar syn_perform_operand 1742");
-    syn_insert_text(ctx, u_gen, (0, s), "");
+    syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -2186,14 +2173,11 @@ and syn_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
-    print_endline("Action_Exp CASEZR before pat");
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
       switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
-      | Failed =>
-        print_endline("FAILED syn_perform_rules 2188");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -2210,18 +2194,16 @@ and syn_perform_operand =
             ZExp.ZBlock.wrap(
               CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
             );
-          print_endline("suceeded casezr 2207");
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
             );
-          print_endline("succeeded casezR 2214");
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
       }
-    };
+    }
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2525,7 +2507,6 @@ and ana_perform =
       ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  print_endline("ana_perform EXP");
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)

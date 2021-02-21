@@ -164,9 +164,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(pchild, IntLit(- n))
   | (UnIntOp(Negate, _), Cast(dchild, Int, Hole)) => matches(dp, dchild)
   | (UnIntOp(Negate, _), Cast(dchild, Hole, Int)) => matches(dp, dchild)
-  | (UnIntOp(Negate, _), _) =>
-    print_endline("doesn't match :/");
-    DoesNotMatch;
+  | (UnIntOp(Negate, _), _) => DoesNotMatch
   | (UnFloatOp(FNegate, pchild), UnFloatOp(FNegate, dchild)) =>
     matches(pchild, dchild)
   | (UnFloatOp(FNegate, pchild), FloatLit(n)) when n < 0.0 =>
