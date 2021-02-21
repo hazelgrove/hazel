@@ -214,7 +214,7 @@ let view =
             ~on_change=
               () =>
                 inject(UpdateSettings(CursorInspector(Toggle_novice_mode))),
-            Settings.CursorInspector.novice_mode(cursor_inspector),
+            cursor_inspector.novice_mode,
           ),
         ],
       )

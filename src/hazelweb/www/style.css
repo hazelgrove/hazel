@@ -437,11 +437,6 @@ body {
   margin-left: 7px;
 }
 
-.type-info-summary .subsection {
-  display: flex;
-  align-items: flex-start;
-}
-
 .type-info-summary .consistency-symbol {
   background-color:white;
   color: #bb0707;
@@ -451,6 +446,11 @@ body {
   font-family: var(--code-font-family);
   border-radius:100%;
   text-align: center;
+}
+
+.type-info-summary .novice-mode .term-tag {
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .type-info-summary .circle-icon {
@@ -506,6 +506,11 @@ body {
   margin: 0 10px;
   font-weight: bolder;
   font-family: var(--code-font-family);
+}
+
+.type-info-summary .summary-message {
+  display: flex;
+  align-items: flex-start;
 }
 
 .type-info-summary .clickable{
