@@ -37,28 +37,6 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 };
 
 /**
- * Extract from the context the variables we offer to branch on.
- * Return a VarCtx.t
- */
-let branch_vars = (ctx: Contexts.t) => {
-  let (vars, _) = ctx;
-  let can_branch_on = ((_, ty: HTyp.t)) => {
-    switch (ty) {
-    | Hole
-    | Int
-    | Float
-    | Bool
-    | Sum(_, _)
-    | Prod(_)
-    | List(_) => true
-    | Arrow(_, _) => false
-    };
-  };
-  let branchable_vars = vars |> VarMap.filter(can_branch_on);
-  branchable_vars;
-};
-
-/**
  * Gets the type of the expression at the cursor.
  * Return HTyp.t
  */
@@ -116,47 +94,77 @@ let shortcut_node = text =>
     [Vdom.Node.text(text)],
   );
 
-let lit_msg = (ty: HTyp.t) => {
-  open Vdom;
+let keyword_node = text =>
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["code-font", "keyword"])],
+    [Vdom.Node.text(text)],
+  );
 
-  let msg =
-    switch (ty) {
-    | Hole => [Vdom.Node.text("Enter a literal: ")]
-    | Int => [
-        Vdom.Node.text("Enter an Integer (e.g. "),
-        code_node("1"),
-        Node.text("): "),
-      ]
-    | Float => [
-        Vdom.Node.text("Enter a Float (e.g. "),
-        code_node("1.0"),
-        Node.text("): "),
-      ]
-    | Bool => [
-        Vdom.Node.text("Enter a Boolean (e.g. "),
-        code_node("true"),
-        Node.text("): "),
-      ]
-    | Arrow(_, _) => [
-        Vdom.Node.text("Enter a function (enter "),
-        shortcut_node("\\"),
-        Node.text("): "),
-      ]
-    | Sum(_, _) => [
-        Vdom.Node.text("Enter a Sum (enter "),
-        shortcut_node("Alt + l"),
-        Node.text("or"),
-        shortcut_node("Alt + r"),
-        Node.text("): "),
-      ]
-    | Prod(_) => [Vdom.Node.text("Enter a Product (enter `,`): ")]
-    | List(_) => [
-        Vdom.Node.text("Enter a List (enter "),
-        shortcut_node("["),
-        Node.text("): "),
-      ]
-    };
-  msg @ [HTypCode.view(ty)];
+let option = nodes => Vdom.(Node.div([Attr.classes(["option"])], nodes));
+
+let lit_msg = (ty: HTyp.t) => {
+  let int_lit =
+    option([
+      Vdom.Node.text("Enter an Integer (e.g. "),
+      code_node("1"),
+      Vdom.Node.text(")"),
+    ]);
+  let float_lit =
+    option([
+      Vdom.Node.text("Enter a Float (e.g. "),
+      code_node("1.0"),
+      Vdom.Node.text(")"),
+    ]);
+  let bool_lit =
+    option([
+      Vdom.Node.text("Enter a Boolean (e.g. "),
+      code_node("true"),
+      Vdom.Node.text(")"),
+    ]);
+  let fun_lit =
+    option([
+      Vdom.Node.text("Enter a Function (enter "),
+      shortcut_node("\\"),
+      Vdom.Node.text(")"),
+    ]);
+  let sum_lit =
+    option([
+      Vdom.Node.text("Enter an Injection (enter "),
+      shortcut_node("Alt + l"),
+      Vdom.Node.text("or"),
+      shortcut_node("Alt + r"),
+      Vdom.Node.text(")"),
+    ]);
+  let prod_lit =
+    option([
+      Vdom.Node.text("Enter a Tuple (enter "),
+      shortcut_node(")"),
+      Vdom.Node.text(")"),
+    ]);
+  let list_lit =
+    option([
+      Vdom.Node.text("Enter a List (enter "),
+      shortcut_node("["),
+      Vdom.Node.text(")"),
+    ]);
+  switch (ty) {
+  | Hole => [
+      int_lit,
+      float_lit,
+      bool_lit,
+      fun_lit,
+      sum_lit,
+      prod_lit,
+      list_lit,
+    ]
+  | Int => [int_lit]
+  | Float => [float_lit]
+  | Bool => [bool_lit]
+  | Arrow(_, _) => [fun_lit]
+  | Sum(_, _) => [sum_lit]
+  | Prod(_) => [prod_lit]
+  | List(_) => [list_lit]
+  };
 };
 
 /**
@@ -177,42 +185,6 @@ let list_vars_view = (vars: VarCtx.t) => {
       vars,
     );
   List.map(((_, b)) => {b}, b);
-};
-
-/**
- * Create a list of divs for the branch var options that will be shown.
- * Return list of Node.t
- */
-let branch_vars_view = (ctx: Contexts.t) => {
-  let vars = branch_vars(ctx);
-  let mini_options =
-    List.map(
-      ((var, ty)) => {
-        Vdom.(
-          Node.div(
-            [Attr.classes(["mini-option"])],
-            [code_node(var), Node.text(":"), HTypCode.view(ty)],
-          )
-        )
-      },
-      vars,
-    )
-    |> List.append([
-         Vdom.(
-           Node.div(
-             [Attr.classes(["mini-option"])],
-             [Node.text("Empty hole" ++ ":"), HTypCode.view(HTyp.Hole)],
-           )
-         ),
-       ]);
-  [
-    Vdom.(
-      Node.div(
-        [Attr.classes(["option"])],
-        [Node.div([], [code_node("case ...")] @ mini_options)],
-      )
-    ),
-  ];
 };
 
 /**
@@ -413,7 +385,7 @@ let view =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["option"])], lit_msg(typ))],
+        [Node.div([Attr.classes(["options"])], lit_msg(typ))],
       )
     );
 
@@ -421,7 +393,7 @@ let view =
     if (VarMap.is_empty(var_ctx)) {
       Vdom.(
         Node.div(
-          [Attr.classes(["option", "empty-vars"])],
+          [Attr.classes(["option"])],
           [Node.text("No variables of expected type in context")],
         )
       );
@@ -446,6 +418,24 @@ let view =
 
   let fun_h =
     subsection_header(Toggle_type_assist_fun, "Apply a Function", fun_open);
+  let fun_ctx = fun_vars(ctx, typ);
+  let fun_view =
+    if (VarMap.is_empty(fun_ctx)) {
+      [
+        Vdom.(
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text(
+                "No functions with expected resulting type in context",
+              ),
+            ],
+          )
+        ),
+      ];
+    } else {
+      list_vars_view(fun_vars(ctx, typ));
+    };
   let fun_body =
     Vdom.(
       Node.div(
@@ -453,17 +443,7 @@ let view =
         [
           Node.div(
             [Attr.classes(["options"])],
-            list_vars_view(fun_vars(ctx, typ))
-            @ [
-              Node.div(
-                [Attr.classes(["option"])],
-                [
-                  Node.text("Create and apply new function: "),
-                  HTypCode.view(Arrow(Hole, typ)),
-                ],
-              ),
-            ]
-            @ other_arithmetic_options(cursor_info),
+            fun_view @ other_arithmetic_options(cursor_info),
           ),
         ],
       )
@@ -481,8 +461,8 @@ let view =
         [Attr.classes(["panel-title-bar", "body-bar"])],
         [
           Node.div(
-            [Attr.classes(["options"])],
-            branch_vars_view(cursor_info.ctx),
+            [Attr.classes(["option"])],
+            [Node.text("Create "), keyword_node("case")],
           ),
         ],
       )
@@ -497,7 +477,11 @@ let view =
         [
           Node.div(
             [Attr.classes(["option"])],
-            [Node.text("New let binding")],
+            [
+              Node.text("Create "),
+              keyword_node("let"),
+              Node.text(" binding"),
+            ],
           ),
         ],
       )

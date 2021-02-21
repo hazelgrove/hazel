@@ -409,10 +409,15 @@ body {
   font-family: var(--code-font-family);  
 }
 
+.body-bar .option .keyword { 
+  font-weight: bold;
+}
+
 .body-bar .option .code-font.shortcut {
   font-family: var(--code-font-family); 
   padding-left: 5px;
   padding-right: 5px;
+  background-color:#a0845b;
 }
 
 .body-bar .option {
@@ -472,7 +477,7 @@ body {
 }
 
 .cursor-BindingError.cursor-inspector .term-tag {
-  box-shadow: 0 0 0 1px #f1760a;
+  box-shadow: 0 0 0 1px #f1760a inset;
 }
 
 .type-info-summary .colon {
