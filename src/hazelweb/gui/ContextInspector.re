@@ -52,8 +52,8 @@ let view =
               [
                 DHCode.view(
                   ~inject,
-                  ~selected_instance,
                   ~settings,
+                  ~selected_instance,
                   ~width=30,
                   d,
                 ),
@@ -94,26 +94,24 @@ let view =
           Node.div(
             [],
             [
-              /*
-               Node.div(
-                 [Attr.classes(["hii-summary-inst"])],
-                 [
-                   DHCode.view_of_hole_instance(
-                     ~inject,
-                     ~width=30,
-                     ~selected_instance,
-                     ~settings,
-                     inst,
-                   ),
-                 ],
-               ),
-               Node.text(" = hole "),
-               Node.span(
-                 [Attr.classes(["hole-name-normal-txt"])],
-                 [Node.text(string_of_int(u + 1))],
-               ),
-               */
-              Node.text(" closure "),
+              Node.div(
+                [Attr.classes(["hii-summary-inst"])],
+                [
+                  DHCode.view_of_hole_instance(
+                    ~inject,
+                    ~width=30,
+                    ~selected_instance,
+                    ~settings,
+                    inst,
+                  ),
+                ],
+              ),
+              Node.text(" = hole "),
+              Node.span(
+                [Attr.classes(["hole-name-normal-txt"])],
+                [Node.text(string_of_int(u + 1))],
+              ),
+              Node.text(" instance "),
               Node.span(
                 [Attr.classes(["inst-number-normal-txt"])],
                 [Node.text(string_of_int(i + 1))],
@@ -278,7 +276,7 @@ let view =
     );
   };
 
-  module Elaborator = Elaborator_Exp.M(Statics_Exp);
+  module Elaborator = Elaborator_Exp.M(Statics_Exp.M);
 
   let context_view = {
     let contents =

@@ -7,7 +7,7 @@ let shape_to_string = (shape: shape): string => {
   | SLeftBracket => "new list"
   | SParenthesized => "parentheses"
   | SChar(str) => str
-  | SAsc => "type annotation"
+  | SAnn => "type annotation"
   | SLam => "function"
   | SListNil => "empty list"
   | SInj(side) =>
@@ -32,7 +32,7 @@ let shape_to_string = (shape: shape): string => {
     | SEquals => "=="
     | SSpace => "space"
     | SComma => ","
-    | SArrow => UnicodeConstants.typeArrowSym
+    | SArrow => Unicode.typeArrowSym
     | SVBar => "|"
     | SCons => "::"
     | SAnd => "&&"

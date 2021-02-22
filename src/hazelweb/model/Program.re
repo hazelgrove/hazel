@@ -139,7 +139,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   {current_term, err_holes, var_uses, var_err_holes, livelits};
 };
 
-module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp);
+module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp.M);
 
 exception DoesNotElaborate;
 let elaborate__livelit_holes_false = {
@@ -168,7 +168,7 @@ let get_elaboration = (~livelit_holes=false, program: t): DHExp.t => {
   };
 };
 
-module Evaluator = Evaluator.M(Statics_Exp);
+module Evaluator = Evaluator.M(Statics_Exp.M);
 
 exception InvalidInput;
 let evaluate__eval_livelit_holes_false =
@@ -375,7 +375,7 @@ let perform_action =
       | CursorEscaped(_) => raise(CursorEscaped)
       | Succeeded((ze, ty, u_gen)) =>
         let u_gen =
-          UHExp.is_complete(ZExp.erase(ze), false)
+          UHExp.is_complete(ZExp.erase(ze))
             ? MetaVarGen.reset_hole(u_gen) : u_gen;
         {
           ...program,

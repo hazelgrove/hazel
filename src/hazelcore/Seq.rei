@@ -137,3 +137,6 @@ let t_of_operand_and_surround:
 let t_of_operator_and_surround:
   ('operator, operator_surround('operand, 'operator)) =>
   t('operand, 'operator);
+
+let update_last_operand:
+  ('operand => 'operand, t('operand, 'operator)) => t('operand, 'operator);

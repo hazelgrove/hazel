@@ -35,6 +35,9 @@ let mk_NTuple =
     ~llview_ctx=IntMap.empty, // ????? -andrew
     opseq,
   );
+let mk_TypeAnn:
+  (UHDoc_common.formatted_child, UHDoc_common.formatted_child) => UHDoc.t =
+  UHDoc_common.mk_TypeAnn(~sort=Pat);
 
 let rec mk =
   lazy(
@@ -81,6 +84,17 @@ and mk_operand =
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
+        | TypeAnn(_, op, ann) =>
+          let ann_child =
+            UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann);
+          let formattable = (~enforce_inline: bool) =>
+            Lazy.force(mk_operand, ~memoize, ~enforce_inline, op)
+            |> UHDoc_common.annot_Step(0);
+          let op_child =
+            enforce_inline
+              ? UHDoc_common.EnforcedInline(formattable(~enforce_inline))
+              : Unformatted(formattable);
+          mk_TypeAnn(op_child, ann_child);
         }: UHDoc.t
       )
     )

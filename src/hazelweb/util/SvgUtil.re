@@ -1,6 +1,5 @@
 open Sexplib.Std;
-
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 module Point = {
   [@deriving sexp]
@@ -122,19 +121,17 @@ module Path = {
         displacement.dy,
       );
 
-  let view = (~attrs: list(Vdom.Attr.t), path: t): Vdom.Node.t => {
+  let view = (~attrs: list(Attr.t), path: t): Node.t => {
     let buffer = Buffer.create(List.length(path) * 20);
     path
     |> List.iter(cmd => {
          Buffer.add_string(buffer, string_of_command(cmd));
          Buffer.add_string(buffer, " ");
        });
-    Vdom.(
-      Node.create_svg(
-        "path",
-        [Attr.create("d", Buffer.contents(buffer)), ...attrs],
-        [],
-      )
+    Node.create_svg(
+      "path",
+      [Attr.create("d", Buffer.contents(buffer)), ...attrs],
+      [],
     );
   };
 };

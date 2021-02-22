@@ -1,2 +1,4 @@
+open Pretty;
+
 [@deriving sexp]
-type t = Pretty.Doc.t(DHAnnot.t);
+type t = Doc.t(DHAnnot.t);
