@@ -43,8 +43,7 @@ let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* ctx = syn_lines(ctx, leading);
-  let result = syn_opseq(ctx, conclusion);
-  result;
+  syn_opseq(ctx, conclusion);
 }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
@@ -182,8 +181,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
-    let result = syn_rules(ctx, rules, clause_ty);
-    result;
+    syn_rules(ctx, rules, clause_ty);
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
@@ -363,16 +361,14 @@ and ana_operand =
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(unit) => {
-  let result =
-    List.fold_left(
-      (b, r) => {
-        let* _ = b;
-        ana_rule(ctx, r, pat_ty, clause_ty);
-      },
-      Some(),
-      rules,
-    );
-  result;
+  List.fold_left(
+    (b, r) => {
+      let* _ = b;
+      ana_rule(ctx, r, pat_ty, clause_ty);
+    },
+    Some(),
+    rules,
+  );
 }
 and ana_rule =
     (
