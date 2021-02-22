@@ -334,6 +334,12 @@ let eval_bin_float_op =
   };
 };
 
+[@deriving sexp]
+type step_result =
+  | End
+  | Step(DHExp.t)
+  | InvalidInput(int);
+
 let rec evaluate_case_instruction =
         (
           inconsistent_info,
@@ -341,23 +347,23 @@ let rec evaluate_case_instruction =
           rules: list(DHExp.rule),
           current_rule_index: int,
         )
-        : option(DHExp.t) =>
+        : step_result =>
   switch (List.nth_opt(rules, current_rule_index)) {
   | None =>
     let case = DHExp.Case(scrut, rules, current_rule_index);
     switch (inconsistent_info) {
-    | None => Some(ConsistentCase(case))
-    | Some((u, i, sigma)) => Some(InconsistentBranches(u, i, sigma, case))
+    | None => Step(ConsistentCase(case))
+    | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
     };
   | Some(Rule(dp, d)) =>
     switch (Elaborator_Exp.matches(dp, scrut)) {
     | Indet =>
       let case = DHExp.Case(scrut, rules, current_rule_index);
       switch (inconsistent_info) {
-      | None => Some(ConsistentCase(case))
-      | Some((u, i, sigma)) => Some(InconsistentBranches(u, i, sigma, case))
+      | None => Step(ConsistentCase(case))
+      | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
       };
-    | Matches(env) => Some(Elaborator_Exp.subst(env, d))
+    | Matches(env) => Step(Elaborator_Exp.subst(env, d))
     | DoesNotMatch =>
       evaluate_case_instruction(
         inconsistent_info,
@@ -368,95 +374,95 @@ let rec evaluate_case_instruction =
     }
   };
 
-let instruction_step = (d: DHExp.t): option(DHExp.t) =>
+let instruction_step = (d: DHExp.t): step_result =>
   switch (d) {
   | Ap(d1, d2) =>
     switch (d1) {
     | Lam(pat, _, d0) =>
       switch (Elaborator_Exp.matches(pat, d2)) {
-      | DoesNotMatch => None
-      | Indet => None
-      | Matches(env) => Some(Elaborator_Exp.subst(env, d0))
+      | DoesNotMatch => End
+      | Indet => End
+      | Matches(env) => Step(Elaborator_Exp.subst(env, d0))
       }
     | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
       if (HTyp.eq(t1, t1') && HTyp.eq(t2, t2')) {
-        None;
+        End;
       } else {
-        Some(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
+        Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
       }
-    | _ => None
+    | _ => End
     }
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
-    | Indet => None // maybe they should be errors
-    | DoesNotMatch => None
-    | Matches(env) => Some(Elaborator_Exp.subst(env, d2))
+    | Indet => End
+    | DoesNotMatch => End
+    | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
     }
   | BinBoolOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
-      Some(eval_bin_bool_op(op, b1, b2))
-    | _ => None
+      Step(eval_bin_bool_op(op, b1, b2))
+    | _ => End
     }
   | BinIntOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
-      Some(eval_bin_int_op(op, i1, i2))
-    | _ => None
+      Step(eval_bin_int_op(op, i1, i2))
+    | _ => End
     }
   | BinFloatOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
-      Some(eval_bin_float_op(op, f1, f2))
-    | _ => None
+      Step(eval_bin_float_op(op, f1, f2))
+    | _ => End
     }
-  | FixF(x, _, d1) => Some(Elaborator_Exp.subst_var(d, x, d1))
+  | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
   | Cast(d1, ty1, ty2) =>
     switch (ground_cases_of(ty1), ground_cases_of(ty2)) {
     | (Hole, Hole)
-    | (Ground, Ground) => Some(d1)
+    | (Ground, Ground) => Step(d1)
     | (Hole, Ground) =>
       switch (d1) {
       | Cast(d1', ty1', Hole) =>
         if (HTyp.eq(ty1', ty1)) {
-          Some(d1');
+          Step(d1');
         } else {
-          Some(FailedCast(d1, ty1, ty2));
+          Step(FailedCast(d1, ty1, ty2));
         }
-      | _ => None //Error
+      | _ => InvalidInput(6)
       }
     | (Hole, NotGroundOrHole(ty2_grounded)) =>
-      Some(Cast(Cast(d1, ty1, ty2_grounded), ty2_grounded, ty1))
+      Step(Cast(Cast(d1, ty1, ty2_grounded), ty2_grounded, ty1))
     | (NotGroundOrHole(ty1_grounded), Hole) =>
-      Some(Cast(Cast(d1, ty1, ty1_grounded), ty1_grounded, ty2))
+      Step(Cast(Cast(d1, ty1, ty1_grounded), ty1_grounded, ty2))
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       if (HTyp.eq(ty1, ty2)) {
-        Some(d1);
+        Step(d1);
       } else {
-        None;
+        End;
       }
-    | _ => None
+    | _ => End
     }
   | ConsistentCase(Case(d1, rules, n)) =>
     let case1 = evaluate_case_instruction(None, d1, rules, n);
-    if (case1 == Some(d)) {
-      None;
+    if (case1 == Step(d)) {
+      End;
     } else {
       case1;
     };
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     let case1 = evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
-    if (case1 == Some(d)) {
-      None;
+    if (case1 == Step(d)) {
+      End;
     } else {
       case1;
     };
+  | BoundVar(_) => InvalidInput(1)
   | EmptyHole(_, _, _)
   | NonEmptyHole(_, _, _, _, _)
   | Keyword(_, _, _, _)
   | FreeVar(_, _, _, _)
   | InvalidText(_, _, _, _)
-  | BoundVar(_)
   | Inj(_, _, _)
   | FailedCast(_, _, _)
   | BoolLit(_)
@@ -467,24 +473,24 @@ let instruction_step = (d: DHExp.t): option(DHExp.t) =>
   | Pair(_, _)
   | Triv
   | Lam(_, _, _)
-  | InvalidOperation(_, _) => None
+  | InvalidOperation(_, _) => End
   //| _ => None
   };
 
-let evaluate_step = (d: DHExp.t): option(DHExp.t) => {
+let evaluate_step = (d: DHExp.t): step_result => {
   let (ctx, d0) = decompose(d);
   let res = instruction_step(d0);
-  if (res == None) {
-    None;
+  if (res == End) {
+    End;
   } else {
-    Some(compose((ctx, d)));
+    Step(compose((ctx, d)));
   };
 };
 
 let rec evaluate_steps = (d: DHExp.t): DHExp.t => {
   let res = evaluate_step(d);
   switch (res) {
-  | Some(d0) => evaluate_steps(d0)
-  | None => d
+  | Step(d0) => evaluate_steps(d0)
+  | _ => d
   };
 };
