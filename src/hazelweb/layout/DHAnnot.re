@@ -4,8 +4,8 @@ open Sexplib.Std;
 type t =
   | Collapsed
   | HoleLabel
-  | FreeLivelitLabel
   | Delim
+  | FreeLivelitLabel
   | EmptyHole(bool, NodeInstance.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, NodeInstance.t)
   | VarHole(VarErrStatus.HoleReason.t, NodeInstance.t)
@@ -14,7 +14,7 @@ type t =
   | Invalid(NodeInstance.t)
   | FailedCastDelim
   | FailedCastDecoration
-  | CastDecoration
   | InvalidOpDecoration
+  | CastDecoration
   | DivideByZero
   | String;

@@ -110,7 +110,7 @@ and perform_opseq =
   | (
       PerformLivelitAction(_) |
       Construct(
-        SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
+        SAnn | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
       ) |
       SwapUp |
       SwapDown,
@@ -227,7 +227,7 @@ and perform_operand =
   | (
       PerformLivelitAction(_) |
       Construct(
-        SAsc | SLet | SAbbrev | SLivelitDef | SLine | SLam | SListNil | SInj(_) |
+        SAnn | SLet | SAbbrev | SLivelitDef | SLine | SLam | SListNil | SInj(_) |
         SCase |
         SCommentLine |
         SQuote,

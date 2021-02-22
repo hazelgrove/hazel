@@ -273,27 +273,17 @@ and mk_line =
             mk_doc(shape, 8),
             mk_doc(expand, 9),
           )
-        | LetLine(p, ann, def) =>
+        | LetLine(p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let ann =
-            ann
-            |> Option.map(ann =>
-                 UHDoc_Typ.mk_child(
-                   ~memoize,
-                   ~enforce_inline,
-                   ~child_step=1,
-                   ann,
-                 )
-               );
           let def =
             mk_child(
               ~memoize,
               ~enforce_inline,
-              ~child_step=2,
+              ~child_step=1,
               (llview_ctx, def),
             );
-          UHDoc_common.mk_LetLine(p, ann, def);
+          UHDoc_common.mk_LetLine(p, def);
         }: UHDoc.t
       )
     )
@@ -346,27 +336,17 @@ and mk_operand =
         | BoolLit(_, b) => mk_BoolLit(b)
         | StringLit(_, s) => mk_StringLit(s)
         | ListNil(_) => mk_ListNil()
-        | Lam(_, p, ann, body) =>
+        | Lam(_, p, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let ann =
-            ann
-            |> Option.map(ann =>
-                 UHDoc_Typ.mk_child(
-                   ~memoize,
-                   ~enforce_inline,
-                   ~child_step=1,
-                   ann,
-                 )
-               );
           let body =
             mk_child(
               ~memoize,
               ~enforce_inline,
-              ~child_step=2,
+              ~child_step=1,
               (llview_ctx, body),
             );
-          UHDoc_common.mk_Lam(p, ann, body);
+          UHDoc_common.mk_Lam(p, body);
         | Inj(_, inj_side, body) =>
           let body =
             mk_child(
@@ -515,7 +495,7 @@ let mk_splices = (llview_ctx, e: UHExp.t): UHDoc.splices => {
       [captures, init, update, view, shape, expand]
       |> List.map(mk_block)
       |> union_join
-    | LetLine(_, _, def) => mk_block(def)
+    | LetLine(_, def) => mk_block(def)
     }
   and mk_opseq = (OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
     Seq.operands(seq) |> List.map(mk_operand) |> union_join
@@ -550,7 +530,7 @@ let mk_splices = (llview_ctx, e: UHExp.t): UHDoc.splices => {
         |> List.map(((_, (_, splice_e))) => mk_block(splice_e))
         |> union_join;
       SpliceMap.put_ap(llu, ap_docs, ap_splices);
-    | Lam(_, _, _, e)
+    | Lam(_, _, e)
     | Inj(_, _, e)
     | Parenthesized(e) => mk_block(e)
     | Case(_, scrut, rules) =>

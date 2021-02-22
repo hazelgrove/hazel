@@ -1,18 +1,12 @@
 module type S = {
   let tuple_zip: (UHExp.skel, HTyp.t) => option(list((UHExp.skel, HTyp.t)));
 
-  /**
-   * Currently we restrict recursive definitions to let lines with
-   * type annotations that bind a function to a single variable.
-   * Given a let line with a pattern `p`, type annotation `ty`,
-   * and a defining expression `e`, `ctx_for_let(ctx, p, ty, e)`
-   * returns the context available to `e`. If the let line satifies
-   * our conditions for recursion, then this function also returns
-   * the recursively defined variable.
-   */
-  let ctx_for_let:
-    (Contexts.t'('a), UHPat.t, HTyp.t, UHExp.t) =>
-    (Contexts.t'('a), option(Var.t));
+  let recursive_let_id: (UHPat.t, UHExp.t) => option((Var.t, HTyp.t));
+
+  let extend_let_def_ctx:
+    (Contexts.t'('a), UHPat.t, UHExp.t) => Contexts.t'('a);
+
+  let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
 
   type livelit_types_type = {
     init_ty: HTyp.t,
@@ -62,6 +56,9 @@ module type S = {
    */
   let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
   let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
+  let ana_splice_map_and_params:
+    (Contexts.t, UHExp.splice_map, list((Var.t, HTyp.t))) =>
+    option(Contexts.t);
 
   /**
    * Given a pattern `e` in synthetic position under context `ctx`,

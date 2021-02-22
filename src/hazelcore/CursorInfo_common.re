@@ -35,7 +35,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     switch (line) {
     | EmptyLine
     | CommentLine(_) => true
-    | LetLine(_, _, _)
+    | LetLine(_)
     | LivelitDefLine(_)
     | AbbrevLine(_)
     | ExpLine(_) => false
@@ -84,18 +84,17 @@ and is_text_cursor_zline =
     | _ => false
     }
   | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq_exp
-  | LetLineZP(zp, _, _) => zp |> is_text_cursor_zopseq_pat
+  | LetLineZP(zp, _) => zp |> is_text_cursor_zopseq_pat
   | LivelitDefLineZExpansionType(_)
   | LivelitDefLineZModelType(_)
-  | LivelitDefLineZActionType(_)
-  | LetLineZA(_) => false
+  | LivelitDefLineZActionType(_) => false
   | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
   | LivelitDefLineZShape({shape: zdef, _})
   | LivelitDefLineZExpand({expand: zdef, _})
-  | LetLineZE(_, _, zdef) => zdef |> is_text_cursor
+  | LetLineZE(_, zdef) => zdef |> is_text_cursor
   | AbbrevLineZL(_, _, _, (_, zoperand, _)) =>
     zoperand |> is_text_cursor_zoperand_exp
 and is_text_cursor_zopseq_exp =
@@ -110,9 +109,9 @@ and is_text_cursor_zoperand_exp =
       let (_, zrule, _) = zrules;
       zrule |> is_text_cursor_zrule;
     }
-  | LamZP(_, zp, _, _) => zp |> is_text_cursor_zopseq_pat
+  | LamZP(_, zp, _) => zp |> is_text_cursor_zopseq_pat
   | ParenthesizedZ(ze)
-  | LamZE(_, _, _, ze)
+  | LamZE(_, _, ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _)
   | SubscriptZE1(_, ze, _, _)
@@ -120,7 +119,6 @@ and is_text_cursor_zoperand_exp =
   | SubscriptZE3(_, _, _, ze) => ze |> is_text_cursor
   | ApLivelitZ(_, _, _, _, _, zsi) =>
     is_text_cursor(ZSpliceInfo.prj_ze(zsi))
-  | LamZA(_)
   | CursorE(_) => false
 and is_text_cursor_zrule =
   fun
@@ -137,6 +135,8 @@ and is_text_cursor_zoperand_pat =
   | CursorP(OnText(_), StringLit(_, _)) => true
   | ParenthesizedZ(zp) => zp |> is_text_cursor_zopseq_pat
   | InjZ(_, _, zp) => zp |> is_text_cursor_zopseq_pat
+  | TypeAnnZP(_, zp, _) => zp |> is_text_cursor_zoperand_pat
+  | TypeAnnZA(_)
   | CursorP(_) => false;
 
 let is_invalid_escape_sequence = (j, s) =>

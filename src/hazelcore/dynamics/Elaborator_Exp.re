@@ -629,6 +629,15 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       ctx,
     );
 
+  let mk_statics_ctx = ctx => (
+    Contexts.gamma(ctx),
+    VarMap.map(
+      ((_, (def, dtys))) =>
+        (def, List.map(((x, (_, ty))) => (x, ty), dtys)),
+      Contexts.livelit_ctx(ctx),
+    ),
+  );
+
   let rec syn_elab =
           (
             ~livelit_holes=false,
@@ -698,18 +707,18 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       }
     | EmptyLine
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
-    | LetLine(p, ann, def) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
-        let (ctx1, is_recursive_fn) = S.ctx_for_let(ctx, p, ty1, def);
+    | LetLine(p, def) =>
+      switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
+      | None => LinesDoNotExpand
+      | Some((ty1, _)) =>
+        let ctx1 = S.extend_let_def_ctx(ctx, p, def);
         switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
         | DoesNotElaborate => LinesDoNotExpand
         | Elaborates(d1, ty1', delta) =>
           let d1 =
-            switch (is_recursive_fn) {
+            switch (S.recursive_let_id(p, def)) {
             | None => d1
-            | Some(x) =>
+            | Some((x, _)) =>
               FixF(
                 x,
                 ty1',
@@ -724,17 +733,6 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
             LinesExpand(prelude, ctx, delta);
           };
         };
-      | None =>
-        switch (syn_elab(~livelit_holes, ctx, delta, def)) {
-        | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(d1, ty1, delta) =>
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-          | DoesNotElaborate => LinesDoNotExpand
-          | Elaborates(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesExpand(prelude, ctx, delta);
-          }
-        }
       }
     | LivelitDefLine({name: (_, name_str), captures, _}) =>
       // TODO: params
@@ -1059,7 +1057,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
     | StringLit(InHole(TypeInconsistent(_) as reason, u), _)
     | ListNil(InHole(TypeInconsistent(_) as reason, u))
-    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _, _)
+    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _)
     | Inj(InHole(TypeInconsistent(_) as reason, u), _, _)
     | Case(
         StandardErrStatus(InHole(TypeInconsistent(_) as reason, u)),
@@ -1084,7 +1082,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | BoolLit(InHole(WrongLength, _), _)
     | StringLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _, _)
+    | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
     | Subscript(InHole(WrongLength, _), _, _, _)
@@ -1183,22 +1181,21 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       let elt_ty = HTyp.Hole;
       Elaborates(ListNil(elt_ty), List(elt_ty), delta);
     | Parenthesized(body) => syn_elab(~livelit_holes, ctx, delta, body)
-    | Lam(NotInHole, p, ann, body) =>
-      let ty1 =
-        switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
-        | None => HTyp.Hole
-        };
-      switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, _, ctx, delta) =>
-        switch (syn_elab(~livelit_holes, ctx, delta, body)) {
+    | Lam(NotInHole, p, body) =>
+      switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
+      | None => DoesNotElaborate
+      | Some((ty1, _)) =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty2, delta) =>
-          let d = DHExp.Lam(dp, ty1, d1);
-          Elaborates(d, Arrow(ty1, ty2), delta);
+        | Elaborates(dp, _, ctx, delta) =>
+          switch (syn_elab(ctx, delta, body)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(d1, ty2, delta) =>
+            let d = DHExp.Lam(dp, ty1, d1);
+            Elaborates(d, Arrow(ty1, ty2), delta);
+          }
         }
-      };
+      }
     | Inj(NotInHole, side, body) =>
       switch (syn_elab(~livelit_holes, ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1731,7 +1728,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
     | ListNil(InHole(TypeInconsistent(_) as reason, u))
     | StringLit(InHole(TypeInconsistent(_) as reason, u), _)
-    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _, _)
+    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _)
     | Inj(InHole(TypeInconsistent(_) as reason, u), _, _)
     | Case(
         StandardErrStatus(InHole(TypeInconsistent(_) as reason, u)),
@@ -1765,7 +1762,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | BoolLit(InHole(WrongLength, _), _)
     | StringLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _, _)
+    | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
     | Subscript(InHole(WrongLength, _), _, _, _)
@@ -1797,41 +1794,30 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       let d = DHExp.FreeLivelit(u, 0, sigma, name);
       Elaborates(d, ty, delta);
     | Parenthesized(body) => ana_elab(~livelit_holes, ctx, delta, body, ty)
-    | Lam(NotInHole, p, ann, body) =>
+    | Lam(NotInHole, p, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => DoesNotElaborate
       | Some((ty1_given, ty2)) =>
-        switch (ann) {
-        | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
-          switch (HTyp.consistent(ty1_ann, ty1_given)) {
-          | false => DoesNotElaborate
-          | true =>
-            switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
-            | DoesNotElaborate => DoesNotElaborate
-            | Elaborates(dp, ty1p, ctx, delta) =>
-              switch (ana_elab(~livelit_holes, ctx, delta, body, ty2)) {
-              | DoesNotElaborate => DoesNotElaborate
-              | Elaborates(d1, ty2, delta) =>
-                let ty = HTyp.Arrow(ty1p, ty2);
-                let d = DHExp.Lam(dp, ty1p, d1);
-                Elaborates(d, ty, delta);
-              }
-            }
+        let ty1_ann =
+          switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
+          | None => ty1_given
+          | Some((ty_p, _)) => ty_p
           };
-        | None =>
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_given)) {
+        switch (HTyp.consistent(ty1_ann, ty1_given)) {
+        | false => DoesNotElaborate
+        | true =>
+          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
           | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(dp, ty1, ctx, delta) =>
+          | Elaborates(dp, ty1p, ctx, delta) =>
             switch (ana_elab(~livelit_holes, ctx, delta, body, ty2)) {
             | DoesNotElaborate => DoesNotElaborate
             | Elaborates(d1, ty2, delta) =>
-              let ty = HTyp.Arrow(ty1, ty2);
-              let d = DHExp.Lam(dp, ty1, d1);
+              let ty = HTyp.Arrow(ty1p, ty2);
+              let d = DHExp.Lam(dp, ty1p, d1);
               Elaborates(d, ty, delta);
             }
           }
-        }
+        };
       }
     | Inj(NotInHole, side, body) =>
       switch (HTyp.matched_sum(ty)) {
