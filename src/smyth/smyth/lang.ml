@@ -119,11 +119,24 @@ type type_ctx = type_binding list * poly_binding list
 type datatype_ctx = (string * (string list * (string * typ) list)) list
 [@@deriving sexp]
 
+(** Term kinds. *)
+type term_kind = E | I
+
+(* TODO: should match_depth be in there too? *)
+
+(** Term generation ("guessing") goals. *)
+type gen_goal =
+  { gamma: type_ctx
+  ; idents: string list
+  ; goal_type: typ
+  ; goal_dec: string option
+  ; term_kind: term_kind }
+
 (** Hole contexts:
     [(hole name, type context, typ, decrease requirement, match depth)]. The
     "decrease requirement", if present, is a function that expressions must
     be decreasing on to fill the hole in question. *)
-type hole_ctx = (hole_name * (type_ctx * typ * string option * int)) list
+type hole_ctx = (hole_name * (gen_goal * int)) list
 
 (** "Simple" values. *)
 type value =
@@ -159,9 +172,6 @@ type resumption_assertion = res * value
 
 (** Multiple resumption assertions. *)
 type resumption_assertions = resumption_assertion list
-
-(** Term generation ("guessing") goals. *)
-type gen_goal = type_ctx * typ * string option
 
 (** Basic synthesis goals. *)
 type synthesis_goal = gen_goal * worlds

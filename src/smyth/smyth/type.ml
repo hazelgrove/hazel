@@ -281,9 +281,13 @@ let rec check' :
   | EHole name ->
       Ok
         [ ( name
-          , ( gamma
-            , tau
-            , state.function_decrease_requirement
+          , ( { gamma
+              ; idents= Type_ctx.names gamma
+              ; goal_type= tau
+              ; goal_dec=
+                  state.function_decrease_requirement
+                  (* TODO: figure out, if ever, we want term_kind=E *)
+              ; term_kind= I }
             , state.match_depth ) ) ]
   (* Nonstandard, but useful for let-bindings *)
   | EApp (_, head, EAExp (ETypeAnnotation (arg, arg_type))) ->

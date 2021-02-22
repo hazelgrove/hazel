@@ -37,6 +37,8 @@ let solve_program : Desugar.program -> solve_result response =
     match Eval.eval Env.empty exp with
     | Error e -> Error (EvalError e)
     | Ok (_, assertions) ->
+        (* assertions |> List.iter (fun (res, value) -> print_endline
+           (Pretty.res res ^ " === " ^ Pretty.value value)) ; *)
         let () = Term_gen.clear_cache () in
         let () =
           delta |> List.map fst |> List2.maximum |> Option2.with_default 0

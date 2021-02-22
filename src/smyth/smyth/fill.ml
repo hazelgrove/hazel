@@ -1,6 +1,11 @@
 open Lang
 open Nondet.Syntax
 
+(* NOTE: [refine] only works if all constraints agree, so excess constraints
+   can hamper it. In Myth, this means that [branch] should take over and
+   distribute the constraints which don't agree over different branches. In
+   Smyth, however, we might have branched by hand, without removing the
+   irrelevant constraints. *)
 let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
   let* additional_depth, ((exp, subgoals), choice_constraints) =
     (* Note: Try to branch FIRST! This results in more idiomatic solutions. *)
@@ -14,15 +19,13 @@ let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
         @@ Nondet.lift_option
         @@ Refine.refine delta sigma synthesis_goal ]
   in
-  let* _, _, _, parent_depth =
+  let* _, parent_depth =
     Nondet.lift_option @@ List.assoc_opt hole_name delta
   in
   let match_depth = parent_depth + additional_depth in
   let delta' =
     List.map
-      ( Pair2.map_snd
-      @@ fun ((gamma, goal_type, goal_dec), _) ->
-      (gamma, goal_type, goal_dec, match_depth) )
+      (Pair2.map_snd @@ fun (gen_goal, _) -> (gen_goal, match_depth))
       subgoals
   in
   let solved_constraints = Hole_map.singleton hole_name exp in
@@ -40,15 +43,17 @@ let refine_or_branch params delta sigma hf (hole_name, synthesis_goal) =
   (final_constraints, delta')
 
 let guess_and_check params delta sigma hf
-    (hole_name, (((_, goal_type, _) as gen_goal), worlds)) =
+    (hole_name, (({goal_type; _} as gen_goal), worlds)) =
   (* Only guess if we have not exhausted all time allotted for guessing *)
   let* _ = Nondet.guard (Timer.Multi.check Timer.Multi.Guess) in
   (* Only guess at base types *)
   let* _ = Nondet.guard (Type.is_base goal_type) in
   let* exp =
     Timer.Multi.accumulate Timer.Multi.Guess
-    @@ fun () -> Term_gen.up_to_e sigma params.max_term_size gen_goal
+    @@ fun () -> Term_gen.up_to sigma params.max_term_size gen_goal
+    (* TODO: remove term_kind=E? *)
   in
+  (* print_endline ("guess: " ^ Pretty.exp exp) ; *)
   let binding = Hole_map.singleton hole_name exp in
   let* extended_hf =
     Nondet.lift_option @@ Constraints.merge_solved [binding; hf]
@@ -63,8 +68,7 @@ let guess_and_check params delta sigma hf
   in
   (merged_constraints, [])
 
-let defer _params _delta _sigma _hf (hole_name, ((_, goal_type, _), worlds))
-    =
+let defer _params _delta _sigma _hf (hole_name, ({goal_type; _}, worlds)) =
   if
     (not (Type.equal goal_type (TTuple [])))
     && List.length worlds > 0

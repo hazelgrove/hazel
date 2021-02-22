@@ -34,12 +34,14 @@ module FuelLimited = struct
     let guesses (delta : hole_ctx) (sigma : datatype_ctx) (res : res) :
         hole_filling Nondet.t =
       let* hole_name = Nondet.lift_option @@ blocking_hole res in
-      let* gamma, tau, dec, _ =
+      let* gen_goal, _ =
         Nondet.lift_option @@ List.assoc_opt hole_name delta
       in
       Nondet.map
         (Hole_map.singleton hole_name)
-        (Term_gen.up_to_e sigma 1 (gamma, tau, dec))
+        (Term_gen.up_to sigma 2 gen_goal)
+      (* TODO: what size is reasonable? >=2 is needed for generating nullary
+         constructors *)
     in
     let* _ = Nondet.guard (fuel > 0) in
     match (res, ex) with
@@ -120,6 +122,7 @@ module FuelLimited = struct
         uneval fuel delta sigma hf arg (ExCtor (name, ex))
     | _ ->
         Log.warn "Mistyped uneval" ;
+        (* print_endline ("mistyped: " ^ Pretty.res res) ; *)
         Nondet.none
 
   and simplify_assertions fuel delta sigma rcs =
