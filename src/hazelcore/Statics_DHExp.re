@@ -48,7 +48,7 @@ and ana_pat = (ctx: Contexts.t, p: DHPat.t, ty: HTyp.t): option(Contexts.t) => {
   | InvalidText(_) =>
     switch (syn_pat(ctx, p)) {
     | None => None
-    | Some(ty) => Some(ctx)
+    | Some(_ty) => Some(ctx)
     }
   };
 };
@@ -112,7 +112,7 @@ let rec syn = (ctx: Contexts.t, d: DHExp.t): option(HTyp.t) => {
     let* body_ty = syn(body_ctx, body); // TODO(andrew): need to add to ctx
     Some(Arrow(p_ty, body_ty));
   | Let(p, def, body) =>
-    let* p_ty = syn_pat(ctx, p); // extend def ctx?
+    let* _p_ty = syn_pat(ctx, p); // extend def ctx?
     let* def_ty = syn(ctx, def);
     let* ctx' = ana_pat(ctx, p, def_ty);
     // TODO(andrew): check consistency
