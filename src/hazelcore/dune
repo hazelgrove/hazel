@@ -16,3 +16,5 @@
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
+
+(ocamllex StringLitLexer)

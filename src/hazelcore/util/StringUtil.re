@@ -34,3 +34,13 @@ let delete = (caret_index: int, s: string): string => {
 };
 
 let utf8_length = CamomileLibrary.UTF8.length;
+
+/** Implements s[start, end) */;
+/* let subscript = (s, start_, end_) => {
+     let length = String.length(s);
+     if (start_ >= 0 && start_ < length && end_ <= length && end_ >= start_) {
+       String.sub(s, start_, end_ - start_);
+     } else {
+       1;
+     };
+   }; */

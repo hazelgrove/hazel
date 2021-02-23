@@ -855,11 +855,8 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | StringLit(NotInHole, s) =>
-    Elaborates(
-      StringLit(StringLitBody.to_unescaped_string(s)),
-      String,
-      delta,
-    )
+    let (unescaped_s, _) = UnescapedString.unescaped(s);
+    Elaborates(StringLit(unescaped_s), String, delta);
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);

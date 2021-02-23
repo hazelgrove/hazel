@@ -72,11 +72,10 @@ let eval_bin_float_op =
 
 let eval_bin_str_op =
     (op: DHExp.BinStrOp.t, s1: UnescapedString.t, s2: UnescapedString.t)
-    : DHExp.t => {
+    : DHExp.t =>
   switch (op) {
-  | Caret => StringLit(UnescapedString.cat(s1, s2))
+  | Caret => DHExp.StringLit(UnescapedString.cat(s1, s2))
   };
-};
 
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
@@ -133,6 +132,36 @@ let rec evaluate = (d: DHExp.t): result =>
   | FloatLit(_)
   | StringLit(_)
   | Triv => BoxedValue(d)
+  | Subscript(dtarget, dstart_, dend_) =>
+    switch (evaluate(dtarget), evaluate(dstart_), evaluate(dend_)) {
+    | (InvalidInput(_) as x, _, _)
+    | (_, InvalidInput(_) as x, _)
+    | (_, _, InvalidInput(_) as x) => x
+    | (Indet(dtarget'), Indet(dstart_'), Indet(dend_'))
+    | (Indet(dtarget'), Indet(dstart_'), BoxedValue(dend_'))
+    | (Indet(dtarget'), BoxedValue(dstart_'), Indet(dend_'))
+    | (Indet(dtarget'), BoxedValue(dstart_'), BoxedValue(dend_'))
+    | (BoxedValue(dtarget'), Indet(dstart_'), Indet(dend_'))
+    | (BoxedValue(dtarget'), Indet(dstart_'), BoxedValue(dend_'))
+    | (BoxedValue(dtarget'), BoxedValue(dstart_'), Indet(dend_')) =>
+      Indet(Subscript(dtarget', dstart_', dend_'))
+    | (
+        BoxedValue(StringLit(starget)),
+        BoxedValue(IntLit(start_)),
+        BoxedValue(IntLit(end_)),
+      ) =>
+      switch (UnescapedString.subscript(starget, start_, end_)) {
+      | OK(s') => BoxedValue(StringLit(s'))
+      | Error(err) =>
+        Indet(
+          InvalidOperation(
+            d,
+            InvalidOperationError.SubscriptOutOfBounds(err),
+          ),
+        )
+      }
+    | (BoxedValue(_), BoxedValue(_), BoxedValue(_)) => InvalidInput(3)
+    }
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
