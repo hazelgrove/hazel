@@ -115,6 +115,7 @@ and is_indet = (d: DHExp.t): bool =>
     && ground_cases_of(ty1) == Ground
     && ground_cases_of(ty2) == Ground
     && !HTyp.eq(ty1, ty2)
+  | InvalidOperation(d1, _) => is_final(d1)
   | _ => false
   };
 
