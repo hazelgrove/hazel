@@ -41,7 +41,7 @@ module EvalCtx = {
       );
 };
 
-//Copy from Evaluator.re
+// Copy from Evaluator.re
 [@deriving sexp]
 type ground_cases =
   | Hole
@@ -73,10 +73,10 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
+// End of copying from Evaluator.re
 
 let is_val = (d: DHExp.t): bool =>
   switch (d) {
-  | FreeVar(_, _, _, _)
   | BoundVar(_)
   | Lam(_, _, _)
   | ListNil(_)
@@ -98,6 +98,9 @@ let rec is_boxedval = (d: DHExp.t): bool =>
 let rec is_final = (d: DHExp.t): bool => is_boxedval(d) || is_indet(d)
 and is_indet = (d: DHExp.t): bool =>
   switch (d) {
+  | FreeVar(_)
+  | Keyword(_)
+  | InvalidText(_)
   | EmptyHole(_, _, _) => true
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
   | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
@@ -301,8 +304,6 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   };
 
 // Copy from Evaluator.re
-// Those things will be deleted!
-
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
   | And => BoolLit(b1 && b2)
@@ -333,6 +334,7 @@ let eval_bin_float_op =
   | FEquals => BoolLit(f1 == f2)
   };
 };
+// End of copying from Evaluator.re
 
 [@deriving sexp]
 type step_result =
@@ -390,7 +392,12 @@ let instruction_step = (d: DHExp.t): step_result =>
       } else {
         Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
       }
-    | _ => End
+    | _ =>
+      if (is_boxedval(d1)) {
+        InvalidInput(2);
+      } else {
+        End;
+      }
     }
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
