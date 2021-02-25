@@ -41,41 +41,7 @@ module EvalCtx = {
       );
 };
 
-// Copy from Evaluator.re
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
-
-let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
-let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
-let grounded_List = NotGroundOrHole(List(Hole));
-
-let ground_cases_of = (ty: HTyp.t): ground_cases =>
-  switch (ty) {
-  | Hole => Hole
-  | Bool
-  | Int
-  | Float
-  | Arrow(Hole, Hole)
-  | Sum(Hole, Hole)
-  | List(Hole) => Ground
-  | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
-  | Arrow(_, _) => grounded_Arrow
-  | Sum(_, _) => grounded_Sum
-  | List(_) => grounded_List
-  };
-// End of copying from Evaluator.re
-
-let is_val = (d: DHExp.t): bool =>
+let rec is_boxedval = (d: DHExp.t): bool =>
   switch (d) {
   | BoundVar(_)
   | Lam(_, _, _)
@@ -84,15 +50,20 @@ let is_val = (d: DHExp.t): bool =>
   | IntLit(_)
   | FloatLit(_)
   | Triv => true
-  | _ => false
-  };
-
-let rec is_boxedval = (d: DHExp.t): bool =>
-  switch (d) {
+  | Pair(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
+  | Inj(_, _, d1) => is_boxedval(d1)
+  | Cons(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
   | Cast(d1, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
     is_boxedval(d1) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
-  | Cast(d1, ty, Hole) => ground_cases_of(ty) == Ground && is_boxedval(d1)
-  | _ => is_val(d)
+  | Cast(d1, Sum(ty1, ty2), Sum(ty3, ty4)) =>
+    is_boxedval(d1) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
+  | Cast(d1, List(ty1), List(ty2)) => is_boxedval(d1) && !HTyp.eq(ty1, ty2)
+  | Cast(d1, Prod(tys1), Prod(tys2)) =>
+    is_boxedval(d1)
+    && !(List.map2(HTyp.eq, tys1, tys2) |> List.fold_left((&&), true))
+  | Cast(d1, ty, Hole) =>
+    EvaluatorCommon.ground_cases_of(ty) == Ground && is_boxedval(d1)
+  | _ => false
   };
 
 let rec is_final = (d: DHExp.t): bool => is_boxedval(d) || is_indet(d)
@@ -105,15 +76,17 @@ and is_indet = (d: DHExp.t): bool =>
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
   | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
   | Ap(d1, d2) => is_indet(d1) && is_final(d2)
-  | Cast(d1, ty, Hole) => is_indet(d1) && ground_cases_of(ty) == Ground
+  | Cast(d1, ty, Hole) =>
+    is_indet(d1) && EvaluatorCommon.ground_cases_of(ty) == Ground
   | Cast(Cast(_, _, Hole), Hole, _) => false
-  | Cast(d1, Hole, ty) => is_indet(d1) && ground_cases_of(ty) == Ground
+  | Cast(d1, Hole, ty) =>
+    is_indet(d1) && EvaluatorCommon.ground_cases_of(ty) == Ground
   | Cast(d, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
     is_indet(d) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
   | FailedCast(d1, ty1, ty2) =>
     is_final(d1)
-    && ground_cases_of(ty1) == Ground
-    && ground_cases_of(ty2) == Ground
+    && EvaluatorCommon.ground_cases_of(ty1) == Ground
+    && EvaluatorCommon.ground_cases_of(ty2) == Ground
     && !HTyp.eq(ty1, ty2)
   | InvalidOperation(d1, _) => is_final(d1)
   | _ => false
@@ -304,42 +277,9 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
     InconsistentBranches(u, i, sigma, Case(compose((ctx1, d)), rule, n))
   };
 
-// Copy from Evaluator.re
-let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
-  switch (op) {
-  | And => BoolLit(b1 && b2)
-  | Or => BoolLit(b1 || b2)
-  };
-
-let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
-  switch (op) {
-  | Minus => IntLit(n1 - n2)
-  | Plus => IntLit(n1 + n2)
-  | Times => IntLit(n1 * n2)
-  | Divide => IntLit(n1 / n2)
-  | LessThan => BoolLit(n1 < n2)
-  | GreaterThan => BoolLit(n1 > n2)
-  | Equals => BoolLit(n1 == n2)
-  };
-};
-
-let eval_bin_float_op =
-    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
-  switch (op) {
-  | FPlus => FloatLit(f1 +. f2)
-  | FMinus => FloatLit(f1 -. f2)
-  | FTimes => FloatLit(f1 *. f2)
-  | FDivide => FloatLit(f1 /. f2)
-  | FLessThan => BoolLit(f1 < f2)
-  | FGreaterThan => BoolLit(f1 > f2)
-  | FEquals => BoolLit(f1 == f2)
-  };
-};
-// End of copying from Evaluator.re
-
 [@deriving sexp]
 type step_result =
-  | End
+  | Final
   | Step(DHExp.t)
   | InvalidInput(int);
 
@@ -383,13 +323,13 @@ let instruction_step = (d: DHExp.t): step_result =>
     switch (d1) {
     | Lam(pat, _, d0) =>
       switch (Elaborator_Exp.matches(pat, d2)) {
-      | DoesNotMatch => End
-      | Indet => End
+      | DoesNotMatch => Final
+      | Indet => Final
       | Matches(env) => Step(Elaborator_Exp.subst(env, d0))
       }
     | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
       if (HTyp.eq(t1, t1') && HTyp.eq(t2, t2')) {
-        End;
+        Final;
       } else {
         Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
       }
@@ -397,36 +337,39 @@ let instruction_step = (d: DHExp.t): step_result =>
       if (is_boxedval(d1)) {
         InvalidInput(2);
       } else {
-        End;
+        Final;
       }
     }
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
-    | Indet => End
-    | DoesNotMatch => End
+    | Indet => Final
+    | DoesNotMatch => Final
     | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
     }
   | BinBoolOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
-      Step(eval_bin_bool_op(op, b1, b2))
-    | _ => End
+      Step(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
+    | _ => Final
     }
   | BinIntOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
-      Step(eval_bin_int_op(op, i1, i2))
-    | _ => End
+      Step(EvaluatorCommon.eval_bin_int_op(op, i1, i2))
+    | _ => Final
     }
   | BinFloatOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
-      Step(eval_bin_float_op(op, f1, f2))
-    | _ => End
+      Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
+    | _ => Final
     }
   | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
   | Cast(d1, ty1, ty2) =>
-    switch (ground_cases_of(ty1), ground_cases_of(ty2)) {
+    switch (
+      EvaluatorCommon.ground_cases_of(ty1),
+      EvaluatorCommon.ground_cases_of(ty2),
+    ) {
     | (Hole, Hole)
     | (Ground, Ground) => Step(d1)
     | (Hole, Ground) =>
@@ -447,21 +390,21 @@ let instruction_step = (d: DHExp.t): step_result =>
       if (HTyp.eq(ty1, ty2)) {
         Step(d1);
       } else {
-        End;
+        Final;
       }
-    | _ => End
+    | _ => Final
     }
   | ConsistentCase(Case(d1, rules, n)) =>
     let case1 = evaluate_case_instruction(None, d1, rules, n);
     if (case1 == Step(d)) {
-      End;
+      Final;
     } else {
       case1;
     };
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     let case1 = evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
     if (case1 == Step(d)) {
-      End;
+      Final;
     } else {
       case1;
     };
@@ -481,17 +424,16 @@ let instruction_step = (d: DHExp.t): step_result =>
   | Pair(_, _)
   | Triv
   | Lam(_, _, _)
-  | InvalidOperation(_, _) => End
+  | InvalidOperation(_, _) => Final
   //| _ => None
   };
 
 let evaluate_step = (d: DHExp.t): step_result => {
   let (ctx, d0) = decompose(d);
   let res = instruction_step(d0);
-  if (res == End) {
-    End;
-  } else {
-    Step(compose((ctx, d)));
+  switch (res) {
+  | Final => Final
+  | _ => Step(compose((ctx, d)))
   };
 };
 
