@@ -67,13 +67,13 @@ let rec is_boxedval = (d: DHExp.t): bool =>
 let rec is_final = (d: DHExp.t): bool => is_boxedval(d) || is_indet(d)
 and is_indet = (d: DHExp.t): bool =>
   switch (d) {
+  | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
   | FreeVar(_)
   | Keyword(_)
   | InvalidText(_)
   | EmptyHole(_, _, _) => true
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
-  | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
-  | Ap(d1, d2) => is_indet(d1) && is_final(d2)
+  | InvalidOperation(d1, _) => is_final(d1)
   | Cast(d1, ty, Hole) =>
     is_indet(d1) && EvaluatorCommon.ground_cases_of(ty) == Ground
   | Cast(Cast(_, _, Hole), Hole, _) => false
@@ -85,8 +85,14 @@ and is_indet = (d: DHExp.t): bool =>
     is_final(d1)
     && EvaluatorCommon.ground_cases_of(ty1) == Ground
     && EvaluatorCommon.ground_cases_of(ty2) == Ground
-    && !HTyp.eq(ty1, ty2)
-  | InvalidOperation(d1, _) => is_final(d1)
+    && !HTyp.eq(ty1, ty2) // why we need this?
+  | Ap(d1, d2) => is_indet(d1) && is_final(d2)
+  | Inj(_, _, d1) => is_indet(d1)
+  | Pair(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | Cons(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | BinIntOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | BinBoolOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | BinFloatOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
   | _ => false
   };
 
@@ -309,7 +315,7 @@ let instruction_step = (d: DHExp.t): step_result =>
     | Lam(pat, _, d0) =>
       switch (Elaborator_Exp.matches(pat, d2)) {
       | DoesNotMatch => Final
-      | Indet => Final
+      | Indet => Final // These two Final just mean the result is indet
       | Matches(env) => Step(Elaborator_Exp.subst(env, d0))
       }
     | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
@@ -328,26 +334,36 @@ let instruction_step = (d: DHExp.t): step_result =>
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
     | Indet => Final
-    | DoesNotMatch => Final
+    | DoesNotMatch => Final // These two Final just mean the result is indet
     | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
     }
   | BinBoolOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
       Step(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
-    | _ => Final
+    | (DHExp.BoolLit(b1), _) => InvalidInput(3)
+    | _ => InvalidInput(4)
     }
   | BinIntOp(op, d1, d2) =>
-    switch (d1, d2) {
-    | (DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
+    switch (op, d1, d2) {
+    | (Divide, DHExp.IntLit(i1), DHExp.IntLit(0)) =>
+      Step(
+        InvalidOperation(
+          BinIntOp(op, IntLit(i1), IntLit(i2)),
+          DivideByZero,
+        ),
+      )
+    | (_, DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
       Step(EvaluatorCommon.eval_bin_int_op(op, i1, i2))
-    | _ => Final
+    | (_, DHExp.IntLit(i1), _) => InvalidInput(3)
+    | _ => InvalidInput(4)
     }
   | BinFloatOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
       Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
-    | _ => Final
+    | (DHExp.FloatLit(b1), _) => InvalidInput(8)
+    | _ => InvalidInput(7)
     }
   | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
   | Cast(d1, ty1, ty2) =>
