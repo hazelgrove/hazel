@@ -410,17 +410,17 @@ let instruction_step = (d: DHExp.t): step_result =>
 
 let evaluate_step = (d: DHExp.t): step_result => {
   let (ctx, d0) = decompose(d);
-  let res = instruction_step(d0);
-  switch (res) {
+  switch (instruction_step(d0)) {
+  | InvalidInput(i) => InvalidInput(i)
   | Final => Final
-  | _ => Step(compose((ctx, d)))
+  | Step(d1) => Step(compose((ctx, d1)))
   };
 };
 
-let rec evaluate_steps = (d: DHExp.t): DHExp.t => {
-  let res = evaluate_step(d);
-  switch (res) {
+let rec evaluate_steps = (d: DHExp.t): option(DHExp.t) => {
+  switch (evaluate_step(d)) {
   | Step(d0) => evaluate_steps(d0)
-  | _ => d
+  | Final => Some(d)
+  | InvalidInput(i) => None
   };
 };
