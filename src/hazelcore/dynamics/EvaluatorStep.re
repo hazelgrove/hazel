@@ -16,8 +16,7 @@ module EvalCtx = {
     | Cons2(DHExp.t, t)
     | Pair1(t, DHExp.t)
     | Pair2(DHExp.t, t)
-    | Let1(DHPat.t, t, DHExp.t)
-    | Let2(DHPat.t, DHExp.t, t)
+    | Let(DHPat.t, t, DHExp.t)
     | Inj(HTyp.t, InjSide.t, t)
     | NonEmptyHole(
         ErrStatus.HoleReason.t,
@@ -26,7 +25,6 @@ module EvalCtx = {
         VarMap.t_(DHExp.t),
         t,
       )
-    | FixF(Var.t, HTyp.t, t)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
     | InvalidOperation(t, InvalidOperationError.t)
@@ -104,7 +102,8 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (Mark, d)
+  | Triv
+  | FixF(_, _, _) => (Mark, d)
   | Ap(d1, d2) =>
     if (is_final(d1)) {
       if (is_final(d2)) {
@@ -200,15 +199,10 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
     }
   | Let(dp, d1, d2) =>
     if (is_final(d1)) {
-      if (is_final(d2)) {
-        (Mark, d);
-      } else {
-        let (ctx, d0) = decompose(d2);
-        (Let2(dp, d1, ctx), d0);
-      };
+      (Mark, d);
     } else {
       let (ctx, d0) = decompose(d1);
-      (Let1(dp, ctx, d2), d0);
+      (Let(dp, ctx, d2), d0);
     }
   | Inj(ty, side, d1) =>
     if (is_final(d1)) {
@@ -216,13 +210,6 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
     } else {
       let (ctx, d0) = decompose(d1);
       (Inj(ty, side, ctx), d0);
-    }
-  | FixF(var, ty, d1) =>
-    if (is_final(d1)) {
-      (Mark, d);
-    } else {
-      let (ctx, d0) = decompose(d1);
-      (FixF(var, ty, ctx), d0);
     }
   | InvalidOperation(d1, err) =>
     if (is_final(d1)) {
@@ -262,12 +249,10 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | Cons2(d1, ctx1) => Cons(d1, compose((ctx1, d)))
   | Pair1(ctx1, d1) => Pair(compose((ctx1, d)), d1)
   | Pair2(d1, ctx1) => Pair(d1, compose((ctx1, d)))
-  | Let1(dp, ctx1, d1) => Let(dp, compose((ctx1, d)), d1)
-  | Let2(dp, d1, ctx1) => Let(dp, d1, compose((ctx1, d)))
+  | Let(dp, ctx1, d1) => Let(dp, compose((ctx1, d)), d1)
   | Inj(ty, side, ctx1) => Inj(ty, side, compose((ctx1, d)))
   | Cast(ctx1, ty1, ty2) => Cast(compose((ctx1, d)), ty1, ty2)
   | FailedCast(ctx1, ty1, ty2) => FailedCast(compose((ctx1, d)), ty1, ty2)
-  | FixF(var, ty, ctx1) => FixF(var, ty, compose((ctx1, d)))
   | InvalidOperation(ctx1, err) => InvalidOperation(compose((ctx1, d)), err)
   | NonEmptyHole(reason, u, i, sigma, ctx1) =>
     NonEmptyHole(reason, u, i, sigma, compose((ctx1, d)))
