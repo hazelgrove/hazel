@@ -274,37 +274,26 @@ type step_result =
   | Step(DHExp.t)
   | InvalidInput(int);
 
-let rec evaluate_case_instruction =
-        (
-          inconsistent_info,
-          scrut: DHExp.t,
-          rules: list(DHExp.rule),
-          current_rule_index: int,
-        )
-        : step_result =>
+let evaluate_case_instruction =
+    (
+      inconsistent_info,
+      scrut: DHExp.t,
+      rules: list(DHExp.rule),
+      current_rule_index: int,
+    )
+    : step_result =>
   switch (List.nth_opt(rules, current_rule_index)) {
-  | None =>
-    let case = DHExp.Case(scrut, rules, current_rule_index);
-    switch (inconsistent_info) {
-    | None => Step(ConsistentCase(case))
-    | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
-    };
+  | None => Final
   | Some(Rule(dp, d)) =>
     switch (Elaborator_Exp.matches(dp, scrut)) {
-    | Indet =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
+    | Indet => Final
+    | Matches(env) => Step(Elaborator_Exp.subst(env, d))
+    | DoesNotMatch =>
+      let case = DHExp.Case(scrut, rules, current_rule_index + 1);
       switch (inconsistent_info) {
       | None => Step(ConsistentCase(case))
       | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
       };
-    | Matches(env) => Step(Elaborator_Exp.subst(env, d))
-    | DoesNotMatch =>
-      evaluate_case_instruction(
-        inconsistent_info,
-        scrut,
-        rules,
-        current_rule_index + 1,
-      )
     }
   };
 
@@ -341,7 +330,7 @@ let instruction_step = (d: DHExp.t): step_result =>
     switch (d1, d2) {
     | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
       Step(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
-    | (DHExp.BoolLit(b1), _) => InvalidInput(3)
+    | (DHExp.BoolLit(_), _) => InvalidInput(3)
     | _ => InvalidInput(4)
     }
   | BinIntOp(op, d1, d2) =>
@@ -349,20 +338,20 @@ let instruction_step = (d: DHExp.t): step_result =>
     | (Divide, DHExp.IntLit(i1), DHExp.IntLit(0)) =>
       Step(
         InvalidOperation(
-          BinIntOp(op, IntLit(i1), IntLit(i2)),
+          BinIntOp(op, IntLit(i1), IntLit(0)),
           DivideByZero,
         ),
       )
     | (_, DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
       Step(EvaluatorCommon.eval_bin_int_op(op, i1, i2))
-    | (_, DHExp.IntLit(i1), _) => InvalidInput(3)
+    | (_, DHExp.IntLit(_), _) => InvalidInput(3)
     | _ => InvalidInput(4)
     }
   | BinFloatOp(op, d1, d2) =>
     switch (d1, d2) {
     | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
       Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
-    | (DHExp.FloatLit(b1), _) => InvalidInput(8)
+    | (DHExp.FloatLit(_), _) => InvalidInput(8)
     | _ => InvalidInput(7)
     }
   | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
@@ -396,19 +385,9 @@ let instruction_step = (d: DHExp.t): step_result =>
     | _ => Final
     }
   | ConsistentCase(Case(d1, rules, n)) =>
-    let case1 = evaluate_case_instruction(None, d1, rules, n);
-    if (case1 == Step(d)) {
-      Final;
-    } else {
-      case1;
-    };
+    evaluate_case_instruction(None, d1, rules, n);
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    let case1 = evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
-    if (case1 == Step(d)) {
-      Final;
-    } else {
-      case1;
-    };
+    evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
   | BoundVar(_) => InvalidInput(1)
   | EmptyHole(_, _, _)
   | NonEmptyHole(_, _, _, _, _)
