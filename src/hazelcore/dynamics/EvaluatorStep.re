@@ -51,16 +51,23 @@ let rec is_boxedval = (d: DHExp.t): bool =>
   | Pair(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
   | Inj(_, _, d1) => is_boxedval(d1)
   | Cons(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
-  | Cast(d1, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
-    is_boxedval(d1) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
-  | Cast(d1, Sum(ty1, ty2), Sum(ty3, ty4)) =>
-    is_boxedval(d1) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
-  | Cast(d1, List(ty1), List(ty2)) => is_boxedval(d1) && !HTyp.eq(ty1, ty2)
-  | Cast(d1, Prod(tys1), Prod(tys2)) =>
-    is_boxedval(d1)
-    && !(List.map2(HTyp.eq, tys1, tys2) |> List.fold_left((&&), true))
-  | Cast(d1, ty, Hole) =>
-    EvaluatorCommon.ground_cases_of(ty) == Ground && is_boxedval(d1)
+  | Cast(d1, ty, ty') =>
+    switch (
+      EvaluatorCommon.ground_cases_of(ty),
+      EvaluatorCommon.ground_cases_of(ty'),
+    ) {
+    | (Ground, Hole)
+    | (Ground, NotGroundOrHole(_))
+    | (NotGroundOrHole(_), Ground) => is_boxedval(d1)
+    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+      !HTyp.eq(ty, ty') && is_boxedval(d1)
+    | (Hole, Ground) =>
+      switch (d1) {
+      | Cast(_, _, Hole) => false
+      | _ => is_boxedval(d1)
+      }
+    | _ => false
+    }
   | _ => false
   };
 
@@ -74,18 +81,27 @@ and is_indet = (d: DHExp.t): bool =>
   | EmptyHole(_, _, _) => true
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
   | InvalidOperation(d1, _) => is_final(d1)
-  | Cast(d1, ty, Hole) =>
-    is_indet(d1) && EvaluatorCommon.ground_cases_of(ty) == Ground
-  | Cast(Cast(_, _, Hole), Hole, _) => false
-  | Cast(d1, Hole, ty) =>
-    is_indet(d1) && EvaluatorCommon.ground_cases_of(ty) == Ground
-  | Cast(d, Arrow(ty1, ty2), Arrow(ty3, ty4)) =>
-    is_indet(d) && !(HTyp.eq(ty1, ty3) && HTyp.eq(ty2, ty4))
-  | FailedCast(d1, ty1, ty2) =>
-    is_final(d1)
-    && EvaluatorCommon.ground_cases_of(ty1) == Ground
-    && EvaluatorCommon.ground_cases_of(ty2) == Ground
-    && !HTyp.eq(ty1, ty2) // why we need this?
+  | Cast(d1, ty, ty') =>
+    switch (
+      EvaluatorCommon.ground_cases_of(ty),
+      EvaluatorCommon.ground_cases_of(ty'),
+    ) {
+    | (Ground, Hole)
+    | (Ground, NotGroundOrHole(_))
+    | (NotGroundOrHole(_), Ground) => is_indet(d1)
+    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+      !HTyp.eq(ty, ty') && is_indet(d1)
+    | (Hole, Ground) =>
+      switch (d1) {
+      | Cast(_, _, Hole) => false
+      | _ => is_indet(d1)
+      }
+    | _ => false
+    }
+  | FailedCast(d1, _, _) => is_final(d1)
+  // && EvaluatorCommon.ground_cases_of(ty1) == Ground
+  // && EvaluatorCommon.ground_cases_of(ty2) == Ground
+  // && !HTyp.eq(ty1, ty2) // why we need this?
   | Ap(d1, d2) => is_indet(d1) && is_final(d2)
   | Inj(_, _, d1) => is_indet(d1)
   | Pair(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
@@ -385,9 +401,9 @@ let instruction_step = (d: DHExp.t): step_result =>
     | _ => Final
     }
   | ConsistentCase(Case(d1, rules, n)) =>
-    evaluate_case_instruction(None, d1, rules, n);
+    evaluate_case_instruction(None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n);
+    evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n)
   | BoundVar(_) => InvalidInput(1)
   | EmptyHole(_, _, _)
   | NonEmptyHole(_, _, _, _, _)
@@ -421,6 +437,6 @@ let rec evaluate_steps = (d: DHExp.t): option(DHExp.t) => {
   switch (evaluate_step(d)) {
   | Step(d0) => evaluate_steps(d0)
   | Final => Some(d)
-  | InvalidInput(i) => None
+  | InvalidInput(_) => None
   };
 };
