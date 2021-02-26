@@ -7,9 +7,9 @@ let of_list: list((TyId.t, Kind.t)) => t;
 
 let empty: t;
 
-let index_of: (t, TyId.t) => option(int);
+let index_of: (t, TyId.t) => option(HTyp.Index.t);
 
-let index_of_exn: (t, TyId.t) => int;
+let index_of_exn: (t, TyId.t) => HTyp.Index.t;
 
 let contains: (t, TyId.t) => bool;
 

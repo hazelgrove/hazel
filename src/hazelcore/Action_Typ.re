@@ -39,6 +39,79 @@ module Syn_success = {
     | Some(kind) => Succeeded({zty, kind, u_gen})
     };
   };
+
+  let mk_text =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+      : ActionOutcome.t(t) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TyTextShape.of_text(TyId.of_string(text))) {
+    | None =>
+      if (text |> StringUtil.is_empty) {
+        Succeeded({
+          zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
+          kind: Kind.KHole,
+          u_gen,
+        });
+      } else {
+        Failed;
+      }
+    | Some(Bool) =>
+      Succeeded({
+        zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        kind: Kind.Type,
+        u_gen,
+      })
+    | Some(Int) =>
+      Succeeded({
+        zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int)),
+        kind: Kind.Type,
+        u_gen,
+      })
+    | Some(Float) =>
+      Succeeded({
+        zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float)),
+        kind: Kind.Type,
+        u_gen,
+      })
+    | Some(ExpandingKeyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      Succeeded({
+        zty:
+          ZOpSeq.wrap(
+            ZTyp.CursorT(
+              text_cursor,
+              TyVar(
+                InVarHole(Keyword(k), u),
+                k |> ExpandingKeyword.to_string |> TyId.of_string,
+              ),
+            ),
+          ),
+        kind: Kind.KHole,
+        u_gen,
+      });
+    | Some(TyVar(x)) =>
+      if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
+        let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
+        let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
+        Succeeded({
+          zty:
+            ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
+          kind: k,
+          u_gen,
+        });
+      } else {
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        Succeeded({
+          zty:
+            ZOpSeq.wrap(
+              ZTyp.CursorT(text_cursor, TyVar(InVarHole(Free, u), x)),
+            ),
+          kind: Kind.KHole,
+          u_gen,
+        });
+      }
+    };
+  };
 };
 
 module Ana_success = {
@@ -56,6 +129,54 @@ module Ana_success = {
       Succeeded({zty, u_gen});
     } else {
       Failed;
+    };
+  };
+
+  let mk_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        text: string,
+        k: Kind.t,
+      )
+      : ActionOutcome.t(t) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TyTextShape.of_text(TyId.of_string(text))) {
+    | None =>
+      if (text |> StringUtil.is_empty) {
+        Succeeded({
+          zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
+          u_gen,
+        });
+      } else {
+        Failed;
+      }
+    | Some(ExpandingKeyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      Succeeded({
+        zty:
+          ZOpSeq.wrap(
+            ZTyp.CursorT(
+              text_cursor,
+              TyVar(
+                InVarHole(Keyword(k), u),
+                k |> ExpandingKeyword.to_string |> TyId.of_string,
+              ),
+            ),
+          ),
+        u_gen,
+      });
+    | Some(Int | Float | Bool | TyVar(_)) =>
+      switch (Syn_success.mk_text(ctx, u_gen, caret_index, text)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded({Syn_success.zty, kind: k', u_gen}) =>
+        if (Kind.consistent(k, k')) {
+          Succeeded({zty, u_gen});
+        } else {
+          Failed;
+        }
+      }
     };
   };
 };

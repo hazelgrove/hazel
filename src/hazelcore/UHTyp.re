@@ -123,10 +123,7 @@ and expand_operand = ctx =>
   fun
   | Hole => Hole
   | TyVar(NotInVarHole, t) =>
-    TyVar(
-      TyVarCtx.index_of_exn(ctx, t) |> HTyp.Index.of_int,
-      TyId.to_string(t),
-    )
+    TyVar(TyVarCtx.index_of_exn(ctx, t), TyId.to_string(t))
   | TyVar(InVarHole(_, u), t) => TyVarHole(u, TyId.to_string(t))
   | Unit => Prod([])
   | Int => Int
