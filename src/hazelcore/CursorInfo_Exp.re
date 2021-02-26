@@ -997,12 +997,12 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
-  | IfZ1(StandardErrStatus(NotInHole), t1, _, _) =>
-    syn_cursor_info(~steps=steps @ [0], ctx, t1)
-  | IfZ2(StandardErrStatus(NotInHole), _, t2, _) =>
-    syn_cursor_info(~steps=steps @ [1], ctx, t2)
-  | IfZ3(StandardErrStatus(NotInHole), _, _, t3) =>
-    syn_cursor_info(~steps=steps @ [2], ctx, t3)
+  | IfZ1(StandardErrStatus(NotInHole), zt1, _, _) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, zt1, ty)
+  | IfZ2(StandardErrStatus(NotInHole), _, zt2, _) =>
+    ana_cursor_info(~steps=steps @ [1], ctx, zt2, ty)
+  | IfZ3(StandardErrStatus(NotInHole), _, _, zt3) =>
+    ana_cursor_info(~steps=steps @ [2], ctx, zt3, ty)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

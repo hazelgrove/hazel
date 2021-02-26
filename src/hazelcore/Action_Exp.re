@@ -576,10 +576,11 @@ let rec ana_move =
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
     }
   | MoveRight =>
+    print_endline("right");
     switch (ZExp.move_cursor_right(ze)) {
     | None => CursorEscaped(After)
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
-    }
+    };
   | Construct(_)
   | Delete
   | Backspace
@@ -2354,6 +2355,7 @@ and ana_perform_block =
   /* Backspace & Delete */
 
   | (Delete, _) when ZExp.is_after_zline(zline) =>
+    print_endline("1");
     switch (zline |> ZExp.erase_zline, suffix) {
     | (_, []) => CursorEscaped(After)
     | (EmptyLine, [suffix_hd, ...new_suffix]) =>
@@ -2368,7 +2370,7 @@ and ana_perform_block =
       );
     | _ =>
       ana_perform(ctx, MoveRight, (zblock, u_gen), ty) |> wrap_in_AnaDone
-    }
+    };
   | (Backspace, _) when ZExp.is_before_zline(zline) =>
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
@@ -3388,7 +3390,7 @@ and ana_perform_operand =
   | (_, IfZ2(_, t1, zt2, t3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
     | None => Failed
-    | Some(ty) =>
+    | Some(_) =>
       switch (ana_perform(ctx, a, (zt2, u_gen), ty)) {
       | Failed => Failed
       | CursorEscaped(side) =>
