@@ -1942,7 +1942,7 @@ and syn_perform_operand =
       }
     }
   | (_, IfZ1(_, zt1, t2, t3)) =>
-    switch (Statics_Exp.ana(ctx, ZExp.erase(zt1), HTyp.Bool)) {
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zt1))) {
     | None => Failed
     | Some(_) =>
       switch (syn_perform(ctx, a, (zt1, ty, u_gen))) {
@@ -1954,10 +1954,13 @@ and syn_perform_operand =
           (zoperand, ty, u_gen),
         )
       | Succeeded((zt1, ty1, u_gen)) =>
-        /* Statics_Exp.syn_fix_holes() add later?? */
+        /* Statics_Exp.syn_fix_holes() add later??  */
+        
         let new_ze =
           ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
+
         Succeeded(SynDone((new_ze, ty1, u_gen)));
+        print_endline("1");
       }
     /* switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
        | Failed => Failed
