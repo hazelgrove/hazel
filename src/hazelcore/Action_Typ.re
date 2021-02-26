@@ -23,26 +23,30 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   | Sum => SVBar
   };
 
-module Syn_success = {
-  [@deriving sexp]
-  type t = {
-    zty: ZTyp.t,
-    kind: Kind.t,
-    u_gen: MetaVarGen.t,
-  };
+module Syn = {
+  module Success = {
+    [@deriving sexp]
+    type t = {
+      zty: ZTyp.t,
+      kind: Kind.t,
+      u_gen: MetaVarGen.t,
+    };
 
-  let mk_result =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t): ActionOutcome.t(t) => {
-    let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
-    switch (Statics_Typ.syn(ctx, hty)) {
-    | None => Failed
-    | Some(kind) => Succeeded({zty, kind, u_gen})
+    let mk_result =
+        (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
+        : ActionOutcome.t(t) => {
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
+      switch (Statics_Typ.syn(ctx, hty)) {
+      | None => Failed
+      | Some(kind) => Succeeded({zty, kind, u_gen})
+      };
     };
   };
+  open Success;
 
   let mk_text =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-      : ActionOutcome.t(t) => {
+      : ActionOutcome.t(Success.t) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TyTextShape.of_text(TyId.of_string(text))) {
     | None =>
@@ -112,23 +116,87 @@ module Syn_success = {
       }
     };
   };
+
+  let rec move =
+          (a: Action.t, {Success.zty, kind: _, u_gen: _} as syn_r: Success.t)
+          : ActionOutcome.t(Success.t) =>
+    switch (a) {
+    | MoveTo(path) =>
+      switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
+      | None => Failed
+      | Some(zty) => Succeeded({...syn_r, zty})
+      }
+    | MoveToPrevHole =>
+      switch (
+        CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      ) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), syn_r)
+        }
+      }
+    | MoveToNextHole =>
+      switch (
+        CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      ) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), syn_r)
+        }
+      }
+    | MoveLeft =>
+      switch (ZTyp.move_cursor_left(zty)) {
+      | None => ActionOutcome.CursorEscaped(Before)
+      | Some(z) => Succeeded({...syn_r, zty: z})
+      }
+    | MoveRight =>
+      switch (ZTyp.move_cursor_right(zty)) {
+      | None => ActionOutcome.CursorEscaped(After)
+      | Some(z) => Succeeded({...syn_r, zty: z})
+      }
+    | Construct(_)
+    | Delete
+    | Backspace
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown
+    | Init =>
+      failwith(
+        __LOC__
+        ++ ": expected movement action, got "
+        ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
+      )
+    };
+
+  let insert_text = Action_common.syn_insert_text_(~mk_syn_text=mk_text);
+  let backspace_text =
+    Action_common.syn_backspace_text_(~mk_syn_text=mk_text);
+  let delete_text = Action_common.syn_delete_text_(~mk_syn_text=mk_text);
 };
 
-module Ana_success = {
-  [@deriving sexp]
-  type t = {
-    zty: ZTyp.t,
-    u_gen: MetaVarGen.t,
-  };
+module Ana = {
+  module Success = {
+    [@deriving sexp]
+    type t = {
+      zty: ZTyp.t,
+      u_gen: MetaVarGen.t,
+    };
 
-  let mk_result =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
-      : ActionOutcome.t(t) => {
-    let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
-    if (Statics_Typ.ana(ctx, hty, k)) {
-      Succeeded({zty, u_gen});
-    } else {
-      Failed;
+    let mk_result =
+        (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
+        : ActionOutcome.t(t) => {
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
+      if (Statics_Typ.ana(ctx, hty, k)) {
+        Succeeded({zty, u_gen});
+      } else {
+        Failed;
+      };
     };
   };
 
@@ -140,7 +208,7 @@ module Ana_success = {
         text: string,
         k: Kind.t,
       )
-      : ActionOutcome.t(t) => {
+      : ActionOutcome.t(Success.t) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TyTextShape.of_text(TyId.of_string(text))) {
     | None =>
@@ -168,9 +236,9 @@ module Ana_success = {
         u_gen,
       });
     | Some(Int | Float | Bool | TyVar(_)) =>
-      switch (Syn_success.mk_text(ctx, u_gen, caret_index, text)) {
+      switch (Syn.mk_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded({Syn_success.zty, kind: k', u_gen}) =>
+      | Succeeded({Syn.Success.zty, kind: k', u_gen}) =>
         if (Kind.consistent(k, k')) {
           Succeeded({zty, u_gen});
         } else {
@@ -179,6 +247,68 @@ module Ana_success = {
       }
     };
   };
+
+  let rec move =
+          (a: Action.t, {Success.zty, u_gen: _} as ana_r, k: Kind.t)
+          : ActionOutcome.t(Success.t) =>
+    switch (a) {
+    | MoveTo(path) =>
+      switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
+      | None => Failed
+      | Some(zty) => Succeeded({...ana_r, zty})
+      }
+    | MoveToPrevHole =>
+      switch (
+        CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      ) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), ana_r, k)
+        }
+      }
+    | MoveToNextHole =>
+      switch (
+        CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      ) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), ana_r, k)
+        }
+      }
+    | MoveLeft =>
+      zty
+      |> ZTyp.move_cursor_left
+      |> Option.map(z => ActionOutcome.Succeeded({...ana_r, zty: z}))
+      |> OptUtil.get(() => ActionOutcome.CursorEscaped(Before))
+    | MoveRight =>
+      zty
+      |> ZTyp.move_cursor_right
+      |> Option.map(z => ActionOutcome.Succeeded({...ana_r, zty: z}))
+      |> OptUtil.get(() => ActionOutcome.CursorEscaped(After))
+    | Construct(_)
+    | Delete
+    | Backspace
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown
+    | Init =>
+      failwith(
+        __LOC__
+        ++ ": expected movement action, got "
+        ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
+      )
+    };
+
+  let insert_text = Action_common.ana_insert_text_(~mk_ana_text=mk_text);
+  let backspace_text =
+    Action_common.ana_backspace_text_(~mk_ana_text=mk_text);
+  let delete_text = Action_common.ana_delete_text_(~mk_ana_text=mk_text);
 };
 
 let construct_operator =
@@ -201,123 +331,6 @@ let construct_operator =
     };
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
-
-let rec syn_move =
-        (
-          a: Action.t,
-          {Syn_success.zty, kind: _, u_gen: _} as syn_r: Syn_success.t,
-        )
-        : ActionOutcome.t(Syn_success.t) =>
-  switch (a) {
-  | MoveTo(path) =>
-    switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
-    | None => Failed
-    | Some(zty) => Succeeded({...syn_r, zty})
-    }
-  | MoveToPrevHole =>
-    switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(path) => syn_move(MoveTo(path), syn_r)
-      }
-    }
-  | MoveToNextHole =>
-    switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(path) => syn_move(MoveTo(path), syn_r)
-      }
-    }
-  | MoveLeft =>
-    switch (ZTyp.move_cursor_left(zty)) {
-    | None => ActionOutcome.CursorEscaped(Before)
-    | Some(z) => Succeeded({...syn_r, zty: z})
-    }
-  | MoveRight =>
-    switch (ZTyp.move_cursor_right(zty)) {
-    | None => ActionOutcome.CursorEscaped(After)
-    | Some(z) => Succeeded({...syn_r, zty: z})
-    }
-  | Construct(_)
-  | Delete
-  | Backspace
-  | UpdateApPalette(_)
-  | SwapLeft
-  | SwapRight
-  | SwapUp
-  | SwapDown
-  | Init =>
-    failwith(
-      __LOC__
-      ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
-    )
-  };
-
-let rec ana_move =
-        (a: Action.t, {Ana_success.zty, u_gen} as ana_r, k: Kind.t)
-        : ActionOutcome.t(Ana_success.t) =>
-  switch (a) {
-  | MoveTo(path) =>
-    switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
-    | None => Failed
-    | Some(zty) => Succeeded({...ana_r, zty})
-    }
-  | MoveToPrevHole =>
-    switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(path) => ana_move(MoveTo(path), ana_r, k)
-      }
-    }
-  | MoveToNextHole =>
-    switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(path) => ana_move(MoveTo(path), ana_r, k)
-      }
-    }
-  | MoveLeft =>
-    zty
-    |> ZTyp.move_cursor_left
-    |> Option.map(z => ActionOutcome.Succeeded({...ana_r, zty: z}))
-    |> OptUtil.get(() => ActionOutcome.CursorEscaped(Before))
-  | MoveRight =>
-    zty
-    |> ZTyp.move_cursor_right
-    |> Option.map(z => ActionOutcome.Succeeded({...ana_r, zty: z}))
-    |> OptUtil.get(() => ActionOutcome.CursorEscaped(After))
-  | Construct(_)
-  | Delete
-  | Backspace
-  | UpdateApPalette(_)
-  | SwapLeft
-  | SwapRight
-  | SwapUp
-  | SwapDown
-  | Init =>
-    failwith(
-      __LOC__
-      ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
-    )
-  };
 
 let rec perform = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   perform_opseq(a, zty)
