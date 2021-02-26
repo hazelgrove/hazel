@@ -111,7 +111,7 @@ and is_indet = (d: DHExp.t): bool =>
     is_final(d1)
     && (
       switch (d1) {
-      | Lam(dp, _, d3) =>
+      | Lam(dp, _, _) =>
         is_final(d2)
         && (
           switch (Elaborator_Exp.matches(dp, d2)) {
@@ -130,6 +130,15 @@ and is_indet = (d: DHExp.t): bool =>
   | BinIntOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
   | BinBoolOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
   | BinFloatOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | InconsistentBranches(_, _, _, Case(d1, rules, n))
+  | ConsistentCase(Case(d1, rules, n)) =>
+    is_final(d1)
+    && (
+      switch (List.nth_opt(rules, n)) {
+      | None => true
+      | Some(Rule(dp, _)) => Elaborator_Exp.matches(dp, d1) == Indet
+      }
+    )
   | _ => false
   };
 
