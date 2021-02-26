@@ -108,24 +108,6 @@ let map_program = (f: Program.t => Program.t, model: t): t => {
   model |> put_program(new_program);
 };
 
-let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
-  switch (m.mini_buffer) {
-  | None => m
-  | Some(MoveToHole) =>
-    switch (int_of_string_opt(mini_buffer)) {
-    | None =>
-      // TODO: review whether incorrect contents should leave mini buffer open
-      m
-    | Some(n) =>
-      {...m, mini_buffer: None}
-      |> map_program(program => {
-           let action = Program.move_to_hole(n - 1, program);
-           Program.perform_edit_action(action, program);
-         })
-    }
-  };
-};
-
 let get_undo_history = (model: t): UndoHistory.t => model.undo_history;
 let put_undo_history = (history: UndoHistory.t, model: t): t => {
   ...model,
@@ -306,4 +288,22 @@ let load_undo_history =
   |> put_undo_history(undo_history)
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances);
+};
+
+let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
+  print_endline("complete called");
+  switch (m.mini_buffer) {
+  | None => m
+  | Some(MoveToHole) =>
+    switch (int_of_string_opt(mini_buffer)) {
+    | None =>
+      // TODO: review whether incorrect contents should leave mini buffer open
+      m
+    | Some(n) =>
+      // TODO: need to handle case where that hole does not exist.
+      let program = get_program(m);
+      let action = Program.move_to_hole(n - 1, program);
+      perform_edit_action(action, {...m, mini_buffer: None}) |> focus_cell;
+    }
+  };
 };
