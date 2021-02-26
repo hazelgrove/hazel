@@ -80,7 +80,14 @@ and is_indet = (d: DHExp.t): bool =>
   | InvalidText(_)
   | EmptyHole(_, _, _) => true
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
-  | InvalidOperation(d1, _) => is_final(d1)
+  | InvalidOperation(d1, _) =>
+    is_final(d1)
+    || (
+      switch (d1) {
+      | BinIntOp(Divide, _, IntLit(0)) => true
+      | _ => false
+      }
+    )
   | Cast(d1, ty, ty') =>
     switch (
       EvaluatorCommon.ground_cases_of(ty),
@@ -450,17 +457,32 @@ let instruction_step = (d: DHExp.t): step_result =>
   //| _ => None
   };
 
-let evaluate_step = (d: DHExp.t): step_result => {
-  let (ctx, d0) = decompose(d);
-  switch (instruction_step(d0)) {
-  | InvalidInput(i) => InvalidInput(i)
-  | Final => Final
-  | Step(d1) => Step(compose((ctx, d1)))
+let step = (d: DHExp.t): step_result =>
+  if (is_final(d)) {
+    Final;
+  } else {
+    let (ctx, d0) = decompose(d);
+    switch (instruction_step(d0)) {
+    | InvalidInput(i) => InvalidInput(i)
+    | Final => Final
+    | Step(d1) => Step(compose((ctx, d1)))
+    };
+  };
+
+let evaluate_step = (d: option(DHExp.t)): option(DHExp.t) => {
+  switch (d) {
+  | Some(d0) =>
+    switch (step(d0)) {
+    | Step(d1) => Some(d1)
+    | Final => Some(d0)
+    | InvalidInput(_) => None
+    }
+  | None => None
   };
 };
 
 let rec evaluate_steps = (d: DHExp.t): option(DHExp.t) => {
-  switch (evaluate_step(d)) {
+  switch (step(d)) {
   | Step(d0) => evaluate_steps(d0)
   | Final => Some(d)
   | InvalidInput(_) => None
