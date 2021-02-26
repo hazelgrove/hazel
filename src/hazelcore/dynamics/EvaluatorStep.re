@@ -102,7 +102,28 @@ and is_indet = (d: DHExp.t): bool =>
   // && EvaluatorCommon.ground_cases_of(ty1) == Ground
   // && EvaluatorCommon.ground_cases_of(ty2) == Ground
   // && !HTyp.eq(ty1, ty2) // why we need this?
-  | Ap(d1, d2) => is_indet(d1) && is_final(d2)
+  | Let(dp, d1, _) =>
+    switch (is_final(d1), Elaborator_Exp.matches(dp, d1)) {
+    | (true, Matches(_)) => true
+    | _ => false
+    }
+  | Ap(d1, d2) =>
+    is_final(d1)
+    && (
+      switch (d1) {
+      | Lam(dp, _, d3) =>
+        is_final(d2)
+        && (
+          switch (Elaborator_Exp.matches(dp, d2)) {
+          | DoesNotMatch
+          | Indet => true
+          | _ => false
+          }
+        )
+      | Cast(_, Arrow(_, _), Arrow(_, _)) => false
+      | _ => is_indet(d1) && is_final(d2)
+      }
+    )
   | Inj(_, _, d1) => is_indet(d1)
   | Pair(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
   | Cons(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
@@ -319,16 +340,12 @@ let instruction_step = (d: DHExp.t): step_result =>
     switch (d1) {
     | Lam(pat, _, d0) =>
       switch (Elaborator_Exp.matches(pat, d2)) {
-      | DoesNotMatch => Final
-      | Indet => Final // These two Final just mean the result is indet
+      | DoesNotMatch
+      | Indet => Final
       | Matches(env) => Step(Elaborator_Exp.subst(env, d0))
       }
     | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
-      if (HTyp.eq(t1, t1') && HTyp.eq(t2, t2')) {
-        Final;
-      } else {
-        Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'));
-      }
+      Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'))
     | _ =>
       if (is_boxedval(d1)) {
         InvalidInput(2);
@@ -338,8 +355,8 @@ let instruction_step = (d: DHExp.t): step_result =>
     }
   | Let(dp, d1, d2) =>
     switch (Elaborator_Exp.matches(dp, d1)) {
-    | Indet => Final
-    | DoesNotMatch => Final // These two Final just mean the result is indet
+    | Indet
+    | DoesNotMatch => Final
     | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
     }
   | BinBoolOp(op, d1, d2) =>
