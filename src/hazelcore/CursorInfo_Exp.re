@@ -9,8 +9,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | LetLineZE(_, zexp) => extract_cursor_term(zexp)
+  | LetLineZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LivelitDefLineZExpansionType({expansion_type: ztyp, _})
   | LivelitDefLineZModelType({model_type: ztyp, _})
   | LivelitDefLineZActionType({action_type: ztyp, _}) =>
@@ -20,8 +19,8 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
   | LivelitDefLineZShape({shape: zdef, _})
-  | LivelitDefLineZExpand({expand: zdef, _}) => extract_cursor_term(zdef)
-  | AbbrevLineZL(_, _, _, (_, zarg, _)) => extract_from_zexp_operand(zarg)
+  | LivelitDefLineZExpand({expand: zdef, _})
+  | LetLineZE(_, _, zdef) => extract_cursor_term(zdef)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -74,11 +73,8 @@ and get_zoperand_from_zexp = (zexp: ZExp.t): option(zoperand) => {
 and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
-  | AbbrevLineZL(_, _, _, (_, zarg, _)) =>
-    get_zoperand_from_zexp_operand(zarg)
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  | LetLineZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LivelitDefLineZExpansionType({expansion_type: ztyp, _})
   | LivelitDefLineZModelType({model_type: ztyp, _})
   | LivelitDefLineZActionType({action_type: ztyp, _}) =>
@@ -88,7 +84,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
   | LivelitDefLineZShape({shape: zdef, _})
-  | LivelitDefLineZExpand({expand: zdef, _}) => get_zoperand_from_zexp(zdef)
+  | LivelitDefLineZExpand({expand: zdef, _})
+  | LetLineZE(_, _, zdef) => get_zoperand_from_zexp(zdef)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -149,9 +146,7 @@ and get_outer_zrules_from_zline =
   | LivelitDefLineZView({view: zdef, _})
   | LivelitDefLineZShape({shape: zdef, _})
   | LivelitDefLineZExpand({expand: zdef, _})
-  | LetLineZE(_, zdef) => get_outer_zrules_from_zexp(zdef, outer_zrules)
-  | AbbrevLineZL(_, _, _, (_, zarg, _)) =>
-    get_outer_zrules_from_zexp_operand(zarg, outer_zrules)
+  | LetLineZE(_, _, zdef) => get_outer_zrules_from_zexp(zdef, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -274,8 +269,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LivelitDefLineZUpdate(_)
       | LivelitDefLineZView(_)
       | LivelitDefLineZShape(_)
-      | LivelitDefLineZExpand(_)
-      | AbbrevLineZL(_) => true
+      | LivelitDefLineZExpand(_) => true
       }
     | Some((_, _)) => false
     };
@@ -298,8 +292,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LivelitDefLineZUpdate(_)
       | LivelitDefLineZView(_)
       | LivelitDefLineZShape(_)
-      | LivelitDefLineZExpand(_)
-      | AbbrevLineZL(_) => false
+      | LivelitDefLineZExpand(_) => false
       }
     | _ => false
     };
@@ -353,7 +346,8 @@ and syn_cursor_info_line =
     | None => None
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
-  | LetLineZP(zp, def) =>
+  // TODO review desired behavior w.r.t. abbrev err status
+  | LetLineZP(_, zp, def) =>
     let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
       | Some(ty) => ty
@@ -377,7 +371,7 @@ and syn_cursor_info_line =
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
     };
-  | LetLineZE(p, zdef) =>
+  | LetLineZE(_, p, zdef) =>
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
@@ -415,9 +409,6 @@ and syn_cursor_info_line =
     let expand_ty = Statics_Exp.ll_expand_ty(model_type, action_type);
     ana_cursor_info(~steps=steps @ [9], ctx, expand, expand_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-  | AbbrevLineZL(_, _, _, (p, zarg, _)) =>
-    syn_cursor_info_zoperand(~steps=steps @ [List.length(p)], ctx, zarg)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
   }
 and syn_cursor_info_zopseq =
     (
@@ -814,8 +805,7 @@ and ana_cursor_info_zblock =
       | LivelitDefLineZUpdate(_)
       | LivelitDefLineZView(_)
       | LivelitDefLineZShape(_)
-      | LivelitDefLineZExpand(_)
-      | AbbrevLineZL(_) => None
+      | LivelitDefLineZExpand(_) => None
       | ExpLineZ(zopseq) =>
         ana_cursor_info_zopseq(
           ~steps=steps @ [List.length(prefix)],

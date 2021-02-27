@@ -515,7 +515,6 @@ let _check_actions = (a: Action.t) =>
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
-  | Construct(SAbbrev) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added

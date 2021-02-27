@@ -584,17 +584,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             [code_keywords_view("let"), indicate_words_view(" binding")],
           )
         )
-      | AbbrevLine(_) =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("livelit "),
-              code_keywords_view("abbrev"),
-              indicate_words_view("iation"),
-            ],
-          )
-        )
       | LivelitDefLine(_) =>
         Vdom.(
           Node.span(
@@ -631,17 +620,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [code_keywords_view("let"), indicate_words_view(" binding")],
-        )
-      )
-    | SAbbrev =>
-      Vdom.(
-        Node.span(
-          [],
-          [
-            indicate_words_view("livelit "),
-            code_keywords_view("abbrev"),
-            indicate_words_view("iation"),
-          ],
         )
       )
     | SLivelitDef =>
@@ -708,17 +686,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               indicate_words_view("construct "),
               code_keywords_view("let"),
               indicate_words_view(" binding"),
-            ],
-          )
-        )
-      | SAbbrev =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("construct "),
-              code_keywords_view("abbrev"),
-              indicate_words_view(" abbreviation"),
             ],
           )
         )
@@ -817,7 +784,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
-      | SAbbrev
       | SCase
       | SLam => Some(Exp)
       | SAnn => Some(Pat)

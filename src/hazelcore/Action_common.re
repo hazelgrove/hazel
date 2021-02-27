@@ -16,7 +16,6 @@ let shape_to_string = (shape: shape): string => {
     | R => "right injection"
     }
   | SLet => "let binding"
-  | SAbbrev => "livelit abbreviation"
   | SLivelitDef => "livelit definition"
   | SLine => "new line"
   | SCommentLine => "comment line"

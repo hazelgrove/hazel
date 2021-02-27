@@ -246,10 +246,67 @@ module rec M: Statics_Exp_Sig.S = {
       ctx;
     | EmptyLine
     | CommentLine(_) => Some(ctx)
-    | LetLine(p, def) =>
-      let def_ctx = extend_let_def_ctx(ctx, p, def);
-      let* ty_def = syn(def_ctx, def);
-      Statics_Pat.ana(ctx, p, ty_def);
+    | LetLine(err, p, def) =>
+      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      | None =>
+        let def_ctx = extend_let_def_ctx(ctx, p, def);
+        let* ty_def = syn(def_ctx, def);
+        Statics_Pat.ana(ctx, p, ty_def);
+      | Some((lln_new, lln_old, args)) =>
+        let (gamma, livelit_ctx) = ctx;
+        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+        let args_ana = tys =>
+          List.combine(args, tys)
+          |> List.for_all(((arg, ty)) =>
+               Option.is_some(ana(ctx, UHExp.Block.wrap(arg), ty))
+             );
+        switch (old_data_opt, err) {
+        | (None, InAbbrevHole(Free, _)) =>
+          args_ana(args |> List.map(_ => HTyp.Hole)) ? Some(ctx) : None
+        | (
+            Some((old_defn, old_closed_param_tys)),
+            (NotInAbbrevHole | InAbbrevHole(ExtraneousArgs, _)) as err_status,
+          ) =>
+          let all_param_tys = old_defn.param_tys;
+          let reqd_param_tys =
+            all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
+          let num_args = List.length(args);
+          let num_args_diff = num_args - List.length(reqd_param_tys);
+          let padded_reqd_param_tys =
+            num_args_diff > 0
+              ? reqd_param_tys
+                @ List.init(num_args_diff, _ => ("", HTyp.Hole))
+              : reqd_param_tys |> ListUtil.take(num_args);
+          let adjusted_reqd_param_tys =
+            num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
+          if (!args_ana(padded_reqd_param_tys |> List.map(((_, ty)) => ty))) {
+            None;
+          } else {
+            let wrong_num_extra_args =
+              switch (err_status) {
+              | InAbbrevHole(ExtraneousArgs, _) => num_args_diff < 1
+              | _ => num_args_diff > 0
+              };
+            if (wrong_num_extra_args) {
+              None;
+            } else {
+              let livelit_ctx =
+                LivelitCtx.extend(
+                  livelit_ctx,
+                  (
+                    lln_new,
+                    (
+                      old_defn,
+                      old_closed_param_tys @ adjusted_reqd_param_tys,
+                    ),
+                  ),
+                );
+              Some((gamma, livelit_ctx));
+            };
+          };
+        | _ => None
+        };
+      }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
@@ -261,56 +318,6 @@ module rec M: Statics_Exp_Sig.S = {
         ana(ctx, expand, expand_ty),
       ])
       |> Option.map(_ => extend_livelit_ctx(ctx, llrecord));
-    | AbbrevLine(lln_new, err_status, lln_old, args) =>
-      let (gamma, livelit_ctx) = ctx;
-      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-      let args_ana = tys =>
-        List.combine(args, tys)
-        |> List.for_all(((arg, ty)) =>
-             Option.is_some(ana(ctx, UHExp.Block.wrap(arg), ty))
-           );
-      switch (old_data_opt, err_status) {
-      | (None, InAbbrevHole(Free, _)) =>
-        args_ana(args |> List.map(_ => HTyp.Hole)) ? Some(ctx) : None
-      | (
-          Some((old_defn, old_closed_param_tys)),
-          (NotInAbbrevHole | InAbbrevHole(ExtraneousArgs, _)) as err_status,
-        ) =>
-        let all_param_tys = old_defn.param_tys;
-        let reqd_param_tys =
-          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-        let num_args = List.length(args);
-        let num_args_diff = num_args - List.length(reqd_param_tys);
-        let padded_reqd_param_tys =
-          num_args_diff > 0
-            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-            : reqd_param_tys |> ListUtil.take(num_args);
-        let adjusted_reqd_param_tys =
-          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-        if (!args_ana(padded_reqd_param_tys |> List.map(((_, ty)) => ty))) {
-          None;
-        } else {
-          let wrong_num_extra_args =
-            switch (err_status) {
-            | InAbbrevHole(ExtraneousArgs, _) => num_args_diff < 1
-            | _ => num_args_diff > 0
-            };
-          if (wrong_num_extra_args) {
-            None;
-          } else {
-            let livelit_ctx =
-              LivelitCtx.extend(
-                livelit_ctx,
-                (
-                  lln_new,
-                  (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
-                ),
-              );
-            Some((gamma, livelit_ctx));
-          };
-        };
-      | _ => None
-      };
     }
   and syn_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -980,14 +987,88 @@ module rec M: Statics_Exp_Sig.S = {
       (ExpLine(e), ctx, u_gen);
     | EmptyLine
     | CommentLine(_) => (line, ctx, u_gen)
-    | LetLine(p, def) =>
-      let (p, ty_p, _, u_gen) =
-        Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-      let def_ctx = extend_let_def_ctx(ctx, p, def);
-      let (def, u_gen) =
-        ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
-      let body_ctx = extend_let_body_ctx(ctx, p, def);
-      (LetLine(p, def), body_ctx, u_gen);
+    | LetLine(_, p, def) =>
+      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      | None =>
+        let (p, ty_p, _, u_gen) =
+          Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+        let def_ctx = extend_let_def_ctx(ctx, p, def);
+        let (def, u_gen) =
+          ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+        let body_ctx = extend_let_body_ctx(ctx, p, def);
+        (UHExp.letline(p, def), body_ctx, u_gen);
+      | Some((lln_new, lln_old, args)) =>
+        let (gamma, livelit_ctx) = ctx;
+        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+        let ana_fix_args = (u_gen, tys) =>
+          List.combine(args, tys)
+          |> ListUtil.map_with_accumulator(
+               (u_gen, (arg, ty)) => {
+                 let (arg, u_gen) =
+                   ana_fix_holes_operand(
+                     ctx,
+                     u_gen,
+                     ~renumber_empty_holes,
+                     arg,
+                     ty,
+                   );
+                 (u_gen, arg);
+               },
+               u_gen,
+             );
+        switch (old_data_opt) {
+        | None =>
+          let (u_gen, args) =
+            ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          (
+            UHExp.Line.mk_livelit_abbreviation(
+              ~err=InAbbrevHole(Free, u),
+              lln_new,
+              lln_old,
+              args,
+            ),
+            ctx,
+            u_gen,
+          );
+        | Some((old_defn, old_closed_param_tys)) =>
+          let all_param_tys = old_defn.param_tys;
+          let reqd_param_tys =
+            all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
+          let num_args = List.length(args);
+          let num_args_diff = num_args - List.length(reqd_param_tys);
+          let padded_reqd_param_tys =
+            num_args_diff > 0
+              ? reqd_param_tys
+                @ List.init(num_args_diff, _ => ("", HTyp.Hole))
+              : reqd_param_tys |> ListUtil.take(num_args);
+          let adjusted_reqd_param_tys =
+            num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
+          let (u_gen, err: AbbrevErrStatus.t) =
+            if (num_args_diff > 0) {
+              let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+              (u_gen, InAbbrevHole(ExtraneousArgs, u));
+            } else {
+              (u_gen, NotInAbbrevHole);
+            };
+          let (u_gen, args) =
+            padded_reqd_param_tys
+            |> List.map(((_, ty)) => ty)
+            |> ana_fix_args(u_gen);
+          let livelit_ctx =
+            LivelitCtx.extend(
+              livelit_ctx,
+              (
+                lln_new,
+                (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
+              ),
+            );
+          let ctx = (gamma, livelit_ctx);
+          let fixed_line =
+            UHExp.Line.mk_livelit_abbreviation(~err, lln_new, lln_old, args);
+          (fixed_line, ctx, u_gen);
+        };
+      }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       // TODO: captures
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
@@ -1007,70 +1088,6 @@ module rec M: Statics_Exp_Sig.S = {
         extend_livelit_ctx(ctx, llrecord),
         u_gen,
       );
-    | AbbrevLine(lln_new, _, lln_old, args) =>
-      let (gamma, livelit_ctx) = ctx;
-      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-      let ana_fix_args = (u_gen, tys) =>
-        List.combine(args, tys)
-        |> ListUtil.map_with_accumulator(
-             (u_gen, (arg, ty)) => {
-               let (arg, u_gen) =
-                 ana_fix_holes_operand(
-                   ctx,
-                   u_gen,
-                   ~renumber_empty_holes,
-                   arg,
-                   ty,
-                 );
-               (u_gen, arg);
-             },
-             u_gen,
-           );
-      switch (old_data_opt) {
-      | None =>
-        let (u_gen, args) =
-          ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
-        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (
-          AbbrevLine(lln_new, InAbbrevHole(Free, u), lln_old, args),
-          ctx,
-          u_gen,
-        );
-      | Some((old_defn, old_closed_param_tys)) =>
-        let all_param_tys = old_defn.param_tys;
-        let reqd_param_tys =
-          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-        let num_args = List.length(args);
-        let num_args_diff = num_args - List.length(reqd_param_tys);
-        let padded_reqd_param_tys =
-          num_args_diff > 0
-            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-            : reqd_param_tys |> ListUtil.take(num_args);
-        let adjusted_reqd_param_tys =
-          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-        let (u_gen, err_status: AbbrevErrStatus.t) =
-          if (num_args_diff > 0) {
-            let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-            (u_gen, InAbbrevHole(ExtraneousArgs, u));
-          } else {
-            (u_gen, NotInAbbrevHole);
-          };
-        let (u_gen, args) =
-          padded_reqd_param_tys
-          |> List.map(((_, ty)) => ty)
-          |> ana_fix_args(u_gen);
-        let livelit_ctx =
-          LivelitCtx.extend(
-            livelit_ctx,
-            (
-              lln_new,
-              (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
-            ),
-          );
-        let ctx = (gamma, livelit_ctx);
-        let fixed_line = UHExp.AbbrevLine(lln_new, err_status, lln_old, args);
-        (fixed_line, ctx, u_gen);
-      };
     }
   and syn_fix_holes_opseq =
       (
@@ -2168,13 +2185,13 @@ module rec M: Statics_Exp_Sig.S = {
       : (Statics.livelit_def_ctx, Statics.livelit_view_ctx) => {
     switch (line) {
     | EmptyLine
-    | CommentLine(_)
-    | AbbrevLine(_) => (def_ctx, MetaVarMap.empty)
+    | CommentLine(_) => (def_ctx, MetaVarMap.empty)
     | ExpLine(opseq) => (def_ctx, build_ll_view_ctx_opseq(opseq, def_ctx))
-    | LetLine(_, block) => (
-        def_ctx,
-        build_ll_view_ctx_block(block, def_ctx),
-      )
+    | LetLine(_, p, def) =>
+      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      | Some(_) => (def_ctx, MetaVarMap.empty)
+      | None => (def_ctx, build_ll_view_ctx_block(def, def_ctx))
+      }
     | LivelitDefLine({name: (_, name_str), view, shape, _}) =>
       let new_def_ctx = VarMap.extend(def_ctx, (name_str, (view, shape)));
       (new_def_ctx, MetaVarMap.empty);

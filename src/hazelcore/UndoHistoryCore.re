@@ -108,7 +108,6 @@ let group_action_group =
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
-    | SAbbrev
     | SCase => true
     | _ => false
     }
@@ -194,7 +193,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_)
     | LivelitDefLine(_)
-    | AbbrevLine(_)
     | ExpLine(_) => MaxLen
     }
   };

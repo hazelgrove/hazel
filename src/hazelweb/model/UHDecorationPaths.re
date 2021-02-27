@@ -8,6 +8,7 @@ type t = {
   current_term: option(CursorPath.t),
   // TODO rename to livelit_expressions
   livelits: list(CursorPath.steps),
+  livelit_abbreviations: list(CursorPath.steps),
 };
 
 let is_empty = (ds: t): bool =>
@@ -15,10 +16,19 @@ let is_empty = (ds: t): bool =>
   && ListUtil.is_empty(ds.var_err_holes)
   && ListUtil.is_empty(ds.livelits)
   && ListUtil.is_empty(ds.var_uses)
+  && ListUtil.is_empty(ds.livelits)
+  && ListUtil.is_empty(ds.livelit_abbreviations)
   && ds.current_term == None;
 
 let take_step = (step: int, decorations: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses, livelits} = decorations;
+  let {
+    err_holes,
+    var_err_holes,
+    current_term,
+    var_uses,
+    livelits,
+    livelit_abbreviations,
+  } = decorations;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -27,11 +37,21 @@ let take_step = (step: int, decorations: t): t => {
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
   let livelits = livelits |> List.filter_map(remove_step);
   let var_uses = var_uses |> List.filter_map(remove_step);
+  let livelits = List.filter_map(remove_step, livelits);
+  let livelit_abbreviations =
+    List.filter_map(remove_step, livelit_abbreviations);
   let current_term =
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term, livelits};
+  {
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+    livelits,
+    livelit_abbreviations,
+  };
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {

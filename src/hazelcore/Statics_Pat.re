@@ -68,7 +68,9 @@ and syn_operand =
   | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) =>
+    print_endline("0");
+    raise(UHPat.FreeVarInPat);
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
@@ -170,7 +172,9 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) =>
+    print_endline("1");
+    raise(UHPat.FreeVarInPat);
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
@@ -398,7 +402,9 @@ and syn_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, Hole, ctx, u_gen)
   | InvalidText(_) => (operand_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) =>
+    print_endline("2");
+    raise(UHPat.FreeVarInPat);
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
@@ -661,7 +667,9 @@ and ana_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, ctx, u_gen)
   | InvalidText(_) => (operand_nih, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) =>
+    print_endline("3");
+    raise(UHPat.FreeVarInPat);
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));

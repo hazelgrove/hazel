@@ -33,7 +33,9 @@ type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape)
-  | LivelitHole(MetaVar.t)
+  | LivelitAbbrev(MetaVar.t, hole_shape)
+  | FreeLivelit(MetaVar.t)
+  // TODO review whether ApLivelit necessary
   | ApLivelit(MetaVar.t);
 
 [@deriving sexp]

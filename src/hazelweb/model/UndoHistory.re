@@ -510,7 +510,6 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
-      | SAbbrev
       | SLivelitDef
       | SCase => Some(ConstructEdit(shape))
       | SLeftBracket =>
@@ -599,7 +598,6 @@ let get_new_action_group =
               );
             switch (k, pos_before) {
             | (Let, OnText(3)) => Some(ConstructEdit(SLet))
-            | (Abbrev, OnText(6)) => Some(ConstructEdit(SAbbrev))
             | (Case, OnText(4)) => Some(ConstructEdit(SCase))
             | (LivelitDef, OnText(7)) => Some(ConstructEdit(SLivelitDef))
             | _ => Some(ConstructEdit(SOp(SSpace)))
@@ -608,8 +606,6 @@ let get_new_action_group =
             let (left_var, _) = Var.split(index, var);
             if (Var.is_let(left_var)) {
               Some(ConstructEdit(SLet));
-            } else if (Var.is_abbrev(left_var)) {
-              Some(ConstructEdit(SAbbrev));
             } else if (Var.is_case(left_var)) {
               Some(ConstructEdit(SCase));
             } else {

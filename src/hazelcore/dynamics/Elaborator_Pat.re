@@ -147,7 +147,9 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) =>
+    print_endline("4");
+    raise(UHPat.FreeVarInPat);
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
@@ -368,7 +370,9 @@ and ana_elab_operand =
     let dp = DHPat.EmptyHole(u, 0);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) =>
+    print_endline("5");
+    raise(UHPat.FreeVarInPat);
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>

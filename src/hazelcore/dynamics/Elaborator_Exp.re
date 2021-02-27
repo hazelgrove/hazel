@@ -707,30 +707,83 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       }
     | EmptyLine
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
-    | LetLine(p, def) =>
-      switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
-      | None => LinesDoNotExpand
-      | Some((ty1, _)) =>
-        let ctx1 = S.extend_let_def_ctx(ctx, p, def);
-        switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(d1, ty1', delta) =>
-          let d1 =
-            switch (S.recursive_let_id(p, def)) {
-            | None => d1
-            | Some((x, _)) =>
-              FixF(
-                x,
-                ty1',
-                subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
-              )
-            };
-          let d1 = DHExp.cast(d1, ty1', ty1);
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+    | LetLine(err, p, def) =>
+      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      | None =>
+        switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
+        | None => LinesDoNotExpand
+        | Some((ty1, _)) =>
+          let ctx1 = S.extend_let_def_ctx(ctx, p, def);
+          switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
           | DoesNotElaborate => LinesDoNotExpand
-          | Elaborates(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesExpand(prelude, ctx, delta);
+          | Elaborates(d1, ty1', delta) =>
+            let d1 =
+              switch (S.recursive_let_id(p, def)) {
+              | None => d1
+              | Some((x, _)) =>
+                FixF(
+                  x,
+                  ty1',
+                  subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
+                )
+              };
+            let d1 = DHExp.cast(d1, ty1', ty1);
+            switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+            | DoesNotElaborate => LinesDoNotExpand
+            | Elaborates(dp, _, ctx, delta) =>
+              let prelude = d2 => DHExp.Let(dp, d1, d2);
+              LinesExpand(prelude, ctx, delta);
+            };
+          };
+        }
+      | Some((lln_new, lln_old, args)) =>
+        let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
+        switch (err) {
+        | InAbbrevHole(Free, _) => ret(ctx, delta)
+        | InAbbrevHole(ExtraneousArgs, _)
+        | NotInAbbrevHole =>
+          let (gamma, livelit_ctx) = ctx;
+          let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+          switch (old_data_opt) {
+          | None => LinesDoNotExpand
+          | Some((old_defn, old_closed_args)) =>
+            let base_param_tys = old_defn.param_tys;
+            let reqd_param_tys =
+              base_param_tys |> ListUtil.drop(List.length(old_closed_args));
+            let args = args |> ListUtil.take(List.length(reqd_param_tys));
+            let adjusted_param_tys =
+              reqd_param_tys |> ListUtil.take(List.length(args));
+            let delta_expanded_args_opt =
+              adjusted_param_tys
+              |> List.map(((_, ty)) => ty)
+              |> List.combine(args)
+              |> ListUtil.map_with_accumulator_opt(
+                   (delta, (arg, ty)) =>
+                     switch (
+                       ana_elab_operand(~livelit_holes, ctx, delta, arg, ty)
+                     ) {
+                     | ElaborationResult.DoesNotElaborate => None
+                     | Elaborates(darg, _, delta) =>
+                       Some((delta, (darg, ty)))
+                     },
+                   delta,
+                 );
+            switch (delta_expanded_args_opt) {
+            | None => LinesDoNotExpand
+            | Some((delta, dargs)) =>
+              let dargs =
+                dargs
+                |> List.combine(
+                     adjusted_param_tys |> List.map(((s, _)) => s),
+                   );
+              let livelit_ctx =
+                LivelitCtx.extend(
+                  livelit_ctx,
+                  (lln_new, (old_defn, old_closed_args @ dargs)),
+                );
+              let ctx = (gamma, livelit_ctx);
+              ret(ctx, delta);
+            };
           };
         };
       }
@@ -749,53 +802,6 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
           //TODO(Andrew): fix/eliminate below
           let ctx3 = Contexts.extend_gamma(ctx'', (name_str, HTyp.Hole));
           LinesExpand(prelude, ctx3, delta);
-        };
-      };
-    | AbbrevLine(lln_new, err_status, lln_old, args) =>
-      let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
-      switch (err_status) {
-      | InAbbrevHole(Free, _) => ret(ctx, delta)
-      | InAbbrevHole(ExtraneousArgs, _)
-      | NotInAbbrevHole =>
-        let (gamma, livelit_ctx) = ctx;
-        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-        switch (old_data_opt) {
-        | None => LinesDoNotExpand
-        | Some((old_defn, old_closed_args)) =>
-          let base_param_tys = old_defn.param_tys;
-          let reqd_param_tys =
-            base_param_tys |> ListUtil.drop(List.length(old_closed_args));
-          let args = args |> ListUtil.take(List.length(reqd_param_tys));
-          let adjusted_param_tys =
-            reqd_param_tys |> ListUtil.take(List.length(args));
-          let delta_expanded_args_opt =
-            adjusted_param_tys
-            |> List.map(((_, ty)) => ty)
-            |> List.combine(args)
-            |> ListUtil.map_with_accumulator_opt(
-                 (delta, (arg, ty)) =>
-                   switch (
-                     ana_elab_operand(~livelit_holes, ctx, delta, arg, ty)
-                   ) {
-                   | ElaborationResult.DoesNotElaborate => None
-                   | Elaborates(darg, _, delta) => Some((delta, (darg, ty)))
-                   },
-                 delta,
-               );
-          switch (delta_expanded_args_opt) {
-          | None => LinesDoNotExpand
-          | Some((delta, dargs)) =>
-            let dargs =
-              dargs
-              |> List.combine(adjusted_param_tys |> List.map(((s, _)) => s));
-            let livelit_ctx =
-              LivelitCtx.extend(
-                livelit_ctx,
-                (lln_new, (old_defn, old_closed_args @ dargs)),
-              );
-            let ctx = (gamma, livelit_ctx);
-            ret(ctx, delta);
-          };
         };
       };
     }

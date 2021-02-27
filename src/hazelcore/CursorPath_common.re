@@ -148,6 +148,25 @@ let holes_case_err =
     ]
   };
 
+let holes_abbrev_err = (err: AbbrevErrStatus.t, rev_steps: rev_steps) =>
+  switch (err) {
+  | NotInAbbrevHole => (x => x)
+  | InAbbrevHole(Free, u) =>
+    List.cons(
+      CursorPath.{
+        sort: LivelitAbbrev(u, VarErr),
+        steps: List.rev(rev_steps),
+      },
+    )
+  | InAbbrevHole(ExtraneousArgs, u) =>
+    List.cons(
+      CursorPath.{
+        sort: LivelitAbbrev(u, TypeErr),
+        steps: List.rev(rev_steps),
+      },
+    )
+  };
+
 let holes_skel_ =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
@@ -396,10 +415,11 @@ let steps_to_hole =
         | Hole =>
           switch (sort) {
           | ExpHole(u', _)
-          | PatHole(u', _) => MetaVar.eq(u, u')
+          | PatHole(u', _)
+          | FreeLivelit(u')
+          | LivelitAbbrev(u', _) => MetaVar.eq(u, u')
           | ApLivelit(_)
           | TypHole => false
-          | LivelitHole(u') => MetaVar.eq(u, u')
           }
         | Livelit =>
           switch (sort) {
@@ -414,29 +434,32 @@ let steps_to_hole =
   | Some({steps, _}) => Some(steps)
   };
 
+// TODO review type signature and whether kind is necessary
 let steps_to_hole_z =
     (zhole_list: zhole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)
     : option(steps) => {
   let {holes_before, hole_selected, holes_after} = zhole_list;
-  let backup_plan = () => steps_to_hole(holes_after, kind, u);
   switch (steps_to_hole(holes_before, kind, u)) {
   | Some(_) as res => res
   | None =>
     switch (hole_selected) {
-    | Some({sort: ExpHole(u', _), steps, _})
-    | Some({sort: PatHole(u', _), steps, _})
-    | Some({sort: LivelitHole(u'), steps, _}) =>
-      switch (kind) {
-      | Hole => MetaVar.eq(u, u') ? Some(steps) : backup_plan()
-      | Livelit => backup_plan()
-      }
-    | Some({sort: ApLivelit(llu'), steps, _}) =>
-      switch (kind) {
-      | Hole => backup_plan()
-      | Livelit => MetaVar.eq(u, llu') ? Some(steps) : backup_plan()
-      }
-    | Some({sort: TypHole, _})
-    | None => backup_plan()
+    | Some({
+        sort: ExpHole(u', _) | PatHole(u', _) | FreeLivelit(u'),
+        steps,
+        _,
+      })
+        when kind == Hole && MetaVar.eq(u, u') =>
+      Some(steps)
+    | Some({sort: ApLivelit(llu'), steps, _})
+        when kind == Livelit && MetaVar.eq(u, llu') =>
+      Some(steps)
+    | Some({
+        sort:
+          ExpHole(_) | PatHole(_) | TypHole | FreeLivelit(_) | ApLivelit(_) |
+          LivelitAbbrev(_),
+        _,
+      })
+    | None => steps_to_hole(holes_after, kind, u)
     }
   };
 };
