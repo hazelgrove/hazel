@@ -15,6 +15,12 @@ type join =
   | GLB
   | LUB;
 
+[@deriving sexp]
+type ground_cases =
+  | GHole
+  | Ground
+  | NotGroundOrHole(t);
+
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;
@@ -37,3 +43,6 @@ let complete: t => bool;
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
+
+let ground_cases_of: t => ground_cases;
+let is_ground_type: t => bool;

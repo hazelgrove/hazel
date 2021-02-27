@@ -16,12 +16,6 @@ module type SEval = {
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t);
 
-  [@deriving sexp]
-  type ground_cases =
-    | Hole
-    | Ground
-    | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
-
   let evaluate: (~eval_livelit_holes: bool, DHExp.t) => result;
 };
 
@@ -33,39 +27,6 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
     | InvalidInput(int)
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t);
-
-  [@deriving sexp]
-  type ground_cases =
-    | Hole
-    | Ground
-    | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
-
-  let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-  let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
-  let grounded_Prod = length =>
-    NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
-  let grounded_List = NotGroundOrHole(List(Hole));
-
-  let ground_cases_of = (ty: HTyp.t): ground_cases =>
-    switch (ty) {
-    | Hole => Hole
-    | Bool
-    | String
-    | Int
-    | Float
-    | Arrow(Hole, Hole)
-    | Sum(Hole, Hole)
-    | List(Hole) => Ground
-    | Prod(tys) =>
-      if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
-        Ground;
-      } else {
-        tys |> List.length |> grounded_Prod;
-      }
-    | Arrow(_, _) => grounded_Arrow
-    | Sum(_, _) => grounded_Sum
-    | List(_) => grounded_List
-    };
 
   let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
     switch (op) {
@@ -672,15 +633,15 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
       switch (evaluate'(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1') as result =>
-        switch (ground_cases_of(ty), ground_cases_of(ty')) {
-        | (Hole, Hole) => result
+        switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
+        | (GHole, GHole) => result
         | (Ground, Ground) =>
           /* if two types are ground and consistent, then they are eq */
           result
-        | (Ground, Hole) =>
+        | (Ground, GHole) =>
           /* can't remove the cast or do anything else here, so we're done */
           BoxedValue(Cast(d1', ty, ty'))
-        | (Hole, Ground) =>
+        | (GHole, Ground) =>
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
@@ -693,12 +654,12 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
             // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
             InvalidInput(6)
           }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        | (GHole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
           evaluate'(d');
-        | (NotGroundOrHole(ty_grounded), Hole) =>
+        | (NotGroundOrHole(ty_grounded), GHole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
           evaluate'(d');
@@ -715,15 +676,15 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
           }
         }
       | Indet(d1') as result =>
-        switch (ground_cases_of(ty), ground_cases_of(ty')) {
-        | (Hole, Hole) => result
+        switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
+        | (GHole, GHole) => result
         | (Ground, Ground) =>
           /* if two types are ground and consistent, then they are eq */
           result
-        | (Ground, Hole) =>
+        | (Ground, GHole) =>
           /* can't remove the cast or do anything else here, so we're done */
           Indet(Cast(d1', ty, ty'))
-        | (Hole, Ground) =>
+        | (GHole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
             if (HTyp.eq(ty'', ty')) {
@@ -733,12 +694,12 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
             }
           | _ => Indet(Cast(d1', ty, ty'))
           }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        | (GHole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
           evaluate'(d');
-        | (NotGroundOrHole(ty_grounded), Hole) =>
+        | (NotGroundOrHole(ty_grounded), GHole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
           evaluate'(d');
