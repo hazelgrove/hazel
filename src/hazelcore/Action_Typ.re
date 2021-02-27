@@ -23,6 +23,52 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   | Sum => SVBar
   };
 
+let text_operand =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, shape: TyTextShape.t)
+    : (UHTyp.operand, MetaVarGen.t) =>
+  switch (shape) {
+  | Int => (Int, u_gen)
+  | Bool => (Bool, u_gen)
+  | Float => (Float, u_gen)
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (
+      TyVar(
+        InVarHole(Keyword(k), u),
+        k |> ExpandingKeyword.to_string |> TyId.of_string,
+      ),
+      u_gen,
+    );
+  | TyVar(id) =>
+    if (TyVarCtx.contains(Contexts.tyvars(ctx), id)) {
+      (TyVar(NotInVarHole, id), u_gen);
+    } else {
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      (TyVar(InVarHole(Free, u), id), u_gen);
+    }
+  };
+
+let construct_operator =
+    (
+      operator: UHTyp.operator,
+      zoperand: ZTyp.zoperand,
+      (prefix, suffix): ZTyp.operand_surround,
+    )
+    : ZTyp.zopseq => {
+  let operand = zoperand |> ZTyp.erase_zoperand;
+  let (zoperand, surround) =
+    if (ZTyp.is_before_zoperand(zoperand)) {
+      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      (zoperand, (prefix, new_suffix));
+    } else {
+      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      (zoperand, (new_prefix, suffix));
+    };
+  ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
+};
+
 module Syn = {
   module Success = {
     [@deriving sexp]
@@ -178,6 +224,43 @@ module Syn = {
   let backspace_text =
     Action_common.syn_backspace_text_(~mk_syn_text=mk_text);
   let delete_text = Action_common.syn_delete_text_(~mk_syn_text=mk_text);
+
+  let split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: Action.operator_shape,
+        text: string,
+      )
+      : ActionOutcome.t(Success.t) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TyTextShape.of_text(TyId.of_string(l)),
+      operator_of_shape(sop),
+      TyTextShape.of_text(TyId.of_string(r)),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
+      let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
+      let new_zty = {
+        let zoperand = roperand |> ZTyp.place_before_operand;
+        ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+      };
+      switch (
+        Statics_Typ.syn(
+          ctx,
+          UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zty)),
+        )
+      ) {
+      | None => Failed
+      | Some(kind) => Succeeded({Success.zty: new_zty, kind, u_gen})
+      };
+    };
+  };
 };
 
 module Ana = {
@@ -309,27 +392,35 @@ module Ana = {
   let backspace_text =
     Action_common.ana_backspace_text_(~mk_ana_text=mk_text);
   let delete_text = Action_common.ana_delete_text_(~mk_ana_text=mk_text);
-};
 
-let construct_operator =
-    (
-      operator: UHTyp.operator,
-      zoperand: ZTyp.zoperand,
-      (prefix, suffix): ZTyp.operand_surround,
-    )
-    : ZTyp.zopseq => {
-  let operand = zoperand |> ZTyp.erase_zoperand;
-  let (zoperand, surround) =
-    if (ZTyp.is_before_zoperand(zoperand)) {
-      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-      let new_suffix = Seq.A(operator, S(operand, suffix));
-      (zoperand, (prefix, new_suffix));
-    } else {
-      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-      let new_prefix = Seq.A(operator, S(operand, prefix));
-      (zoperand, (new_prefix, suffix));
+  let split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: Action.operator_shape,
+        text: string,
+      )
+      : ActionOutcome.t(Success.t) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TyTextShape.of_text(TyId.of_string(l)),
+      operator_of_shape(sop),
+      TyTextShape.of_text(TyId.of_string(r)),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
+      let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
+      let new_zty = {
+        let zoperand = roperand |> ZTyp.place_before_operand;
+        ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+      };
+      Succeeded({Success.zty: new_zty, u_gen});
     };
-  ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
+  };
 };
 
 let rec perform = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
