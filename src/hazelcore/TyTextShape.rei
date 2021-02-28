@@ -8,4 +8,4 @@ type t =
 
 let of_builtIn_opt: TyId.t => option(t);
 
-let of_text: TyId.t => option(t);
+let of_tyid: TyId.t => option(t);
