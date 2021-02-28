@@ -95,6 +95,7 @@ let apply_action =
         switch (model |> Model.perform_edit_action(a)) {
         | new_model => new_model
         | exception Program.FailedAction =>
+          print_endline("hello1");
           JSUtil.log("[Program.FailedAction]");
           model;
         | exception Program.CursorEscaped =>

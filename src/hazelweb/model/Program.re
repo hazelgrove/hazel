@@ -161,9 +161,12 @@ exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-  | Failed => raise(FailedAction)
+  | Failed =>
+    print_endline("hello2");
+    raise(FailedAction);
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    print_endline("succeeded");
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {

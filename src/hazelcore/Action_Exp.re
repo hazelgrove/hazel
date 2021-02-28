@@ -1955,12 +1955,11 @@ and syn_perform_operand =
         )
       | Succeeded((zt1, ty1, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later??  */
-        
+
         let new_ze =
           ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
 
         Succeeded(SynDone((new_ze, ty1, u_gen)));
-        print_endline("1");
       }
     /* switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
        | Failed => Failed
