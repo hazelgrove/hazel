@@ -26,3 +26,14 @@ module T = {
 };
 include T;
 include Monads.Make(T);
+
+let rescue_escaped = (f: Side.t => t('a)) =>
+  fun
+  | Succeeded(a) => Succeeded(a)
+  | CursorEscaped(side) => f(side)
+  | Failed => Failed;
+
+let of_option =
+  fun
+  | Some(x) => Succeeded(x)
+  | None => Failed;
