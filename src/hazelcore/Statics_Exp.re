@@ -198,8 +198,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-   /
-    switch (syn(ctx, t1)) {
+    switch (ana(ctx, t1, HTyp.Bool)) {
     | None => None
     | Some(_) =>
       switch (syn(ctx, t2), syn(ctx, t3)) {
