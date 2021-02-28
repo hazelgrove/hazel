@@ -1,14 +1,25 @@
-/* TODO: we might want to just use this API?
+/* Inspired by Jane Street's Monad:
+ * https://ocaml.janestreet.com/ocaml-core/v0.13/doc/base/Base__/Monad_intf/index.html */
 
-    https://github.com/rgrinberg/ocaml-mtl/blob/master/lib/mtl.ml
-
-   Though it's a bit heavy, especially with the extra type parameter...
-
-   In any case, that's a good reference. */
-
-module type MONAD = {
+module type MONAD_BASIC = {
   [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
+  let map: [ | `Define_using_bind | `Custom((t('a), 'a => 'b) => t('b))];
 };
+
+// Use `includ Monads.Make` with a MONAD_BASIC to get a MONAD
+// See ActionOutcome.re{i} for an example
+module type MONAD = {
+  include MONAD_BASIC;
+  let map: (t('a), 'a => 'b) => t('b);
+  let zip: (t('a), t('b)) => t(('a, 'b));
+  module Syntax: {
+    let ( let* ): (t('a), 'a => t('b)) => t('b);
+    let (let+): (t('a), 'a => 'b) => t('b);
+    let (and+): (t('a), t('b)) => t(('a, 'b));
+  };
+};
+
+module Make: (M: MONAD_BASIC) => MONAD with type t('a) := M.t('a);
