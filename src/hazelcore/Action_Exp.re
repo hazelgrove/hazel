@@ -56,7 +56,39 @@ let unop_of_binop = (binop: UHExp.binop): option(UHExp.unop) =>
 let shape_is_of_unop = (os: Action.operator_shape): bool =>
   switch (os) {
   | SMinus => true
+  | SPlus => true // FIXME ANAND: REMOVEV THIS!!!
   | _ => false
+  };
+
+let is_negative_literal = (lit: UHExp.operand): bool =>
+  switch (lit) {
+  | IntLit(_, n)
+  | FloatLit(_, n) => String.equal("-", String.sub(n, 0, 1))
+  | _ => false
+  };
+
+let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
+  switch (zoperand) {
+  | CursorE(OnText(j), IntLit(_) as operand) =>
+    j === 1 && is_negative_literal(operand)
+  | CursorE(OnText(j), FloatLit(_) as operand) =>
+    j === 2 && is_negative_literal(operand)
+  | _ => false
+  };
+
+let negated_literal = (lit: UHExp.operand): UHExp.operand =>
+  switch (lit) {
+  | IntLit(_, n) => UHExp.intlit(String.sub(n, 1, String.length(n) - 1))
+  | FloatLit(_, n) =>
+    UHExp.floatlit(String.sub(n, 1, String.length(n) - 1))
+  | _ => lit
+  };
+
+let unop_of_numlit = (operand: UHExp.operand): Unops_Exp.t =>
+  switch (operand) {
+  | IntLit(_) => Unops_Exp.Negate
+  | FloatLit(_) => Unops_Exp.FNegate
+  | _ => failwith("operand not a numlit")
   };
 
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -1358,7 +1390,26 @@ and syn_perform_opseq =
     }
 
   /* Convert unop to binop */
-
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(
+        CursorE(_, (IntLit(_) | FloatLit(_)) as operand) as zoperand,
+        surround,
+      ),
+    )
+      when is_after_unop_of_negative_literal(zoperand) =>
+    let unop = unop_of_numlit(operand);
+    let new_zoperand =
+      ZExp.UnaryOpZ(
+        ErrStatus.NotInHole,
+        unop,
+        ZExp.place_before_operand(negated_literal(operand)),
+      );
+    syn_perform_opseq(
+      ctx,
+      a,
+      (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), ty, u_gen),
+    );
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -1380,7 +1431,6 @@ and syn_perform_opseq =
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("unop has no binop")
     }
-
   | (Construct(SOp(SSpace)), ZOperand(UnaryOpZ(_, unop, zchild), (E, E)))
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
     switch (binop_of_unop(unop)) {
@@ -1656,7 +1706,26 @@ and syn_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, n)
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
+      print_endline("detected Intlit(-n)");
+      syn_perform_operand(
+        ctx,
+        a,
+        (
+          ZExp.UnaryOpZ(
+            ErrStatus.NotInHole,
+            Negate,
+            ZExp.place_before_operand(
+              negated_literal(ZExp.erase_zoperand(zoperand)),
+            ),
+          ),
+          ty,
+          u_gen,
+        ),
+      );
+    } else {
+      syn_split_text(ctx, u_gen, j, sop, n);
+    }
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -1810,6 +1879,11 @@ and syn_perform_operand =
       let new_ze =
         ZExp.ZBlock.wrap(ZExp.UnaryOpZ(ErrStatus.NotInHole, unop, zchild));
       Succeeded(SynDone((new_ze, ty_u, u_gen)));
+    | SPlus =>
+      // FIXME remove this, only for debugging
+      let zintlit = ZExp.place_before_operand(UHExp.intlit("-123"));
+      let ze = ZExp.ZBlock.wrap(zintlit);
+      Succeeded(SynDone((ze, HTyp.Int, u_gen)));
     | _ =>
       switch (operator_of_shape(os)) {
       | None => Failed
@@ -2911,7 +2985,27 @@ and ana_perform_opseq =
     }
 
   /* Convert unop to binop */
-
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(
+        CursorE(_, (IntLit(e, _) | FloatLit(e, _)) as operand) as zoperand,
+        surround,
+      ),
+    )
+      when is_after_unop_of_negative_literal(zoperand) =>
+    let unop = unop_of_numlit(operand);
+    let new_zoperand =
+      ZExp.UnaryOpZ(
+        e,
+        unop,
+        ZExp.place_before_operand(negated_literal(operand)),
+      );
+    ana_perform_opseq(
+      ctx,
+      a,
+      (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), u_gen),
+      ty,
+    );
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -3267,7 +3361,8 @@ and ana_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    ana_split_text(ctx, u_gen, j, sop, n, ty)
+    print_endline("ana split text");
+    ana_split_text(ctx, u_gen, j, sop, n, ty);
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
