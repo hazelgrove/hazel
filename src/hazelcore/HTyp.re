@@ -187,3 +187,43 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+[@deriving sexp]
+type ground_cases =
+  | GHole
+  | Ground
+  | NotGroundOrHole(t) /* the argument is the corresponding ground type */;
+
+let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
+let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
+let grounded_Prod = length =>
+  NotGroundOrHole(Prod(ListUtil.replicate(length, Hole)));
+let grounded_List = NotGroundOrHole(List(Hole));
+
+let ground_cases_of = (ty: t): ground_cases =>
+  switch (ty) {
+  | Hole => GHole
+  | Bool
+  | String
+  | Int
+  | Float
+  | Arrow(Hole, Hole)
+  | Sum(Hole, Hole)
+  | List(Hole) => Ground
+  | Prod(tys) =>
+    if (List.for_all(eq(Hole), tys)) {
+      Ground;
+    } else {
+      tys |> List.length |> grounded_Prod;
+    }
+  | Arrow(_, _) => grounded_Arrow
+  | Sum(_, _) => grounded_Sum
+  | List(_) => grounded_List
+  };
+
+let is_ground_type = (ty: t): bool =>
+  switch (ground_cases_of(ty)) {
+  | GHole
+  | Ground => true
+  | _ => false
+  };

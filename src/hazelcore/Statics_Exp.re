@@ -330,42 +330,32 @@ module rec M: Statics_Exp_Sig.S = {
       syn_operand(ctx, en);
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      syn_skel(ctx, skel_not_in_hole, seq) |> Option.map(_ => HTyp.Hole);
+      let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
+      HTyp.Hole;
     | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
-      | None => None
-      | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Int)
-      }
+      let+ _ = ana_skel(ctx, skel1, seq, HTyp.Int)
+      and+ _ = ana_skel(ctx, skel2, seq, Int);
+      HTyp.Int;
     | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
-      | None => None
-      | Some(_) =>
-        ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Float)
-      }
+      let+ _ = ana_skel(ctx, skel1, seq, Float)
+      and+ _ = ana_skel(ctx, skel2, seq, Float);
+      HTyp.Float;
     | BinOp(NotInHole, And | Or, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
-      | None => None
-      | Some(_) =>
-        ana_skel(ctx, skel2, seq, HTyp.Bool) |> Option.map(_ => HTyp.Bool)
-      }
+      let+ _ = ana_skel(ctx, skel1, seq, Bool)
+      and+ _ = ana_skel(ctx, skel2, seq, Bool);
+      HTyp.Bool;
     | BinOp(NotInHole, Caret, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.String)) {
-      | None => None
-      | Some(_) =>
-        ana_skel(ctx, skel2, seq, String) |> Option.map(_ => HTyp.String)
-      }
+      let+ () = ana_skel(ctx, skel1, seq, HTyp.String)
+      and+ () = ana_skel(ctx, skel2, seq, String);
+      HTyp.String;
     | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, Int)) {
-      | None => None
-      | Some(_) =>
-        ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Bool)
-      }
+      let+ _ = ana_skel(ctx, skel1, seq, Int)
+      and+ _ = ana_skel(ctx, skel2, seq, Int);
+      HTyp.Bool;
     | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, Float)) {
-      | None => None
-      | Some(_) =>
-        ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
-      }
+      let+ _ = ana_skel(ctx, skel1, seq, Float)
+      and+ _ = ana_skel(ctx, skel2, seq, Float);
+      HTyp.Bool;
     | BinOp(NotInHole, Space, skel1, skel2) =>
       let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
       switch (livelit_ap_check) {
@@ -396,15 +386,10 @@ module rec M: Statics_Exp_Sig.S = {
           None;
         };
       | _ =>
-        switch (syn_skel(ctx, skel1, seq)) {
-        | None => None
-        | Some(ty1) =>
-          switch (HTyp.matched_arrow(ty1)) {
-          | None => None
-          | Some((ty2, ty)) =>
-            ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
-          }
-        }
+        let* ty1 = syn_skel(ctx, skel1, seq);
+        let* (ty2, ty) = HTyp.matched_arrow(ty1);
+        let+ _ = ana_skel(ctx, skel2, seq, ty2);
+        ty;
       };
     | BinOp(NotInHole, Comma, _, _) =>
       skel
@@ -413,12 +398,10 @@ module rec M: Statics_Exp_Sig.S = {
       |> OptUtil.sequence
       |> Option.map(tys => HTyp.Prod(tys))
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some(ty1) =>
-        let ty = HTyp.List(ty1);
-        ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
-      }
+      let* ty1 = syn_skel(ctx, skel1, seq);
+      let ty = HTyp.List(ty1);
+      let+ _ = ana_skel(ctx, skel2, seq, ty);
+      ty;
     }
   and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     switch (operand) {
