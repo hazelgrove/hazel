@@ -9,9 +9,9 @@ let rec ana_pat =
   | Var(name) => Some(Contexts.extend_gamma(ctx, (name, ty)))
   | Keyword(_)
   | InvalidText(_)
-  | NonEmptyHole(_)
   | EmptyHole(_)
   | Wild => Some(ctx)
+  | NonEmptyHole(_, _, _, p) => ana_pat(ctx, p, Hole)
   | Triv => consistent_with(Prod([]))
   | ListNil => consistent_with(List(Hole))
   | IntLit(_) => consistent_with(Int)
@@ -38,15 +38,16 @@ let rec ana_pat =
     | (R, Sum(_, ty)) => ana_pat(ctx, d, ty)
     | _ => None
     }
-  | Ap(_, _) => None // TODO(andrew): check expansion
+  | Ap(_, _) => None
   };
 };
 
 let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
+  //TODO: instrument elaborator with this as a check
   let syn' = syn(ctx, delta);
   let ana = (d', d_ty) => {
     switch (syn'(d')) {
-    | Some(ty) => ty == d_ty
+    | Some(ty) => HTyp.eq(ty, d_ty)
     | None => false
     };
   };
@@ -62,7 +63,7 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
     let* d_ty = syn'(d);
     let* ds_ty = syn'(ds);
     switch (ds_ty) {
-    | List(ty) => ty == d_ty ? Some(List(ty)) : None
+    | List(ty) => HTyp.eq(ty, d_ty) ? Some(List(ty)) : None
     | _ => None
     };
   | Inj(ty_side, side, d) =>
@@ -74,8 +75,11 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
   | Pair(d0, d1) =>
     let* d0_ty = syn'(d0);
     let* d1_ty = syn'(d1);
-    // TODO: add Tuples to DHExp Tuple([DHExp]) ; remove Triv
-    Some(Prod([d0_ty, d1_ty]));
+    // TODO: this isn't quite right. add Tuples to DHExp Tuple([DHExp]) ; remove Triv
+    switch (d1_ty) {
+    | Prod(xs) => Some(Prod([d0_ty, ...xs]))
+    | _ => Some(Prod([d0_ty, d1_ty]))
+    };
 
   | Subscript(str, l, r) =>
     ana(str, String) && ana(l, Int) && ana(r, Int) ? Some(String) : None
@@ -97,7 +101,7 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
     let* f_ty = syn'(f);
     let* d_ty = syn'(d);
     switch (f_ty) {
-    | Arrow(in_ty, out_ty) => d_ty == in_ty ? Some(out_ty) : None
+    | Arrow(in_ty, out_ty) => HTyp.eq(d_ty, in_ty) ? Some(out_ty) : None
     | _ => None
     };
   | Lam(p, p_ty, body) =>
@@ -122,7 +126,7 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
         (acc, rule) => {
           let* acc_ty = acc;
           let* d_ty = syn_rule(rule);
-          acc_ty == d_ty ? acc : None;
+          HTyp.eq(acc_ty, d_ty) ? acc : None;
         },
         syn_rule(r),
         rs,
@@ -131,7 +135,7 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
   | FixF(name, ty, body) =>
     let ctx' = Contexts.extend_gamma(ctx, (name, ty));
     let* ty_body = syn(ctx', delta, body);
-    ty == ty_body ? Some(ty) : None;
+    HTyp.eq(ty, ty_body) ? Some(ty) : None;
   | ApBuiltin(name, ds) =>
     let* ty_name' = VarCtx.lookup(BuiltinFunctions.ctx, name);
     let* ty_ds = ds |> List.map(syn') |> OptUtil.sequence;
@@ -140,8 +144,7 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
       switch (arg_tys, fn_ty) {
       | ([], _) => Some(fn_ty)
       | ([ty, ...tys], Arrow(in_ty, out_ty)) =>
-        ty == in_ty ? builtin_ap(out_ty, tys) : None
-      // TODO: check what evaluator is doing here
+        HTyp.eq(ty, in_ty) ? builtin_ap(out_ty, tys) : None
       | _ => None
       };
     };
@@ -151,50 +154,79 @@ let rec syn = (ctx: Contexts.t, delta: Delta.t, d: DHExp.t): option(HTyp.t) => {
   | Keyword(u, _, sigma, _)
   | FreeVar(u, _, sigma, _)
   | InvalidText(u, _, sigma, _)
-  | FreeLivelit(u, _, sigma, _) =>
-    let (sort, hole_ty, gamma') = MetaVarMap.find(u, delta); // TODO: check sort
-    switch (sort) {
-    | ExpressionHole =>
-      check_substitution_typing(syn', sigma, gamma') ? Some(hole_ty) : None
-    | PatternHole => None
-    };
+  | FreeLivelit(u, _, sigma, _) => syn_hole(ctx, u, delta, sigma)
   | NonEmptyHole(_, u, _, sigma, d) =>
     let* _ty_d = syn'(d);
-    let (_, hole_ty, gamma') = MetaVarMap.find(u, delta);
-    check_substitution_typing(syn', sigma, gamma') ? Some(hole_ty) : None;
+    syn_hole(ctx, u, delta, sigma);
+  | InconsistentBranches(u, _, sigma, case) =>
+    let* ty = syn'(ConsistentCase(case));
+    HTyp.eq(ty, Hole) ? syn_hole(ctx, u, delta, sigma) : None;
 
   | Cast(d', ty1, ty2) =>
     let* ty_d' = syn'(d');
-    consistent(ty1, ty2) && ty1 == ty_d' ? Some(ty2) : None;
+    consistent(ty1, ty2) && HTyp.eq(ty1, ty_d') ? Some(ty2) : None;
   | FailedCast(d', ty1, ty2) =>
-    // use ground_cases_of
-    // read refined account of gradual typing SNAPL2015
+    // TODO(andrew): read refined account of gradual typing SNAPL2015
     let* ty_d' = syn'(d');
     HTyp.is_ground_type(ty1)
     && HTyp.is_ground_type(ty2)
-    && ty1 != ty2
-    && ty1 == ty_d'
+    && !HTyp.eq(ty1, ty2)
+    && HTyp.eq(ty1, ty_d')
       ? Some(ty2) : None;
 
   | InvalidOperation(d, _) => syn'(d)
   | FailedAssert(d) =>
     let* _ty_d = syn'(d);
     Some(Prod([]));
-  // same as above; unit type. TODO: check evaluator
-  | LivelitHole(_, _, _, _, _, _, _)
-  // use expansion type
-  // check splices
-  // ~ check subst type
-  // cc_expansion in livelits paper
-  | InconsistentBranches(_, _, _, _) =>
-    // check expansion
-    // same as consistent, but has to be hole
-    None // check rule types synth; if so, hole?
-  //TODO: instrument elaborator with this fn
+
+  | LivelitHole(u, _, sigma, lln, {splice_map, _}, dargs, _model) =>
+    // see cc-expansion in livelits paper
+    // TODO(andrew): Sill confused about what should be checked here...
+    let* _ = syn_hole(ctx, u, delta, sigma);
+    let* _check_params =
+      dargs
+      |> List.fold_left(
+           (acc, (_name, ty, opt_d)) => {
+             switch (opt_d) {
+             | None => Some()
+             | Some(d) =>
+               let* _guard = acc;
+               let* ty_d = syn'(d);
+               HTyp.eq(ty, ty_d) ? Some() : None;
+             }
+           },
+           Some(),
+         );
+    let* _check_splices =
+      IntMap.fold(
+        (_splice_name, (ty, d_opt), acc) => {
+          switch (d_opt) {
+          | None => Some()
+          | Some(d) =>
+            let* _guard = acc;
+            let* ty_d = syn'(d);
+            HTyp.eq(ty, ty_d) ? Some() : None;
+          }
+        },
+        splice_map,
+        Some(),
+      );
+    let* ({expansion_ty, _}, _) =
+      LivelitCtx.lookup(Contexts.livelit_ctx(ctx), lln);
+    Some(expansion_ty);
+  };
+}
+and syn_hole = (ctx, u, delta, sigma) => {
+  let (sort, hole_ty, gamma') = MetaVarMap.find(u, delta);
+  switch (sort) {
+  | ExpressionHole =>
+    check_substitution_typing(ctx, delta, sigma, gamma')
+      ? Some(hole_ty) : None
+  | PatternHole => None
   };
 }
 and check_substitution_typing =
-    (syn', sigma: VarMap.t_(DHExp.t), gamma': VarCtx.t): bool => {
+    (ctx, delta, sigma: VarMap.t_(DHExp.t), gamma': VarCtx.t): bool => {
   /* checks judgement from Definition 3.7 in POPL19 */
   VarMap.length(sigma) == VarMap.length(gamma')
   && List.fold_left(
@@ -202,9 +234,9 @@ and check_substitution_typing =
          switch (VarMap.lookup(sigma, x)) {
          | None => false
          | Some(d) =>
-           switch (syn'(d)) {
+           switch (syn(ctx, delta, d)) {
            | None => false
-           | Some(ty_sigma) => acc && ty_gamma == ty_sigma
+           | Some(ty_sigma) => acc && HTyp.eq(ty_gamma, ty_sigma)
            }
          }
        },
