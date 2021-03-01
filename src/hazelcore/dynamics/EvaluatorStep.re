@@ -41,7 +41,6 @@ module EvalCtx = {
 
 let rec is_boxedval = (d: DHExp.t): bool =>
   switch (d) {
-  | BoundVar(_)
   | Lam(_, _, _)
   | ListNil(_)
   | BoolLit(_)
@@ -61,14 +60,24 @@ let rec is_boxedval = (d: DHExp.t): bool =>
     | (NotGroundOrHole(_), Ground) => is_boxedval(d1)
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       !HTyp.eq(ty, ty') && is_boxedval(d1)
-    | (Hole, Ground) =>
-      switch (d1) {
-      | Cast(_, _, Hole) => false
-      | _ => is_boxedval(d1)
-      }
     | _ => false
     }
-  | _ => false
+  | EmptyHole(_, _, _)
+  | NonEmptyHole(_, _, _, _, _)
+  | Keyword(_, _, _, _)
+  | FreeVar(_, _, _, _)
+  | InvalidText(_, _, _, _)
+  | BoundVar(_)
+  | Let(_, _, _)
+  | FixF(_, _, _)
+  | Ap(_, _)
+  | BinBoolOp(_, _, _)
+  | BinIntOp(_, _, _)
+  | BinFloatOp(_, _, _)
+  | ConsistentCase(_)
+  | InconsistentBranches(_, _, _, _)
+  | FailedCast(_, _, _)
+  | InvalidOperation(_, _) => false
   };
 
 let rec is_final = (d: DHExp.t): bool => is_boxedval(d) || is_indet(d)
@@ -80,14 +89,7 @@ and is_indet = (d: DHExp.t): bool =>
   | InvalidText(_)
   | EmptyHole(_, _, _) => true
   | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
-  | InvalidOperation(d1, _) =>
-    is_final(d1)
-    || (
-      switch (d1) {
-      | BinIntOp(Divide, _, IntLit(0)) => true
-      | _ => false
-      }
-    )
+  | InvalidOperation(_, _) => true
   | Cast(d1, ty, ty') =>
     switch (
       EvaluatorCommon.ground_cases_of(ty),
@@ -111,8 +113,8 @@ and is_indet = (d: DHExp.t): bool =>
   // && !HTyp.eq(ty1, ty2) // why we need this?
   | Let(dp, d1, _) =>
     switch (is_final(d1), Elaborator_Exp.matches(dp, d1)) {
-    | (true, Matches(_)) => true
-    | _ => false
+    | (true, Matches(_)) => false
+    | _ => true
     }
   | Ap(d1, d2) =>
     is_final(d1)
@@ -132,11 +134,12 @@ and is_indet = (d: DHExp.t): bool =>
       }
     )
   | Inj(_, _, d1) => is_indet(d1)
-  | Pair(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
-  | Cons(d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
-  | BinIntOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
-  | BinBoolOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
-  | BinFloatOp(_, d1, d2) => is_indet(d1) && is_final(d2) || is_indet(d2)
+  | Pair(d1, d2)
+  | Cons(d1, d2)
+  | BinIntOp(_, d1, d2)
+  | BinBoolOp(_, d1, d2)
+  | BinFloatOp(_, d1, d2) =>
+    is_indet(d1) && is_final(d2) || is_final(d1) && is_indet(d2)
   | InconsistentBranches(_, _, _, Case(d1, rules, n))
   | ConsistentCase(Case(d1, rules, n)) =>
     is_final(d1)
@@ -146,7 +149,15 @@ and is_indet = (d: DHExp.t): bool =>
       | Some(Rule(dp, _)) => Elaborator_Exp.matches(dp, d1) == Indet
       }
     )
-  | _ => false
+  | Triv
+  | BoundVar(_)
+  | FixF(_, _, _)
+  | Lam(_, _, _)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_) => false
+  // | _ => false
   };
 
 let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
@@ -486,5 +497,18 @@ let rec evaluate_steps = (d: DHExp.t): option(DHExp.t) => {
   | Step(d0) => evaluate_steps(d0)
   | Final => Some(d)
   | InvalidInput(_) => None
+  };
+};
+
+let rec evaluate_step_result = (d: DHExp.t): Evaluator.result => {
+  switch (step(d)) {
+  | Step(d0) => evaluate_step_result(d0)
+  | Final =>
+    if (is_boxedval(d)) {
+      BoxedValue(d);
+    } else {
+      Indet(d);
+    }
+  | InvalidInput(i) => InvalidInput(i)
   };
 };
