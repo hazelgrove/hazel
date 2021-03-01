@@ -157,7 +157,7 @@ let apply_action =
             model;
           };
         switch (Program.get_path(program)) {
-        | None => performed
+        | None => Model.map_program(Program.blur, performed)
         | Some(path) => Model.perform_action(MoveTo(path), performed)
         };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
