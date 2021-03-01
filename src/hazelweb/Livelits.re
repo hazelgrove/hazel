@@ -1434,6 +1434,144 @@ module SliderLivelitView = {
   let view_shape = _ => LivelitShape.Inline(14);
 };
 
+module SliderLivelitFloatView = {
+  [@deriving sexp]
+  type endpoint =
+    | Min
+    | Max;
+
+  [@deriving sexp]
+  type model = BuiltinLivelits.SliderLivelitFloatCore.model;
+  [@deriving sexp]
+  type action = BuiltinLivelits.SliderLivelitFloatCore.action;
+  type trigger = action => Event.t;
+  type sync = action => unit;
+
+  let view = (model, trigger: trigger, sync) => {
+    let _endpoint_view = (cls, value) => {
+      let padding = "3px";
+      let val_str = string_of_int(value);
+      Node.label(
+        [
+          Attr.classes([cls]),
+          attr_style(
+            StringUtil.sep([
+              prop_val("padding", padding),
+              prop_val(
+                "width",
+                Printf.sprintf(
+                  "calc(%dch + %s)",
+                  String.length(val_str),
+                  padding,
+                ),
+              ),
+            ]),
+          ),
+        ],
+        [Node.text(val_str)],
+      );
+    };
+
+    let _tickmarks = (min: float, max: float) => {
+      let val_of_percent = (p: float): string => {
+        let p = p /. 100.0;
+        Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
+      };
+      Node.create(
+        "datalist",
+        [Attr.id("tickmarks")],
+        [
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(0.)),
+              Attr.create("label", "0%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(10.))], []),
+          Node.option([Attr.create("value", val_of_percent(20.))], []),
+          Node.option([Attr.create("value", val_of_percent(30.))], []),
+          Node.option([Attr.create("value", val_of_percent(40.))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(50.)),
+              Attr.create("label", "50%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(60.))], []),
+          Node.option([Attr.create("value", val_of_percent(70.))], []),
+          Node.option([Attr.create("value", val_of_percent(80.))], []),
+          Node.option([Attr.create("value", val_of_percent(90.))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(100.)),
+              Attr.create("label", "100%"),
+            ],
+            [],
+          ),
+        ],
+      );
+    };
+
+    let slider =
+        (
+          ~disabled: bool,
+          ~min: float=0.,
+          ~max: float=100.,
+          ~value: float=50.,
+          (),
+        ) =>
+      Node.span(
+        [Attr.classes(["slider-livelit"])],
+        [
+          // tickmarks(min, max),
+          Node.input(
+            [
+              Attr.classes(["slider"]),
+              Attr.type_("range"),
+              Attr.create("min", string_of_float(min)),
+              Attr.create("max", string_of_float(max)),
+              // Attr.create("step", "0.01"),
+              Attr.value(string_of_float(value)),
+              Attr.on_input((_, value_str) =>
+                trigger(Slide(float_of_string(value_str)))
+              ),
+              ...disabled ? [Attr.disabled] : [],
+            ],
+            [],
+          ),
+        ],
+      );
+    ({dargs, _}: LivelitView.splice_and_param_getters) => {
+      switch (dargs) {
+      | Some([
+          ("min", Some((DHExp.FloatLit(min), _))),
+          ("max", Some((DHExp.FloatLit(max), _))),
+        ])
+          when min <= max =>
+        let value =
+          switch (model) {
+          | Some(f) when min <= f && f <= max => f
+          | _ =>
+            let new_value = (min +. max) /. 2.;
+            sync(Slide(new_value): action);
+            new_value;
+          };
+        slider(~disabled=false, ~min, ~max, ~value, ());
+      | _ =>
+        switch (model) {
+        | None => ()
+        | Some(_) => sync(InvalidParams)
+        };
+        slider(~disabled=true, ());
+      };
+    };
+  };
+
+  let view_shape = _ => LivelitShape.Inline(14);
+};
+
 module DataFrameLivelitView = {
   let name = "$data_frame";
   let expansion_ty =
@@ -1625,6 +1763,8 @@ module SliderLivelitMinSplice: LIVELIT =
   );
 module SliderLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.SliderLivelitCore, SliderLivelitView);
+module SliderLivelitFloat: LIVELIT =
+  MkLivelit(BuiltinLivelits.SliderLivelitFloatCore, SliderLivelitFloatView);
 module MatrixLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.MatrixLivelitCore, MatrixLivelitView);
 module DataFrameLivelit: LIVELIT =
@@ -1636,6 +1776,7 @@ module ColorLivelitViewAdapter = LivelitViewAdapter(ColorLivelit);
 module CheckboxLivelitViewAdapter = LivelitViewAdapter(CheckboxLivelit);
 module PairLivelitViewAdapter = LivelitViewAdapter(PairLivelit);
 module SliderLivelitViewAdapter = LivelitViewAdapter(SliderLivelit);
+module SliderLivelitFloatViewAdapter = LivelitViewAdapter(SliderLivelitFloat);
 module SliderLivelitMinViewAdapter = LivelitViewAdapter(SliderLivelitMin);
 module SliderLivelitMinSpliceViewAdapter =
   LivelitViewAdapter(SliderLivelitMinSplice);
@@ -1657,6 +1798,7 @@ let initial_livelit_view_ctx =
       PairLivelitViewAdapter.contexts_entry,
       CheckboxLivelitViewAdapter.contexts_entry,
       SliderLivelitViewAdapter.contexts_entry,
+      SliderLivelitFloatViewAdapter.contexts_entry,
       ColorLivelitViewAdapter.contexts_entry,
       SliderLivelitMinViewAdapter.contexts_entry,
       SliderLivelitMinSpliceViewAdapter.contexts_entry,

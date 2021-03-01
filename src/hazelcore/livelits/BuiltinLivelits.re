@@ -735,6 +735,38 @@ module SliderLivelitCore = {
     | Some(n) => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(n)));
 };
 
+module SliderLivelitFloatCore = {
+  let name = "$fslider";
+  let expansion_ty = HTyp.Float;
+  let param_tys = [("min", HTyp.Float), ("max", HTyp.Float)];
+
+  [@deriving sexp]
+  type endpoint =
+    | Min
+    | Max;
+
+  [@deriving sexp]
+  type model = option(float);
+
+  [@deriving sexp]
+  type action =
+    | InvalidParams
+    | Slide(float);
+
+  let init_model = SpliceGenCmd.return(Some(0.));
+
+  let update = (_, a) =>
+    switch (a) {
+    | InvalidParams => SpliceGenCmd.return(None)
+    | Slide(f) => SpliceGenCmd.return(Some(f))
+    };
+
+  let expand =
+    fun
+    | None => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.floatlit'(0.)))
+    | Some(f) => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.floatlit'(f)));
+};
+
 module DataFrameLivelitCore = {
   let name = "$data_frame";
   let expansion_ty =
@@ -986,6 +1018,8 @@ module ColorLivelitCoreAdapter = LivelitCoreAdapter(ColorLivelitCore);
 module CheckboxLivelitCoreAdapter = LivelitCoreAdapter(CheckboxLivelitCore);
 module PairLivelitCoreAdapter = LivelitCoreAdapter(PairLivelitCore);
 module SliderLivelitCoreAdapter = LivelitCoreAdapter(SliderLivelitCore);
+module SliderLivelitFloatCoreAdapter =
+  LivelitCoreAdapter(SliderLivelitFloatCore);
 module SliderLivelitMinCoreAdapter = LivelitCoreAdapter(SliderLivelitMinCore);
 module SliderLivelitMinSpliceCoreAdapter =
   LivelitCoreAdapter(SliderLivelitMinSpliceCore);
@@ -1008,6 +1042,7 @@ let ctx =
       PairLivelitCoreAdapter.contexts_entry,
       CheckboxLivelitCoreAdapter.contexts_entry,
       SliderLivelitCoreAdapter.contexts_entry,
+      SliderLivelitFloatCoreAdapter.contexts_entry,
       ColorLivelitCoreAdapter.contexts_entry,
       SliderLivelitMinCoreAdapter.contexts_entry,
       SliderLivelitMinSpliceCoreAdapter.contexts_entry,
