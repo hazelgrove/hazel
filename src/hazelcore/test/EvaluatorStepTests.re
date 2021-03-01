@@ -29,4 +29,3 @@ let%test "bin op test" = {
 
   List.map(testing, test) |> List.fold_left((&&), true);
 };
-
