@@ -613,7 +613,7 @@ module SliderLivelitMinSpliceCore = {
    Return(x) = inj[L](inj[L](x))
    Bind(x, f) = inj[L](inj[R]((x, f)))
    NewSplice(s) = inj[R](inj[L](s_ty, s_exp))
-   MapSplice(s) = inj[R](inj[R]((n, uf)))
+   MapSplice(s) = inj[R](inj[R]((spliceno, (new_ty, new_uhexp_sexp_str))))
 
    Newsplice above assumes we derive type and thread it in ourselves
    This also assumes we'll go back and thread u_gen thru on the backend

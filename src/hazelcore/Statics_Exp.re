@@ -70,6 +70,86 @@ module rec M: Statics_Exp_Sig.S = {
   let serialize_ll_monad = model =>
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
+  let eval = (d: DHExp.t): DHExp.t => {
+    switch (Evaluator.evaluate(~eval_livelit_holes=false, d)) {
+    | InvalidInput(_) => failwith("Statics_Exp eval InvalidInput")
+    | Indet(v)
+    | BoxedValue(v) => DHExp.strip_casts(v)
+    };
+  };
+
+  let rec _run_update_monad =
+          (ctx: Contexts.t, d: DHExp.t)
+          : option(SpliceGenCmd.t(SerializedModel.t)) => {
+    /* at this point, we have already evaluated init or update, resulting
+          in a dhexp d which is a value of the following type:
+
+       Return(x) = inj[L](inj[L](x))
+       Bind(x, f) = inj[L](inj[R]((x, f)))
+       NewSplice(s) = inj[R](inj[L](s_ty, s_exp))
+       MapSplice(s) = inj[R](inj[R]((spliceno, (new_ty, new_uhexp_sexp_str))))
+       */
+    let run' = _run_update_monad(ctx);
+    let serialize = d => d |> DHExp.sexp_of_t |> SpliceGenCmd.return;
+    // TODO: errors below
+    //let deserialize = str => str |> Sexplib.Sexp.of_string |> DHExp.t_of_sexp;
+
+    switch (d) {
+    | Inj(_, L, Inj(_, L, d0)) => Some(serialize(d0))
+    | Inj(_, L, Inj(_, R, Pair(x, f))) =>
+      let* mm = run'(x);
+      Some(
+        SpliceGenCmd.bind(
+          mm,
+          s => {
+            let ds = DHExp.t_of_sexp(s); // TODO: errors
+            let dap = DHExp.Ap(f, ds);
+            let v = eval(dap);
+            serialize(v); // TODO: ??
+          },
+        ),
+      );
+    | Inj(_, R, Inj(_, L, Pair(StringLit(s_ty), StringLit(s_exp)))) =>
+      let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+      let _sgc =
+        SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
+      // TODO: figure out types.... do we need two versions of this?
+      failwith("TODO");
+    | Inj(
+        _,
+        R,
+        Inj(
+          _,
+          R,
+          Pair(IntLit(spliceno), Pair(StringLit(s_ty), StringLit(s_exp))),
+        ),
+      ) =>
+      let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+      let _sgc =
+        SpliceGenCmd.map_splice(spliceno, (_, u_gen) => ((ty, exp), u_gen));
+      // TODO: figure out types.... do we need multiple versions of this?
+      failwith("TODO");
+
+    | _ =>
+      print_endline("ERROR: run_init_monad: wrong data type");
+      None;
+    };
+  };
+
+  let _run_wrapper = (ctx: Contexts.t, u: UHExp.t) => {
+    let elab_ctx = Contexts.empty;
+    let elab_delta = Delta.empty;
+    let d =
+      switch (Elaborator.syn_elab(elab_ctx, elab_delta, u)) {
+      | DoesNotElaborate => failwith("run_update_monad DoesNotElaborate")
+      | Elaborates(d, _, _) => d
+      };
+    let d' = eval(d);
+    _run_update_monad(ctx, d');
+  };
+
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
