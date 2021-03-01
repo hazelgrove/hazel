@@ -222,7 +222,7 @@ module rec M: Statics_Exp_Sig.S = {
       | Elaborates(expand, _, _) => expand
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
-    print_endline("mk_ll_expand");
+    // print_endline("mk_ll_expand");
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(v) =>
       switch (DHExp.strip_casts(v)) {
