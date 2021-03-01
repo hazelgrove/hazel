@@ -1472,48 +1472,6 @@ module SliderLivelitFloatView = {
       );
     };
 
-    let _tickmarks = (min: float, max: float) => {
-      let val_of_percent = (p: float): string => {
-        let p = p /. 100.0;
-        Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
-      };
-      Node.create(
-        "datalist",
-        [Attr.id("tickmarks")],
-        [
-          Node.option(
-            [
-              Attr.create("value", val_of_percent(0.)),
-              Attr.create("label", "0%"),
-            ],
-            [],
-          ),
-          Node.option([Attr.create("value", val_of_percent(10.))], []),
-          Node.option([Attr.create("value", val_of_percent(20.))], []),
-          Node.option([Attr.create("value", val_of_percent(30.))], []),
-          Node.option([Attr.create("value", val_of_percent(40.))], []),
-          Node.option(
-            [
-              Attr.create("value", val_of_percent(50.)),
-              Attr.create("label", "50%"),
-            ],
-            [],
-          ),
-          Node.option([Attr.create("value", val_of_percent(60.))], []),
-          Node.option([Attr.create("value", val_of_percent(70.))], []),
-          Node.option([Attr.create("value", val_of_percent(80.))], []),
-          Node.option([Attr.create("value", val_of_percent(90.))], []),
-          Node.option(
-            [
-              Attr.create("value", val_of_percent(100.)),
-              Attr.create("label", "100%"),
-            ],
-            [],
-          ),
-        ],
-      );
-    };
-
     let slider =
         (
           ~disabled: bool,
@@ -1525,14 +1483,13 @@ module SliderLivelitFloatView = {
       Node.span(
         [Attr.classes(["slider-livelit"])],
         [
-          // tickmarks(min, max),
           Node.input(
             [
               Attr.classes(["slider"]),
               Attr.type_("range"),
               Attr.create("min", string_of_float(min)),
               Attr.create("max", string_of_float(max)),
-              // Attr.create("step", "0.01"),
+              Attr.create("step", "0.01"),
               Attr.value(string_of_float(value)),
               Attr.on_input((_, value_str) =>
                 trigger(Slide(float_of_string(value_str)))
