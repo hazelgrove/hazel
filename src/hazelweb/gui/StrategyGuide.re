@@ -627,9 +627,9 @@ let view =
 
 let get_shortcut = (typ: HTyp.t) => {
   switch (typ) {
-  | HTyp.Int => "(enter I)"
-  | HTyp.Float => "(enter F)"
-  | HTyp.Bool => "(enter B)"
+  | HTyp.Int => ""
+  | HTyp.Float => ""
+  | HTyp.Bool => ""
   | HTyp.List(_) => "(enter [)"
   | HTyp.Sum(_, _) => "(enter |)"
   | HTyp.Prod(_) => "(enter ,)"
@@ -662,8 +662,8 @@ let list_compounds_view = () => {
   let compound_options =
     [
       HTyp.Sum(HTyp.Hole, HTyp.Hole),
-      HTyp.Prod([HTyp.Hole]),
-      HTyp.List(HTyp.Hole),
+      HTyp.Prod([HTyp.Hole, HTyp.Hole, "..."]),
+      HTyp.List(HTyp.Hole, HTyp.Hole, "..."),
     ]
     |> List.map(s => {
          Node.div(
