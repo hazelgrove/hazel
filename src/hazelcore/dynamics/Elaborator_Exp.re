@@ -1064,8 +1064,8 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _)
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1245,7 +1245,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       ) =>
-      //TODO(andrew): not sure this makes sense
+      //TODO(andrew): not sure what this should do
       Elaborates(Triv, Hole, delta)
     | ApLivelit(
         llu,
@@ -1745,8 +1745,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1880,7 +1879,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         NotInHole |
         InHole(
-          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+          TypeInconsistent(None | Some(InsufficientParams | DoesNotExpand)),
           _,
         ),
         _,

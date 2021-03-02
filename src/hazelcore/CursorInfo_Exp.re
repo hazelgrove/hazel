@@ -698,11 +698,14 @@ and syn_cursor_info_zoperand =
       ),
     )
   | CursorE(_, e) =>
+    print_endline("syn_cursor_info_zoperand");
     switch (Statics_Exp.syn_operand(ctx, e)) {
-    | None => None
+    | None =>
+      print_endline("syn_cursor_info_zoperand: None");
+      None;
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty, ""), ctx, cursor_term))
-    }
+    };
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));

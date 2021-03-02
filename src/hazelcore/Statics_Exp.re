@@ -109,6 +109,7 @@ module rec M: Statics_Exp_Sig.S = {
           },
         ),
       );
+      // specialize these cases to BindNewSplice, BindSetSplice
     | Inj(_, R, Inj(_, L, Pair(StringLit(s_ty), StringLit(s_exp)))) =>
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
@@ -1609,6 +1610,7 @@ module rec M: Statics_Exp_Sig.S = {
     let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
     let (llu, u_gen) = MetaVarGen.next_livelit(u_gen);
     syn_fix_holes_livelit(
+      ctx,
       ~put_in_hole,
       u_gen,
       livelit_defn,
@@ -1640,6 +1642,7 @@ module rec M: Statics_Exp_Sig.S = {
       );
     let splice_info = SpliceInfo.update_splice_map(splice_info, splice_map);
     syn_fix_holes_livelit(
+      ctx,
       ~put_in_hole,
       u_gen,
       livelit_defn,
@@ -1650,26 +1653,50 @@ module rec M: Statics_Exp_Sig.S = {
     );
   }
   and syn_fix_holes_livelit =
-      (~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
+      (ctx, ~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
     let expansion_ty = livelit_defn.expansion_ty;
     let base_lln = livelit_defn.name;
-    print_endline("EXPAND 1 :: syn_fix_holes_livelit does_not_expand");
+    //print_endline("EXPAND 1 :: syn_fix_holes_livelit does_not_expand");
     let does_not_expand =
       switch (livelit_defn.expand(model)) {
       | Success(u) =>
-        print_endline("EXPAND 1: expand succeeded; will return false");
-        print_endline("is expansion complete?:");
-        print_endline(string_of_bool(UHExp.is_complete(u)));
-        print_endline("expansion:");
-        print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(u)));
+        //print_endline("EXPAND 1: expand succeeded; will return false");
+        //print_endline("is expansion complete?:");
+        //print_endline(string_of_bool(UHExp.is_complete(u)));
+        //print_endline("expansion:");
+        //print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(u)));
         false;
       // expansion must be complete
       // TODO(andrew): but if I make it so, builtin livelits break...
-      //UHExp.is_complete(u)
+      // UHExp.is_complete(u)
       | Failure(_) =>
-        print_endline("EXPAND 1: failed to expand. Returning true");
+        //print_endline("EXPAND 1: failed to expand. Returning true");
         true;
       };
+    let wrong_type =
+      // should just call syn here, but.. plumbing problems
+      switch (
+        ana_splice_map_and_params(
+          ctx,
+          splice_info.splice_map,
+          livelit_defn.param_tys,
+        )
+      ) {
+      | None => true
+      | Some(splice_ctx) =>
+        let {expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
+        switch (livelit_defn.expand(model)) {
+        | Failure(_) => true
+        | Success(expansion) =>
+          let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+          switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
+          | None => true
+          | Some(_) => false
+          };
+        };
+      };
+    print_endline("does livelitap wrong_type:?");
+    print_endline(string_of_bool(wrong_type));
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
@@ -1685,6 +1712,11 @@ module rec M: Statics_Exp_Sig.S = {
           ErrStatus.InHole(TypeInconsistent(Some(DoesNotExpand)), u),
           u_gen,
         );
+      } else if (wrong_type) {
+        // ExpansionValidation // say ill-typed in cursor inspector
+        // fig 5 in paper
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (HTyp.Hole, ErrStatus.InHole(TypeInconsistent(Some(IllTypedExpansion)), u), u_gen);
       } else {
         (expansion_ty, NotInHole, u_gen);
       };
