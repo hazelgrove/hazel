@@ -1794,13 +1794,13 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
       syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
     } else {
       syn_insert_text(ctx, u_gen, (j, s), n);
     }
   | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
       syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
     } else {
       syn_insert_text(ctx, u_gen, (j, s), f);
@@ -3372,13 +3372,13 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
       ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
     } else {
       ana_insert_text(ctx, u_gen, (j, s), n, ty);
     }
   | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
       ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
     } else {
       ana_insert_text(ctx, u_gen, (j, s), f, ty);
