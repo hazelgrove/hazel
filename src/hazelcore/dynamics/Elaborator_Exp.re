@@ -1292,7 +1292,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         lln,
         serialized_model,
         si,
-        {name, expansion_ty, captures_ty, param_tys, expand, _},
+        {name, expansion_ty, captures_ty, param_tys, _} as livelit_defn,
         closed_dargs,
         reqd_param_tys,
         args,
@@ -1303,11 +1303,21 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       |> ListUtil.take(closed_dargs |> List.length)
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
-    let proto_expansion = expand(serialized_model);
+    print_endline("EXPAND 3 :: elaborator proto-expansion");
+    let proto_expansion = livelit_defn.expand(serialized_model);
     let proto_expansion_ty = HTyp.Arrow(captures_ty, expansion_ty);
     switch (proto_expansion) {
-    | Failure(_err) => DoesNotElaborate
+    | Failure(_err) =>
+      print_endline("EXPAND 3: failed to expand. Returning DoesNotElaborate");
+      DoesNotElaborate;
     | Success(proto_expansion) =>
+      print_endline("EXPAND 3: expand succeeded.");
+      print_endline("is expansion complete?:");
+      print_endline(string_of_bool(UHExp.is_complete(proto_expansion)));
+      print_endline("expansion:");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(proto_expansion)),
+      );
       let proto_elaboration_ctx = to_ctx(si, all_param_tys);
       let proto_elaboration_result =
         ana_elab(

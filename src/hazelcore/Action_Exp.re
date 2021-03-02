@@ -615,7 +615,9 @@ let syn_perform_ll_line =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, new_lldef: ZExp.zline)
     : ActionOutcome.t(line_success) => {
   switch (Statics_Exp.syn_line(ctx, ZExp.erase_zline(new_lldef))) {
-  | None => Failed // precondition: synthesis should succeed
+  | None =>
+    print_endline("syn_perform_ll_line FAILED");
+    Failed; // precondition: synthesis should succeed
   | Some(ctx) => Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)))
   };
 };
