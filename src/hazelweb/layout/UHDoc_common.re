@@ -875,8 +875,8 @@ let rec mk_BinOp =
         (l == empty_ ? [] : [l], r == empty_ ? [] : [r]);
       };
       let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
-      let skel1 = go(skel1);
-      let skel2 = go(skel2);
+      let skel1 = go(~check_livelit_skel, skel1);
+      let skel2 = go(~check_livelit_skel, skel2);
       let inline_choice =
         Doc.(
           hcats([
