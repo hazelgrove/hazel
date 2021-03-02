@@ -1600,7 +1600,7 @@ module DataFrameLivelitView = {
       |> List.mapi((j, header) =>
            splice(
              ~clss=["col-header"],
-             ~grid_coordinates=(1, j + 2, 2, j + 3),
+             ~grid_coordinates=(1, j + 3, 2, j + 4),
              header,
            )
          );
@@ -1609,7 +1609,7 @@ module DataFrameLivelitView = {
       |> List.mapi((i, row: row) =>
            splice(
              ~clss=["row-header"],
-             ~grid_coordinates=(i + 2, 1, i + 3, 2),
+             ~grid_coordinates=(i + 3, 1, i + 4, 2),
              row.header,
            )
          );
@@ -1620,7 +1620,7 @@ module DataFrameLivelitView = {
            |> List.mapi((j, cell) =>
                 splice(
                   ~clss=["matrix-cell"],
-                  ~grid_coordinates=(i + 2, j + 2, i + 3, j + 3),
+                  ~grid_coordinates=(i + 3, j + 3, i + 4, j + 4),
                   cell,
                 )
               )
@@ -1630,7 +1630,6 @@ module DataFrameLivelitView = {
     let add_row_button =
       Node.button(
         [
-          attr_style(grid_area(((-1), 2, (-2), (-3)))),
           Attr.classes(["add-row", "add-button"]),
           Attr.on_click(_ => trig(Add(Row))),
         ],
@@ -1639,26 +1638,27 @@ module DataFrameLivelitView = {
     let add_col_button =
       Node.button(
         [
-          attr_style(grid_area((2, (-2), (-3), (-1)))),
           Attr.classes(["add-col", "add-button"]),
           Attr.on_click(_ => trig(Add(Col))),
         ],
         [Node.text("+")],
       );
 
-    let cells_border =
+    let header_corner =
       Node.div(
         [
-          attr_style(grid_area((2, 2, (-3), (-3)))),
-          Attr.classes(["cells-border"]),
+          attr_style(grid_area((1, 1, 2, 2))),
+          Attr.classes(["header-corner"]),
         ],
         [],
       );
 
     let dim_template = dim =>
-      StringUtil.sep(
-        List.concat([ListUtil.replicate(1 + dim, "auto"), ["4px", "auto"]]),
-      );
+      // gap between headers and cells so that header cells
+      // (which need higher z-index than regular cells to
+      // support freezing ux) don't cover selection highlight\
+      // of neighboring cells
+      StringUtil.sep(["auto", "2px", ...ListUtil.replicate(dim, "auto")]);
 
     Node.div(
       [Attr.classes(["matrix-livelit"])],
@@ -1674,29 +1674,33 @@ module DataFrameLivelitView = {
           ],
         ),
         Node.div(
+          [Attr.classes(["outer-container"])],
           [
-            Attr.classes(["grid-container"]),
-            attr_style(
-              StringUtil.cat([
-                prop_val("grid-template-columns", dim_template(width)),
-                prop_val("grid-template-rows", dim_template(height)),
+            Node.div(
+              [
+                Attr.classes(["cells", "grid-container"]),
+                attr_style(
+                  StringUtil.cat([
+                    prop_val("grid-template-columns", dim_template(width)),
+                    prop_val("grid-template-rows", dim_template(height)),
+                  ]),
+                ),
+              ],
+              List.concat([
+                [header_corner, ...row_headers],
+                col_headers,
+                cells,
               ]),
             ),
+            add_row_button,
+            add_col_button,
           ],
-          List.concat([
-            row_headers,
-            col_headers,
-            [cells_border, ...cells],
-            [add_row_button, add_col_button],
-          ]),
         ),
       ],
     );
   };
 
-  let view_shape = m => {
-    LivelitShape.MultiLine(3 * get_height(m) + 1);
-  };
+  let view_shape = _ => LivelitShape.MultiLine(10);
 };
 
 /* ----------
