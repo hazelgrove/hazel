@@ -118,26 +118,6 @@ let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand => {
   };
 };
 
-/* let split_negated_literal =
-     (~err=ErrStatus.NotInHole, znumlit: UHExp.operand)
-     : (Unops_Exp.t, UHExp.operand) =>
-   switch (znumlit) {
-   | IntLit(_, n) => (
-       Negate,
-       UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
-     )
-   | FloatLit(_, f) =>
-     if (f.[1] != '.') {
-       (
-         Negate,
-         UHExp.floatlit(~err, String.sub(f, 1, String.length(f) - 1)),
-       );
-     } else if (j == 1) {
-       {};
-     }
-   | _ => (None, znumlit)
-   }; */
-
 let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
   print_endline("znumlit to zunop");
   switch (znumlit) {
@@ -1717,9 +1697,15 @@ and syn_perform_operand =
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
-    syn_delete_text(ctx, u_gen, j, n)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_delete_text(ctx, u_gen, j, n)
+    }
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
-    syn_delete_text(ctx, u_gen, j, f)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_delete_text(ctx, u_gen, j, f)
+    }
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
@@ -1727,9 +1713,15 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
-    syn_backspace_text(ctx, u_gen, j, n)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_backspace_text(ctx, u_gen, j, n)
+    }
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
-    syn_backspace_text(ctx, u_gen, j, f)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_backspace_text(ctx, u_gen, j, f)
+    }
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -3341,9 +3333,15 @@ and ana_perform_operand =
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
-    ana_delete_text(ctx, u_gen, j, n, ty)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_delete_text(ctx, u_gen, j, n, ty)
+    }
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
-    ana_delete_text(ctx, u_gen, j, f, ty)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_delete_text(ctx, u_gen, j, f, ty)
+    }
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -3352,9 +3350,15 @@ and ana_perform_operand =
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
-    ana_backspace_text(ctx, u_gen, j, n, ty)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_backspace_text(ctx, u_gen, j, n, ty)
+    }
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
-    ana_backspace_text(ctx, u_gen, j, f, ty)
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_backspace_text(ctx, u_gen, j, f, ty)
+    }
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
