@@ -1707,7 +1707,6 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
-      print_endline("detected Intlit(-n)");
       syn_perform_operand(
         ctx,
         a,
@@ -1730,7 +1729,25 @@ and syn_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, f)
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
+      syn_perform_operand(
+        ctx,
+        a,
+        (
+          ZExp.UnaryOpZ(
+            ErrStatus.NotInHole,
+            FNegate,
+            ZExp.place_before_operand(
+              negated_literal(ZExp.erase_zoperand(zoperand)),
+            ),
+          ),
+          ty,
+          u_gen,
+        ),
+      );
+    } else {
+      syn_split_text(ctx, u_gen, j, sop, f);
+    }
 
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
@@ -3361,14 +3378,48 @@ and ana_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    print_endline("ana split text");
-    ana_split_text(ctx, u_gen, j, sop, n, ty);
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
+      ana_perform_operand(
+        ctx,
+        a,
+        (
+          ZExp.UnaryOpZ(
+            ErrStatus.NotInHole,
+            Negate,
+            ZExp.place_before_operand(
+              negated_literal(ZExp.erase_zoperand(zoperand)),
+            ),
+          ),
+          u_gen,
+        ),
+        ty,
+      );
+    } else {
+      ana_split_text(ctx, u_gen, j, sop, n, ty);
+    }
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    ana_split_text(ctx, u_gen, j, sop, f, ty)
-
+    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
+      ana_perform_operand(
+        ctx,
+        a,
+        (
+          ZExp.UnaryOpZ(
+            ErrStatus.NotInHole,
+            FNegate,
+            ZExp.place_before_operand(
+              negated_literal(ZExp.erase_zoperand(zoperand)),
+            ),
+          ),
+          u_gen,
+        ),
+        ty,
+      );
+    } else {
+      ana_split_text(ctx, u_gen, j, sop, f, ty);
+    }
   | (Construct(SAnn), CursorE(_)) => Failed
 
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
