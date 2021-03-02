@@ -3,8 +3,7 @@ open HTyp;
 
 let rec ana_pat =
         (ctx: Contexts.t, p: DHPat.t, ty: HTyp.t): option(Contexts.t) => {
-  let eq_to = target_ty =>
-    HTyp.eq(ty, target_ty) ? Some(ctx) : None;
+  let eq_to = target_ty => HTyp.eq(ty, target_ty) ? Some(ctx) : None;
   switch (p) {
   | Var(name) => Some(Contexts.extend_gamma(ctx, (name, ty)))
   | Keyword(_)
