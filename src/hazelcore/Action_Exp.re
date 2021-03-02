@@ -1508,6 +1508,7 @@ and syn_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
+    print_endline("converting unop to binop recursed once into nonempty");
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_prefix, u_gen) =
@@ -1520,17 +1521,21 @@ and syn_perform_opseq =
       let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("unop has no binop")
-    }
-  | (Construct(SOp(SSpace)), ZOperand(UnaryOpZ(_, unop, zchild), (E, E)))
+    };
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(UnaryOpZ(_, unop, zchild), (E, suffix)),
+    )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
+    print_endline("converting unop to binop recursed once into empty");
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
       let new_prefix = Seq.A(binop, Seq.S(new_hole, E));
-      let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, E));
+      let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("unop has no binop")
-    }
+    };
 
   /* Zipper */
 
@@ -3110,13 +3115,16 @@ and ana_perform_opseq =
     | None => failwith("unop has no binop")
     }
 
-  | (Construct(SOp(SSpace)), ZOperand(UnaryOpZ(_, unop, zchild), (E, E)))
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(UnaryOpZ(_, unop, zchild), (E, suffix)),
+    )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
       let new_prefix = Seq.A(binop, Seq.S(new_hole, E));
-      let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, E));
+      let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => failwith("unop has no binop")
     }
