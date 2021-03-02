@@ -66,22 +66,19 @@ let is_negative_literal = (lit: UHExp.operand): bool =>
   | _ => false
   };
 
-// FIXME this doesn't handle floats properly, it assumes the '.' comes right after the '-'. Reproduce bug with "-2.34", insert a space after the 2!
+// FIXME you need to make it so inserting a space after the period in -.134 DOES NOT make the right operand a float, preserve the text-like experience
+// FIXME you need to make it so inserting a space after the minus in -.1234 STILL CREATES A MINUS BINOP LIKE THIS: _ - .1234, where right operand is in a hole.
 let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   switch (zoperand) {
   | CursorE(OnText(j), IntLit(_) as operand) =>
-    print_endline("checked");
-    j == 1 && is_negative_literal(operand);
+    is_negative_literal(operand) && j == 1
   | CursorE(OnText(j), FloatLit(_, n) as operand) =>
+    print_endline("checkedf");
     if (is_negative_literal(operand)) {
-      if (n.[1] == '.') {
-        j == 2;
-      } else {
-        j == 1;
-      };
+      n.[1] == '.' && j == 2 || n.[1] != '.' && j == 1;
     } else {
       false;
-    }
+    };
   | _ => false
   };
 
