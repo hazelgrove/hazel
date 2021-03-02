@@ -61,8 +61,8 @@ let shape_is_of_unop = (os: Action.operator_shape): bool =>
 
 let is_negative_literal = (lit: UHExp.operand): bool =>
   switch (lit) {
-  | IntLit(_, n)
-  | FloatLit(_, n) => String.equal("-", String.sub(n, 0, 1))
+  | IntLit(_, n) => int_of_string(n) < 0
+  | FloatLit(_, f) => float_of_string(f) < 0.0
   | _ => false
   };
 
@@ -72,68 +72,113 @@ let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   switch (zoperand) {
   | CursorE(OnText(j), IntLit(_) as operand) =>
     is_negative_literal(operand) && j == 1
-  | CursorE(OnText(j), FloatLit(_, n) as operand) =>
+  | CursorE(OnText(j), FloatLit(_, f) as operand) =>
     print_endline("checkedf");
     if (is_negative_literal(operand)) {
-      n.[1] == '.' && j == 2 || n.[1] != '.' && j == 1;
+      f.[1] == '.' && j == 2 || f.[1] != '.' && j == 1;
     } else {
       false;
     };
   | _ => false
   };
 
-let strip_negated_literal =
-    (~err=ErrStatus.NotInHole, lit: UHExp.operand): UHExp.operand =>
-  switch (lit) {
-  | IntLit(_, n) => UHExp.intlit(String.sub(n, 1, String.length(n) - 1))
-  | FloatLit(_, n) =>
-    UHExp.floatlit(~err, String.sub(n, 1, String.length(n) - 1))
-  | _ => lit
-  };
-
 let negate_literal =
     (~err=ErrStatus.NotInHole, lit: UHExp.operand): UHExp.operand =>
   switch (lit) {
   | IntLit(_, n) => IntLit(err, "-" ++ n)
-  | FloatLit(_, n) => FloatLit(err, "-" ++ n)
+  | FloatLit(_, f) => FloatLit(err, "-" ++ f)
   | _ => lit
   };
 
-let unop_of_numlit = (operand: UHExp.operand): Unops_Exp.t =>
-  switch (operand) {
-  | IntLit(_) => Unops_Exp.Negate
-  | FloatLit(_) => Unops_Exp.FNegate
-  | _ => failwith("operand not a numlit")
-  };
+/* let unop_of_numlit = (operand: UHExp.operand): Unops_Exp.t =>
+   switch (operand) {
+   | IntLit(_) => Unops_Exp.Negate
+   | FloatLit(_) => Unops_Exp.FNegate
+   | _ => failwith("operand not a numlit")
+   }; */
 
+/* rename to fix_zunop */
 let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand =>
   switch (zunop) {
   | UnaryOpZ(err, Negate, CursorE(OnText(j), IntLit(_, n))) =>
     CursorE(OnText(j + 1), IntLit(err, "-" ++ n))
   | UnaryOpZ(err, FNegate, CursorE(OnText(j), IntLit(_, n))) =>
     CursorE(OnText(j + 2), FloatLit(err, "-." ++ n))
-  | UnaryOpZ(err, Negate, CursorE(OnText(j), FloatLit(_, n))) =>
-    CursorE(OnText(j + 1), FloatLit(err, "-" ++ n))
-  | UnaryOpZ(err, FNegate, CursorE(OnText(j), FloatLit(_, n))) =>
-    CursorE(OnText(j + 2), FloatLit(err, "-" ++ n))
+  | UnaryOpZ(err, Negate, CursorE(OnText(j), FloatLit(_, f))) =>
+    CursorE(OnText(j + 1), FloatLit(err, "-" ++ f))
+  | UnaryOpZ(err, FNegate, CursorE(OnText(j), FloatLit(_, f))) =>
+    CursorE(OnText(j + 2), FloatLit(err, "-" ++ f))
   | _ => zunop
   };
 
-let znumlit_to_zunop = (znumlit: ZExp.zoperand): ZExp.zoperand =>
+/* let split_negated_literal =
+     (~err=ErrStatus.NotInHole, znumlit: UHExp.operand)
+     : (Unops_Exp.t, UHExp.operand) =>
+   switch (znumlit) {
+   | IntLit(_, n) => (
+       Negate,
+       UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
+     )
+   | FloatLit(_, f) =>
+     if (f.[1] != '.') {
+       (
+         Negate,
+         UHExp.floatlit(~err, String.sub(f, 1, String.length(f) - 1)),
+       );
+     } else if (j == 1) {
+       {};
+     }
+   | _ => (None, znumlit)
+   }; */
+
+let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) =>
   switch (znumlit) {
-  | CursorE(OnText(j), IntLit(err, _) as lit) =>
-    UnaryOpZ(
-      err,
-      Negate,
-      CursorE(OnText(j - 1), strip_negated_literal(lit)),
+  | CursorE(_, lit) when !is_negative_literal(lit) => None
+  | CursorE(OnText(0), IntLit(err, n)) =>
+    Some(
+      CursorE(
+        OnText(0),
+        UnaryOp(
+          err,
+          Negate,
+          UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
+        ),
+      ),
     )
-  | CursorE(OnText(j), FloatLit(err, _) as lit) =>
-    UnaryOpZ(
-      err,
-      FNegate,
-      CursorE(OnText(j - 1), strip_negated_literal(lit)),
+  | CursorE(OnText(0), FloatLit(err, f)) =>
+    Some(
+      CursorE(
+        OnText(0),
+        UnaryOp(
+          err,
+          FNegate,
+          UHExp.floatlit(String.sub(f, 1, String.length(f) - 1)),
+        ),
+      ),
     )
-  | _ => znumlit
+  | CursorE(OnText(j), IntLit(err, n)) =>
+    Some(
+      UnaryOpZ(
+        err,
+        Negate,
+        CursorE(
+          OnText(j - 1),
+          UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
+        ),
+      ),
+    )
+  | CursorE(OnText(j), FloatLit(err, f)) =>
+    Some(
+      UnaryOpZ(
+        err,
+        FNegate,
+        CursorE(
+          OnText(j - 1),
+          UHExp.floatlit(String.sub(f, 1, String.length(f) - 1)),
+        ),
+      ),
+    )
+  | _ => None
   };
 
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -1440,25 +1485,21 @@ and syn_perform_opseq =
   /* Convert unop to binop */
   | (
       Construct(SOp(SSpace)),
-      ZOperand(
-        CursorE(_, (IntLit(err, _) | FloatLit(err, _)) as operand) as zoperand,
-        surround,
-      ),
+      ZOperand(CursorE(_, IntLit(_) | FloatLit(_)) as zoperand, surround),
     )
       when is_after_unop_of_negative_literal(zoperand) =>
     print_endline("converting unop to binop");
-    let unop = unop_of_numlit(operand);
-    let new_zoperand =
-      ZExp.UnaryOpZ(
-        err,
-        unop,
-        ZExp.place_before_operand(strip_negated_literal(operand)),
-      );
-    syn_perform_opseq(
-      ctx,
-      a,
-      (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), ty, u_gen),
-    );
+    /* FIXME this is bugged only when you do -<>2 + 4 but fine when you do -<>2 */
+    /* ^^ <> means insert Space */
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(new_zoperand) =>
+      syn_perform_opseq(
+        ctx,
+        a,
+        (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), ty, u_gen),
+      )
+    | None => Failed
+    };
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -1755,19 +1796,20 @@ and syn_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
-      syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
-    } else {
-      syn_split_text(ctx, u_gen, j, sop, n);
-    };
+    switch (znumlit_to_zunop(zoperand)) {
+    /* FIXME remove the is_after_unop_of_negative_literal clauses? */
+    | Some(zunop) when is_after_unop_of_negative_literal(zoperand) =>
+      syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | _ => syn_split_text(ctx, u_gen, j, sop, n)
+    }
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
-      syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
-    } else {
-      syn_split_text(ctx, u_gen, j, sop, f);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) when is_after_unop_of_negative_literal(zoperand) =>
+      syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | _ => syn_split_text(ctx, u_gen, j, sop, f)
     }
 
   | (Construct(SCase), CursorE(_, operand)) =>
@@ -1794,16 +1836,14 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
-    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
-      syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
-    } else {
-      syn_insert_text(ctx, u_gen, (j, s), n);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_insert_text(ctx, u_gen, (j, s), n)
     }
   | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
-    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
-      syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
-    } else {
-      syn_insert_text(ctx, u_gen, (j, s), f);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => syn_perform_operand(ctx, a, (zunop, ty, u_gen))
+    | None => syn_insert_text(ctx, u_gen, (j, s), f)
     }
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
@@ -3035,25 +3075,19 @@ and ana_perform_opseq =
   /* Convert unop to binop */
   | (
       Construct(SOp(SSpace)),
-      ZOperand(
-        CursorE(_, (IntLit(err, _) | FloatLit(err, _)) as operand) as zoperand,
-        surround,
-      ),
+      ZOperand(CursorE(_, IntLit(_) | FloatLit(_)) as zoperand, surround),
     )
       when is_after_unop_of_negative_literal(zoperand) =>
-    let unop = unop_of_numlit(operand);
-    let new_zoperand =
-      ZExp.UnaryOpZ(
-        err,
-        unop,
-        ZExp.place_before_operand(strip_negated_literal(operand)),
-      );
-    ana_perform_opseq(
-      ctx,
-      a,
-      (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), u_gen),
-      ty,
-    );
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(new_zoperand) =>
+      ana_perform_opseq(
+        ctx,
+        a,
+        (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), u_gen),
+        ty,
+      )
+    | None => Failed
+    }
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -3372,16 +3406,14 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
-    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
-      ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
-    } else {
-      ana_insert_text(ctx, u_gen, (j, s), n, ty);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_insert_text(ctx, u_gen, (j, s), n, ty)
     }
   | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
-    if (is_negative_literal(ZExp.erase_zoperand(zoperand))) {
-      ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
-    } else {
-      ana_insert_text(ctx, u_gen, (j, s), f, ty);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) => ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | None => ana_insert_text(ctx, u_gen, (j, s), f, ty)
     }
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
@@ -3417,19 +3449,19 @@ and ana_perform_operand =
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
-      ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
-    } else {
-      ana_split_text(ctx, u_gen, j, sop, n, ty);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) when is_after_unop_of_negative_literal(zoperand) =>
+      ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | _ => ana_split_text(ctx, u_gen, j, sop, n, ty)
     }
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    if (is_after_unop_of_negative_literal(zoperand)) {
-      ana_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), u_gen), ty);
-    } else {
-      ana_split_text(ctx, u_gen, j, sop, f, ty);
+    switch (znumlit_to_zunop(zoperand)) {
+    | Some(zunop) when is_after_unop_of_negative_literal(zoperand) =>
+      ana_perform_operand(ctx, a, (zunop, u_gen), ty)
+    | _ => ana_split_text(ctx, u_gen, j, sop, f, ty)
     }
   | (Construct(SAnn), CursorE(_)) => Failed
 
