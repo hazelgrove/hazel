@@ -1759,7 +1759,7 @@ and syn_perform_operand =
       syn_perform_operand(ctx, a, (znumlit_to_zunop(zoperand), ty, u_gen));
     } else {
       syn_split_text(ctx, u_gen, j, sop, n);
-    }
+    };
   | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
       when
         !ZExp.is_before_zoperand(zoperand)
