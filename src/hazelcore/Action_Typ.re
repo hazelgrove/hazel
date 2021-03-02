@@ -1,3 +1,61 @@
+module MakePerformerSignatures =
+       (Success: {
+          module Poly: {type t('z);};
+          type t;
+        }) => {
+  module type S = {
+    let perform:
+      (Contexts.t, Action.t, Success.t) => ActionOutcome.t(Success.t);
+    let perform_opseq:
+      (Contexts.t, Action.t, Success.t) => ActionOutcome.t(Success.t);
+    let perform_operand:
+      (Contexts.t, Action.t, Success.Poly.t(ZTyp.zoperand)) =>
+      ActionOutcome.t(Success.t);
+  };
+};
+
+module type Syn_S = {
+  module Success: {
+    module Poly: {
+      [@deriving sexp]
+      type t('z) = {
+        zty: 'z,
+        kind: Kind.t,
+        u_gen: MetaVarGen.t,
+      };
+    };
+
+    [@deriving sexp]
+    type t = Poly.t(ZTyp.t);
+  };
+
+  let mk_text:
+    (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t(Success.t);
+
+  let move: (Action.t, Success.t) => ActionOutcome.t(Success.t);
+
+  include MakePerformerSignatures(Success).S;
+};
+
+module type Ana_S = {
+  module Success: {
+    module Poly: {
+      [@deriving sexp]
+      type t('z) = {
+        zty: 'z,
+        u_gen: MetaVarGen.t,
+      };
+    };
+
+    [@deriving sexp]
+    type t = Poly.t(ZTyp.t);
+  };
+
+  let move: (Action.t, Success.t, Kind.t) => ActionOutcome.t(Success.t);
+
+  include MakePerformerSignatures(Success).S;
+};
+
 let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
@@ -69,7 +127,7 @@ let construct_operator =
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
 
-module Syn = {
+module rec Syn: Syn_S = {
   module Success = {
     module Poly = {
       [@deriving sexp]
@@ -604,15 +662,19 @@ module Syn = {
 
     | (Init, _) => failwith("Init action should not be performed.")
     };
-};
-
-module Ana = {
+}
+and Ana: Ana_S = {
   module Success = {
-    [@deriving sexp]
-    type t = {
-      zty: ZTyp.t,
-      u_gen: MetaVarGen.t,
+    module Poly = {
+      [@deriving sexp]
+      type t('z) = {
+        zty: 'z,
+        u_gen: MetaVarGen.t,
+      };
     };
+
+    [@deriving sexp]
+    type t = Poly.t(ZTyp.t);
 
     let mk_result =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
@@ -625,6 +687,7 @@ module Ana = {
       };
     };
   };
+  open Success.Poly;
 
   let mk_text =
       (
@@ -675,7 +738,7 @@ module Ana = {
   };
 
   let rec move =
-          (a: Action.t, {Success.zty, u_gen: _} as ana_r, k: Kind.t)
+          (a: Action.t, {zty, u_gen: _} as ana_r, k: Kind.t)
           : ActionOutcome.t(Success.t) =>
     switch (a) {
     | MoveTo(path) =>
@@ -761,7 +824,11 @@ module Ana = {
         let zoperand = roperand |> ZTyp.place_before_operand;
         ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
       };
-      Succeeded({Success.zty: new_zty, u_gen});
+      Succeeded({zty: new_zty, u_gen});
     };
   };
+
+  let rec perform = failwith("TODO")
+  and perform_opseq = failwith("TODO")
+  and perform_operand = failwith("TODO");
 };
