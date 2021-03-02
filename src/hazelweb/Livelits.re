@@ -397,35 +397,34 @@ module GradeCutoffLivelitView = {
         {a, b, c, d, selecting}: BuiltinLivelits.GradeCutoffLivelitCore.model,
         trigger,
         _,
-        {dargs: _, _}: LivelitView.splice_and_param_getters,
+        {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
-    /*
-     let data_opt =
-       switch (dargs) {
-       | None
-       | Some([(_, None)]) => None
-       | Some([(_, Some((d, _)))]) => Some(d)
-       | Some(l) =>
-         failwith(
-           "Invalid grade_cutoffs params: "
-           ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
-         )
-       };
-     */
-    let grades = [93, 88, 75, 86, 78, 82, 67, 54, 45, 71, 69, 62, 97, 83, 85];
     let data_opt =
-      Some(
-        grades
-        |> List.fold_left(
-             (acc, g) => DHExp.Cons(IntLit(g), acc),
-             DHExp.ListNil(Int),
-           ),
-      );
+      switch (dargs) {
+      | None
+      | Some([(_, None)]) => None
+      | Some([(_, Some((d, _)))]) => Some(d)
+      | Some(l) =>
+        failwith(
+          "Invalid grade_cutoffs params: "
+          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+        )
+      };
+    /*
+     let grades = [93, 88, 75, 86, 78, 82, 67, 54, 45, 71, 69, 62, 97, 83, 85];
+     let data_opt =
+       Some(
+         grades
+         |> List.fold_left(
+              (acc, g) => DHExp.Cons(IntLit(g), acc),
+              DHExp.ListNil(Int),
+            ),
+       );
+     */
+    let grades_invalids_opt =
+      Option.map(dhexp_to_grades_invalids([], 0), data_opt);
     let grades_svgs_invalids_opt =
-      data_opt
-      |> Option.map(d =>
-           dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
-         );
+      Option.map(grades_invalids_to_svgs, grades_invalids_opt);
     let (grades_svgs, data_err_msg) =
       switch (grades_svgs_invalids_opt) {
       | None => ([], [Node.text("Grades data was never evaluated")])
@@ -556,80 +555,83 @@ module GradeCutoffLivelitView = {
       );
     };
 
-    let distribution_line = {
-      let (fs, ds) = List.partition(g => g < d, grades);
-      let (ds, cs) = List.partition(g => g < c, ds);
-      let (cs, bs) = List.partition(g => g < b, cs);
-      let (bs, as_) = List.partition(g => g < a, bs);
-      let line_y = (-12.);
-      // let line =
-      //   Node.create_svg(
-      //     "line",
-      //     [
-      //       Attr.classes(["distribution-line"]),
-      //       Attr.create("x1", "0"),
-      //       Attr.create("y1", string_of_float(line_y)),
-      //       Attr.create("x2", Printf.sprintf("%f", scale_len)),
-      //       Attr.create("y2", string_of_float(line_y)),
-      //       Attr.create("vector-effect", "non-scaling-stroke"),
-      //     ],
-      //     [],
-      //   );
-      let labeled_bucket = (x1, x2, num) => {
-        let len = (-0.75);
-        let bucket =
-          SvgUtil.Path.[
-            M({x: x1, y: line_y -. len}),
-            V({y: line_y}),
-            H({x: x2}),
-            V({y: line_y -. len}),
-          ]
-          |> SvgUtil.Path.view(
-               ~attrs=[
-                 Attr.classes(["bucket-path"]),
-                 Attr.create("vector-effect", "non-scaling-stroke"),
-               ],
-             );
-        let label =
-          Node.create_svg(
-            "text",
-            [
-              Attr.classes(["grade-cutoff-bucket-label"]),
-              Attr.create("x", string_of_float((x1 +. x2) *. 0.5)),
-              Attr.create("y", string_of_float(line_y -. 1.)),
-              Attr.create("dominant-baseline", "auto"),
-              Attr.create("text-anchor", "middle"),
-              Attr.create("vector-effect", "non-scaling-stroke"),
-            ],
-            [Node.text(string_of_int(num))],
+    let distribution_line =
+      switch (grades_invalids_opt) {
+      | None => []
+      | Some((grades, _)) =>
+        let (fs, ds) = List.partition(g => g < d, grades);
+        let (ds, cs) = List.partition(g => g < c, ds);
+        let (cs, bs) = List.partition(g => g < b, cs);
+        let (bs, as_) = List.partition(g => g < a, bs);
+        let line_y = (-12.);
+        // let line =
+        //   Node.create_svg(
+        //     "line",
+        //     [
+        //       Attr.classes(["distribution-line"]),
+        //       Attr.create("x1", "0"),
+        //       Attr.create("y1", string_of_float(line_y)),
+        //       Attr.create("x2", Printf.sprintf("%f", scale_len)),
+        //       Attr.create("y2", string_of_float(line_y)),
+        //       Attr.create("vector-effect", "non-scaling-stroke"),
+        //     ],
+        //     [],
+        //   );
+        let labeled_bucket = (x1, x2, num) => {
+          let len = (-0.75);
+          let bucket =
+            SvgUtil.Path.[
+              M({x: x1, y: line_y -. len}),
+              V({y: line_y}),
+              H({x: x2}),
+              V({y: line_y -. len}),
+            ]
+            |> SvgUtil.Path.view(
+                 ~attrs=[
+                   Attr.classes(["bucket-path"]),
+                   Attr.create("vector-effect", "non-scaling-stroke"),
+                 ],
+               );
+          let label =
+            Node.create_svg(
+              "text",
+              [
+                Attr.classes(["grade-cutoff-bucket-label"]),
+                Attr.create("x", string_of_float((x1 +. x2) *. 0.5)),
+                Attr.create("y", string_of_float(line_y -. 1.)),
+                Attr.create("dominant-baseline", "auto"),
+                Attr.create("text-anchor", "middle"),
+                Attr.create("vector-effect", "non-scaling-stroke"),
+              ],
+              [Node.text(string_of_int(num))],
+            );
+          [bucket, label];
+        };
+        let buffer = 0.4;
+        let fs_bucket =
+          labeled_bucket(0., Float.of_int(d) -. buffer, List.length(fs));
+        let ds_bucket =
+          labeled_bucket(
+            Float.of_int(d) +. buffer,
+            Float.of_int(c) -. buffer,
+            List.length(ds),
           );
-        [bucket, label];
+        let cs_bucket =
+          labeled_bucket(
+            Float.of_int(c) +. buffer,
+            Float.of_int(b) -. buffer,
+            List.length(cs),
+          );
+        let bs_bucket =
+          labeled_bucket(
+            Float.of_int(b) +. buffer,
+            Float.of_int(a) -. buffer,
+            List.length(bs),
+          );
+        let as_bucket =
+          labeled_bucket(Float.of_int(a) +. buffer, 100., List.length(as_));
+        fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
       };
-      let buffer = 0.4;
-      let fs_bucket =
-        labeled_bucket(0., Float.of_int(d) -. buffer, List.length(fs));
-      let ds_bucket =
-        labeled_bucket(
-          Float.of_int(d) +. buffer,
-          Float.of_int(c) -. buffer,
-          List.length(ds),
-        );
-      let cs_bucket =
-        labeled_bucket(
-          Float.of_int(c) +. buffer,
-          Float.of_int(b) -. buffer,
-          List.length(cs),
-        );
-      let bs_bucket =
-        labeled_bucket(
-          Float.of_int(b) +. buffer,
-          Float.of_int(a) -. buffer,
-          List.length(bs),
-        );
-      let as_bucket =
-        labeled_bucket(Float.of_int(a) +. buffer, 100., List.length(as_));
-      fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
-    };
 
     let thumbs = {
       let (a, b, c, d) = (
