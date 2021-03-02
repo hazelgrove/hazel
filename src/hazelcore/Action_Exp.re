@@ -90,7 +90,7 @@ let negate_literal =
   | _ => lit
   };
 
-let fix_zunop = (zunop: ZExp.zoperand): ZExp.zoperand => {
+let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand => {
   print_endline("zunop to znumlit");
   switch (zunop) {
   | UnaryOpZ(err, op, CursorE(OnText(j), IntLit(_, n) | FloatLit(_, n))) =>
@@ -98,10 +98,12 @@ let fix_zunop = (zunop: ZExp.zoperand): ZExp.zoperand => {
       switch (op) {
       | Negate => (OnText(j + 1), "-" ++ n)
       | FNegate =>
-        if (float_of_string_opt(n) != None) {
-          (OnText(j + 1), "-" ++ n);
-        } else {
+        if (int_of_string_opt(n) != None) {
+          print_endline("did parse as a int");
           (OnText(j + 2), "-." ++ n);
+        } else {
+          print_endline("didn't parse as a int");
+          (OnText(j + 1), "-" ++ n);
         }
       };
     switch (TextShape.of_text(new_text)) {
@@ -1248,7 +1250,7 @@ and syn_perform_opseq =
     | Some(unop) =>
       let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand =
-        fix_zunop(
+        zunop_to_znumlit(
           ZExp.UnaryOpZ(
             NotInHole,
             unop,
@@ -1483,7 +1485,8 @@ and syn_perform_opseq =
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
       let new_prefix = Seq.A(Operators_Exp.Space, prefix);
-      let new_zoperand = fix_zunop(ZExp.UnaryOpZ(NotInHole, unop, zoperand));
+      let new_zoperand =
+        zunop_to_znumlit(ZExp.UnaryOpZ(NotInHole, unop, zoperand));
       let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("binop has no unop")
@@ -1976,7 +1979,7 @@ and syn_perform_operand =
       let zchild = ZExp.place_before_operand(child);
       let new_ze =
         ZExp.ZBlock.wrap(
-          fix_zunop(ZExp.UnaryOpZ(ErrStatus.NotInHole, unop, zchild)),
+          zunop_to_znumlit(ZExp.UnaryOpZ(ErrStatus.NotInHole, unop, zchild)),
         );
       Succeeded(SynDone((new_ze, ty_u, u_gen)));
     | _ =>
@@ -2107,7 +2110,7 @@ and syn_perform_operand =
             | ZOperand(zchild, (E, E)) =>
               let new_ze =
                 ZExp.ZBlock.wrap(
-                  fix_zunop(UnaryOpZ(NotInHole, unop, zchild)),
+                  zunop_to_znumlit(UnaryOpZ(NotInHole, unop, zchild)),
                 );
               Succeeded(SynDone((new_ze, ty, u_gen)));
             | ZOperand(_) =>
@@ -2856,7 +2859,7 @@ and ana_perform_opseq =
     | Some(unop) =>
       let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand =
-        fix_zunop(
+        zunop_to_znumlit(
           ZExp.UnaryOpZ(
             NotInHole,
             unop,
@@ -3077,7 +3080,8 @@ and ana_perform_opseq =
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
       let new_prefix = Seq.A(Operators_Exp.Space, prefix);
-      let new_zoperand = fix_zunop(ZExp.UnaryOpZ(NotInHole, unop, zoperand));
+      let new_zoperand =
+        zunop_to_znumlit(ZExp.UnaryOpZ(NotInHole, unop, zoperand));
       let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => failwith("binop has no unop")
@@ -3547,7 +3551,7 @@ and ana_perform_operand =
         ? {
           let new_ze =
             ZExp.ZBlock.wrap(
-              fix_zunop(
+              zunop_to_znumlit(
                 ZExp.UnaryOpZ(ErrStatus.NotInHole, unop, new_zchild),
               ),
             );
@@ -3557,7 +3561,7 @@ and ana_perform_operand =
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              fix_zunop(
+              zunop_to_znumlit(
                 ZExp.UnaryOpZ(
                   ErrStatus.InHole(TypeInconsistent, u),
                   unop,
@@ -3738,7 +3742,7 @@ and ana_perform_operand =
                 ? {
                   let new_ze =
                     ZExp.ZBlock.wrap(
-                      fix_zunop(UnaryOpZ(NotInHole, unop, zchild)),
+                      zunop_to_znumlit(UnaryOpZ(NotInHole, unop, zchild)),
                     );
                   Succeeded(AnaDone((new_ze, u_gen)));
                 }
