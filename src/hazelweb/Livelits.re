@@ -1487,10 +1487,10 @@ module SliderLivelitFloatView = {
             [
               Attr.classes(["slider"]),
               Attr.type_("range"),
-              Attr.create("min", string_of_float(min)),
-              Attr.create("max", string_of_float(max)),
+              Attr.create("min", Printf.sprintf("%f", min)),
+              Attr.create("max", Printf.sprintf("%f", max)),
               Attr.create("step", "0.01"),
-              Attr.value(string_of_float(value)),
+              Attr.value(Printf.sprintf("%f", value)),
               Attr.on_input((_, value_str) =>
                 trigger(Slide(float_of_string(value_str)))
               ),
