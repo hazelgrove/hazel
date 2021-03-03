@@ -34,6 +34,7 @@ type typed =
   // user-defined livelit has no expansion
   | AnaLivelitDoesNotExpand(HTyp.t)
   | SynLivelitDoesNotExpand
+  | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
   | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)

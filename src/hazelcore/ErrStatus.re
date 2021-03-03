@@ -4,7 +4,8 @@ module SubReason = {
   [@deriving sexp]
   type t =
     | InsufficientParams
-    | DoesNotExpand;
+    | DoesNotExpand // TODO: rename to DecodingError
+    | IllTypedExpansion;
 };
 
 module HoleReason = {

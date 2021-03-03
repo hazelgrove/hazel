@@ -1064,8 +1064,18 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | ApLivelit(
+        _,
+        InHole(
+          TypeInconsistent(None | Some(IllTypedExpansion)) as reason,
+          u,
+        ),
+        _,
+        _,
+        _,
+        _,
+      )
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1245,7 +1255,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       ) =>
-      //TODO(andrew): not sure this makes sense
+      //TODO(andrew): not sure what this should do
       Elaborates(Triv, Hole, delta)
     | ApLivelit(
         llu,
@@ -1292,7 +1302,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         lln,
         serialized_model,
         si,
-        {name, expansion_ty, captures_ty, param_tys, expand, _},
+        {name, expansion_ty, captures_ty, param_tys, _} as livelit_defn,
         closed_dargs,
         reqd_param_tys,
         args,
@@ -1303,7 +1313,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       |> ListUtil.take(closed_dargs |> List.length)
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
-    let proto_expansion = expand(serialized_model);
+    let proto_expansion = livelit_defn.expand(serialized_model);
     let proto_expansion_ty = HTyp.Arrow(captures_ty, expansion_ty);
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
@@ -1735,8 +1745,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1868,11 +1877,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | Subscript(NotInHole, _, _, _)
     | ApLivelit(
         _,
-        NotInHole |
-        InHole(
-          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-          _,
-        ),
+        NotInHole | InHole(TypeInconsistent(None | Some(_)), _),
         _,
         _,
         _,
