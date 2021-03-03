@@ -97,7 +97,9 @@ let get_cursor_info = (program: t) => {
   switch (program.edit_state.term) {
   | Unfocused(_) => None
   | Focused(ze) =>
-    Some(cursor_info(ze) |> OptUtil.get(() => raise(MissingCursorInfo)))
+    // TODO commented out for now to prevent fatals
+    // Some(cursor_info(ze) |> OptUtil.get(() => raise(MissingCursorInfo)))
+    cursor_info(ze)
   };
 };
 
