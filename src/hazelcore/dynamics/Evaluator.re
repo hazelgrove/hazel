@@ -277,7 +277,29 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
       | Some(d) => evaluate'(d)
       }
     | FailedAssert(d1) => Indet(d1)
-    | ApBuiltin(x, l) => builtinfunctions_evaluate(x, l)
+    | ApBuiltin(f, args) =>
+      // Need to make sure to evaluate args before
+      // evaluating built-in function in case args
+      // contained indet forms (eg livelit holes)
+      // that were filled and need to be resumed.
+      let evaluated_args = List.map(evaluate', args);
+      let is_invalid = (
+        fun
+        | InvalidInput(n) => Some(n)
+        | _ => None
+      );
+      let get_evaluated = (
+        fun
+        | BoxedValue(d)
+        | Indet(d) => Some(d)
+        | _ => None
+      );
+      switch (List.filter_map(is_invalid, evaluated_args)) {
+      | [n, ..._] => InvalidInput(n)
+      | [] =>
+        let args = List.filter_map(get_evaluated, evaluated_args);
+        builtinfunctions_evaluate(f, args);
+      };
     | Let(dp, d1, d2) =>
       switch (evaluate'(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
