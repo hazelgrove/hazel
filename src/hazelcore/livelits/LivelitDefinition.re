@@ -20,6 +20,8 @@ type t = {
   name: LivelitName.t,
   expansion_ty: HTyp.t,
   captures_ty: HTyp.t,
+  action_ty: HTyp.t,
+  model_ty: HTyp.t,
   param_tys: list((Var.t, HTyp.t)),
   init_model: SpliceGenCmd.t(SerializedModel.t),
   update:

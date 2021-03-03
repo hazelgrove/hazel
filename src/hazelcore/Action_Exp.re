@@ -2239,7 +2239,29 @@ and syn_perform_operand =
     let (_, livelit_ctx) = ctx;
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
     | None => Failed
-    | Some(({update, _ /*model_ty,*/} as livelit_defn, _)) =>
+    | Some(({update, action_ty, _} as livelit_defn, _)) =>
+      if (HTyp.eq(action_ty, HTyp.Hole)) {
+        ();
+          // builtin livelit case: don't do anything
+      } else {
+        //user-defined livelit case
+        switch (
+          Statics_DHExp.syn(
+            ctx,
+            Delta.empty,
+            DHExp.t_of_sexp(serialized_action),
+            //TODO: catch exceptions here
+          )
+        ) {
+        | None => print_endline("no type synthesized")
+        | Some(actual_action_ty) =>
+          if (HTyp.consistent(actual_action_ty, action_ty)) {
+            print_endline("perform livelit action: action type correct");
+          } else {
+            print_endline("perform livelit action: action type INCORRECT");
+          }
+        };
+      };
       let update_cmd = update(serialized_model, serialized_action);
       let (serialized_model, splice_info, u_gen) =
         SpliceGenCmd.exec(update_cmd, splice_info, u_gen);

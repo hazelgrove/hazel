@@ -967,7 +967,9 @@ module LivelitCoreAdapter = (L: LIVELIT_CORE) => {
     LivelitDefinition.{
       name: L.name,
       expansion_ty: L.expansion_ty,
-      captures_ty: HTyp.Hole, // NOTE(andrew): morally should be unit type
+      captures_ty: HTyp.Prod([]),
+      action_ty: HTyp.Hole,
+      model_ty: HTyp.Hole,
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>

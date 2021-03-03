@@ -261,6 +261,8 @@ module rec M: Statics_Exp_Sig.S = {
       shape,
       expand,
       expansion_type,
+      model_type,
+      action_type,
       _,
     }: UHExp.livelit_record = llrecord;
     let captures_ty =
@@ -270,6 +272,8 @@ module rec M: Statics_Exp_Sig.S = {
       };
     let new_ll_def: LivelitDefinition.t = {
       name: name_str,
+      action_ty: UHTyp.expand(action_type),
+      model_ty: UHTyp.expand(model_type),
       captures_ty,
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
@@ -620,23 +624,32 @@ module rec M: Statics_Exp_Sig.S = {
   }
   and syn_ApLivelit =
       (ctx, livelit_defn, serialized_model, splice_info, all_param_tys)
-      : option(HTyp.t) =>
-    switch (
-      ana_splice_map_and_params(ctx, splice_info.splice_map, all_param_tys)
-    ) {
-    | None => None
-    | Some(splice_ctx) =>
-      let {expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
-      switch (livelit_defn.expand(serialized_model)) {
-      | Failure(_) => None
-      | Success(expansion) =>
-        let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
-        switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
-        | None => None
-        | Some(_) => Some(expansion_ty)
-        };
+      : option(HTyp.t) => {
+    let* _guard =
+      switch (livelit_defn.model_ty) {
+      | HTyp.Hole =>
+        // builtin livelit case
+        Some()
+      | _ =>
+        // user-defined livelit case
+        let* model =
+          try(Some(DHExp.t_of_sexp(serialized_model))) {
+          | _ => None
+          };
+        let* model_ty = Statics_DHExp.syn(ctx, Delta.empty, model); //TODO: attach real Delta?
+        HTyp.consistent(model_ty, livelit_defn.model_ty) ? Some() : None;
       };
-    }
+    let* splice_ctx =
+      ana_splice_map_and_params(ctx, splice_info.splice_map, all_param_tys);
+    let {expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
+    switch (livelit_defn.expand(serialized_model)) {
+    | Failure(_) => None
+    | Success(expansion) =>
+      let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+      let* _guard = ana(splice_ctx, expansion, expansion_ap_ty);
+      Some(expansion_ty);
+    };
+  }
   and ana_splice_map_and_params =
       (
         ctx: Contexts.t,

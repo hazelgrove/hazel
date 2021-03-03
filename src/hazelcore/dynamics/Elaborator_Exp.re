@@ -1391,7 +1391,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                  );
             let captures_value =
               switch (captures_ty) {
-              | HTyp.Hole => DHExp.Triv
+              | HTyp.Prod([]) => DHExp.Triv
               | _ => DHExp.BoundVar(name)
               };
             let proto_elaboration =
