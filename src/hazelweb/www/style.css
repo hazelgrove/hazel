@@ -959,6 +959,7 @@ h1 {
   border-radius: 0;
   border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
+  cursor: default;
 }
 
 .LivelitView.Inline {
