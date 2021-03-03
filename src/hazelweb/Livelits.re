@@ -353,18 +353,18 @@ module GradeCutoffLivelitView = {
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
+  let is_valid_percentage = (p: float) => 0. <= p && p <= 100.;
 
   let grades_invalids_to_svgs = ((grades, invalid_count)) => {
     let valid_grades =
       grades
       |> List.filter_map(grade =>
-           if (0 <= grade && grade <= 100) {
+           if (0. <= grade && grade <= 100.) {
              Some(
                Node.create_svg(
                  "circle",
                  [
-                   Attr.create("cx", string_of_int(grade)),
+                   Attr.create("cx", Printf.sprintf("%f", grade)),
                    Attr.create("cy", "0"),
                    Attr.create("r", "0.75"),
                    Attr.create("fill", "orange"),
@@ -385,7 +385,7 @@ module GradeCutoffLivelitView = {
 
   let rec dhexp_to_grades_invalids = (rslt, invalid_count) =>
     fun
-    | DHExp.Cons(DHExp.IntLit(g), d) =>
+    | DHExp.Cons(DHExp.FloatLit(g), d) =>
       dhexp_to_grades_invalids([g, ...rslt], invalid_count, d)
     | DHExp.Cons(_, d) =>
       dhexp_to_grades_invalids(rslt, invalid_count + 1, d)
@@ -452,9 +452,8 @@ module GradeCutoffLivelitView = {
     let thumb_radius = 3.;
     let thumb_tip = 5.;
 
-    let cutoff_thumb = (letter: letter_grade, value: int) => {
+    let cutoff_thumb = (letter: letter_grade, v: float) => {
       open SvgUtil;
-      let v = Float.of_int(value);
       let chord_distance = thumb_radius /. Float.sqrt(2.);
       let arc_start = Point.{x: v -. chord_distance, y: -. thumb_tip};
       let arc_end = Point.{x: v +. chord_distance, y: -. thumb_tip};
@@ -608,28 +607,14 @@ module GradeCutoffLivelitView = {
           [bucket, label];
         };
         let buffer = 0.4;
-        let fs_bucket =
-          labeled_bucket(0., Float.of_int(d) -. buffer, List.length(fs));
+        let fs_bucket = labeled_bucket(0., d -. buffer, List.length(fs));
         let ds_bucket =
-          labeled_bucket(
-            Float.of_int(d) +. buffer,
-            Float.of_int(c) -. buffer,
-            List.length(ds),
-          );
+          labeled_bucket(d +. buffer, c -. buffer, List.length(ds));
         let cs_bucket =
-          labeled_bucket(
-            Float.of_int(c) +. buffer,
-            Float.of_int(b) -. buffer,
-            List.length(cs),
-          );
+          labeled_bucket(c +. buffer, b -. buffer, List.length(cs));
         let bs_bucket =
-          labeled_bucket(
-            Float.of_int(b) +. buffer,
-            Float.of_int(a) -. buffer,
-            List.length(bs),
-          );
-        let as_bucket =
-          labeled_bucket(Float.of_int(a) +. buffer, 100., List.length(as_));
+          labeled_bucket(b +. buffer, a -. buffer, List.length(bs));
+        let as_bucket = labeled_bucket(a +. buffer, 100., List.length(as_));
         fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
       };
 
@@ -667,7 +652,7 @@ module GradeCutoffLivelitView = {
                   100.
                   *. (offset_x -. scale##.left)
                   /. (px_scalar *. scale_len);
-                trigger(UpdateCutoff(letter, Float.to_int(cutoff)));
+                trigger(UpdateCutoff(letter, cutoff));
               }),
             ],
             [],

@@ -175,8 +175,8 @@ module MatrixLivelitCore = {
 
 module GradeCutoffLivelitCore = {
   let name = "$grade_cutoffs";
-  let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
-  let param_tys = [("data", HTyp.(List(Int)))];
+  let expansion_ty = HTyp.(Prod([Float, Float, Float, Float]));
+  let param_tys = [("data", HTyp.(List(Float)))];
 
   [@deriving sexp]
   type letter_grade =
@@ -187,23 +187,23 @@ module GradeCutoffLivelitCore = {
 
   [@deriving sexp]
   type model = {
-    a: int,
-    b: int,
-    c: int,
-    d: int,
+    a: float,
+    b: float,
+    c: float,
+    d: float,
     selecting: option(letter_grade),
   };
 
   [@deriving sexp]
   type action =
-    | UpdateCutoff(letter_grade, int)
+    | UpdateCutoff(letter_grade, float)
     | StartSelecting(letter_grade)
     | StopSelecting;
 
   let init_model =
-    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selecting: None});
+    SpliceGenCmd.return({a: 90., b: 80., c: 70., d: 60., selecting: None});
 
-  let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
+  let is_valid_percentage = (p: float) => 0. <= p && p <= 100.;
 
   let rec update_a = (new_a, model): model =>
     if (!is_valid_percentage(new_a)) {
@@ -211,7 +211,7 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, a: new_a};
       if (updated.a < updated.b) {
-        update_b(updated.a - 1, updated);
+        update_b(updated.a -. 1., updated);
       } else {
         updated;
       };
@@ -222,9 +222,9 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, b: new_b};
       if (updated.a <= updated.b) {
-        update_a(updated.b + 1, updated);
+        update_a(updated.b +. 1., updated);
       } else if (updated.b <= updated.c) {
-        update_c(updated.b - 1, updated);
+        update_c(updated.b -. 1., updated);
       } else {
         updated;
       };
@@ -235,9 +235,9 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, c: new_c};
       if (updated.b <= updated.c) {
-        update_b(updated.c + 1, updated);
+        update_b(updated.c +. 1., updated);
       } else if (updated.c <= updated.d) {
-        update_d(updated.c - 1, updated);
+        update_d(updated.c -. 1., updated);
       } else {
         updated;
       };
@@ -248,7 +248,7 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, d: new_d};
       if (updated.c <= updated.d) {
-        update_c(updated.c + 1, updated);
+        update_c(updated.c +. 1., updated);
       } else {
         updated;
       };
@@ -275,11 +275,11 @@ module GradeCutoffLivelitCore = {
     let tupl_seq =
       UHExp.(
         Seq.mk(
-          intlit'(a),
+          floatlit'(a),
           [
-            (Operators_Exp.Comma, intlit'(b)),
-            (Operators_Exp.Comma, intlit'(c)),
-            (Operators_Exp.Comma, intlit'(d)),
+            (Operators_Exp.Comma, floatlit'(b)),
+            (Operators_Exp.Comma, floatlit'(c)),
+            (Operators_Exp.Comma, floatlit'(d)),
           ],
         )
       );
