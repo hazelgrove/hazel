@@ -51,7 +51,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         | "n"
         | "\\"
         | "\""
-        | "\'" =>
+        | "'" =>
           Vdom.[
             Node.span(
               [Attr.classes(["valid-seq"])],

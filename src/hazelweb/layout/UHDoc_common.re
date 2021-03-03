@@ -30,7 +30,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some((m: memoization_value('v))) =>
+      | Some(m: memoization_value('v)) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
@@ -202,7 +202,7 @@ let rec mk_text_string_rec = (~start_index=0, s: string): t =>
       | " "
       | "\\"
       | "\""
-      | "\'" =>
+      | "'" =>
         Doc.hcat(
           annot_ValidSeq(String.sub(s, 0, 2)),
           mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
