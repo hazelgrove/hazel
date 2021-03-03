@@ -3663,13 +3663,14 @@ and ana_perform_operand =
     switch (a, unop, zchild) {
     | (Construct(SChar(".")), Negate, CursorE(_, e))
         when ZExp.is_before_zoperand(zchild) =>
+      print_endline("ANA convert int negation - to float negation -.");
       // convert int negation - to float negation -.
       let (new_child, u_gen) =
         Statics_Exp.ana_fix_holes_operand(ctx, u_gen, e, Float);
       let new_zchild = ZExp.place_before_operand(new_child);
       let (new_zoperand, u_gen) =
         ana_zunop_to_znumlit(
-          UnaryOpZ(NotInHole, unop, new_zchild),
+          UnaryOpZ(NotInHole, FNegate, new_zchild),
           u_gen,
           ty,
         );
