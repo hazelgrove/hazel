@@ -32,8 +32,8 @@ type typed =
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   | AnaFreeLivelit(HTyp.t)
   // user-defined livelit has no expansion
-  | AnaLivelitDoesNotExpand(HTyp.t)
-  | SynLivelitDoesNotExpand
+  | AnaLivelitDecodingError(HTyp.t)
+  | SynLivelitDecodingError
   | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
   | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // none of the above and didn't go through subsumption

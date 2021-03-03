@@ -4,7 +4,7 @@ module SubReason = {
   [@deriving sexp]
   type t =
     | InsufficientParams
-    | DoesNotExpand // TODO: rename to DecodingError
+    | DecodingError
     | IllTypedExpansion;
 };
 

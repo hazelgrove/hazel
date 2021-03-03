@@ -1249,7 +1249,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       }
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        InHole(TypeInconsistent(Some(DecodingError)), _),
         _,
         _,
         _,

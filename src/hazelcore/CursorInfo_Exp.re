@@ -600,7 +600,7 @@ and syn_cursor_info_skel =
           | Some(
               StandardErr(
                 InHole(
-                  TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+                  TypeInconsistent(Some(InsufficientParams | DecodingError)),
                   _,
                 ),
               ),
@@ -734,14 +734,14 @@ and syn_cursor_info_zoperand =
       _,
       ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        InHole(TypeInconsistent(Some(DecodingError)), _),
         _,
         _,
         _,
         _,
       ),
     ) =>
-    Some(CursorInfo_common.mk(SynLivelitDoesNotExpand, ctx, cursor_term))
+    Some(CursorInfo_common.mk(SynLivelitDecodingError, ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -1201,14 +1201,14 @@ and ana_cursor_info_zoperand =
       );
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        InHole(TypeInconsistent(Some(DecodingError)), _),
         _,
         _,
         _,
         _,
       ) =>
       Some(
-        CursorInfo_common.mk(AnaLivelitDoesNotExpand(ty), ctx, cursor_term),
+        CursorInfo_common.mk(AnaLivelitDecodingError(ty), ctx, cursor_term),
       )
     | FreeLivelit(_, _) =>
       Some(CursorInfo_common.mk(AnaFreeLivelit(ty), ctx, cursor_term))

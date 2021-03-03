@@ -211,11 +211,11 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_livelit_indicator;
       (ind1, ind2, BindingError);
-    | AnaLivelitDoesNotExpand(expected_ty) =>
+    | AnaLivelitDecodingError(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_livelit_expansion_indicator;
       (ind1, ind2, TypeInconsistency);
-    | SynLivelitDoesNotExpand =>
+    | SynLivelitDecodingError =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_livelit_expansion_indicator;
       (ind1, ind2, TypeInconsistency);
