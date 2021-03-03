@@ -1064,7 +1064,17 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _)
+    | ApLivelit(
+        _,
+        InHole(
+          TypeInconsistent(None | Some(IllTypedExpansion)) as reason,
+          u,
+        ),
+        _,
+        _,
+        _,
+        _,
+      )
     | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
@@ -1303,21 +1313,11 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       |> ListUtil.take(closed_dargs |> List.length)
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
-    print_endline("EXPAND 3 :: elaborator proto-expansion");
     let proto_expansion = livelit_defn.expand(serialized_model);
     let proto_expansion_ty = HTyp.Arrow(captures_ty, expansion_ty);
     switch (proto_expansion) {
-    | Failure(_err) =>
-      print_endline("EXPAND 3: failed to expand. Returning DoesNotElaborate");
-      DoesNotElaborate;
+    | Failure(_err) => DoesNotElaborate
     | Success(proto_expansion) =>
-      print_endline("EXPAND 3: expand succeeded.");
-      print_endline("is expansion complete?:");
-      print_endline(string_of_bool(UHExp.is_complete(proto_expansion)));
-      print_endline("expansion:");
-      print_endline(
-        Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(proto_expansion)),
-      );
       let proto_elaboration_ctx = to_ctx(si, all_param_tys);
       let proto_elaboration_result =
         ana_elab(
@@ -1877,11 +1877,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | Subscript(NotInHole, _, _, _)
     | ApLivelit(
         _,
-        NotInHole |
-        InHole(
-          TypeInconsistent(None | Some(InsufficientParams | DoesNotExpand)),
-          _,
-        ),
+        NotInHole | InHole(TypeInconsistent(None | Some(_)), _),
         _,
         _,
         _,

@@ -869,7 +869,12 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None =>
+            print_endline("FFFFFFAIL");
+            print_endline(
+              Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zline(new_zline)),
+            );
+            Failed;
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -1181,16 +1186,19 @@ and syn_perform_line =
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
+    print_endline("LALALALALALA");
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
     | None => Failed
     | Some(ty) =>
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
-      | (Failed | CursorEscaped(_)) as err => err
+      | (Failed | CursorEscaped(_)) as err =>
+        print_endline("ARRRRRRRR");
+        err;
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
         Succeeded(LineDone((ze, ctx, u_gen)))
       }
-    }
+    };
 
   | (_, LivelitDefLineZExpansionType({expansion_type, _} as llrecord)) =>
     switch (Action_Typ.perform(a, expansion_type)) {

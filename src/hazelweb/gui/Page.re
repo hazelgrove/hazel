@@ -32,12 +32,16 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("grade_cutoffs")],
         ),
         Node.option(
-          [Attr.value("ll_def_slider")],
-          [Node.text("livelit slider, defined")],
+          [Attr.value("ll_def_slider_basic")],
+          [Node.text("user-defined livelit slider; basic")],
         ),
         Node.option(
-          [Attr.value("ll_def_slider2")],
-          [Node.text("livelit slider, defined, unique-id")],
+          [Attr.value("ll_def_slider_ill_typed_expansion")],
+          [Node.text("user-defined livelit slider; ill-typed expansion")],
+        ),
+        Node.option(
+          [Attr.value("ll_def_slider_unique_id")],
+          [Node.text("user-defined livelit slider; unique-id")],
         ),
       ],
     )

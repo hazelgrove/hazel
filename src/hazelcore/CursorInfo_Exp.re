@@ -609,6 +609,13 @@ and syn_cursor_info_skel =
             |> Option.map(ty =>
                  mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
                )
+          | Some(
+              StandardErr(
+                InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+              ),
+            ) =>
+            //TODO(andrew): Do we have access to the actual lldefn here? If so, expansion types below
+            Some(mk(LivelitIllTypedExpansion(Hole, Hole)))
           | Some(VarErr(Free)) =>
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some(VarErr(Keyword(k))) =>
@@ -697,15 +704,50 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(
+      _,
+      ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+        _,
+        name,
+        model,
+        splice_info,
+      ),
+    ) =>
+    let* declared_ty = Statics_Exp.declared_livelit_expansion_type(ctx, name);
+    let* actual_ty =
+      Statics_Exp.actual_livelit_expansion_type(
+        ctx,
+        name,
+        model,
+        splice_info,
+      );
+    Some(
+      CursorInfo_common.mk(
+        LivelitIllTypedExpansion(declared_ty, actual_ty),
+        ctx,
+        cursor_term,
+      ),
+    );
+  | CursorE(
+      _,
+      ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        _,
+        _,
+        _,
+        _,
+      ),
+    ) =>
+    Some(CursorInfo_common.mk(SynLivelitDoesNotExpand, ctx, cursor_term))
   | CursorE(_, e) =>
-    print_endline("syn_cursor_info_zoperand");
     switch (Statics_Exp.syn_operand(ctx, e)) {
-    | None =>
-      print_endline("syn_cursor_info_zoperand: None");
-      None;
+    | None => None
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty, ""), ctx, cursor_term))
-    };
+    }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
@@ -1132,6 +1174,31 @@ and ana_cursor_info_zoperand =
           ),
         )
       }
+
+    | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+        _,
+        name,
+        model,
+        splice_info,
+      ) =>
+      let* declared_ty =
+        Statics_Exp.declared_livelit_expansion_type(ctx, name);
+      let* actual_ty =
+        Statics_Exp.actual_livelit_expansion_type(
+          ctx,
+          name,
+          model,
+          splice_info,
+        );
+      Some(
+        CursorInfo_common.mk(
+          LivelitIllTypedExpansion(declared_ty, actual_ty),
+          ctx,
+          cursor_term,
+        ),
+      );
     | ApLivelit(
         _,
         InHole(TypeInconsistent(Some(DoesNotExpand)), _),

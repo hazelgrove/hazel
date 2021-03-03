@@ -5,7 +5,7 @@ module SubReason = {
   type t =
     | InsufficientParams
     | DoesNotExpand // TODO: rename to DecodingError
-    | IllTypedExpansion
+    | IllTypedExpansion;
 };
 
 module HoleReason = {
