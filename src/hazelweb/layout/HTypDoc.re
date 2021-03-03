@@ -25,7 +25,14 @@ let pad_child =
 
 let mk_delim = s => Doc.(annot(HTypAnnot.Delim, text(s)));
 
-let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
+let rec mk =
+        (
+          ~parenthesize=false,
+          ~strategy_guide=false,
+          ~enforce_inline: bool,
+          ty: HTyp.t,
+        )
+        : t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
@@ -41,14 +48,16 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Int => (text("Int"), parenthesize)
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
-    | List(ty) => (
+    | List(ty) =>
+      let close = strategy_guide ? ", ...]" : "]";
+      (
         hcats([
           mk_delim("["),
           mk(ty) |> pad_child(~enforce_inline),
-          mk_delim("]"),
+          mk_delim(close),
         ]),
         parenthesize,
-      )
+      );
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
@@ -84,15 +93,21 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
              hcats([text(","), choices([linebreak(), space()])]),
            )
         |> hcats;
-      (center, true);
+      let final_center =
+        strategy_guide ? hcats([center, mk_delim(", ...")]) : center;
+      (final_center, true);
     | Sum(ty1, ty2) =>
+      let close = strategy_guide ? " | ..." : "";
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
       (
         hcats([
-          d1,
-          hcats([choices([linebreak(), space()]), text("| ")]),
-          d2,
+          hcats([
+            d1,
+            hcats([choices([linebreak(), space()]), text("| ")]),
+            d2,
+          ]),
+          mk_delim(close),
         ]),
         parenthesize,
       );

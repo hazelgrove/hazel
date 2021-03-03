@@ -662,8 +662,8 @@ let list_compounds_view = () => {
   let compound_options =
     [
       HTyp.Sum(HTyp.Hole, HTyp.Hole),
-      HTyp.Prod([HTyp.Hole, HTyp.Hole, "..."]),
-      HTyp.List(HTyp.Hole, HTyp.Hole, "..."),
+      HTyp.Prod([HTyp.Hole, HTyp.Hole]),
+      HTyp.List(HTyp.Hole),
     ]
     |> List.map(s => {
          Node.div(
@@ -673,7 +673,7 @@ let list_compounds_view = () => {
              Node.text(" "),
              Node.text(get_shortcut(s)),
              Node.text(": "),
-             HTypCode.view(s),
+             HTypCode.view(~strategy_guide=true, s),
            ],
          )
        });
