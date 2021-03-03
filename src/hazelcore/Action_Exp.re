@@ -72,13 +72,8 @@ let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   switch (zoperand) {
   | CursorE(OnText(j), IntLit(_) as operand) =>
     is_negative_literal(operand) && j == 1
-  | CursorE(OnText(j), FloatLit(_, f) as operand) =>
-    print_endline("checkedf");
-    if (is_negative_literal(operand)) {
-      f.[1] == '.' && j == 2 || f.[1] != '.' && j == 1;
-    } else {
-      false;
-    };
+  | CursorE(OnText(j), FloatLit(_) as operand) =>
+    is_negative_literal(operand) && (j == 1 || j == 2)
   | _ => false
   };
 
@@ -157,16 +152,29 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
     )
   | CursorE(OnText(j), FloatLit(err, f)) =>
     print_endline("this case right here sir");
-    Some(
-      UnaryOpZ(
-        err,
-        FNegate,
-        CursorE(
-          OnText(j - 1),
+    let op: Unops_Exp.t =
+      if (f.[1] == '.' && j == 2) {
+        FNegate;
+      } else {
+        Negate;
+      };
+    let (new_cursor, operand) =
+      switch (op) {
+      | Negate =>
+        print_endline("before IT");
+        (
+          CursorPosition.OnText(j - 1),
           UHExp.floatlit(String.sub(f, 1, String.length(f) - 1)),
-        ),
-      ),
-    );
+        );
+      | FNegate =>
+        print_endline("before IT2");
+        print_endline(f);
+        (
+          CursorPosition.OnText(j - 2),
+          UHExp.intlit(String.sub(f, 2, String.length(f) - 2)),
+        );
+      };
+    Some(UnaryOpZ(err, op, CursorE(new_cursor, operand)));
   | _ => None
   };
 };
