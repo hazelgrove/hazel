@@ -816,6 +816,7 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
+          /* failing here */
           | None => Failed
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
@@ -1945,7 +1946,7 @@ and syn_perform_operand =
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt1))) {
     | None => Failed
     | Some(_) =>
-      switch (syn_perform(ctx, a, (zt1, ty, u_gen))) {
+      switch (ana_perform(ctx, a, (zt1, u_gen), HTyp.Bool)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
@@ -1953,13 +1954,15 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded((zt1, ty1, u_gen)) =>
+      | Succeeded((zt1, u_gen)) =>
+        /* let (_, ty_t1, u_gen) =
+           Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt1)); */
         /* Statics_Exp.syn_fix_holes() add later??  */
 
         let new_ze =
           ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
 
-        Succeeded(SynDone((new_ze, ty1, u_gen)));
+        Succeeded(SynDone((new_ze, ty, u_gen)));
       }
     /* switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
        | Failed => Failed
@@ -1982,11 +1985,13 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded((zt2, ty1, u_gen)) =>
+      | Succeeded((zt2, _, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later?? */
+        let (_, ty_t2, u_gen) =
+          Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
         let new_ze =
           ZExp.ZBlock.wrap(IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3));
-        Succeeded(SynDone((new_ze, ty1, u_gen)));
+        Succeeded(SynDone((new_ze, ty_t2, u_gen)));
       }
     }
   | (_, IfZ3(_, t1, t2, zt3)) =>
@@ -2001,11 +2006,13 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded((zt3, ty1, u_gen)) =>
+      | Succeeded((zt3, _, u_gen)) =>
         /* Statics_Exp.syn_fix_holes() add later?? */
+        let (_, ty_t3, u_gen) =
+          Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
         let new_ze =
           ZExp.ZBlock.wrap(IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3));
-        Succeeded(SynDone((new_ze, ty1, u_gen)));
+        Succeeded(SynDone((new_ze, ty_t3, u_gen)));
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")

@@ -886,8 +886,8 @@ and syn_fix_holes_operand =
       )
     };
   | If(_, t1, t2, t3) =>
-    let (t1, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
+    let (t1, _, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
     let (t2, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
     let (t3, ty3, u_gen) =
@@ -1341,8 +1341,7 @@ and ana_fix_holes_operand =
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
   | If(_, t1, t2, t3) =>
     /* check later for ana for both branches */
-    let (_, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
+    let (_, _, u_gen) = syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
     let (t2, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
     let (t3, ty3, u_gen) =
