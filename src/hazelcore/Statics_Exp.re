@@ -79,7 +79,8 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let _run_update_monad =
-      (_ctx: Contexts.t, d: DHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+      (ctx: Contexts.t, delta: Delta.t, model_ty: HTyp.t, d: DHExp.t)
+      : option(SpliceGenCmd.t(SerializedModel.t)) => {
     /* at this point, we have already evaluated init or update, resulting
           in a dhexp d which is a value of the following type:
 
@@ -87,12 +88,40 @@ module rec M: Statics_Exp_Sig.S = {
        Bind(x, f) = inj[L](inj[R]((x, f)))
        BindNewSplice(s) = inj[R](inj[L](s_ty, (s_exp, f)))
        BindSetSplice(s) = inj[R](inj[R]((spliceno, (new_ty, (new_uhexp_sexp_str, f)))))
+
+       Example:
+
+        Spliceslider init (ADT):
+        Bind(,
+          NewSplice("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])")
+          fun (spliceno) { Return((spliceno, 50))} )
+
+        Spliceslider update (ADT):
+        fun ((spliceno, _), action) { Return((spliceno, action)) }
+
+        Spliceslider init (anon):
+
+        inj[R](inj[L](
+          "HTyp.Int",
+            ("UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])",
+             fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
+
+        Spliceslider update (anon):
+        fun ((spliceno, _), action) { inj[L](inj[L]((spliceno, action))) }
+
+        *: uhexps would need to be sexped
+
        */
-    //let run' = _run_update_monad(ctx);
-    let serialize = d => d |> DHExp.sexp_of_t |> SpliceGenCmd.return;
+    //let run' = _run_update_monad(ctx, delta, model_ty);
+    let serialize = d => {
+      d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
+    };
 
     switch (d) {
-    | Inj(_, L, Inj(_, L, d0)) => serialize(d0)
+    | Inj(_, L, Inj(_, L, d0)) =>
+      let* d_ty = Statics_DHExp.syn(ctx, delta, d);
+      HTyp.consistent(d_ty, model_ty) ? Some(serialize(d0)) : None;
+    // Generic bind?
     /*
      | Inj(_, L, Inj(_, R, Pair(x, f))) =>
        let* d0 = run'(x);
@@ -116,12 +145,16 @@ module rec M: Statics_Exp_Sig.S = {
         Inj(_, L, Pair(StringLit(s_ty), Pair(StringLit(s_exp), f))),
       ) =>
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      // TODO: handle none case for option(Exp).. but how?
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
       let a =
         SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
-      SpliceGenCmd.bind(a, spliceno => {
-        DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> serialize
-      });
+
+      Some(
+        SpliceGenCmd.bind(a, spliceno => {
+          DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> serialize
+        }),
+      );
     | Inj(
         _,
         R,
@@ -135,17 +168,24 @@ module rec M: Statics_Exp_Sig.S = {
         ),
       ) =>
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      // TODO: handle none case for option(Exp).. but how?
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
       let a =
         SpliceGenCmd.map_splice(spliceno, (_, u_gen) => ((ty, exp), u_gen));
-      SpliceGenCmd.bind(a, _ => {
-        DHExp.Ap(f, DHExp.Triv) |> eval |> serialize
-      });
-    | _ => failwith("ERROR: run_init_monad: wrong data type")
+
+      Some(
+        SpliceGenCmd.bind(a, _ => {
+          DHExp.Ap(f, DHExp.Triv) |> eval |> serialize
+        }),
+      );
+
+    | _ =>
+      print_endline("ERROR: run_init_monad: wrong data type");
+      None;
     };
   };
 
-  let _run_wrapper = (ctx: Contexts.t, u: UHExp.t) => {
+  let _run_wrapper = (model_ty: HTyp.t, u: UHExp.t) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
     let d =
@@ -154,12 +194,11 @@ module rec M: Statics_Exp_Sig.S = {
       | Elaborates(d, _, _) => d
       };
     let d' = eval(d);
-    _run_update_monad(ctx, d');
+    _run_update_monad(elab_ctx, elab_delta, model_ty, d');
   };
 
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
     | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
@@ -172,7 +211,6 @@ module rec M: Statics_Exp_Sig.S = {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let update_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, update)) {
       | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
@@ -222,7 +260,6 @@ module rec M: Statics_Exp_Sig.S = {
       : LivelitDefinition.livelit_expand_result => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let expand_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
