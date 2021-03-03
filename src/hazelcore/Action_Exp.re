@@ -82,14 +82,7 @@ let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand => {
     let (new_cursor, new_text): (CursorPosition.t, string) =
       switch (op) {
       | Negate => (OnText(j + 1), "-" ++ n)
-      | FNegate =>
-        if (int_of_string_opt(n) != None) {
-          print_endline("did parse as a int");
-          (OnText(j + 2), "-." ++ n);
-        } else {
-          print_endline("didn't parse as a int");
-          (OnText(j + 1), "-" ++ n);
-        }
+      | FNegate => (OnText(j + 2), "-." ++ n)
       };
     switch (TextShape.of_text(new_text)) {
     | IntLit(n) => CursorE(new_cursor, IntLit(err, n))
@@ -140,6 +133,7 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
     );
   | CursorE(OnText(j), FloatLit(err, f)) =>
     print_endline("this case right here sir");
+    print_endline(f);
     let op: Unops_Exp.t =
       if (f.[1] == '.' && j == 2) {
         FNegate;
@@ -156,7 +150,6 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
         );
       | FNegate =>
         print_endline("before IT2");
-        print_endline(f);
         (
           CursorPosition.OnText(j - 2),
           UHExp.intlit(String.sub(f, 2, String.length(f) - 2)),
