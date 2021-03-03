@@ -1249,6 +1249,17 @@ h1 {
   stroke-width: 0;
 }
 
+.grade-cutoffs-livelit .student-average .student-average-label {
+  display: none;
+  font-family: "Gill Sans", sans-serif;
+  font-size: 2pt;
+  fill: orange;
+  stroke: orange;
+}
+.grade-cutoffs-livelit .student-average:hover .student-average-label {
+  display: block;
+}
+
 .slider-livelit {
   display: inline-block;
   height: var(--slider-livelit-height);

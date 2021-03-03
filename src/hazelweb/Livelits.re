@@ -358,19 +358,37 @@ module GradeCutoffLivelitView = {
   let grades_invalids_to_svgs = ((grades, invalid_count)) => {
     let valid_grades =
       grades
-      |> List.filter_map(grade =>
+      |> List.filter_map(((student, grade)) =>
            if (0. <= grade && grade <= 100.) {
              Some(
                Node.create_svg(
-                 "circle",
+                 "g",
+                 [Attr.classes(["student-average"])],
                  [
-                   Attr.create("cx", Printf.sprintf("%f", grade)),
-                   Attr.create("cy", "0"),
-                   Attr.create("r", "0.75"),
-                   Attr.create("fill", "orange"),
-                   Attr.create("stroke-width", "0"),
+                   Node.create_svg(
+                     "text",
+                     Attr.[
+                       classes(["student-average-label"]),
+                       create("vector-effect", "non-scaling-stroke"),
+                       create("dominant-baseline", "middle"),
+                       create("text-anchor", "middle"),
+                       create("x", Printf.sprintf("%f", grade)),
+                       create("y", "-2.5"),
+                     ],
+                     [Node.text(student)],
+                   ),
+                   Node.create_svg(
+                     "circle",
+                     Attr.[
+                       create("cx", Printf.sprintf("%f", grade)),
+                       create("cy", "0"),
+                       create("r", "0.75"),
+                       create("fill", "orange"),
+                       create("stroke-width", "0"),
+                     ],
+                     [],
+                   ),
                  ],
-                 [],
                ),
              );
            } else {
@@ -385,8 +403,8 @@ module GradeCutoffLivelitView = {
 
   let rec dhexp_to_grades_invalids = (rslt, invalid_count) =>
     fun
-    | DHExp.Cons(DHExp.FloatLit(g), d) =>
-      dhexp_to_grades_invalids([g, ...rslt], invalid_count, d)
+    | DHExp.Cons(Pair(StringLit(s), FloatLit(g)), d) =>
+      dhexp_to_grades_invalids([(s, g), ...rslt], invalid_count, d)
     | DHExp.Cons(_, d) =>
       dhexp_to_grades_invalids(rslt, invalid_count + 1, d)
     | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
@@ -403,7 +421,7 @@ module GradeCutoffLivelitView = {
       switch (dargs) {
       | None
       | Some([(_, None)]) => None
-      | Some([(_, Some((d, _)))]) => Some(d)
+      | Some([(_, Some((d, _)))]) => Some(DHExp.strip_casts'(d))
       | Some(l) =>
         failwith(
           "Invalid grade_cutoffs params: "
@@ -558,6 +576,7 @@ module GradeCutoffLivelitView = {
       switch (grades_invalids_opt) {
       | None => []
       | Some((grades, _)) =>
+        let grades = List.map(snd, grades);
         let (fs, ds) = List.partition(g => g < d, grades);
         let (ds, cs) = List.partition(g => g < c, ds);
         let (cs, bs) = List.partition(g => g < b, cs);
