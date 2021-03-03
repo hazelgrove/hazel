@@ -1648,6 +1648,8 @@ module rec M: Statics_Exp_Sig.S = {
         splice_info,
       )
       : (UHExp.operand, HTyp.t, MetaVarGen.t) => {
+    let (llu, u_gen) =
+      renumber_empty_holes ? MetaVarGen.next_livelit(u_gen) : (llu, u_gen);
     let (splice_map, u_gen) =
       ana_fix_holes_splice_map(
         ctx,
