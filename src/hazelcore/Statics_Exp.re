@@ -78,64 +78,70 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let rec _run_update_monad =
-          (ctx: Contexts.t, d: DHExp.t)
-          : option(SpliceGenCmd.t(SerializedModel.t)) => {
+  let _run_update_monad =
+      (_ctx: Contexts.t, d: DHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
     /* at this point, we have already evaluated init or update, resulting
           in a dhexp d which is a value of the following type:
 
        Return(x) = inj[L](inj[L](x))
        Bind(x, f) = inj[L](inj[R]((x, f)))
-       NewSplice(s) = inj[R](inj[L](s_ty, s_exp))
-       MapSplice(s) = inj[R](inj[R]((spliceno, (new_ty, new_uhexp_sexp_str))))
+       BindNewSplice(s) = inj[R](inj[L](s_ty, (s_exp, f)))
+       BindSetSplice(s) = inj[R](inj[R]((spliceno, (new_ty, (new_uhexp_sexp_str, f)))))
        */
-    let run' = _run_update_monad(ctx);
+    //let run' = _run_update_monad(ctx);
     let serialize = d => d |> DHExp.sexp_of_t |> SpliceGenCmd.return;
-    // TODO: errors below
-    //let deserialize = str => str |> Sexplib.Sexp.of_string |> DHExp.t_of_sexp;
 
     switch (d) {
-    | Inj(_, L, Inj(_, L, d0)) => Some(serialize(d0))
-    | Inj(_, L, Inj(_, R, Pair(x, f))) =>
-      let* mm = run'(x);
-      Some(
-        SpliceGenCmd.bind(
-          mm,
-          s => {
-            let ds = DHExp.t_of_sexp(s); // TODO: errors
-            let dap = DHExp.Ap(f, ds);
-            let v = eval(dap);
-            serialize(v); // TODO: ??
-          },
-        ),
-      );
-    // specialize these cases to BindNewSplice, BindSetSplice
-    | Inj(_, R, Inj(_, L, Pair(StringLit(s_ty), StringLit(s_exp)))) =>
+    | Inj(_, L, Inj(_, L, d0)) => serialize(d0)
+    /*
+     | Inj(_, L, Inj(_, R, Pair(x, f))) =>
+       let* d0 = run'(x);
+       Some(
+         SpliceGenCmd.bind(
+           d0,
+           a => {
+             let dhexp_a =
+               try(DHExp.t_of_sexp(a)) {
+               | _ => DHExp.Triv // TODO: does this attempt at error-handling even make sense
+               };
+             let v = eval(DHExp.Ap(f, dhexp_a));
+             serialize(v); // TODO: is this right?
+           },
+         ),
+       );
+       */
+    | Inj(
+        _,
+        R,
+        Inj(_, L, Pair(StringLit(s_ty), Pair(StringLit(s_exp), f))),
+      ) =>
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
-      let _sgc =
+      let a =
         SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
-      // TODO: figure out types.... do we need two versions of this?
-      failwith("TODO");
+      SpliceGenCmd.bind(a, spliceno => {
+        DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> serialize
+      });
     | Inj(
         _,
         R,
         Inj(
           _,
           R,
-          Pair(IntLit(spliceno), Pair(StringLit(s_ty), StringLit(s_exp))),
+          Pair(
+            IntLit(spliceno),
+            Pair(StringLit(s_ty), Pair(StringLit(s_exp), f)),
+          ),
         ),
       ) =>
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
-      let _sgc =
+      let a =
         SpliceGenCmd.map_splice(spliceno, (_, u_gen) => ((ty, exp), u_gen));
-      // TODO: figure out types.... do we need multiple versions of this?
-      failwith("TODO");
-
-    | _ =>
-      print_endline("ERROR: run_init_monad: wrong data type");
-      None;
+      SpliceGenCmd.bind(a, _ => {
+        DHExp.Ap(f, DHExp.Triv) |> eval |> serialize
+      });
+    | _ => failwith("ERROR: run_init_monad: wrong data type")
     };
   };
 
@@ -626,6 +632,7 @@ module rec M: Statics_Exp_Sig.S = {
       (ctx, livelit_defn, serialized_model, splice_info, all_param_tys)
       : option(HTyp.t) => {
     let* _guard =
+      // check model type
       switch (livelit_defn.model_ty) {
       | HTyp.Hole =>
         // builtin livelit case
