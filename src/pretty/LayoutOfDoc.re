@@ -76,6 +76,24 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // with count++     avg:   1.5ms   per count:   6.1ns (count: 242785)
 
 // fib-doc(50):     avg:   2.0ms   per count:   9.7ns (count: 206668)
+// fib2             avg:   2.2ms   per count:  10.7ns (count: 206668)
+// pass width and pos (order doesn't matter)
+//                  avg:   2.1ms   per count:  10.3ns (count: 206668)
+// make release     avg:   1.5ms   per count:   7.0ns (count: 206668)
+// record wrapping  avg:   3.5ms   per count:  16.7ns (count: 206668)
+// extra field      avg:   1.6ms   per count:   7.9ns (count: 206668)
+//   --record in ctor   avg:   1.8ms   per count:   8.5ns (count: 206668)
+//   --pre let fields   avg:   1.7ms   per count:   8.2ns (count: 206668)
+//   --re.mem++         avg:   2.0ms   per count:   9.6ns (count: 206668)
+// reset            avg:   1.6ms   per count:   7.6ns (count: 206668)
+// thread pos       avg:   2.5ms   per count:  12.0ns (count: 206668)
+// mem++            avg:   4.0ms   per count:  19.6ns (count: 206668)
+// mem if (false)   avg:   4.2ms   per count:  20.3ns (count: 206668)
+// if mem < 0       avg:   4.5ms   per count:  22.0ns (count: 206668)
+// if mem == gensym^avg:   4.6ms   per count:  22.5ns (count: 206668)
+// mem := gensym^   avg:   4.6ms   per count:  22.5ns (count: 206668)
+// mem := gg        same
+
 
 // JS: constant lifted x[0] out of loop
 
@@ -90,22 +108,22 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // y = 0; x = [1]; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x[0])/2; x[0]++ }; Date.now() - start
 // y = 0; x = {tag:1}; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x.tag)/2; x.tag++ }; Date.now() - start
 
-
 type my_fib =
-  | Text2(int)
-  | Cat2(my_fib, my_fib)
-  | Align2(my_fib)
-  | Annot2(int, my_fib)
-  | Choice2(my_fib, my_fib);
-// let rec t2_of_doc = (doc: Doc.t('annot)): t2 => {
+  | Text2(ref(int), int)
+  | Fail2(ref(int))
+  | Cat2(ref(int), my_fib, my_fib)
+  | Align2(ref(int), my_fib)
+  | Annot2(ref(int), int, my_fib)
+  | Choice2(ref(int), my_fib, my_fib);
+// let rec fib_of_doc = (doc: Doc.t('annot)): my_fib => {
 //   switch (doc.doc) {
-//   | Text(string) => Text2(string)
-//   | Cat(t1, t2) => Cat2(t2_of_doc(t1), t2_of_doc(t2))
-//   | Linebreak(int) => Linebreak2(int)
-//   | Align(t2) => Align2(t2_of_doc(t2))
-//   | Annot(int, t2) => Annot2(int, t2_of_doc(t2))
-//   | Fail(int) => Fail2(int)
-//   | Choice(t1, t2) => Choice2(t2_of_doc(t1), t2_of_doc(t2))
+//   | Text(string) => Text2(0, string)
+//   | Cat(t1, t2) => Cat2(0, t2_of_doc(t1), t2_of_doc(t2))
+//   | Linebreak(int) => Linebreak2(0, int)
+//   | Align(t2) => Align2(0, t2_of_doc(t2))
+//   | Annot(int, t2) => Annot2(0, int, t2_of_doc(t2))
+//   | Fail(int) => Fail2(0, int)
+//   | Choice(t1, t2) => Choice2(0, t2_of_doc(t1), t2_of_doc(t2))
 //   };
 // };
 
@@ -138,28 +156,139 @@ let rec fib = (x: my_int): int => {
     }
   };
 };
-let rec make_fib = (x: int): my_fib => {
+let rec make_fib = (x: int): my_fib =>
   if (x < 2) {
-    Text2(1)
+    Text2(ref(0), 1);
   } else {
     switch (x mod 4) {
-    | 0 => Cat2(make_fib(x - 1), make_fib(x - 2))
-    | 1 => Align2(make_fib(x - 1))
-    | 2 => Annot2(x, make_fib(x - 1))
-    | 3 => Choice2(make_fib(x - 1), make_fib(x - 2))
-  }
-  }};
+    | 0 => Cat2(ref(0), make_fib(x - 1), make_fib(x - 2))
+    | 1 => Align2(ref(0), make_fib(x - 1))
+    | 2 => Annot2(ref(0), x, make_fib(x - 1))
+    | 3 => Choice2(ref(0), make_fib(x - 1), make_fib(x - 2))
+    | _ => failwith(__LOC__)
+    };
+  };
 let fib_rec_25 = make_fib(40);
 
-let rec fib2 = (x: my_fib): int => {
+// let rec fib2 = (x: my_fib): int => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(_i) => 1
+//   | Cat2(f1, f2) =>
+//     let _ = fib2(f1);
+//     let _ = fib2(f2);
+//     1;
+//   | Align2(f1) =>
+//     let _ = fib2(f1);
+//     1;
+//   | Annot2(_, f1) =>
+//     let _ = fib2(f1);
+//     1;
+//   | Choice2(f1, f2) =>
+//     let _ = fib2(f1);
+//     let _ = fib2(f2);
+//     1;
+//   };
+// };
+
+/*
+
+ function fib2(x, width, pos) {
+     count[1] = count[1] + 1 | 0;
+     caml_call1(Stdlib_printf[2], _t_);
+     switch (x[0]) {
+     case 0:
+         return 1;
+     case 1:
+         var f2 = x[2]
+           , f1 = x[1];
+         fib2(f1, width, pos);
+         fib2(f2, width, pos);
+         return 1;
+     case 2:
+         var f1$0 = x[1];
+         fib2(f1$0, width, pos);
+         return 1;
+     case 3:
+         var f1$1 = x[2];
+         fib2(f1$1, width, pos);
+         return 1;
+     default:
+         var f2$0 = x[2]
+           , f1$2 = x[1];
+         fib2(f1$2, width, pos);
+         fib2(f2$0, width, pos);
+         return 1
+     }
+ }
+ */
+
+let gensym: ref(int) = ref(0);
+
+let rec fib2 = (~width: int, ~pos: int, x: my_fib): (int, int) => {
   count := count^ + 1;
   switch (x) {
-  | Text2(i) => 1
-  | Cat2(f1, f2) => fib2(f1); fib2(f2); 1
-  | Align2(f1) => fib2(f1); 1
-  | Annot2(_, f1) => fib2(f1); 1
-  | Choice2(f1, f2) => fib2(f1); fib2(f2); 1
-  }
+  | Text2(mem, _i) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let res = 1;
+      mem := gensym^;
+      (pos, res);
+    };
+  | Fail2(mem) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let res = 1;
+      mem := gensym^;
+      (pos, res);
+    };
+  | Align2(mem, f) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let (pos1, res1) = fib2(~width, ~pos, f);
+      let res = res1 + 1;
+      mem := gensym^;
+      (pos1, res);
+    };
+  | Annot2(mem, _ann, f) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let (pos1, res1) = fib2(~width, ~pos, f);
+      let res = res1 + 1;
+      mem := gensym^;
+      (pos1, res);
+    };
+  | Cat2(mem, f1, f2) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let (pos1, res1) = fib2(~width, ~pos, f1);
+      let (pos2, res2) = fib2(~width, ~pos=pos1, f2);
+      let res = res1 + res2 + 1;
+      mem := gensym^;
+      (pos2, res);
+    };
+  | Choice2(mem, f1, f2) =>
+    let old_mem = mem^;
+    if (old_mem == gensym^) {
+      (0, 0);
+    } else {
+      let (pos1, res1) = fib2(~width, ~pos, f1);
+      let (pos2, res2) = fib2(~width, ~pos=pos1, f2);
+      let res = res1 + res2 + 1;
+      mem := gensym^;
+      (pos2, res);
+    };
+  };
 };
 
 // let rec fib = (x: int): int => {
@@ -307,12 +436,13 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
 };
 
 let fast_layout_of_doc =
-    (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
+    (_doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   //let _l: list((int, (Cost.t, Layout.t('annot)))) =
   //  Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
   //Some(snd(snd(List.hd(l))));
   //count := fib(Int1(25));
-  ignore(fib2(fib_rec_25));
+  gensym := gensym^ + 1;
+  ignore(fib2(fib_rec_25, ~width, ~pos));
   None;
 };
 
