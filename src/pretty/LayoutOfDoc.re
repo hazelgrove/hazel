@@ -45,9 +45,6 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
     PosMap.union(cost_union, p1, p2);
   };
 
-// Random BlockChain
-// Constant indent
-
 // All times are for qsort_30 with `make release`
 // Original code: 156ms (Count of g: 204607)
 // Noop: 0ms
@@ -93,7 +90,17 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // if mem == gensym^avg:   4.6ms   per count:  22.5ns (count: 206668)
 // mem := gensym^   avg:   4.6ms   per count:  22.5ns (count: 206668)
 // mem := gg        same
+// return list(int,it) avg:   5.2ms   per count:  25.3ns (count: 206668)
+//   --List.map (one child) avg:  15.6ms   per count:  75.7ns (count: 206668)
+//   --List.map (one child, no closure alloc) avg:  13.3ms   per count:  64.5ns (count: 206668)
+// res_inc'         avg:  12.1ms   per count:  58.4ns (count: 206668)
+// local map        avg:  12.4ms   per count:  60.1ns (count: 206668)
+// res_inc' = id    avg:   3.8ms   per count:  18.6ns (count: 206668)
+// res_inc' = cons  avg:   4.9ms   per count:  23.6ns (count: 206668)
+// rec res_inc'     avg:   6.3ms   per count:  30.6ns (count: 206668)
 
+// 10x (list int, list int) avg:  60.3ms   per count: 291.9ns (count: 206668)
+// 10x mylist               avg:  22.5ms   per count: 108.8ns (count: 206668)
 
 // JS: constant lifted x[0] out of loop
 
@@ -222,71 +229,1365 @@ let fib_rec_25 = make_fib(40);
      }
  }
  */
+type mylist =
+  | Nil
+  | Cons(int, int, mylist);
 
 let gensym: ref(int) = ref(0);
 
-let rec fib2 = (~width: int, ~pos: int, x: my_fib): (int, int) => {
+// mylist  avg:   5.8ms   per count:  27.9ns (count: 206668)
+// let rec res_inc' = input => {
+//   switch (input) {
+//   | Nil => Nil
+//   | Cons(pos, res, rest) => Cons(pos, res + 1, res_inc'(rest))
+//   };
+// };
+
+// let rec fib2 = (~width: int, ~pos: int, x: my_fib): mylist => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       Cons(pos, res, Nil);
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       Cons(pos, res, Nil);
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let out = res_inc'(out1);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   };
+// };
+
+// let rec res_inc' = input => {
+//   switch (input) {
+//   | [] => []
+//   | [res, ...rest] => [res + 1, ...res_inc'(rest)]
+//   };
+// };
+
+//******* Current
+// let rec res_inc' = input => {
+//   switch (input) {
+//   | Nil => Nil
+//   | Cons(p, r, rest) => Cons(p, r + 1, res_inc'(rest))
+//   };
+// };
+
+// let rec fib2 = (~width: int, ~pos: int, x: my_fib): mylist => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Nil))))))))))
+//       //([pos,pos,pos,pos,pos,pos,pos,pos,pos,pos], [res,res,res,res,res,res,res,res,res,res,]);
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Cons(pos, res,
+//       Nil))))))))))
+//       //([pos,pos,pos,pos,pos,pos,pos,pos,pos,pos], [res,res,res,res,res,res,res,res,res,res,]);
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       Cons(0, 0, Nil);
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let out = res_inc'(out1);
+//       let out = res_inc'(out1);
+//       mem := gensym^;
+//       out;
+//     };
+//   };
+// };
+
+// 30ns
+// let rec res_inc' = input => {
+//   switch (input) {
+//   | [] => []
+//   | [(pos, res), ...input] => [(pos, res + 1), ...res_inc'(input)]
+//   };
+// };
+// function res_inc$0(input) {
+//     /*<<src/pretty/LayoutOfDoc.re 243 28>>*/
+//     if (input) {
+//         var input$0 = input[2]
+//           , match = input[1]
+//           , res = match[2]
+//           , pos = match[1];
+//         /*<<src/pretty/LayoutOfDoc.re 246 50>>*/
+//         return [0, [0, pos, res + 1 | 0], /*<<src/pretty/LayoutOfDoc.re 246 50>>*/
+//         res_inc$0(input$0)]
+//     }
+//     /*<<src/pretty/LayoutOfDoc.re 245 10>>*/
+//     return 0
+//     /*<<src/pretty/LayoutOfDoc.re 248 1>>*/
+// }
+
+// [(pos, res)]             avg:   5.9ms   per count:  28.4ns (count: 206668)
+// [(pos, res), (pos, res)] avg:   8.2ms   per count:  39.8ns (count: 206668)
+// let rec res_inc'' = (out, input) => {
+//   switch (input) {
+//   | [] => out
+//   | [(pos, res), ...input] => res_inc''([(pos, res + 1), ...out], input)
+//   };
+// };
+// let res_inc' = input => res_inc''([], input);
+// function res_inc$0(out, input) {
+//     var out$0 = out
+//       , input$0 = input;
+//     /*<<src/pretty/LayoutOfDoc.re 266 36>>*/
+//     for (; ; ) {
+//         /*<<src/pretty/LayoutOfDoc.re 266 36>>*/
+//         if (input$0) {
+//             var input$1 = input$0[2]
+//               , match = input$0[1]
+//               , res = match[2]
+//               , pos = match[1]
+//               , out$1 = [0, [0, pos, res + 1 | 0], out$0]
+//               , out$0 = out$1
+//               , input$0 = input$1;
+//             continue
+//         }
+//         /*<<src/pretty/LayoutOfDoc.re 268 10>>*/
+//         return out$0
+//     }
+//     /*<<src/pretty/LayoutOfDoc.re 271 1>>*/
+// }
+// /*<<src/pretty/LayoutOfDoc.re 178 17>>*/
+// function res_inc$1(input) {
+//     /*<<src/pretty/LayoutOfDoc.re 272 24>>*/
+//     return /*<<src/pretty/LayoutOfDoc.re 272 24>>*/
+//     res_inc$0(0, input)
+//     /*<<src/pretty/LayoutOfDoc.re 272 44>>*/
+// }
+
+// TODO: array?
+// avg:  12.1ms   per count:  58.7ns (count: 206668)
+// let res_inc' = (input: List.t((int, int))): List.t((int, int)) => {
+//   let inref = ref(input);
+//   let out = ref([]);
+//   while (inref^ != []) {
+//     switch (inref^) {
+//     | [] => failwith(__LOC__)
+//     | [(pos, res), ...rest] =>
+//       out := [(pos, res + 1), ...out^];
+//       inref := rest;
+//     };
+//   };
+//   out^;
+// };
+// avg:  25.4ms   per count: 122.9ns (count: 206668)
+// let res_inc' = (input: Array.t((int, int))): Array.t((int, int)) => {
+//   Array.map(res_inc, input);
+// };
+// avg:  21.0ms   per count: 101.5ns (count: 206668)
+// let res_inc' = (input: Array.t((int, int))): Array.t((int, int)) => {
+//   let out = Array.make(Array.length(input), (0, 0));
+//   for (i in 0 to Array.length(input) - 1) {
+//     let (pos, res) = input[i];
+//     out[i] = (pos, res + 1);
+//   };
+//   out;
+// };
+// avg:   4.0ms   per count:  19.4ns (count: 206668)
+// module Js = Js_of_ocaml.Js;
+// let res_inc': Array.t((int, int)) => Array.t((int, int)) =
+//   Js.Unsafe.js_expr("function res_inc$0(input) { return input; }
+//     ");
+// w/o prealloc array avg:   8.3ms   per count:  39.9ns (count: 206668)
+// w/ prealloc array  avg:   6.4ms   per count:  31.2ns (count: 206668)
+// 10x avg:  18.7ms   per count:  90.4ns (count: 206668)
+// module Js = Js_of_ocaml.Js;
+// let res_inc': Array.t((int, int)) => Array.t((int, int)) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(input) {
+//     var len = input.length;
+//     var output = new Array(len);
+//     output[0] = [0];
+//     for (var i = 1; i < len; i++) {
+//       var inp = input[i];
+//       var res = inp[2]
+//       var pos = inp[1];
+//       var res1 = [0, pos, res + 1 | 0]
+//       output[i] = res1;
+//     }
+//     return output;
+//   }
+//     ",
+//   );
+
+// let rec fib2 = (~width: int, ~pos: int, x: my_fib): Array.t((int, int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       [|(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),|];
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       [|(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),(pos, res),|];
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),(0, 0),|];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let out = res_inc'(out1);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   };
+// };
+
+// TODO: parallel arrays due to heterogenious nature
+// TODO: parallel arrays allow reuse of "pos" array
+
+// // interleaved array avg:   5.8ms   per count:  27.9ns (count: 206668)
+// 10x avg:  11.3ms   per count:  54.5ns (count: 206668)
+// module Js = Js_of_ocaml.Js;
+// let res_inc': Array.t(int) => Array.t(int) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(input) {
+//     var len = input.length;
+//     var output = new Array(len);
+//     output[0] = [0];
+//     for (var i = 1; i < len; i+=2) {
+//       var pos = input[i];
+//       var res = input[i+1]
+//       output[i] = pos;
+//       output[i+1] = res + 1 | 0;
+//     }
+//     return output;
+//   }
+//     ",
+//   );
+
+// let rec fib2 = (~width: int, ~pos: int, x: my_fib): Array.t(int) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       [|pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, |];
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       [|pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, pos,res, |];
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       [|0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, |];
+//     } else {
+//       let out1 = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let out = res_inc'(out1);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1)|]);
+//       mem := gensym^;
+//       out;
+//     };
+//   };
+// };
+
+// parallel array    avg:   6.8ms   per count:  32.9ns (count: 206668)
+// no pos array      avg:   5.5ms   per count:  26.6ns (count: 206668)
+// 10x avg:   9.1ms   per count:  44.2ns (count: 206668)
+// 10x passthrough align or annot: avg:   6.8ms   per count:  33.1ns (count: 206668)
+// module Js = Js_of_ocaml.Js;
+// let res_inc': Array.t(int) => Array.t(int) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(input) {
+//     var len = input.length;
+//     var output = new Array(len);
+//     output[0] = [0];
+//     for (var i = 1; i < len; i++) {
+//       var res = input[i]
+//       output[i] = res + 1 | 0;
+//     }
+//     return output;
+//   }
+//     ",
+//   );
+
+// let rec fib2 =
+//         (~width: int, ~pos: int, x: my_fib): (Array.t(int), Array.t(int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       ([|pos,pos,pos,pos,pos,pos,pos,pos,pos,pos,|], [|res,res,res,res,res,res,res,res,res,res,|]);
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       ([|pos,pos,pos,pos,pos,pos,pos,pos,pos,pos,|], [|res,res,res,res,res,res,res,res,res,res,|]);
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let (out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1p, out);
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let (out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1p, out);
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let (out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       mem := gensym^;
+//       (out1p, out);
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       ([|0,0,0,0,0,0,0,0,0,0,|], [|0,0,0,0,0,0,0,0,0,0,|]);
+//     } else {
+//       let (out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let out = res_inc'(out1);
+//       let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       mem := gensym^;
+//       (out1p, out);
+//     };
+//   };
+// };
+
+// 10x with +1           avg:   6.7ms   per count:  32.3ns (count: 206668)
+// return int length     avg:   7.2ms   per count:  34.6ns (count: 206668)
+// w/o .length = ...     avg:   7.2ms   per count:  34.6ns (count: 206668)
+// w/  .length = ...     avg:  11.3ms   per count:  54.5ns (count: 206668)
+// res_inc return int length avg:   7.6ms   per count:  36.8ns (count: 206668)
+// merge len=5           avg:   7.6ms   per count:  36.6ns (count: 206668)
+// merge len=10          avg:   8.9ms   per count:  43.0ns (count: 206668)
+// TODO: put length in first element of array
+// TODO: RLE of the arrays
+// TODO: use size+1 instead of size (b/c less arithmetic)
+// module Js = Js_of_ocaml.Js;
+// let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(size, input) {
+//     //var len = input.length;
+//     var js_size = size + 1 | 0;
+//     var output = new Array(js_size);
+//     output[0] = [0];
+//     for (var i = 1; i < js_size; i++) {
+//       var res = input[i]
+//       output[i] = res + 1 | 0;
+//     }
+//     return [0, size, output];
+//   }
+//     ",
+//   );
+
+// let merge: (int, Array.t(int), int, Array.t(int)) => (int, Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function merge(size1, res1, size2, res2) {
+//     //var len = input.length;
+//     var js_size1 = size1 + 1 | 0;
+//     var js_size2 = size2 + 1 | 0;
+//     var js_size_1 = size1 + size2 | 0;
+//     var js_size = js_size_1 + 1 | 0;
+//     var res = new Array(js_size);
+//     res[0] = [0];
+//     var i1 = 1;
+//     var i2 = 1;
+//     var i = 1;
+//     while (i1 < js_size1 && i2 < js_size2) {
+//       if (res1[i1] < res2[i2]) {
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else if (res1[i1] > res2[i2]) {
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else {
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       }
+//     }
+//     while (i1 < js_size1) {
+//       res[i] = res1[i1] + 1 | 0;
+//       i1 = i1 + 1 | 0;
+//       i = i + 1 | 0;
+//     }
+//     while (i2 < js_size2) {
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     var size = i - 1 | 0;
+//     return [0, size, res];
+//   }
+//     ",
+//   );
+
+// //let foo = (x: int): (int, int) => (x, x);
+
+// let rec fib2 =
+//         (~width: int, ~pos: int, x: my_fib)
+//         : (int, Array.t(int), Array.t(int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         10,
+//         [|
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//           pos + 10,
+//         |],
+//         [|res+1, res+2, res+3, res+4, res+5, res+6, res+7, res+8, res+9, res+10|],
+//       );
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         10,
+//         [|
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//           pos + 10,
+//         |],
+//         [|res+1, res+2, res+3, res+4, res+5, res+6, res+7, res+8, res+9, res+10|],
+//       );
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|88880, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let (out_s, out_r) =
+//         Js.Unsafe.fun_call(
+//           res_inc',
+//           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
+//         );
+//       mem := gensym^;
+//       (out_s, out1p, out_r);
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         10,
+//         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let (out2s, _, out2r) = fib2(~width, ~pos, f2);
+//       //let out = res_inc'(out1);
+//       let (out_s, out_r) =
+//         Js.Unsafe.fun_call(
+//           merge,
+//           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r), Js.Unsafe.inject(out2s), Js.Unsafe.inject(out2r), |],
+//         );
+//       mem := gensym^;
+//       (out_s, out1p, out_r);
+//     };
+//   };
+// };
+
+// avg:  12.0ms   per count:  58.1ns (count: 206668)
+// avg:   8.2ms   per count:  39.8ns (count: 206668)
+// avg:   8.4ms   per count:  40.5ns (count: 206668)
+// 10 avg:   9.5ms   per count:  46.1ns (count: 206668)
+
+module Js = Js_of_ocaml.Js;
+let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+  Js.Unsafe.js_expr(
+    "function res_inc$0(js_size, input) {
+    //var len = input.length;
+    var output = new Array(js_size);
+    output[0] = [0];
+    for (var i = 1; i < js_size; i++) {
+      var res = input[i]
+      output[i] = res + 1 | 0;
+    }
+    return [0, js_size, output];
+  }
+    ",
+  );
+
+// let res_inc': Array.t(int) => Array.t(int) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(input) {
+//     //var len = input.length;
+//     var js_size = input[1];
+//     var output = new Array(js_size);
+//     output[0] = [0];
+//     output[1] = js_size;
+//     for (var i = 2; i < js_size; i++) {
+//       var res = input[i];
+//       output[i] = res + 1 | 0;
+//     }
+//     return [0, output];
+//   }
+//     ",
+//   );
+
+let merge:
+  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
+  (int, Array.t(int), Array.t(int)) =
+  Js.Unsafe.js_expr(
+    "function merge(js_size1, pos1, res1, js_size2, pos2, res2) {
+    //var len = input.length;
+    var pre_js_size = js_size1 + js_size2 | 0;
+    var js_size = pre_js_size - 1 | 0;
+    var pos = new Array(js_size);
+    pos[0] = [0];
+    var res = new Array(js_size);
+    res[0] = [0];
+    var i1 = 1;
+    var i2 = 1;
+    var i = 1;
+    while (i1 < js_size1 && i2 < js_size2) {
+      if (pos1[i1] < pos2[i2]) {
+        //console.log(\"1\");
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+      } else if (pos1[i1] > pos2[i2]) {
+        //console.log(\"2\");
+        pos[i] = pos2[i2];
+        res[i] = res2[i2] + 1 | 0;
+        i2 = i2 + 1 | 0;
+      } else {
+        //console.log(\"3\");
+        // TODO: res1[i1] <=> res2[i2]
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+        i2 = i2 + 1 | 0;
+      }
+      i = i + 1 | 0;
+    }
+    while (i1 < js_size1) {
+        //pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+        i = i + 1 | 0;
+    }
+    while (i2 < js_size2) {
+        //pos[i] = pos2[i2];
+        res[i] = res2[i2] + 1 | 0;
+        i2 = i2 + 1 | 0;
+        i = i + 1 | 0;
+    }
+    var size = i;
+    return [0, size, pos, res];
+  }
+    ",
+  );
+
+// avg:  14.9ms   per count:  71.9ns (count: 206668)
+// let merge:
+//   (Array.t(int), Array.t(int), Array.t(int), Array.t(int)) =>
+//   (Array.t(int), Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function merge(pos1, res1, pos2, res2) {
+//     //var len = input.length;
+//     var js_size1 = pos1[1];
+//     var js_size2 = pos2[1];
+//     var pre_js_size = js_size1 + js_size2 | 0;
+//     var js_size = pre_js_size - 2 | 0;
+//     var pos = new Array(js_size);
+//     pos[0] = [0];
+//     var res = new Array(js_size);
+//     res[0] = [0];
+//     var i1 = 2;
+//     var i2 = 2;
+//     var i = 2;
+//     while (i1 < js_size1 && i2 < js_size2) {
+//       if (pos1[i1] < pos2[i2]) {
+//         //console.log(\"1\");
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//       } else if (pos1[i1] > pos2[i2]) {
+//         //console.log(\"2\");
+//         pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//       } else {
+//         //console.log(\"3\");
+//         // TODO: res1[i1] <=> res2[i2]
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//       }
+//       i = i + 1 | 0;
+//     }
+//     while (i1 < js_size1) {
+//         //pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     while (i2 < js_size2) {
+//         //pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     pos[1] = i;
+//     return [0, pos, res];
+//   }
+//     ",
+//   );
+
+// let merge:
+//   (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
+//   (int, Array.t(int), Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function merge(size1, pos1, res1, size2, pos2, res2) {
+//     //var len = input.length;
+//     var js_size1 = size1 + 1 | 0;
+//     var js_size2 = size2 + 1 | 0;
+//     var i1 = 1;
+//     var i2 = 1;
+//     var i = 1;
+//     while (i1 < js_size1 && i2 < js_size2) {
+//       if (pos1[i1] < pos2[i2]) {
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else if (pos1[i1] > pos2[i2]) {
+//         //console.log(\"2\");
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else {
+//         i1 = i1 + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       }
+//     }
+//     var js_size = i;
+//     var size = i - 1 | 0;
+//     var pos = new Array(js_size);
+//     pos[0] = [0];
+//     var res = new Array(js_size);
+//     res[0] = [0];
+//     i1 = 1;
+//     i2 = 1;
+//     i = 1;
+//     while (i < js_size) {
+//       if (pos1[i1] < pos2[i2]) {
+//         //console.log(\"1\");
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else if (pos1[i1] > pos2[i2]) {
+//         //console.log(\"2\");
+//         pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       } else {
+//         //console.log(\"3\");
+//         // TODO: res1[i1] <=> res2[i2]
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//       }
+//     }
+//     while (i1 < js_size1) {
+//         //pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     while (i2 < js_size2) {
+//         //pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     //var size = i - 1 | 0;
+//     return [0, size, pos, res];
+//   }
+//     ",
+//   );
+
+//let foo = (x: int): (int, int) => (x, x);
+
+// let rec fib2 =
+//         (~width: int, ~pos: int, x: my_fib)
+//         : (int, Array.t(int), Array.t(int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|88880, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       let (out_s, out_r) =
+//         Js.Unsafe.fun_call(
+//           res_inc',
+//           [|
+//             Js.Unsafe.inject(out1s),
+//             Js.Unsafe.inject(out1s),
+//             Js.Unsafe.inject(out1r),
+//           |],
+//         );
+//       mem := gensym^;
+//       (out_s, out1p, out_r);
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let (out2s, out2p, out2r) = fib2(~width, ~pos, f2);
+//       //let out = res_inc'(out1);
+//       let (out_s, out_p, out_r) =
+//         Js.Unsafe.fun_call(
+//           merge,
+//           [|
+//             Js.Unsafe.inject(out1s),
+//             Js.Unsafe.inject(out1p),
+//             Js.Unsafe.inject(out1r),
+//             Js.Unsafe.inject(out2s),
+//             Js.Unsafe.inject(out2p),
+//             Js.Unsafe.inject(out2r),
+//           |],
+//         );
+//       mem := gensym^;
+//       (out_s, out_p, out_r);
+//     };
+//   };
+// };
+
+let rec fib2 =
+        (~width: int, ~pos: int, x: my_fib)
+        : (int, Array.t(int), Array.t(int)) => {
   count := count^ + 1;
   switch (x) {
   | Text2(mem, _i) =>
+    // TODO: without memoization
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
       let res = 1;
       mem := gensym^;
-      (pos, res);
+      (
+        11,
+        // [|9999, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|8888, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          1111,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          9,
+        |],
+        [|
+          2222,
+          res + 1,
+          res + 2,
+          res + 3,
+          res + 4,
+          res + 5,
+          res + 6,
+          res + 7,
+          res + 8,
+          res + 9,
+        |],
+        // [|
+        //   pos + 0,
+        //   pos + 1,
+        //   pos + 2,
+        //   pos + 3,
+        //   pos + 4,
+        //   pos + 5,
+        //   pos + 6,
+        //   pos + 7,
+        //   pos + 8,
+        //   pos + 9,
+        // |],
+        // [|
+        //   res + 0,
+        //   res + 1,
+        //   res + 2,
+        //   res + 3,
+        //   res + 4,
+        //   res + 5,
+        //   res + 6,
+        //   res + 7,
+        //   res + 8,
+        //   res + 9,
+        // |],
+      );
     };
   | Fail2(mem) =>
+    // TODO: fail without memoization
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
       let res = 1;
       mem := gensym^;
-      (pos, res);
+      (
+        11,
+        [|
+          pos + 0,
+          pos + 1,
+          pos + 2,
+          pos + 3,
+          pos + 4,
+          pos + 5,
+          pos + 6,
+          pos + 7,
+          pos + 8,
+          pos + 9,
+        |],
+        [|
+          res + 0,
+          res + 1,
+          res + 2,
+          res + 3,
+          res + 4,
+          res + 5,
+          res + 6,
+          res + 7,
+          res + 8,
+          res + 9,
+        |],
+      );
     };
   | Align2(mem, f) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
-      let (pos1, res1) = fib2(~width, ~pos, f);
-      let res = res1 + 1;
+      let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+      //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+      let out = out1r;
       mem := gensym^;
-      (pos1, res);
+      (out1s, out1p, out);
     };
   | Annot2(mem, _ann, f) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|88880, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
-      let (pos1, res1) = fib2(~width, ~pos, f);
-      let res = res1 + 1;
+      let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+      //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+      let out = out1r;
       mem := gensym^;
-      (pos1, res);
+      (out1s, out1p, out);
     };
   | Cat2(mem, f1, f2) =>
+    // TODO: maybe without memoization?
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
-      let (pos1, res1) = fib2(~width, ~pos, f1);
-      let (pos2, res2) = fib2(~width, ~pos=pos1, f2);
-      let res = res1 + res2 + 1;
+      let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+      let _ = fib2(~width, ~pos, f2);
+      // let (out_s, out_r) =
+      //   Js.Unsafe.fun_call(
+      //     res_inc',
+      //     [|
+      //       Js.Unsafe.inject(out1s),
+      //       Js.Unsafe.inject(out1s),
+      //       Js.Unsafe.inject(out1r),
+      //     |],
+      //   );
       mem := gensym^;
-      (pos2, res);
+      (out1s, out1p, out1r);
     };
   | Choice2(mem, f1, f2) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
-      (0, 0);
+      (
+        11,
+        [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+      );
     } else {
-      let (pos1, res1) = fib2(~width, ~pos, f1);
-      let (pos2, res2) = fib2(~width, ~pos=pos1, f2);
-      let res = res1 + res2 + 1;
+      let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+      let (_out2s, _out2p, _out2r) = fib2(~width, ~pos, f2);
+      //let out = res_inc'(out1);
+      // let (out_s, out_p, out_r) =
+      //   Js.Unsafe.fun_call(
+      //     merge,
+      //     [|
+      //       Js.Unsafe.inject(out1s),
+      //       Js.Unsafe.inject(out1p),
+      //       Js.Unsafe.inject(out1r),
+      //       Js.Unsafe.inject(out2s),
+      //       Js.Unsafe.inject(out2p),
+      //       Js.Unsafe.inject(out2r),
+      //     |],
+      //   );
       mem := gensym^;
-      (pos2, res);
+      (out1s, out1p, out1r);
     };
   };
 };

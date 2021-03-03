@@ -2,6 +2,15 @@
 
 (library
  (name pretty)
- (libraries sexplib)
+ (libraries sexplib incr_dom)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
+
+(rule
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+
+(rule
+ (write-file js-of-ocaml-flags-release "(:standard)"))
