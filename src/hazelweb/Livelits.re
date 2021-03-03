@@ -705,7 +705,7 @@ module GradeCutoffLivelitView = {
             ),
             Attr.create("stroke", "black"),
           ],
-          [percentage_line(grades_svgs), ...thumbs] @ distribution_line,
+          thumbs @ [percentage_line(grades_svgs), ...distribution_line],
         ),
         Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
         ...overlay,
