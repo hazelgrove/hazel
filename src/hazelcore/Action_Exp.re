@@ -66,8 +66,6 @@ let is_negative_literal = (lit: UHExp.operand): bool =>
   | _ => false
   };
 
-// FIXME you need to make it so inserting a space after the period in -.134 DOES NOT make the right operand a float, preserve the text-like experience
-// FIXME you need to make it so inserting a space after the minus in -.1234 STILL CREATES A MINUS BINOP LIKE THIS: _ - .1234, where right operand is in a hole.
 let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   switch (zoperand) {
   | CursorE(OnText(j), IntLit(_) as operand) =>
@@ -75,14 +73,6 @@ let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   | CursorE(OnText(j), FloatLit(_) as operand) =>
     is_negative_literal(operand) && (j == 1 || j == 2)
   | _ => false
-  };
-
-let negate_literal =
-    (~err=ErrStatus.NotInHole, lit: UHExp.operand): UHExp.operand =>
-  switch (lit) {
-  | IntLit(_, n) => IntLit(err, "-" ++ n)
-  | FloatLit(_, f) => FloatLit(err, "-" ++ f)
-  | _ => lit
   };
 
 let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand => {
@@ -1485,8 +1475,6 @@ and syn_perform_opseq =
     )
       when is_after_unop_of_negative_literal(zoperand) =>
     print_endline("converting unop to binop");
-    /* FIXME this is bugged only when you do -<>2 + 4 but fine when you do -<>2 */
-    /* ^^ <> means insert Space */
     switch (znumlit_to_zunop(zoperand)) {
     | Some(new_zoperand) =>
       syn_perform_opseq(
