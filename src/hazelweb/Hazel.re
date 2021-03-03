@@ -170,7 +170,9 @@ let create =
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
             | Some(elem) when Js.to_string(elem##.id) == UHCode.root_id => ()
-            | _ => UHCode.focus()
+            | _ =>
+              print_endline("0");
+              UHCode.focus();
             }
           // let caret_elem = JSUtil.force_get_elem_by_id("caret");
           // restart_cursor_animation(caret_elem);

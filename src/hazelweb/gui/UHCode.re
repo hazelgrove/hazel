@@ -186,6 +186,79 @@ let decoration_view =
     }
   );
 
+let widget_tbl: Hashtbl.t(MetaVar.t, Vdom.Node.t) = Hashtbl.create(5);
+
+// TODO garbage collect dead widgets
+let mk_or_get_widget =
+    (
+      ~start: MeasuredPosition.t,
+      ~font_metrics: FontMetrics.t,
+      llu: MetaVar.t,
+      llview,
+      model,
+    ) => {
+  switch (Hashtbl.find_opt(widget_tbl, llu)) {
+  | Some(widget) => widget
+  | None =>
+    print_endline("yoo");
+    // type magic required by virtual dom to ensure
+    // each widget state's type is unique from others
+    let id =
+      Base__Type_equal.Id.create(~name=string_of_int(llu) ++ "-state", _ =>
+        Sexplib.Sexp.List([])
+      );
+    let widget =
+      Vdom.(
+        Node.widget(
+          ~update=
+            (state, container) => {
+              print_endline("update");
+              (state, container);
+            },
+          ~id,
+          ~init=
+            () => {
+              print_endline("ahh");
+              print_endline(Sexplib.Sexp.to_string(model));
+              let container_origin_x =
+                (-1.) +. Float.of_int(start.row) *. font_metrics.row_height;
+              let container_origin_y =
+                Float.of_int(1 + start.col) *. font_metrics.col_width;
+              let container_position_style =
+                Printf.sprintf(
+                  "top: %fpx; left: %fpx;",
+                  container_origin_x,
+                  container_origin_y,
+                );
+              let container = Dom_html.(createDiv(document));
+              container##setAttribute(
+                Js.string("style"),
+                Js.string(container_position_style),
+              );
+              switch (llview(llu, model)) {
+              | None =>
+                container##setAttribute(
+                  Js.string("class"),
+                  Js.string("user-defined-livelit-container-error"),
+                );
+                container##.innerHTML := Js.string("Livelit View Error");
+              | Some(view_str) =>
+                container##setAttribute(
+                  Js.string("class"),
+                  Js.string("user-defined-livelit-container"),
+                );
+                container##.innerHTML := Js.string(view_str);
+              };
+              ((), container);
+            },
+          (),
+        )
+      );
+    Hashtbl.add(widget_tbl, llu, widget);
+    widget;
+  };
+};
+
 let decoration_views =
     (
       ~inject,
@@ -269,56 +342,9 @@ let decoration_views =
       | LivelitView({llu, base_llname, shape, model, hd_step, _}) =>
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
-          | Some((llview, _)) =>
-            // type magic required by virtual dom to ensure
-            // each widget state's type is unique from others
-            let id =
-              Base__Type_equal.Id.create(
-                ~name=string_of_int(llu) ++ "-state", _ =>
-                Sexplib.Sexp.List([])
-              );
-            Vdom.[
-              Node.widget(
-                ~update=(state, container) => (state, container),
-                ~id,
-                ~init=
-                  () => {
-                    let container_origin_x =
-                      (-1.)
-                      +. Float.of_int(start.row)
-                      *. font_metrics.row_height;
-                    let container_origin_y =
-                      Float.of_int(1 + start.col) *. font_metrics.col_width;
-                    let container_position_style =
-                      Printf.sprintf(
-                        "top: %fpx; left: %fpx;",
-                        container_origin_x,
-                        container_origin_y,
-                      );
-                    let container = Dom_html.(createDiv(document));
-                    container##setAttribute(
-                      Js.string("style"),
-                      Js.string(container_position_style),
-                    );
-                    switch (llview(llu, model)) {
-                    | None =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container-error"),
-                      );
-                      container##.innerHTML := Js.string("Livelit View Error");
-                    | Some(view_str) =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container"),
-                      );
-                      container##.innerHTML := Js.string(view_str);
-                    };
-                    ((), container);
-                  },
-                (),
-              ),
-            ];
+          | Some((llview, _)) => [
+              mk_or_get_widget(~start, ~font_metrics, llu, llview, model),
+            ]
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
