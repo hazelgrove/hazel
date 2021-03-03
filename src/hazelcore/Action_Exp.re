@@ -104,10 +104,7 @@ let zunop_to_znumlit = (zunop: ZExp.zoperand): ZExp.zoperand => {
     switch (TextShape.of_text(new_text)) {
     | IntLit(n) => CursorE(new_cursor, IntLit(err, n))
     | FloatLit(n) => CursorE(new_cursor, FloatLit(err, n))
-    | _ =>
-      failwith(
-        "appended unop and operand does not have shape of int or float",
-      )
+    | _ => zunop
     };
   | _ => zunop
   };
@@ -140,6 +137,7 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
       ),
     )
   | CursorE(OnText(j), IntLit(err, n)) =>
+    print_endline("intlit case " ++ n);
     Some(
       UnaryOpZ(
         err,
@@ -149,7 +147,7 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
           UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
         ),
       ),
-    )
+    );
   | CursorE(OnText(j), FloatLit(err, f)) =>
     print_endline("this case right here sir");
     let op: Unops_Exp.t =
@@ -2064,7 +2062,9 @@ and syn_perform_operand =
         Statics_Exp.ana_fix_holes_operand(ctx, u_gen, child, Float);
       let new_zchild = ZExp.place_before_operand(new_child);
       let new_ze =
-        ZExp.ZBlock.wrap(UnaryOpZ(NotInHole, FNegate, new_zchild));
+        ZExp.ZBlock.wrap(
+          zunop_to_znumlit(UnaryOpZ(NotInHole, FNegate, new_zchild)),
+        );
       Succeeded(SynDone((new_ze, Float, u_gen)));
     | (Backspace, Negate, _) when ZExp.is_before_zoperand(zchild) =>
       let zchild = ZExp.set_err_status_zoperand(NotInHole, zchild);
@@ -2083,7 +2083,10 @@ and syn_perform_operand =
           Int,
         );
       let new_zchild = ZExp.place_before_operand(new_child);
-      let new_ze = ZExp.ZBlock.wrap(UnaryOpZ(NotInHole, Negate, new_zchild));
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          zunop_to_znumlit(UnaryOpZ(NotInHole, Negate, new_zchild)),
+        );
       Succeeded(SynDone((new_ze, Int, u_gen)));
     | _ =>
       switch (ana_perform_operand(ctx, a, (zchild, u_gen), ty_u)) {
@@ -3670,14 +3673,18 @@ and ana_perform_operand =
       HTyp.consistent(ty, Float)
         ? {
           let new_ze =
-            ZExp.ZBlock.wrap(UnaryOpZ(NotInHole, unop, new_zchild));
+            ZExp.ZBlock.wrap(
+              zunop_to_znumlit(UnaryOpZ(NotInHole, unop, new_zchild)),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
         : {
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              UnaryOpZ(InHole(TypeInconsistent, u), FNegate, new_zchild),
+              zunop_to_znumlit(
+                UnaryOpZ(InHole(TypeInconsistent, u), FNegate, new_zchild),
+              ),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
@@ -3704,14 +3711,18 @@ and ana_perform_operand =
       HTyp.consistent(ty, Int)
         ? {
           let new_ze =
-            ZExp.ZBlock.wrap(UnaryOpZ(NotInHole, Negate, new_zchild));
+            ZExp.ZBlock.wrap(
+              zunop_to_znumlit(UnaryOpZ(NotInHole, Negate, new_zchild)),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
         : {
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              UnaryOpZ(InHole(TypeInconsistent, u), Negate, new_zchild),
+              zunop_to_znumlit(
+                UnaryOpZ(InHole(TypeInconsistent, u), Negate, new_zchild),
+              ),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
