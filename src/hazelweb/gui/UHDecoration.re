@@ -230,21 +230,7 @@ module CurrentTerm = {
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=
-           (_, rss) => {
-             print_endline("-- 0 --");
-             rss
-             |> List.iter(((_, rs)) => {
-                  print_endline("- rs -");
-                  rs
-                  |> List.iter(r =>
-                       print_endline(
-                         Sexplib.Sexp.to_string(SvgUtil.Rect.sexp_of_t(r)),
-                       )
-                     );
-                });
-             rss;
-           },
+         ~align=(_, rss) => rss,
          ~cat=(_, rss1, rss2) => rss1 @ rss2,
          ~annot=
            (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
