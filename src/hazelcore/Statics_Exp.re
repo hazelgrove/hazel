@@ -139,8 +139,8 @@ module rec M: Statics_Exp_Sig.S = {
     let serialize = d => {
       d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
     };
-    print_endline("mk_update_monad; model:");
-    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+    //print_endline("mk_update_monad; model:");
+    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Inj(_, L, Inj(_, L, d0)) =>
       let* d_ty = Statics_DHExp.syn(ctx, delta, d);
