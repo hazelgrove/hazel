@@ -2262,7 +2262,9 @@ and syn_perform_operand =
           }
         };
       };
+      print_endline("about to run update fn");
       let update_cmd = update(serialized_model, serialized_action);
+      print_endline("done running update fn (so it didn't crash)");
       let (serialized_model, splice_info, u_gen) =
         SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
       let (splice_map, u_gen) =

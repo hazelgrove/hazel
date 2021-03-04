@@ -40,11 +40,21 @@ module rec M: Statics_Exp_Sig.S = {
     expand_ty: HTyp.t,
   };
 
-  let ll_init_ty = (model_type, _) => UHTyp.expand(model_type);
+  let ll_init_ty = (model_type, _) =>
+    HTyp.Sum(
+      HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
+      HTyp.Sum(
+        HTyp.Prod([
+          HTyp.String,
+          HTyp.Prod([HTyp.String, HTyp.Hole /*TODO make more specific */]),
+        ]),
+        HTyp.Hole,
+      ),
+    );
   let ll_update_ty = (model_type, action_type) =>
     HTyp.Arrow(
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
-      UHTyp.expand(model_type),
+      HTyp.Sum(HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole), HTyp.Hole),
     );
   let ll_view_ty = (model_type, _) =>
     HTyp.Arrow(Prod([HTyp.Int, UHTyp.expand(model_type)]), HTyp.String);
@@ -106,6 +116,8 @@ module rec M: Statics_Exp_Sig.S = {
             ("UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])",
              fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
 
+       sexped str: "((ExpLine(OpSeq(Placeholder 0) (S(IntLit NotInHole 100) E))))"
+
         Spliceslider update (anon):
         fun ((spliceno, _), action) { inj[L](inj[L]((spliceno, action))) }
 
@@ -116,11 +128,15 @@ module rec M: Statics_Exp_Sig.S = {
     let serialize = d => {
       d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
     };
-
+    print_endline("running monad");
+    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Inj(_, L, Inj(_, L, d0)) =>
       let* d_ty = Statics_DHExp.syn(ctx, delta, d);
-      HTyp.consistent(d_ty, model_ty) ? Some(serialize(d0)) : None;
+      let updatemonadmodel_ty =
+        HTyp.Sum(HTyp.Sum(model_ty, HTyp.Hole), HTyp.Hole);
+      HTyp.consistent(d_ty, updatemonadmodel_ty)
+        ? Some(serialize(d0)) : None;
     // Generic bind?
     /*
      | Inj(_, L, Inj(_, R, Pair(x, f))) =>
@@ -185,8 +201,10 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _mk_ll_init_new =
+  let _mk_ll_init =
       (init: UHExp.t, model_ty: HTyp.t): SpliceGenCmd.t(SerializedModel.t) => {
+    print_endline("uhexp before init run monad");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
@@ -199,7 +217,7 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _mk_ll_update_new =
+  let mk_ll_update =
       (
         update: UHExp.t,
         model_ty: HTyp.t,
@@ -222,7 +240,9 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+  let _mk_ll_init_old = (init: UHExp.t, _): SpliceGenCmd.t(SerializedModel.t) => {
+    print_endline("uhexp before init run monad OLD");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
     let elab_ctx = Contexts.empty;
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
@@ -231,7 +251,7 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_update =
+  let _mk_ll_update =
       (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
@@ -345,8 +365,8 @@ module rec M: Statics_Exp_Sig.S = {
       captures_ty,
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
-      init_model: mk_ll_init(init),
-      update: mk_ll_update(update),
+      init_model: _mk_ll_init_old(init, UHTyp.expand(model_type)),
+      update: mk_ll_update(update, UHTyp.expand(model_type)),
       expand: mk_ll_expand(expand),
     };
     /* NOTE(andrew): Extend the livelit context only if all
