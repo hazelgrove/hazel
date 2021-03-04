@@ -33,8 +33,7 @@ let intro_caption =
       ptxt("Click Next to go to the next card once you are finished."),
     ],
   );
-let intro_init_term =
-  ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
+let intro_init_term = UHExp.Block.wrap(EmptyHole(0));
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
 /*
  let intro_card: CardInfo.t = {
@@ -44,7 +43,7 @@ let intro_init_term =
  */
 let intro_card: CardInfo.t = {
   caption: div([], []),
-  init_term: Focused(intro_init_term),
+  init_term: intro_init_term,
 };
 /*
  let backspace_caption =

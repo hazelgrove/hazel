@@ -189,18 +189,26 @@ let perform_action =
              let history = get_undo_history(model);
              let new_cardstacks =
                model |> put_program(new_program) |> get_cardstacks;
-             // HACK(andrew)
-             let new_new_cardstack =
-               switch (
-                 ZCardstacks.get_program(new_cardstacks).edit_state.term
-               ) {
-               | Unfocused(_) =>
-                 model
-                 |> put_program(Program.focus(new_program))
-                 |> get_cardstacks
-               | Focused(_) => new_cardstacks
-               };
-             UndoHistory.push_edit_state(history, new_new_cardstack, a);
+             /*
+              // HACK(andrew)
+              let new_new_cardstack =
+                switch (
+                  ZCardstacks.get_program(new_cardstacks).edit_state.focus
+                ) {
+                | None =>
+                  model
+                  |> put_program(Program.focus(new_program))
+                  |> get_cardstacks
+                | Some(_) => new_cardstacks
+                };
+               UndoHistory.push_edit_state(history, new_new_cardstack, a);
+              */
+             // TODO(d) confirm that this is reasonable
+             switch (new_program.edit_state.focus) {
+             | None => history
+             | Some(_) =>
+               UndoHistory.push_edit_state(history, new_cardstacks, a)
+             };
            },
          );
     },
@@ -247,12 +255,15 @@ let toggle_right_sidebar = (model: t): t => {
 };
 
 let load_example = (model: t, e: UHExp.t): t => {
-  let (ze, ty, u_gen) =
-    Statics_Exp.fix_and_renumber_holes_z(
-      Contexts.empty,
-      ZExp.place_before(e),
-    );
-  let edit_state: Program.EditState.t = {term: Focused(ze), ty, u_gen};
+  let (term, ty, u_gen) =
+    Statics_Exp.fix_and_renumber_holes(Contexts.empty, e);
+  let path = CursorPath_Exp.of_z(ZExp.place_before(term));
+  let edit_state: Program.EditState.t = {
+    term,
+    ty,
+    u_gen,
+    focus: Some({path, window_has_focus: true}),
+  };
   model |> put_program(Program.mk(~width=model.cell_width, edit_state));
 };
 

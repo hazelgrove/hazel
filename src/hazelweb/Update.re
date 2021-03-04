@@ -57,6 +57,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
+  | FocusWindow
+  | BlurWindow
   | Undo
   | Redo
   | ShiftHistory(_)
@@ -166,6 +168,8 @@ let apply_action =
       | InvalidVar(_) => model
       | FocusCell => model |> Model.map_program(Program.focus)
       | BlurCell => model |> Model.map_program(Program.blur)
+      | FocusWindow => Model.map_program(Program.focus_window, model)
+      | BlurWindow => Model.map_program(Program.blur_window, model)
       | Undo =>
         let new_history =
           model.undo_history

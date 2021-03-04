@@ -449,13 +449,13 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let program = Model.get_program(model);
-  let Program.EditState.{term, ty, u_gen} = program.edit_state;
+  let Program.EditState.{ty, u_gen, _} = program.edit_state;
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (term) {
-    | Unfocused(_) => false
-    | Focused(ze) =>
+    switch (Program.get_zexp(program)) {
+    | None => false
+    | Some(ze) =>
       switch (Action_Exp.syn_perform(Contexts.empty, a, (ze, ty, u_gen))) {
       | Failed => false
       | CursorEscaped(_)
