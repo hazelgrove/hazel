@@ -1397,6 +1397,19 @@ let merge:
 //   };
 // };
 
+// * Discovery:
+//
+//       { let a = 0; [|a + 0, a + 1, a + 2, a + 3, a + 4, a + 5, a + 6, a + 7, a + 8, a + 9 |] }
+//
+//   is faster than
+//
+//       [|0, 1, 2, 3, 4, 5, 6, 7, 8, 9 |]
+//
+//   Cause:  js_of_ocaml translates the second code into a global variable and a
+//   reference to it. js_of_ocaml also likes to put .slice() on references to
+//   array (global?) variables. This can make it slower than just locally
+//   computing the result.
+
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
         : (int, Array.t(int), Array.t(int)) => {
@@ -1412,26 +1425,51 @@ let rec fib2 =
         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
     } else {
-      let res = 1;
+      let res = 0;
       mem := gensym^;
       (
         11,
         // [|9999, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        // [|8888, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|88889, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|
+        //   1111,
+        //   0,
+        //   0,
+        //   0,
+        //   0,
+        //   0,
+        //   pos + 6,
+        //   pos + 7,
+        //   pos + 8,
+        //   pos + 9,
+        // |],
+        // [|
+        //   2222,
+        //   res + 1,
+        //   res + 2,
+        //   res + 3,
+        //   res + 4,
+        //   res + 5,
+        //   res + 6,
+        //   res + 7,
+        //   res + 8,
+        //   res + 9,
+        // |],
         [|
-          1111,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          9,
+          pos + 0,
+          pos + 1,
+          pos + 2,
+          pos + 3,
+          pos + 4,
+          pos + 5,
+          pos + 6,
+          pos + 7,
+          pos + 8,
+          pos + 9,
         |],
+      { let res = 0;
         [|
-          2222,
+          res + 0,
           res + 1,
           res + 2,
           res + 3,
@@ -1441,7 +1479,7 @@ let rec fib2 =
           res + 7,
           res + 8,
           res + 9,
-        |],
+        |]},
         // [|
         //   pos + 0,
         //   pos + 1,
@@ -1455,18 +1493,43 @@ let rec fib2 =
         //   pos + 9,
         // |],
         // [|
-        //   res + 0,
-        //   res + 1,
-        //   res + 2,
-        //   res + 3,
-        //   res + 4,
-        //   res + 5,
-        //   res + 6,
-        //   res + 7,
-        //   res + 8,
-        //   res + 9,
+        //   88889,
+        //   pos + 11,
+        //   pos + 12,
+        //   pos + 13,
+        //   pos + 14,
+        //   pos + 15,
+        //   pos + 16,
+        //   pos + 17,
+        //   pos + 18,
+        //   pos + 19,
+        // |],
+        // [|
+        //   pos + 0,
+        //   pos + 1,
+        //   pos + 2,
+        //   pos + 3,
+        //   pos + 4,
+        //   pos + 5,
+        //   pos + 6,
+        //   pos + 7,
+        //   pos + 8,
+        //   pos + 9,
+        // |],
+        // [|
+        //   0,
+        //   1,
+        //   2,
+        //   3,
+        //   4,
+        //   5,
+        //   6,
+        //   7,
+        //   8,
+        //   9,
         // |],
       );
+      //16186
     };
   | Fail2(mem) =>
     // TODO: fail without memoization
@@ -1529,7 +1592,7 @@ let rec fib2 =
       (
         11,
         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|88880, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
