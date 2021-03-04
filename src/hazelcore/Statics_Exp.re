@@ -78,7 +78,7 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _run_update_monad =
+  let _mk_update_monad =
       (ctx: Contexts.t, delta: Delta.t, model_ty: HTyp.t, d: DHExp.t)
       : option(SpliceGenCmd.t(SerializedModel.t)) => {
     /* at this point, we have already evaluated init or update, resulting
@@ -185,16 +185,41 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _run_wrapper = (model_ty: HTyp.t, u: UHExp.t) => {
+  let _mk_ll_init_new =
+      (init: UHExp.t, model_ty: HTyp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
-    let d =
-      switch (Elaborator.syn_elab(elab_ctx, elab_delta, u)) {
-      | DoesNotElaborate => failwith("run_update_monad DoesNotElaborate")
-      | Elaborates(d, _, _) => d
+    switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
+    | DoesNotElaborate => failwith("mk_ll_init_new DoesNotElaborate")
+    | Elaborates(d, _, delta) =>
+      switch (d |> eval |> _mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None => failwith("mk_ll_init_new mk failed")
+      | Some(sgc) => sgc
+      }
+    };
+  };
+
+  let _mk_ll_update_new =
+      (
+        update: UHExp.t,
+        model_ty: HTyp.t,
+        action: SerializedAction.t,
+        model: SerializedModel.t,
+      )
+      : SpliceGenCmd.t(SerializedModel.t) => {
+    let elab_ctx = Contexts.empty;
+    let elab_delta = Delta.empty;
+    switch (Elaborator.syn_elab(elab_ctx, elab_delta, update)) {
+    | DoesNotElaborate => failwith("mk_ll_update_new DoesNotElaborate")
+    | Elaborates(update_dhexp, _, delta) =>
+      let action_dhexp = DHExp.t_of_sexp(action);
+      let model_dhexp = DHExp.t_of_sexp(model);
+      let ap = DHExp.Ap(update_dhexp, DHExp.Pair(action_dhexp, model_dhexp));
+      switch (ap |> eval |> _mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None => failwith("mk_ll_update_new mk failed")
+      | Some(sgc) => sgc
       };
-    let d' = eval(d);
-    _run_update_monad(elab_ctx, elab_delta, model_ty, d');
+    };
   };
 
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
