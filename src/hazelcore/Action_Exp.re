@@ -81,7 +81,6 @@ let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
 let syn_zunop_to_znumlit =
     (zunop: ZExp.zoperand, u_gen: MetaVarGen.t, ty: HTyp.t)
     : (ZExp.zoperand, MetaVarGen.t, HTyp.t) => {
-  print_endline("zunop to znumlit");
   switch (zunop) {
   | UnaryOpZ(_, op, CursorE(OnText(j), IntLit(_, n) | FloatLit(_, n))) =>
     let (new_cursor, new_text): (CursorPosition.t, string) =
@@ -91,17 +90,14 @@ let syn_zunop_to_znumlit =
       };
     switch (TextShape.of_text(new_text)) {
     | IntLit(n) => (CursorE(new_cursor, IntLit(NotInHole, n)), u_gen, Int)
-    | FloatLit(n) =>
-      print_endline("floatlit");
-      (CursorE(new_cursor, FloatLit(NotInHole, n)), u_gen, Float);
-    | _ =>
-      print_endline("didn't change1 (snapping failed)");
-      (zunop, u_gen, ty);
+    | FloatLit(n) => (
+        CursorE(new_cursor, FloatLit(NotInHole, n)),
+        u_gen,
+        Float,
+      )
+    | _ => (zunop, u_gen, ty)
     };
-  | _ =>
-    print_endline("didn't change2");
-    ZExp.sexp_of_zoperand(zunop) |> Sexplib.Sexp.to_string |> print_endline;
-    (zunop, u_gen, ty);
+  | _ => (zunop, u_gen, ty)
   };
 };
 
@@ -120,7 +116,6 @@ let ana_zunop_to_znumlit =
 };
 
 let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
-  print_endline("znumlit to zunop");
   switch (znumlit) {
   | CursorE(_, lit) when !is_negative_literal(lit) => None
   | CursorE(OnText(0), IntLit(err, n)) =>
@@ -146,7 +141,6 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
       ),
     )
   | CursorE(OnText(j), IntLit(err, n)) =>
-    print_endline("intlit case " ++ n);
     Some(
       UnaryOpZ(
         err,
@@ -156,10 +150,8 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
           UHExp.intlit(String.sub(n, 1, String.length(n) - 1)),
         ),
       ),
-    );
+    )
   | CursorE(OnText(j), FloatLit(err, f)) =>
-    print_endline("this case right here sir");
-    print_endline(f);
     let op: Unops_Exp.t = Negate;
     let new_cursor = CursorPosition.OnText(j - 1);
     let operand = UHExp.floatlit(String.sub(f, 1, String.length(f) - 1));
@@ -1481,7 +1473,6 @@ and syn_perform_opseq =
       ZOperand(CursorE(_, IntLit(_) | FloatLit(_)) as zoperand, surround),
     )
       when is_after_unop_of_negative_literal(zoperand) =>
-    print_endline("converting unop to binop");
     switch (znumlit_to_zunop(zoperand)) {
     | Some(new_zoperand) =>
       syn_perform_opseq(
@@ -1490,7 +1481,7 @@ and syn_perform_opseq =
         (ZExp.mk_ZOpSeq(ZSeq.ZOperand(new_zoperand, surround)), ty, u_gen),
       )
     | None => Failed
-    };
+    }
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -1499,7 +1490,6 @@ and syn_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
-    print_endline("converting unop to binop recursed once into nonempty");
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_prefix, u_gen) =
@@ -1512,13 +1502,12 @@ and syn_perform_opseq =
       let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("unop has no binop")
-    };
+    }
   | (
       Construct(SOp(SSpace)),
       ZOperand(UnaryOpZ(_, unop, zchild), (E, suffix)),
     )
       when ZExp.is_before_zoperand(zchild) && binop_of_unop(unop) != None =>
-    print_endline("converting unop to binop recursed once into empty");
     switch (binop_of_unop(unop)) {
     | Some(binop) =>
       let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
@@ -1526,7 +1515,7 @@ and syn_perform_opseq =
       let new_zseq = ZSeq.ZOperand(zchild, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("unop has no binop")
-    };
+    }
 
   /* Zipper */
 
@@ -3663,8 +3652,7 @@ and ana_perform_operand =
     switch (a, unop, zchild) {
     | (Construct(SChar(".")), Negate, CursorE(_, e))
         when ZExp.is_before_zoperand(zchild) =>
-      print_endline("ANA convert int negation - to float negation -.");
-      // convert int negation - to float negation -.
+      /* convert int negation - to float negation -. */
       let (new_child, u_gen) =
         Statics_Exp.ana_fix_holes_operand(ctx, u_gen, e, Float);
       let new_zchild = ZExp.place_before_operand(new_child);
