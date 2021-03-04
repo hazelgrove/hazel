@@ -1126,7 +1126,7 @@ module ColorLivelitView = {
         Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
       let splice = splice_name =>
         Node.div(
-          [Attr.classes(["splice-content"])],
+          [Attr.classes(["splice-content", "custom-scrollbar"])],
           [uhcode(splice_name)],
         );
       Node.div(

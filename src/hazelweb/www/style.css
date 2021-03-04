@@ -1465,6 +1465,9 @@ input.slider::-moz-range-track {
   padding: 2px 4px;
   display: grid;
   justify-items: left;
+  width: 240px;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 
 .color-livelit .color-picker .hsv-picker {
