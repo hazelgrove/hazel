@@ -154,7 +154,13 @@ let next_card = model => {
 };
 
 let perform_action =
-    (~move_via: option(MoveInput.t)=?, a: Action.t, model: t): t => {
+    (
+      ~livelit_move=false,
+      ~move_via: option(MoveInput.t)=?,
+      a: Action.t,
+      model: t,
+    )
+    : t => {
   let settings = model.settings;
   TimeUtil.measure_time(
     "Model.perform_action",
@@ -163,7 +169,13 @@ let perform_action =
     () => {
       let old_program = get_program(model);
       let new_program =
-        Program.perform_action(~settings, ~move_via?, a, old_program);
+        Program.perform_action(
+          ~settings,
+          ~livelit_move,
+          ~move_via?,
+          a,
+          old_program,
+        );
       let update_selected_instances = si => {
         let si =
           Program.get_result(old_program) == Program.get_result(new_program)
@@ -205,9 +217,9 @@ let perform_action =
               */
              // TODO(d) confirm that this is reasonable
              switch (new_program.edit_state.focus) {
-             | None => history
-             | Some(_) =>
+             | Some(_) when !livelit_move =>
                UndoHistory.push_edit_state(history, new_cardstacks, a)
+             | _ => history
              };
            },
          );

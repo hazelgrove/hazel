@@ -387,23 +387,33 @@ let get_caret_position =
 exception FailedAction;
 exception CursorEscaped;
 let perform_action =
-    (~settings, ~move_via: option(MoveInput.t)=?, a: Action.t, program: t) => {
-  let performed =
-    switch (move_via, get_zexp(program)) {
-    | (None | Some(Key(_)), None) => program
-    | (Some(Click(_)), None) =>
-      // TODO(d) clean up this hack
-      switch (a) {
-      | MoveTo(path) => {
-          ...program,
-          edit_state: {
-            ...program.edit_state,
-            focus: Some({path, window_has_focus: true}),
-          },
-        }
-      | _ => program
+    (
+      ~settings,
+      ~livelit_move=false, // HACK(d)
+      ~move_via: option(MoveInput.t)=?,
+      a: Action.t,
+      program: t,
+    ) => {
+  let move_to_path = () =>
+    switch (a) {
+    | MoveTo(path) => {
+        ...program,
+        edit_state: {
+          ...program.edit_state,
+          focus: Some({path, window_has_focus: true}),
+        },
       }
-    | (_, Some(ze)) =>
+    | _ => program
+    };
+  let performed =
+    switch (get_zexp(program)) {
+    | None =>
+      switch (move_via) {
+      | None => livelit_move ? move_to_path() : program
+      | Some(Click(_)) => move_to_path()
+      | Some(Key(_)) => program
+      }
+    | Some(ze) =>
       let EditState.{ty, u_gen, _} = program.edit_state;
       let init_ctx = Contexts.empty;
       switch (Action_Exp.syn_perform(init_ctx, a, (ze, ty, u_gen))) {

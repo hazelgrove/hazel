@@ -75,7 +75,14 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_action:
-  (~settings: Settings.t, ~move_via: MoveInput.t=?, Action.t, t) => t;
+  (
+    ~settings: Settings.t,
+    ~livelit_move: bool=?,
+    ~move_via: MoveInput.t=?,
+    Action.t,
+    t
+  ) =>
+  t;
 
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => Action.t;

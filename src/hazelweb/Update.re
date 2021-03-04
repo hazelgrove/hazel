@@ -136,6 +136,7 @@ let apply_action =
           try(
             model
             |> Model.perform_action(
+                 ~livelit_move=true,
                  Program.move_to_node(Livelit, llu, program),
                )
             |> Model.perform_action(PerformLivelitAction(serialized_action))
@@ -153,7 +154,8 @@ let apply_action =
           };
         switch (Program.get_path(program)) {
         | None => Model.map_program(Program.blur, performed)
-        | Some(path) => Model.perform_action(MoveTo(path), performed)
+        | Some(path) =>
+          Model.perform_action(~livelit_move=true, MoveTo(path), performed)
         };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
