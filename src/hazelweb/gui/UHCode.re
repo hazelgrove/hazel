@@ -504,13 +504,7 @@ let decoration_views =
 };
 
 let key_handlers =
-    (
-      ~inject,
-      ~is_mac: bool,
-      ~cursor_info: CursorInfo.t,
-      ~is_text_cursor: bool,
-    )
-    : list(Vdom.Attr.t) => {
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -522,39 +516,14 @@ let key_handlers =
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         let s = Key.get_key(evt);
-        switch (s, is_text_cursor) {
-        | (
-            "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" | "(" |
-            ")" |
-            "-" |
-            "_" |
-            "=" |
-            "+" |
-            "{" |
-            "}" |
-            "[" |
-            "]" |
-            ":" |
-            ";" |
-            "\"" |
-            "'" |
-            "<" |
-            ">" |
-            "," |
-            "." |
-            "?" |
-            "/" |
-            "|" |
-            "\\" |
-            " ",
-            true,
-          ) =>
-          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
-        | ("Enter", true) =>
+        switch (cursor_info.cursor_term) {
+        | Exp(OnText(_), StringLit(_)) when s == "Enter" =>
           prevent_stop_inject(
             ModelAction.EditAction(Construct(SChar("\n"))),
           )
-        | (_, _) =>
+        | Exp(OnText(_), StringLit(_)) when String.length(s) == 1 =>
+          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
+        | _ =>
           switch (HazelKeyCombos.of_evt(evt)) {
           | Some(Ctrl_Z) =>
             if (is_mac) {
@@ -651,16 +620,9 @@ let view =
       };
 
       let key_handlers =
-        switch (Program.get_cursor_info(program), Program.get_zexp(program)) {
-        | (None, _)
-        | (_, None) => []
-        | (Some(cursor_info), Some(ze)) =>
-          key_handlers(
-            ~inject,
-            ~is_mac,
-            ~cursor_info,
-            ~is_text_cursor=CursorInfo_common.is_text_cursor(ze),
-          )
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some(cursor_info) => key_handlers(~inject, ~is_mac, ~cursor_info)
         };
 
       Node.div(
