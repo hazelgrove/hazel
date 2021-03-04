@@ -22,6 +22,8 @@
   --code-line-height: 1.4;
   --closed-child-line-height: 1.25;
 
+  --context-entry-font-size: 10pt;
+
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
@@ -194,7 +196,7 @@ body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 300px;
+  width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: hidden;
@@ -582,10 +584,12 @@ body {
 }
 
 .context-entry {
-  font-size: 125%;
   border: 1px outset #ffffff;
   border-left: 0px;
   border-right: 0px;
+}
+.context-entry .code {
+  font-size: var(--context-entry-font-size);
 }
 
 .instructional-msg {
@@ -960,6 +964,7 @@ h1 {
   border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
   cursor: default;
+  overflow: auto;
 }
 
 .LivelitView.Inline {
@@ -1509,7 +1514,7 @@ input.slider::-moz-range-track {
 
 .grayscale-livelit img.subject {
   height: auto;
-  width: 550px;
+  width: 625px;
   filter: brightness(90%) grayscale(75%);
 }
 
@@ -1538,7 +1543,8 @@ input.slider::-moz-range-track {
   padding: 2px 4px;
   display: grid;
   justify-items: left;
-  width: 225px;
+  width: 265px;
+  overflow: auto;
 }
 
 .splice {

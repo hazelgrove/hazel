@@ -461,7 +461,7 @@ and is_after_zline =
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(2, After)
-  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
   | CursorL(cursor, LivelitDefLine(_)) => cursor == OnDelim(2, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
