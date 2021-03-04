@@ -135,6 +135,16 @@ let split_last_opt = (xs: list('a)): option((list('a), 'a)) =>
   | [] => None
   | [y, ...ys] => Some((List.rev(ys), y))
   };
+let split_last = (xs: list('a)): (list('a), 'a) =>
+  OptUtil.get(() => failwith("empty list"), split_last_opt(xs));
+
+let split_first_opt = (xs: list('a)): option(('a, list('a))) =>
+  switch (xs) {
+  | [] => None
+  | [first, ...trailing] => Some((first, trailing))
+  };
+let split_first = (xs: list('a)): ('a, list('a)) =>
+  OptUtil.get(() => failwith("empty list"), split_first_opt(xs));
 
 let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
@@ -260,8 +270,21 @@ let rec map_with_accumulator_opt =
   switch (xs) {
   | [] => Some((start, []))
   | [x, ...xs] =>
-    module Let_syntax = OptUtil.Let_syntax;
-    let%bind (new_acc, y) = f(start, x);
-    let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
+    open OptUtil.Syntax;
+    let* (new_acc, y) = f(start, x);
+    let+ (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
+  };
+
+let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
+  switch (xs) {
+  | []
+  | [_] => []
+  | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
+  };
+
+let rotate = (xs: list('x)): list('x) =>
+  switch (xs) {
+  | [] => []
+  | [hd, ...tl] => tl @ [hd]
   };

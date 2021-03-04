@@ -11,6 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
@@ -93,7 +94,7 @@ and get_err_status_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  // | ListNil(err)
+  | TypeAnn(err, _, _)
   | Inj(err, _, _) => err
   | ListLit(StandardErrStatus(err), _) => err
   | ListLit(_, _) => NotInHole
@@ -116,6 +117,7 @@ and set_err_status_operand = (err, operand) =>
   | ListLit(_, opseq) => ListLit(StandardErrStatus(err), opseq)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
+  | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -144,19 +146,20 @@ and mk_inconsistent_operand =
   // | ListNil(InHole(TypeInconsistent, _))
   | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  // | ListNil(NotInHole | InHole(WrongLength, _))
   | ListLit(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
       _,
     )
-  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -220,6 +223,7 @@ and is_complete_operand = (operand: 'operand): bool => {
     false
   | ListLit(StandardErrStatus(NotInHole), _) => true
   | Parenthesized(body) => is_complete(body)
+  | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };

@@ -6,7 +6,7 @@ type t =
 
 let to_string =
   fun
-  | Arrow => UnicodeConstants.typeArrowSym
+  | Arrow => Unicode.typeArrowSym
   | Prod => ","
   | Sum => "|";
 
@@ -16,7 +16,7 @@ let precedence =
   | Arrow => 2
   | Prod => 1;
 
-let precedence_const = 0;
+let precedence_const = 4;
 
 let associativity =
   fun

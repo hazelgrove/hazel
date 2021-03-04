@@ -6,17 +6,15 @@ and zblock = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(CursorPosition.t, UHExp.line)
   | ExpLineZ(zopseq)
-  | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
-  | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
-  | LetLineZE(UHPat.t, option(UHTyp.t), t)
+  | LetLineZP(ZPat.t, UHExp.t)
+  | LetLineZE(UHPat.t, t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
   | ListLitZ(ListErrStatus.t, zopseq)
   | ParenthesizedZ(t)
-  | LamZP(ErrStatus.t, ZPat.t, option(UHTyp.t), UHExp.t)
-  | LamZA(ErrStatus.t, UHPat.t, ZTyp.t, UHExp.t)
-  | LamZE(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | LamZP(ErrStatus.t, ZPat.t, UHExp.t)
+  | LamZE(ErrStatus.t, UHPat.t, t)
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
@@ -41,23 +39,13 @@ let listlitz =
     (~err: ListErrStatus.t=StandardErrStatus(NotInHole), zopseq): zoperand =>
   ListLitZ(err, zopseq);
 
-let prune_type_annotation: zoperand => zoperand =
-  fun
-  | CursorE(OnDelim(k, _) as cursor, Lam(err, p, Some(_), body)) when k != 1 =>
-    CursorE(cursor, Lam(err, p, None, body))
-  | LamZP(err, zp, Some(_), body) => LamZP(err, zp, None, body)
-  | LamZE(err, p, Some(_), zbody) => LamZE(err, p, None, zbody)
-  | zoperand => zoperand;
-
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)
   | LetLineZP(_)
-  | LetLineZA(_)
   | ExpLineZ(ZOpSeq(_, ZOperator(_)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _))) => true
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _))) => true
   | LetLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
@@ -78,16 +66,10 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
     )
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
-  | LetLine(_, ann, _) =>
-    let ann_cursors =
-      switch (ann) {
-      | None => []
-      | Some(_) => CursorPosition.delim_cursors_k(1)
-      };
+  | LetLine(_) =>
     CursorPosition.delim_cursors_k(0)
-    @ ann_cursors
+    @ CursorPosition.delim_cursors_k(1)
     @ CursorPosition.delim_cursors_k(2)
-    @ CursorPosition.delim_cursors_k(3);
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
@@ -105,16 +87,10 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
-  | Lam(_, _, ann, _) => {
-      let colon_positions =
-        switch (ann) {
-        | Some(_) => CursorPosition.delim_cursors_k(1)
-        | None => []
-        };
+  | Lam(_, _, _) => {
       CursorPosition.delim_cursors_k(0)
-      @ colon_positions
-      @ CursorPosition.delim_cursors_k(2)
-      @ CursorPosition.delim_cursors_k(3);
+      @ CursorPosition.delim_cursors_k(1)
+      @ CursorPosition.delim_cursors_k(2);
     }
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
@@ -141,7 +117,6 @@ module ZLine = {
     fun
     | CursorL(_)
     | LetLineZP(_)
-    | LetLineZA(_)
     | LetLineZE(_) => failwith("force_get_zopseq: expected ExpLineZ")
     | ExpLineZ(zopseq) => zopseq;
 };
@@ -162,11 +137,10 @@ and is_before_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_) => false
   }
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
@@ -187,7 +161,6 @@ and is_before_zoperand =
   | ListLitZ(_, _)
   | ParenthesizedZ(_)
   | LamZP(_)
-  | LamZA(_)
   | LamZE(_)
   | InjZ(_)
   | CaseZE(_)
@@ -246,12 +219,11 @@ and is_after_zline =
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
-  | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _)
-  | LetLineZE(_, _, _) => false
+  | LetLineZP(_)
+  | LetLineZE(_) => false
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -263,7 +235,7 @@ and is_after_zoperand =
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-  | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
+  | CursorE(cursor, Lam(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
@@ -272,7 +244,6 @@ and is_after_zoperand =
   | ParenthesizedZ(_) => false
   | ListLitZ(_, _)
   | LamZP(_)
-  | LamZA(_)
   | LamZE(_)
   | InjZ(_)
   | CaseZE(_)
@@ -297,11 +268,10 @@ and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
   | CursorL(_, CommentLine(_))
-  | CursorL(_, LetLine(_, _, _)) => true
+  | CursorL(_, LetLine(_)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_) => false
   }
 and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
@@ -322,7 +292,6 @@ and is_outer_zoperand =
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | ListLitZ(_)
   | LamZP(_)
-  | LamZA(_)
   | LamZE(_)
   | InjZ(_)
   | CaseZE(_)
@@ -343,7 +312,7 @@ and place_before_line =
   fun
   | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
+  | LetLine(_) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
@@ -381,7 +350,7 @@ and place_after_line =
   | CommentLine(comment) as line =>
     CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_) as line => CursorL(OnDelim(3, After), line)
+  | LetLine(_) as line => CursorL(OnDelim(2, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
@@ -394,7 +363,7 @@ and place_after_operand = operand =>
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
-  | Lam(_) => CursorE(OnDelim(3, After), operand)
+  | Lam(_) => CursorE(OnDelim(2, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
@@ -426,7 +395,7 @@ let place_cursor_line =
     None
   | EmptyLine
   | CommentLine(_)
-  | LetLine(_, _, _) =>
+  | LetLine(_) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
 let place_cursor_rule =
@@ -439,7 +408,6 @@ let prune_empty_hole_line = (zli: zline): zline =>
     place_before_line(EmptyLine)
   | ExpLineZ(_)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_)
   | CursorL(_) => zli
   };
@@ -460,9 +428,8 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
-  | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
-  | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
+  | LetLineZP(zp, def) => LetLine(ZPat.erase(zp), def)
+  | LetLineZE(p, zdef) => LetLine(p, erase(zdef))
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -473,9 +440,8 @@ and erase_zoperand =
   | CursorE(_, operand) => operand
   | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
   | ListLitZ(err, zopseq) => ListLit(err, Some(erase_zopseq(zopseq)))
-  | LamZP(err, zp, ann, body) => Lam(err, ZPat.erase(zp), ann, body)
-  | LamZA(err, p, zann, body) => Lam(err, p, Some(ZTyp.erase(zann)), body)
-  | LamZE(err, p, ann, zbody) => Lam(err, p, ann, erase(zbody))
+  | LamZP(err, zp, body) => Lam(err, ZPat.erase(zp), body)
+  | LamZE(err, p, zbody) => Lam(err, p, erase(zbody))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
@@ -531,9 +497,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ParenthesizedZ(zbody) => ParenthesizedZ(set_err_status(err, zbody))
   | ListLitZ(_, zopseq) =>
     ListLitZ(StandardErrStatus(err), set_err_status_zopseq(err, zopseq))
-  | LamZP(_, zp, ann, body) => LamZP(err, zp, ann, body)
-  | LamZA(_, p, zann, body) => LamZA(err, p, zann, body)
-  | LamZE(_, p, ann, zbody) => LamZE(err, p, ann, zbody)
+  | LamZP(_, zp, body) => LamZP(err, zp, body)
+  | LamZE(_, p, zbody) => LamZE(err, p, zbody)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
   | CaseZE(_, zscrut, rules) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
@@ -573,17 +538,15 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
     let (zopseq, u_gen) = mk_inconsistent_zopseq(u_gen, zopseq);
     (ListLitZ(err, zopseq), u_gen);
   /* already in hole */
-  | LamZP(InHole(TypeInconsistent, _), _, _, _)
-  | LamZA(InHole(TypeInconsistent, _), _, _, _)
-  | LamZE(InHole(TypeInconsistent, _), _, _, _)
+  | LamZP(InHole(TypeInconsistent, _), _, _)
+  | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
   /* not in hole */
-  | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
-  | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
-  | LamZE(NotInHole | InHole(WrongLength, _), _, _, _)
+  | LamZP(NotInHole | InHole(WrongLength, _), _, _)
+  | LamZE(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -653,42 +616,26 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
-  | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
-    // k == 1 || k == 2 || k == 3
-    switch (k == 1, k == 2, ann) {
-    | (true, _, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, Some(ann)) =>
-      Some(LetLineZA(p, ZTyp.place_after(ann), def))
-    | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
+  | CursorL(OnDelim(k, Before), LetLine(p, def)) =>
+    switch (k) {
+    | 1 => Some(LetLineZP(ZPat.place_after(p), def))
+    | _ => Some(LetLineZE(p, place_after(def)))
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
     | None => None
     | Some(zopseq) => Some(ExpLineZ(zopseq))
     }
-  | LetLineZP(zp, ann, def) =>
+  | LetLineZP(zp, def) =>
     switch (ZPat.move_cursor_left(zp)) {
-    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), ann, def)))
+      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), def)))
     }
-  | LetLineZA(p, zann, def) =>
-    switch (ZTyp.move_cursor_left(zann)) {
-    | Some(zann) => Some(LetLineZA(p, zann, def))
-    | None =>
-      Some(
-        CursorL(
-          OnDelim(1, After),
-          LetLine(p, Some(ZTyp.erase(zann)), def),
-        ),
-      )
-    }
-  | LetLineZE(p, ann, zdef) =>
+  | LetLineZE(p, zdef) =>
     switch (move_cursor_left(zdef)) {
-    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
-    | None =>
-      Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
+    | Some(zdef) => Some(LetLineZE(p, zdef))
+    | None => Some(CursorL(OnDelim(1, After), LetLine(p, erase(zdef))))
     }
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -731,17 +678,11 @@ and move_cursor_left_zoperand =
   | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
     // _k == 1
     Some(InjZ(err, side, place_after(body)))
-  | CursorE(OnDelim(k, Before), Lam(err, arg, ann, body)) =>
-    // k == 1 || k == 2 || k == 3
-    if (k == 1) {
-      Some(LamZP(err, ZPat.place_after(arg), ann, body));
-    } else if (k == 2) {
-      switch (ann) {
-      | None => Some(LamZP(err, ZPat.place_after(arg), ann, body))
-      | Some(ann) => Some(LamZA(err, arg, ZTyp.place_after(ann), body))
-      };
-    } else {
-      Some(LamZE(err, arg, ann, place_after(body)));
+  | CursorE(OnDelim(k, Before), Lam(err, arg, body)) =>
+    switch (k) {
+    | 1 => Some(LamZP(err, ZPat.place_after(arg), body))
+    | 2 => Some(LamZE(err, arg, place_after(body)))
+    | _ => None
     }
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
     // _k == 1
@@ -784,30 +725,17 @@ and move_cursor_left_zoperand =
     | None =>
       Some(CursorE(OnDelim(0, After), Inj(err, side, erase(zbody))))
     }
-  | LamZP(err, zarg, ann, body) =>
+  | LamZP(err, zarg, body) =>
     switch (ZPat.move_cursor_left(zarg)) {
-    | Some(zarg) => Some(LamZP(err, zarg, ann, body))
+    | Some(zarg) => Some(LamZP(err, zarg, body))
     | None =>
-      Some(
-        CursorE(OnDelim(0, After), Lam(err, ZPat.erase(zarg), ann, body)),
-      )
+      Some(CursorE(OnDelim(0, After), Lam(err, ZPat.erase(zarg), body)))
     }
-  | LamZA(err, arg, zann, body) =>
-    switch (ZTyp.move_cursor_left(zann)) {
-    | Some(zann) => Some(LamZA(err, arg, zann, body))
-    | None =>
-      Some(
-        CursorE(
-          OnDelim(1, After),
-          Lam(err, arg, Some(ZTyp.erase(zann)), body),
-        ),
-      )
-    }
-  | LamZE(err, arg, ann, zbody) =>
+  | LamZE(err, arg, zbody) =>
     switch (move_cursor_left(zbody)) {
-    | Some(zbody) => Some(LamZE(err, arg, ann, zbody))
+    | Some(zbody) => Some(LamZE(err, arg, zbody))
     | None =>
-      Some(CursorE(OnDelim(2, After), Lam(err, arg, ann, erase(zbody))))
+      Some(CursorE(OnDelim(1, After), Lam(err, arg, erase(zbody))))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_left(zscrut)) {
@@ -890,54 +818,27 @@ and move_cursor_right_zline =
     Some(CursorL(OnText(0), line))
 
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
-  | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
-    switch (k, ann) {
-    | (0, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
-    | (1, None) =>
-      // invalid cursor position
-      None
-    | (1, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
-    | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
-    | (_three, _) => None
+  | CursorL(OnDelim(k, After), LetLine(p, def)) =>
+    switch (k) {
+    | 0 => Some(LetLineZP(ZPat.place_before(p), def))
+    | 1 => Some(LetLineZE(p, place_before(def)))
+    | _ => None
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | None => None
     | Some(zopseq) => Some(ExpLineZ(zopseq))
     }
-  | LetLineZP(zp, ann, def) =>
+  | LetLineZP(zp, def) =>
     switch (ZPat.move_cursor_right(zp)) {
-    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(
-        CursorL(
-          OnDelim(
-            switch (ann) {
-            | None => 2
-            | Some(_) => 1
-            },
-            Before,
-          ),
-          LetLine(ZPat.erase(zp), ann, def),
-        ),
-      )
+      Some(CursorL(OnDelim(1, Before), LetLine(ZPat.erase(zp), def)))
     }
-  | LetLineZA(p, zann, def) =>
-    switch (ZTyp.move_cursor_right(zann)) {
-    | Some(zann) => Some(LetLineZA(p, zann, def))
-    | None =>
-      Some(
-        CursorL(
-          OnDelim(2, Before),
-          LetLine(p, Some(ZTyp.erase(zann)), def),
-        ),
-      )
-    }
-  | LetLineZE(p, ann, zdef) =>
+  | LetLineZE(p, zdef) =>
     switch (move_cursor_right(zdef)) {
-    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
-    | None =>
-      Some(CursorL(OnDelim(3, Before), LetLine(p, ann, erase(zdef))))
+    | Some(zdef) => Some(LetLineZE(p, zdef))
+    | None => Some(CursorL(OnDelim(2, Before), LetLine(p, erase(zdef))))
     }
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
@@ -979,16 +880,11 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
     // _k == 0
     Some(InjZ(err, side, place_before(body)))
-  | CursorE(OnDelim(k, After), Lam(err, arg, ann, body)) =>
-    // k == 0 || k == 1 || k == 2
-    switch (k == 0, k == 1, ann) {
-    | (true, _, _) => Some(LamZP(err, ZPat.place_before(arg), ann, body))
-    | (_, true, None) =>
-      // invalid cursor position
-      None
-    | (_, true, Some(ann)) =>
-      Some(LamZA(err, arg, ZTyp.place_before(ann), body))
-    | (false, false, _) => Some(LamZE(err, arg, ann, place_before(body)))
+  | CursorE(OnDelim(k, After), Lam(err, arg, body)) =>
+    switch (k) {
+    | 0 => Some(LamZP(err, ZPat.place_before(arg), body))
+    | 1 => Some(LamZE(err, arg, place_before(body)))
+    | _ => None // invalid cursor position
     }
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
@@ -1021,39 +917,17 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorE(OnDelim(1, Before), Inj(err, side, erase(zbody))))
     }
-  | LamZP(err, zarg, ann, body) =>
+  | LamZP(err, zarg, body) =>
     switch (ZPat.move_cursor_right(zarg)) {
-    | Some(zarg) => Some(LamZP(err, zarg, ann, body))
+    | Some(zarg) => Some(LamZP(err, zarg, body))
     | None =>
-      Some(
-        CursorE(
-          OnDelim(
-            switch (ann) {
-            | None => 2
-            | Some(_) => 1
-            },
-            Before,
-          ),
-          Lam(err, ZPat.erase(zarg), ann, body),
-        ),
-      )
+      Some(CursorE(OnDelim(1, Before), Lam(err, ZPat.erase(zarg), body)))
     }
-  | LamZA(err, arg, zann, body) =>
-    switch (ZTyp.move_cursor_right(zann)) {
-    | Some(zann) => Some(LamZA(err, arg, zann, body))
-    | None =>
-      Some(
-        CursorE(
-          OnDelim(2, Before),
-          Lam(err, arg, Some(ZTyp.erase(zann)), body),
-        ),
-      )
-    }
-  | LamZE(err, arg, ann, zbody) =>
+  | LamZE(err, arg, zbody) =>
     switch (move_cursor_right(zbody)) {
     | None =>
-      Some(CursorE(OnDelim(3, Before), Lam(err, arg, ann, erase(zbody))))
-    | Some(zbody) => Some(LamZE(err, arg, ann, zbody))
+      Some(CursorE(OnDelim(2, Before), Lam(err, arg, erase(zbody))))
+    | Some(zbody) => Some(LamZE(err, arg, zbody))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_right(zscrut)) {
@@ -1125,9 +999,8 @@ and cursor_on_EmptyHole_zline =
   fun
   | CursorL(_) => None
   | ExpLineZ(zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
-  | LetLineZP(_)
-  | LetLineZA(_) => None
-  | LetLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
+  | LetLineZP(_) => None
+  | LetLineZE(_, ze) => cursor_on_EmptyHole(ze)
 and cursor_on_EmptyHole_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => None
@@ -1138,9 +1011,8 @@ and cursor_on_EmptyHole_zoperand =
   | CursorE(_, EmptyHole(u)) => Some(u)
   | CursorE(_)
   | ListLitZ(_)
-  | LamZP(_)
-  | LamZA(_) => None
-  | LamZE(_, _, _, ze)
+  | LamZP(_) => None
+  | LamZE(_, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
