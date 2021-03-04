@@ -115,7 +115,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListLit(_) => indicate_words_view("list literal")
-    | Lam(_, _, _, _) => indicate_words_view("function")
+    | Lam(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {
@@ -200,6 +200,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | TypeAnn(_, _, _) => indicate_words_view("type annotation")
     };
   };
 
@@ -247,7 +248,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let cursor_term_view =
-      (cursor_term: CursorInfo_common.cursor_term, show_indicate_word: bool) => {
+      (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
@@ -269,7 +270,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             )
           );
         }
-      | LetLine(_, _, _) =>
+      | LetLine(_) =>
         Vdom.(
           Node.span(
             [],
@@ -289,7 +290,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action_common.shape) => {
+  let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>
@@ -315,7 +316,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SListLit
     | SLine
     | SCommentLine
-    | SAsc
+    | SAnn
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
@@ -423,8 +424,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ =
-      (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
+  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
     switch (cursor_term) {
     | Exp(_, _) => Exp
     | Pat(_, _) => Pat
@@ -449,14 +449,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
-      | TypeAnn => Some(Exp)
+      | TypeAnn => Some(Pat)
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam
-      | SAsc => Some(Exp)
+      | SLam => Some(Exp)
+      | SAnn => Some(Pat)
       | _ =>
         Some(
           get_cursor_term_tag_typ(
@@ -1084,7 +1084,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
 
   let preview_on_hover_checkbox = (preview_on_hover: bool) => {
-    OptionsPanel.labeled_checkbox(
+    SettingsPanel.labeled_checkbox(
       ~id="preview_on_hover",
       ~label="Preview On Hover",
       ~on_change=() => inject(TogglePreviewOnHover),

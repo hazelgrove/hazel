@@ -196,7 +196,12 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
@@ -222,27 +227,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
   | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
-  // | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  // | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  // | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  // | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
-  // | (ListNil, _) => DoesNotMatch
-  // | (Cons(dp1, dp2), Cons(d1, d2)) =>
-  //   switch (matches(dp1, d1)) {
-  //   | DoesNotMatch => DoesNotMatch
-  //   | Indet => Indet
-  //   | Matches(env1) =>
-  //     switch (matches(dp2, d2)) {
-  //     | DoesNotMatch => DoesNotMatch
-  //     | Indet => Indet
-  //     | Matches(env2) => Matches(Environment.union(env1, env2))
-  //     }
-  //   }
-  // | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-  //   matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  // | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  // | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
-  // | (Cons(_, _), _) => DoesNotMatch
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
   | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
@@ -324,7 +308,12 @@ and matches_cast_Pair =
   | Pair(d1, d2) =>
     switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -419,6 +408,74 @@ and matches_cast_Cons =
       }
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
+  // | Cons(d1, d2) =>
+  //   switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+  //   | DoesNotMatch => DoesNotMatch
+  //   | Indet =>
+  //     let list_casts =
+  //       List.map(
+  //         (c: (HTyp.t, HTyp.t)) => {
+  //           let (ty1, ty2) = c;
+  //           (HTyp.List(ty1), HTyp.List(ty2));
+  //         },
+  //         elt_casts,
+  //       );
+  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet
+  //     | Matches(_) => Indet
+  //     };
+  //   | Matches(env1) =>
+  //     let list_casts =
+  //       List.map(
+  //         (c: (HTyp.t, HTyp.t)) => {
+  //           let (ty1, ty2) = c;
+  //           (HTyp.List(ty1), HTyp.List(ty2));
+  //         },
+  //         elt_casts,
+  //       );
+  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet => Indet
+  //     | Matches(env1) =>
+  //       let list_casts =
+  //         List.map(
+  //           (c: (HTyp.t, HTyp.t)) => {
+  //             let (ty1, ty2) = c;
+  //             (HTyp.List(ty1), HTyp.List(ty2));
+  //           },
+  //           elt_casts,
+  //         );
+  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //       | DoesNotMatch => DoesNotMatch
+  //       | Indet => Indet
+  //       | Matches(env2) => Matches(Environment.union(env1, env2))
+  //       };
+  //     };
+  //   | ListLit(_, []) => DoesNotMatch
+  //   | ListLit(ty, [dphd, ...dptl]) =>
+  //     // failwith("unimplemented")
+  //     switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet => Indet
+  //     | Matches(env1) =>
+  //       let list_casts =
+  //         List.map(
+  //           (c: (HTyp.t, HTyp.t)) => {
+  //             let (ty1, ty2) = c;
+  //             (HTyp.List(ty1), HTyp.List(ty2));
+  //           },
+  //           elt_casts,
+  //         );
+  //       let dp2 = DHPat.ListLit(ty, dptl);
+  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //       | DoesNotMatch => DoesNotMatch
+  //       | Indet => Indet
+  //       | Matches(env2) => Matches(Environment.union(env1, env2))
+  //       };
+  //     }
+  //   | _ => failwith("called matches_cast_Cons with non-list pattern")
+  //   }
   | Cons(d1, d2) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
@@ -576,17 +633,16 @@ and syn_elab_line =
     }
   | EmptyLine
   | CommentLine(_) => LinesExpand(d => d, ctx, delta)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let (ctx1, is_recursive_fn) =
-        Statics_Exp.ctx_for_let(ctx, p, ty1, def);
+  | LetLine(p, def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => LinesDoNotExpand
+    | Some((ty1, _)) =>
+      let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>
         let d1 =
-          switch (is_recursive_fn) {
+          switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
           | Some(x) =>
             FixF(
@@ -603,17 +659,6 @@ and syn_elab_line =
           LinesExpand(prelude, ctx, delta);
         };
       };
-    | None =>
-      switch (syn_elab(ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotExpand
-      | Elaborates(d1, ty1, delta) =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(dp, _, ctx, delta) =>
-          let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
-        }
-      }
     }
   }
 and syn_elab_opseq =
@@ -765,7 +810,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -784,7 +829,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -862,9 +907,6 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
-  // | ListNil(NotInHole) =>
-  //   let elt_ty = HTyp.Hole;
-  //   Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | ListLit(_, None) =>
     Elaborates(ListLit(List(Hole), []), List(Hole), delta)
@@ -907,22 +949,21 @@ and syn_elab_operand =
         Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
       };
     };
-  | Lam(NotInHole, p, ann, body) =>
-    let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => HTyp.Hole
-      };
-    switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, _, ctx, delta) =>
-      switch (syn_elab(ctx, delta, body)) {
+  | Lam(NotInHole, p, body) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => DoesNotElaborate
+    | Some((ty1, _)) =>
+      switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Lam(dp, ty1, d1);
-        Elaborates(d, Arrow(ty1, ty2), delta);
+      | Elaborates(dp, _, ctx, delta) =>
+        switch (syn_elab(ctx, delta, body)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty2, delta) =>
+          let d = DHExp.Lam(dp, ty1, d1);
+          Elaborates(d, Arrow(ty1, ty2), delta);
+        }
       }
-    };
+    }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1225,7 +1266,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -1252,7 +1293,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
@@ -1278,41 +1319,30 @@ and ana_elab_operand =
     | Some(opseq_) => ana_elab_opseq(ctx, delta, opseq_, ty)
     | None => DoesNotElaborate
     }
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
-        switch (HTyp.consistent(ty1_ann, ty1_given)) {
-        | false => DoesNotElaborate
-        | true =>
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(dp, ty1p, ctx, delta) =>
-            switch (ana_elab(ctx, delta, body, ty2)) {
-            | DoesNotElaborate => DoesNotElaborate
-            | Elaborates(d1, ty2, delta) =>
-              let ty = HTyp.Arrow(ty1p, ty2);
-              let d = DHExp.Lam(dp, ty1p, d1);
-              Elaborates(d, ty, delta);
-            }
-          }
+      let ty1_ann =
+        switch (Statics_Pat.syn(ctx, p)) {
+        | None => ty1_given
+        | Some((ty_p, _)) => ty_p
         };
-      | None =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_given)) {
+      switch (HTyp.consistent(ty1_ann, ty1_given)) {
+      | false => DoesNotElaborate
+      | true =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1, ctx, delta) =>
+        | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1, ty2);
-            let d = DHExp.Lam(dp, ty1, d1);
+            let ty = HTyp.Arrow(ty1p, ty2);
+            let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
-      }
+      };
     }
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ty)) {

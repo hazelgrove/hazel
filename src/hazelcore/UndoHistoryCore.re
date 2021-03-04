@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -33,8 +33,8 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
+  | ConstructEdit(Action.shape)
+  /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
@@ -145,7 +145,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListLit(_)
-    | Lam(_, _, _, _)
+    | Lam(_)
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
@@ -162,6 +162,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | BoolLit(_, _)
     | ListLit(_)
     | Parenthesized(_)
+    | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
   | Typ(_, operand) =>
@@ -182,7 +183,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (line) {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
-    | LetLine(_, _, _)
+    | LetLine(_)
     | ExpLine(_) => MaxLen
     }
   };
@@ -204,12 +205,12 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
     switch (exp) {
-    | Lam(_, _, _, _) => true
+    | Lam(_) => true
     | _ => false
     }
   | Line(_, line_content) =>
     switch (line_content) {
-    | LetLine(_, _, _) => true
+    | LetLine(_) => true
     | _ => false
     }
   | _ => false
