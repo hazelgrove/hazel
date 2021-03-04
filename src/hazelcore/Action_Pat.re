@@ -520,13 +520,20 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
-          let new_zseq =
-            ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-          Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
-        | _ => Failed
-        }
+        open ActionOutcome.Syntax;
+        let hty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+        let* kind = Statics_Typ.syn(ctx, hty) |> ActionOutcome.of_option;
+        let+ {zty: new_zann, u_gen, kind: _} =
+          Action_Typ.Syn.perform(
+            ctx,
+            a,
+            {Action_Typ.Syn.Success.Poly.zty: zann, u_gen, kind},
+            (),
+          )
+          |> ActionOutcome.rescue_escaped(_ => Failed);
+        let new_zseq =
+          ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
+        mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
       | _ => Failed
       }
     | Some(operator) =>
@@ -861,12 +868,18 @@ and syn_perform_operand =
       Succeeded((zpat, ty, ctx, u_gen));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded(zann) =>
-      let ty = UHTyp.expand(ZTyp.erase(zann));
+    open ActionOutcome.Syntax;
+    let outcome = {
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+      let* kind = Statics_Typ.syn(ctx, hty) |> ActionOutcome.of_option;
+      let+ {zty: zann, u_gen, kind: _} =
+        Action_Typ.Syn.perform(
+          ctx,
+          a,
+          {Action_Typ.Syn.Success.Poly.zty: zann, u_gen, kind},
+          (),
+        );
+      let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
       let (zpat, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_z(
           ctx,
@@ -874,8 +887,17 @@ and syn_perform_operand =
           ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
           ty,
         );
-      Succeeded((zpat, ty, ctx, u_gen));
-    }
+      (zpat, ty, ctx, u_gen);
+    };
+    outcome
+    |> ActionOutcome.rescue_escaped(side =>
+         syn_perform_operand(
+           ctx,
+           u_gen,
+           Action_common.escape(side),
+           zoperand,
+         )
+       );
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -1016,14 +1038,21 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
-          let new_zseq =
-            ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-          let ty' = UHTyp.expand(ZTyp.erase(new_zann));
-          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
-        | _ => Failed
-        }
+        open ActionOutcome.Syntax;
+        let hty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+        let* kind = Statics_Typ.syn(ctx, hty) |> ActionOutcome.of_option;
+        let+ {zty: new_zann, u_gen, kind: _} =
+          Action_Typ.Syn.perform(
+            ctx,
+            a,
+            {Action_Typ.Syn.Success.Poly.zty: zann, u_gen, kind},
+            (),
+          )
+          |> ActionOutcome.rescue_escaped(_ => Failed);
+        let new_zseq =
+          ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
+        let ty' = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
+        mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty');
       | _ => Failed
       }
     | Some(operator) =>
@@ -1420,28 +1449,38 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        u_gen,
-        Action_common.escape(side),
-        zoperand,
-        ty,
-      )
-    | Succeeded(zann) =>
-      let ty' = UHTyp.expand(ZTyp.erase(zann));
+    open ActionOutcome.Syntax;
+    let outcome = {
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+      let* kind = Statics_Typ.syn(ctx, hty) |> ActionOutcome.of_option;
+      let+ {zty: zann, u_gen, kind: _} =
+        Action_Typ.Syn.perform(
+          ctx,
+          a,
+          {Action_Typ.Syn.Success.Poly.zty: zann, u_gen, kind},
+          (),
+        );
+      let ty' = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
       let (new_op, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
       let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
       if (HTyp.consistent(ty, ty')) {
-        Succeeded((new_zopseq, ctx, u_gen));
+        (new_zopseq, ctx, u_gen);
       } else {
         let (new_zopseq, u_gen) = new_zopseq |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((new_zopseq, ctx, u_gen));
+        (new_zopseq, ctx, u_gen);
       };
-    }
+    };
+    outcome
+    |> ActionOutcome.rescue_escaped(side =>
+         ana_perform_operand(
+           ctx,
+           u_gen,
+           Action_common.escape(side),
+           zoperand,
+           ty,
+         )
+       );
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
