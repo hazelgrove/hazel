@@ -6,6 +6,40 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+exception NotElem; 
+
+let decode_livelit_view : DHExp.t => option(Vdom.Node.t) = (d : DHExp.t) => {
+  let rec decode_attrs : DHExp.t => list(Vdom.Attr.t) = 
+    d => switch(d) {
+    | ListNil(_) => []
+    | Cons(Pair(StringLit(k), StringLit(v)), tl) => 
+      [Vdom.Attr.create(k, v), ...decode_attrs(tl)]
+    | _ => raise(NotElem)
+    };
+  let rec decode_elem = (d : DHExp.t) => {
+    switch (d) {
+    | Pair(StringLit(tag), Pair(d_attrs, d_children)) => 
+      let attrs = decode_attrs(d_attrs);
+      let children = decode_children(d_children);
+      Vdom.Node.create(tag, attrs, children)
+    | _ => 
+      raise(NotElem)
+    }
+  }
+  and decode_children = (d : DHExp.t) => {
+    switch (d) { 
+    | ListNil(_) => []
+    | Cons(child, tl) => 
+      [decode_elem(child), ...decode_children(tl)]
+    | _ => raise(NotElem)
+    }
+  };
+  switch (decode_elem(DHExp.strip_casts(d))) {
+  | elem => Some(elem)
+  | exception NotElem => None
+  }
+};
+
 let widget_id_tbl = Hashtbl.create(5);
 
 let get_widget_id = llu =>
@@ -304,7 +338,7 @@ let decoration_views =
                 [Attr.class_("user-defined-livelit-container"), style_attr],
                 [
                   Node.widget(
-                    ~update=(state, container) => (state, container),
+                    ~update=(state, container) => {(state, container)},
                     ~id,
                     ~init=
                       () => {
