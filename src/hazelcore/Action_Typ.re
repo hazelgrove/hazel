@@ -706,54 +706,6 @@ and Ana: Ana_S = {
   };
   open Success.Poly;
 
-  let mk_text =
-      (
-        ctx: Contexts.t,
-        u_gen: MetaVarGen.t,
-        caret_index: int,
-        text: string,
-        k: Kind.t,
-      )
-      : ActionOutcome.t(Success.t) => {
-    let text_cursor = CursorPosition.OnText(caret_index);
-    switch (TyTextShape.of_tyid(TyId.of_string(text))) {
-    | None =>
-      if (text |> StringUtil.is_empty) {
-        Succeeded({
-          zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
-          u_gen,
-        });
-      } else {
-        Failed;
-      }
-    | Some(ExpandingKeyword(k)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      Succeeded({
-        zty:
-          ZOpSeq.wrap(
-            ZTyp.CursorT(
-              text_cursor,
-              TyVar(
-                InVarHole(Keyword(k), u),
-                k |> ExpandingKeyword.to_string |> TyId.of_string,
-              ),
-            ),
-          ),
-        u_gen,
-      });
-    | Some(Int | Float | Bool | TyVar(_)) =>
-      switch (Syn.mk_text(ctx, u_gen, caret_index, text)) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded({Syn.Success.Poly.zty, kind: k', u_gen}) =>
-        if (Kind.consistent(k, k')) {
-          Succeeded({zty, u_gen});
-        } else {
-          Failed;
-        }
-      }
-    };
-  };
-
   let rec move =
           (a: Action.t, {zty, u_gen: _} as ana_r, k: Kind.t)
           : ActionOutcome.t(Success.t) =>
@@ -810,40 +762,6 @@ and Ana: Ana_S = {
         ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
       )
     };
-
-  let insert_text = Action_common.ana_insert_text_(~mk_ana_text=mk_text);
-  let backspace_text =
-    Action_common.ana_backspace_text_(~mk_ana_text=mk_text);
-  let delete_text = Action_common.ana_delete_text_(~mk_ana_text=mk_text);
-
-  let split_text =
-      (
-        ctx: Contexts.t,
-        u_gen: MetaVarGen.t,
-        caret_index: int,
-        sop: Action.operator_shape,
-        text: string,
-      )
-      : ActionOutcome.t(Success.t) => {
-    let (l, r) = text |> StringUtil.split_string(caret_index);
-    switch (
-      TyTextShape.of_tyid(TyId.of_string(l)),
-      operator_of_shape(sop),
-      TyTextShape.of_tyid(TyId.of_string(r)),
-    ) {
-    | (None, _, _)
-    | (_, None, _)
-    | (_, _, None) => Failed
-    | (Some(lshape), Some(op), Some(rshape)) =>
-      let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
-      let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
-      let new_zty = {
-        let zoperand = roperand |> ZTyp.place_before_operand;
-        ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
-      };
-      Succeeded({zty: new_zty, u_gen});
-    };
-  };
 
   let rec perform = (ctx, a, s, k) => perform_opseq(ctx, a, s, k)
   and perform_opseq =
