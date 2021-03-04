@@ -75,9 +75,6 @@ let is_after_unop_of_negative_literal = (zoperand: ZExp.zoperand): bool =>
   | _ => false
   };
 
-/* FIXME you need the u_gen */
-/* FIXME you need to analyze against a type in the Ana parts of code */
-/* ^ use ana_fix_holes_operand for this? Or make two functions, syn_zunop_to_znumlit and ana_zunop_to_znumlit */
 let syn_zunop_to_znumlit =
     (zunop: ZExp.zoperand, u_gen: MetaVarGen.t, ty: HTyp.t)
     : (ZExp.zoperand, MetaVarGen.t, HTyp.t) => {
@@ -1794,7 +1791,6 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     switch (znumlit_to_zunop(zoperand)) {
-    /* FIXME remove the is_after_unop_of_negative_literal clauses? */
     | Some(zunop) when is_after_unop_of_negative_literal(zoperand) =>
       syn_perform_operand(ctx, a, (zunop, ty, u_gen))
     | _ => syn_split_text(ctx, u_gen, j, sop, n)
