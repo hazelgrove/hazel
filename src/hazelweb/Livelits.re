@@ -897,15 +897,17 @@ module ColorLivelitView = {
     let is_valid_alpha = a => 0 <= a && a <= 100;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
-      | (
-          Some((IntLit(r), _)),
-          Some((IntLit(g), _)),
-          Some((IntLit(b), _)),
-          Some((IntLit(a), _)),
-        )
-          when
-            is_valid(r) && is_valid(g) && is_valid(b) && is_valid_alpha(a) =>
-        Some((r, g, b, a))
+      | (Some((d_r, _)), Some((d_g, _)), Some((d_b, _)), Some((d_a, _))) =>
+        switch (List.map(DHExp.strip_casts', [d_r, d_g, d_b, d_a])) {
+        | [IntLit(r), IntLit(g), IntLit(b), IntLit(a)]
+            when
+              is_valid(r)
+              && is_valid(g)
+              && is_valid(b)
+              && is_valid_alpha(a) =>
+          Some((r, g, b, a))
+        | _ => None
+        }
       | _ => None
       };
 
