@@ -149,9 +149,28 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
       ),
     )
   | CursorE(OnText(j), FloatLit(err, f)) =>
-    let op: Unops_Exp.t = Negate;
-    let new_cursor = CursorPosition.OnText(j - 1);
-    let operand = UHExp.floatlit(String.sub(f, 1, String.length(f) - 1));
+    let op: Unops_Exp.t =
+      if (f.[1] == '.' && j != 1) {
+        FNegate;
+      } else {
+        Negate;
+      };
+    let new_cursor =
+      switch (op) {
+      | Negate => CursorPosition.OnText(j - 1)
+      | FNegate => CursorPosition.OnText(j - 2)
+      };
+    let operand =
+      switch (op) {
+      | Negate => UHExp.floatlit(String.sub(f, 1, String.length(f) - 1))
+      | FNegate =>
+        let n = String.sub(f, 2, String.length(f) - 2);
+        if (int_of_string_opt(n) != None) {
+          UHExp.intlit(n);
+        } else {
+          UHExp.floatlit(n);
+        };
+      };
     Some(UnaryOpZ(err, op, CursorE(new_cursor, operand)));
   | _ => None
   };
