@@ -115,3 +115,4 @@ let cast: (t, HTyp.t, HTyp.t) => t;
 let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
 
 let strip_casts: t => t;
+let strip_casts': t => t;

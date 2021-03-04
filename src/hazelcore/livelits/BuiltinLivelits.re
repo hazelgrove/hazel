@@ -176,7 +176,7 @@ module MatrixLivelitCore = {
 module GradeCutoffLivelitCore = {
   let name = "$grade_cutoffs";
   let expansion_ty = HTyp.(Prod([Float, Float, Float, Float]));
-  let param_tys = [("data", HTyp.(List(Float)))];
+  let param_tys = [("data", HTyp.(List(Prod([String, Float]))))];
 
   [@deriving sexp]
   type letter_grade =

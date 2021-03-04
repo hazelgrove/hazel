@@ -6,6 +6,58 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+exception NotElem;
+
+[@warning "-32"]
+let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
+  (d: DHExp.t) => {
+    let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
+      d =>
+        switch (d) {
+        | ListNil(_) => []
+        | Cons(Pair(StringLit(k), StringLit(v)), tl) => [
+            Vdom.Attr.create(k, v),
+            ...decode_attrs(tl),
+          ]
+        | _ => raise(NotElem)
+        };
+    let rec decode_elem = (d: DHExp.t) => {
+      switch (d) {
+      | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
+        let attrs = decode_attrs(d_attrs);
+        let children = decode_children(d_children);
+        Vdom.Node.create(tag, attrs, children);
+      | _ => raise(NotElem)
+      };
+    }
+    and decode_children = (d: DHExp.t) => {
+      switch (d) {
+      | ListNil(_) => []
+      | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
+      | _ => raise(NotElem)
+      };
+    };
+    switch (decode_elem(DHExp.strip_casts(d))) {
+    | elem => Some(elem)
+    | exception NotElem => None
+    };
+  };
+
+let widget_id_tbl = Hashtbl.create(5);
+
+let get_widget_id = llu =>
+  switch (Hashtbl.find_opt(widget_id_tbl, llu)) {
+  | Some(id) => id
+  | None =>
+    let id =
+      Base__Type_equal.Id.create(
+        ~name="livelit-state-" ++ string_of_int(llu), _ =>
+        Sexplib.Sexp.List([])
+      );
+    Hashtbl.add(widget_id_tbl, llu, id);
+    id;
+  };
+
 /**
  * A buffered container for SVG elements so that strokes along
  * the bounding box of the elements do not get clipped by the
@@ -270,55 +322,54 @@ let decoration_views =
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
-            // type magic required by virtual dom to ensure
-            // each widget state's type is unique from others
-            let id =
-              Base__Type_equal.Id.create(
-                ~name=string_of_int(llu) ++ "-state", _ =>
-                Sexplib.Sexp.List([])
+            let id = get_widget_id(llu);
+            let container_origin_x =
+              (-1.) +. Float.of_int(start.row) *. font_metrics.row_height;
+            let container_origin_y =
+              Float.of_int(1 + start.col) *. font_metrics.col_width;
+            let container_position_style =
+              Printf.sprintf(
+                "top: %fpx; left: %fpx;",
+                container_origin_x,
+                container_origin_y,
               );
+            let style_attr =
+              Vdom.Attr.create("style", container_position_style);
             Vdom.[
-              Node.widget(
-                ~update=(state, container) => (state, container),
-                ~id,
-                ~init=
-                  () => {
-                    let container_origin_x =
-                      (-1.)
-                      +. Float.of_int(start.row)
-                      *. font_metrics.row_height;
-                    let container_origin_y =
-                      Float.of_int(1 + start.col) *. font_metrics.col_width;
-                    let container_position_style =
-                      Printf.sprintf(
-                        "top: %fpx; left: %fpx;",
-                        container_origin_x,
-                        container_origin_y,
-                      );
-                    let container = Dom_html.(createDiv(document));
-                    container##setAttribute(
-                      Js.string("style"),
-                      Js.string(container_position_style),
-                    );
-                    switch (llview(llu, model)) {
-                    | None =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container-error"),
-                      );
-                      container##.innerHTML := Js.string("Livelit View Error");
-                    | Some(view_str) =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container"),
-                      );
-                      container##.innerHTML := Js.string(view_str);
-                    };
-                    ((), container);
-                  },
-                (),
+              Node.div(
+                ~key="livelit-" ++ string_of_int(llu),
+                [Attr.class_("user-defined-livelit-container"), style_attr],
+                [
+                  Node.widget(
+                    ~update=(state, container) => {(state, container)},
+                    ~id,
+                    ~init=
+                      () => {
+                        print_endline("init");
+                        let container = Dom_html.(createDiv(document));
+                        switch (llview(llu, model)) {
+                        | None =>
+                          container##setAttribute(
+                            Js.string("class"),
+                            Js.string("user-defined-livelit-container-error"),
+                          );
+                          container##.innerHTML :=
+                            Js.string("Livelit View Error");
+                        | Some(view_str) =>
+                          /* container##setAttribute(
+                               Js.string("class"),
+                               Js.string("user-defined-livelit-container"),
+                             ); */
+                          container##.innerHTML := Js.string(view_str)
+                        };
+                        ((), container);
+                      },
+                    (),
+                  ),
+                ],
               ),
             ];
+          // each widget state's type is unique from others
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
@@ -504,13 +555,7 @@ let decoration_views =
 };
 
 let key_handlers =
-    (
-      ~inject,
-      ~is_mac: bool,
-      ~cursor_info: CursorInfo.t,
-      ~is_text_cursor: bool,
-    )
-    : list(Vdom.Attr.t) => {
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -522,39 +567,18 @@ let key_handlers =
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         let s = Key.get_key(evt);
-        switch (s, is_text_cursor) {
-        | (
-            "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" | "(" |
-            ")" |
-            "-" |
-            "_" |
-            "=" |
-            "+" |
-            "{" |
-            "}" |
-            "[" |
-            "]" |
-            ":" |
-            ";" |
-            "\"" |
-            "'" |
-            "<" |
-            ">" |
-            "," |
-            "." |
-            "?" |
-            "/" |
-            "|" |
-            "\\" |
-            " ",
-            true,
-          ) =>
-          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
-        | ("Enter", true) =>
+        switch (cursor_info.cursor_term) {
+        | Exp(OnText(_), StringLit(_))
+            when KeyCombo.matches(KeyCombo.enter, evt) =>
           prevent_stop_inject(
             ModelAction.EditAction(Construct(SChar("\n"))),
           )
-        | (_, _) =>
+        | Exp(OnText(_), StringLit(_))
+            when
+              String.length(s) == 1
+              && ModKeys.matches(ModKeys.no_ctrl_alt_meta, evt) =>
+          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
+        | _ =>
           switch (HazelKeyCombos.of_evt(evt)) {
           | Some(Ctrl_Z) =>
             if (is_mac) {
@@ -651,16 +675,9 @@ let view =
       };
 
       let key_handlers =
-        switch (Program.get_cursor_info(program), Program.get_zexp(program)) {
-        | (None, _)
-        | (_, None) => []
-        | (Some(cursor_info), Some(ze)) =>
-          key_handlers(
-            ~inject,
-            ~is_mac,
-            ~cursor_info,
-            ~is_text_cursor=CursorInfo_common.is_text_cursor(ze),
-          )
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some(cursor_info) => key_handlers(~inject, ~is_mac, ~cursor_info)
         };
 
       Node.div(
@@ -675,41 +692,13 @@ let view =
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.on_blur(_ =>
+            JSUtil.window_has_focus()
+              ? inject(ModelAction.BlurCell) : Event.Many([])
+          ),
           ...key_handlers,
         ],
-        [
-          Node.span(
-            [Attr.classes(["code"])],
-            code_text,
-            // @ [
-            //   Node.div(
-            //     [],
-            //     [
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("[")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/y8neczz3\"")],
-            //       ),
-            //       Node.span([], [Node.text(",")]),
-            //       Node.text(UnicodeConstants.nbsp),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/yd2dw4ww\"")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("]")],
-            //       ),
-            //     ],
-            //   ),
-            // ],
-          ),
-          ...decorations,
-        ],
+        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );

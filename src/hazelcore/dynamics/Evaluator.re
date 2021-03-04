@@ -65,33 +65,24 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
     | Caret => StringLit(n1 ++ n2)
     };
 
-  let builtin_subst = (x: Var.t): option(DHExp.t) =>
-    BuiltinFunctions.lookup(x)
-    |> Option.map(ty =>
-         switch (x) {
-         | "equal" =>
-           DHExp.Lam(
-             Var("x1"),
-             ty,
-             Lam(
-               Var("x2"),
-               Arrow(String, Bool),
-               ApBuiltin("equal", [BoundVar("x1"), BoundVar("x2")]),
-             ),
-           )
-         | "compare" =>
-           Lam(
-             Var("x1"),
-             ty,
-             Lam(
-               Var("x2"),
-               Arrow(String, Int),
-               ApBuiltin("compare", [BoundVar("x1"), BoundVar("x2")]),
-             ),
-           )
-         | _ => Lam(Var("x1"), ty, ApBuiltin(x, [BoundVar("x1")]))
-         }
-       );
+  let builtin_subst = (builtin_id: Var.t): option(DHExp.t) => {
+    let rec arg_tys =
+      fun
+      | HTyp.Arrow(ty_in, ty_out) => [ty_in, ...arg_tys(ty_out)]
+      | _ => [];
+    let eta_expand = arg_tys => {
+      let var_tys =
+        arg_tys |> List.mapi((i, ty) => ("x" ++ string_of_int(i), ty));
+      let bound_vars = var_tys |> List.map(((x, _)) => DHExp.BoundVar(x));
+      List.fold_right(
+        ((x, ty), d) => DHExp.Lam(Var(x), ty, d),
+        var_tys,
+        DHExp.ApBuiltin(builtin_id, bound_vars),
+      );
+    };
+    BuiltinFunctions.lookup(builtin_id)
+    |> Option.map(ty => eta_expand(arg_tys(ty)));
+  };
 
   let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     switch (x) {
@@ -261,10 +252,157 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
         }
       | _ => BoxedValue(Triv)
       }
-    | "format_for_university"
-    | "assign_grades"
-    | "weights"
-    | "compute_weighted_averages" => Indet(ApBuiltin(x, l))
+    | "format_for_university" =>
+      switch (l) {
+      | [student_grades] => BoxedValue(student_grades)
+      | _ => failwith("format_for_university takes one arg")
+      }
+    | "assign_grades" =>
+      switch (l) {
+      | [student_avgs, grade_cutoffs] =>
+        let (student_avgs, grade_cutoffs) =
+          TupleUtil.map2(DHExp.strip_casts', (student_avgs, grade_cutoffs));
+        let s_avgs = {
+          let rec get = (
+            fun
+            | DHExp.ListNil(_) => Some([])
+            | Cons(d1, d2) => {
+                open OptUtil.Syntax;
+                let* s_avgs = get(d2);
+                switch (d1) {
+                | Pair(StringLit(s), FloatLit(avg)) =>
+                  Some([(s, avg), ...s_avgs])
+                | _ => None
+                };
+              }
+            | _ => None
+          );
+          get(student_avgs);
+        }
+        and cutoffs = {
+          let rec get = (
+            fun
+            | DHExp.Pair(d1, d2) => get(d1) @ get(d2)
+            | d => [d]
+          );
+          switch (get(grade_cutoffs)) {
+          | [FloatLit(a), FloatLit(b), FloatLit(c), FloatLit(d)] =>
+            Some((a, b, c, d))
+          | _ => None
+          };
+        };
+        switch (s_avgs, cutoffs) {
+        | (None, _)
+        | (_, None) => Indet(ApBuiltin(x, l))
+        | (Some(s_avgs), Some((a, b, c, d))) =>
+          let assign = avg =>
+            if (avg >= a) {
+              "A";
+            } else if (avg >= b) {
+              "B";
+            } else if (avg >= c) {
+              "C";
+            } else if (avg >= d) {
+              "D";
+            } else {
+              "F";
+            };
+          let assigned = List.map(((s, avg)) => (s, assign(avg)), s_avgs);
+          let d_val =
+            List.fold_right(
+              ((s, grade), assigned) =>
+                DHExp.Cons(Pair(StringLit(s), StringLit(grade)), assigned),
+              assigned,
+              DHExp.ListNil(Prod([String, String])),
+            );
+          BoxedValue(d_val);
+        };
+      | _ => failwith("assign_grades takes two args")
+      }
+    | "compute_weighted_averages" =>
+      switch (l) {
+      | [student_records, assignment_weights] =>
+        open OptUtil.Syntax;
+        let get_string = (
+          fun
+          | DHExp.StringLit(s) => Some(s)
+          | _ => None
+        );
+        let get_float = (
+          fun
+          | DHExp.FloatLit(f) => Some(f)
+          | _ => None
+        );
+        let get_pair = (
+          fun
+          | DHExp.Pair(d1, d2) => Some((d1, d2))
+          | _ => None
+        );
+        let rec get_list = (
+          fun
+          | DHExp.ListNil(_) => Some([])
+          | Cons(d1, d2) => {
+              let+ ds = get_list(d2);
+              [d1, ...ds];
+            }
+          | _ => None
+        );
+        let (student_records, assignment_weights) =
+          TupleUtil.map2(
+            DHExp.strip_casts',
+            (student_records, assignment_weights),
+          );
+        let rows = {
+          let* (_, rows) = get_pair(student_records);
+          let* rows = get_list(rows);
+          rows
+          |> List.map(row => {
+               let* (row_header, cells) = get_pair(row);
+               let* row_header = get_string(row_header);
+               let* cells = get_list(cells);
+               let+ cells = cells |> List.map(get_float) |> OptUtil.sequence;
+               (row_header, cells);
+             })
+          |> OptUtil.sequence;
+        };
+        let assignment_weights = {
+          let* weights = get_list(assignment_weights);
+          weights |> List.map(get_float) |> OptUtil.sequence;
+        };
+        switch (rows, assignment_weights) {
+        | (None, _)
+        | (_, None) => Indet(ApBuiltin(x, l))
+        | (Some(rows), Some(assignment_weights)) =>
+          let avgs =
+            rows
+            |> List.map(((student, assignments)) => {
+                 let+ weighted =
+                   ListUtil.opt_zip(assignment_weights, assignments);
+                 let avg =
+                   weighted
+                   |> List.map(((weight, score)) => weight *. score)
+                   |> List.fold_left((+.), 0.);
+                 (student, avg);
+               })
+            |> OptUtil.sequence;
+          switch (avgs) {
+          | None => Indet(ApBuiltin(x, l))
+          | Some(s_avgs) =>
+            let d =
+              List.fold_right(
+                ((student, avg), s_avgs) =>
+                  DHExp.Cons(
+                    Pair(StringLit(student), FloatLit(avg)),
+                    s_avgs,
+                  ),
+                s_avgs,
+                DHExp.ListNil(Prod([String, String])),
+              );
+            BoxedValue(d);
+          };
+        };
+      | _ => failwith("computed_weighted_averages takes two args")
+      }
     | _ => failwith("impossible")
     };
   module Elaborator = Elaborator_Exp.M(S);
@@ -277,7 +415,29 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
       | Some(d) => evaluate'(d)
       }
     | FailedAssert(d1) => Indet(d1)
-    | ApBuiltin(x, l) => builtinfunctions_evaluate(x, l)
+    | ApBuiltin(f, args) =>
+      // Need to make sure to evaluate args before
+      // evaluating built-in function in case args
+      // contained indet forms (eg livelit holes)
+      // that were filled and need to be resumed.
+      let evaluated_args = List.map(evaluate', args);
+      let is_invalid = (
+        fun
+        | InvalidInput(n) => Some(n)
+        | _ => None
+      );
+      let get_evaluated = (
+        fun
+        | BoxedValue(d)
+        | Indet(d) => Some(d)
+        | _ => None
+      );
+      switch (List.filter_map(is_invalid, evaluated_args)) {
+      | [n, ..._] => InvalidInput(n)
+      | [] =>
+        let args = List.filter_map(get_evaluated, evaluated_args);
+        builtinfunctions_evaluate(f, args);
+      };
     | Let(dp, d1, d2) =>
       switch (evaluate'(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

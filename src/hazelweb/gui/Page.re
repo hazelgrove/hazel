@@ -59,7 +59,7 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
     )
   );
 
-let cardstacks_select =
+let _cardstacks_select =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
@@ -201,7 +201,8 @@ let view =
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              // TODO(d) commented out for artifact review
+              // cardstacks_select(~inject, Model.cardstack_info),
             ],
           ),
           Node.div(
@@ -240,28 +241,6 @@ let view =
                           }),
                         ],
                         [Node.text("Serialize to console")],
-                      ),
-                      Node.widget(
-                        ~id=
-                          Base__Type_equal.Id.create(~name="w_state", _ =>
-                            Sexplib.Sexp.List([])
-                          ),
-                        ~init=
-                          () =>
-                            (
-                              0,
-                              {
-                                let div = Dom_html.(createDiv(document));
-                                div##.id := Js.string("hello");
-                                div##.innerHTML :=
-                                  Js.string(
-                                    "<script type=\"text/javascript\">function print_me() { console.log(\"hello world\"); }</script>"
-                                    ++ "<div style=\"width: 10px; height: 10px; background-color: red;\" onclick=\"print_me()\"></div>",
-                                  );
-                                div;
-                              },
-                            ),
-                        (),
                       ),
                       Node.div(
                         [

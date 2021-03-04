@@ -2274,7 +2274,6 @@ and syn_perform_operand =
         Statics_Exp.ana_fix_holes_splice_map(
           ctx,
           u_gen,
-          ~renumber_empty_holes=true,
           splice_info.splice_map,
         );
       let splice_info = SpliceInfo.update_splice_map(splice_info, splice_map);

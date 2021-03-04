@@ -141,3 +141,16 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
+
+let is_text_cursor = (ci: t) =>
+  switch (ci.cursor_term) {
+  | Exp(OnText(_), _)
+  | Pat(OnText(_), _)
+  | Typ(OnText(_), _)
+  | ExpOp(OnText(_), _)
+  | PatOp(OnText(_), _)
+  | TypOp(OnText(_), _)
+  | Line(OnText(_), _)
+  | Rule(OnText(_), _) => true
+  | _ => false
+  };
