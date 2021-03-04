@@ -2253,18 +2253,21 @@ and syn_perform_operand =
             //TODO: catch exceptions here
           )
         ) {
-        | None => print_endline("no type synthesized")
+        | None =>
+          print_endline(
+            "WARNING: perform livelit action: no type synthesized",
+          )
         | Some(actual_action_ty) =>
           if (HTyp.consistent(actual_action_ty, action_ty)) {
-            print_endline("perform livelit action: action type correct");
+            ();
           } else {
-            print_endline("perform livelit action: action type INCORRECT");
+            print_endline(
+              "WARNING: perform livelit action: action type INCORRECT",
+            );
           }
         };
       };
-      print_endline("about to run update fn");
       let update_cmd = update(serialized_model, serialized_action);
-      print_endline("done running update fn (so it didn't crash)");
       let (serialized_model, splice_info, u_gen) =
         SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
       let (splice_map, u_gen) =
