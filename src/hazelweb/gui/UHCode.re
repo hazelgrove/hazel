@@ -8,6 +8,7 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 exception NotElem;
 
+[@warning "-32"]
 let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
   (d: DHExp.t) => {
     let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
