@@ -6,12 +6,12 @@ type t = {
 
 let mk = (~width, card: Card.t) => {
   info: card.info,
-  program: Program.mk(~width, card.edit_state),
+  program: Program.focus(Program.mk(~width, card.edit_state)),
 };
 
 let erase = (zcard: t): Card.t => {
   info: zcard.info,
-  edit_state: zcard.program.edit_state,
+  edit_state: Program.blur(zcard.program).edit_state,
 };
 
 let get_program = card => card.program;

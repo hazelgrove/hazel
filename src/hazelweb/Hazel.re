@@ -86,13 +86,19 @@ let on_startup = (~schedule_action, _) => {
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
 
-  /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      UHCode.focus();
+      schedule_action(FocusWindow);
       Js._true;
     });
-  UHCode.focus();
+  Dom_html.window##.onblur :=
+    Dom_html.handler(_ => {
+      schedule_action(BlurWindow);
+      Js._true;
+    });
+  if (JSUtil.window_has_focus()) {
+    schedule_action(FocusCell);
+  };
 
   Async_kernel.Deferred.return(State.State);
 };
@@ -163,9 +169,9 @@ let create =
             | None => ()
             };
           };
-          switch (Model.get_program(model).edit_state.term) {
-          | Unfocused(_) => ()
-          | Focused(_) =>
+          switch (Model.get_program(model).edit_state.focus) {
+          | None => ()
+          | Some(_) =>
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {

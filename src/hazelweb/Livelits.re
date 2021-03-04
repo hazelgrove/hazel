@@ -791,7 +791,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(grayscale)],
             ),
             Node.div([], []),
@@ -807,7 +807,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(brightness)],
             ),
           ],
@@ -1126,7 +1126,7 @@ module ColorLivelitView = {
         Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
       let splice = splice_name =>
         Node.div(
-          [Attr.classes(["splice-content"])],
+          [Attr.classes(["splice-content", "custom-scrollbar"])],
           [uhcode(splice_name)],
         );
       Node.div(
@@ -1439,7 +1439,7 @@ module SliderLivelitView = {
     };
   };
 
-  let view_shape = _ => LivelitShape.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(15);
 };
 
 module SliderLivelitFloatView = {
@@ -1534,7 +1534,7 @@ module SliderLivelitFloatView = {
     };
   };
 
-  let view_shape = _ => LivelitShape.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(15);
 };
 
 module DataFrameLivelitView = {
@@ -1582,6 +1582,7 @@ module DataFrameLivelitView = {
         [
           attr_style(grid_area(grid_coordinates)),
           Attr.classes([
+            "custom-scrollbar",
             "matrix-splice",
             splice_name == m.selected
               ? "matrix-selected" : "matrix-unselected",
@@ -1659,18 +1660,22 @@ module DataFrameLivelitView = {
         [],
       );
 
-    let dim_template = dim =>
+    let dim_template = (cell_size, dim) =>
       // gap between headers and cells so that header cells
       // (which need higher z-index than regular cells to
       // support freezing ux) don't cover selection highlight\
       // of neighboring cells
-      StringUtil.sep(["auto", "2px", ...ListUtil.replicate(dim, "auto")]);
+      StringUtil.sep([
+        cell_size,
+        "2px", // header margin duplicated in stylesheet
+        ...ListUtil.replicate(dim, cell_size),
+      ]);
 
     Node.div(
       [Attr.classes(["matrix-livelit"])],
       [
         Node.div(
-          [Attr.classes(["formula-bar"])],
+          [Attr.classes(["formula-bar", "custom-scrollbar"])],
           [
             Node.div(
               [Attr.classes(["formula-bar-prompt"])],
@@ -1684,11 +1689,18 @@ module DataFrameLivelitView = {
           [
             Node.div(
               [
-                Attr.classes(["cells", "grid-container"]),
+                Attr.classes(["cells", "grid-container", "custom-scrollbar"]),
+                // matrix cell width/height are duplicated in stylesheet
                 attr_style(
                   StringUtil.cat([
-                    prop_val("grid-template-columns", dim_template(width)),
-                    prop_val("grid-template-rows", dim_template(height)),
+                    prop_val(
+                      "grid-template-columns",
+                      dim_template("100px", width),
+                    ),
+                    prop_val(
+                      "grid-template-rows",
+                      dim_template("30px", height),
+                    ),
                   ]),
                 ),
               ],

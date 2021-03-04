@@ -57,6 +57,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
+  | FocusWindow
+  | BlurWindow
   | Undo
   | Redo
   | ShiftHistory(_)
@@ -134,6 +136,7 @@ let apply_action =
           try(
             model
             |> Model.perform_action(
+                 ~livelit_move=true,
                  Program.move_to_node(Livelit, llu, program),
                )
             |> Model.perform_action(PerformLivelitAction(serialized_action))
@@ -151,7 +154,8 @@ let apply_action =
           };
         switch (Program.get_path(program)) {
         | None => Model.map_program(Program.blur, performed)
-        | Some(path) => Model.perform_action(MoveTo(path), performed)
+        | Some(path) =>
+          Model.perform_action(~livelit_move=true, MoveTo(path), performed)
         };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
@@ -166,6 +170,8 @@ let apply_action =
       | InvalidVar(_) => model
       | FocusCell => model |> Model.map_program(Program.focus)
       | BlurCell => model |> Model.map_program(Program.blur)
+      | FocusWindow => Model.map_program(Program.focus_window, model)
+      | BlurWindow => Model.map_program(Program.blur_window, model)
       | Undo =>
         let new_history =
           model.undo_history

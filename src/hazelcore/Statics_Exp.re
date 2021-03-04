@@ -40,11 +40,32 @@ module rec M: Statics_Exp_Sig.S = {
     expand_ty: HTyp.t,
   };
 
-  let ll_init_ty = (model_type, _) => UHTyp.expand(model_type);
+  let ll_init_ty = (model_type, _) =>
+    /*TODO make type more specific */
+    HTyp.Sum(
+      HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
+      HTyp.Sum(
+        HTyp.Prod([
+          HTyp.String,
+          HTyp.Prod([HTyp.String, HTyp.Arrow(HTyp.Hole, HTyp.Hole)]),
+        ]),
+        HTyp.Hole,
+      ),
+    );
   let ll_update_ty = (model_type, action_type) =>
+    /*TODO make type more specific */
     HTyp.Arrow(
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
-      UHTyp.expand(model_type),
+      HTyp.Sum(
+        HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
+        HTyp.Sum(
+          HTyp.Prod([
+            HTyp.String,
+            HTyp.Prod([HTyp.String, HTyp.Arrow(HTyp.Hole, HTyp.Hole)]),
+          ]),
+          HTyp.Hole,
+        ),
+      ),
     );
   let ll_view_ty = (model_type, _) =>
     HTyp.Arrow(Prod([HTyp.Int, UHTyp.expand(model_type)]), HTyp.String);
@@ -78,9 +99,9 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _mk_update_monad =
-      (ctx: Contexts.t, delta: Delta.t, model_ty: HTyp.t, d: DHExp.t)
-      : option(SpliceGenCmd.t(SerializedModel.t)) => {
+  let rec mk_update_monad =
+          (ctx: Contexts.t, delta: Delta.t, model_ty: HTyp.t, d: DHExp.t)
+          : option(SpliceGenCmd.t(SerializedModel.t)) => {
     /* at this point, we have already evaluated init or update, resulting
           in a dhexp d which is a value of the following type:
 
@@ -106,39 +127,27 @@ module rec M: Statics_Exp_Sig.S = {
             ("UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])",
              fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
 
+       sexped str: "((ExpLine(OpSeq(Placeholder 0) (S(IntLit NotInHole 100) E))))"
+
         Spliceslider update (anon):
         fun ((spliceno, _), action) { inj[L](inj[L]((spliceno, action))) }
 
         *: uhexps would need to be sexped
 
        */
-    //let run' = _run_update_monad(ctx, delta, model_ty);
+    let run' = mk_update_monad(ctx, delta, model_ty);
     let serialize = d => {
       d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
     };
-
+    //print_endline("mk_update_monad; model:");
+    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Inj(_, L, Inj(_, L, d0)) =>
       let* d_ty = Statics_DHExp.syn(ctx, delta, d);
-      HTyp.consistent(d_ty, model_ty) ? Some(serialize(d0)) : None;
-    // Generic bind?
-    /*
-     | Inj(_, L, Inj(_, R, Pair(x, f))) =>
-       let* d0 = run'(x);
-       Some(
-         SpliceGenCmd.bind(
-           d0,
-           a => {
-             let dhexp_a =
-               try(DHExp.t_of_sexp(a)) {
-               | _ => DHExp.Triv // TODO: does this attempt at error-handling even make sense
-               };
-             let v = eval(DHExp.Ap(f, dhexp_a));
-             serialize(v); // TODO: is this right?
-           },
-         ),
-       );
-       */
+      let updatemonadmodel_ty =
+        HTyp.Sum(HTyp.Sum(model_ty, HTyp.Hole), HTyp.Hole);
+      HTyp.consistent(d_ty, updatemonadmodel_ty)
+        ? Some(serialize(d0)) : None;
     | Inj(
         _,
         R,
@@ -149,10 +158,12 @@ module rec M: Statics_Exp_Sig.S = {
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
       let a =
         SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
-
       Some(
         SpliceGenCmd.bind(a, spliceno => {
-          DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> serialize
+          switch (DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> run') {
+          | None => failwith("mk_update_monad bindNewSplice case")
+          | Some(d) => d
+          }
         }),
       );
     | Inj(
@@ -167,15 +178,18 @@ module rec M: Statics_Exp_Sig.S = {
           ),
         ),
       ) =>
+      // TODO: not sure logic on this case is right
       let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
       // TODO: handle none case for option(Exp).. but how?
       let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
       let a =
         SpliceGenCmd.map_splice(spliceno, (_, u_gen) => ((ty, exp), u_gen));
-
       Some(
         SpliceGenCmd.bind(a, _ => {
-          DHExp.Ap(f, DHExp.Triv) |> eval |> serialize
+          switch (DHExp.Ap(f, DHExp.Triv) |> eval |> run') {
+          | None => failwith("mk_update_monad bindSetSplice case")
+          | Some(d) => d
+          }
         }),
       );
 
@@ -185,21 +199,21 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let _mk_ll_init_new =
+  let mk_ll_init =
       (init: UHExp.t, model_ty: HTyp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
-    | DoesNotElaborate => failwith("mk_ll_init_new DoesNotElaborate")
+    | DoesNotElaborate => failwith("ERROR: mk_ll_init DoesNotElaborate")
     | Elaborates(d, _, delta) =>
-      switch (d |> eval |> _mk_update_monad(elab_ctx, delta, model_ty)) {
-      | None => failwith("mk_ll_init_new mk failed")
+      switch (d |> eval |> mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None => failwith("ERROR: mk_ll_init mk failed")
       | Some(sgc) => sgc
       }
     };
   };
 
-  let _mk_ll_update_new =
+  let mk_ll_update =
       (
         update: UHExp.t,
         model_ty: HTyp.t,
@@ -210,19 +224,19 @@ module rec M: Statics_Exp_Sig.S = {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, update)) {
-    | DoesNotElaborate => failwith("mk_ll_update_new DoesNotElaborate")
+    | DoesNotElaborate => failwith("ERROR: mk_ll_update DoesNotElaborate")
     | Elaborates(update_dhexp, _, delta) =>
       let action_dhexp = DHExp.t_of_sexp(action);
       let model_dhexp = DHExp.t_of_sexp(model);
       let ap = DHExp.Ap(update_dhexp, DHExp.Pair(action_dhexp, model_dhexp));
-      switch (ap |> eval |> _mk_update_monad(elab_ctx, delta, model_ty)) {
-      | None => failwith("mk_ll_update_new mk failed")
+      switch (ap |> eval |> mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None => failwith("ERROR: mk_ll_update mk failed")
       | Some(sgc) => sgc
       };
     };
   };
 
-  let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+  let _mk_ll_init_old = (init: UHExp.t, _): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
@@ -231,7 +245,7 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_update =
+  let _mk_ll_update_old =
       (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
@@ -345,8 +359,8 @@ module rec M: Statics_Exp_Sig.S = {
       captures_ty,
       expansion_ty: UHTyp.expand(expansion_type),
       param_tys: [], // TODO: params
-      init_model: mk_ll_init(init),
-      update: mk_ll_update(update),
+      init_model: mk_ll_init(init, UHTyp.expand(model_type)),
+      update: mk_ll_update(update, UHTyp.expand(model_type)),
       expand: mk_ll_expand(expand),
     };
     /* NOTE(andrew): Extend the livelit context only if all

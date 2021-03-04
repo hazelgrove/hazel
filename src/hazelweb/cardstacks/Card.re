@@ -5,16 +5,11 @@ type t = {
 };
 
 let mk = (info: CardInfo.t): t => {
-  let init_ctx = (VarCtx.empty, BuiltinLivelits.ctx);
-  let edit_state: Program.EditState.t =
-    switch (info.init_term) {
-    | Unfocused(e) =>
-      let (e, ty, u_gen) = Statics_Exp.fix_and_renumber_holes(init_ctx, e);
-      {term: Unfocused(e), ty, u_gen};
-    | Focused(ze) =>
-      let (ze, ty, u_gen) =
-        Statics_Exp.fix_and_renumber_holes_z(init_ctx, ze);
-      {term: Focused(ze), ty, u_gen};
-    };
+  let edit_state: Program.EditState.t = {
+    let init_ctx = (VarCtx.empty, BuiltinLivelits.ctx);
+    let (term, ty, u_gen) =
+      Statics_Exp.fix_and_renumber_holes(init_ctx, info.init_term);
+    {term, ty, u_gen, focus: None};
+  };
   {info, edit_state};
 };

@@ -2253,12 +2253,17 @@ and syn_perform_operand =
             //TODO: catch exceptions here
           )
         ) {
-        | None => print_endline("no type synthesized")
+        | None =>
+          print_endline(
+            "WARNING: perform livelit action: no type synthesized",
+          )
         | Some(actual_action_ty) =>
           if (HTyp.consistent(actual_action_ty, action_ty)) {
-            print_endline("perform livelit action: action type correct");
+            ();
           } else {
-            print_endline("perform livelit action: action type INCORRECT");
+            print_endline(
+              "WARNING: perform livelit action: action type INCORRECT",
+            );
           }
         };
       };

@@ -55,7 +55,7 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
     )
   );
 
-let cardstacks_select =
+let _cardstacks_select =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
@@ -197,7 +197,8 @@ let view =
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              // TODO(d) commented out for artifact review
+              // cardstacks_select(~inject, Model.cardstack_info),
             ],
           ),
           Node.div(

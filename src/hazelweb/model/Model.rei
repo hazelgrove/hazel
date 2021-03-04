@@ -48,7 +48,9 @@ let get_selected_instance: t => option(TaggedNodeInstance.t);
 let prev_card: t => t;
 let next_card: t => t;
 
-let perform_action: (~move_via: MoveInput.t=?, Action.t, t) => t;
+// TODO(d) remove livelit_move
+let perform_action:
+  (~livelit_move: bool=?, ~move_via: MoveInput.t=?, Action.t, t) => t;
 
 let move_via_key: (MoveKey.t, t) => option(t);
 let move_via_click:

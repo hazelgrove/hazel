@@ -25,6 +25,8 @@ type t =
   | InvalidVar(string)
   | FocusCell
   | BlurCell
+  | FocusWindow
+  | BlurWindow
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)

@@ -58,8 +58,6 @@ let space_: t = Doc.space();
 let indent_: t = Doc.indent();
 let linebreak_: t = Doc.linebreak();
 
-let indent_and_align_ = (doc: t): t => Doc.(hcat(indent_, align(doc)));
-
 module Delim = {
   let mk = (~index: int, delim_text: string): t =>
     Doc.annot(
@@ -687,11 +685,12 @@ let mk_LivelitDefLine =
       Doc.text(";"),
     ]);
   let ll_line = (text, thing) =>
-    Doc.hcats([
-      Doc.indent(),
-      Doc.hseps([Doc.text(text), Doc.text("="), thing]),
-      Doc.text(";"),
-    ]);
+    indent_and_align(
+      Doc.hcat(
+        Doc.hseps([Doc.text(text), Doc.text("="), thing]),
+        Doc.text(";"),
+      ),
+    );
   let body_group =
     Doc.vseps([
       ll_captures,
@@ -795,6 +794,7 @@ let rec mk_BinOp =
           ~mk_operator: 'operator => t,
           ~inline_padding_of_operator: 'operator => (t, t),
           ~enforce_inline: bool,
+          ~enforce_multiline=false,
           ~check_livelit_skel:
              (Seq.t('operand, 'operator), Skel.t('operator)) =>
              option(LivelitUtil.llctordata)=(_, _) => None,
@@ -875,50 +875,48 @@ let rec mk_BinOp =
         (l == empty_ ? [] : [l], r == empty_ ? [] : [r]);
       };
       let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
-      let skel1 = go(~check_livelit_skel, skel1);
-      let skel2 = go(~check_livelit_skel, skel2);
-      let inline_choice =
+      let go = go(~check_livelit_skel);
+      let inline_choice = {
+        let skel1 = go(~enforce_inline=true, skel1);
+        let skel2 = go(~enforce_inline=true, skel2);
         Doc.(
           hcats([
             annot(
               UHAnnot.OpenChild(InlineWithBorder),
-              hcats([skel1(~enforce_inline=true), ...lpadding]),
+              hcats([skel1, ...lpadding]),
             ),
             op,
             annot(
               UHAnnot.OpenChild(InlineWithBorder),
-              hcats(rpadding @ [skel2(~enforce_inline=true)]),
+              hcats(rpadding @ [skel2]),
             ),
           ])
         );
-      let multiline_choice =
+      };
+      let multiline_choice = {
+        let skel1 = go(~enforce_inline=false, ~enforce_multiline=true, skel1);
+        let skel2 = go(~enforce_inline=false, ~enforce_multiline=true, skel2);
         Doc.(
           vsep(
-            annot(
-              UHAnnot.OpenChild(Multiline),
-              align(skel1(~enforce_inline=false)),
-            ),
+            annot(UHAnnot.OpenChild(Multiline), align(skel1)),
             hcats([
               op,
-              // TODO need to have a choice here for multiline vs not
               annot(
                 UHAnnot.OpenChild(Multiline),
-                hcats(rpadding @ [align(skel2(~enforce_inline=false))]),
-              ),
-              hcat(
-                op,
-                // TODO need to have a choice here for multiline vs not
-                annot(
-                  UHAnnot.OpenChild(Multiline),
-                  hcats(rpadding @ [align(skel2(~enforce_inline=false))]),
-                ),
+                hcats(rpadding @ [align(skel2)]),
               ),
             ]),
           )
         );
+      };
       let choices =
-        enforce_inline
-          ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+        if (enforce_inline) {
+          inline_choice;
+        } else if (enforce_multiline) {
+          multiline_choice;
+        } else {
+          Doc.choice(inline_choice, multiline_choice);
+        };
       Doc.annot(
         UHAnnot.mk_Term(~sort, ~shape=BinOp({op_index: op_index}), ()),
         choices,

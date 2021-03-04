@@ -3,19 +3,18 @@ type current_splice = option((MetaVar.t, SpliceName.t));
 
 module EditState: {
   [@deriving sexp]
-  type term =
-    | Focused(ZExp.t)
-    | Unfocused(UHExp.t);
+  type focused = {
+    path: CursorPath.t,
+    window_has_focus: bool,
+  };
 
   [@deriving sexp]
   type t = {
-    term,
+    term: UHExp.t,
     ty: HTyp.t,
     u_gen: MetaVarGen.t,
+    focus: option(focused),
   };
-
-  let focus: t => t;
-  let blur: t => t;
 };
 
 /**
@@ -35,6 +34,9 @@ let mk: (~width: int, EditState.t) => t;
 
 let focus: t => t;
 let blur: t => t;
+
+let focus_window: t => t;
+let blur_window: t => t;
 
 let get_zexp: t => option(ZExp.t);
 let get_uhexp: t => UHExp.t;
@@ -73,7 +75,14 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_action:
-  (~settings: Settings.t, ~move_via: MoveInput.t=?, Action.t, t) => t;
+  (
+    ~settings: Settings.t,
+    ~livelit_move: bool=?,
+    ~move_via: MoveInput.t=?,
+    Action.t,
+    t
+  ) =>
+  t;
 
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => Action.t;
