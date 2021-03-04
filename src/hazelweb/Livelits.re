@@ -791,7 +791,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(grayscale)],
             ),
             Node.div([], []),
@@ -807,7 +807,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(brightness)],
             ),
           ],

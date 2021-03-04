@@ -1571,7 +1571,8 @@ input.slider::-moz-range-track {
   display: grid;
   justify-items: left;
   width: 265px;
-  overflow: auto;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 
 .splice {
