@@ -19,3 +19,8 @@ let parsemap: (string, mapper) => option(Node.t);
  *  (parses the given string, with the trivial mapper)
  */
 let parse: string => option(Node.t);
+
+type css_field = string;
+
+/** creates a Css_gen.t with a float px value (Css_gen does not natively support this, bug) */
+let css_float_px: (css_field, float) => Css_gen.t;
