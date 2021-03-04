@@ -640,38 +640,7 @@ let view =
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
-        [
-          Node.span(
-            [Attr.classes(["code"])],
-            code_text,
-            // @ [
-            //   Node.div(
-            //     [],
-            //     [
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("[")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/y8neczz3\"")],
-            //       ),
-            //       Node.span([], [Node.text(",")]),
-            //       Node.text(UnicodeConstants.nbsp),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/yd2dw4ww\"")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("]")],
-            //       ),
-            //     ],
-            //   ),
-            // ],
-          ),
-          ...decorations,
-        ],
+        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
