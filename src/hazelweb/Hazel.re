@@ -45,7 +45,7 @@ let on_startup = (~schedule_action, _) => {
      combinations, such as Ctrl+Z vs Cmd+Z for undo */
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Mac"),
+      Js.string("MAC"),
     )
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
