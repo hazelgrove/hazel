@@ -58,8 +58,6 @@ let space_: t = Doc.space();
 let indent_: t = Doc.indent();
 let linebreak_: t = Doc.linebreak();
 
-let indent_and_align_ = (doc: t): t => Doc.(hcat(indent_, align(doc)));
-
 module Delim = {
   let mk = (~index: int, delim_text: string): t =>
     Doc.annot(
@@ -687,11 +685,12 @@ let mk_LivelitDefLine =
       Doc.text(";"),
     ]);
   let ll_line = (text, thing) =>
-    Doc.hcats([
-      Doc.indent(),
-      Doc.hseps([Doc.text(text), Doc.text("="), thing]),
-      Doc.text(";"),
-    ]);
+    indent_and_align(
+      Doc.hcat(
+        Doc.hseps([Doc.text(text), Doc.text("="), thing]),
+        Doc.text(";"),
+      ),
+    );
   let body_group =
     Doc.vseps([
       ll_captures,
