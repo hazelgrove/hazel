@@ -568,11 +568,15 @@ let key_handlers =
       | None =>
         let s = Key.get_key(evt);
         switch (cursor_info.cursor_term) {
-        | Exp(OnText(_), StringLit(_)) when s == "Enter" =>
+        | Exp(OnText(_), StringLit(_))
+            when KeyCombo.matches(KeyCombo.enter, evt) =>
           prevent_stop_inject(
             ModelAction.EditAction(Construct(SChar("\n"))),
           )
-        | Exp(OnText(_), StringLit(_)) when String.length(s) == 1 =>
+        | Exp(OnText(_), StringLit(_))
+            when
+              String.length(s) == 1
+              && ModKeys.matches(ModKeys.no_ctrl_alt_meta, evt) =>
           prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
         | _ =>
           switch (HazelKeyCombos.of_evt(evt)) {
