@@ -260,6 +260,8 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
     | "assign_grades" =>
       switch (l) {
       | [student_avgs, grade_cutoffs] =>
+        let (student_avgs, grade_cutoffs) =
+          TupleUtil.map2(DHExp.strip_casts', (student_avgs, grade_cutoffs));
         let s_avgs = {
           let rec get = (
             fun
