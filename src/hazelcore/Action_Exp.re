@@ -1695,6 +1695,7 @@ and syn_perform_operand =
     }
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
