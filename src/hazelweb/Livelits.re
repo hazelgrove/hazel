@@ -1439,7 +1439,7 @@ module SliderLivelitView = {
     };
   };
 
-  let view_shape = _ => LivelitShape.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(15);
 };
 
 module SliderLivelitFloatView = {
@@ -1534,7 +1534,7 @@ module SliderLivelitFloatView = {
     };
   };
 
-  let view_shape = _ => LivelitShape.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(15);
 };
 
 module DataFrameLivelitView = {
