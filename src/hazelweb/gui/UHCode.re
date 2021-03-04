@@ -281,7 +281,10 @@ let view =
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.on_blur(_ =>
+            JSUtil.window_has_focus()
+              ? inject(ModelAction.BlurCell) : Event.Many([])
+          ),
           ...key_handlers,
         ],
         caret

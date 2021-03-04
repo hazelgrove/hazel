@@ -1,18 +1,17 @@
 module EditState: {
   [@deriving sexp]
-  type term =
-    | Focused(ZExp.t)
-    | Unfocused(UHExp.t);
+  type focused = {
+    path: CursorPath.t,
+    window_has_focus: bool,
+  };
 
   [@deriving sexp]
   type t = {
-    term,
+    term: UHExp.t,
     ty: HTyp.t,
     u_gen: MetaVarGen.t,
+    focus: option(focused),
   };
-
-  let focus: t => t;
-  let blur: t => t;
 };
 
 /**
@@ -32,6 +31,9 @@ let mk: (~width: int, EditState.t) => t;
 
 let focus: t => t;
 let blur: t => t;
+
+let focus_window: t => t;
+let blur_window: t => t;
 
 let get_zexp: t => option(ZExp.t);
 let get_uhexp: t => UHExp.t;

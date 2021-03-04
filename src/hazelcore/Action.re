@@ -49,3 +49,12 @@ type t =
   | SwapUp
   | SwapDown
   | Init;
+
+let is_movement =
+  fun
+  | MoveTo(_)
+  | MoveLeft
+  | MoveRight
+  | MoveToPrevHole
+  | MoveToNextHole => true
+  | _ => false;

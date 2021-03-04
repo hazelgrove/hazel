@@ -12,33 +12,57 @@ module MeasuredPosition = Pretty.MeasuredPosition;
  * - demo: need better motivation of different types of edits
  */
 module EditState = {
+  exception InvalidPath;
+
   [@deriving sexp]
-  type term =
-    | Focused(ZExp.t)
-    | Unfocused(UHExp.t);
+  type focused = {
+    path: CursorPath.t,
+    window_has_focus: bool,
+  };
 
   [@deriving sexp]
   type t = {
-    term,
+    term: UHExp.t,
     ty: HTyp.t,
     u_gen: MetaVarGen.t,
+    focus: option(focused),
   };
 
-  let get_focused_term = edit_state =>
-    switch (edit_state.term) {
-    | Unfocused(e) => ZExp.place_before(e)
-    | Focused(ze) => ze
-    };
+  let get_zterm = edit_state => {
+    let+ {path, _} = edit_state.focus;
+    CursorPath_Exp.follow(path, edit_state.term)
+    |> OptUtil.get_or_raise(InvalidPath);
+  };
 
-  let focus = edit_state => {
+  let focus = edit_state =>
+    switch (edit_state.focus) {
+    | None =>
+      let focused = {
+        path: CursorPath_Exp.of_z(ZExp.place_before(edit_state.term)),
+        window_has_focus: true,
+      };
+      {...edit_state, focus: Some(focused)};
+    | Some({path, _}) => {
+        ...edit_state,
+        focus: Some({path, window_has_focus: true}),
+      }
+    };
+  let blur = edit_state => {...edit_state, focus: None};
+
+  let focus_window = edit_state => {
     ...edit_state,
-    term: Focused(get_focused_term(edit_state)),
+    focus: {
+      let+ {path, _} = edit_state.focus;
+      {path, window_has_focus: true};
+    },
   };
-  let blur = edit_state =>
-    switch (edit_state.term) {
-    | Unfocused(_) => edit_state
-    | Focused(ze) => {...edit_state, term: Unfocused(ZExp.erase(ze))}
-    };
+  let blur_window = edit_state => {
+    ...edit_state,
+    focus: {
+      let+ {path, _} = edit_state.focus;
+      {path, window_has_focus: false};
+    },
+  };
 };
 
 [@deriving sexp]
@@ -71,22 +95,19 @@ let map_edit_state = (f: EditState.t => EditState.t, program) => {
 let focus = map_edit_state(EditState.focus);
 let blur = map_edit_state(EditState.blur);
 
+let focus_window = map_edit_state(EditState.focus_window);
+let blur_window = map_edit_state(EditState.blur_window);
+
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-let get_uhexp = program =>
-  switch (program.edit_state.term) {
-  | Unfocused(e) => e
-  | Focused(ze) => erase(ze)
-  };
+let get_uhexp = program => program.edit_state.term;
 
-let get_zexp = program =>
-  switch (program.edit_state.term) {
-  | Unfocused(_) => None
-  | Focused(ze) => Some(ze)
-  };
+let get_zexp = program => EditState.get_zterm(program.edit_state);
 
+// TODO(d): remove functions like this from Program,
+// push into EditState, have clients work directly with EditState
 let get_path = program => {
-  let+ ze = get_zexp(program);
-  CursorPath_Exp.of_z(ze);
+  let+ {path, _} = program.edit_state.focus;
+  path;
 };
 
 exception MissingCursorInfo;
@@ -95,12 +116,9 @@ let cursor_info =
     ~cache_size_bound=1000,
     CursorInfo_Exp.syn_cursor_info(Contexts.empty),
   );
-let get_cursor_info = (program: t) => {
-  switch (program.edit_state.term) {
-  | Unfocused(_) => None
-  | Focused(ze) =>
-    Some(cursor_info(ze) |> OptUtil.get(() => raise(MissingCursorInfo)))
-  };
+let get_cursor_info = (program: t): option(CursorInfo.t) => {
+  let+ ze = get_zexp(program);
+  cursor_info(ze) |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
@@ -194,9 +212,14 @@ let get_measured_layout = (~settings: Settings.t, program): UHMeasuredLayout.t =
 let get_caret_position =
     (~settings: Settings.t, program): option(MeasuredPosition.t) => {
   let m = get_measured_layout(~settings, program);
-  let+ path = get_path(program);
-  UHMeasuredLayout.caret_position_of_path(path, m)
-  |> OptUtil.get(() => failwith("could not find caret"));
+  switch (program.edit_state.focus) {
+  | Some({window_has_focus, path}) when window_has_focus =>
+    let pos =
+      UHMeasuredLayout.caret_position_of_path(path, m)
+      |> OptUtil.get(() => failwith("could not find caret"));
+    Some(pos);
+  | _ => None
+  };
 };
 
 exception FailedAction;
@@ -204,25 +227,38 @@ exception CursorEscaped;
 let perform_action =
     (~settings, ~move_via: option(MoveInput.t)=?, a: Action.t, program: t) => {
   let performed =
-    switch (move_via, program.edit_state.term) {
-    | (None | Some(Key(_)), Unfocused(_)) => program
-    | _ =>
-      let ze = EditState.get_focused_term(program.edit_state);
+    switch (move_via, get_zexp(program)) {
+    | (None | Some(Key(_)), None) => program
+    | (Some(Click(_)), None) =>
+      // TODO(d) clean up this hack
+      switch (a) {
+      | MoveTo(path) => {
+          ...program,
+          edit_state: {
+            ...program.edit_state,
+            focus: Some({path, window_has_focus: true}),
+          },
+        }
+      | _ => program
+      }
+    | (_, Some(ze)) =>
       let EditState.{ty, u_gen, _} = program.edit_state;
       switch (Action_Exp.syn_perform(Contexts.empty, a, (ze, ty, u_gen))) {
       | Failed => raise(FailedAction)
       | CursorEscaped(_) => raise(CursorEscaped)
       | Succeeded((ze, ty, u_gen)) =>
-        let u_gen =
-          UHExp.is_complete(ZExp.erase(ze)) ? MetaVarGen.init : u_gen;
-        {
-          ...program,
-          edit_state: {
-            term: Focused(ze),
+        // TODO(d) maybe encapsulate in EditState
+        let edit_state =
+          EditState.{
+            // ensure pointer stability
+            term:
+              Action.is_movement(a) ? program.edit_state.term : erase(ze),
             ty,
-            u_gen,
-          },
-        };
+            u_gen: UHExp.is_complete(erase(ze)) ? MetaVarGen.init : u_gen,
+            focus:
+              Some({path: CursorPath_Exp.of_z(ze), window_has_focus: true}),
+          };
+        {...program, edit_state};
       };
     };
 
