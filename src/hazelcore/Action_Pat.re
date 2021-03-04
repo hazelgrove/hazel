@@ -96,7 +96,7 @@ let znumlit_to_zunop = (znumlit: ZPat.zoperand): option(ZPat.zoperand) => {
   | CursorP(OnText(0), IntLit(err, n)) =>
     Some(
       CursorP(
-        OnText(0),
+        OnOp(Before),
         UnaryOp(
           err,
           Negate,
@@ -107,7 +107,7 @@ let znumlit_to_zunop = (znumlit: ZPat.zoperand): option(ZPat.zoperand) => {
   | CursorP(OnText(0), FloatLit(err, f)) =>
     Some(
       CursorP(
-        OnText(0),
+        OnOp(Before),
         UnaryOp(
           err,
           FNegate,
