@@ -523,6 +523,7 @@ let decoration_views =
               Node.div(
                 [
                   Attr.classes([
+                    "custom-scrollbar",
                     "LivelitView",
                     switch (shape) {
                     | InvalidShape => "InvalidShape"

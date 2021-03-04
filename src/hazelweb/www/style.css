@@ -964,16 +964,43 @@ h1 {
   border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
   cursor: default;
-  overflow: auto;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  background-color: transparent;
+  width: 4px;
+  height: 4px;
+  margin: 1px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  display: none;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-track {
+  display: block;
+  background-color: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  display: none;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  display: block;
+  background-color: rgba(50, 50, 50, 0.16);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none;
 }
 
 .LivelitView.Inline {
   display: inline-block;
   padding: 0 10px;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 .LivelitView.MultiLine {
   display: block;
   padding: 10px;
+  overflow: overlay;
 }
 
 .pair-livelit {
