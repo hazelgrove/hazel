@@ -1787,6 +1787,7 @@ input.slider::-moz-range-track {
   border: 2px solid #CCC;
   border-top-left-radius: var(--panel-corner-radius);
   border-top-right-radius: var(--panel-corner-radius);
+  overflow-x: overlay;
 }
 #cell:focus {
   outline: 0px;
@@ -1803,6 +1804,8 @@ input.slider::-moz-range-track {
 #result-box {
   border-bottom-left-radius: var(--panel-corner-radius);
   border-bottom-right-radius: var(--panel-corner-radius);
+  overflow-x: overlay;
+  background-color: #EEE;
 }
 .result-view {
   font-size: 125%;
