@@ -106,10 +106,20 @@ module rec M: Statics_Exp_Sig.S = {
     /* at this point, we have already evaluated init or update, resulting
           in a dhexp d which is a value of the following type:
 
-       Return(x) = inj[L](inj[L](x))
-       Bind(x, f) = inj[L](inj[R]((x, f)))
-       BindNewSplice(s) = inj[R](inj[L](s_ty, (s_exp, f)))
-       BindSetSplice(s) = inj[R](inj[R]((spliceno, (new_ty, (new_uhexp_sexp_str, f)))))
+       Since algebraic datatype support in Hazel is as yet incomplete,
+       the Update and View monads have been assigned the following
+       encoding in terms of anonymous pairs and sums:
+
+       UpdateMonad:
+
+       return(x) = inj[L](inj[L](x))
+       bindNewSplice((ty, exp), f) = inj[R](inj[L](ty, (exp, f)))
+       bindSetSplice((spliceno, ty, exp), f) = inj[R](inj[R]((spliceno, (ty, (exp, f)))))
+
+       ViewMonad:
+
+       return(x) = inj[L](x)
+       bindEvalSplice(spliceno, f) = inj[R](spliceno, f)
 
        Example:
 
@@ -193,7 +203,8 @@ module rec M: Statics_Exp_Sig.S = {
       );
 
     | _ =>
-      print_endline("ERROR: run_init_monad: wrong data type");
+      print_endline("ERROR: run_init_monad: wrong data type. got:");
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
       None;
     };
   };
@@ -202,6 +213,8 @@ module rec M: Statics_Exp_Sig.S = {
       (init: UHExp.t, model_ty: HTyp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
+    print_endline("666");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
     | DoesNotElaborate => failwith("ERROR: mk_ll_init DoesNotElaborate")
     | Elaborates(d, _, delta) =>
@@ -366,17 +379,14 @@ module rec M: Statics_Exp_Sig.S = {
       | Some(ty) => ty
       | None => HTyp.Hole
       };
-    let new_ll_def: LivelitDefinition.t = {
-      name: name_str,
-      action_ty: UHTyp.expand(action_type),
-      model_ty: UHTyp.expand(model_type),
-      captures_ty,
-      expansion_ty: UHTyp.expand(expansion_type),
-      param_tys: [], // TODO: params
-      init_model: mk_ll_init(init, UHTyp.expand(model_type)),
-      update: mk_ll_update(update, UHTyp.expand(model_type)),
-      expand: mk_ll_expand(expand),
-    };
+
+    let ll_def_valid =
+      UHExp.is_complete(init)
+      && UHExp.is_complete(update)
+      && UHExp.is_complete(view)
+      && UHExp.is_complete(shape)
+      && UHExp.is_complete(expand);
+
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
      * failure cases to contend with at the ap site, most of which
@@ -385,20 +395,27 @@ module rec M: Statics_Exp_Sig.S = {
      * livelitdefs and dealing with these heterogenously at
      * the ap site. */
 
-    // TODO(andrew):
-    // below approach is inadequate as it prevents using prebuilt livelits
-    // inside lldefs since UHExp.is_complete ApLivelit case is false for livelit aps
-    let ll_def_valid =
-      UHExp.is_complete(init)
-      && UHExp.is_complete(update)
-      && UHExp.is_complete(view)
-      && UHExp.is_complete(shape)
-      && UHExp.is_complete(expand);
     let new_livelit_ctx =
       ll_def_valid
         ? LivelitCtx.extend(
             livelit_ctx,
-            (name_str, (new_ll_def, [])) // TODO: params
+            (
+              name_str,
+              (
+                {
+                  name: name_str,
+                  action_ty: UHTyp.expand(action_type),
+                  model_ty: UHTyp.expand(model_type),
+                  captures_ty,
+                  expansion_ty: UHTyp.expand(expansion_type),
+                  param_tys: [], // TODO: params
+                  init_model: mk_ll_init(init, UHTyp.expand(model_type)),
+                  update: mk_ll_update(update, UHTyp.expand(model_type)),
+                  expand: mk_ll_expand(expand),
+                }: LivelitDefinition.t,
+                [],
+              ),
+            ) // TODO: params
           )
         : livelit_ctx;
     (gamma, new_livelit_ctx);
