@@ -707,27 +707,33 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | EmptyLine
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
     | LetLine(p, def) =>
-      let def_ctx = S.extend_let_def_ctx(ctx, p, def);
-      switch (syn_elab(~livelit_holes, def_ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotExpand
-      | Elaborates(ddef, ty_def, delta) =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_def)) {
+      switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
+      | None => LinesDoNotExpand
+      | Some((ty1, _)) =>
+        let ctx1 = S.extend_let_def_ctx(ctx, p, def);
+        switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
         | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(dp, ty1', ctx, delta) =>
-          let ddef =
+        | Elaborates(d1, ty1', delta) =>
+          let d1 =
             switch (S.recursive_let_id(p, def)) {
-            | None => ddef
+            | None => d1
             | Some((x, _)) =>
               FixF(
                 x,
                 ty1',
-                subst_var(DHExp.cast(BoundVar(x), ty1', ty_def), x, ddef),
+                subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
               )
             };
-          let prelude = d2 => DHExp.Let(dp, ddef, d2);
-          LinesExpand(prelude, ctx, delta);
-        }
-      };
+          let d1 = DHExp.cast(d1, ty1', ty1);
+          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+          | DoesNotElaborate => LinesDoNotExpand
+          | Elaborates(dp, _, ctx, delta) =>
+            let prelude = d2 => DHExp.Let(dp, d1, d2);
+            LinesExpand(prelude, ctx, delta);
+          };
+        };
+      }
+
     | LivelitDefLine({name: (_, name_str), captures, _}) =>
       // TODO: params
       let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
