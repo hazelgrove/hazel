@@ -168,3 +168,4 @@ let build_ll_view_ctx: UHExp.t => Statics.livelit_web_view_ctx;
 let declared_livelit_expansion_type: (Contexts.t, Var.t) => option(HTyp.t);
 let actual_livelit_expansion_type:
   (Contexts.t, Var.t, SerializedModel.t, UHExp.splice_info) => option(HTyp.t);
+let eval: DHExp.t => DHExp.t;

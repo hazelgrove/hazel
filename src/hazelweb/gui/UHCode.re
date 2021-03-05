@@ -9,7 +9,7 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 exception NotElem;
 
 [@warning "-32"]
-let decode_livelit_view = (splices, d: DHExp.t) => {
+let decode_livelit_view = (splices: int => Vdom.Node.t, d: DHExp.t) => {
   let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
     d =>
       switch (d) {
@@ -63,6 +63,27 @@ let _get_widget_id = llu =>
     Hashtbl.add(widget_id_tbl, llu, id);
     id;
   };
+
+let rec _mk_view_monad = (splices, dhcode, d: DHExp.t): option(Vdom.Node.t) => {
+  let run = _mk_view_monad(splices, dhcode);
+  // two cases:
+  // inj[L](d) : return(d) where d is pseudovdom
+  // inj[R]    : bindEvalSplice(spliceno, f)
+  print_endline("_mk_view_monad");
+  print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+  switch (d) {
+  | Inj(_, L, d0) => decode_livelit_view(splices, d0)
+  | Inj(_, R, Pair(IntLit(spliceno), f)) =>
+    let spliceval: string =
+      spliceno
+      |> dhcode
+      |> (((d, _)) => d)
+      |> DHExp.sexp_of_t
+      |> Sexplib.Sexp.to_string;
+    DHExp.Ap(f, StringLit(spliceval)) |> Statics_Exp.eval |> run;
+  | _ => failwith("mk_view_monad unhandled")
+  };
+};
 
 /**
  * A buffered container for SVG elements so that strokes along
