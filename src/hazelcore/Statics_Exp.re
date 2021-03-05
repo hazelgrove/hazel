@@ -220,8 +220,6 @@ module rec M: Statics_Exp_Sig.S = {
       : option(SpliceGenCmd.t(SerializedModel.t)) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
-    print_endline("666");
-    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
     | DoesNotElaborate =>
       print_endline("ERROR: mk_ll_init DoesNotElaborate");
