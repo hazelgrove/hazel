@@ -111,7 +111,7 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cardstack_controls = (~inject, model: Model.t) =>
+let _cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(
       [Attr.id("cardstack-controls")],
@@ -218,7 +218,7 @@ let view =
                           ),
                           Cell.view(~inject, ~sync_livelit, model),
                           cell_status,
-                          cardstack_controls(~inject, model),
+                          // cardstack_controls(~inject, model),
                         ],
                       ),
                       examples_select(~inject),
