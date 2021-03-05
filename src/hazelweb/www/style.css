@@ -603,21 +603,8 @@ body {
   overflow: overlay;
   display: grid;
   grid-template-rows:
-    fit-content(30px) auto fit-content(120px);
+    fit-content(30px) 1fr fit-content(120px);
   position: relative;
-}
-
-.context-inspector-panel .panel-title-bar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.the-path-viewer {
-  position: sticky;
-  bottom: 0;
-  z-index: 100;
-  background-color: #FEFEEA;
 }
 
 .context-is-empty-msg {
@@ -628,6 +615,11 @@ body {
   font-size: 75%;
 }
 
+.the-context {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: overlay;
+}
 .context-entry {
   border: 1px outset #ffffff;
   border-left: 0px;
