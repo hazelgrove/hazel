@@ -82,11 +82,12 @@ let view =
   [@warning "-26"]
   let mii_summary = (mii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
     let num_instances = NodeInstanceInfo.num_instances(mii, u);
-    let _kindstr =
+    let kindstr =
       switch (kind) {
       | Hole => "hole"
-      | Livelit => "livelit application"
+      | Livelit => "livelit ap"
       };
+    let extra_space = Unicode.nbsp ++ Unicode.nbsp;
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -94,12 +95,12 @@ let view =
           Node.div(
             [],
             [
-              Node.text("hole "),
+              Node.text(kindstr ++ " "),
               Node.span(
                 [Attr.classes(["hole-name-normal-txt"])],
                 [Node.text(string_of_int(u + 1))],
               ),
-              Node.text(" instance "),
+              Node.text(extra_space ++ "|" ++ extra_space ++ "closure "),
               Node.span(
                 [Attr.classes(["inst-number-normal-txt"])],
                 [Node.text(string_of_int(i + 1))],
