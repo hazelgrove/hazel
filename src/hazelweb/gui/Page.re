@@ -238,7 +238,8 @@ let view =
               ),
             ],
           ),
-          Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
+          Node.div(
+            [Attr.id("right-sidebar")],
             [
               CursorInspector.view(~inject, Program.get_cursor_info(program)),
               ContextInspector.view(
@@ -249,7 +250,7 @@ let view =
               ),
               // UndoHistoryPanel.view(~inject, model),
               // SettingsPanel.view(~inject, settings),
-            ]
+            ],
           ),
         ],
       );

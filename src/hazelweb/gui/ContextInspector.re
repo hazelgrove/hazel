@@ -396,12 +396,6 @@ let view =
 
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
-    [
-      Panel.view_of_main_title_bar("context"),
-      Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
-        [context_view, path_viewer],
-      ),
-    ],
+    [Panel.view_of_main_title_bar("context"), context_view, path_viewer],
   );
 };

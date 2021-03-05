@@ -128,9 +128,9 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template-rows: fit-content(40px) auto;
+  grid-template-rows: fit-content(40px) 1fr;
   grid-template-columns:
-    fit-content(400px) auto fit-content(400px);
+    fit-content(400px) 1fr fit-content(400px);
   grid-template-areas:
     "header header header"
     "left-sidebar main right-sidebar";
@@ -228,8 +228,21 @@ body {
   overflow: hidden;
   grid-area: left-sidebar;
 }
+/*
 #collapsible-right-bar {
   grid-area: right-sidebar;
+}
+*/
+#right-sidebar {
+  height: 100%;
+  width: 400px;
+  grid-area: right-sidebar;
+  background-color: tan;
+  padding: 8px;
+  display: grid;
+  row-gap: 8px;
+  grid-template-rows: fit-content(240px) 1fr;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -583,18 +596,28 @@ body {
 
 /* context inspector */
 
-.context-inspector-panel {
+.context-inspector-panel.panel {
   border-radius: var(--panel-corner-radius);
   border: 0.5px solid var(--title-bar-color);
   box-shadow: var(--panel-box-shadow-size) var(--panel-box-shadow-size) var(--title-bar-color);
-  overflow: hidden;
-}
-
-.context-inspector-body {
+  overflow: overlay;
   display: grid;
   grid-template-rows:
-    1fr /* .the-context */
-    auto /* .the-path-view */;
+    fit-content(30px) auto fit-content(120px);
+  position: relative;
+}
+
+.context-inspector-panel .panel-title-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.the-path-viewer {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background-color: #FEFEEA;
 }
 
 .context-is-empty-msg {
