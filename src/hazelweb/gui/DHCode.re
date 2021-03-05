@@ -37,7 +37,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
         Node.span(
           [
             Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
-            Attr.on_click(_ =>
+            Attr.on_mousedown(_ =>
               inject(
                 ModelAction.SelectInstance(TaggedNodeInstance.Hole, inst),
               )
