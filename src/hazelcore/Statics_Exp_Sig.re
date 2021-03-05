@@ -167,4 +167,6 @@ module type S = {
   let actual_livelit_expansion_type:
     (Contexts.t, Var.t, SerializedModel.t, UHExp.splice_info) =>
     option(HTyp.t);
+
+  let eval: DHExp.t => DHExp.t;
 };

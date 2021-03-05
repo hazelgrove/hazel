@@ -43,10 +43,6 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Attr.value("ll_def_slider_free_var_in_exp")],
           [Node.text("user-defined livelit slider; free var in expansion")],
         ),
-        Node.option(
-          [Attr.value("ll_def_slider_unique_id")],
-          [Node.text("user-defined livelit slider; unique-id")],
-        ),
       ],
     )
   );

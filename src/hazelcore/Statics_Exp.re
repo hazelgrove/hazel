@@ -60,10 +60,15 @@ module rec M: Statics_Exp_Sig.S = {
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
       ll_defun_update_monad_ty(model_type),
     );
+  let ll_defun_view_mond_ty =
+    HTyp.Sum(
+      HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
+      Hole // TODO(andrew): improve this type
+    );
   let ll_view_ty = (model_type, _) =>
     HTyp.Arrow(
       Prod([Int, UHTyp.expand(model_type)]),
-      HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
+      ll_defun_view_mond_ty,
     );
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
@@ -135,8 +140,6 @@ module rec M: Statics_Exp_Sig.S = {
     let serialize = d => {
       d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
     };
-    //print_endline("mk_update_monad; model:");
-    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Inj(_, L, Inj(_, L, d0)) =>
       let* d_ty = Statics_DHExp.syn(ctx, delta, d);
@@ -232,6 +235,21 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
+  let _mk_ll_view_new =
+      (view: UHExp.t, llu: int, model: SerializedModel.t): option(DHExp.t) => {
+    let model_dhexp = DHExp.t_of_sexp(model);
+    let llu_dhexp = DHExp.IntLit(llu);
+    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
+    | DoesNotElaborate => failwith("mk_ll_view elab DoesNotElaborate")
+    | Elaborates(view_dhexp, _, _) =>
+      let ap = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
+      switch (Evaluator.evaluate(~eval_livelit_holes=false, ap)) {
+      | BoxedValue(v) => Some(DHExp.strip_casts(v))
+      | _ => None
+      };
+    };
+  };
+
   let _mk_ll_init_old = (init: UHExp.t, _): SpliceGenCmd.t(SerializedModel.t) => {
     let elab_ctx = Contexts.empty;
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
@@ -256,21 +274,6 @@ module rec M: Statics_Exp_Sig.S = {
     | InvalidInput(_) => failwith("mk_ll_update eval InvalidInput")
     | Indet(new_model)
     | BoxedValue(new_model) => serialize_ll_monad(new_model)
-    };
-  };
-
-  let _mk_ll_view_new =
-      (view: UHExp.t, llu: int, model: SerializedModel.t): option(DHExp.t) => {
-    let model_dhexp = DHExp.t_of_sexp(model);
-    let llu_dhexp = DHExp.IntLit(llu);
-    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
-    | DoesNotElaborate => failwith("mk_ll_view elab DoesNotElaborate")
-    | Elaborates(view_dhexp, _, _) =>
-      let term = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
-      switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
-      | BoxedValue(v) => Some(DHExp.strip_casts(v))
-      | _ => None
-      };
     };
   };
 
@@ -391,12 +394,6 @@ module rec M: Statics_Exp_Sig.S = {
       && UHExp.is_complete(view)
       && UHExp.is_complete(shape)
       && UHExp.is_complete(expand);
-    //print_endline("ll_def_valid");
-    //print_endline(string_of_bool(UHExp.is_complete(init)));
-    //print_endline(string_of_bool(UHExp.is_complete(update)));
-    //print_endline(string_of_bool(UHExp.is_complete(view)));
-    //print_endline(string_of_bool(UHExp.is_complete(shape)));
-    //print_endline(string_of_bool(UHExp.is_complete(expand)));
     let new_livelit_ctx =
       ll_def_valid
         ? LivelitCtx.extend(
