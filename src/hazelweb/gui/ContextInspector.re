@@ -25,12 +25,26 @@ let view =
           [
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
             Node.text(" : "),
-            HTypCode.view(~width=40, ~pos=Var.length(x) + 3, ty),
+            HTypCode.view(~width=40, ty),
           ],
         ),
       ],
     );
-  let ll_static_info = ((x, (def: LivelitDefinition.t, _))) =>
+  let ll_static_info = ((x, (def: LivelitDefinition.t, applied_params))) => {
+    let is_applied = param =>
+      List.exists(
+        fun
+        | (param', _) => param' == param,
+        applied_params,
+      );
+    let unapplied_param_tys =
+      def.param_tys
+      |> List.filter_map(((param, ty)) =>
+           is_applied(param) ? None : Some(ty)
+         )
+      |> List.map(HTypCode.view(~width=40))
+      |> List.map(node => [Node.text(Unicode.nbsp), node])
+      |> List.flatten;
     Node.div(
       [Attr.classes(["static-info"])],
       [
@@ -38,16 +52,13 @@ let view =
           [Attr.classes(["code"])],
           [
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
-            Node.text(" at "),
-            HTypCode.view(
-              ~width=40,
-              ~pos=Var.length(x) + 4,
-              def.expansion_ty,
-            ),
-          ],
+            ...unapplied_param_tys,
+          ]
+          @ [Node.text(" at "), HTypCode.view(~width=40, def.expansion_ty)],
         ),
       ],
     );
+  };
 
   /**
    * Shows runtime value for a context entry.
