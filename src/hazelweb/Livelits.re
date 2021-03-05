@@ -268,19 +268,13 @@ module MatrixLivelitView = {
                       [uhcode(splice)],
                     );
                   } else {
-                    let cls =
-                      splice == selected
-                        ? "matrix-selected" : "matrix-unselected";
                     let child =
                       switch (dhcode(splice)) {
                       | None => Node.text("Uneval'd")
                       | Some((_, view)) => view
                       };
                     Node.div(
-                      [
-                        Attr.classes([cls]),
-                        Attr.on_mousedown(_ => trig(Select(splice))),
-                      ],
+                      [Attr.on_mousedown(_ => trig(Select(splice)))],
                       [child],
                     );
                   };
@@ -1581,13 +1575,7 @@ module DataFrameLivelitView = {
       Node.div(
         [
           attr_style(grid_area(grid_coordinates)),
-          Attr.classes([
-            "custom-scrollbar",
-            "matrix-splice",
-            splice_name == m.selected
-              ? "matrix-selected" : "matrix-unselected",
-            ...clss,
-          ]),
+          Attr.classes(["custom-scrollbar", "matrix-splice", ...clss]),
           Attr.on_mousedown(_ => trig(Select(splice_name): action)),
           // Attr.on_click(_ => trig(Del(Col, j))),
         ],
@@ -1598,6 +1586,14 @@ module DataFrameLivelitView = {
           },
           //Node.span([Attr.classes(["delete"])], [Node.text("x")]),
         ],
+      );
+    let selected_outline = (~clss, ~grid_coordinates) =>
+      Node.div(
+        [
+          attr_style(grid_area(grid_coordinates)),
+          Attr.classes(["selected-splice", ...clss]),
+        ],
+        [],
       );
 
     let width = get_width(m);
@@ -1611,6 +1607,20 @@ module DataFrameLivelitView = {
              header,
            )
          );
+    let selected_col_header =
+      m.col_headers
+      |> List.mapi((j, header) => (j, header))
+      |> List.filter_map(
+           fun
+           | (j, header) when header == m.selected =>
+             Some(
+               selected_outline(
+                 ~clss=["selected-col-header"],
+                 ~grid_coordinates=(1, j + 3, 2, j + 4),
+               ),
+             )
+           | _ => None,
+         );
     let row_headers =
       m.rows
       |> List.mapi((i, row: row) =>
@@ -1619,6 +1629,20 @@ module DataFrameLivelitView = {
              ~grid_coordinates=(i + 3, 1, i + 4, 2),
              row.header,
            )
+         );
+    let selected_row_header =
+      m.rows
+      |> List.mapi((i, row: row) => (i, row.header))
+      |> List.filter_map(
+           fun
+           | (i, header) when header == m.selected =>
+             Some(
+               selected_outline(
+                 ~clss=["selected-row-header"],
+                 ~grid_coordinates=(i + 3, 1, i + 4, 2),
+               ),
+             )
+           | _ => None,
          );
     let cells =
       m.rows
@@ -1633,6 +1657,30 @@ module DataFrameLivelitView = {
               )
          )
       |> List.flatten;
+    let selected_cell =
+      m.rows
+      |> List.mapi((i, row) => (i, row))
+      |> List.filter_map(((i, row: row)) =>
+           row.cells
+           |> List.mapi((j, cell) => (j, cell))
+           |> List.filter_map(
+                fun
+                | (j, cell) when cell == m.selected =>
+                  Some(
+                    selected_outline(
+                      ~clss=["selected-cell"],
+                      ~grid_coordinates=(i + 3, j + 3, i + 4, j + 4),
+                    ),
+                  )
+                | _ => None,
+              )
+           |> (
+             fun
+             | [] => None
+             | [selected, ..._] => Some(selected)
+           )
+         );
+    let selected = selected_row_header @ selected_col_header @ selected_cell;
 
     let add_row_button =
       Node.button(
@@ -1708,6 +1756,7 @@ module DataFrameLivelitView = {
                 [header_corner, ...row_headers],
                 col_headers,
                 cells,
+                selected,
               ]),
             ),
             add_row_button,
