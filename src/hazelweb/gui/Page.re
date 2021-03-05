@@ -32,10 +32,6 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("grade_cutoffs")],
         ),
         Node.option(
-          [Attr.value("grade_cutoffs_dataframe_only")],
-          [Node.text("grade_cutoffs_dataframe_only")],
-        ),
-        Node.option(
           [Attr.value("ll_def_slider_basic")],
           [Node.text("user-defined livelit slider; basic")],
         ),
@@ -264,7 +260,7 @@ let view =
                     ~settings=settings.evaluation,
                     program,
                   ),
-                  UndoHistoryPanel.view(~inject, model),
+                  // UndoHistoryPanel.view(~inject, model),
                   SettingsPanel.view(~inject, settings),
                 ]
               ),
