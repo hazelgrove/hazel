@@ -23,7 +23,7 @@ let view =
           [
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
             Node.text(" : "),
-            HTypCode.view(~width=50, ~pos=Var.length(x) + 3, ty),
+            HTypCode.view(~width=40, ~pos=Var.length(x) + 3, ty),
           ],
         ),
       ],
@@ -54,7 +54,7 @@ let view =
                   ~inject,
                   ~settings,
                   ~selected_instance,
-                  ~width=50,
+                  ~width=40,
                   d,
                 ),
               ],
@@ -207,7 +207,7 @@ let view =
           [
             DHCode.view_of_hole_instance(
               ~inject,
-              ~width=50,
+              ~width=40,
               ~selected_instance,
               ~settings,
               inst,
@@ -258,7 +258,7 @@ let view =
                 [
                   DHCode.view_of_hole_instance(
                     ~inject,
-                    ~width=50,
+                    ~width=40,
                     ~selected_instance,
                     ~settings,
                     inst,
