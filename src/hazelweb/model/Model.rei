@@ -3,6 +3,7 @@ type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
+  just_selected_instance: bool,
   // undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,

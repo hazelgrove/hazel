@@ -340,6 +340,7 @@ let decoration_views =
         [
           Attr.classes([
             "LivelitView",
+            "custom-scrollbar",
             switch (shape) {
             | InvalidShape => "InvalidShape"
             | Inline(_) => "Inline"

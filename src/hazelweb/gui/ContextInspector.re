@@ -23,7 +23,7 @@ let view =
           [
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
             Node.text(" : "),
-            HTypCode.view(~width=50, ~pos=Var.length(x) + 3, ty),
+            HTypCode.view(~width=40, ~pos=Var.length(x) + 3, ty),
           ],
         ),
       ],
@@ -54,7 +54,7 @@ let view =
                   ~inject,
                   ~settings,
                   ~selected_instance,
-                  ~width=50,
+                  ~width=40,
                   d,
                 ),
               ],
@@ -82,49 +82,12 @@ let view =
   [@warning "-26"]
   let mii_summary = (mii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
     let num_instances = NodeInstanceInfo.num_instances(mii, u);
-    let _kindstr =
+    let kindstr =
       switch (kind) {
       | Hole => "hole"
       | Livelit => "livelit application"
       };
-    let msg =
-      Node.div(
-        [Attr.classes(["instance-info"])],
-        [
-          Node.div(
-            [],
-            [
-              Node.div(
-                [Attr.classes(["hii-summary-inst"])],
-                [
-                  DHCode.view_of_hole_instance(
-                    ~inject,
-                    ~width=50,
-                    ~selected_instance,
-                    ~settings,
-                    inst,
-                  ),
-                ],
-              ),
-              Node.text(" = hole "),
-              Node.span(
-                [Attr.classes(["hole-name-normal-txt"])],
-                [Node.text(string_of_int(u + 1))],
-              ),
-              Node.text(" instance "),
-              Node.span(
-                [Attr.classes(["inst-number-normal-txt"])],
-                [Node.text(string_of_int(i + 1))],
-              ),
-              Node.text(" of "),
-              Node.span(
-                [Attr.classes(["inst-number-normal-txt"])],
-                [Node.text(string_of_int(num_instances))],
-              ),
-            ],
-          ),
-        ],
-      );
+    let extra_space = Unicode.nbsp ++ Unicode.nbsp;
 
     let prev_key = KeyCombo.alt_PageUp;
     let next_key = KeyCombo.alt_PageDown;
@@ -186,13 +149,53 @@ let view =
         );
       };
 
-    let controls =
+    let msg =
+      Node.div(
+        [Attr.classes(["instance-info"])],
+        [
+          Node.div(
+            [],
+            [
+              Node.text(kindstr ++ " "),
+              Node.span(
+                [Attr.classes(["hole-name-normal-txt"])],
+                [Node.text(string_of_int(u + 1))],
+              ),
+              Node.text(extra_space ++ "|" ++ extra_space ++ "closure "),
+              Node.span(
+                [Attr.classes(["instance-selector"])],
+                [
+                  Node.text(Unicode.nbsp),
+                  prev_btn,
+                  Node.span(
+                    [Attr.classes(["inst-number-normal-txt"])],
+                    [
+                      Node.text(
+                        extra_space ++ string_of_int(i + 1) ++ extra_space,
+                      ),
+                    ],
+                  ),
+                  next_btn,
+                  Node.text(Unicode.nbsp),
+                ],
+              ),
+              Node.text(" of "),
+              Node.span(
+                [Attr.classes(["inst-number-normal-txt"])],
+                [Node.text(string_of_int(num_instances))],
+              ),
+            ],
+          ),
+        ],
+      );
+
+    let _controls =
       Node.div(
         [Attr.classes(["instance-controls"])],
         [prev_btn, next_btn],
       );
 
-    Node.div([Attr.classes(["path-summary"])], [msg, controls]);
+    Node.div([Attr.classes(["path-summary"])], [msg]);
   };
 
   let view_of_path_item = ((inst, x)) =>
@@ -204,7 +207,7 @@ let view =
           [
             DHCode.view_of_hole_instance(
               ~inject,
-              ~width=50,
+              ~width=40,
               ~selected_instance,
               ~settings,
               inst,
@@ -219,11 +222,16 @@ let view =
       ],
     );
 
-  let path_view = (inst, path: InstancePath.t) => {
+  let path_view = ((kind, inst): TaggedNodeInstance.t, path: InstancePath.t) => {
+    let result_str =
+      switch (kind) {
+      | Hole => "result"
+      | Livelit => "cc-result"
+      };
     let (titlebar_txt, path_area_children) =
       switch (path) {
       | [] => (
-          "which is in the result",
+          "which is in the " ++ result_str,
           [
             Node.div(
               [Attr.classes(["special-msg"])],
@@ -232,7 +240,7 @@ let view =
           ],
         )
       | _ =>
-        let titlebar_txt = "which is in the result via path";
+        let titlebar_txt = "which is in the " ++ result_str ++ " via path";
         let path_area_children =
           List.fold_left(
             (acc, path_item) =>
@@ -250,7 +258,7 @@ let view =
                 [
                   DHCode.view_of_hole_instance(
                     ~inject,
-                    ~width=50,
+                    ~width=40,
                     ~selected_instance,
                     ~settings,
                     inst,
@@ -343,7 +351,7 @@ let view =
             switch (ZExp.cursor_on_inst(ze)) {
             | None => [
                 instructional_msg(
-                  "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                  "Move cursor to a hole or livelit application, or click a hole instance in the result, to see closures.",
                 ),
               ]
             | Some((kind, u)) =>
@@ -364,7 +372,7 @@ let view =
                     | Some((_, path, _)) => [
                         path_view_titlebar,
                         mii_summary(mii, (kind, inst)),
-                        path_view(inst, path),
+                        path_view((kind', inst), path),
                       ]
                     };
                   switch (kind) {
@@ -388,12 +396,6 @@ let view =
 
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
-    [
-      Panel.view_of_main_title_bar("context"),
-      Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
-        [context_view, path_viewer],
-      ),
-    ],
+    [Panel.view_of_main_title_bar("context"), context_view, path_viewer],
   );
 };

@@ -107,7 +107,7 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cardstack_controls = (~inject, model: Model.t) =>
+let _cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(
       [Attr.id("cardstack-controls")],
@@ -136,10 +136,10 @@ let view =
       let selected_instance = Model.get_selected_instance(model);
       let cell_status =
         if (!settings.evaluation.evaluate) {
-          Node.div([], []);
+          Node.div([Attr.id("result-box")], []);
         } else {
           Node.div(
-            [],
+            [Attr.id("result-box")],
             [
               Node.div(
                 [Attr.classes(["cell-status"])],
@@ -193,73 +193,59 @@ let view =
               // cardstacks_select(~inject, Model.cardstack_info),
             ],
           ),
+          Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
+            [ActionPanel.view(~inject, model)]
+          ),
           Node.div(
-            [Attr.classes(["main-area"])],
+            [Attr.id("page-area")],
             [
-              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-                [ActionPanel.view(~inject, model)]
-              ),
               Node.div(
-                [Attr.classes(["flex-wrapper"])],
+                [Attr.classes(["page"])],
                 [
                   Node.div(
-                    [Attr.id("page-area")],
-                    [
-                      Node.div(
-                        [Attr.classes(["page"])],
-                        [
-                          Node.div(
-                            [Attr.classes(["card-caption"])],
-                            [card.info.caption],
-                          ),
-                          Cell.view(~inject, ~sync_livelit, model),
-                          cell_status,
-                          cardstack_controls(~inject, model),
-                        ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
-                      ),
-                      Node.div(
-                        [
-                          Attr.style(
-                            Css_gen.(
-                              white_space(`Pre) @> font_family(["monospace"])
-                            ),
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
+                    [Attr.classes(["card-caption"])],
+                    [card.info.caption],
                   ),
+                  Cell.view(~inject, ~sync_livelit, model),
+                  cell_status,
+                  // cardstack_controls(~inject, model),
                 ],
               ),
-              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
+              examples_select(~inject),
+              Node.button(
                 [
-                  CursorInspector.view(
-                    ~inject,
-                    Program.get_cursor_info(program),
-                  ),
-                  ContextInspector.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    program,
-                  ),
-                  // UndoHistoryPanel.view(~inject, model),
-                  SettingsPanel.view(~inject, settings),
-                ]
+                  Attr.on_click(_ => {
+                    let e = program |> Program.get_uhexp;
+                    JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+                    Event.Ignore;
+                  }),
+                ],
+                [Node.text("Serialize to console")],
               ),
+              Node.div(
+                [
+                  Attr.style(
+                    Css_gen.(
+                      white_space(`Pre) @> font_family(["monospace"])
+                    ),
+                  ),
+                ],
+                [],
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.id("right-sidebar")],
+            [
+              CursorInspector.view(~inject, Program.get_cursor_info(program)),
+              ContextInspector.view(
+                ~inject,
+                ~selected_instance,
+                ~settings=settings.evaluation,
+                program,
+              ),
+              // UndoHistoryPanel.view(~inject, model),
+              SettingsPanel.view(~inject, settings),
             ],
           ),
         ],
