@@ -267,6 +267,62 @@ let decoration_views =
     corner_radius /. font_metrics.row_height,
   );
 
+  let create_view = (start: MeasuredPosition.t, shape: LivelitShape.t, vs) => {
+    let top = Float.of_int(start.row) *. font_metrics.row_height;
+    let left = Float.of_int(start.col) *. font_metrics.col_width;
+    let dim_attr =
+      switch (shape) {
+      | InvalidShape =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+            13,
+            font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      | Inline(width) =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+            width,
+            font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      | MultiLine(height) =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "height: %fpx; top: %fpx; left: %fpx;",
+            float_of_int(height) *. font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      };
+    Vdom.[
+      Node.div(
+        [
+          Attr.classes([
+            "LivelitView",
+            switch (shape) {
+            | InvalidShape => "InvalidShape"
+            | Inline(_) => "Inline"
+            | MultiLine(_) => "MultiLine"
+            },
+          ]),
+          dim_attr,
+          Attr.on_mousedown(_ => Event.Stop_propagation),
+        ],
+        vs,
+      ),
+    ];
+  };
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[], // tail-recursive
@@ -330,84 +386,23 @@ let decoration_views =
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
-            switch (llview(llu, model)) {
-            | None =>
-              //llview error
-              failwith("livelit view ERROR 1")
-            | Some(view_dhexp) =>
-              print_endline("view dhexp:");
-              print_endline(
-                Sexplib.Sexp.to_string_hum(
-                  DHExp.sexp_of_t(DHExp.strip_casts'(view_dhexp)),
+            switch (
+              llview(llu, model)
+              |> Option.map(DHExp.strip_casts')
+              |> Option.map(decode_livelit_view)
+            ) {
+            | Some(Some(view_vdom)) =>
+              let vs = [view_vdom];
+              create_view(start, shape, vs);
+            | _ => [
+                Vdom.(
+                  Node.div(
+                    [Attr.classes(["user-defined-livelit-container-error"])],
+                    [Node.text("Livelit View Error")],
+                  )
                 ),
-              );
-              let view_vdom =
-                switch (decode_livelit_view(DHExp.strip_casts'(view_dhexp))) {
-                | None => failwith("livelit view ERROR 2")
-                | Some(view_vdom) => view_vdom
-                };
-              let vs = {
-                [
-                  view_vdom //andrew: vdom goes here
-                ];
-              };
-              // same as other case from here
-              let top = Float.of_int(start.row) *. font_metrics.row_height;
-              let left = Float.of_int(start.col) *. font_metrics.col_width;
-              let dim_attr =
-                switch (shape) {
-                | InvalidShape =>
-                  Vdom.Attr.create(
-                    "style",
-                    Printf.sprintf(
-                      "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                      13,
-                      font_metrics.row_height,
-                      top,
-                      left,
-                    ),
-                  )
-                | Inline(width) =>
-                  Vdom.Attr.create(
-                    "style",
-                    Printf.sprintf(
-                      "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                      width,
-                      font_metrics.row_height,
-                      top,
-                      left,
-                    ),
-                  )
-                | MultiLine(height) =>
-                  Vdom.Attr.create(
-                    "style",
-                    Printf.sprintf(
-                      "height: %fpx; top: %fpx; left: %fpx;",
-                      float_of_int(height) *. font_metrics.row_height,
-                      top,
-                      left,
-                    ),
-                  )
-                };
-              Vdom.[
-                Node.div(
-                  [
-                    Attr.classes([
-                      "LivelitView",
-                      switch (shape) {
-                      | InvalidShape => "InvalidShape"
-                      | Inline(_) => "Inline"
-                      | MultiLine(_) => "MultiLine"
-                      },
-                    ]),
-                    dim_attr,
-                    Attr.on_mousedown(_ => Event.Stop_propagation),
-                  ],
-                  vs,
-                ),
-              ];
+              ]
             }
-
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
@@ -520,61 +515,7 @@ let decoration_views =
 
               [livelit_view({uhcode, dhcode, dargs})]; //andrew: vdom goes here
             };
-            let top = Float.of_int(start.row) *. font_metrics.row_height;
-            let left = Float.of_int(start.col) *. font_metrics.col_width;
-            let dim_attr =
-              switch (shape) {
-              | InvalidShape =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                    13,
-                    font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              | Inline(width) =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                    width,
-                    font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              | MultiLine(height) =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "height: %fpx; top: %fpx; left: %fpx;",
-                    float_of_int(height) *. font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              };
-            Vdom.[
-              Node.div(
-                [
-                  Attr.classes([
-                    "custom-scrollbar",
-                    "LivelitView",
-                    switch (shape) {
-                    | InvalidShape => "InvalidShape"
-                    | Inline(_) => "Inline"
-                    | MultiLine(_) => "MultiLine"
-                    },
-                  ]),
-                  dim_attr,
-                  Attr.on_mousedown(_ => Event.Stop_propagation),
-                ],
-                vs,
-              ),
-            ];
+            create_view(start, shape, vs);
           };
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
