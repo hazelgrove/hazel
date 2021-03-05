@@ -590,22 +590,21 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     type t =
       | Elaborates(DHExp.t, HTyp.t, Delta.t)
       | DoesNotElaborate;
+    /* let to_option =
+         fun
+         | DoesNotElaborate => None
+         | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
 
-    let to_option =
-      fun
-      | DoesNotElaborate => None
-      | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
+       let from_option =
+         fun
+         | None => DoesNotElaborate
+         | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
 
-    let from_option =
-      fun
-      | None => DoesNotElaborate
-      | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
-
-    let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
-      switch (x) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, ty, delta) => f((dp, ty, delta))
-      };
+       let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
+         switch (x) {
+         | DoesNotElaborate => DoesNotElaborate
+         | Elaborates(dp, ty, delta) => f((dp, ty, delta))
+         }; */
   };
 
   module Let_syntax = ElaborationResult;
@@ -708,32 +707,27 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | EmptyLine
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
     | LetLine(p, def) =>
-      switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
-      | None => LinesDoNotExpand
-      | Some((ty1, _)) =>
-        let ctx1 = S.extend_let_def_ctx(ctx, p, def);
-        switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
+      let def_ctx = S.extend_let_def_ctx(ctx, p, def);
+      switch (syn_elab(~livelit_holes, def_ctx, delta, def)) {
+      | DoesNotElaborate => LinesDoNotExpand
+      | Elaborates(ddef, ty_def, delta) =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_def)) {
         | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(d1, ty1', delta) =>
-          let d1 =
+        | Elaborates(dp, ty1', ctx, delta) =>
+          let ddef =
             switch (S.recursive_let_id(p, def)) {
-            | None => d1
+            | None => ddef
             | Some((x, _)) =>
               FixF(
                 x,
                 ty1',
-                subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
+                subst_var(DHExp.cast(BoundVar(x), ty1', ty_def), x, ddef),
               )
             };
-          let d1 = DHExp.cast(d1, ty1', ty1);
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-          | DoesNotElaborate => LinesDoNotExpand
-          | Elaborates(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesExpand(prelude, ctx, delta);
-          };
-        };
-      }
+          let prelude = d2 => DHExp.Let(dp, ddef, d2);
+          LinesExpand(prelude, ctx, delta);
+        }
+      };
     | LivelitDefLine({name: (_, name_str), captures, _}) =>
       // TODO: params
       let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
@@ -920,31 +914,32 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       };
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
-      | [skel1, skel2, ...tail] =>
-        let%bind (dp1, ty1, delta) =
-          syn_elab_skel(~livelit_holes, ctx, delta, skel1, seq);
-        let%bind (dp2, ty2, delta) =
-          syn_elab_skel(~livelit_holes, ctx, delta, skel2, seq);
-        tail
-        |> ListUtil.map_with_accumulator_opt(
-             ((dp_acc, delta), skel) => {
-               syn_elab_skel(~livelit_holes, ctx, delta, skel, seq)
-               |> ElaborationResult.to_option
-               |> Option.map(((dp, ty, delta)) =>
-                    ((DHExp.Pair(dp_acc, dp), delta), ty)
-                  )
-             },
-             (DHExp.Pair(dp1, dp2), delta),
-           )
-        |> Option.map((((dp_acc, delta), tys)) =>
-             (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), delta)
-           )
-        |> ElaborationResult.from_option;
+      | [_, _, ..._] as skels =>
+        let recurse =
+          List.fold_right(
+            (skel, acc) =>
+              switch (acc) {
+              | None => None
+              | Some((ds, tys, delta)) =>
+                switch (syn_elab_skel(~livelit_holes, ctx, delta, skel, seq)) {
+                | DoesNotElaborate => None
+                | Elaborates(d, ty, delta) =>
+                  Some(([d, ...ds], [ty, ...tys], delta))
+                }
+              },
+            skels,
+            Some(([], [], delta)),
+          );
+        switch (recurse) {
+        | None => DoesNotElaborate
+        | Some((ds, tys, delta)) =>
+          let d = DHExp.mk_tuple(ds);
+          let ty = HTyp.Prod(tys);
+          Elaborates(d, ty, delta);
+        };
       | _ =>
         raise(
-          Invalid_argument(
-            "Encountered tuple pattern type with less than 2 elements!",
-          ),
+          Invalid_argument("Encountered tuple with less than 2 elements!"),
         )
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
