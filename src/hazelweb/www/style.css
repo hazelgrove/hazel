@@ -609,7 +609,30 @@ details:focus {
   grid-template-rows:
     fit-content(30px) 1fr fit-content(120px);
   position: relative;
+  align-content: start;
+  /*align-items: start;*/
 }
+
+.context-inspector-panel details {
+  background-color: #f0fff3;
+  overflow: overlay;
+}
+.context-inspector-panel summary {
+  padding-left: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 11pt;
+  background-color: #8fbd98;
+}
+
+/*
+#typing-ctx {
+  overflow: overlay;
+}
+#livelit-ctx {
+  overflow: overlay;
+}
+*/
 
 .context-is-empty-msg {
   margin-top: 10px;
@@ -622,6 +645,7 @@ details:focus {
 .the-context {
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-rows: fit-content(200px) 1fr;
   overflow: overlay;
 }
 .context-entry {
@@ -631,6 +655,11 @@ details:focus {
 }
 .context-entry .code {
   font-size: var(--context-entry-font-size);
+}
+.the-path-viewer {
+  position: relative;
+  z-index: 100;
+  background-color: #FEFEEA;
 }
 
 .instructional-msg {

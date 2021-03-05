@@ -242,6 +242,8 @@ let view =
                 ~inject,
                 ~selected_instance,
                 ~settings=settings.evaluation,
+                ~typing_ctx_open=model.typing_ctx_open,
+                ~livelit_ctx_open=model.livelit_ctx_open,
                 program,
               ),
               // UndoHistoryPanel.view(~inject, model),

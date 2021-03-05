@@ -7,6 +7,8 @@ type t = {
   // undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  typing_ctx_open: bool,
+  livelit_ctx_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   /**

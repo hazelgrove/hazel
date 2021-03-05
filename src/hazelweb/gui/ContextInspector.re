@@ -6,6 +6,8 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       ~selected_instance: option(TaggedNodeInstance.t),
       ~settings: Settings.Evaluation.t,
+      ~livelit_ctx_open,
+      ~typing_ctx_open,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -24,6 +26,24 @@ let view =
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
             Node.text(" : "),
             HTypCode.view(~width=40, ~pos=Var.length(x) + 3, ty),
+          ],
+        ),
+      ],
+    );
+  let ll_static_info = ((x, (def: LivelitDefinition.t, _))) =>
+    Node.div(
+      [Attr.classes(["static-info"])],
+      [
+        Node.div(
+          [Attr.classes(["code"])],
+          [
+            Node.span([Attr.classes(["var"])], [Node.text(x)]),
+            Node.text(" at "),
+            HTypCode.view(
+              ~width=40,
+              ~pos=Var.length(x) + 4,
+              def.expansion_ty,
+            ),
           ],
         ),
       ],
@@ -72,6 +92,11 @@ let view =
       | None => [static_info]
       };
     Node.div([Attr.classes(["context-entry"])], children);
+  };
+
+  let llcontext_entry = ((x, entry)) => {
+    let static_info = ll_static_info((x, entry));
+    Node.div([Attr.classes(["context-entry"])], [static_info]);
   };
 
   let instructional_msg = msg =>
@@ -296,7 +321,7 @@ let view =
           ),
         ]
       | Some({ctx, _}) =>
-        let ctx = Contexts.gamma(ctx);
+        let (ctx, llctx) = ctx;
         let sigma =
           if (settings.evaluate) {
             let (_, hii, llii, _) = program |> Program.get_result;
@@ -319,15 +344,65 @@ let view =
           } else {
             Elaborator.id_env(ctx);
           };
-        switch (VarCtx.to_list(ctx)) {
-        | [] => [
-            Node.div(
-              [Attr.classes(["context-is-empty-msg"])],
-              [Node.text("no variables in scope")],
-            ),
-          ]
-        | ctx_lst => List.map(context_entry(sigma), ctx_lst)
+        let ctx_section = {
+          let ctx_entries =
+            ctx |> VarCtx.to_list |> List.map(context_entry(sigma));
+          let details =
+            ctx_entries == []
+              ? [
+                Node.div(
+                  [Attr.classes(["context-is-empty-msg"])],
+                  [Node.text("no variables in scope")],
+                ),
+              ]
+              : ctx_entries;
+          Node.div(
+            [Attr.id("typing-ctx")],
+            [
+              Node.create(
+                "details",
+                [
+                  Attr.bool_property("open", typing_ctx_open),
+                  Attr.on("mousedown", _ => inject(ToggleTypingCtx)),
+                ],
+                [
+                  Node.create("summary", [], [Node.text("typing context")]),
+                  ...details,
+                ],
+              ),
+            ],
+          );
         };
+        let llctx_section = {
+          let llctx_entries =
+            llctx |> VarMap.to_list |> List.map(llcontext_entry);
+          let details =
+            llctx_entries == []
+              ? [
+                Node.div(
+                  [Attr.classes(["context-is-empty-msg"])],
+                  [Node.text("no livelit definitions in scope")],
+                ),
+              ]
+              : llctx_entries;
+          Node.div(
+            [Attr.id("livelit-ctx")],
+            [
+              Node.create(
+                "details",
+                [
+                  Attr.bool_property("open", livelit_ctx_open),
+                  Attr.on("mousedown", _ => inject(ToggleLivelitCtx)),
+                ],
+                [
+                  Node.create("summary", [], [Node.text("livelit context")]),
+                  ...details,
+                ],
+              ),
+            ],
+          );
+        };
+        [llctx_section, ctx_section];
       };
     Node.div([Attr.classes(["the-context"])], contents);
   };

@@ -10,6 +10,8 @@ type t = {
   // undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  typing_ctx_open: bool,
+  livelit_ctx_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
@@ -77,6 +79,8 @@ let init = (): t => {
     // undo_history,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    livelit_ctx_open: true,
+    typing_ctx_open: true,
     font_metrics:
       FontMetrics.{
         // to be set on display

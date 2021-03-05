@@ -67,7 +67,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | ToggleTypingCtx
+  | ToggleLivelitCtx =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -169,6 +171,18 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
+      | ToggleTypingCtx => {
+          ...model,
+          typing_ctx_open: !model.typing_ctx_open,
+          // TODO rename
+          just_selected_instance: true,
+        }
+      | ToggleLivelitCtx => {
+          ...model,
+          livelit_ctx_open: !model.livelit_ctx_open,
+          // TODO rename
+          just_selected_instance: true,
+        }
       | FocusCell =>
         {...model, just_selected_instance: false}
         |> Model.map_program(Program.focus)

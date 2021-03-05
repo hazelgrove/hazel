@@ -23,6 +23,8 @@ type t =
   | SelectInstance(TaggedNodeInstance.kind, NodeInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
+  | ToggleTypingCtx
+  | ToggleLivelitCtx
   | FocusCell
   | BlurCell
   | FocusWindow
