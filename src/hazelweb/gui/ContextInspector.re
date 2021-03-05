@@ -94,19 +94,7 @@ let view =
           Node.div(
             [],
             [
-              Node.div(
-                [Attr.classes(["hii-summary-inst"])],
-                [
-                  DHCode.view_of_hole_instance(
-                    ~inject,
-                    ~width=50,
-                    ~selected_instance,
-                    ~settings,
-                    inst,
-                  ),
-                ],
-              ),
-              Node.text(" = hole "),
+              Node.text("hole "),
               Node.span(
                 [Attr.classes(["hole-name-normal-txt"])],
                 [Node.text(string_of_int(u + 1))],
