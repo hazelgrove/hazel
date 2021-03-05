@@ -62,14 +62,14 @@ let _get_widget_id = llu =>
     id;
   };
 
-let rec _mk_view_monad =
+let rec mk_view_monad =
         (
           dhcode: IntMap.key => option((DHExp.t, Virtual_dom.Vdom.Node.t)),
           splices,
           d: DHExp.t,
         )
         : option(Vdom.Node.t) => {
-  let run = _mk_view_monad(dhcode, splices);
+  let run = mk_view_monad(dhcode, splices);
   // two cases:
   // inj[L](d) : return(d) where d is pseudovdom
   // inj[R]    : bindEvalSplice(spliceno, f)
@@ -503,7 +503,7 @@ let decoration_views =
             let llviewres =
               OptUtil.get(() => failwith(""), llview(llu, model))
               |> DHExp.strip_casts';
-            switch (_mk_view_monad(dhcode, uhcode, llviewres)) {
+            switch (mk_view_monad(dhcode, uhcode, llviewres)) {
             | Some(view_vdom) =>
               let vs = [view_vdom];
               create_ll_view(start, shape, vs);
