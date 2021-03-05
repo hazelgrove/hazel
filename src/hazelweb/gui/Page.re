@@ -260,7 +260,7 @@ let view =
                     ~settings=settings.evaluation,
                     program,
                   ),
-                  UndoHistoryPanel.view(~inject, model),
+                  // UndoHistoryPanel.view(~inject, model),
                   SettingsPanel.view(~inject, settings),
                 ]
               ),
