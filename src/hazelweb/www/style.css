@@ -122,16 +122,24 @@ body {
 }
 
 #root {
-  height: 100%;
-  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
   display: grid;
-  grid-template-rows: 1fr 200fr;
-  overflow-y: auto;
+  grid-template-rows: fit-content(40px) auto;
+  grid-template-columns:
+    fit-content(400px) auto fit-content(400px);
+  grid-template-areas:
+    "header header header"
+    "left-sidebar main right-sidebar";
 }
 
 /* top bar */
 
 .top-bar {
+  grid-area: header;
   padding-top: 10px;
   padding-bottom: 10px;
   padding-left: var(--page-padding);
@@ -141,7 +149,6 @@ body {
   font-weight: bold;
   font-size: 14pt;
   width: 100%;
-  height: min-content;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -181,27 +188,14 @@ body {
 
 /* arrangement of main area */
 
-.main-area {
-  flex-grow: 1;
-  background-color: wheat;
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  height: 100%;
-}
-
-.flex-wrapper {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 #page-area {
-  flex-grow: 1;
   /* enable scroll */
   height: 100%;
   width: 100%;
-  overflow-y: auto;
+  overflow: auto;
+
+  grid-area: main;
+  background-color: wheat;
 
   padding-left: var(--page-padding);
   padding-right: var(--page-padding);
@@ -232,10 +226,14 @@ body {
    */
   direction: rtl;
   overflow: hidden;
+  grid-area: left-sidebar;
+}
+#collapsible-right-bar {
+  grid-area: right-sidebar;
 }
 
 .sidebar {
-  width: auto;
+  width: 100%;
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;

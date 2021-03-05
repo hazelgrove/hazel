@@ -197,74 +197,59 @@ let view =
               // cardstacks_select(~inject, Model.cardstack_info),
             ],
           ),
+          Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
+            [ActionPanel.view(~inject, model)]
+          ),
           Node.div(
-            [Attr.classes(["main-area"])],
+            [Attr.id("page-area")],
             [
-              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-                [ActionPanel.view(~inject, model)]
-              ),
               Node.div(
-                [Attr.classes(["flex-wrapper"])],
+                [Attr.classes(["page"])],
                 [
                   Node.div(
-                    [Attr.id("page-area")],
-                    [
-                      Node.div(
-                        [Attr.classes(["page"])],
-                        [
-                          Node.div(
-                            [Attr.classes(["card-caption"])],
-                            [card.info.caption],
-                          ),
-                          Cell.view(~inject, ~sync_livelit, model),
-                          cell_status,
-                          // cardstack_controls(~inject, model),
-                        ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
-                      ),
-                      Node.div(
-                        [
-                          Attr.style(
-                            Css_gen.(
-                              white_space(`Pre) @> font_family(["monospace"])
-                            ),
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
+                    [Attr.classes(["card-caption"])],
+                    [card.info.caption],
                   ),
+                  Cell.view(~inject, ~sync_livelit, model),
+                  cell_status,
+                  // cardstack_controls(~inject, model),
                 ],
               ),
-              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
+              examples_select(~inject),
+              Node.button(
                 [
-                  CursorInspector.view(
-                    ~inject,
-                    Program.get_cursor_info(program),
+                  Attr.on_click(_ => {
+                    let e = program |> Program.get_uhexp;
+                    JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+                    Event.Ignore;
+                  }),
+                ],
+                [Node.text("Serialize to console")],
+              ),
+              Node.div(
+                [
+                  Attr.style(
+                    Css_gen.(
+                      white_space(`Pre) @> font_family(["monospace"])
+                    ),
                   ),
-                  ContextInspector.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    program,
-                  ),
-                  // UndoHistoryPanel.view(~inject, model),
-                  // SettingsPanel.view(~inject, settings),
-                ]
+                ],
+                [],
               ),
             ],
+          ),
+          Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
+            [
+              CursorInspector.view(~inject, Program.get_cursor_info(program)),
+              ContextInspector.view(
+                ~inject,
+                ~selected_instance,
+                ~settings=settings.evaluation,
+                program,
+              ),
+              // UndoHistoryPanel.view(~inject, model),
+              // SettingsPanel.view(~inject, settings),
+            ]
           ),
         ],
       );
