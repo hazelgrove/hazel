@@ -40,7 +40,7 @@ module rec M: Statics_Exp_Sig.S = {
     expand_ty: HTyp.t,
   };
 
-  let ll_init_ty = (model_type, _) =>
+  let ll_defun_update_monad_ty = model_type =>
     /*TODO make type more specific */
     HTyp.Sum(
       HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
@@ -52,23 +52,19 @@ module rec M: Statics_Exp_Sig.S = {
         HTyp.Hole,
       ),
     );
+
+  let ll_init_ty = (model_type, _) => ll_defun_update_monad_ty(model_type);
+
   let ll_update_ty = (model_type, action_type) =>
-    /*TODO make type more specific */
     HTyp.Arrow(
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
-      HTyp.Sum(
-        HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
-        HTyp.Sum(
-          HTyp.Prod([
-            HTyp.String,
-            HTyp.Prod([HTyp.String, HTyp.Arrow(HTyp.Hole, HTyp.Hole)]),
-          ]),
-          HTyp.Hole,
-        ),
-      ),
+      ll_defun_update_monad_ty(model_type),
     );
   let ll_view_ty = (model_type, _) =>
-    HTyp.Arrow(Prod([HTyp.Int, UHTyp.expand(model_type)]), HTyp.String);
+    HTyp.Arrow(
+      Prod([Int, UHTyp.expand(model_type)]),
+      HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
+    );
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
@@ -263,7 +259,22 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_view =
+  let _mk_ll_view_new =
+      (view: UHExp.t, llu: int, model: SerializedModel.t): option(DHExp.t) => {
+    let model_dhexp = DHExp.t_of_sexp(model);
+    let llu_dhexp = DHExp.IntLit(llu);
+    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
+    | DoesNotElaborate => failwith("mk_ll_view elab DoesNotElaborate")
+    | Elaborates(view_dhexp, _, _) =>
+      let term = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
+      switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
+      | BoxedValue(v) => Some(DHExp.strip_casts(v))
+      | _ => None
+      };
+    };
+  };
+
+  let _mk_ll_view =
       (view: UHExp.t, llu: int, model: SerializedModel.t): option(string) => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let llu_dhexp = DHExp.IntLit(llu);
@@ -380,6 +391,12 @@ module rec M: Statics_Exp_Sig.S = {
       && UHExp.is_complete(view)
       && UHExp.is_complete(shape)
       && UHExp.is_complete(expand);
+    print_endline("ll_def_valid");
+    print_endline(string_of_bool(UHExp.is_complete(init)));
+    print_endline(string_of_bool(UHExp.is_complete(update)));
+    print_endline(string_of_bool(UHExp.is_complete(view)));
+    print_endline(string_of_bool(UHExp.is_complete(shape)));
+    print_endline(string_of_bool(UHExp.is_complete(expand)));
     let new_livelit_ctx =
       ll_def_valid
         ? LivelitCtx.extend(
@@ -2360,7 +2377,7 @@ module rec M: Statics_Exp_Sig.S = {
   let rec build_ll_view_ctx = (block: UHExp.t): Statics.livelit_web_view_ctx => {
     let ll_view = build_ll_view_ctx_block(block, VarMap.empty);
     IntMap.map(
-      ((view, shape)) => (mk_ll_view(view), mk_ll_shape(shape)),
+      ((view, shape)) => (_mk_ll_view_new(view), mk_ll_shape(shape)),
       ll_view,
     );
   }

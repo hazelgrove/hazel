@@ -19,22 +19,30 @@ let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
             Vdom.Attr.create(k, v),
             ...decode_attrs(tl),
           ]
-        | _ => raise(NotElem)
+        | _ =>
+          print_endline("decode_attrs");
+          raise(NotElem);
         };
     let rec decode_elem = (d: DHExp.t) => {
+      print_endline("decoddinnngggg");
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
       switch (d) {
       | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
         let attrs = decode_attrs(d_attrs);
         let children = decode_children(d_children);
         Vdom.Node.create(tag, attrs, children);
-      | _ => raise(NotElem)
+      | _ =>
+        print_endline("decode_elem");
+        raise(NotElem);
       };
     }
     and decode_children = (d: DHExp.t) => {
       switch (d) {
       | ListNil(_) => []
       | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
-      | _ => raise(NotElem)
+      | _ =>
+        print_endline("decode_children");
+        raise(NotElem);
       };
     };
     switch (decode_elem(DHExp.strip_casts(d))) {
@@ -45,7 +53,7 @@ let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
 
 let widget_id_tbl = Hashtbl.create(5);
 
-let get_widget_id = llu =>
+let _get_widget_id = llu =>
   switch (Hashtbl.find_opt(widget_id_tbl, llu)) {
   | Some(id) => id
   | None =>
@@ -322,54 +330,84 @@ let decoration_views =
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
-            let id = get_widget_id(llu);
-            let container_origin_x =
-              (-1.) +. Float.of_int(start.row) *. font_metrics.row_height;
-            let container_origin_y =
-              Float.of_int(1 + start.col) *. font_metrics.col_width;
-            let container_position_style =
-              Printf.sprintf(
-                "top: %fpx; left: %fpx;",
-                container_origin_x,
-                container_origin_y,
+            switch (llview(llu, model)) {
+            | None =>
+              //llview error
+              failwith("livelit view ERROR 1")
+            | Some(view_dhexp) =>
+              print_endline("view dhexp:");
+              print_endline(
+                Sexplib.Sexp.to_string_hum(
+                  DHExp.sexp_of_t(DHExp.strip_casts'(view_dhexp)),
+                ),
               );
-            let style_attr =
-              Vdom.Attr.create("style", container_position_style);
-            Vdom.[
-              Node.div(
-                ~key="livelit-" ++ string_of_int(llu),
-                [Attr.class_("user-defined-livelit-container"), style_attr],
+              let view_vdom =
+                switch (decode_livelit_view(DHExp.strip_casts'(view_dhexp))) {
+                | None => failwith("livelit view ERROR 2")
+                | Some(view_vdom) => view_vdom
+                };
+              let vs = {
                 [
-                  Node.widget(
-                    ~update=(state, container) => {(state, container)},
-                    ~id,
-                    ~init=
-                      () => {
-                        print_endline("init");
-                        let container = Dom_html.(createDiv(document));
-                        switch (llview(llu, model)) {
-                        | None =>
-                          container##setAttribute(
-                            Js.string("class"),
-                            Js.string("user-defined-livelit-container-error"),
-                          );
-                          container##.innerHTML :=
-                            Js.string("Livelit View Error");
-                        | Some(view_str) =>
-                          /* container##setAttribute(
-                               Js.string("class"),
-                               Js.string("user-defined-livelit-container"),
-                             ); */
-                          container##.innerHTML := Js.string(view_str)
-                        };
-                        ((), container);
+                  view_vdom //andrew: vdom goes here
+                ];
+              };
+              // same as other case from here
+              let top = Float.of_int(start.row) *. font_metrics.row_height;
+              let left = Float.of_int(start.col) *. font_metrics.col_width;
+              let dim_attr =
+                switch (shape) {
+                | InvalidShape =>
+                  Vdom.Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+                      13,
+                      font_metrics.row_height,
+                      top,
+                      left,
+                    ),
+                  )
+                | Inline(width) =>
+                  Vdom.Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+                      width,
+                      font_metrics.row_height,
+                      top,
+                      left,
+                    ),
+                  )
+                | MultiLine(height) =>
+                  Vdom.Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "height: %fpx; top: %fpx; left: %fpx;",
+                      float_of_int(height) *. font_metrics.row_height,
+                      top,
+                      left,
+                    ),
+                  )
+                };
+              Vdom.[
+                Node.div(
+                  [
+                    Attr.classes([
+                      "LivelitView",
+                      switch (shape) {
+                      | InvalidShape => "InvalidShape"
+                      | Inline(_) => "Inline"
+                      | MultiLine(_) => "MultiLine"
                       },
-                    (),
-                  ),
-                ],
-              ),
-            ];
-          // each widget state's type is unique from others
+                    ]),
+                    dim_attr,
+                    Attr.on_mousedown(_ => Event.Stop_propagation),
+                  ],
+                  vs,
+                ),
+              ];
+            }
+
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
@@ -480,7 +518,7 @@ let decoration_views =
                         )
                    );
 
-              [livelit_view({uhcode, dhcode, dargs})];
+              [livelit_view({uhcode, dhcode, dargs})]; //andrew: vdom goes here
             };
             let top = Float.of_int(start.row) *. font_metrics.row_height;
             let left = Float.of_int(start.col) *. font_metrics.col_width;
