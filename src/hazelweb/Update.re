@@ -164,14 +164,26 @@ let apply_action =
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
       | SelectInstance(kind, inst) =>
-        model |> Model.select_instance((kind, inst))
+        {...model, just_selected_instance: true}
+        |> Model.select_instance((kind, inst))
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell => model |> Model.map_program(Program.focus)
-      | BlurCell => model |> Model.map_program(Program.blur)
-      | FocusWindow => Model.map_program(Program.focus_window, model)
-      | BlurWindow => Model.map_program(Program.blur_window, model)
+      | FocusCell =>
+        {...model, just_selected_instance: false}
+        |> Model.map_program(Program.focus)
+      | BlurCell =>
+        let maybe_blur =
+          JSUtil.window_has_focus() && !model.just_selected_instance
+            ? Program.blur : (p => p);
+        {...model, just_selected_instance: false}
+        |> Model.map_program(maybe_blur);
+      | FocusWindow =>
+        {...model, just_selected_instance: false}
+        |> Model.map_program(Program.focus_window)
+      | BlurWindow =>
+        {...model, just_selected_instance: false}
+        |> Model.map_program(Program.blur_window)
       | Undo =>
         let new_history =
           model.undo_history
