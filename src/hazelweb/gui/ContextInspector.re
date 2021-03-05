@@ -222,11 +222,16 @@ let view =
       ],
     );
 
-  let path_view = (inst, path: InstancePath.t) => {
+  let path_view = ((kind, inst): TaggedNodeInstance.t, path: InstancePath.t) => {
+    let result_str =
+      switch (kind) {
+      | Hole => "result"
+      | Livelit => "cc-result"
+      };
     let (titlebar_txt, path_area_children) =
       switch (path) {
       | [] => (
-          "which is in the result",
+          "which is in the " ++ result_str,
           [
             Node.div(
               [Attr.classes(["special-msg"])],
@@ -235,7 +240,7 @@ let view =
           ],
         )
       | _ =>
-        let titlebar_txt = "which is in the result via path";
+        let titlebar_txt = "which is in the " ++ result_str ++ " via path";
         let path_area_children =
           List.fold_left(
             (acc, path_item) =>
@@ -346,7 +351,7 @@ let view =
             switch (ZExp.cursor_on_inst(ze)) {
             | None => [
                 instructional_msg(
-                  "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                  "Move cursor to a hole or livelit application, or click a hole instance in the result, to see closures.",
                 ),
               ]
             | Some((kind, u)) =>
@@ -367,7 +372,7 @@ let view =
                     | Some((_, path, _)) => [
                         path_view_titlebar,
                         mii_summary(mii, (kind, inst)),
-                        path_view(inst, path),
+                        path_view((kind', inst), path),
                       ]
                     };
                   switch (kind) {
