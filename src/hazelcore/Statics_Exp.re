@@ -162,9 +162,15 @@ module rec M: Statics_Exp_Sig.S = {
         R,
         Inj(_, L, Pair(StringLit(s_ty), Pair(StringLit(s_exp), f))),
       ) =>
-      let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      let* ty =
+        try(Some(s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp)) {
+        | _ => None
+        };
       // TODO: handle none case for option(Exp).. but how?
-      let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+      let* exp =
+        try(Some(s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp)) {
+        | _ => None
+        };
       let a =
         SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
       Some(
@@ -210,17 +216,22 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_init =
-      (init: UHExp.t, model_ty: HTyp.t): SpliceGenCmd.t(SerializedModel.t) => {
+      (init: UHExp.t, model_ty: HTyp.t)
+      : option(SpliceGenCmd.t(SerializedModel.t)) => {
     let elab_ctx = Contexts.empty;
     let elab_delta = Delta.empty;
     print_endline("666");
     print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(init)));
     switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
-    | DoesNotElaborate => failwith("ERROR: mk_ll_init DoesNotElaborate")
+    | DoesNotElaborate =>
+      print_endline("ERROR: mk_ll_init DoesNotElaborate");
+      None;
     | Elaborates(d, _, delta) =>
       switch (d |> eval |> mk_update_monad(elab_ctx, delta, model_ty)) {
-      | None => failwith("ERROR: mk_ll_init mk failed")
-      | Some(sgc) => sgc
+      | None =>
+        print_endline("ERROR: mk_ll_init mk failed");
+        None;
+      | Some(sgc) => Some(sgc)
       }
     };
   };
@@ -380,12 +391,20 @@ module rec M: Statics_Exp_Sig.S = {
       | None => HTyp.Hole
       };
 
+    let init_model = mk_ll_init(init, UHTyp.expand(model_type));
+    let init_valid =
+      switch (init_model) {
+      | None => false
+      | _ => true
+      };
+
     let ll_def_valid =
       UHExp.is_complete(init)
       && UHExp.is_complete(update)
       && UHExp.is_complete(view)
       && UHExp.is_complete(shape)
-      && UHExp.is_complete(expand);
+      && UHExp.is_complete(expand)
+      && init_valid;
 
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
@@ -395,30 +414,34 @@ module rec M: Statics_Exp_Sig.S = {
      * livelitdefs and dealing with these heterogenously at
      * the ap site. */
 
-    let new_livelit_ctx =
-      ll_def_valid
-        ? LivelitCtx.extend(
-            livelit_ctx,
+    if (ll_def_valid) {
+      let init_model = OptUtil.get(() => failwith("No"), init_model);
+      (
+        gamma,
+        LivelitCtx.extend(
+          livelit_ctx,
+          (
+            name_str,
             (
-              name_str,
-              (
-                {
-                  name: name_str,
-                  action_ty: UHTyp.expand(action_type),
-                  model_ty: UHTyp.expand(model_type),
-                  captures_ty,
-                  expansion_ty: UHTyp.expand(expansion_type),
-                  param_tys: [], // TODO: params
-                  init_model: mk_ll_init(init, UHTyp.expand(model_type)),
-                  update: mk_ll_update(update, UHTyp.expand(model_type)),
-                  expand: mk_ll_expand(expand),
-                }: LivelitDefinition.t,
-                [],
-              ),
-            ) // TODO: params
-          )
-        : livelit_ctx;
-    (gamma, new_livelit_ctx);
+              {
+                name: name_str,
+                action_ty: UHTyp.expand(action_type),
+                model_ty: UHTyp.expand(model_type),
+                captures_ty,
+                expansion_ty: UHTyp.expand(expansion_type),
+                param_tys: [], // TODO: params
+                init_model,
+                update: mk_ll_update(update, UHTyp.expand(model_type)),
+                expand: mk_ll_expand(expand),
+              }: LivelitDefinition.t,
+              [],
+            ),
+          ) // TODO: params
+        ),
+      );
+    } else {
+      (gamma, livelit_ctx);
+    };
   }
   and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
     let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
