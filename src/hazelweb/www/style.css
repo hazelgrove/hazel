@@ -74,8 +74,9 @@
   --matrix-cell-height: 30px;
   --matrix-add-button-size: 26px;
   --matrix-outer-grid-gap: 4px;
-  --matrix-cells-height: calc(4 * var(--matrix-cell-height) + var(--matrix-header-margin));
-  --matrix-cells-width: calc(6 * var(--matrix-cell-width) + var(--matrix-header-margin));
+  --matrix-cells-padding: 1px;
+  --matrix-cells-height: calc(4 * var(--matrix-cell-height) + var(--matrix-header-margin) + 2 * var(--matrix-cells-padding));
+  --matrix-cells-width: calc(6 * var(--matrix-cell-width) + var(--matrix-header-margin) + 2 * var(--matrix-cells-padding));
   --matrix-formula-bar-width:
     calc(var(--matrix-cells-width) + var(--matrix-outer-grid-gap) + var(--matrix-add-button-size));
 }
@@ -1055,6 +1056,7 @@ h1 {
   width: var(--matrix-cells-width);
   overflow: overlay;
   outline: 1px solid var(--matrix-cell-border-color);
+  padding: var(--matrix-cells-padding);
 }
 
 .matrix-livelit .col-header,
@@ -1174,15 +1176,29 @@ h1 {
   font-weight: bold;
 }
 
-.matrix-livelit .matrix-splice.matrix-selected::before {
-  content: '';
+.matrix-livelit .selected-splice {
   display: block;
   position: absolute;
-  height: 92%;
-  width: 98%;
+  outline: 2px solid orange;
   top: 1px;
   left: 1px;
-  outline: 2px solid orange;
+}
+.matrix-livelit .selected-splice.selected-cell {
+  z-index: var(--matrix-selected-cell-z);
+  height: 94%;
+  width: 98%;
+}
+.matrix-livelit .selected-splice.selected-row-header,
+.matrix-livelit .selected-splice.selected-col-header {
+  z-index: var(--matrix-selected-header-z);
+}
+.matrix-livelit .selected-splice.selected-row-header {
+  height: 94%;
+  width: 99%;
+}
+.matrix-livelit .selected-splice.selected-col-header {
+  height: 96%;
+  width: 98%;
 }
 /*
 .matrix-livelit .matrix-cell.matrix-selected::before {
