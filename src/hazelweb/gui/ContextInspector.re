@@ -85,7 +85,7 @@ let view =
     let kindstr =
       switch (kind) {
       | Hole => "hole"
-      | Livelit => "livelit ap"
+      | Livelit => "livelit application"
       };
     let extra_space = Unicode.nbsp ++ Unicode.nbsp;
 
