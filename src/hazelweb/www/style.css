@@ -291,6 +291,7 @@ body {
 }
 
 #right-bar-body {
+  width: 380px;
   cursor: default;
 }
 
