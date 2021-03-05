@@ -27,7 +27,7 @@ let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
       print_endline("decoddinnngggg");
       print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
       switch (d) {
-      | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
+      | Pair(Pair(StringLit(tag), d_attrs), d_children) =>
         let attrs = decode_attrs(d_attrs);
         let children = decode_children(d_children);
         Vdom.Node.create(tag, attrs, children);
@@ -45,7 +45,7 @@ let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
         raise(NotElem);
       };
     };
-    switch (decode_elem(DHExp.strip_casts(d))) {
+    switch (decode_elem(DHExp.strip_casts'(d))) {
     | elem => Some(elem)
     | exception NotElem => None
     };
@@ -561,6 +561,7 @@ let decoration_views =
               Node.div(
                 [
                   Attr.classes([
+                    "custom-scrollbar",
                     "LivelitView",
                     switch (shape) {
                     | InvalidShape => "InvalidShape"

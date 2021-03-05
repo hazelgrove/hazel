@@ -67,6 +67,17 @@
   --matrix-header-z: 20;
   --matrix-selected-header-z: 21;
   --matrix-header-corner-z: 25;
+
+  /* matrix header margin + cell width/height are duplicated in code */
+  --matrix-header-margin: 2px;
+  --matrix-cell-width: 100px;
+  --matrix-cell-height: 30px;
+  --matrix-add-button-size: 26px;
+  --matrix-outer-grid-gap: 4px;
+  --matrix-cells-height: calc(4 * var(--matrix-cell-height) + var(--matrix-header-margin));
+  --matrix-cells-width: calc(6 * var(--matrix-cell-width) + var(--matrix-header-margin));
+  --matrix-formula-bar-width:
+    calc(var(--matrix-cells-width) + var(--matrix-outer-grid-gap) + var(--matrix-add-button-size));
 }
 
 /* general */
@@ -964,16 +975,43 @@ h1 {
   border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
   cursor: default;
-  overflow: auto;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  background-color: transparent;
+  width: 4px;
+  height: 4px;
+  margin: 1px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  display: none;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-track {
+  display: block;
+  background-color: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  display: none;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  display: block;
+  background-color: rgba(50, 50, 50, 0.16);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none;
 }
 
 .LivelitView.Inline {
   display: inline-block;
   padding: 0 10px;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 .LivelitView.MultiLine {
   display: block;
   padding: 10px;
+  overflow: overlay;
 }
 
 .pair-livelit {
@@ -1003,8 +1041,8 @@ h1 {
   display: grid;
   grid-template-columns: auto auto;
   grid-template-rows: auto auto;
-  column-gap: 4px;
-  row-gap: 4px;
+  column-gap: var(--matrix-outer-grid-gap);
+  row-gap: var(--matrix-outer-grid-gap);
   grid-template-areas:
     "cells add-col"
     "add-row ."
@@ -1013,9 +1051,9 @@ h1 {
 .matrix-livelit .cells {
   grid-area: cells;
   position: relative;
-  height: 120px;
-  width: 550px;
-  overflow: auto;
+  height: var(--matrix-cells-height);
+  width: var(--matrix-cells-width);
+  overflow: overlay;
   outline: 1px solid var(--matrix-cell-border-color);
 }
 
@@ -1113,6 +1151,8 @@ h1 {
 .matrix-livelit .matrix-splice {
   justify-self: right;
   align-self: center;
+  overflow-y: hidden;
+  overflow-x: overlay;
 }
 .matrix-livelit .matrix-splice:hover {
   cursor: pointer;
@@ -1125,6 +1165,9 @@ h1 {
   margin-bottom: 8px;
   border: 2px solid var(--matrix-cell-border-color);
   padding: 2px 0;
+  width: var(--matrix-formula-bar-width);
+  overflow-y: hidden;
+  overflow-x: overlay;
 }
 .matrix-livelit .formula-bar-prompt {
   color: orange;
@@ -1438,6 +1481,9 @@ input.slider::-moz-range-track {
   padding: 2px 4px;
   display: grid;
   justify-items: left;
+  width: 240px;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 
 .color-livelit .color-picker .hsv-picker {
@@ -1544,7 +1590,8 @@ input.slider::-moz-range-track {
   display: grid;
   justify-items: left;
   width: 265px;
-  overflow: auto;
+  overflow-x: overlay;
+  overflow-y: hidden;
 }
 
 .splice {
