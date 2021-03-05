@@ -88,32 +88,6 @@ let view =
       | Livelit => "livelit ap"
       };
     let extra_space = Unicode.nbsp ++ Unicode.nbsp;
-    let msg =
-      Node.div(
-        [Attr.classes(["instance-info"])],
-        [
-          Node.div(
-            [],
-            [
-              Node.text(kindstr ++ " "),
-              Node.span(
-                [Attr.classes(["hole-name-normal-txt"])],
-                [Node.text(string_of_int(u + 1))],
-              ),
-              Node.text(extra_space ++ "|" ++ extra_space ++ "closure "),
-              Node.span(
-                [Attr.classes(["inst-number-normal-txt"])],
-                [Node.text(string_of_int(i + 1))],
-              ),
-              Node.text(" of "),
-              Node.span(
-                [Attr.classes(["inst-number-normal-txt"])],
-                [Node.text(string_of_int(num_instances))],
-              ),
-            ],
-          ),
-        ],
-      );
 
     let prev_key = KeyCombo.alt_PageUp;
     let next_key = KeyCombo.alt_PageDown;
@@ -175,13 +149,53 @@ let view =
         );
       };
 
-    let controls =
+    let msg =
+      Node.div(
+        [Attr.classes(["instance-info"])],
+        [
+          Node.div(
+            [],
+            [
+              Node.text(kindstr ++ " "),
+              Node.span(
+                [Attr.classes(["hole-name-normal-txt"])],
+                [Node.text(string_of_int(u + 1))],
+              ),
+              Node.text(extra_space ++ "|" ++ extra_space ++ "closure "),
+              Node.span(
+                [Attr.classes(["instance-selector"])],
+                [
+                  Node.text(Unicode.nbsp),
+                  prev_btn,
+                  Node.span(
+                    [Attr.classes(["inst-number-normal-txt"])],
+                    [
+                      Node.text(
+                        extra_space ++ string_of_int(i + 1) ++ extra_space,
+                      ),
+                    ],
+                  ),
+                  next_btn,
+                  Node.text(Unicode.nbsp),
+                ],
+              ),
+              Node.text(" of "),
+              Node.span(
+                [Attr.classes(["inst-number-normal-txt"])],
+                [Node.text(string_of_int(num_instances))],
+              ),
+            ],
+          ),
+        ],
+      );
+
+    let _controls =
       Node.div(
         [Attr.classes(["instance-controls"])],
         [prev_btn, next_btn],
       );
 
-    Node.div([Attr.classes(["path-summary"])], [msg, controls]);
+    Node.div([Attr.classes(["path-summary"])], [msg]);
   };
 
   let view_of_path_item = ((inst, x)) =>

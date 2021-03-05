@@ -697,16 +697,15 @@ body {
 }
 
 .instance-button-wrapper {
-  display: flex;
+  display: grid;
   align-items: center;
 }
 
 .prev-instance,
 .next-instance {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  padding: 4px;
+  position: relative;
+  /* HACK(d) to vertically center */
+  top: -1px;
 }
 
 .has-prev,
@@ -724,6 +723,13 @@ body {
 .inst-number-normal-txt {
   font-weight: bold;
   /* font-family: monospace; */
+}
+
+.instance-selector {
+  display: inline-flex;
+  flex-direction: row;
+  border-radius: 3px;
+  border: 1px solid black;
 }
 
 .hii-summary-inst {
