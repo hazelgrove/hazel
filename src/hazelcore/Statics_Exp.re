@@ -65,12 +65,14 @@ module rec M: Statics_Exp_Sig.S = {
       HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
       Hole,
     );
-  let ll_view_ty = (model_type, _) =>
-    HTyp.Arrow(
-      Prod([Int, UHTyp.expand(model_type)]),
-      //ll_defun_view_mond_ty,
-      HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
-    );
+  let ll_view_ty = (_model_type, _) => HTyp.Hole;
+  //TODO: restore this
+  /*
+   HTyp.Arrow(
+     Prod([Int, UHTyp.expand(model_type)]),
+     //ll_defun_view_mond_ty,
+     HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
+   );*/
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
@@ -141,8 +143,6 @@ module rec M: Statics_Exp_Sig.S = {
     let serialize = d => {
       d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
     };
-    //print_endline("mk_update_monad; model:");
-    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Inj(_, L, Inj(_, L, d0)) =>
       let* d_ty = Statics_DHExp.syn(ctx, delta, d);
@@ -397,12 +397,6 @@ module rec M: Statics_Exp_Sig.S = {
       && UHExp.is_complete(view)
       && UHExp.is_complete(shape)
       && UHExp.is_complete(expand);
-    //print_endline("ll_def_valid");
-    //print_endline(string_of_bool(UHExp.is_complete(init)));
-    //print_endline(string_of_bool(UHExp.is_complete(update)));
-    //print_endline(string_of_bool(UHExp.is_complete(view)));
-    //print_endline(string_of_bool(UHExp.is_complete(shape)));
-    //print_endline(string_of_bool(UHExp.is_complete(expand)));
     let new_livelit_ctx =
       ll_def_valid
         ? LivelitCtx.extend(

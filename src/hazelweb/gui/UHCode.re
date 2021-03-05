@@ -21,14 +21,12 @@ let decode_livelit_view = (splices: int => Vdom.Node.t, d: DHExp.t) => {
       | _ => raise(NotElem)
       };
   let rec decode_elem = (d: DHExp.t) => {
-    print_endline("decode_elem");
-    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
     switch (d) {
     | Pair(
         StringLit("editor"),
         Pair(Cons(Pair(StringLit("id"), IntLit(id)), _), _),
       ) =>
-      splices(id)
+      splices(id);
     | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
       let attrs = decode_attrs(d_attrs);
       let children = decode_children(d_children);
@@ -64,23 +62,28 @@ let _get_widget_id = llu =>
     id;
   };
 
-let rec _mk_view_monad = (splices, dhcode, d: DHExp.t): option(Vdom.Node.t) => {
-  let run = _mk_view_monad(splices, dhcode);
+let rec _mk_view_monad =
+        (
+          dhcode: IntMap.key => option((DHExp.t, Virtual_dom.Vdom.Node.t)),
+          splices,
+          d: DHExp.t,
+        )
+        : option(Vdom.Node.t) => {
+  let run = _mk_view_monad(dhcode, splices);
   // two cases:
   // inj[L](d) : return(d) where d is pseudovdom
   // inj[R]    : bindEvalSplice(spliceno, f)
-  print_endline("_mk_view_monad");
-  print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
   switch (d) {
   | Inj(_, L, d0) => decode_livelit_view(splices, d0)
   | Inj(_, R, Pair(IntLit(spliceno), f)) =>
-    let spliceval: string =
+    let spliceval =
       spliceno
       |> dhcode
-      |> (((d, _)) => d)
-      |> DHExp.sexp_of_t
-      |> Sexplib.Sexp.to_string;
-    DHExp.Ap(f, StringLit(spliceval)) |> Statics_Exp.eval |> run;
+      |> OptUtil.get(() => failwith("splicelookup failed"))
+      |> (((d, _)) => d);
+    //|> DHExp.sexp_of_t
+    //|> Sexplib.Sexp.to_string;
+    DHExp.Ap(f, spliceval) |> Statics_Exp.eval |> run;
   | _ => failwith("mk_view_monad unhandled")
   };
 };
@@ -450,19 +453,61 @@ let decoration_views =
             )
           );
         };
+        let selected_inst_opt =
+          selected_instances
+          |> UserSelectedInstances.find_opt(TaggedNodeInstance.Livelit, llu)
+          |> Option.map(i => (llu, i));
+        let inst_opt =
+          switch (selected_inst_opt) {
+          | None => LivelitInstanceInfo.default_instance(llii, llu)
+          | Some(inst) => Some(inst)
+          };
+        let sim_dargs_opt =
+          inst_opt
+          |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
+          |> Option.map(((_, _, (si, dargs))) =>
+               (SpliceInfo.splice_map(si), dargs)
+             );
+
+        let dhview =
+          DHCode.view(
+            ~inject,
+            // TODO undo hardcoded width
+            ~width=80,
+            ~settings=settings.evaluation,
+          );
+
+        let dhcode = splice_name => {
+          open OptUtil.Syntax;
+          let* (splice_map, _) = sim_dargs_opt;
+          let* (_, d_opt) = IntMap.find_opt(splice_name, splice_map);
+          let+ d = d_opt;
+          (d, dhview(d));
+        };
+
+        let dargs =
+          sim_dargs_opt
+          |> Option.map(((_, dargs)) =>
+               dargs
+               |> List.map(((v, darg_opt)) =>
+                    (
+                      v,
+                      darg_opt |> Option.map(darg => (darg, dhview(darg))),
+                    )
+                  )
+             );
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
-            switch (
-              llview(llu, model)
-              |> Option.map(DHExp.strip_casts')
-              |> Option.map(decode_livelit_view(uhcode))
-            ) {
-            | Some(Some(view_vdom)) =>
+            let llviewres =
+              OptUtil.get(() => failwith(""), llview(llu, model))
+              |> DHExp.strip_casts';
+            switch (_mk_view_monad(dhcode, uhcode, llviewres)) {
+            | Some(view_vdom) =>
               let vs = [view_vdom];
               create_ll_view(start, shape, vs);
             | _ => [livelit_error_view]
-            }
+            };
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
@@ -482,54 +527,6 @@ let decoration_views =
               );
             let livelit_view = llview(model, trigger, sync);
             let vs = {
-              let selected_inst_opt =
-                selected_instances
-                |> UserSelectedInstances.find_opt(
-                     TaggedNodeInstance.Livelit,
-                     llu,
-                   )
-                |> Option.map(i => (llu, i));
-              let inst_opt =
-                switch (selected_inst_opt) {
-                | None => LivelitInstanceInfo.default_instance(llii, llu)
-                | Some(inst) => Some(inst)
-                };
-              let sim_dargs_opt =
-                inst_opt
-                |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-                |> Option.map(((_, _, (si, dargs))) =>
-                     (SpliceInfo.splice_map(si), dargs)
-                   );
-
-              let dhview =
-                DHCode.view(
-                  ~inject,
-                  // TODO undo hardcoded width
-                  ~width=80,
-                  ~settings=settings.evaluation,
-                );
-
-              let dhcode = splice_name => {
-                open OptUtil.Syntax;
-                let* (splice_map, _) = sim_dargs_opt;
-                let* (_, d_opt) = IntMap.find_opt(splice_name, splice_map);
-                let+ d = d_opt;
-                (d, dhview(d));
-              };
-
-              let dargs =
-                sim_dargs_opt
-                |> Option.map(((_, dargs)) =>
-                     dargs
-                     |> List.map(((v, darg_opt)) =>
-                          (
-                            v,
-                            darg_opt
-                            |> Option.map(darg => (darg, dhview(darg))),
-                          )
-                        )
-                   );
-
               [livelit_view({uhcode, dhcode, dargs})];
             };
             create_ll_view(start, shape, vs);

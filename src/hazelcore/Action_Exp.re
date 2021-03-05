@@ -2240,7 +2240,6 @@ and syn_perform_operand =
     switch (LivelitCtx.lookup(livelit_ctx, lln)) {
     | None => Failed
     | Some(({update, action_ty, _} as livelit_defn, _)) =>
-      print_endline("666666 performing livelit action");
       if (HTyp.eq(action_ty, HTyp.Hole)) {
         ();
           // builtin livelit case: don't do anything
