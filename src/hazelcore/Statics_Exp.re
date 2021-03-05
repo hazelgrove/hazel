@@ -391,12 +391,12 @@ module rec M: Statics_Exp_Sig.S = {
       && UHExp.is_complete(view)
       && UHExp.is_complete(shape)
       && UHExp.is_complete(expand);
-    print_endline("ll_def_valid");
-    print_endline(string_of_bool(UHExp.is_complete(init)));
-    print_endline(string_of_bool(UHExp.is_complete(update)));
-    print_endline(string_of_bool(UHExp.is_complete(view)));
-    print_endline(string_of_bool(UHExp.is_complete(shape)));
-    print_endline(string_of_bool(UHExp.is_complete(expand)));
+    //print_endline("ll_def_valid");
+    //print_endline(string_of_bool(UHExp.is_complete(init)));
+    //print_endline(string_of_bool(UHExp.is_complete(update)));
+    //print_endline(string_of_bool(UHExp.is_complete(view)));
+    //print_endline(string_of_bool(UHExp.is_complete(shape)));
+    //print_endline(string_of_bool(UHExp.is_complete(expand)));
     let new_livelit_ctx =
       ll_def_valid
         ? LivelitCtx.extend(

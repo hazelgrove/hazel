@@ -19,30 +19,22 @@ let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
             Vdom.Attr.create(k, v),
             ...decode_attrs(tl),
           ]
-        | _ =>
-          print_endline("decode_attrs");
-          raise(NotElem);
+        | _ => raise(NotElem)
         };
     let rec decode_elem = (d: DHExp.t) => {
-      print_endline("decoddinnngggg");
-      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
       switch (d) {
       | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
         let attrs = decode_attrs(d_attrs);
         let children = decode_children(d_children);
         Vdom.Node.create(tag, attrs, children);
-      | _ =>
-        print_endline("decode_elem");
-        raise(NotElem);
+      | _ => raise(NotElem)
       };
     }
     and decode_children = (d: DHExp.t) => {
       switch (d) {
       | ListNil(_) => []
       | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
-      | _ =>
-        print_endline("decode_children");
-        raise(NotElem);
+      | _ => raise(NotElem)
       };
     };
     switch (decode_elem(DHExp.strip_casts'(d))) {
