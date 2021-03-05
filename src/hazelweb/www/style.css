@@ -730,6 +730,7 @@ body {
   flex-direction: row;
   border-radius: 3px;
   border: 1px solid black;
+  box-shadow: 1px 1px rgb(11, 11, 11);
 }
 
 .hii-summary-inst {
