@@ -9,39 +9,45 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 exception NotElem;
 
 [@warning "-32"]
-let decode_livelit_view: DHExp.t => option(Vdom.Node.t) =
-  (d: DHExp.t) => {
-    let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
-      d =>
-        switch (d) {
-        | ListNil(_) => []
-        | Cons(Pair(StringLit(k), StringLit(v)), tl) => [
-            Vdom.Attr.create(k, v),
-            ...decode_attrs(tl),
-          ]
-        | _ => raise(NotElem)
-        };
-    let rec decode_elem = (d: DHExp.t) => {
-      switch (d) {
-      | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
-        let attrs = decode_attrs(d_attrs);
-        let children = decode_children(d_children);
-        Vdom.Node.create(tag, attrs, children);
-      | _ => raise(NotElem)
-      };
-    }
-    and decode_children = (d: DHExp.t) => {
+let decode_livelit_view = (splices, d: DHExp.t) => {
+  let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
+    d =>
       switch (d) {
       | ListNil(_) => []
-      | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
+      | Cons(Pair(StringLit(k), StringLit(v)), tl) => [
+          Vdom.Attr.create(k, v),
+          ...decode_attrs(tl),
+        ]
       | _ => raise(NotElem)
       };
+  let rec decode_elem = (d: DHExp.t) => {
+    print_endline("decode_elem");
+    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+    switch (d) {
+    | Pair(
+        StringLit("editor"),
+        Pair(Cons(Pair(StringLit("id"), IntLit(id)), _), _),
+      ) =>
+      splices(id)
+    | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
+      let attrs = decode_attrs(d_attrs);
+      let children = decode_children(d_children);
+      Vdom.Node.create(tag, attrs, children);
+    | _ => raise(NotElem)
     };
-    switch (decode_elem(DHExp.strip_casts'(d))) {
-    | elem => Some(elem)
-    | exception NotElem => None
+  }
+  and decode_children = (d: DHExp.t) => {
+    switch (d) {
+    | ListNil(_) => []
+    | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
+    | _ => raise(NotElem)
     };
   };
+  switch (decode_elem(DHExp.strip_casts'(d))) {
+  | elem => Some(elem)
+  | exception NotElem => None
+  };
+};
 
 let widget_id_tbl = Hashtbl.create(5);
 
@@ -259,7 +265,15 @@ let decoration_views =
     corner_radius /. font_metrics.row_height,
   );
 
-  let create_view = (start: MeasuredPosition.t, shape: LivelitShape.t, vs) => {
+  let livelit_error_view =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["user-defined-livelit-container-error"])],
+        [Node.text("Livelit View Error")],
+      )
+    );
+
+  let create_ll_view = (start: MeasuredPosition.t, shape: LivelitShape.t, vs) => {
     let top = Float.of_int(start.row) *. font_metrics.row_height;
     let left = Float.of_int(start.col) *. font_metrics.col_width;
     let dim_attr =
@@ -375,25 +389,58 @@ let decoration_views =
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | LivelitView({llu, base_llname, shape, model, hd_step, _}) =>
+        let uhcode = splice_name => {
+          let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
+          let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+          let caret =
+            switch (caret_pos) {
+            | Some((caret_pos, Some((u, name))))
+                when u == llu && name == splice_name => [
+                UHDecoration.Caret.view(~font_metrics, caret_pos),
+              ]
+            | _ => []
+            };
+          let splice_ds = {
+            let stepped =
+              dpaths
+              |> UHDecorationPaths.take_step(hd_step)
+              |> UHDecorationPaths.take_step(splice_name);
+            UHDecorationPaths.is_empty(stepped)
+              ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
+          };
+          let splice_code = view_of_box(UHBox.mk(splice_l));
+          Vdom.(
+            Node.div(
+              [
+                Attr.id(id),
+                Attr.classes(["splice"]),
+                Attr.on_mousedown(
+                  on_mousedown(
+                    ~inject,
+                    ~id,
+                    ~font_metrics,
+                    ~splice=Some((llu, splice_name)),
+                  ),
+                ),
+              ],
+              caret
+              @ splice_ds
+              @ [Node.span([Attr.classes(["code"])], splice_code)],
+            )
+          );
+        };
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
             switch (
               llview(llu, model)
               |> Option.map(DHExp.strip_casts')
-              |> Option.map(decode_livelit_view)
+              |> Option.map(decode_livelit_view(uhcode))
             ) {
             | Some(Some(view_vdom)) =>
               let vs = [view_vdom];
-              create_view(start, shape, vs);
-            | _ => [
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(["user-defined-livelit-container-error"])],
-                    [Node.text("Livelit View Error")],
-                  )
-                ),
-              ]
+              create_ll_view(start, shape, vs);
+            | _ => [livelit_error_view]
             }
           | None =>
             // TODO(livelit definitions): thread ctx
@@ -414,49 +461,6 @@ let decoration_views =
               );
             let livelit_view = llview(model, trigger, sync);
             let vs = {
-              let uhcode = splice_name => {
-                let splice_l =
-                  SpliceMap.get_splice(llu, splice_name, splice_ls);
-                let id =
-                  Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-                let caret =
-                  switch (caret_pos) {
-                  | Some((caret_pos, Some((u, name))))
-                      when u == llu && name == splice_name => [
-                      UHDecoration.Caret.view(~font_metrics, caret_pos),
-                    ]
-                  | _ => []
-                  };
-                let splice_ds = {
-                  let stepped =
-                    dpaths
-                    |> UHDecorationPaths.take_step(hd_step)
-                    |> UHDecorationPaths.take_step(splice_name);
-                  UHDecorationPaths.is_empty(stepped)
-                    ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
-                };
-                let splice_code = view_of_box(UHBox.mk(splice_l));
-                Vdom.(
-                  Node.div(
-                    [
-                      Attr.id(id),
-                      Attr.classes(["splice"]),
-                      Attr.on_mousedown(
-                        on_mousedown(
-                          ~inject,
-                          ~id,
-                          ~font_metrics,
-                          ~splice=Some((llu, splice_name)),
-                        ),
-                      ),
-                    ],
-                    caret
-                    @ splice_ds
-                    @ [Node.span([Attr.classes(["code"])], splice_code)],
-                  )
-                );
-              };
-
               let selected_inst_opt =
                 selected_instances
                 |> UserSelectedInstances.find_opt(
@@ -505,9 +509,9 @@ let decoration_views =
                         )
                    );
 
-              [livelit_view({uhcode, dhcode, dargs})]; //andrew: vdom goes here
+              [livelit_view({uhcode, dhcode, dargs})];
             };
-            create_view(start, shape, vs);
+            create_ll_view(start, shape, vs);
           };
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
