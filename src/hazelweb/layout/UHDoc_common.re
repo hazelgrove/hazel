@@ -324,7 +324,7 @@ let mk_ListLit =
     (~sort: TermSort.t, ~err: ListErrStatus.t, body: option(formatted_child))
     : t => {
   switch (body) {
-  | None => mk_text("[]") |> annot_List(~sort, ~err)
+  | None => mk_text("[]") |> annot_Tessera |> annot_List(~sort, ~err)
   | Some(body) =>
     let open_group = Delim.open_List() |> annot_Tessera;
     let close_group = Delim.close_List() |> annot_Tessera;
