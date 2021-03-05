@@ -140,10 +140,10 @@ let view =
       let selected_instance = Model.get_selected_instance(model);
       let cell_status =
         if (!settings.evaluation.evaluate) {
-          Node.div([], []);
+          Node.div([Attr.id("result-box")], []);
         } else {
           Node.div(
-            [],
+            [Attr.id("result-box")],
             [
               Node.div(
                 [Attr.classes(["cell-status"])],
