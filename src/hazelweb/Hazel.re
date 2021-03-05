@@ -163,12 +163,12 @@ let create =
       // for things that require actual DOM manipulation post-render
       ~on_display=
         (_, ~schedule_action) => {
-          if (!Model.get_undo_history(model).disable_auto_scrolling) {
-            switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
-            | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
-            | None => ()
-            };
-          };
+          // if (!Model.get_undo_history(model).disable_auto_scrolling) {
+          //   switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
+          //   | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
+          //   | None => ()
+          //   };
+          // };
           switch (Model.get_program(model).edit_state.focus) {
           | None => ()
           | Some(_) =>
