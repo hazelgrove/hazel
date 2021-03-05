@@ -26,7 +26,7 @@ let decode_livelit_view = (splices: int => Vdom.Node.t, d: DHExp.t) => {
         StringLit("editor"),
         Pair(Cons(Pair(StringLit("id"), IntLit(id)), _), _),
       ) =>
-      splices(id);
+      splices(id)
     | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
       let attrs = decode_attrs(d_attrs);
       let children = decode_children(d_children);
@@ -549,7 +549,8 @@ let decoration_views =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+    (~inject, ~is_mac as _: bool, ~cursor_info: CursorInfo.t)
+    : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -574,30 +575,32 @@ let key_handlers =
           prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
         | _ =>
           switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Undo);
-            }
-          | Some(Meta_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Undo);
-            } else {
-              Event.Ignore;
-            }
-          | Some(Ctrl_Shift_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Redo);
-            }
-          | Some(Meta_Shift_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Redo);
-            } else {
-              Event.Ignore;
-            }
+          /*
+           | Some(Ctrl_Z) =>
+             if (is_mac) {
+               Event.Ignore;
+             } else {
+               prevent_stop_inject(ModelAction.Undo);
+             }
+           | Some(Meta_Z) =>
+             if (is_mac) {
+               prevent_stop_inject(ModelAction.Undo);
+             } else {
+               Event.Ignore;
+             }
+           | Some(Ctrl_Shift_Z) =>
+             if (is_mac) {
+               Event.Ignore;
+             } else {
+               prevent_stop_inject(ModelAction.Redo);
+             }
+           | Some(Meta_Shift_Z) =>
+             if (is_mac) {
+               prevent_stop_inject(ModelAction.Redo);
+             } else {
+               Event.Ignore;
+             }
+           */
           | Some(kc) =>
             prevent_stop_inject(
               ModelAction.EditAction(

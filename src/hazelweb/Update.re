@@ -172,73 +172,77 @@ let apply_action =
       | BlurCell => model |> Model.map_program(Program.blur)
       | FocusWindow => Model.map_program(Program.focus_window, model)
       | BlurWindow => Model.map_program(Program.blur_window, model)
-      | Undo =>
-        let new_history =
-          model.undo_history
-          |> UndoHistory.shift_to_prev
-          |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, ~is_after_move=true);
-      | Redo =>
-        let new_history =
-          model.undo_history
-          |> UndoHistory.shift_to_next
-          |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, ~is_after_move=true);
-      | ShiftHistory(shift_history_info) =>
-        /* cshift to the certain entry */
-        let new_history =
-          model.undo_history
-          |> UndoHistory.shift_history(
-               shift_history_info.group_id,
-               shift_history_info.elt_id,
-               shift_history_info.call_by_mouseenter,
-             );
-        Model.load_undo_history(model, new_history, ~is_after_move=false);
+      // | Undo =>
+      //   let new_history =
+      //     model.undo_history
+      //     |> UndoHistory.shift_to_prev
+      //     |> UndoHistory.update_disable_auto_scrolling(false);
+      //   Model.load_undo_history(model, new_history, ~is_after_move=true);
+      // | Redo =>
+      //   let new_history =
+      //     model.undo_history
+      //     |> UndoHistory.shift_to_next
+      //     |> UndoHistory.update_disable_auto_scrolling(false);
+      //   Model.load_undo_history(model, new_history, ~is_after_move=true);
+      // | ShiftHistory(shift_history_info) =>
+      //   /* cshift to the certain entry */
+      //   let new_history =
+      //     model.undo_history
+      //     |> UndoHistory.shift_history(
+      //          shift_history_info.group_id,
+      //          shift_history_info.elt_id,
+      //          shift_history_info.call_by_mouseenter,
+      //        );
+      //   Model.load_
+      | Undo
+      | Redo
+      | ShiftHistory(_)
       | ShiftWhenScroll => model
-      | ToggleHistoryGroup(toggle_group_id) =>
-        let (suc_groups, _, _) = model.undo_history.groups;
-        let cur_group_id = List.length(suc_groups);
-        /* shift to the toggle-target group and change its expanded state */
-        switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
-        | None =>
-          failwith("Impossible match, because undo_history is non-empty")
-        | Some(groups) =>
-          let toggle_target_group = ZList.prj_z(groups);
-          /* change expanded state of the toggle target group after toggling */
-          let after_toggle =
-            ZList.replace_z(
-              {
-                ...toggle_target_group,
-                is_expanded: !toggle_target_group.is_expanded,
-              },
-              groups,
-            );
+      | ToggleHistoryGroup(_) => model
+      // | ToggleHistoryGroup(toggle_group_id) =>
+      //   let (suc_groups, _, _) = model.undo_history.groups;
+      //   let cur_group_id = List.length(suc_groups);
+      //   /* shift to the toggle-target group and change its expanded state */
+      //   switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
+      //   | None =>
+      //     failwith("Impossible match, because undo_history is non-empty")
+      //   | Some(groups) =>
+      //     let toggle_target_group = ZList.prj_z(groups);
+      //     /* change expanded state of the toggle target group after toggling */
+      //     let after_toggle =
+      //       ZList.replace_z(
+      //         {
+      //           ...toggle_target_group,
+      //           is_expanded: !toggle_target_group.is_expanded,
+      //         },
+      //         groups,
+      //       );
 
-          /*shift back to the current group*/
-          switch (ZList.shift_to(cur_group_id, after_toggle)) {
-          | None =>
-            failwith("Impossible match, because undo_history is non-empty")
-          | Some(new_groups) => {
-              ...model,
-              undo_history: {
-                ...model.undo_history,
-                groups: new_groups,
-              },
-            }
-          };
-        };
-      | ToggleHiddenHistoryAll =>
-        model
-        |> Model.put_undo_history(
-             UndoHistory.toggle_all_hidden_history(model.undo_history),
-           )
-      | TogglePreviewOnHover => {
-          ...model,
-          undo_history: {
-            ...model.undo_history,
-            preview_on_hover: !model.undo_history.preview_on_hover,
-          },
-        }
+      //     /*shift back to the current group*/
+      //     switch (ZList.shift_to(cur_group_id, after_toggle)) {
+      //     | None =>
+      //       failwith("Impossible match, because undo_history is non-empty")
+      //     | Some(new_groups) => {
+      //         ...model,
+      //         undo_history: {
+      //           ...model.undo_history,
+      //           groups: new_groups,
+      //         },
+      //       }
+      //     };
+      //   };
+      | ToggleHiddenHistoryAll => model
+      // |> Model.put_undo_history(
+      //      UndoHistory.toggle_all_hidden_history(model.undo_history),
+      //    )
+      | TogglePreviewOnHover => model
+      // {
+      //   ...model,
+      //   undo_history: {
+      //     ...model.undo_history,
+      //     preview_on_hover: !model.undo_history.preview_on_hover,
+      //   },
+      // }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
       | UpdateSettings(u) => {

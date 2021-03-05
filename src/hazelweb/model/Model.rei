@@ -3,7 +3,7 @@ type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
-  undo_history: UndoHistory.t,
+  // undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -35,8 +35,8 @@ let get_cardstack: t => Cardstack.t;
 
 let get_cursor_info: t => option(CursorInfo.t);
 
-let get_undo_history: t => UndoHistory.t;
-let put_undo_history: (UndoHistory.t, t) => t;
+// let get_undo_history: t => UndoHistory.t;
+// let put_undo_history: (UndoHistory.t, t) => t;
 
 /**
  * Update selected instances when user clicks on a hole
@@ -90,5 +90,5 @@ let load_cardstack: (t, int) => t;
  * For the latter, is_after_move should be set to false
  * in order to load the selected edit state entry ignoring
  * movements.
- */
-let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
+ */;
+//let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;

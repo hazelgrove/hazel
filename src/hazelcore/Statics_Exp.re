@@ -60,19 +60,16 @@ module rec M: Statics_Exp_Sig.S = {
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
       ll_defun_update_monad_ty(model_type),
     );
-  let _ll_defun_view_mond_ty =
+  let ll_defun_view_mond_ty =
     HTyp.Sum(
       HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
-      Hole,
+      Hole // TODO(andrew): improve this type
     );
-  let ll_view_ty = (_model_type, _) => HTyp.Hole;
-  //TODO: restore this
-  /*
-   HTyp.Arrow(
-     Prod([Int, UHTyp.expand(model_type)]),
-     //ll_defun_view_mond_ty,
-     HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
-   );*/
+  let ll_view_ty = (model_type, _) =>
+    HTyp.Arrow(
+      Prod([Int, UHTyp.expand(model_type)]),
+      ll_defun_view_mond_ty,
+    );
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
