@@ -22,6 +22,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | ListLitZ(_, zopseq) => extract_from_zexp_opseq(zopseq)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
@@ -83,6 +84,7 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | ListLitZ(_, zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -137,6 +139,8 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | ListLitZ(_, zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -517,6 +521,8 @@ and syn_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ListLitZ(_, zopseq) =>
+    syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
@@ -809,7 +815,6 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -833,7 +838,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
@@ -854,7 +859,6 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
-    | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
@@ -863,7 +867,12 @@ and ana_cursor_info_zoperand =
       |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
-
+    | ListLit(_, Some(opseq)) =>
+      Statics_Exp.ana_opseq(ctx, opseq, ty)
+      |> Option.map(_ =>
+           CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
+         )
+    | ListLit(_, None) => None
     | Lam(NotInHole, p, body) =>
       let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
       let+ ty_body = Statics_Exp.syn(body_ctx, body);
@@ -876,6 +885,8 @@ and ana_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
+  | ListLitZ(_, zopseq) =>
+    ana_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq, ty)
   | LamZP(InHole(WrongLength, _), _, _)
   | LamZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)

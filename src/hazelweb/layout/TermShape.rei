@@ -2,6 +2,7 @@
 type t =
   | Rule
   | Case
+  | List({err: ListErrStatus.t})
   | Operand
   | BinOp({op_index: int})
   | NTuple({comma_indices: list(int)})

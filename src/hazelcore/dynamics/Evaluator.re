@@ -118,7 +118,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
-  | ListNil(_)
+  | ListLit(_, _)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

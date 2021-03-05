@@ -18,6 +18,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
+  | ListLitZ(_, zopseq) => cons'(0, of_zopseq(zopseq))
   | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
@@ -110,13 +111,21 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
+      | _ => None
+      }
+    | ListLit(err, Some(opseq)) =>
+      switch (x) {
+      | 0 =>
+        opseq
+        |> follow_opseq((xs, cursor))
+        |> Option.map(zopseq => ZExp.ListLitZ(err, zopseq))
       | _ => None
       }
     | Lam(err, p, body) =>
@@ -290,11 +299,19 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+      | _ => None
+      }
+    | ListLit(_, Some(opseq)) =>
+      switch (x) {
+      | 0 =>
+        opseq
+        |> of_steps_opseq(xs, ~side)
+        |> Option.map(path => cons'(0, path))
       | _ => None
       }
     | Lam(_, p, body) =>
@@ -363,6 +380,8 @@ let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_case_err =
   CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+let holes_list_err =
+  CursorPath_common.holes_list_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
@@ -429,9 +448,29 @@ and holes_operand =
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
-  | BoolLit(err, _)
-  | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | BoolLit(err, _) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
+  | ListLit(StandardErrStatus(err), Some(opseq)) =>
+    hs
+    |> CursorPath_common.holes_opseq(
+         ~holes_operand,
+         ~hole_sort=hole_sort(TypeErr),
+         ~is_space=Operators_Exp.is_Space,
+         ~rev_steps=[0, ...rev_steps],
+         opseq,
+       )
+    |> holes_err(err, rev_steps)
+  | ListLit(inconsistent_branches_err, Some(opseq)) =>
+    hs
+    |> CursorPath_common.holes_opseq(
+         ~holes_operand,
+         ~hole_sort=hole_sort(TypeErr),
+         ~is_space=Operators_Exp.is_Space,
+         ~rev_steps=[0, ...rev_steps],
+         opseq,
+       )
+    |> holes_list_err(inconsistent_branches_err, rev_steps)
+  | ListLit(_, None) => []
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Lam(err, p, body) =>
@@ -594,8 +633,7 @@ and holes_zoperand =
     }
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
-  | CursorE(_, BoolLit(err, _))
-  | CursorE(_, ListNil(err)) =>
+  | CursorE(_, BoolLit(err, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -694,6 +732,8 @@ and holes_zoperand =
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
+  | CursorE(_, ListLit(_, _)) => CursorPath_common.no_holes
+  | ListLitZ(_, zopseq) => holes_zopseq(zopseq, [0, ...rev_steps])
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =

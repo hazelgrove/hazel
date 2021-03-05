@@ -107,6 +107,8 @@ let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
+let annot_List = (~sort: TermSort.t, ~err: ListErrStatus.t): (t => t) =>
+  Doc.annot(UHAnnot.mk_Term(~sort, ~shape=List({err: err}), ()));
 let annot_Operand = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
 let annot_Case: t => t =
@@ -311,14 +313,24 @@ let mk_FloatLit = (~sort: TermSort.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_ListNil = (~sort: TermSort.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
-
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
   let close_group = Delim.close_Parenthesized() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort);
+};
+
+let mk_ListLit =
+    (~sort: TermSort.t, ~err: ListErrStatus.t, body: option(formatted_child))
+    : t => {
+  switch (body) {
+  | None => mk_text("[]") |> annot_Tessera |> annot_List(~sort, ~err)
+  | Some(body) =>
+    let open_group = Delim.open_List() |> annot_Tessera;
+    let close_group = Delim.close_List() |> annot_Tessera;
+    Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
+    |> annot_List(~sort, ~err);
+  };
 };
 
 let mk_List = (body: formatted_child): t => {

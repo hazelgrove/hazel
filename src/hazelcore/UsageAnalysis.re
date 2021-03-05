@@ -16,11 +16,12 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | ListNil(_)
+  | ListLit(_, None)
   | Inj(InHole(_), _, _)
   | TypeAnn(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
+  | ListLit(_, Some(body)) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
   | TypeAnn(NotInHole, op, _) => binds_var_operand(x, op)
   };
@@ -71,7 +72,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | ListNil(_)
+  | ListLit(_, _)
   | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)

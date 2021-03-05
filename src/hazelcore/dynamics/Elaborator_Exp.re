@@ -41,12 +41,14 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => d2
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Cons(d3, d4);
+  | ListLit(t, types) =>
+    let subst_types = List.map(subst_var(d1, x), types);
+    ListLit(t, subst_types);
   | BinBoolOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -225,32 +227,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
   | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
-  | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
-  | (ListNil, _) => DoesNotMatch
-  | (Cons(dp1, dp2), Cons(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
-  | (Cons(_, _), _) => DoesNotMatch
+  | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
+    matches_cast_Cons(dp, d, [(ty1, ty2)])
+  | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(_, _), Cons(_, _))
+  | (ListLit(_, _), Cons(_, _))
+  | (Cons(_, _), ListLit(_, _))
+  | (ListLit(_, _), ListLit(_, _)) => matches_cast_Cons(dp, d, [])
+  | (Cons(_) | ListLit(_), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
@@ -299,7 +284,7 @@ and matches_cast_Inj =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
+  | ListLit(_, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -365,7 +350,7 @@ and matches_cast_Pair =
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
+  | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
@@ -376,54 +361,173 @@ and matches_cast_Pair =
   | InvalidOperation(_) => Indet
   }
 and matches_cast_Cons =
-    (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
-      d: DHExp.t,
-      elt_casts: list((HTyp.t, HTyp.t)),
-    )
+    (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
     : match_result =>
   switch (d) {
-  | Cons(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet =>
-      let list_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
-          },
-          elt_casts,
-        );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
-      };
-    | Matches(env1) =>
-      let list_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
-          },
-          elt_casts,
-        );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  | ListLit(_, []) => DoesNotMatch
+  | ListLit(ty, [dhd, ...dtl] as ds) =>
+    switch (dp) {
+    | Cons(dp1, dp2) =>
+      switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      };
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        let d2 = DHExp.ListLit(ty, dtl);
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet => Indet
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | ListLit(_, dps) =>
+      switch (ListUtil.opt_zip(dps, ds)) {
+      | None => DoesNotMatch
+      | Some(lst) =>
+        lst
+        |> List.map(((dp, d)) => matches(dp, d))
+        |> List.fold_left(
+             (match1, match2) =>
+               switch (match1, match2) {
+               | (DoesNotMatch, _)
+               | (_, DoesNotMatch) => DoesNotMatch
+               | (Indet, _)
+               | (_, Indet) => Indet
+               | (Matches(env1), Matches(env2)) =>
+                 Matches(Environment.union(env1, env2))
+               },
+             Matches(Environment.empty),
+           )
+      }
+    | _ => failwith("called matches_cast_Cons with non-list pattern")
+    }
+  // | Cons(d1, d2) =>
+  //   switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+  //   | DoesNotMatch => DoesNotMatch
+  //   | Indet =>
+  //     let list_casts =
+  //       List.map(
+  //         (c: (HTyp.t, HTyp.t)) => {
+  //           let (ty1, ty2) = c;
+  //           (HTyp.List(ty1), HTyp.List(ty2));
+  //         },
+  //         elt_casts,
+  //       );
+  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet
+  //     | Matches(_) => Indet
+  //     };
+  //   | Matches(env1) =>
+  //     let list_casts =
+  //       List.map(
+  //         (c: (HTyp.t, HTyp.t)) => {
+  //           let (ty1, ty2) = c;
+  //           (HTyp.List(ty1), HTyp.List(ty2));
+  //         },
+  //         elt_casts,
+  //       );
+  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet => Indet
+  //     | Matches(env1) =>
+  //       let list_casts =
+  //         List.map(
+  //           (c: (HTyp.t, HTyp.t)) => {
+  //             let (ty1, ty2) = c;
+  //             (HTyp.List(ty1), HTyp.List(ty2));
+  //           },
+  //           elt_casts,
+  //         );
+  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //       | DoesNotMatch => DoesNotMatch
+  //       | Indet => Indet
+  //       | Matches(env2) => Matches(Environment.union(env1, env2))
+  //       };
+  //     };
+  //   | ListLit(_, []) => DoesNotMatch
+  //   | ListLit(ty, [dphd, ...dptl]) =>
+  //     // failwith("unimplemented")
+  //     switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
+  //     | DoesNotMatch => DoesNotMatch
+  //     | Indet => Indet
+  //     | Matches(env1) =>
+  //       let list_casts =
+  //         List.map(
+  //           (c: (HTyp.t, HTyp.t)) => {
+  //             let (ty1, ty2) = c;
+  //             (HTyp.List(ty1), HTyp.List(ty2));
+  //           },
+  //           elt_casts,
+  //         );
+  //       let dp2 = DHPat.ListLit(ty, dptl);
+  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  //       | DoesNotMatch => DoesNotMatch
+  //       | Indet => Indet
+  //       | Matches(env2) => Matches(Environment.union(env1, env2))
+  //       };
+  //     }
+  //   | _ => failwith("called matches_cast_Cons with non-list pattern")
+  //   }
+  | Cons(d1, d2) =>
+    switch (dp) {
+    | Cons(dp1, dp2) =>
+      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet => Indet
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | ListLit(_, []) => DoesNotMatch
+    | ListLit(ty, [dphd, ...dptl]) =>
+      // failwith("unimplemented")
+      switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        let dp2 = DHPat.ListLit(ty, dptl);
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet => Indet
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cast(d', List(ty1), List(ty2)) =>
-    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+    matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
+  | Cast(d', List(_), Hole) => matches_cast_Cons(dp, d', elt_casts)
+  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
-  | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
@@ -436,9 +540,9 @@ and matches_cast_Cons =
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
+  | InvalidText(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
@@ -706,7 +810,6 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -725,7 +828,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -804,10 +907,48 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
-  | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Hole;
-    Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
+  | ListLit(_, None) =>
+    Elaborates(ListLit(List(Hole), []), List(Hole), delta)
+  | ListLit(_, Some(opseq)) =>
+    let OpSeq(skel, seq) = opseq;
+    let subskels = UHExp.get_tuple_elements(skel);
+
+    let glb_ty: option(HTyp.t) =
+      subskels
+      |> List.map(subskel => Statics_Exp.syn_skel(ctx, subskel, seq))
+      |> (
+        fun
+        | [] => failwith("empty tuple")
+        | [hd, ...tl] =>
+          tl
+          |> List.fold_left(
+               (glb_ty, tl_ty) =>
+                 OptUtil.map2(
+                   (glb_ty, tl_ty) => Statics_common.glb([glb_ty, tl_ty]),
+                   glb_ty,
+                   tl_ty,
+                 )
+                 |> Option.join,
+               hd,
+             )
+      );
+
+    switch (glb_ty) {
+    | None => DoesNotElaborate
+    | Some(glb_ty) =>
+      let f = (delta, subskel) =>
+        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
+        | DoesNotElaborate => None
+        | Elaborates(d, ty, delta) =>
+          Some((delta, DHExp.cast(d, ty, glb_ty)))
+        };
+      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
+      | None => DoesNotElaborate
+      | Some((delta, lst)) =>
+        Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+      };
+    };
   | Lam(NotInHole, p, body) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => DoesNotElaborate
@@ -1125,7 +1266,6 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -1153,7 +1293,6 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -1175,6 +1314,11 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
+  | ListLit(_, opseq) =>
+    switch (opseq) {
+    | Some(opseq_) => ana_elab_opseq(ctx, delta, opseq_, ty)
+    | None => DoesNotElaborate
+    }
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
@@ -1228,11 +1372,11 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
-  | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => DoesNotElaborate
-    | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
-    }
+  // | ListNil(NotInHole) =>
+  //   switch (HTyp.matched_list(ty)) {
+  //   | None => DoesNotElaborate
+  //   | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
+  // }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1301,12 +1445,15 @@ let rec renumber_result_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | ListLit(t, deltas) =>
+    let (new_deltas, _) =
+      List.split(List.map(renumber_result_only(path, hii), deltas));
+    (ListLit(t, new_deltas), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -1399,12 +1546,15 @@ let rec renumber_sigmas_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | ListLit(t, deltas) =>
+    let (new_deltas, _) =
+      List.split(List.map(renumber_sigmas_only(path, hii), deltas));
+    (ListLit(t, new_deltas), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);

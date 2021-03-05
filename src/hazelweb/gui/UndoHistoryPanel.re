@@ -114,7 +114,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
-    | ListNil(_) => indicate_words_view("empty list")
+    | ListLit(_) => indicate_words_view("list literal")
     | Lam(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
@@ -193,7 +193,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
-    | ListNil(_) => indicate_words_view("empty list")
+    | ListLit(_) => indicate_words_view("list literal")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | Inj(_, side, _) =>
       switch (side) {
@@ -313,7 +313,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | SList
-    | SListNil
+    | SListLit
     | SLine
     | SCommentLine
     | SAnn

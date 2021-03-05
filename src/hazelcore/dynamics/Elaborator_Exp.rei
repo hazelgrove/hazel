@@ -10,6 +10,23 @@ type match_result =
 
 let matches: (DHPat.t, DHExp.t) => match_result;
 
+let matches_cast_Inj:
+  (InjSide.t, DHPat.t, DHExp.t, list((HTyp.t, HTyp.t, HTyp.t, HTyp.t))) =>
+  match_result;
+
+let matches_cast_Pair:
+  (
+    DHPat.t,
+    DHPat.t,
+    DHExp.t,
+    list((HTyp.t, HTyp.t)),
+    list((HTyp.t, HTyp.t))
+  ) =>
+  match_result;
+
+let matches_cast_Cons:
+  (DHPat.t, DHExp.t, list((HTyp.t, HTyp.t))) => match_result;
+
 type elab_result_lines =
   | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
   | LinesDoNotExpand;

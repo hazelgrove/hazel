@@ -28,7 +28,9 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_ListLit:
+  (~err: ListErrStatus.t, option(UHDoc_common.formatted_child)) => UHDoc.t =
+  UHDoc_common.mk_ListLit(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
@@ -176,7 +178,6 @@ and mk_operand =
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
-        | ListNil(_) => mk_ListNil()
         | Lam(_, p, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
@@ -185,6 +186,21 @@ and mk_operand =
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
+        | ListLit(err, body) =>
+          switch (body) {
+          | Some(opseq) =>
+            let formattable_body = (~enforce_inline) =>
+              Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+              |> UHDoc_common.annot_Step(0);
+            let formatted_body =
+              enforce_inline
+                ? UHDoc_common.EnforcedInline(
+                    formattable_body(~enforce_inline=true),
+                  )
+                : UHDoc_common.Unformatted(formattable_body);
+            mk_ListLit(~err, Some(formatted_body));
+          | None => mk_ListLit(~err, None)
+          }
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);

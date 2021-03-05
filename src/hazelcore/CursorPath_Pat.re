@@ -5,6 +5,7 @@ and of_zoperand =
   fun
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
+  | ListLitZ(_, zbody)
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
   | TypeAnnZA(_, _, zann) =>
@@ -37,13 +38,22 @@ and follow_operand =
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZPat.ParenthesizedZ(zbody))
+      | _ => None
+      }
+    | ListLit(err, Some(body)) =>
+      switch (x) {
+      | 0 =>
+        body
+        |> follow((xs, cursor))
+        // |> OptUtil.map2(zbody => ZPat.ListLitZ(err, zbody))
+        |> Option.map(zbody => ZPat.ListLitZ(err, zbody))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -110,8 +120,16 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
+      switch (x) {
+      | 0 =>
+        body
+        |> of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(0, path))
+      | _ => None
+      }
+    | ListLit(_, Some(body)) =>
       switch (x) {
       | 0 =>
         body
@@ -195,11 +213,16 @@ and holes_operand =
   | Wild(err)
   | IntLit(err, _)
   | FloatLit(err, _)
-  | BoolLit(err, _)
-  | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | BoolLit(err, _) => hs |> holes_err(err, rev_steps)
   | InvalidText(u, _) => [
       {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
     ]
+  | ListLit(StandardErrStatus(InHole(_, u)), None) => [
+      {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  | ListLit(_, None) => hs
+  | ListLit(_, Some(body))
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
@@ -266,7 +289,7 @@ and holes_zoperand =
   | CursorP(_, IntLit(err, _))
   | CursorP(_, FloatLit(err, _))
   | CursorP(_, BoolLit(err, _))
-  | CursorP(_, ListNil(err)) =>
+  | CursorP(_, ListLit(StandardErrStatus(err), None)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -276,7 +299,8 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorP(OnDelim(k, _), Parenthesized(body)) =>
+  | CursorP(OnDelim(_, _), ListLit(InconsistentBranches(_, _), None)) => CursorPath_common.no_holes
+  | CursorP(OnDelim(k, _), Parenthesized(body) | ListLit(_, Some(body))) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
@@ -312,10 +336,14 @@ and holes_zoperand =
       CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | TypeAnn(_)) =>
+  | CursorP(
+      OnText(_),
+      Parenthesized(_) | Inj(_, _, _) | ListLit(_, _) | TypeAnn(_),
+    ) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | ListLitZ(_, zbody) => holes_z(zbody, [0, ...rev_steps])
   | InjZ(err, _, zbody) =>
     let zbody_holes = holes_z(zbody, [0, ...rev_steps]);
     switch (err) {

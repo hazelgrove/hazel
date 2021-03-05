@@ -190,6 +190,7 @@ module CurrentTerm = {
     fun
     | SubBlock(_)
     | NTuple(_)
+    | List(_)
     | BinOp(_) => true
     | Case
     | Rule

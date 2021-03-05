@@ -77,6 +77,45 @@ let decoration_container =
   );
 };
 
+// let clss_of_list_err: ListErrStatus.t => list(cls) =
+//   fun
+//   | StandardErrStatus(err) => clss_of_err(err)
+//   | InconsistentBranches(_) => ["InconsistentBranches"];
+
+// | Rule => ["Rule"]
+//   | Invalid => ["Invalid"]
+//   | Case({err}) => ["Case", ...clss_of_case_err(err)]
+//   | List({err}) => ["List", ...clss_of_list_err(err)]
+//   | Var({err, verr, show_use}) =>
+//     ["Operand", "Var", ...clss_of_err(err)]
+//     @ clss_of_verr(verr)
+//     @ (show_use ? ["show-use"] : [])
+//   | Operand({err}) => ["Operand", ...clss_of_err(err)]
+//   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
+//   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
+//   | SubBlock(_) => ["SubBlock"];
+
+// let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
+//   List.concat([
+//     has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
+//     has_para_OpenChild ? ["has-Para-OpenChild"] : [],
+//   ]);
+
+// let has_child_clss = (has_child: bool) =>
+//   has_child ? ["has-child"] : ["no-children"];
+
+// let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
+//   let pos_attr =
+//     Vdom.Attr.style(
+//       Css_gen.combine(
+//         Css_gen.left(`Px(int_of_float(Float.round(x)))),
+//         Css_gen.top(`Px(int_of_float(Float.round(y)))),
+//       ),
+//     );
+//   Vdom.Node.span(
+//     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
+//     [],
+
 let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
