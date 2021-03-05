@@ -245,7 +245,7 @@ let view =
                 program,
               ),
               // UndoHistoryPanel.view(~inject, model),
-              // SettingsPanel.view(~inject, settings),
+              SettingsPanel.view(~inject, settings),
             ],
           ),
         ],

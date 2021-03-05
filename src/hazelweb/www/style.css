@@ -241,8 +241,12 @@ body {
   padding: 8px;
   display: grid;
   row-gap: 8px;
-  grid-template-rows: fit-content(240px) 1fr;
+  grid-template-rows: fit-content(240px) 1fr fit-content(300px);
   overflow: hidden;
+}
+
+details:focus {
+  outline: none;
 }
 
 .sidebar {
