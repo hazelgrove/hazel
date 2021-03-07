@@ -1945,7 +1945,7 @@ and syn_perform_operand =
   | (_, IfZ1(_, zt1, t2, t3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt1))) {
     | None => Failed
-    | Some(_) =>
+    | Some(ty1) =>
       switch (ana_perform(ctx, a, (zt1, u_gen), HTyp.Bool)) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -1955,64 +1955,82 @@ and syn_perform_operand =
           (zoperand, ty, u_gen),
         )
       | Succeeded((zt1, u_gen)) =>
-        /* let (_, ty_t1, u_gen) =
-           Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt1)); */
-        /* Statics_Exp.syn_fix_holes() add later??  */
-
         let new_ze =
           ZExp.ZBlock.wrap(IfZ1(StandardErrStatus(NotInHole), zt1, t2, t3));
 
-        Succeeded(SynDone((new_ze, ty, u_gen)));
+        Succeeded(SynDone((new_ze, ty1, u_gen)));
       }
-    /* switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
-       | Failed => Failed
-       | CursorEscaped(side) => escape(side)
-       | Succeeded((new_zclause, u_gen)) =>
-         let new_zrules =
-           zrules |> ZList.replace_z(ZExp.RuleZE(p, new_zclause));
-         Succeeded((new_zrules, u_gen));
-       } */
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
     | None => Failed
-    | Some(ty1) =>
-      switch (syn_perform(ctx, a, (zt2, ty1, u_gen))) {
-      | Failed => Failed
+    | Some(ty2) =>
+      switch (syn_perform(ctx, a, (zt2, ty2, u_gen))) {
+      | Failed =>
+        print_endline("1974");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
           Action_common.escape(side),
-          (zoperand, ty, u_gen),
+          (zoperand, ty2, u_gen),
         )
       | Succeeded((zt2, _, u_gen)) =>
-        /* Statics_Exp.syn_fix_holes() add later?? */
-        let (_, ty_t2, u_gen) =
-          Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
-        let new_ze =
-          ZExp.ZBlock.wrap(IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3));
-        Succeeded(SynDone((new_ze, ty_t2, u_gen)));
+        switch (Statics_Exp.syn(ctx, t3)) {
+        | None => Failed
+        | Some(ty3) =>
+          print_endline("1982");
+          HTyp.consistent(ty2, ty3)
+            ? {
+              print_endline("1985");
+              let (_, ty_t2, u_gen) =
+                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
+                );
+              Succeeded(SynDone((new_ze, ty_t2, u_gen)));
+            }
+            : {
+              print_endline("1996");
+              Failed;
+            };
+        }
       }
     }
   | (_, IfZ3(_, t1, t2, zt3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt3))) {
     | None => Failed
-    | Some(ty1) =>
-      switch (syn_perform(ctx, a, (zt3, ty1, u_gen))) {
+    | Some(ty3) =>
+      switch (syn_perform(ctx, a, (zt3, ty3, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
           Action_common.escape(side),
-          (zoperand, ty, u_gen),
+          (zoperand, ty3, u_gen),
         )
       | Succeeded((zt3, _, u_gen)) =>
-        /* Statics_Exp.syn_fix_holes() add later?? */
-        let (_, ty_t3, u_gen) =
-          Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
-        let new_ze =
-          ZExp.ZBlock.wrap(IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3));
-        Succeeded(SynDone((new_ze, ty_t3, u_gen)));
+        switch (Statics_Exp.syn(ctx, t2)) {
+        | None => Failed
+        | Some(ty2) =>
+          print_endline("2017");
+          HTyp.consistent(ty2, ty3)
+            ? {
+              print_endline("2020");
+              let (_, ty_t3, u_gen) =
+                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
+                );
+              Succeeded(SynDone((new_ze, ty_t3, u_gen)));
+            }
+            : {
+              print_endline("2030");
+              Failed;
+            };
+        }
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")

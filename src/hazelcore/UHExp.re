@@ -70,6 +70,16 @@ let case =
     )
     : operand =>
   Case(err, scrut, rules);
+/*
+ let ifs =
+   (
+     ~err: StandardErrStatus(NotInHole),
+     t1: t1,
+     t2: t2,
+     t3: t3,
+   )
+   : operand =>
+ If(err, t1, t2. t3); */
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 

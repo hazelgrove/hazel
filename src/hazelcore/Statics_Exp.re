@@ -886,6 +886,7 @@ and syn_fix_holes_operand =
       )
     };
   | If(_, t1, t2, t3) =>
+    print_endline("889");
     let (t1, _, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
     let (t2, ty2, u_gen) =
@@ -893,8 +894,10 @@ and syn_fix_holes_operand =
     let (t3, ty3, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
     if (HTyp.consistent(ty2, ty3)) {
+      print_endline("896");
       (If(StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
     } else {
+      print_endline("899");
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let branch_types = [ty2, ty3];
       (
