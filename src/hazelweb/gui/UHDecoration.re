@@ -6,7 +6,8 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 type rects = list(SvgUtil.Rect.t);
 
 let rects =
-    (~vtrim=0.0, start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
+    (~indent=0, ~vtrim=0.0, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+    : rects => {
   let mk_rect =
       (
         ~is_first=false,
@@ -31,7 +32,7 @@ let rects =
   |> ListUtil.map_with_accumulator(
        (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
          (
-           {row: start.row + box.height, col: 0},
+           {row: start.row + box.height, col: indent},
            mk_rect(~is_first=i == 0, ~is_last=i == n - 1, start, box),
          ),
        start,
@@ -203,14 +204,15 @@ module CurrentTerm = {
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) =>
+           (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, Tessera) => rects(~vtrim=tessera_margin, start, m)
+             | (_, Tessera) =>
+               rects(~indent, ~vtrim=tessera_margin, start, m)
              | _ => []
              },
        );
@@ -224,10 +226,10 @@ module CurrentTerm = {
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rss) => rss,
          ~cat=(_, rss1, rss2) => rss1 @ rss2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) =>
+           (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
              // hack for case and subblocks
              // TODO remove when we have tiles
@@ -235,7 +237,7 @@ module CurrentTerm = {
              | (Case, Term({shape: Rule, _})) => go(m)
              | (_, Tessera) => go(m)
              | (_, ClosedChild({sort, _})) => [
-                 (sort, rects(~vtrim=0.1, start, m)),
+                 (sort, rects(~indent, ~vtrim=0.1, start, m)),
                ]
              | _ => []
              },
@@ -267,10 +269,10 @@ module CurrentTerm = {
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) => {
+           (~go, ~indent as _, ~start, annot: UHAnnot.t, m) => {
              // some tesserae need to be padded on left side to form
              // a straight edge with borders of neighboring multiline
              // open children
@@ -301,8 +303,10 @@ module CurrentTerm = {
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
              | (_, OpenChild(InlineWithBorder)) =>
+               // TODO(d) specify indent?
                inline_open_child_rects(start, m)
              | (_, OpenChild(Multiline)) =>
+               // TODO(d) specify indent?
                multiline_open_child_rects(
                  ~overflow_left=overflow_left(shape),
                  ~vtrim_bot=start.row == subject_height - 1,
@@ -374,14 +378,19 @@ module CurrentTerm = {
     let closed_children =
       (offset, subject)
       |> current_term_closed_child_rects(~shape)
-      |> List.map(((sort, rs)) =>
+      |> List.map(((sort, rs: rects)) => {
+           let max_width =
+             rs
+             |> List.map((r: SvgUtil.Rect.t) => r.width)
+             |> List.fold_left(max, 0.);
            rs
+           |> List.map(r => SvgUtil.Rect.{...r, width: max_width})
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
            |> SvgUtil.Path.view(
                 ~attrs=
                   Attr.[classes(["code-closed-child", sort_cls(sort)])],
-              )
-         );
+              );
+         });
     let outer_filter =
       Node.create_svg(
         "filter",
