@@ -59,6 +59,9 @@ let get_type = (cursor_info: CursorInfo.t) => {
       | (NoBranches, _) => my_type(typed)
       | _ => None
       }
+    | PatAnalyzed(ty) => Some(ty)
+    | PatAnaSubsumed(expected_ty, _) => Some(expected_ty)
+    | PatSynthesized(ty) => Some(ty)
     | _ => None
     };
   my_type(cursor_info.typed);
@@ -167,6 +170,16 @@ let lit_msg = (ty: HTyp.t) => {
   };
 };
 
+let cons_msg = () => {
+  [
+    option([
+      Vdom.Node.text("Enter a cons operator (enter "),
+      shortcut_node(";"),
+      Vdom.Node.text(")"),
+    ]),
+  ];
+};
+
 /**
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
@@ -185,6 +198,27 @@ let list_vars_view = (vars: VarCtx.t) => {
       vars,
     );
   List.map(((_, b)) => {b}, b);
+};
+
+/**
+ * Create a list of divs for the var options that will be shown.
+ * Return list of Node.t
+ */
+let list_bindings_view = (ty: HTyp.t) => {
+  let suggestions =
+    switch (ty) {
+    | Int => ["n"]
+    | Float => ["f"]
+    | Bool => ["b"]
+    | List(_) => ["xs"]
+    | _ => ["x", "y", "z"]
+    };
+  List.map(
+    binding => {
+      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
+    },
+    suggestions,
+  );
 };
 
 /**
@@ -315,7 +349,7 @@ let other_arithmetic_options = cursor_info => {
   };
 };
 
-let view =
+let view_exp =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cursor_inspector: Settings.CursorInspector.t,
@@ -518,4 +552,172 @@ let view =
     };
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+};
+
+let view_pat =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+    ) => {
+  let lit_open = cursor_inspector.type_assist_lit;
+  let binding_open = cursor_inspector.type_assist_binding;
+  let cons_open = cursor_inspector.type_assist_cons;
+  let other_open = cursor_inspector.type_assist_other;
+
+  let ty = get_type(cursor_info);
+
+  let typ =
+    switch (ty) {
+    | Some(my_ty) => my_ty
+    | None => raise(Invalid_argument("Should have a type..."))
+    };
+
+  let subsection_header = (setting, text, open_section) => {
+    let subsection_arrow =
+      if (open_section) {
+        Icons.down_arrow(["fill-arrow"]);
+      } else {
+        Icons.left_arrow(["fill-arrow"]);
+      };
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ => {
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+            ])
+          }),
+        ],
+        [Node.text(text), subsection_arrow],
+      )
+    );
+  };
+
+  let fill_hole_msg =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+        [
+          Node.div(
+            [Attr.classes(["words"])],
+            [Node.text("Which strategy do you want to try?")],
+          ),
+        ],
+      )
+    );
+
+  let lit =
+    subsection_header(
+      Toggle_type_assist_lit,
+      "Fill with " ++ type_to_str(ty) ++ " literal",
+      lit_open,
+    );
+  let lit_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [Node.div([Attr.classes(["options"])], lit_msg(typ))],
+      )
+    );
+
+  let cons =
+    subsection_header(
+      Toggle_type_assist_cons,
+      "Fill with a cons operator",
+      cons_open,
+    );
+  let cons_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [Node.div([Attr.classes(["options"])], cons_msg())],
+      )
+    );
+
+  let binding_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_bindings_view(typ)));
+  let binding =
+    subsection_header(
+      Toggle_type_assist_binding,
+      "Fill with a binding",
+      binding_open,
+    );
+  let binding_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [binding_view],
+      )
+    );
+
+  let other =
+    subsection_header(Toggle_type_assist_other, "Other", other_open);
+  let other_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [Node.text("No other suggestions")],
+          ),
+        ],
+      )
+    );
+  let body =
+    if (lit_open) {
+      [fill_hole_msg, lit, lit_body];
+    } else {
+      [fill_hole_msg, lit];
+    };
+  let body =
+    if (cons_open) {
+      body @ [cons, cons_body];
+    } else {
+      body @ [cons];
+    };
+  let body =
+    if (binding_open) {
+      body @ [binding, binding_body];
+    } else {
+      body @ [binding];
+    };
+  /*
+   let body =
+     if (fun_open) {
+       body @ [fun_h, fun_body];
+     } else {
+       body @ [fun_h];
+     };
+   let body =
+     if (branch_open) {
+       body @ [branch, branch_body];
+     } else {
+       body @ [branch];
+     }; */
+  let body =
+    if (other_open) {
+      body @ [other, other_body];
+    } else {
+      body @ [other];
+    };
+
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+};
+
+let view =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+    ) => {
+  switch (cursor_info.cursor_term) {
+  | Pat(_, EmptyHole(_)) => view_pat(~inject, cursor_inspector, cursor_info)
+  | Exp(_, EmptyHole(_))
+  | _ => view_exp(~inject, cursor_inspector, cursor_info)
+  };
 };

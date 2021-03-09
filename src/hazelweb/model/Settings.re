@@ -125,10 +125,14 @@ module CursorInspector = {
     novice_mode: bool,
     type_assist: bool,
     type_assist_lit: bool,
+    type_assist_other: bool,
+    /* exp */
     type_assist_var: bool,
     type_assist_fun: bool,
     type_assist_branch: bool,
-    type_assist_other: bool,
+    /* pat */
+    type_assist_binding: bool,
+    type_assist_cons: bool,
   };
 
   let init = {
@@ -137,10 +141,14 @@ module CursorInspector = {
     novice_mode: false,
     type_assist: false,
     type_assist_lit: false,
+    type_assist_other: false,
+    /* exp */
     type_assist_var: false,
     type_assist_fun: false,
     type_assist_branch: false,
-    type_assist_other: false,
+    /* pat */
+    type_assist_binding: false,
+    type_assist_cons: false,
   };
 
   [@deriving sexp]
@@ -150,10 +158,14 @@ module CursorInspector = {
     | Toggle_novice_mode
     | Toggle_type_assist
     | Toggle_type_assist_lit
+    | Toggle_type_assist_other
+    // exp
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
-    | Toggle_type_assist_other;
+    // pat
+    | Toggle_type_assist_binding
+    | Toggle_type_assist_cons;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -168,6 +180,10 @@ module CursorInspector = {
         ...settings,
         type_assist_lit: !settings.type_assist_lit,
       }
+    | Toggle_type_assist_other => {
+        ...settings,
+        type_assist_other: !settings.type_assist_other,
+      }
     | Toggle_type_assist_var => {
         ...settings,
         type_assist_var: !settings.type_assist_var,
@@ -180,9 +196,13 @@ module CursorInspector = {
         ...settings,
         type_assist_branch: !settings.type_assist_branch,
       }
-    | Toggle_type_assist_other => {
+    | Toggle_type_assist_binding => {
         ...settings,
-        type_assist_other: !settings.type_assist_other,
+        type_assist_binding: !settings.type_assist_binding,
+      }
+    | Toggle_type_assist_cons => {
+        ...settings,
+        type_assist_cons: !settings.type_assist_cons,
       }
     };
 };

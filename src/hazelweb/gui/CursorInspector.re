@@ -823,7 +823,7 @@ let view =
     switch (cursor_info.cursor_term) {
     | Exp(_, EmptyHole(_)) => true
     | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, EmptyHole(_)) => true
     | Pat(_, _) => false
     | Typ(_, Hole) => false
     | Typ(_, _) => false
