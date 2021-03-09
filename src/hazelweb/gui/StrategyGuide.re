@@ -141,7 +141,7 @@ let lit_msg = (ty: HTyp.t) => {
   let prod_lit =
     option([
       Vdom.Node.text("Enter a Tuple (enter "),
-      shortcut_node(")"),
+      shortcut_node("("),
       Vdom.Node.text(")"),
     ]);
   let list_lit =
@@ -170,14 +170,34 @@ let lit_msg = (ty: HTyp.t) => {
   };
 };
 
-let cons_msg = () => {
-  [
+let pat_msg = (ty: HTyp.t) => {
+  let prod_lit =
     option([
-      Vdom.Node.text("Enter a cons operator (enter "),
+      Vdom.Node.text("Enter a Tuple pattern (enter "),
+      shortcut_node("("),
+      Vdom.Node.text(")"),
+    ]);
+  let sum_lit =
+    option([
+      Vdom.Node.text("Enter an Injection (enter "),
+      shortcut_node("Alt + l"),
+      Vdom.Node.text("or"),
+      shortcut_node("Alt + r"),
+      Vdom.Node.text(")"),
+    ]);
+  let list_lit =
+    option([
+      Vdom.Node.text("Enter a nonempty List pattern (enter "),
       shortcut_node(";"),
       Vdom.Node.text(")"),
-    ]),
-  ];
+    ]);
+  switch (ty) {
+  | Hole => [prod_lit, list_lit]
+  | Prod(_) => [prod_lit]
+  | List(_) => [list_lit]
+  | Sum(_) => [sum_lit]
+  | _ => []
+  };
 };
 
 /**
@@ -213,6 +233,7 @@ let list_bindings_view = (ty: HTyp.t) => {
     | List(_) => ["xs"]
     | _ => ["x", "y", "z"]
     };
+  let suggestions = suggestions @ ["_"];
   List.map(
     binding => {
       Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
@@ -562,8 +583,7 @@ let view_pat =
     ) => {
   let lit_open = cursor_inspector.type_assist_lit;
   let binding_open = cursor_inspector.type_assist_binding;
-  let cons_open = cursor_inspector.type_assist_cons;
-  let other_open = cursor_inspector.type_assist_other;
+  let pat_open = cursor_inspector.type_assist_pat;
 
   let ty = get_type(cursor_info);
 
@@ -624,17 +644,17 @@ let view_pat =
       )
     );
 
-  let cons =
+  let pat =
     subsection_header(
-      Toggle_type_assist_cons,
-      "Fill with a cons operator",
-      cons_open,
+      Toggle_type_assist_pat,
+      "Fill with a " ++ type_to_str(ty) ++ " pattern",
+      pat_open,
     );
-  let cons_body =
+  let pat_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], cons_msg())],
+        [Node.div([Attr.classes(["options"])], pat_msg(typ))],
       )
     );
 
@@ -654,56 +674,45 @@ let view_pat =
       )
     );
 
-  let other =
-    subsection_header(Toggle_type_assist_other, "Other", other_open);
-  let other_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [Node.text("No other suggestions")],
-          ),
-        ],
-      )
-    );
+  let body = [];
   let body =
-    if (lit_open) {
-      [fill_hole_msg, lit, lit_body];
-    } else {
-      [fill_hole_msg, lit];
+    switch (typ) {
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(_)
+    | List(_) =>
+      if (lit_open) {
+        body @ [fill_hole_msg, lit, lit_body];
+      } else {
+        body @ [fill_hole_msg, lit];
+      }
+    | Sum(_)
+    | Prod(_) => body
     };
+
   let body =
-    if (cons_open) {
-      body @ [cons, cons_body];
-    } else {
-      body @ [cons];
+    switch (typ) {
+    | Hole
+    | Prod(_)
+    | Sum(_)
+    | List(_) =>
+      if (pat_open) {
+        body @ [pat, pat_body];
+      } else {
+        body @ [pat];
+      }
+    | Int
+    | Float
+    | Bool
+    | Arrow(_) => body
     };
   let body =
     if (binding_open) {
       body @ [binding, binding_body];
     } else {
       body @ [binding];
-    };
-  /*
-   let body =
-     if (fun_open) {
-       body @ [fun_h, fun_body];
-     } else {
-       body @ [fun_h];
-     };
-   let body =
-     if (branch_open) {
-       body @ [branch, branch_body];
-     } else {
-       body @ [branch];
-     }; */
-  let body =
-    if (other_open) {
-      body @ [other, other_body];
-    } else {
-      body @ [other];
     };
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
