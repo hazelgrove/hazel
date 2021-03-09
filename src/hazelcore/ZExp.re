@@ -116,7 +116,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
   | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
-  | Prj(_, _, _) => CursorPosition.delim_cursors(2);
+  | Prj(_, _, pl) => CursorPosition.text_cursors(Label.length(pl));
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 

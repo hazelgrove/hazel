@@ -1471,8 +1471,16 @@ let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
+  print_endline(
+    "Path is: " ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+  );
+  print_endline(
+    "Exp is " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(ZExp.erase(ze))),
+  );
   let _ =
     CursorPath_Exp.follow(path, ZExp.erase(ze))
+    // ECD: You are here.  Currently failing on projection creation
+    // Need to dig into follow to find the error case.
     |> OptUtil.get(() =>
          failwith(
            "original z exp does not preserve path "
@@ -1480,7 +1488,6 @@ let syn_fix_holes_z =
          )
        );
   let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
-  // ECD You are here: syn fix holes is failing
   let ze =
     CursorPath_Exp.follow(path, e)
     |> OptUtil.get(() =>

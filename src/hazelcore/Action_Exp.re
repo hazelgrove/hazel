@@ -826,16 +826,21 @@ and syn_perform_block =
             u_gen,
           )),
         ) =>
+        print_endline("Syn perform line done");
         switch (suffix) {
         | [] =>
+          print_endline("No suffix");
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None => 
+            // ECD: PROJECTION CREATION FAILS HERE!!!
+            Failed
           | Some(new_ty) =>
+            print_endline("In sucess for syn_block");
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
-          }
+          };
         | [_, ..._] =>
           let (suffix, new_ty, u_gen) =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
@@ -843,7 +848,7 @@ and syn_perform_block =
             (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
             |> ZExp.prune_empty_hole_lines;
           Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-        }
+        };
       }
     }
   }
@@ -1070,12 +1075,14 @@ and syn_perform_line =
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
     | None => Failed
     | Some(ty) =>
+      print_endline("Entering syn_perform opseq");
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
-        Succeeded(LineDone((ze, ctx, u_gen)))
-      }
+        print_endline("Syn Done for line");
+        Succeeded(LineDone((ze, ctx, u_gen)));
+      };
     }
 
   | (_, LetLineZP(zp, None, def)) =>
@@ -1347,7 +1354,7 @@ and syn_perform_opseq =
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => failwith(__LOC__ ++ "Failed")
+    | None => Failed
     | Some(operator) =>
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
@@ -1388,8 +1395,8 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    // ECD: Proj construction gets here, should not
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+    print_endline("zipper case");
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -1711,11 +1718,17 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   // if operator already exists, add projection to it
-  | (Construct(SChar(".")), CursorE(err, operand))
+  | (Construct(SChar(".")), CursorE(_, operand))
       when ZExp.is_after_zoperand(zoperand) =>
-    let new_ze = ZExp.ZBlock.wrap(CursorE(err, UHExp.prj(operand, "")));
-    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
-
+    // ECD TODO: Double check that 0 is position after the dot
+    // (.a 2).[] OnText(0)
+    let new_ze =
+      ZExp.ZBlock.wrap(CursorE(OnText(0), UHExp.prj(operand, "")));
+    let fix_holes_result = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
+    // ECD: You are here: fixed the path follow issue (did not have the right cursors expected for prj)
+    // Prj still results in a failed action, but we get past syn_fix_holes_z
+    print_endline("after fix holes result");
+    Succeeded(SynDone(fix_holes_result));
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
   // Insert projection with var
@@ -3262,7 +3275,7 @@ and ana_perform_operand =
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
-    | None => failwith(__LOC__ ++ "Failed")
+    | None => Failed
     | Some(operator) =>
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)

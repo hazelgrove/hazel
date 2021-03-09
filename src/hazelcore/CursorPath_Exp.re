@@ -112,7 +112,9 @@ and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHExp.operand)
     : option(ZExp.zoperand) =>
   switch (steps) {
-  | [] => operand |> ZExp.place_cursor_operand(cursor)
+  | [] =>
+    print_endline("In no steps case");
+    operand |> ZExp.place_cursor_operand(cursor);
   | [x, ...xs] =>
     switch (operand) {
     | EmptyHole(_)
@@ -123,14 +125,19 @@ and follow_operand =
     | BoolLit(_, _)
     | ListNil(_)
     | Label(_, _) => None
+    // ECD TODO: Does this need a recursive call?
+    | Prj(_, _, _) =>
+      print_endline("In Prj case");
+      None;
     | Parenthesized(body) =>
+      print_endline("In paren case");
       switch (x) {
       | 0 =>
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
-      }
+      };
     | Lam(err, p, ann, body) =>
       switch (x) {
       | 0 =>
@@ -187,7 +194,6 @@ and follow_operand =
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
-    | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented Label Projection")
     }
   }
 and follow_rules =

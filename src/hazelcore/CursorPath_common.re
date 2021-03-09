@@ -67,17 +67,19 @@ let follow_opseq_ =
     ) {
     | (None, None) => None
     | (Some((operand, surround)), _) =>
+      print_endline(__LOC__ ++ " Some first");
       operand
       |> follow_operand((xs, cursor))
       |> Option.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
-         )
+         );
     | (_, Some((operator, surround))) =>
+      print_endline(__LOC__ ++ " Some Second");
       operator
       |> follow_operator((xs, cursor))
       |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
-         )
+         );
     }
   };
 
