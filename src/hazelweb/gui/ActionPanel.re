@@ -284,6 +284,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           text("Variable regex: "),
           mono_text("[_a-zA-Z][_a-zA-Z0-9']*"),
         ]),
+        info([
+          text("Operator variable regex: "),
+          mono_text("[_][.&*+-/:<=>|]*[_]"),
+        ]),
         info_action(
           [
             text("Type "),
