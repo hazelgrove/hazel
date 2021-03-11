@@ -321,6 +321,13 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_MODULE = (~sort: TermSort.t, body: formatted_child): t => {
+  let open_group = Delim.open_Parenthesized() |> annot_Tessera;
+  let close_group = Delim.close_Parenthesized() |> annot_Tessera;
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
+  |> annot_Operand(~sort);
+};
+
 let mk_List = (body: formatted_child): t => {
   let open_group = Delim.open_List() |> annot_Tessera;
   let close_group = Delim.close_List() |> annot_Tessera;

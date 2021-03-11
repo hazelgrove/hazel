@@ -18,6 +18,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
+  | MODULEZ(zbody) => cons'(0, of_z(zbody))
   | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
@@ -111,7 +112,8 @@ and follow_operand =
     | FloatLit(_, _)
     | BoolLit(_, _)
     | ListNil(_) => None
-    | Parenthesized(body) =>
+    | Parenthesized(body)
+    | MODULE(body) =>
       switch (x) {
       | 0 =>
         body
@@ -297,6 +299,12 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
+    | MODULE(body) =>
+      switch (x) {
+      | 0 =>
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+      | _ => None
+      }
     | Lam(_, p, body) =>
       switch (x) {
       | 0 =>
@@ -432,6 +440,7 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
+  | MODULE(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Lam(err, p, body) =>
@@ -612,6 +621,13 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(k, _), MODULE(body)) =>
+    let body_holes = holes(body, [0, ...rev_steps], []);
+    switch (k) {
+    | 0 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
+    | _ => CursorPath_common.no_holes
+    };
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
@@ -690,11 +706,15 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | MODULE(_) | Lam(_) | Case(_),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | MODULEZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {

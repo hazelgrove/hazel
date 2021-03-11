@@ -808,6 +808,7 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
+  | MODULE(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => DoesNotElaborate
@@ -1175,6 +1176,7 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
+  | MODULE(body) => ana_elab(ctx, delta, body, ty)
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate

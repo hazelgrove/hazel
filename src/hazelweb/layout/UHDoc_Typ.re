@@ -7,6 +7,8 @@ let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
 let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Typ);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Typ);
+let mk_MODULE: UHDoc_common.formatted_child => UHDoc.t =
+  UHDoc_common.mk_MODULE(~sort=Typ);
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
@@ -58,6 +60,9 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
+        | MODULE(body) =>
+          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+          mk_MODULE(body);
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           UHDoc_common.mk_List(body);

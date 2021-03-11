@@ -37,7 +37,8 @@ type t =
   | Ctrl_Alt_J
   | Ctrl_Alt_L
   | Meta_Z
-  | Meta_Shift_Z;
+  | Meta_Shift_Z
+  | LEFTCURLY;
 
 let get_details =
   fun
@@ -75,7 +76,8 @@ let get_details =
   | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
   | Ctrl_Alt_L => KeyCombo.ctrl_alt_l
   | Meta_Z => KeyCombo.meta_z
-  | Meta_Shift_Z => KeyCombo.meta_shift_z;
+  | Meta_Shift_Z => KeyCombo.meta_shift_z
+  | LEFTCURLY => KeyCombo.left_curly;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
@@ -149,6 +151,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Ctrl_Alt_J);
   } else if (evt_matches(KeyCombo.ctrl_alt_l)) {
     Some(Ctrl_Alt_L);
+  } else if (evt_matches(KeyCombo.left_curly)) {
+    Some(LEFTCURLY);
   } else {
     None;
   };

@@ -189,6 +189,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let+ _ = ana(splice_ctx, expansion, expansion_ty);
     expansion_ty;
   | Parenthesized(body) => syn(ctx, body)
+  | MODULE(body) => syn(ctx, body)
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -336,6 +337,7 @@ and ana_operand =
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
+  | MODULE(body) => ana(ctx, body, ty)
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -812,6 +814,10 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
+  | MODULE(body) =>
+    let (block, ty, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
+    (Parenthesized(block), ty, u_gen);
   | Lam(_, p, body) =>
     let (p, ty_p, ctx_body, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
@@ -1221,6 +1227,10 @@ and ana_fix_holes_operand =
     let (body, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
+  | MODULE(body) =>
+    let (body, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
+    (MODULE(body), u_gen);
   | Lam(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>

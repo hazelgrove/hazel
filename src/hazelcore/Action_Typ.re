@@ -275,6 +275,10 @@ and perform_operand =
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
     Succeeded(body |> place_cursor);
 
+  | (Backspace, CursorT(OnDelim(k, After), MODULE(body))) =>
+    let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
+    Succeeded(body |> place_cursor);
+
   /* Construction */
 
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
@@ -302,6 +306,9 @@ and perform_operand =
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
 
+  | (Construct(SMODULE), CursorT(_)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.MODULEZ(ZOpSeq.wrap(zoperand))))
+
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
@@ -319,6 +326,13 @@ and perform_operand =
       perform_operand(Action_common.escape(side), zoperand)
     | Succeeded(zbody) =>
       Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)))
+    }
+  | (_, MODULEZ(zbody)) =>
+    switch (perform(a, zbody)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      perform_operand(Action_common.escape(side), zoperand)
+    | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.MODULEZ(zbody)))
     }
   | (_, ListZ(zbody)) =>
     switch (perform(a, zbody)) {

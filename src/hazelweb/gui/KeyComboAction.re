@@ -13,6 +13,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (Ampersand, _ => Construct(SOp(SAnd))),
     (VBar, _ => Construct(SOp(SOr))),
     (LeftParen, _ => Construct(SParenthesized)),
+    (LEFTCURLY, _ => Construct(SMODULE)),
     (Colon, _ => Construct(SAnn)),
     (Equals, _ => Construct(SOp(SEquals))),
     (Enter, _ => Construct(SLine)),
