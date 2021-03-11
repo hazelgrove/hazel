@@ -3278,12 +3278,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      let ty1 =
-        switch (Statics_Pat.syn(ctx, p)) {
-        | Some((ty_p, _)) => ty_p
-        | None => ty1_given
-        };
-      switch (Statics_Pat.ana(ctx, p, ty1)) {
+      switch (Statics_Pat.ana(ctx, p, ty1_given)) {
       | None => Failed
       | Some(ctx_body) =>
         switch (ana_perform(ctx_body, a, (zbody, u_gen), ty2)) {
@@ -3299,7 +3294,7 @@ and ana_perform_operand =
           let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
           Succeeded(AnaDone((new_ze, u_gen)));
         }
-      };
+      }
     }
   | (_, InjZ(_, side, zbody)) =>
     switch (HTyp.matched_sum(ty)) {
