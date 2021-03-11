@@ -1008,20 +1008,20 @@ let gensym: ref(int) = ref(0);
 // 10 avg:   9.5ms   per count:  46.1ns (count: 206668)
 
 module Js = Js_of_ocaml.Js;
-let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
-  Js.Unsafe.js_expr(
-    "function res_inc$0(js_size, input) {
-    //var len = input.length;
-    var output = new Array(js_size);
-    output[0] = [0];
-    for (var i = 1; i < js_size; i++) {
-      var res = input[i]
-      output[i] = res + 1 | 0;
-    }
-    return [0, js_size, output];
-  }
-    ",
-  );
+// let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(js_size, input) {
+//     //var len = input.length;
+//     var output = new Array(js_size);
+//     output[0] = [0];
+//     for (var i = 1; i < js_size; i++) {
+//       var res = input[i]
+//       output[i] = res + 1 | 0;
+//     }
+//     return [0, js_size, output];
+//   }
+//     ",
+//   );
 
 // let res_inc': Array.t(int) => Array.t(int) =
 //   Js.Unsafe.js_expr(
@@ -1410,6 +1410,25 @@ let merge:
 //   array (global?) variables. This can make it slower than just locally
 //   computing the result.
 
+///////////////////////////////
+
+// Possible interface types:
+//
+// mylist
+// List.t((int, int))
+// Array.t((int, int))
+// Array.t(int) (interleaved)
+// (Array.t(int), Array.t(int)) (with or without passing both)
+// (int, Array.t(int))
+
+// with or without .length (separate param or element of array)
+// use size+1 (b/c less aritmetic)
+// prealloc the array or not
+
+// TODO: parallel arrays due to heterogenious nature
+// TODO: parallel arrays allow reuse of "pos" array
+
+// w/o map, merge or flatmap: 28ns
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
         : (int, Array.t(int), Array.t(int)) => {
@@ -1429,32 +1448,6 @@ let rec fib2 =
       mem := gensym^;
       (
         11,
-        // [|9999, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        // [|88889, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        // [|
-        //   1111,
-        //   0,
-        //   0,
-        //   0,
-        //   0,
-        //   0,
-        //   pos + 6,
-        //   pos + 7,
-        //   pos + 8,
-        //   pos + 9,
-        // |],
-        // [|
-        //   2222,
-        //   res + 1,
-        //   res + 2,
-        //   res + 3,
-        //   res + 4,
-        //   res + 5,
-        //   res + 6,
-        //   res + 7,
-        //   res + 8,
-        //   res + 9,
-        // |],
         [|
           pos + 0,
           pos + 1,
@@ -1467,7 +1460,6 @@ let rec fib2 =
           pos + 8,
           pos + 9,
         |],
-      { let res = 0;
         [|
           res + 0,
           res + 1,
@@ -1479,57 +1471,8 @@ let rec fib2 =
           res + 7,
           res + 8,
           res + 9,
-        |]},
-        // [|
-        //   pos + 0,
-        //   pos + 1,
-        //   pos + 2,
-        //   pos + 3,
-        //   pos + 4,
-        //   pos + 5,
-        //   pos + 6,
-        //   pos + 7,
-        //   pos + 8,
-        //   pos + 9,
-        // |],
-        // [|
-        //   88889,
-        //   pos + 11,
-        //   pos + 12,
-        //   pos + 13,
-        //   pos + 14,
-        //   pos + 15,
-        //   pos + 16,
-        //   pos + 17,
-        //   pos + 18,
-        //   pos + 19,
-        // |],
-        // [|
-        //   pos + 0,
-        //   pos + 1,
-        //   pos + 2,
-        //   pos + 3,
-        //   pos + 4,
-        //   pos + 5,
-        //   pos + 6,
-        //   pos + 7,
-        //   pos + 8,
-        //   pos + 9,
-        // |],
-        // [|
-        //   0,
-        //   1,
-        //   2,
-        //   3,
-        //   4,
-        //   5,
-        //   6,
-        //   7,
-        //   8,
-        //   9,
-        // |],
+        |],
       );
-      //16186
     };
   | Fail2(mem) =>
     // TODO: fail without memoization
