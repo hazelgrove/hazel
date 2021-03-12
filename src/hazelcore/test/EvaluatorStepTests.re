@@ -1,4 +1,4 @@
-// Test suit for the step evaluator.
+// Test suite for the step evaluator.
 open DHExp;
 
 let option_to_string = (t: option(DHExp.t)): string =>
