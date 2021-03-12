@@ -149,12 +149,15 @@ let get_selected_hole_instance = model =>
     Some((u, i));
   };
 
+exception HoleNotFound;
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
-  |> map_program(program => {
-       let action = Program.move_to_hole(u, program);
-       Program.perform_edit_action(action, program);
-     })
+  |> map_program(program =>
+       switch (Program.move_to_hole(u, program)) {
+       | None => raise(HoleNotFound)
+       | Some(action) => Program.perform_edit_action(action, program)
+       }
+     )
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
@@ -302,8 +305,13 @@ let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
     | Some(n) =>
       // TODO: need to handle case where that hole does not exist.
       let program = get_program(m);
-      let action = Program.move_to_hole(n - 1, program);
-      perform_edit_action(action, {...m, mini_buffer: None}) |> focus_cell;
+      switch (Program.move_to_hole(n - 1, program)) {
+      | None =>
+        // TODO: review whether incorrect contents should leave mini buffer open
+        m
+      | Some(action) =>
+        perform_edit_action(action, {...m, mini_buffer: None}) |> focus_cell
+      };
     }
   };
 };

@@ -58,8 +58,7 @@ let move_via_key: (~settings: Settings.t, MoveKey.t, t) => (t, Action.t);
 let move_via_click:
   (~settings: Settings.t, Pretty.MeasuredPosition.t, t) => (t, Action.t);
 
-exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => Action.t;
+let move_to_hole: (MetaVar.t, t) => option(Action.t);
 
 /**
  * `move_to_case_branch(steps, n)` returns an action that moves the cursor to

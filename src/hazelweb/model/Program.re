@@ -175,19 +175,14 @@ let perform_edit_action = (a, program) => {
   };
 };
 
-exception HoleNotFound;
 let move_to_hole = (u, program) => {
+  open OptUtil.Syntax;
   let (ze, _, _) = program.edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath_common.steps_to_hole(holes, u)) {
-  | None => raise(HoleNotFound)
-  | Some(hole_steps) =>
-    let e = ZExp.erase(ze);
-    switch (CursorPath_Exp.of_steps(hole_steps, e)) {
-    | None => raise(HoleNotFound)
-    | Some(hole_path) => Action.MoveTo(hole_path)
-    };
-  };
+  let* hole_steps = CursorPath_common.steps_to_hole(holes, u);
+  let e = ZExp.erase(ze);
+  let+ hole_path = CursorPath_Exp.of_steps(hole_steps, e);
+  Action.MoveTo(hole_path);
 };
 
 let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
