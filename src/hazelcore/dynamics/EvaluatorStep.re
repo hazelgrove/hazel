@@ -1,5 +1,311 @@
 open Sexplib.Std;
 
+[@deriving sexp]
+type step_result =
+  | BoxedValue(DHExp.t)
+  | Indet(DHExp.t)
+  | Step(DHExp.t);
+
+exception InvalidInput(int);
+
+let rec step = (d: DHExp.t): step_result =>
+  switch (d) {
+  | BoundVar(_) => raise(InvalidInput(1))
+  | Let(dp, d1, d2) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(Let(dp, d1', d2))
+    | BoxedValue(d1)
+    | Indet(d1) =>
+      switch (Elaborator_Exp.matches(dp, d1)) {
+      | Indet => Indet(d)
+      | DoesNotMatch => Indet(d)
+      | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
+      }
+    }
+  | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
+  | Lam(_, _, _) => BoxedValue(d)
+  | Ap(d1, d2) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(Ap(d1', d2))
+    | BoxedValue(Lam(dp, _, d3)) =>
+      switch (step(d2)) {
+      | Step(d2') => Step(Ap(d1, d2'))
+      | BoxedValue(d2)
+      | Indet(d2) =>
+        switch (Elaborator_Exp.matches(dp, d2)) {
+        | DoesNotMatch => Indet(d)
+        | Indet => Indet(d)
+        | Matches(env) =>
+          /* beta rule */
+          Step(Elaborator_Exp.subst(env, d3))
+        }
+      }
+    | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
+    | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
+      switch (step(d2)) {
+      | Step(d2') => Step(Ap(d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') =>
+        /* ap cast rule */
+        Step(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+      }
+    | BoxedValue(_) => raise(InvalidInput(2))
+    | Indet(d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(Ap(d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(Ap(d1', d2'))
+      }
+    }
+  | ListNil(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | Triv => BoxedValue(d)
+  | BinBoolOp(op, d1, d2) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(BinBoolOp(op, d1', d2))
+    | BoxedValue(BoolLit(b1) as d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinBoolOp(op, d1, d2'))
+      | BoxedValue(BoolLit(b2)) =>
+        BoxedValue(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
+      | BoxedValue(_) => raise(InvalidInput(3))
+      | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+      }
+    | BoxedValue(_) => raise(InvalidInput(4))
+    | Indet(d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinBoolOp(op, d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+      }
+    }
+  | BinIntOp(op, d1, d2) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(BinIntOp(op, d1', d2))
+    | BoxedValue(IntLit(n1) as d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinIntOp(op, d1, d2'))
+      | BoxedValue(IntLit(n2)) =>
+        switch (op, n1, n2) {
+        | (Divide, _, 0) =>
+          Indet(
+            InvalidOperation(
+              BinIntOp(op, IntLit(n1), IntLit(n2)),
+              DivideByZero,
+            ),
+          )
+        | _ => BoxedValue(EvaluatorCommon.eval_bin_int_op(op, n1, n2))
+        }
+      | BoxedValue(_) => raise(InvalidInput(3))
+      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
+      }
+    | BoxedValue(_) => raise(InvalidInput(4))
+    | Indet(d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinIntOp(op, d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
+      }
+    }
+  | BinFloatOp(op, d1, d2) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(BinFloatOp(op, d1', d2))
+    | BoxedValue(FloatLit(f1) as d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinFloatOp(op, d1, d2'))
+      | BoxedValue(FloatLit(f2)) =>
+        BoxedValue(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
+      | BoxedValue(_) => raise(InvalidInput(8))
+      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      }
+    | BoxedValue(_) => raise(InvalidInput(7))
+    | Indet(d1') =>
+      switch (step(d2)) {
+      | Step(d2') => Step(BinFloatOp(op, d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      }
+    }
+  | Inj(ty, side, d1) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(Inj(ty, side, d1'))
+    | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
+    | Indet(d1') => Indet(Inj(ty, side, d1'))
+    }
+  | Pair(d1, d2) =>
+    switch (step(d1), step(d2)) {
+    | (Step(d1'), _) => Step(Pair(d1', d2))
+    | (_, Step(d2')) => Step(Pair(d1, d2'))
+    | (Indet(d1), Indet(d2))
+    | (Indet(d1), BoxedValue(d2))
+    | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
+    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
+    }
+  | Cons(d1, d2) =>
+    switch (step(d1), step(d2)) {
+    | (Step(d1'), _) => Step(Cons(d1', d2))
+    | (_, Step(d2')) => Step(Cons(d1, d2'))
+    | (Indet(d1), Indet(d2))
+    | (Indet(d1), BoxedValue(d2))
+    | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
+    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
+    }
+  | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
+  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+    evaluate_case(Some((u, i, sigma)), d1, rules, n)
+  | EmptyHole(_) => Indet(d)
+  | NonEmptyHole(reason, u, i, sigma, d1) =>
+    switch (step(d1)) {
+    | Step(d1') => Step(NonEmptyHole(reason, u, i, sigma, d1'))
+    | BoxedValue(d1')
+    | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
+    }
+  | FreeVar(_) => Indet(d)
+  | Keyword(_) => Indet(d)
+  | InvalidText(_) => Indet(d)
+  | Cast(d1, ty, ty') =>
+    switch (step(d1)) {
+    | Step(d1') => Step(Cast(d1', ty, ty'))
+    | BoxedValue(d1') as result =>
+      switch (
+        EvaluatorCommon.ground_cases_of(ty),
+        EvaluatorCommon.ground_cases_of(ty'),
+      ) {
+      | (Hole, Hole) => result
+      | (Ground, Ground) =>
+        /* if two types are ground and consistent, then they are eq */
+        result
+      | (Ground, Hole) =>
+        /* can't remove the cast or do anything else here, so we're done */
+        BoxedValue(Cast(d1', ty, ty'))
+      | (Hole, Ground) =>
+        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+        switch (d1') {
+        | Cast(d1'', ty'', Hole) =>
+          if (HTyp.eq(ty'', ty')) {
+            BoxedValue(d1'');
+          } else {
+            Indet(FailedCast(d1', ty, ty'));
+          }
+        | _ =>
+          // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
+          raise(InvalidInput(6))
+        }
+      | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        /* ITExpand rule */
+        Step(DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty'))
+      | (NotGroundOrHole(ty_grounded), Hole) =>
+        /* ITGround rule */
+        Step(DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty'))
+      | (Ground, NotGroundOrHole(_))
+      | (NotGroundOrHole(_), Ground) =>
+        /* can't do anything when casting between diseq, non-hole types */
+        BoxedValue(Cast(d1', ty, ty'))
+      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+        /* they might be eq in this case, so remove cast if so */
+        if (HTyp.eq(ty, ty')) {
+          result;
+        } else {
+          BoxedValue(Cast(d1', ty, ty'));
+        }
+      }
+    | Indet(d1') as result =>
+      switch (
+        EvaluatorCommon.ground_cases_of(ty),
+        EvaluatorCommon.ground_cases_of(ty'),
+      ) {
+      | (Hole, Hole) => result
+      | (Ground, Ground) =>
+        /* if two types are ground and consistent, then they are eq */
+        result
+      | (Ground, Hole) =>
+        /* can't remove the cast or do anything else here, so we're done */
+        Indet(Cast(d1', ty, ty'))
+      | (Hole, Ground) =>
+        switch (d1') {
+        | Cast(d1'', ty'', Hole) =>
+          if (HTyp.eq(ty'', ty')) {
+            Indet(d1'');
+          } else {
+            Indet(FailedCast(d1', ty, ty'));
+          }
+        | _ => Indet(Cast(d1', ty, ty'))
+        }
+      | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        /* ITExpand rule */
+        Step(DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty'))
+      | (NotGroundOrHole(ty_grounded), Hole) =>
+        /* ITGround rule */
+        Step(DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty'))
+      | (Ground, NotGroundOrHole(_))
+      | (NotGroundOrHole(_), Ground) =>
+        /* can't do anything when casting between diseq, non-hole types */
+        Indet(Cast(d1', ty, ty'))
+      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+        /* it might be eq in this case, so remove cast if so */
+        if (HTyp.eq(ty, ty')) {
+          result;
+        } else {
+          Indet(Cast(d1', ty, ty'));
+        }
+      }
+    }
+  | FailedCast(d1, ty, ty') =>
+    switch (step(d1)) {
+    | Step(d1') => Step(FailedCast(d1', ty, ty'))
+    | BoxedValue(d1')
+    | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
+    }
+  | InvalidOperation(d0, err) =>
+    switch (step(d0)) {
+    | Step(d0') => Step(InvalidOperation(d0', err))
+    | BoxedValue(d0')
+    | Indet(d0') => Indet(InvalidOperation(d0', err))
+    }
+  }
+and evaluate_case =
+    (
+      inconsistent_info,
+      scrut: DHExp.t,
+      rules: list(DHExp.rule),
+      current_rule_index: int,
+    )
+    : step_result =>
+  switch (step(scrut)) {
+  | Step(scrut') =>
+    let case = DHExp.Case(scrut', rules, current_rule_index);
+    switch (inconsistent_info) {
+    | None => Step(ConsistentCase(case))
+    | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
+    };
+  | BoxedValue(scrut)
+  | Indet(scrut) =>
+    switch (List.nth_opt(rules, current_rule_index)) {
+    | None =>
+      let case = DHExp.Case(scrut, rules, current_rule_index);
+      switch (inconsistent_info) {
+      | None => Indet(ConsistentCase(case))
+      | Some((u, i, sigma)) =>
+        Indet(InconsistentBranches(u, i, sigma, case))
+      };
+    | Some(Rule(dp, d)) =>
+      switch (Elaborator_Exp.matches(dp, scrut)) {
+      | Indet =>
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        switch (inconsistent_info) {
+        | None => Indet(ConsistentCase(case))
+        | Some((u, i, sigma)) =>
+          Indet(InconsistentBranches(u, i, sigma, case))
+        };
+      | Matches(env) => Step(Elaborator_Exp.subst(env, d))
+      | DoesNotMatch =>
+        evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
+      }
+    }
+  };
+
 module EvalCtx = {
   [@deriving sexp]
   type t =
@@ -39,125 +345,11 @@ module EvalCtx = {
       );
 };
 
-let rec is_boxedval = (d: DHExp.t): bool =>
-  switch (d) {
-  | Lam(_, _, _)
-  | ListNil(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | Triv => true
-  | Pair(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
-  | Inj(_, _, d1) => is_boxedval(d1)
-  | Cons(d1, d2) => is_boxedval(d1) && is_boxedval(d2)
-  | Cast(d1, ty, ty') =>
-    switch (
-      EvaluatorCommon.ground_cases_of(ty),
-      EvaluatorCommon.ground_cases_of(ty'),
-    ) {
-    | (Ground, Hole)
-    | (Ground, NotGroundOrHole(_))
-    | (NotGroundOrHole(_), Ground) => is_boxedval(d1)
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      !HTyp.eq(ty, ty') && is_boxedval(d1)
-    | _ => false
-    }
-  | EmptyHole(_, _, _)
-  | NonEmptyHole(_, _, _, _, _)
-  | Keyword(_, _, _, _)
-  | FreeVar(_, _, _, _)
-  | InvalidText(_, _, _, _)
-  | BoundVar(_)
-  | Let(_, _, _)
-  | FixF(_, _, _)
-  | Ap(_, _)
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | ConsistentCase(_)
-  | InconsistentBranches(_, _, _, _)
-  | FailedCast(_, _, _)
-  | InvalidOperation(_, _) => false
-  };
-
-let rec is_final = (d: DHExp.t): bool => is_boxedval(d) || is_indet(d)
-and is_indet = (d: DHExp.t): bool =>
-  switch (d) {
-  | Ap(Cast(_, Arrow(_, _), Arrow(_, _)), _) => false
-  | FreeVar(_)
-  | Keyword(_)
-  | InvalidText(_)
-  | EmptyHole(_, _, _) => true
-  | NonEmptyHole(_, _, _, _, d1) => is_final(d1)
-  | InvalidOperation(_, _) => true
-  | Cast(d1, ty, ty') =>
-    switch (
-      EvaluatorCommon.ground_cases_of(ty),
-      EvaluatorCommon.ground_cases_of(ty'),
-    ) {
-    | (Ground, Hole)
-    | (Ground, NotGroundOrHole(_))
-    | (NotGroundOrHole(_), Ground) => is_indet(d1)
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      !HTyp.eq(ty, ty') && is_indet(d1)
-    | (Hole, Ground) =>
-      switch (d1) {
-      | Cast(_, _, Hole) => false
-      | _ => is_indet(d1)
-      }
-    | _ => false
-    }
-  | FailedCast(d1, _, _) => is_final(d1)
-  // && EvaluatorCommon.ground_cases_of(ty1) == Ground
-  // && EvaluatorCommon.ground_cases_of(ty2) == Ground
-  // && !HTyp.eq(ty1, ty2) // why we need this?
-  | Let(dp, d1, _) =>
-    switch (is_final(d1), Elaborator_Exp.matches(dp, d1)) {
-    | (true, Matches(_)) => false
-    | _ => true
-    }
-  | Ap(d1, d2) =>
-    is_final(d1)
-    && (
-      switch (d1) {
-      | Lam(dp, _, _) =>
-        is_final(d2)
-        && (
-          switch (Elaborator_Exp.matches(dp, d2)) {
-          | DoesNotMatch
-          | Indet => true
-          | _ => false
-          }
-        )
-      | Cast(_, Arrow(_, _), Arrow(_, _)) => false
-      | _ => is_indet(d1) && is_final(d2)
-      }
-    )
-  | Inj(_, _, d1) => is_indet(d1)
-  | Pair(d1, d2)
-  | Cons(d1, d2)
-  | BinIntOp(_, d1, d2)
-  | BinBoolOp(_, d1, d2)
-  | BinFloatOp(_, d1, d2) =>
-    is_indet(d1) && is_final(d2) || is_final(d1) && is_indet(d2)
-  | InconsistentBranches(_, _, _, Case(d1, rules, n))
-  | ConsistentCase(Case(d1, rules, n)) =>
-    is_final(d1)
-    && (
-      switch (List.nth_opt(rules, n)) {
-      | None => true
-      | Some(Rule(dp, _)) => Elaborator_Exp.matches(dp, d1) == Indet
-      }
-    )
-  | Triv
-  | BoundVar(_)
-  | FixF(_, _, _)
-  | Lam(_, _, _)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_) => false
-  // | _ => false
+let is_final = (d: DHExp.t): bool =>
+  switch (step(d)) {
+  | Step(_) => false
+  | BoxedValue(_)
+  | Indet(_) => true
   };
 
 let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
@@ -332,183 +524,21 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
     InconsistentBranches(u, i, sigma, Case(compose((ctx1, d)), rule, n))
   };
 
-[@deriving sexp]
-type step_result =
-  | Final
-  | Step(DHExp.t)
-  | InvalidInput(int);
-
-let evaluate_case_instruction =
-    (
-      inconsistent_info,
-      scrut: DHExp.t,
-      rules: list(DHExp.rule),
-      current_rule_index: int,
-    )
-    : step_result =>
-  switch (List.nth_opt(rules, current_rule_index)) {
-  | None => Final
-  | Some(Rule(dp, d)) =>
-    switch (Elaborator_Exp.matches(dp, scrut)) {
-    | Indet => Final
-    | Matches(env) => Step(Elaborator_Exp.subst(env, d))
-    | DoesNotMatch =>
-      let case = DHExp.Case(scrut, rules, current_rule_index + 1);
-      switch (inconsistent_info) {
-      | None => Step(ConsistentCase(case))
-      | Some((u, i, sigma)) => Step(InconsistentBranches(u, i, sigma, case))
-      };
-    }
-  };
-
-let instruction_step = (d: DHExp.t): step_result =>
-  switch (d) {
-  | Ap(d1, d2) =>
-    switch (d1) {
-    | Lam(pat, _, d0) =>
-      switch (Elaborator_Exp.matches(pat, d2)) {
-      | DoesNotMatch
-      | Indet => Final
-      | Matches(env) => Step(Elaborator_Exp.subst(env, d0))
-      }
-    | Cast(d0, Arrow(t1, t2), Arrow(t1', t2')) =>
-      Step(Cast(Ap(d0, Cast(d2, t1', t1)), t2, t2'))
-    | _ =>
-      if (is_boxedval(d1)) {
-        InvalidInput(2);
-      } else {
-        Final;
-      }
-    }
-  | Let(dp, d1, d2) =>
-    switch (Elaborator_Exp.matches(dp, d1)) {
-    | Indet
-    | DoesNotMatch => Final
-    | Matches(env) => Step(Elaborator_Exp.subst(env, d2))
-    }
-  | BinBoolOp(op, d1, d2) =>
-    switch (d1, d2) {
-    | (DHExp.BoolLit(b1), DHExp.BoolLit(b2)) =>
-      Step(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
-    | (DHExp.BoolLit(_), _) => InvalidInput(3)
-    | _ => InvalidInput(4)
-    }
-  | BinIntOp(op, d1, d2) =>
-    switch (op, d1, d2) {
-    | (Divide, DHExp.IntLit(i1), DHExp.IntLit(0)) =>
-      Step(
-        InvalidOperation(
-          BinIntOp(op, IntLit(i1), IntLit(0)),
-          DivideByZero,
-        ),
-      )
-    | (_, DHExp.IntLit(i1), DHExp.IntLit(i2)) =>
-      Step(EvaluatorCommon.eval_bin_int_op(op, i1, i2))
-    | (_, DHExp.IntLit(_), _) => InvalidInput(3)
-    | _ => InvalidInput(4)
-    }
-  | BinFloatOp(op, d1, d2) =>
-    switch (d1, d2) {
-    | (DHExp.FloatLit(f1), DHExp.FloatLit(f2)) =>
-      Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
-    | (DHExp.FloatLit(_), _) => InvalidInput(8)
-    | _ => InvalidInput(7)
-    }
-  | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
-  | Cast(d1, ty1, ty2) =>
-    switch (
-      EvaluatorCommon.ground_cases_of(ty1),
-      EvaluatorCommon.ground_cases_of(ty2),
-    ) {
-    | (Hole, Hole)
-    | (Ground, Ground) => Step(d1)
-    | (Hole, Ground) =>
-      switch (d1) {
-      | Cast(d1', ty1', Hole) =>
-        if (HTyp.eq(ty1', ty1)) {
-          Step(d1');
-        } else {
-          Step(FailedCast(d1, ty1, ty2));
-        }
-      | _ => InvalidInput(6)
-      }
-    | (Hole, NotGroundOrHole(ty2_grounded)) =>
-      Step(Cast(Cast(d1, ty1, ty2_grounded), ty2_grounded, ty1))
-    | (NotGroundOrHole(ty1_grounded), Hole) =>
-      Step(Cast(Cast(d1, ty1, ty1_grounded), ty1_grounded, ty2))
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      if (HTyp.eq(ty1, ty2)) {
-        Step(d1);
-      } else {
-        Final;
-      }
-    | _ => Final
-    }
-  | ConsistentCase(Case(d1, rules, n)) =>
-    evaluate_case_instruction(None, d1, rules, n)
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case_instruction(Some((u, i, sigma)), d1, rules, n)
-  | BoundVar(_) => InvalidInput(1)
-  | EmptyHole(_, _, _)
-  | NonEmptyHole(_, _, _, _, _)
-  | Keyword(_, _, _, _)
-  | FreeVar(_, _, _, _)
-  | InvalidText(_, _, _, _)
-  | Inj(_, _, _)
-  | FailedCast(_, _, _)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Cons(_, _)
-  | Pair(_, _)
-  | Triv
-  | Lam(_, _, _)
-  | InvalidOperation(_, _) => Final
-  //| _ => None
-  };
-
-let step = (d: DHExp.t): step_result =>
+let ctx_step = (d: DHExp.t): DHExp.t =>
   if (is_final(d)) {
-    Final;
+    d;
   } else {
     let (ctx, d0) = decompose(d);
-    switch (instruction_step(d0)) {
-    | InvalidInput(i) => InvalidInput(i)
-    | Final => Final
-    | Step(d1) => Step(compose((ctx, d1)))
+    switch (step(d0)) {
+    | BoxedVal(d0')
+    | Indet(d0')
+    | Step(d0') => compose((ctx, d0'))
     };
   };
 
-let evaluate_step = (d: option(DHExp.t)): option(DHExp.t) => {
-  switch (d) {
-  | Some(d0) =>
-    switch (step(d0)) {
-    | Step(d1) => Some(d1)
-    | Final => Some(d0)
-    | InvalidInput(_) => None
-    }
-  | None => None
-  };
-};
-
-let rec evaluate_steps = (d: DHExp.t): option(DHExp.t) => {
-  switch (step(d)) {
-  | Step(d0) => evaluate_steps(d0)
-  | Final => Some(d)
-  | InvalidInput(_) => None
-  };
-};
-
-let rec evaluate_step_result = (d: DHExp.t): Evaluator.result => {
-  switch (step(d)) {
-  | Step(d0) => evaluate_step_result(d0)
-  | Final =>
-    if (is_boxedval(d)) {
-      BoxedValue(d);
-    } else {
-      Indet(d);
-    }
-  | InvalidInput(i) => InvalidInput(i)
-  };
-};
+let rec step_evaluate = (d: DHExp.t): DHExp.t =>
+  if (is_final(d)) {
+    d;
+  } else {
+    step_evaluate(ctx_step(d));
+  }
