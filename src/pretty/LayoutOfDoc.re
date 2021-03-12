@@ -1428,6 +1428,145 @@ let merge:
 // TODO: parallel arrays due to heterogenious nature
 // TODO: parallel arrays allow reuse of "pos" array
 
+// "map" functions
+
+// Pair of arrays
+let map: Array.t((int, int)) => Array.t((int, int)) =
+  Js.Unsafe.js_expr(
+    "function res_inc$0(input) {
+    var len = input.length;
+    var output = new Array(len);
+    output[0] = [0];
+    for (var i = 1; i < len; i++) {
+      var inp = input[i];
+      var res = inp[2]
+      var pos = inp[1];
+      var res1 = [0, pos, res + 1 | 0]
+      output[i] = res1;
+    }
+    return output;
+  }
+    ",
+  );
+
+// TODO: merge
+// TODO: fold
+
+// Interleaved (w/ stored length?)
+let map: Array.t(int) => Array.t(int) =
+  Js.Unsafe.js_expr(
+    "function res_inc$0(input) {
+    var len = input.length;
+    var output = new Array(len);
+    output[0] = [0];
+    for (var i = 1; i < len; i+=2) {
+      var pos = input[i];
+      var res = input[i+1]
+      output[i] = pos;
+      output[i+1] = res + 1 | 0;
+    }
+    return output;
+  }
+    ",
+  );
+
+// TODO: merge
+// TODO: fold
+
+// Interleaved with external size
+let map: Array.t(int) => Array.t(int) =
+  Js.Unsafe.js_expr(
+    "function res_inc$0(input) {
+    var len = input.length;
+    var output = new Array(len);
+    output[0] = [0];
+    for (var i = 1; i < len; i+=2) {
+      var pos = input[i];
+      var res = input[i+1]
+      output[i] = pos;
+      output[i+1] = res + 1 | 0;
+    }
+    return output;
+  }
+    ",
+  );
+
+// TODO: merge
+// TODO: fold
+
+// Parallel with external size
+let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+  Js.Unsafe.js_expr(
+    "function res_inc$0(size, input) {
+    //var len = input.length;
+    var js_size = size + 1 | 0;
+    var output = new Array(js_size);
+    output[0] = [0];
+    for (var i = 1; i < js_size; i++) {
+      var res = input[i]
+      output[i] = res + 1 | 0;
+    }
+    return [0, size, output];
+  }
+    ",
+  );
+
+let merge:
+  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
+  (int, Array.t(int), Array.t(int)) =
+  Js.Unsafe.js_expr(
+    "function merge(js_size1, pos1, res1, js_size2, pos2, res2) {
+    //var len = input.length;
+    var pre_js_size = js_size1 + js_size2 | 0;
+    var js_size = pre_js_size - 1 | 0;
+    var pos = new Array(js_size);
+    pos[0] = [0];
+    var res = new Array(js_size);
+    res[0] = [0];
+    var i1 = 1;
+    var i2 = 1;
+    var i = 1;
+    while (i1 < js_size1 && i2 < js_size2) {
+      if (pos1[i1] < pos2[i2]) {
+        //console.log(\"1\");
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+      } else if (pos1[i1] > pos2[i2]) {
+        //console.log(\"2\");
+        pos[i] = pos2[i2];
+        res[i] = res2[i2] + 1 | 0;
+        i2 = i2 + 1 | 0;
+      } else {
+        //console.log(\"3\");
+        // TODO: res1[i1] <=> res2[i2]
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+        i2 = i2 + 1 | 0;
+      }
+      i = i + 1 | 0;
+    }
+    while (i1 < js_size1) {
+        //pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+        i = i + 1 | 0;
+    }
+    while (i2 < js_size2) {
+        //pos[i] = pos2[i2];
+        res[i] = res2[i2] + 1 | 0;
+        i2 = i2 + 1 | 0;
+        i = i + 1 | 0;
+    }
+    var size = i;
+    return [0, size, pos, res];
+  }
+    ",
+  );
+
+// TODO: fold
+
 // w/o map, merge or flatmap: 28ns
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
