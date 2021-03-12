@@ -294,7 +294,6 @@ let load_undo_history =
 };
 
 let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
-  print_endline("complete called");
   switch (m.mini_buffer) {
   | None => m
   | Some(MoveToHole) =>

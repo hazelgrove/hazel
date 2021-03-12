@@ -18,9 +18,7 @@ let view = (~inject, model: Model.t) => {
       let mini_buffer =
         switch (model.mini_buffer) {
         | None => []
-        | Some(_) =>
-          print_endline("0");
-          [
+        | Some(_) => [
             Node.input(
               [
                 Attr.id("mini-buffer"),
@@ -41,7 +39,7 @@ let view = (~inject, model: Model.t) => {
               ],
               [],
             ),
-          ];
+          ]
         };
       Node.div(
         [Attr.id(cell_id)],
