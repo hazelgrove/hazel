@@ -321,6 +321,17 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_Unop = (~sort: TermSort.t, unop: string, operand: 'operand): t => {
+  let op_doc = mk_op(unop) |> annot_Tessera;
+  Doc.hcats([
+    op_doc,
+    operand
+    |> annot_Step(0)
+    |> Doc.annot(UHAnnot.OpenChild(InlineWithBorder)),
+  ])
+  |> annot_Operand(~sort);
+};
+
 let mk_List = (body: formatted_child): t => {
   let open_group = Delim.open_List() |> annot_Tessera;
   let close_group = Delim.close_List() |> annot_Tessera;

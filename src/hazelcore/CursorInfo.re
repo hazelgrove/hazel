@@ -116,8 +116,9 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
+  | ExpBinop(CursorPosition.t, UHExp.binop)
+  | ExpUnop(CursorPosition.t, UHExp.unop)
+  | PatOp(CursorPosition.t, UHPat.binop)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);

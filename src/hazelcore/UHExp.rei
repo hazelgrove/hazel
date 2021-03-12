@@ -1,5 +1,7 @@
 [@deriving sexp]
-type operator = Operators_Exp.t;
+type binop = Operators_Exp.t;
+[@deriving sexp]
+type unop = Unops_Exp.t;
 
 [@deriving sexp]
 type t = block
@@ -9,7 +11,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
-and opseq = OpSeq.t(operand, operator)
+and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
@@ -22,6 +24,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | UnaryOp(ErrStatus.t, unop, operand)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -30,12 +33,12 @@ and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
 [@deriving sexp]
-type skel = OpSeq.skel(operator);
+type skel = OpSeq.skel(binop);
 
 [@deriving sexp]
-type seq = OpSeq.seq(operand, operator);
+type seq = OpSeq.seq(operand, binop);
 
-type affix = Seq.affix(operand, operator);
+type affix = Seq.affix(operand, binop);
 
 let letline: (UHPat.t, t) => line;
 
@@ -109,6 +112,6 @@ let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
 let associate: seq => Skel.t(Operators_Exp.t);
 
-let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
+let mk_OpSeq: OpSeq.seq(operand, binop) => OpSeq.t(operand, binop);
 
 let is_complete: t => bool;

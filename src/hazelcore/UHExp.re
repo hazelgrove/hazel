@@ -1,7 +1,9 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type operator = Operators_Exp.t;
+type binop = Operators_Exp.t;
+[@deriving sexp]
+type unop = Unops_Exp.t;
 
 [@deriving sexp]
 type t = block
@@ -11,7 +13,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
-and opseq = OpSeq.t(operand, operator)
+and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
@@ -24,6 +26,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | UnaryOp(ErrStatus.t, unop, operand)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -32,11 +35,11 @@ and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
 [@deriving sexp]
-type skel = OpSeq.skel(operator);
+type skel = OpSeq.skel(binop);
 [@deriving sexp]
-type seq = OpSeq.seq(operand, operator);
+type seq = OpSeq.seq(operand, binop);
 
-type affix = Seq.affix(operand, operator);
+type affix = Seq.affix(operand, binop);
 
 let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
 
@@ -186,6 +189,7 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | UnaryOp(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -213,6 +217,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | UnaryOp(_, unary_op, child) => UnaryOp(err, unary_op, child)
   };
 
 let is_inconsistent = operand =>
@@ -245,6 +250,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -254,6 +260,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | UnaryOp(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -335,6 +342,8 @@ and is_complete_operand = (operand: 'operand): bool => {
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
+  | UnaryOp(InHole(_), _, _) => false
+  | UnaryOp(NotInHole, _, child) => is_complete_operand(child)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

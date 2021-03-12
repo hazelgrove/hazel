@@ -20,6 +20,7 @@ let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
   (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));
 let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
+let syn_unop: (Contexts.t, UHPat.unop) => HTyp.t;
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `p` against `ty` and
@@ -38,6 +39,9 @@ let ana_skel:
 let syn_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
   (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
+let syn_fix_holes_opseq:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq) =>
+  (UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t);
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,

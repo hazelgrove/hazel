@@ -1,3 +1,21 @@
+module UnIntOp: {
+  [@deriving sexp]
+  type t =
+    | Negate;
+  let of_op: UHPat.unop => option((t, HTyp.t));
+
+  let to_op: t => UHPat.unop;
+};
+
+module UnFloatOp: {
+  [@deriving sexp]
+  type t =
+    | FNegate;
+  let of_op: UHPat.unop => option((t, HTyp.t));
+
+  let to_op: t => UHPat.unop;
+};
+
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
@@ -10,6 +28,8 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
+  | UnIntOp(UnIntOp.t, t)
+  | UnFloatOp(UnFloatOp.t, t)
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)

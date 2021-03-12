@@ -4,9 +4,9 @@ module BinBoolOp: {
     | And
     | Or;
 
-  let of_op: UHExp.operator => option(t);
+  let of_op: UHExp.binop => option(t);
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
 };
 
 module BinIntOp: {
@@ -20,9 +20,9 @@ module BinIntOp: {
     | GreaterThan
     | Equals;
 
-  let of_op: UHExp.operator => option((t, HTyp.t));
+  let of_op: UHExp.binop => option((t, HTyp.t));
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
 };
 
 module BinFloatOp: {
@@ -36,9 +36,27 @@ module BinFloatOp: {
     | FGreaterThan
     | FEquals;
 
-  let of_op: UHExp.operator => option((t, HTyp.t));
+  let of_op: UHExp.binop => option((t, HTyp.t));
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
+};
+
+module UnIntOp: {
+  [@deriving sexp]
+  type t =
+    | Negate;
+  let of_op: UHExp.unop => option((t, HTyp.t));
+
+  let to_op: t => UHExp.unop;
+};
+
+module UnFloatOp: {
+  [@deriving sexp]
+  type t =
+    | FNegate;
+  let of_op: UHExp.unop => option((t, HTyp.t));
+
+  let to_op: t => UHExp.unop;
 };
 
 [@deriving sexp]
@@ -66,6 +84,8 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | UnIntOp(UnIntOp.t, t)
+  | UnFloatOp(UnFloatOp.t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)

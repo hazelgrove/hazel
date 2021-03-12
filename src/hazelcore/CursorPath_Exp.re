@@ -18,6 +18,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
+  | UnaryOpZ(_, _, zchild) => cons'(0, of_zoperand(zchild))
   | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
@@ -31,8 +32,12 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
     cons'(n, of_z(ze));
   }
-and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
-  let (cursor, _) = zoperator;
+and of_zbinop = (zbinop: ZExp.zbinop): CursorPath.t => {
+  let (cursor, _) = zbinop;
+  ([], cursor);
+}
+and of_zunop = (zunop: ZExp.zunop): CursorPath.t => {
+  let (cursor, _) = zunop;
   ([], cursor);
 }
 and of_zrules = (zrules: ZExp.zrules): CursorPath.t => {
@@ -84,17 +89,17 @@ and follow_line =
   }
 and follow_opseq =
     (path: CursorPath.t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
-  CursorPath_common.follow_opseq_(
-    ~follow_operand,
-    ~follow_operator,
-    path,
-    opseq,
-  )
-and follow_operator =
-    ((steps, cursor): CursorPath.t, operator: UHExp.operator)
-    : option(ZExp.zoperator) =>
+  CursorPath_common.follow_opseq_(~follow_operand, ~follow_binop, path, opseq)
+and follow_binop =
+    ((steps, cursor): CursorPath.t, binop: UHExp.binop): option(ZExp.zbinop) =>
   switch (steps) {
-  | [] => operator |> ZExp.place_cursor_operator(cursor)
+  | [] => binop |> ZExp.place_cursor_binop(cursor)
+  | [_, ..._] => None
+  }
+and follow_unop =
+    ((steps, cursor): CursorPath.t, unop: UHExp.unop): option(ZExp.zunop) =>
+  switch (steps) {
+  | [] => unop |> ZExp.place_cursor_unop(cursor)
   | [_, ..._] => None
   }
 and follow_operand =
@@ -117,6 +122,14 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
+      | _ => None
+      }
+    | UnaryOp(err, unop, child) =>
+      switch (x) {
+      | 0 =>
+        child
+        |> follow_operand((xs, cursor))
+        |> Option.map(zoperand => ZExp.UnaryOpZ(err, unop, zoperand))
       | _ => None
       }
     | Lam(err, p, body) =>
@@ -250,24 +263,40 @@ and of_steps_opseq =
     : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand,
-    ~of_steps_operator,
+    ~of_steps_binop,
     steps,
     ~side,
     opseq,
   )
-and of_steps_operator =
-    (steps: CursorPath.steps, ~side: Side.t, operator: UHExp.operator)
+and of_steps_binop =
+    (steps: CursorPath.steps, ~side: Side.t, operator: UHExp.binop)
     : option(CursorPath.t) =>
   switch (steps) {
   | [_, ..._] => None
   | [] =>
     let place_cursor =
       switch (side) {
-      | Before => ZExp.place_before_operator
-      | After => ZExp.place_after_operator
+      | Before => ZExp.place_before_binop
+      | After => ZExp.place_after_binop
       };
     switch (place_cursor(operator)) {
-    | Some(zop) => Some(of_zoperator(zop))
+    | Some(zop) => Some(of_zbinop(zop))
+    | _ => None
+    };
+  }
+and of_steps_unop =
+    (steps: CursorPath.steps, ~side: Side.t, operator: UHExp.unop)
+    : option(CursorPath.t) =>
+  switch (steps) {
+  | [_, ..._] => None
+  | [] =>
+    let place_cursor =
+      switch (side) {
+      | Before => ZExp.place_before_unop
+      | After => ZExp.place_after_unop
+      };
+    switch (place_cursor(operator)) {
+    | Some(zop) => Some(of_zunop(zop))
     | _ => None
     };
   }
@@ -295,6 +324,14 @@ and of_steps_operand =
       switch (x) {
       | 0 =>
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+      | _ => None
+      }
+    | UnaryOp(_, _, child) =>
+      switch (x) {
+      | 0 =>
+        child
+        |> of_steps_operand(xs, ~side)
+        |> Option.map(path => cons'(0, path))
       | _ => None
       }
     | Lam(_, p, body) =>
@@ -432,6 +469,10 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
+  | UnaryOp(err, _, child) =>
+    hs
+    |> holes_operand(child, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Lam(err, p, body) =>
@@ -563,6 +604,9 @@ and holes_zoperand =
     (zoperand: ZExp.zoperand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zoperand) {
+  | CursorE(OnOp(Before), UnaryOp(_) as operand) =>
+    let operand_holes = holes_operand(operand, [0, ...rev_steps], []);
+    CursorPath_common.mk_zholes(~holes_before=operand_holes, ());
   | CursorE(OnOp(_), _) => CursorPath_common.no_holes
   | CursorE(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
@@ -690,11 +734,33 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(OnDelim(_), UnaryOp(_)) =>
+    /* invalid cursor position */
+    CursorPath_common.no_holes
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | UnaryOp(_),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | UnaryOpZ(err, _, zchild) =>
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_zoperand(zchild, [0, ...rev_steps]);
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   | LamZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {

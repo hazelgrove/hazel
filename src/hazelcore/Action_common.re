@@ -155,7 +155,7 @@ let construct_operator_after_zoperand_ =
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => option('zoperator),
+      ~place_after_binop: 'operator => option('zoperator),
       u_gen: MetaVarGen.t,
       operator: 'operator,
       zoperand: 'zoperand,
@@ -163,7 +163,7 @@ let construct_operator_after_zoperand_ =
     )
     : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   let operand = zoperand |> erase_zoperand;
-  switch (operator |> place_after_operator) {
+  switch (operator |> place_after_binop) {
   | None =>
     // operator == Space
     // ... + [k]| + [k+1] + ...   ==>   ... + [k]  |_ + [k+1] + ...
@@ -193,7 +193,7 @@ let construct_operator_before_zoperand_ =
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => option('zoperator),
+      ~place_after_binop: 'operator => option('zoperator),
       u_gen: MetaVarGen.t,
       operator: 'operator,
       zoperand: 'zoperand,
@@ -208,7 +208,7 @@ let construct_operator_before_zoperand_ =
       ~new_EmptyHole,
       ~erase_zoperand,
       ~place_before_operand,
-      ~place_after_operator,
+      ~place_after_binop,
       u_gen,
       operator,
       zoperand,
@@ -222,13 +222,13 @@ let construct_operator_before_zoperand_ =
   (zseq, u_gen);
 };
 
-let delete_operator_ =
+let delete_binop_ =
     (
       ~space: 'operator,
       ~is_EmptyHole: 'operand => bool,
       ~place_before_operand: 'operand => 'zoperand,
       ~place_after_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => option('zoperator),
+      ~place_after_binop: 'operator => option('zoperator),
       (prefix, suffix): Seq.operator_surround('operand, 'operator),
     )
     : ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
@@ -241,7 +241,7 @@ let delete_operator_ =
 
   | (S(operand, A(operator, prefix_tl) as prefix), suffix)
       when operand |> is_EmptyHole =>
-    switch (operator |> place_after_operator) {
+    switch (operator |> place_after_binop) {
     /* ... + [k-2]  _ +<| [k] + ...   ==>  ... + [k-2] |[k] + ... */
     | None =>
       let S(suffix_hd, new_suffix) = suffix;

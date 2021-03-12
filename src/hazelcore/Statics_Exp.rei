@@ -23,6 +23,7 @@ let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
 let syn_operand: (Contexts.t, UHExp.operand) => option(HTyp.t);
 let syn_rules: (Contexts.t, UHExp.rules, HTyp.t) => option(HTyp.t);
 let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
+let syn_unop: (Contexts.t, UHExp.unop) => HTyp.t;
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
@@ -100,6 +101,15 @@ let ana_fix_holes_rules:
     HTyp.t
   ) =>
   (UHExp.rules, MetaVarGen.t);
+let ana_fix_holes_operand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHExp.operand,
+    HTyp.t
+  ) =>
+  (UHExp.operand, MetaVarGen.t);
 
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);

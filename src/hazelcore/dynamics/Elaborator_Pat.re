@@ -109,6 +109,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -125,6 +126,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -169,6 +171,20 @@ and syn_elab_operand =
         | R => HTyp.Sum(Hole, ty1)
         };
       Elaborates(dp, ty, ctx, delta);
+    }
+  | UnaryOp(NotInHole, Negate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Int)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, _, ctx, delta) =>
+      let d = DHPat.UnIntOp(Negate, d1);
+      Elaborates(d, Int, ctx, delta);
+    }
+  | UnaryOp(NotInHole, FNegate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Float)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, _, ctx, delta) =>
+      let d = DHPat.UnFloatOp(FNegate, d1);
+      Elaborates(d, Float, ctx, delta);
     }
   | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
   }
@@ -328,6 +344,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
@@ -345,6 +362,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
@@ -385,6 +403,9 @@ and ana_elab_operand =
         Elaborates(Inj(side, dp1), ty, ctx, delta);
       };
     }
+  | UnaryOp(NotInHole, _, _) =>
+    /* subsumption */
+    syn_elab_operand(ctx, delta, operand)
   | TypeAnn(NotInHole, op, _) => ana_elab_operand(ctx, delta, op, ty)
   };
 
@@ -415,6 +436,12 @@ let rec renumber_result_only =
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, k), hii);
+  | UnIntOp(op, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (UnIntOp(op, d1), hii);
+  | UnFloatOp(op, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (UnFloatOp(op, d1), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);

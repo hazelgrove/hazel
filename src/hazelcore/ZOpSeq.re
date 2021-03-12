@@ -9,7 +9,7 @@ let mk =
     (
       ~associate: Seq.t('operand, 'operator) => Skel.t('operator),
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       zseq: ZSeq.t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : t('operand, 'operator, 'zoperand, 'zoperator) =>
@@ -21,7 +21,7 @@ let mk =
     ZOpSeq(skel, ZOperand(zoperand, surround));
   | ZOperator(zoperator, surround) =>
     let seq =
-      Seq.t_of_operator_and_surround(erase_zoperator(zoperator), surround);
+      Seq.t_of_operator_and_surround(erase_zbinop(zoperator), surround);
     let skel = associate(seq);
     ZOpSeq(skel, ZOperator(zoperator, surround));
   };
@@ -124,11 +124,11 @@ let mk_inconsistent =
 let erase =
     (
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : OpSeq.t('operand, 'operator) =>
-  OpSeq(skel, zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator));
+  OpSeq(skel, zseq |> ZSeq.erase(~erase_zoperand, ~erase_zbinop));
 
 let is_before =
     (
@@ -182,43 +182,43 @@ let place_after =
 let move_cursor_left =
     (
       ~move_cursor_left_zoperand: 'zoperand => option('zoperand),
-      ~move_cursor_left_zoperator: 'zoperator => option('zoperator),
+      ~move_cursor_left_zbinop: 'zoperator => option('zoperator),
       ~place_after_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => option('zoperator),
+      ~place_after_binop: 'operator => option('zoperator),
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
   zseq
   |> ZSeq.move_cursor_left(
        ~move_cursor_left_zoperand,
-       ~move_cursor_left_zoperator,
+       ~move_cursor_left_zbinop,
        ~place_after_operand,
-       ~place_after_operator,
+       ~place_after_binop,
        ~erase_zoperand,
-       ~erase_zoperator,
+       ~erase_zbinop,
      )
   |> Option.map(zseq => ZOpSeq(skel, zseq));
 
 let move_cursor_right =
     (
       ~move_cursor_right_zoperand: 'zoperand => option('zoperand),
-      ~move_cursor_right_zoperator: 'zoperator => option('zoperator),
+      ~move_cursor_right_zbinop: 'zoperator => option('zoperator),
       ~place_before_operand: 'operand => 'zoperand,
-      ~place_before_operator: 'operator => option('zoperator),
+      ~place_before_binop: 'operator => option('zoperator),
       ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~erase_zbinop: 'zoperator => 'operator,
       ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
   zseq
   |> ZSeq.move_cursor_right(
        ~move_cursor_right_zoperand,
-       ~move_cursor_right_zoperator,
+       ~move_cursor_right_zbinop,
        ~place_before_operand,
-       ~place_before_operator,
+       ~place_before_binop,
        ~erase_zoperand,
-       ~erase_zoperator,
+       ~erase_zbinop,
      )
   |> Option.map(zseq => ZOpSeq(skel, zseq));

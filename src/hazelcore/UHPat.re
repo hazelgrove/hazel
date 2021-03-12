@@ -3,11 +3,14 @@ open Sexplib.Std;
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators_Pat.t;
+type binop = Operators_Pat.t;
+
+[@deriving sexp]
+type unop = Unops_Pat.t;
 
 [@deriving sexp]
 type t = opseq
-and opseq = OpSeq.t(operand, operator)
+and opseq = OpSeq.t(operand, binop)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
@@ -19,12 +22,13 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
+  | UnaryOp(ErrStatus.t, unop, operand)
   | Inj(ErrStatus.t, InjSide.t, t);
 
 [@deriving sexp]
-type skel = OpSeq.skel(operator);
+type skel = OpSeq.skel(binop);
 [@deriving sexp]
-type seq = OpSeq.seq(operand, operator);
+type seq = OpSeq.seq(operand, binop);
 
 let var =
     (
@@ -90,7 +94,8 @@ and get_err_status_operand =
   | ListNil(err)
   | TypeAnn(err, _, _)
   | Inj(err, _, _) => err
-  | Parenthesized(p) => get_err_status(p);
+  | Parenthesized(p) => get_err_status(p)
+  | UnaryOp(err, _, _) => err;
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
   p |> set_err_status_opseq(err)
@@ -108,6 +113,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
+  | UnaryOp(_, unop, child) => UnaryOp(err, unop, child)
   | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
@@ -135,6 +141,7 @@ and mk_inconsistent_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
@@ -144,6 +151,7 @@ and mk_inconsistent_operand =
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | UnaryOp(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -208,6 +216,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Parenthesized(body) => is_complete(body)
+  | UnaryOp(InHole(_), _, _) => false
+  | UnaryOp(NotInHole, _, child) => is_complete_operand(child)
   | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)

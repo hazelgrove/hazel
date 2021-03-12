@@ -131,7 +131,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | UnaryOp(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -143,7 +144,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | ApPalette(InHole(WrongLength, _), _, _, _)
+  | UnaryOp(InHole(WrongLength, _), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
@@ -166,6 +168,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
+  | UnaryOp(NotInHole, unop, _) => Some(syn_unop(ctx, unop))
   | Lam(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
@@ -190,6 +193,12 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     expansion_ty;
   | Parenthesized(body) => syn(ctx, body)
   }
+and syn_unop = (_: Contexts.t, unop: UHExp.unop): HTyp.t => {
+  switch (unop) {
+  | Unops_Exp.Negate => Int
+  | Unops_Exp.FNegate => Float
+  };
+}
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
   let* clause_types =
@@ -296,7 +305,8 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | UnaryOp(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -305,6 +315,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -322,6 +333,16 @@ and ana_operand =
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ty, ty') ? Some() : None;
+  | UnaryOp(NotInHole, _, _) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some(ty') =>
+      if (HTyp.consistent(ty, ty')) {
+        Some();
+      } else {
+        None;
+      }
+    }
   | Lam(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
@@ -339,7 +360,7 @@ and ana_operand =
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
-    : option(unit) =>
+    : option(unit) => {
   List.fold_left(
     (b, r) => {
       let* _ = b;
@@ -347,7 +368,8 @@ and ana_rules =
     },
     Some(),
     rules,
-  )
+  );
+}
 and ana_rule =
     (
       ctx: Contexts.t,
@@ -808,6 +830,10 @@ and syn_fix_holes_operand =
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
+  | UnaryOp(_, unop, child) =>
+    let ty_u = syn_unop(ctx, unop);
+    let (new_child, u_gen) = ana_fix_holes_operand(ctx, u_gen, child, ty_u);
+    (UnaryOp(NotInHole, unop, new_child), ty_u, u_gen);
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1201,7 +1227,8 @@ and ana_fix_holes_operand =
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | UnaryOp(_, _, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {

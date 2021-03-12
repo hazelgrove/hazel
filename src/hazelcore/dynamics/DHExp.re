@@ -6,7 +6,7 @@ module BinBoolOp = {
     | And
     | Or;
 
-  let of_op = (op: UHExp.operator): option(t) =>
+  let of_op = (op: UHExp.binop): option(t) =>
     switch (op) {
     | And => Some(And)
     | Or => Some(Or)
@@ -29,7 +29,7 @@ module BinBoolOp = {
     | Comma => None
     };
 
-  let to_op = (op: t): UHExp.operator =>
+  let to_op = (op: t): UHExp.binop =>
     switch (op) {
     | And => And
     | Or => Or
@@ -47,7 +47,7 @@ module BinIntOp = {
     | GreaterThan
     | Equals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.binop): option((t, HTyp.t)) =>
     switch (op) {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
@@ -70,8 +70,8 @@ module BinIntOp = {
     | Comma => None
     };
 
-  let to_op = (bio: t): UHExp.operator =>
-    switch (bio) {
+  let to_op = (op: t): UHExp.binop =>
+    switch (op) {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
@@ -79,6 +79,36 @@ module BinIntOp = {
     | LessThan => LessThan
     | GreaterThan => GreaterThan
     | Equals => Equals
+    };
+};
+
+module UnIntOp = {
+  [@deriving sexp]
+  type t =
+    | Negate;
+  let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
+    switch (op) {
+    | Negate => Some((Negate, Int))
+    | _ => None
+    };
+  let to_op = (op: t): UHExp.unop =>
+    switch (op) {
+    | Negate => Negate
+    };
+};
+
+module UnFloatOp = {
+  [@deriving sexp]
+  type t =
+    | FNegate;
+  let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
+    switch (op) {
+    | FNegate => Some((FNegate, Float))
+    | _ => None
+    };
+  let to_op = (op: t): UHExp.unop =>
+    switch (op) {
+    | FNegate => FNegate
     };
 };
 
@@ -93,7 +123,7 @@ module BinFloatOp = {
     | FGreaterThan
     | FEquals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.binop): option((t, HTyp.t)) =>
     switch (op) {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
@@ -116,8 +146,8 @@ module BinFloatOp = {
     | Comma => None
     };
 
-  let to_op = (bfo: t): UHExp.operator =>
-    switch (bfo) {
+  let to_op = (op: t): UHExp.binop =>
+    switch (op) {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
@@ -153,6 +183,8 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | UnIntOp(UnIntOp.t, t)
+  | UnFloatOp(UnFloatOp.t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -186,6 +218,8 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | UnIntOp(_, _) => "UnIntOp"
+  | UnFloatOp(_, _) => "UnFloatOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

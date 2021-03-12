@@ -13,12 +13,7 @@ let rec follow = (path: CursorPath.t, uty: UHTyp.t): option(ZTyp.t) =>
   follow_opseq(path, uty)
 and follow_opseq =
     (path: CursorPath.t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
-  CursorPath_common.follow_opseq_(
-    ~follow_operand,
-    ~follow_operator,
-    path,
-    opseq,
-  )
+  CursorPath_common.follow_opseq_(~follow_operand, ~follow_binop, path, opseq)
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHTyp.operand)
     : option(ZTyp.zoperand) =>
@@ -49,7 +44,7 @@ and follow_operand =
       }
     }
   }
-and follow_operator =
+and follow_binop =
     ((steps, cursor): CursorPath.t, operator: UHTyp.operator)
     : option(ZTyp.zoperator) =>
   switch (steps) {
@@ -66,7 +61,7 @@ and of_steps_opseq =
     : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand,
-    ~of_steps_operator,
+    ~of_steps_binop,
     steps,
     ~side,
     opseq,
@@ -106,7 +101,7 @@ and of_steps_operand =
       }
     }
   }
-and of_steps_operator =
+and of_steps_binop =
     (steps: CursorPath.steps, ~side: Side.t, operator: UHTyp.operator)
     : option(CursorPath.t) =>
   switch (steps) {
@@ -114,8 +109,8 @@ and of_steps_operator =
   | [] =>
     let place_cursor =
       switch (side) {
-      | Before => ZTyp.place_before_operator
-      | After => ZTyp.place_after_operator
+      | Before => ZTyp.place_before_binop
+      | After => ZTyp.place_after_binop
       };
     switch (place_cursor(operator)) {
     | Some(zty) => Some(of_zoperator(zty))

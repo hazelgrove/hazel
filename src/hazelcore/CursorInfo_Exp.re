@@ -17,6 +17,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
+  | UnaryOpZ(_, _, zchild) => extract_from_zexp_operand(zchild)
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
@@ -46,7 +47,7 @@ and extract_from_zexp_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
   | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
   | ZOperator(zoperator, _) =>
     let (cursor_pos, uop) = zoperator;
-    ExpOp(cursor_pos, uop);
+    ExpBinop(cursor_pos, uop);
   };
 };
 
@@ -77,6 +78,7 @@ and get_zoperand_from_zexp_operand =
     (zoperand: ZExp.zoperand): option(zoperand) => {
   switch (zoperand) {
   | CursorE(_, _) => Some(ZExp(zoperand))
+  | UnaryOpZ(_, _, zchild) => get_zoperand_from_zexp_operand(zchild)
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LamZE(_, _, zexp)
@@ -131,6 +133,8 @@ and get_outer_zrules_from_zexp_operand =
     : option(ZExp.zrules) => {
   switch (zoperand) {
   | CursorE(_, _) => outer_zrules
+  | UnaryOpZ(_, _, zchild) =>
+    get_outer_zrules_from_zexp_operand(zchild, outer_zrules)
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | LamZP(_) => outer_zrules
   | LamZE(_, _, zexp)
@@ -517,6 +521,9 @@ and syn_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | UnaryOpZ(_, unop, zchild) =>
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
@@ -813,6 +820,7 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | UnaryOp(InHole(TypeInconsistent, _), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' =
         zoperand
@@ -841,6 +849,7 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
+    | UnaryOp(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -848,7 +857,8 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _) =>
+    | ApPalette(NotInHole, _, _, _)
+    | UnaryOp(NotInHole, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
@@ -874,6 +884,9 @@ and ana_cursor_info_zoperand =
       );
     /* zipper cases */
     }
+  | UnaryOpZ(_, unop, zchild) =>
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _)

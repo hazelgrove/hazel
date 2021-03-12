@@ -5,6 +5,8 @@ type t =
   | Underscore
   | IntLit(string)
   | FloatLit(string)
+  /* | Negate
+     | FNegate */
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
@@ -42,6 +44,10 @@ let of_text = (text: string): t =>
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
+                /* } else if (text |> String.equal("-")) {
+                     Negate;
+                   } else if (text |> String.equal("-.")) {
+                     FNegate; */
     } else if (text |> Var.is_valid) {
       Var(text);
     } else {
