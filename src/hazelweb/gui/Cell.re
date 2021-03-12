@@ -27,6 +27,17 @@ let view = (~inject, model: Model.t) => {
                 Attr.on_change((_, contents) =>
                   inject(ModelAction.SubmitMiniBuffer(contents))
                 ),
+                Attr.on_keydown(evt => {
+                  switch (HazelKeyCombos.of_evt(evt)) {
+                  | Some(Escape) =>
+                    Event.Many([
+                      Event.Prevent_default,
+                      Event.Stop_propagation,
+                      inject(ModelAction.CloseMiniBuffer),
+                    ])
+                  | _ => Event.Many([])
+                  }
+                }),
               ],
               [],
             ),

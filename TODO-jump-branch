@@ -1,2 +1,2 @@
 1. Replace tab with alt-h
-2. Handle the case that the given hole does not exist.
+2. (Stickily) position mini buffer in top right corner of cell
