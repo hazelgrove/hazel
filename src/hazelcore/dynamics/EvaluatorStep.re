@@ -90,13 +90,13 @@ let rec step = (d: DHExp.t): step_result =>
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
-          Indet(
+          Step(
             InvalidOperation(
               BinIntOp(op, IntLit(n1), IntLit(n2)),
               DivideByZero,
             ),
           )
-        | _ => BoxedValue(EvaluatorCommon.eval_bin_int_op(op, n1, n2))
+        | _ => Step(EvaluatorCommon.eval_bin_int_op(op, n1, n2))
         }
       | BoxedValue(_) => raise(InvalidInput(3))
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
@@ -116,7 +116,7 @@ let rec step = (d: DHExp.t): step_result =>
       switch (step(d2)) {
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
       | BoxedValue(FloatLit(f2)) =>
-        BoxedValue(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
+        Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
       | BoxedValue(_) => raise(InvalidInput(8))
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
@@ -258,12 +258,7 @@ let rec step = (d: DHExp.t): step_result =>
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
-  | InvalidOperation(d0, err) =>
-    switch (step(d0)) {
-    | Step(d0') => Step(InvalidOperation(d0', err))
-    | BoxedValue(d0')
-    | Indet(d0') => Indet(InvalidOperation(d0', err))
-    }
+  | InvalidOperation(_, _) => Indet(d)
   }
 and evaluate_case =
     (
@@ -530,15 +525,19 @@ let ctx_step = (d: DHExp.t): DHExp.t =>
   } else {
     let (ctx, d0) = decompose(d);
     switch (step(d0)) {
-    | BoxedVal(d0')
+    | BoxedValue(d0')
     | Indet(d0')
     | Step(d0') => compose((ctx, d0'))
     };
   };
 
-let rec step_evaluate = (d: DHExp.t): DHExp.t =>
-  if (is_final(d)) {
-    d;
-  } else {
-    step_evaluate(ctx_step(d));
-  }
+let rec steps = (d: DHExp.t): DHExp.t => {
+  let d' = ctx_step(d);
+  // print_string(d' |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string);
+  d' == d ? d : steps(d');
+};
+
+let step_evaluate = (d: DHExp.t): option(DHExp.t) =>
+  try(Some(steps(d))) {
+  | InvalidInput(_) => None
+  };

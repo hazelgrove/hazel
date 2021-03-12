@@ -15,7 +15,7 @@ let gen_ans = (r: DHExp.t): option(DHExp.t) =>
   };
 
 let testing = (t: DHExp.t): bool =>
-  EvaluatorStep.evaluate_steps(t) == gen_ans(t);
+  EvaluatorStep.step_evaluate(t) == gen_ans(t);
 
 let%test "bin op test" = {
   let test = [
