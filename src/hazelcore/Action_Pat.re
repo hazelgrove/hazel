@@ -758,31 +758,55 @@ and syn_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
 
-  | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
-    syn_insert_text(ctx, u_gen, (0, s), "")
-  | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
+  | (Construct(SChar(c)), CursorP(_, EmptyHole(_))) =>
+    syn_insert_text(ctx, u_gen, (0, c), "")
+  | (Construct(SChar(c)), CursorP(OnDelim(_, side), Wild(_))) =>
     let index =
       switch (side) {
       | Before => 0
       | After => 1
       };
-    syn_insert_text(ctx, u_gen, (index, s), "_");
-  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
-    syn_insert_text(ctx, u_gen, (j, s), t)
-  | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
-    syn_insert_text(ctx, u_gen, (j, s), x)
-  | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
-    syn_insert_text(ctx, u_gen, (j, s), n)
-  | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
-    syn_insert_text(ctx, u_gen, (j, s), f)
-  | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
-    syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
-  | (Construct(SChar(_)), CursorP(_)) => Failed
-
+    syn_insert_text(ctx, u_gen, (index, c), "_");
+  | (Construct(SChar(c)), CursorP(OnText(j), InvalidText(_, t))) =>
+    syn_insert_text(ctx, u_gen, (j, c), t)
+  | (Construct(SChar(c)), CursorP(OnText(j), Var(_, _, x))) =>
+    syn_insert_text(ctx, u_gen, (j, c), x)
+  | (Construct(SChar(c)), CursorP(OnText(j), IntLit(_, n))) =>
+    syn_insert_text(ctx, u_gen, (j, c), n)
+  | (Construct(SChar(c)), CursorP(OnText(j), FloatLit(_, f))) =>
+    syn_insert_text(ctx, u_gen, (j, c), f)
+  | (Construct(SChar(c)), CursorP(OnText(j), BoolLit(_, b))) =>
+    syn_insert_text(ctx, u_gen, (j, c), string_of_bool(b))
+  | (Construct(SChar(c)), CursorP(OnText(j), StringLit(_, s))) => something
+  | (
+      Construct(SChar(s)),
+      CursorP(
+        OnDelim(_, side),
+        TypeAnn(_, _, _) | ListNil(_) | Parenthesized(_),
+      ),
+    ) => something
+  | (Construct(SChar(c)), CursorP(OnDelim(_, _), StringLit(_, s))) => something
+  | (Construct(SChar(c)), CursorP(OnDelim(_, _), Inj(_, _, _))) => something
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
+
+  | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) => something
+  | (
+      Construct(SQuote),
+      CursorP(OnDelim(_), Wild(_) | TypeAnn(_, _, _) | ListNil(_) | Parenthesized(_) | Inj(_, _, _)),
+    ) => nothin
+  | (
+      Construct(SQuote),
+      CursorP(
+        OnText(_),
+        InvalidText(_, _) |  | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
+        BoolLit(_, _),
+      ),
+    ) => somethin
+  | (Construct(SQuote), CursorP(OnText(_), StringLit(_, _))) => something 
+  | (Construct(SQuote), CursorP(OnDelim(_), StringLit(_, _))) => nothing 
 
   | (Construct(SParenthesized), CursorP(_)) =>
     mk_syn_result(
