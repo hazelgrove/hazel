@@ -1007,6 +1007,10 @@ h1 {
   }
 }
 
+.InHole {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
