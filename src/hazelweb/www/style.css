@@ -843,20 +843,24 @@ h1 {
   fill: white;
 }
 
-#code-root {
+#code-root,
+.code.DHCode {
   position: relative;
 }
 #code-root:focus {
   outline: none;
 }
 
-#code-root .code {
+#code-root .code,
+.code.DHCode .code-text {
   z-index: var(--code-text-z);
 }
-#code-root .decoration-container {
+#code-root .decoration-container,
+.code.DHCode .decoration-container {
   position: absolute;
 }
-#code-root .err-hole-container {
+#code-root .err-hole-container,
+.code.DHCode .err-hole-container {
   z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
