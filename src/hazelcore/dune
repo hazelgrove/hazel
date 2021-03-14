@@ -2,12 +2,13 @@
 
 (library
  (name hazelcore)
- (libraries re sexplib camomile pretty)
+ (libraries re sexplib camomile pretty compiler-libs compiler-libs.toplevel)
  (wrapped false)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
- (inline_tests)
+ (inline_tests
+  (modes byte))
  (preprocess
   (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
