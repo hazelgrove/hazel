@@ -65,8 +65,8 @@ let view_of_layout =
            },
        );
   Node.div(
-    [Attr.classes(["code", "DHCode"])],
-    [with_cls("code-text", text), ...decorations],
+    [Attr.classes(["DHCode"])],
+    [with_cls("code", text), ...decorations],
   );
 };
 

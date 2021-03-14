@@ -844,7 +844,7 @@ h1 {
 }
 
 #code-root,
-.code.DHCode {
+.DHCode {
   position: relative;
 }
 #code-root:focus {
@@ -852,15 +852,15 @@ h1 {
 }
 
 #code-root .code,
-.code.DHCode .code-text {
+.DHCode .code {
   z-index: var(--code-text-z);
 }
 #code-root .decoration-container,
-.code.DHCode .decoration-container {
+.DHCode .decoration-container {
   position: absolute;
 }
 #code-root .err-hole-container,
-.code.DHCode .err-hole-container {
+.DHCode .err-hole-container {
   z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
