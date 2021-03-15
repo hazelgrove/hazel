@@ -833,7 +833,7 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => 
+          | None =>
             // ECD: PROJECTION CREATION FAILS HERE!!!
             Failed
           | Some(new_ty) =>

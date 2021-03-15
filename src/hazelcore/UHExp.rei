@@ -24,7 +24,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, operand, Label.t)
+  | Prj(PrjErrStatus.t, operand, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -51,7 +51,7 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
 
-let prj: (~err: ErrStatus.t=?, operand, Label.t) => operand;
+let prj: (~err: PrjErrStatus.t=?, operand, Label.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
