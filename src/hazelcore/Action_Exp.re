@@ -1960,118 +1960,82 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, ty, u_gen)));
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
-    switch (Statics_Exp.syn(ctx, t3)) {
-    | None => Failed
-    | Some(ty3) =>
-      switch (ana_perform(ctx, a, (zt2, u_gen), ty3)) {
-      | Failed =>
-        print_endline("t2 failed");
-        Failed;
-      | CursorEscaped(side) =>
-        syn_perform_operand(
-          ctx,
-          Action_common.escape(side),
-          (zoperand, ty, u_gen),
-        )
-      | Succeeded((zt2, u_gen)) =>
-        print_endline("t2 suc");
-        let new_ze =
-          ZExp.ZBlock.wrap(IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3));
-        Succeeded(SynDone((new_ze, ty, u_gen)));
+    switch (syn_perform(ctx, a, (zt2, ty, u_gen))) {
+    | Failed =>
+      print_endline("1974");
+      Failed;
+    | CursorEscaped(side) =>
+      syn_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, ty, u_gen),
+      )
+    | Succeeded((zt2, ty2, u_gen)) =>
+      switch (Statics_Exp.syn(ctx, t3)) {
+      | None => Failed
+      | Some(ty3) =>
+        print_endline("1982");
+        HTyp.consistent(ty2, ty3)
+          ? {
+            print_endline("1985");
+            let real_ty = HTyp.join(GLB, ty2, ty3);
+            switch (real_ty) {
+            | Some(real_type) =>
+              let (_, _, u_gen) =
+                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
+              print_endline("finished fix holes");
+              let (_, u_gen) = u_gen |> MetaVarGen.next;
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
+                );
+              Succeeded(SynDone((new_ze, real_type, u_gen)));
+            | None => Failed
+            };
+          }
+          : {
+            print_endline("1996");
+            Failed;
+          };
       }
     }
-  /*
-
-   switch (syn_perform(ctx, a, (zt2, ty, u_gen))) {
-   | Failed =>
-     print_endline("1974");
-     Failed;
-   | CursorEscaped(side) =>
-     syn_perform_operand(
-       ctx,
-       Action_common.escape(side),
-       (zoperand, ty, u_gen),
-     )
-   | Succeeded((zt2, _, u_gen)) =>
-     switch (Statics_Exp.syn(ctx, t3)) {
-     | None => Failed
-     | Some(ty3) =>
-       print_endline("1982");
-       HTyp.consistent(ty, ty3)
-         ? {
-           print_endline("1985");
-           let (_, _, u_gen) =
-             Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
-           print_endline("finished fix holes");
-           let (u, u_gen) = u_gen |> MetaVarGen.next;
-           let new_ze =
-             ZExp.ZBlock.wrap(
-               IfZ2(
-                 StandardErrStatus(NotInHole),
-                 t1,
-                 zt2,
-                 t3,
-               ),
-             );
-           Succeeded(SynDone((new_ze, ty, u_gen)));
-         }
-         : {
-           print_endline("1996");
-           Failed;
-         };
-     }
-   }*/
   | (_, IfZ3(_, t1, t2, zt3)) =>
-    switch (Statics_Exp.syn(ctx, t2)) {
-    | None => Failed
-    | Some(ty2) =>
-      switch (ana_perform(ctx, a, (zt3, u_gen), ty2)) {
-      | Failed =>
-        print_endline("t3 failed");
-        Failed;
-      | CursorEscaped(side) =>
-        syn_perform_operand(
-          ctx,
-          Action_common.escape(side),
-          (zoperand, ty, u_gen),
-        )
-      | Succeeded((zt3, u_gen)) =>
-        print_endline("t3 suc");
-        let new_ze =
-          ZExp.ZBlock.wrap(IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3));
-        Succeeded(SynDone((new_ze, ty, u_gen)));
+    switch (syn_perform(ctx, a, (zt3, ty, u_gen))) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      syn_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, ty, u_gen),
+      )
+    | Succeeded((zt3, ty3, u_gen)) =>
+      switch (Statics_Exp.syn(ctx, t2)) {
+      | None => Failed
+      | Some(ty2) =>
+        print_endline("2017");
+        HTyp.consistent(ty2, ty3)
+          ? {
+            let real_ty = HTyp.join(GLB, ty2, ty3);
+            switch (real_ty) {
+            | Some(real_type) =>
+              let (_, _, u_gen) =
+                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
+              print_endline("finished fix holes");
+              let (_, u_gen) = u_gen |> MetaVarGen.next;
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
+                );
+              Succeeded(SynDone((new_ze, real_type, u_gen)));
+            | None => Failed
+            };
+          }
+          : {
+            print_endline("2030");
+            Failed;
+          };
       }
     }
-  /* switch (syn_perform(ctx, a, (zt3, ty, u_gen))) {
-     | Failed => Failed
-     | CursorEscaped(side) =>
-       syn_perform_operand(
-         ctx,
-         Action_common.escape(side),
-         (zoperand, ty, u_gen),
-       )
-     | Succeeded((zt3, _, u_gen)) =>
-       switch (Statics_Exp.syn(ctx, t2)) {
-       | None => Failed
-       | Some(ty2) =>
-         print_endline("2017");
-         HTyp.consistent(ty2, ty)
-           ? {
-             print_endline("2020");
-             let (_, _, u_gen) =
-               Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
-             let new_ze =
-               ZExp.ZBlock.wrap(
-                 IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
-               );
-             Succeeded(SynDone((new_ze, ty, u_gen)));
-           }
-           : {
-             print_endline("2030");
-             Failed;
-           };
-       }
-     } */
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }

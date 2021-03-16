@@ -887,15 +887,30 @@ and syn_fix_holes_operand =
     };
   | If(_, t1, t2, t3) =>
     print_endline("889");
-    let (t1, _, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
+    let (_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
     let (t2, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
     let (t3, ty3, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
     if (HTyp.consistent(ty2, ty3)) {
       print_endline("896");
-      (If(StandardErrStatus(NotInHole), t1, t2, t3), ty2, u_gen);
+      let real_ty = HTyp.join(GLB, ty2, ty3);
+      switch (real_ty) {
+      | Some(real_type) => (
+          If(StandardErrStatus(NotInHole), t1, t2, t3),
+          real_type,
+          u_gen,
+        )
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let branch_types = [ty2, ty3];
+        (
+          If(InconsistentBranches(branch_types, u), t1, t2, t3),
+          HTyp.Hole,
+          u_gen,
+        );
+      };
     } else {
       print_endline("899");
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1343,22 +1358,13 @@ and ana_fix_holes_operand =
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
   | If(_, t1, t2, t3) =>
-    /* check later for ana for both branches */
-    let (_, _, u_gen) = syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1);
-    let (t2, ty2, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2);
-    let (t3, ty3, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3);
-    let is_consistent2 = HTyp.consistent(ty, ty2);
-    let is_consistent3 = HTyp.consistent(ty, ty3);
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    switch (is_consistent2, is_consistent3) {
-    | (true, true) => (If(StandardErrStatus(NotInHole), t1, t2, t3), u_gen)
-    | (_, _) => (
-        If(StandardErrStatus(InHole(TypeInconsistent, u)), t1, t2, t3),
-        u_gen,
-      )
-    };
+    let (_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t1, HTyp.Bool);
+    let (_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t2, ty);
+    let (_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, t3, ty);
+    (If(StandardErrStatus(NotInHole), t1, t2, t3), u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
