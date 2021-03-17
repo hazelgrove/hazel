@@ -59,13 +59,13 @@ let rec mk =
       (
         hcats([
           mk_delim("["),
+          mk(ty) |> pad_child(~enforce_inline),
           (
-            mk(ty),
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
           )
           |> pad_child(~enforce_inline),
-          mk_delim("]"),
+          mk_delim(close),
         ]),
         parenthesize,
       );

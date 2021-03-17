@@ -619,6 +619,7 @@ let view =
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => false
+    };
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -631,8 +632,7 @@ let view =
       show,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
-      cursor_inspector.type_novice_message_mode,
-      on_empty_hole,
+      on_empty_hole || on_type_hole,
     );
   let content =
     switch (cursor_inspector.show_expanded, expanded) {
