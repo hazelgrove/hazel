@@ -1430,7 +1430,7 @@ let merge:
 
 // "map" functions
 
-// Pair of arrays
+// Array of pairs
 let map: Array.t((int, int)) => Array.t((int, int)) =
   Js.Unsafe.js_expr(
     "function res_inc$0(input) {
@@ -1474,100 +1474,542 @@ let map: Array.t(int) => Array.t(int) =
 // TODO: fold
 
 // Interleaved with external size
-let map: Array.t(int) => Array.t(int) =
-  Js.Unsafe.js_expr(
-    "function res_inc$0(input) {
-    var len = input.length;
-    var output = new Array(len);
-    output[0] = [0];
-    for (var i = 1; i < len; i+=2) {
-      var pos = input[i];
-      var res = input[i+1]
-      output[i] = pos;
-      output[i+1] = res + 1 | 0;
-    }
-    return output;
-  }
-    ",
-  );
+// let map: Array.t(int) => Array.t(int) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(input) {
+//     var len = input.length;
+//     var output = new Array(len);
+//     output[0] = [0];
+//     for (var i = 1; i < len; i+=2) {
+//       var pos = input[i];
+//       var res = input[i+1]
+//       output[i] = pos;
+//       output[i+1] = res + 1 | 0;
+//     }
+//     return output;
+//   }
+//     ",
+//   );
 
-// TODO: merge
+// // TODO: merge
+// // TODO: fold
+
+// // Parallel with external size
+// let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function res_inc$0(size, input) {
+//     //var len = input.length;
+//     var js_size = size + 1 | 0;
+//     var output = new Array(js_size);
+//     output[0] = [0];
+//     for (var i = 1; i < js_size; i++) {
+//       var res = input[i]
+//       output[i] = res + 1 | 0;
+//     }
+//     return [0, size, output];
+//   }
+//     ",
+//   );
+
+// let merge:
+//   (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
+//   (int, Array.t(int), Array.t(int)) =
+//   Js.Unsafe.js_expr(
+//     "function merge(js_size1, pos1, res1, js_size2, pos2, res2) {
+//     //var len = input.length;
+//     var pre_js_size = js_size1 + js_size2 | 0;
+//     var js_size = pre_js_size - 1 | 0;
+//     var pos = new Array(js_size);
+//     pos[0] = [0];
+//     var res = new Array(js_size);
+//     res[0] = [0];
+//     var i1 = 1;
+//     var i2 = 1;
+//     var i = 1;
+//     while (i1 < js_size1 && i2 < js_size2) {
+//       if (pos1[i1] < pos2[i2]) {
+//         //console.log(\"1\");
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//       } else if (pos1[i1] > pos2[i2]) {
+//         //console.log(\"2\");
+//         pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//       } else {
+//         //console.log(\"3\");
+//         // TODO: res1[i1] <=> res2[i2]
+//         pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//       }
+//       i = i + 1 | 0;
+//     }
+//     while (i1 < js_size1) {
+//         //pos[i] = pos1[i1];
+//         res[i] = res1[i1] + 1 | 0;
+//         i1 = i1 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     while (i2 < js_size2) {
+//         //pos[i] = pos2[i2];
+//         res[i] = res2[i2] + 1 | 0;
+//         i2 = i2 + 1 | 0;
+//         i = i + 1 | 0;
+//     }
+//     var size = i;
+//     return [0, size, pos, res];
+//   }
+//     ",
+//   );
+
 // TODO: fold
 
+////////////////////////////////////////////////// RESTART /////////////////////////////////////
+
+// skeliton w/o map, merge or flatmap: 28ns
+
+// let rec fib2 =
+//         (~width: int, ~pos: int, x: my_fib)
+//         : (int, Array.t(int), Array.t(int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 0;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
+//       let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let (out_s, out_r) =
+//       //   Js.Unsafe.fun_call(
+//       //     res_inc',
+//       //     [|
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1r),
+//       //     |],
+//       //   );
+//       mem := gensym^;
+//       (out1s, out1p, out1r);
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let (_out2s, _out2p, _out2r) = fib2(~width, ~pos, f2);
+//       //let out = res_inc'(out1);
+//       // let (out_s, out_p, out_r) =
+//       //   Js.Unsafe.fun_call(
+//       //     merge,
+//       //     [|
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1p),
+//       //       Js.Unsafe.inject(out1r),
+//       //       Js.Unsafe.inject(out2s),
+//       //       Js.Unsafe.inject(out2p),
+//       //       Js.Unsafe.inject(out2r),
+//       //     |],
+//       //   );
+//       mem := gensym^;
+//       (out1s, out1p, out1r);
+//     };
+//   };
+// };
+// let rec fib2 =
+//         (~width: int, ~pos: int, x: my_fib)
+//         : (int, Array.t(int), Array.t(int)) => {
+//   count := count^ + 1;
+//   switch (x) {
+//   | Text2(mem, _i) =>
+//     // TODO: without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 0;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Fail2(mem) =>
+//     // TODO: fail without memoization
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let res = 1;
+//       mem := gensym^;
+//       (
+//         11,
+//         [|
+//           pos + 0,
+//           pos + 1,
+//           pos + 2,
+//           pos + 3,
+//           pos + 4,
+//           pos + 5,
+//           pos + 6,
+//           pos + 7,
+//           pos + 8,
+//           pos + 9,
+//         |],
+//         [|
+//           res + 0,
+//           res + 1,
+//           res + 2,
+//           res + 3,
+//           res + 4,
+//           res + 5,
+//           res + 6,
+//           res + 7,
+//           res + 8,
+//           res + 9,
+//         |],
+//       );
+//     };
+//   | Align2(mem, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+//       //let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Annot2(mem, _ann, f) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+//       let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+//       //let out = out1r;
+//       mem := gensym^;
+//       (out1s, out1p, out);
+//     };
+//   | Cat2(mem, f1, f2) =>
+//     // TODO: maybe without memoization?
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let _ = fib2(~width, ~pos, f2);
+//       // let (out_s, out_r) =
+//       //   Js.Unsafe.fun_call(
+//       //     res_inc',
+//       //     [|
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1r),
+//       //     |],
+//       //   );
+//       mem := gensym^;
+//       (out1s, out1p, out1r);
+//     };
+//   | Choice2(mem, f1, f2) =>
+//     let old_mem = mem^;
+//     if (old_mem == gensym^) {
+//       (
+//         11,
+//         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//         [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+//       );
+//     } else {
+//       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+//       let (_out2s, _out2p, _out2r) = fib2(~width, ~pos, f2);
+//       let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+//       // let (out_s, out_p, out_r) =
+//       //   Js.Unsafe.fun_call(
+//       //     merge,
+//       //     [|
+//       //       Js.Unsafe.inject(out1s),
+//       //       Js.Unsafe.inject(out1p),
+//       //       Js.Unsafe.inject(out1r),
+//       //       Js.Unsafe.inject(out2s),
+//       //       Js.Unsafe.inject(out2p),
+//       //       Js.Unsafe.inject(out2r),
+//       //     |],
+//       //   );
+//       mem := gensym^;
+//       (out1s, out1p, out1r);
+//     };
+//   };
+// };
+
+//////////
+
 // Parallel with external size
-let res_inc': (int, Array.t(int)) => (int, Array.t(int)) =
+
+// 29ns
+// 34-36ns (complete layout_map)
+
+// Omits pos argument
+let layout_map: Array.t(int) => Array.t(int) =
   Js.Unsafe.js_expr(
-    "function res_inc$0(size, input) {
-    //var len = input.length;
-    var js_size = size + 1 | 0;
-    var output = new Array(js_size);
-    output[0] = [0];
-    for (var i = 1; i < js_size; i++) {
+    "function layout_map_imp(input) {
+      //var js_size = size + 1 | 0;
+      //console.log(\"size: %o\", size);
+      //console.log(\"input: %o\", input);
+      //throw 5;
+      var size = input.length;
+      var output = new Array(size);
+    output[0] = 0;
+    for (var i =  1; i < size; i++) {
       var res = input[i]
       output[i] = res + 1 | 0;
     }
-    return [0, size, output];
+    //return [0, size, output];
+    return output;
+    //\"layout_map_imp\";
   }
     ",
   );
 
-let merge:
-  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
-  (int, Array.t(int), Array.t(int)) =
+let layout_merge:
+  (Array.t(int), Array.t(int), Array.t(int), Array.t(int)) =>
+  (Array.t(int), Array.t(int)) =
   Js.Unsafe.js_expr(
-    "function merge(js_size1, pos1, res1, js_size2, pos2, res2) {
-    //var len = input.length;
-    var pre_js_size = js_size1 + js_size2 | 0;
-    var js_size = pre_js_size - 1 | 0;
-    var pos = new Array(js_size);
-    pos[0] = [0];
+    "function layout_merge(pos1, res1, pos2, res2) {
+      \"layout_merge\";
+    // var len = input.length;
+    //var js_size1 = pos1.length;
+    //var js_size2 = pos2.length;
+    //var pre_js_size = js_size1 + js_size2 | 0;
+    // var js_size = pre_js_size - 1 | 0;
+    var js_size = res1.length; // |0 (37-39)
+    var end = js_size * 2 | 0;
+    var pos = new Array(end);
+    // pos[0] = [0];
     var res = new Array(js_size);
-    res[0] = [0];
-    var i1 = 1;
-    var i2 = 1;
     var i = 1;
-    while (i1 < js_size1 && i2 < js_size2) {
-      if (pos1[i1] < pos2[i2]) {
-        //console.log(\"1\");
-        pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-      } else if (pos1[i1] > pos2[i2]) {
-        //console.log(\"2\");
-        pos[i] = pos2[i2];
-        res[i] = res2[i2] + 1 | 0;
-        i2 = i2 + 1 | 0;
-      } else {
-        //console.log(\"3\");
-        // TODO: res1[i1] <=> res2[i2]
-        pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-        i2 = i2 + 1 | 0;
-      }
-      i = i + 1 | 0;
+    while (i < js_size) {
+      pos[i] = pos1[i];
+      res[i] = res1[i] + 1 | 0;
+      i++;
     }
-    while (i1 < js_size1) {
-        //pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-        i = i + 1 | 0;
+    var j = 1;
+    while (i < js_size) {
+      pos[i] = pos2[j];
+      i++;
+      j++;
     }
-    while (i2 < js_size2) {
-        //pos[i] = pos2[i2];
-        res[i] = res2[i2] + 1 | 0;
-        i2 = i2 + 1 | 0;
-        i = i + 1 | 0;
-    }
-    var size = i;
-    return [0, size, pos, res];
+    //pos.length = js_size;
+    //res[0] = [0];
+    // var i1 = 1;
+    // var i2 = 1;
+    // var i = 1;
+    // while (i1 < js_size1 && i2 < js_size2) {
+    //   if (pos1[i1] < pos2[i2]) {
+    //     //console.log(\"1\");
+    //     pos[i] = pos1[i1];
+    //     res[i] = res1[i1] + 1 | 0;
+    //     i1 = i1 + 1 | 0;
+    //   } else if (pos1[i1] > pos2[i2]) {
+    //     //console.log(\"2\");
+    //     pos[i] = pos2[i2];
+    //     res[i] = res2[i2] + 1 | 0;
+    //     i2 = i2 + 1 | 0;
+    //   } else {
+    //     //console.log(\"3\");
+    //     // TODO: res1[i1] <=> res2[i2]
+    //     pos[i] = pos1[i1];
+    //     res[i] = res1[i1] + 1 | 0;
+    //     i1 = i1 + 1 | 0;
+    //     i2 = i2 + 1 | 0;
+    //   }
+    //   i = i + 1 | 0;
+    // }
+    // while (i1 < js_size1) {
+    //     //pos[i] = pos1[i1];
+    //     res[i] = res1[i1] + 1 | 0;
+    //     i1 = i1 + 1 | 0;
+    //     i = i + 1 | 0;
+    // }
+    // while (i2 < js_size2) {
+    //     //pos[i] = pos2[i2];
+    //     res[i] = res2[i2] + 1 | 0;
+    //     i2 = i2 + 1 | 0;
+    //     i = i + 1 | 0;
+    // }
+    //var size = i;
+    //return [0, size, pos, res];
+    return [0, pos, res];
   }
     ",
   );
 
-// TODO: fold
-
-// w/o map, merge or flatmap: 28ns
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
         : (int, Array.t(int), Array.t(int)) => {
@@ -1663,8 +2105,8 @@ let rec fib2 =
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
-      //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
-      let out = out1r;
+      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+      //let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
     };
@@ -1678,8 +2120,8 @@ let rec fib2 =
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
-      //let out = Js.Unsafe.fun_call(res_inc', [|Js.Unsafe.inject(out1r)|]);
-      let out = out1r;
+      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+      //let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
     };
@@ -1717,25 +2159,30 @@ let rec fib2 =
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
-      let (_out2s, _out2p, _out2r) = fib2(~width, ~pos, f2);
-      //let out = res_inc'(out1);
-      // let (out_s, out_p, out_r) =
-      //   Js.Unsafe.fun_call(
-      //     merge,
-      //     [|
-      //       Js.Unsafe.inject(out1s),
-      //       Js.Unsafe.inject(out1p),
-      //       Js.Unsafe.inject(out1r),
-      //       Js.Unsafe.inject(out2s),
-      //       Js.Unsafe.inject(out2p),
-      //       Js.Unsafe.inject(out2r),
-      //     |],
-      //   );
+      let (out2s, out2p, out2r) = fib2(~width, ~pos, f2);
+      //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+      //let out = out1r;
+      //let (out_s, out_p, out_r) = (out1s, out1p, out1r);
+      let (out_p, out_r) =
+        Js.Unsafe.fun_call(
+          layout_merge,
+          [|
+            Js.Unsafe.inject(out1p),
+            Js.Unsafe.inject(out1r),
+            Js.Unsafe.inject(out2p),
+            Js.Unsafe.inject(out2r),
+          |],
+        );
       mem := gensym^;
-      (out1s, out1p, out1r);
+      //(out_s, out_p, out_r);
+      (out1s, out_p, out_r);
     };
   };
 };
+
+
+
+
 
 // let rec fib = (x: int): int => {
 //   if (x < 2) { 1 }
