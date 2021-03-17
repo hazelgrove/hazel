@@ -283,7 +283,7 @@ body {
   width: 28px;
 }
 
-.circle-icon {
+.question-mark-circle {
   color: #fff;
   background-color:#000;
   width:14px;
@@ -361,6 +361,10 @@ body {
   flex-grow: 1;
 }
 
+.type-driven {
+  font-family: Montserrat, sans-serif;
+}
+
 .type-driven .title-bar.fill-bar {
   display: flex;
   align-items: flex-start; 
@@ -405,14 +409,15 @@ body {
   font-family: var(--code-font-family);  
 }
 
+.body-bar .option .keyword { 
+  font-weight: bold;
+}
+
 .body-bar .option .code-font.shortcut {
   font-family: var(--code-font-family); 
   padding-left: 5px;
   padding-right: 5px;
-}
-
-.type-driven {
-  font-family: Montserrat, sans-serif;
+  background-color:#a0845b;
 }
 
 .body-bar .option {
@@ -437,12 +442,6 @@ body {
   margin-left: 7px;
 }
 
-.type-info-summary .subsection {
-  display: flex;
-  align-items: flex-start;
-}
-
-/* TODO Hannah if stick with this, see if can combine with circle icons somehow - maybe do some refactoring */
 .type-info-summary .consistency-symbol {
   background-color:white;
   color: #bb0707;
@@ -454,13 +453,9 @@ body {
   text-align: center;
 }
 
-.type-info-summary .circle-icon {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  font-size: 15px;
+.type-info-summary .novice-mode .term-tag {
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .cursor-inspector .type-info-summary .HTypCode,
@@ -482,44 +477,8 @@ body {
 }
 
 .cursor-BindingError.cursor-inspector .term-tag {
-  box-shadow: 0 0 0 1px #f1760a;
+  box-shadow: 0 0 0 1px #f1760a inset;
 }
-
-.cursor-OK.cursor-inspector .circle-icon {
-  background-color: #073f24;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .circle-icon {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .circle-icon {
-  background-color: #f1760a;
-}
-
-/*.cursor-OK.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #0b6d3e;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .type-info-summary .HTypCode {
-  background-color: #f1760a;
-}
-
-.cursor-OK.cursor-inspector .emphasize-text {
-  background-color: #0b6d3e;
-}
-
-.cursor-TypeInconsistency.cursor-inspector .emphasize-text {
-  background-color: #bb0707;
-}
-
-.cursor-BindingError.cursor-inspector .emphasize-text {
-  background-color: #f1760a;
-}*/
 
 .type-info-summary .colon {
   margin-left: 10px;
@@ -531,6 +490,11 @@ body {
   margin: 0 10px;
   font-weight: bolder;
   font-family: var(--code-font-family);
+}
+
+.type-info-summary .summary-message {
+  display: flex;
+  align-items: flex-start;
 }
 
 .type-info-summary .clickable{
@@ -558,63 +522,6 @@ body {
   margin-left: 10px;
   margin-right: 10px;
 }
-/*
-.cursor-OK.cursor-inspector {
-  outline: 1px solid var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency.cursor-inspector {
-  outline: 1px solid #8e0000;
-}
-
-.cursor-BindingError.cursor-inspector {
-  outline: 1px solid #ce5f00;
-}
-
-.cursor-Keyword.cursor-inspector {
-  outline: 1px solid #ce5f00;
-}*/
-
-/*.cursor-OK .title-bar {
-  background-color: var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency .title-bar {
-  background-color: #8e0000;
-}
-
-.cursor-BindingError .title-bar {
-  background-color: #ce5f00;
-}
-
-.cursor-Keyword .titlebar {
-	background-color: #ce5f00;
-}*/
-
-/* TODO: Hannah maybe refactor these colors (if don't change them) -- probably at least make CSS vars */
-/*.cursor-OK .type-info-summary {
-  background-color: var(--title-bar-color);
-}
-
-.cursor-TypeInconsistency .type-info-summary {
-  background-color: #8e0000;
-}
-
-.cursor-BindingError .type-info-summary {
-  background-color: #ce5f00;
-}
-
-.cursor-TypeInconsistency .type-info-summary .inconsistent-symbol {
-  color: #8e0000;
-}
-
-.cursor-BindingError .type-info-summary .inconsistent-symbol {
-  color: #ce5f00;
-}
-
-.cursor-OK .type-info-summary .consistent-symbol {
-  color: var(--title-bar-color);
-}*/
 
 .typebar, .infobar {
   font-size: 125%;

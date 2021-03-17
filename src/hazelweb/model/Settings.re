@@ -122,8 +122,7 @@ module CursorInspector = {
   type t = {
     visible: bool,
     show_expanded: bool,
-    term_novice_message_mode: bool,
-    type_novice_message_mode: bool,
+    novice_mode: bool,
     type_assist: bool,
     type_assist_lit: bool,
     type_assist_var: bool,
@@ -138,8 +137,7 @@ module CursorInspector = {
   let init = {
     visible: true,
     show_expanded: false,
-    term_novice_message_mode: false,
-    type_novice_message_mode: false,
+    novice_mode: false,
     type_assist: false,
     type_assist_lit: false,
     type_assist_var: false,
@@ -156,8 +154,6 @@ module CursorInspector = {
     | Toggle_visible
     | Toggle_show_expanded
     | Toggle_novice_mode
-    | Toggle_term_novice_message_mode
-    | Toggle_type_novice_message_mode
     | Toggle_type_assist
     | Toggle_type_assist_lit
     | Toggle_type_assist_var
@@ -168,9 +164,6 @@ module CursorInspector = {
     | Toggle_type_assist_comp_ty
     | Toggle_type_assist_func_ty;
 
-  let novice_mode = settings =>
-    settings.term_novice_message_mode && settings.type_novice_message_mode;
-
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_visible => {...settings, visible: !settings.visible}
@@ -178,19 +171,7 @@ module CursorInspector = {
         ...settings,
         show_expanded: !settings.show_expanded,
       }
-    | Toggle_term_novice_message_mode => {
-        ...settings,
-        term_novice_message_mode: !settings.term_novice_message_mode,
-      }
-    | Toggle_type_novice_message_mode => {
-        ...settings,
-        type_novice_message_mode: !settings.type_novice_message_mode,
-      }
-    | Toggle_novice_mode => {
-        ...settings,
-        term_novice_message_mode: !novice_mode(settings),
-        type_novice_message_mode: !novice_mode(settings),
-      }
+    | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
     | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
     | Toggle_type_assist_lit => {
         ...settings,
