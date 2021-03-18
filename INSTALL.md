@@ -42,7 +42,7 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    sudo apt install gcc git make m4
+    sudo apt install gcc git make m4 pkg-config
     ```
 
   - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
