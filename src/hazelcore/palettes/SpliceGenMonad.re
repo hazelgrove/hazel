@@ -6,7 +6,7 @@ module T = {
     let (a, psi') = cmd(psi);
     f(a, psi');
   };
-  let map = `Define_using_bind;
+  let map = Monads.MapDefinition.Define_using_bind;
 };
 include T;
 include Monads.Make(T);

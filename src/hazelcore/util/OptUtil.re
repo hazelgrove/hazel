@@ -3,7 +3,7 @@ open Sexplib.Conv;
 module T = {
   [@deriving sexp]
   type t('a) = option('a);
-  let map = `Custom((x, f) => Option.map(f, x));
+  let map = Monads.MapDefinition.Custom((x, f) => Option.map(f, x));
   let bind = Option.bind;
   let return = x => Some(x);
 };
