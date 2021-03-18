@@ -105,7 +105,7 @@ let keyword_node = text =>
 
 let option = nodes => Vdom.(Node.div([Attr.classes(["option"])], nodes));
 
-let lit_msg = (ty: HTyp.t) => {
+let lit_msg_exp = (ty: HTyp.t) => {
   let int_lit =
     option([
       Vdom.Node.text("Enter an Integer (e.g. "),
@@ -170,11 +170,29 @@ let lit_msg = (ty: HTyp.t) => {
   };
 };
 
-let pat_msg = (ty: HTyp.t) => {
-  let prod_lit =
+let lit_msg_pat = (ty: HTyp.t) => {
+  let int_lit =
     option([
-      Vdom.Node.text("Enter a Tuple pattern (enter "),
-      shortcut_node("("),
+      Vdom.Node.text("Enter an Integer (e.g. "),
+      code_node("1"),
+      Vdom.Node.text(")"),
+    ]);
+  let float_lit =
+    option([
+      Vdom.Node.text("Enter a Float (e.g. "),
+      code_node("1.0"),
+      Vdom.Node.text(")"),
+    ]);
+  let bool_lit =
+    option([
+      Vdom.Node.text("Enter a Boolean (e.g. "),
+      code_node("true"),
+      Vdom.Node.text(")"),
+    ]);
+  let fun_lit =
+    option([
+      Vdom.Node.text("Enter a Function (enter "),
+      shortcut_node("\\"),
       Vdom.Node.text(")"),
     ]);
   let sum_lit =
@@ -185,17 +203,50 @@ let pat_msg = (ty: HTyp.t) => {
       shortcut_node("Alt + r"),
       Vdom.Node.text(")"),
     ]);
-  let list_lit =
+  switch (ty) {
+  | Hole => [int_lit, float_lit, bool_lit, fun_lit, sum_lit]
+  | Int => [int_lit]
+  | Float => [float_lit]
+  | Bool => [bool_lit]
+  | Arrow(_, _) => [fun_lit]
+  | Sum(_, _) => [sum_lit]
+  | Prod(_)
+  | List(_) => [option([Vdom.Node.text("No suggestions.")])]
+  };
+};
+
+let pat_msg = (ty: HTyp.t) => {
+  let prod_pat =
+    option([
+      Vdom.Node.text("Enter a Tuple pattern (enter "),
+      shortcut_node("("),
+      Vdom.Node.text(")"),
+    ]);
+  let sum_pat =
+    option([
+      Vdom.Node.text("Enter an Injection (enter "),
+      shortcut_node("Alt + l"),
+      Vdom.Node.text("or"),
+      shortcut_node("Alt + r"),
+      Vdom.Node.text(")"),
+    ]);
+  let list_pat =
     option([
       Vdom.Node.text("Enter a nonempty List pattern (enter "),
       shortcut_node(";"),
       Vdom.Node.text(")"),
     ]);
+  let list_lit_pat =
+    option([
+      Vdom.Node.text("Enter a List (enter "),
+      shortcut_node("["),
+      Vdom.Node.text(")"),
+    ]);
   switch (ty) {
-  | Hole => [prod_lit, list_lit]
-  | Prod(_) => [prod_lit]
-  | List(_) => [list_lit]
-  | Sum(_) => [sum_lit]
+  | Hole => [prod_pat, list_pat, list_lit_pat]
+  | Prod(_) => [prod_pat]
+  | List(_) => [list_pat, list_lit_pat]
+  | Sum(_) => [sum_pat]
   | _ => []
   };
 };
@@ -233,7 +284,16 @@ let list_bindings_view = (ty: HTyp.t) => {
     | List(_) => ["xs"]
     | _ => ["x", "y", "z"]
     };
-  let suggestions = suggestions @ ["_"];
+  List.map(
+    binding => {
+      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
+    },
+    suggestions,
+  );
+};
+
+let list_wild_view = () => {
+  let suggestions = ["_"];
   List.map(
     binding => {
       Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
@@ -440,7 +500,7 @@ let view_exp =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], lit_msg(typ))],
+        [Node.div([Attr.classes(["options"])], lit_msg_exp(typ))],
       )
     );
 
@@ -583,6 +643,7 @@ let view_pat =
     ) => {
   let lit_open = cursor_inspector.type_assist_lit;
   let binding_open = cursor_inspector.type_assist_binding;
+  let wild_open = cursor_inspector.type_assist_wild;
   let pat_open = cursor_inspector.type_assist_pat;
 
   let ty = get_type(cursor_info);
@@ -640,14 +701,14 @@ let view_pat =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], lit_msg(typ))],
+        [Node.div([Attr.classes(["options"])], lit_msg_pat(typ))],
       )
     );
 
   let pat =
     subsection_header(
       Toggle_type_assist_pat,
-      "Fill with a " ++ type_to_str(ty) ++ " pattern",
+      "Fill with " ++ type_to_str(ty) ++ " pattern",
       pat_open,
     );
   let pat_body =
@@ -674,45 +735,46 @@ let view_pat =
       )
     );
 
+  let wild_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_wild_view()));
+  let wild =
+    subsection_header(
+      Toggle_type_assist_wild,
+      "Fill with a wildcard",
+      wild_open,
+    );
+  let wild_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [wild_view],
+      )
+    );
+
   let body = [];
   let body =
-    switch (typ) {
-    | Hole
-    | Int
-    | Float
-    | Bool
-    | Arrow(_)
-    | List(_) =>
-      if (lit_open) {
-        body @ [fill_hole_msg, lit, lit_body];
-      } else {
-        body @ [fill_hole_msg, lit];
-      }
-    | Sum(_)
-    | Prod(_) => body
+    if (lit_open) {
+      body @ [fill_hole_msg, lit, lit_body];
+    } else {
+      body @ [fill_hole_msg, lit];
     };
-
   let body =
-    switch (typ) {
-    | Hole
-    | Prod(_)
-    | Sum(_)
-    | List(_) =>
-      if (pat_open) {
-        body @ [pat, pat_body];
-      } else {
-        body @ [pat];
-      }
-    | Int
-    | Float
-    | Bool
-    | Arrow(_) => body
+    if (pat_open) {
+      body @ [pat, pat_body];
+    } else {
+      body @ [pat];
     };
   let body =
     if (binding_open) {
       body @ [binding, binding_body];
     } else {
       body @ [binding];
+    };
+  let body =
+    if (wild_open) {
+      body @ [wild, wild_body];
+    } else {
+      body @ [wild];
     };
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));

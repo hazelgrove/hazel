@@ -132,6 +132,7 @@ module CursorInspector = {
     type_assist_branch: bool,
     /* pat */
     type_assist_binding: bool,
+    type_assist_wild: bool,
     type_assist_pat: bool,
   };
 
@@ -148,6 +149,7 @@ module CursorInspector = {
     type_assist_branch: false,
     /* pat */
     type_assist_binding: false,
+    type_assist_wild: false,
     type_assist_pat: false,
   };
 
@@ -165,6 +167,7 @@ module CursorInspector = {
     | Toggle_type_assist_branch
     // pat
     | Toggle_type_assist_binding
+    | Toggle_type_assist_wild
     | Toggle_type_assist_pat;
 
   let apply_update = (u: update, settings: t) =>
@@ -199,6 +202,10 @@ module CursorInspector = {
     | Toggle_type_assist_binding => {
         ...settings,
         type_assist_binding: !settings.type_assist_binding,
+      }
+    | Toggle_type_assist_wild => {
+        ...settings,
+        type_assist_wild: !settings.type_assist_wild,
       }
     | Toggle_type_assist_pat => {
         ...settings,
