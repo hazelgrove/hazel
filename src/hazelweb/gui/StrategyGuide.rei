@@ -18,3 +18,11 @@ let type_view:
     CursorInfo.t
   ) =>
   Vdom.Node.t;
+
+let filled_type_view:
+  (
+    ~inject: ModelAction.t => Vdom.Event.t,
+    Settings.CursorInspector.t,
+    CursorInfo.t
+  ) =>
+  Vdom.Node.t;

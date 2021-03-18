@@ -620,6 +620,20 @@ let view =
     | Line(_, _)
     | Rule(_, _) => false
     };
+  let on_type =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => false
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => false
+    | Typ(_, _) => true
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -632,7 +646,7 @@ let view =
       show,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
-      on_empty_hole || on_type_hole,
+      on_empty_hole || on_type_hole || on_type,
     );
   let content =
     switch (cursor_inspector.show_expanded, expanded) {
@@ -650,6 +664,17 @@ let view =
       List.append(
         content,
         [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
+      );
+    } else if (cursor_inspector.type_assist && on_type) {
+      List.append(
+        content,
+        [
+          StrategyGuide.filled_type_view(
+            ~inject,
+            cursor_inspector,
+            cursor_info,
+          ),
+        ],
       );
     } else {
       content;
