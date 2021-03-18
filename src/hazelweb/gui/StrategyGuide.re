@@ -596,6 +596,40 @@ let list_function_view = () => {
   function_options;
 };
 
+let get_filled_shortcut = (typ: HTyp.t) => {
+  switch (typ) {
+  | HTyp.List(_) => "(enter [)"
+  | HTyp.Prod(_) => "(enter ()"
+  | _ => raise(Invalid_argument("Invalid HTyp"))
+  };
+};
+
+let list_compounds_filled_view = () => {
+  open Vdom;
+  let compound_filled_options =
+    [HTyp.Prod([HTyp.Hole, HTyp.Hole]), HTyp.List(HTyp.Hole)]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text(type_to_str(Some(s))),
+             Node.text(" "),
+             Node.text(get_filled_shortcut(s)),
+             Node.text(": "),
+             HTypCode.view(~strategy_guide=true, s),
+           ],
+         )
+       });
+  compound_filled_options;
+};
+
+let list_pat_filled_view = () => {
+  open Vdom;
+  let function_options =
+    Node.div([Attr.classes(["option"])], [Node.text("Enter ,")]);
+  [function_options];
+};
+
 let filled_type_view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -656,7 +690,10 @@ let filled_type_view =
         [Attr.classes(["panel-title-bar", "body-bar"])],
         [
           Vdom.(
-            Node.div([Attr.classes(["options"])], list_primitives_view())
+            Node.div(
+              [Attr.classes(["options"])],
+              list_compounds_filled_view(),
+            )
           ),
         ],
       )
@@ -694,9 +731,7 @@ let filled_type_view =
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
         [
-          Vdom.(
-            Node.div([Attr.classes(["options"])], list_compounds_view())
-          ),
+          Vdom.(Node.div([Attr.classes(["options"])], list_function_view())),
         ],
       )
     );
@@ -733,7 +768,9 @@ let filled_type_view =
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
         [
-          Vdom.(Node.div([Attr.classes(["options"])], list_function_view())),
+          Vdom.(
+            Node.div([Attr.classes(["options"])], list_pat_filled_view())
+          ),
         ],
       )
     );
