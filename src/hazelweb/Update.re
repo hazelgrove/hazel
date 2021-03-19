@@ -204,8 +204,8 @@ let apply_action =
       | Extraction(msg) => {...model, extraction: (true, msg)}
       | CloseExtraction => {
           ...model,
-          extraction: (false, ExtractionFailed("Empty"))
-      }
+          extraction: (false, ExtractionFailed("Empty")),
+        }
       | UpdateSettings(u) => {
           ...model,
           settings: Settings.apply_update(u, model.settings),
