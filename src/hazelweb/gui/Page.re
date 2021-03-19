@@ -118,16 +118,17 @@ let cardstack_controls = (~inject, model: Model.t) =>
   );
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+  let settings = model.settings;
   TimeUtil.measure_time(
     "Page.view",
-    model.measurements.measurements && model.measurements.page_view,
+    settings.performance.measure && settings.performance.page_view,
     () => {
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
       let selected_instance = model |> Model.get_selected_hole_instance;
       let cell_status =
-        if (!model.compute_results.compute_results) {
+        if (!settings.evaluation.evaluate) {
           Node.div([], []);
         } else {
           Node.div(
@@ -161,12 +162,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 [
                   DHCode.view(
                     ~inject,
-                    ~show_fn_bodies=model.compute_results.show_fn_bodies,
-                    ~show_case_clauses=model.compute_results.show_case_clauses,
-                    ~show_casts=model.compute_results.show_casts,
                     ~selected_instance,
+                    ~settings=settings.evaluation,
                     ~width=80,
-                    model.compute_results.show_unevaluated_expansion
+                    ~font_metrics=model.font_metrics,
+                    settings.evaluation.show_unevaluated_expansion
                       ? program |> Program.get_expansion
                       : program |> Program.get_result |> Result.get_dhexp,
                   ),
@@ -278,11 +278,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ContextInspector.view(
                     ~inject,
                     ~selected_instance,
-                    ~compute_results=model.compute_results,
+                    ~settings=settings.evaluation,
+                    ~font_metrics=model.font_metrics,
                     program,
                   ),
                   UndoHistoryPanel.view(~inject, model),
-                  OptionsPanel.view(~inject, model),
+                  SettingsPanel.view(~inject, settings),
                 ]
               ),
             ],

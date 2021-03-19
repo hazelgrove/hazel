@@ -13,7 +13,8 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~selected_instance: option(HoleInstance.t),
-    ~compute_results: Model.compute_results,
+    ~settings: Settings.Evaluation.t,
+    ~font_metrics: FontMetrics.t,
     Program.t
   ) =>
   Vdom.Node.t;

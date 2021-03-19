@@ -45,7 +45,7 @@ let on_startup = (~schedule_action, _) => {
      combinations, such as Ctrl+Z vs Cmd+Z for undo */
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Mac"),
+      Js.string("MAC"),
     )
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
@@ -101,13 +101,12 @@ let create =
   open Incr.Let_syntax;
   let%map model = model;
 
-  if (model.measurements.measurements) {
+  let performance = model.settings.performance;
+  if (performance.measure) {
     Printf.printf("\n== Hazel.create times ==\n");
   };
   TimeUtil.measure_time(
-    "Hazel.create",
-    model.measurements.measurements && model.measurements.hazel_create,
-    () =>
+    "Hazel.create", performance.measure && performance.hazel_create, () =>
     Component.create(
       ~apply_action=Update.apply_action(model),
       // for things that require actual DOM manipulation post-render
