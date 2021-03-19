@@ -541,3 +541,15 @@ let step_evaluate = (d: DHExp.t): option(DHExp.t) =>
   try(Some(steps(d))) {
   | InvalidInput(_) => None
   };
+
+let step_evaluate_web = (d: DHExp.t): Evaluator.result =>
+  //for hazelweb
+  try(
+    switch (step(steps(d))) {
+    | Step(d)
+    | Indet(d) => Indet(d)
+    | BoxedValue(d) => BoxedValue(d)
+    }
+  ) {
+  | InvalidInput(i) => InvalidInput(i)
+  };

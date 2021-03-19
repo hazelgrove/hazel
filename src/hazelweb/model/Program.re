@@ -106,8 +106,24 @@ let get_expansion = (program: t): DHExp.t =>
 exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+let evaluate_step =
+  Memo.general(~cache_size_bound=1000, EvaluatorStep.step_evaluate_web);
+
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
+  | InvalidInput(_) => raise(InvalidInput)
+  | BoxedValue(d) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    (d_renumbered, hii, BoxedValue(d_renumbered));
+  | Indet(d) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    (d_renumbered, hii, Indet(d_renumbered));
+  };
+
+let get_result_step = (program: t): Result.t =>
+  switch (program |> get_expansion |> evaluate_step) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
