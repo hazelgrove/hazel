@@ -542,6 +542,24 @@ let step_evaluate = (d: DHExp.t): option(DHExp.t) =>
   | InvalidInput(_) => None
   };
 
+let rec quick_steps = (d: DHExp.t): step_result =>
+  switch (step(d)) {
+  | Step(d0) => quick_steps(d0)
+  | Indet(d) => Indet(d)
+  | BoxedValue(d) => BoxedValue(d)
+  };
+
+let quick_step_evaluate = (d: DHExp.t): Evaluator.result =>
+  try(
+    switch (quick_steps(d)) {
+    | Step(d)
+    | Indet(d) => Indet(d)
+    | BoxedValue(d) => BoxedValue(d)
+    }
+  ) {
+  | InvalidInput(i) => InvalidInput(i)
+  };
+
 let step_evaluate_web = (d: DHExp.t): Evaluator.result =>
   //for hazelweb
   try(
