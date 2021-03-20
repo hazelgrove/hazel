@@ -20,6 +20,7 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("let with extra lines")],
         ),
         Node.option([Attr.value("map_example")], [Node.text("map")]),
+        Node.option([Attr.value("fibo_example")], [Node.text("fibo")]),
         Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
         Node.option(
           [Attr.value("qsort_example_3")],
@@ -142,7 +143,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     [
                       Node.div(
                         [Attr.classes(["type-label"])],
-                        [Node.text("Result of evaluator: type: ")],
+                        [Node.text("Type of result: ")],
                       ),
                       Node.div(
                         [Attr.classes(["htype-view"])],

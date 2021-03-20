@@ -108,6 +108,11 @@ let map_example: UHExp.t = {
   UHExp.[letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)];
 };
 
+let fibo_example: UHExp.t = {
+  let s = "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole fibo)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))(EmptyLine(ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(BinOp NotInHole LessThan(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A LessThan(S(IntLit NotInHole 3)E))))))((Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole false)E))((ExpLine(OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 1)E)))))))E)))))))(A Plus(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 2)E)))))))E)))))))E)))))))))E)))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 3)E))))";
+  s |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+};
+
 let qsort_example: UHExp.t = {
   let append_case =
     UHExp.(
@@ -365,6 +370,7 @@ let examples =
     |> add("holey_lambda", holey_lambda)
     |> add("let_line", let_line)
     |> add("map_example", map_example)
+    |> add("fibo_example", fibo_example)
     |> add("qsort_example", qsort_example)
     |> add("qsort_example_3", qsort_n(3))
     |> add("qsort_example_10", qsort_n(10))
