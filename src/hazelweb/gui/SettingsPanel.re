@@ -62,6 +62,18 @@ let view =
             evaluation.evaluate,
           ),
           labeled_checkbox(
+            ~id="use_step_evaluator",
+            ~classes=["indented-option"],
+            ~label="Use step evaluator",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_use_step_evaluator)),
+                ),
+            ~disabled=!evaluation.evaluate,
+            evaluation.evaluator_type == StepEvaluator,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",
@@ -200,6 +212,18 @@ let view =
                 ),
             ~disabled=!performance.measure,
             performance.update_apply_action,
+          ),
+          labeled_checkbox(
+            ~id="measure_program_evaluate",
+            ~classes=["indented-option"],
+            ~label="update_program_evaluate",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Performance(Toggle_program_evaluate)),
+                ),
+            ~disabled=!performance.measure,
+            performance.program_evaluate,
           ),
           //
           labeled_checkbox(

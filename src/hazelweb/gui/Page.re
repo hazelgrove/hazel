@@ -168,45 +168,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~font_metrics=model.font_metrics,
                     settings.evaluation.show_unevaluated_expansion
                       ? program |> Program.get_expansion
-                      : program |> Program.get_result |> Result.get_dhexp,
-                  ),
-                ],
-              ),
-              Node.div(
-                [Attr.classes(["cell-status"])],
-                [
-                  Node.div(
-                    [Attr.classes(["type-indicator"])],
-                    [
-                      Node.div(
-                        [Attr.classes(["type-label"])],
-                        [Node.text("Result of step evaluator: type: ")],
-                      ),
-                      Node.div(
-                        [Attr.classes(["htype-view"])],
-                        [
-                          {
-                            let (_, ty, _) = program.edit_state;
-                            HTypCode.view(ty);
-                          },
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Node.div(
-                [Attr.classes(["result-view"])],
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    ~width=80,
-                    ~font_metrics=model.font_metrics,
-                    settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
-                      : program |> Program.get_result_step |> Result.get_dhexp,
+                      : program
+                        |> (
+                          settings.evaluation.evaluator_type == Evaluator
+                            ? Program.get_result : Program.get_result_step
+                        )
+                        |> Result.get_dhexp,
                   ),
                 ],
               ),

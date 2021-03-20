@@ -2,9 +2,16 @@
  * Flags for enabling/disabling live results
  * and configuring the result view
  */
+module Evaluator = {
+  type t =
+    | Evaluator
+    | StepEvaluator;
+};
+
 module Evaluation = {
   type t = {
     evaluate: bool,
+    evaluator_type: Evaluator.t,
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_casts: bool,
@@ -13,6 +20,7 @@ module Evaluation = {
 
   let init = {
     evaluate: true,
+    evaluator_type: Evaluator,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,
@@ -22,6 +30,7 @@ module Evaluation = {
   [@deriving sexp]
   type update =
     | Toggle_evaluate
+    | Toggle_use_step_evaluator
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
     | Toggle_show_casts
@@ -30,6 +39,14 @@ module Evaluation = {
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_evaluate => {...settings, evaluate: !settings.evaluate}
+    | Toggle_use_step_evaluator => {
+        ...settings,
+        evaluator_type:
+          switch (settings.evaluator_type) {
+          | Evaluator => StepEvaluator
+          | StepEvaluator => Evaluator
+          },
+      }
     | Toggle_show_case_clauses => {
         ...settings,
         show_case_clauses: !settings.show_case_clauses,
@@ -61,6 +78,7 @@ module Performance = {
     page_view: bool,
     hazel_create: bool,
     update_apply_action: bool,
+    program_evaluate: bool,
   };
   let init = {
     measure: false,
@@ -72,6 +90,7 @@ module Performance = {
     page_view: true,
     hazel_create: true,
     update_apply_action: true,
+    program_evaluate: false,
   };
 
   [@deriving sexp]
@@ -84,7 +103,8 @@ module Performance = {
     | Toggle_cell_view
     | Toggle_page_view
     | Toggle_hazel_create
-    | Toggle_update_apply_action;
+    | Toggle_update_apply_action
+    | Toggle_program_evaluate;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -111,6 +131,10 @@ module Performance = {
     | Toggle_update_apply_action => {
         ...settings,
         update_apply_action: !settings.update_apply_action,
+      }
+    | Toggle_program_evaluate => {
+        ...settings,
+        program_evaluate: !settings.program_evaluate,
       }
     };
 };
