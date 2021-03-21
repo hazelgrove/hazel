@@ -6,12 +6,17 @@
 
    In any case, that's a good reference. */
 
+module MapDefinition = {
+  type t('custom) =
+    | Define_using_bind
+    | Custom('custom);
+};
+
 module type MONAD_BASIC = {
-  [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
-  let map: [ | `Define_using_bind | `Custom((t('a), 'a => 'b) => t('b))];
+  let map: MapDefinition.t((t('a), 'a => 'b) => t('b));
 };
 
 module type MONAD = {
@@ -30,8 +35,8 @@ module Make = (M: MONAD_BASIC) => {
 
   let map = (x, f) =>
     switch (M.map) {
-    | `Define_using_bind => bind(x, a => M.return(f(a)))
-    | `Custom(mapper) => mapper(x, f)
+    | Define_using_bind => bind(x, a => M.return(f(a)))
+    | Custom(mapper) => mapper(x, f)
     };
 
   let zip = (x, y) => bind(x, a => bind(y, b => M.return((a, b))));
