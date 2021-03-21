@@ -619,6 +619,7 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
+    print_endline(__LOC__);
     let zt1_hole = subject |> ZExp.place_before;
     let (if_then, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let (if_else, u_gen) = u_gen |> UHExp.new_EmptyHole;
@@ -1961,9 +1962,7 @@ and syn_perform_operand =
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
     switch (syn_perform(ctx, a, (zt2, ty, u_gen))) {
-    | Failed =>
-      print_endline("1974");
-      Failed;
+    | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
         ctx,
@@ -1974,29 +1973,25 @@ and syn_perform_operand =
       switch (Statics_Exp.syn(ctx, t3)) {
       | None => Failed
       | Some(ty3) =>
-        print_endline("1982");
-        HTyp.consistent(ty2, ty3)
-          ? {
-            print_endline("1985");
-            let real_ty = HTyp.join(GLB, ty2, ty3);
-            switch (real_ty) {
-            | Some(real_type) =>
-              let (_, _, u_gen) =
-                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt2));
-              print_endline("finished fix holes");
-              let (_, u_gen) = u_gen |> MetaVarGen.next;
-              let new_ze =
-                ZExp.ZBlock.wrap(
-                  IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
-                );
-              Succeeded(SynDone((new_ze, real_type, u_gen)));
-            | None => Failed
-            };
-          }
-          : {
-            print_endline("1996");
-            Failed;
-          };
+        let real_ty = HTyp.join(GLB, ty2, ty3);
+        switch (real_ty) {
+        | Some(real_type) =>
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
+            );
+          Succeeded(SynDone((new_ze, real_type, u_gen)));
+        | None =>
+          print_endline(__LOC__);
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let branch_types = [ty2, ty3];
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              IfZ2(InconsistentBranches(branch_types, u), t1, zt2, t3),
+            );
+          print_endline(__LOC__);
+          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+        };
       }
     }
   | (_, IfZ3(_, t1, t2, zt3)) =>
@@ -2009,32 +2004,33 @@ and syn_perform_operand =
         (zoperand, ty, u_gen),
       )
     | Succeeded((zt3, ty3, u_gen)) =>
+      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty3)));
       switch (Statics_Exp.syn(ctx, t2)) {
       | None => Failed
       | Some(ty2) =>
-        print_endline("2017");
-        HTyp.consistent(ty2, ty3)
-          ? {
-            let real_ty = HTyp.join(GLB, ty2, ty3);
-            switch (real_ty) {
-            | Some(real_type) =>
-              let (_, _, u_gen) =
-                Statics_Exp.syn_fix_holes(ctx, u_gen, ZExp.erase(zt3));
-              print_endline("finished fix holes");
-              let (_, u_gen) = u_gen |> MetaVarGen.next;
-              let new_ze =
-                ZExp.ZBlock.wrap(
-                  IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
-                );
-              Succeeded(SynDone((new_ze, real_type, u_gen)));
-            | None => Failed
-            };
-          }
-          : {
-            print_endline("2030");
-            Failed;
-          };
-      }
+        print_endline(__LOC__);
+        print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty2)));
+        let real_ty = HTyp.join(GLB, ty2, ty3);
+        switch (real_ty) {
+        | Some(real_type) =>
+          print_endline(__LOC__);
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
+            );
+          Succeeded(SynDone((new_ze, real_type, u_gen)));
+        | None =>
+          print_endline(__LOC__);
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let branch_types = [ty2, ty3];
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              IfZ3(InconsistentBranches(branch_types, u), t1, t2, zt3),
+            );
+          print_endline(__LOC__);
+          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+        };
+      };
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
