@@ -48,6 +48,7 @@ let get_expansion: t => DHExp.t;
 exception InvalidInput;
 let get_result: t => Result.t;
 let get_result_step: t => Result.t;
+let get_evaluate_steps: t => list(DHExp.t);
 /**
  * Raised when an attempted edit action does not succeed
  */

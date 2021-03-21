@@ -74,6 +74,18 @@ let view =
             evaluation.evaluator_type == StepEvaluator,
           ),
           labeled_checkbox(
+            ~id="show_evaluate_steps",
+            ~classes=["twice-indented-option"],
+            ~label="Show evaluate steps",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_show_evaluate_steps)),
+                ),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.show_evaluate_steps,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",

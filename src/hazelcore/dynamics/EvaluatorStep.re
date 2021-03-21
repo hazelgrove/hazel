@@ -571,3 +571,12 @@ let step_evaluate_web = (d: DHExp.t): Evaluator.result =>
   ) {
   | InvalidInput(i) => InvalidInput(i)
   };
+
+let rec step_evaluate_record = (d: DHExp.t): list(DHExp.t) => {
+  let d' = ctx_step(d);
+  if (is_final(d')) {
+    [d'];
+  } else {
+    [d', ...step_evaluate_record(d')];
+  };
+};

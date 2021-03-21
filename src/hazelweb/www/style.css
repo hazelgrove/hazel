@@ -710,6 +710,11 @@ body {
   position: relative;
   left: 2.5ch;
 }
+#SettingsPanel .twice-indented-option {
+  position: relative;
+  left: 5.0ch;
+}
+
 #SettingsPanel label[disabled] {
   opacity: 0.5;
 }
@@ -750,6 +755,12 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
+}
+
+.step-view {
+  margin: 25px;
+  padding: 25px;
+  background-color: #FEFEEA;
 }
 
 .type-indicator {

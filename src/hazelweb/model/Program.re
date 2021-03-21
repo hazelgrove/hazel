@@ -135,6 +135,9 @@ let get_result_step = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
+let get_evaluate_steps = (program: t): list(DHExp.t) =>
+  program |> get_expansion |> EvaluatorStep.step_evaluate_record;
+
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
     "Program.get_doc",

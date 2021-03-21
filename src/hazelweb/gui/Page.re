@@ -178,7 +178,30 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
               ),
-            ],
+            ]
+            @ (
+              if (settings.evaluation.show_evaluate_steps) {
+                List.map(
+                  d =>
+                    Node.div(
+                      [Attr.classes(["step-view"])],
+                      [
+                        DHCode.view(
+                          ~inject,
+                          ~selected_instance,
+                          ~settings=settings.evaluation,
+                          ~width=80,
+                          ~font_metrics=model.font_metrics,
+                          d,
+                        ),
+                      ],
+                    ),
+                  program |> Program.get_evaluate_steps,
+                );
+              } else {
+                [];
+              }
+            ),
           );
         };
       Node.div(

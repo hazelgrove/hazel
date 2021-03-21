@@ -12,6 +12,7 @@ module Evaluation = {
   type t = {
     evaluate: bool,
     evaluator_type: Evaluator.t,
+    show_evaluate_steps: bool,
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_casts: bool,
@@ -21,6 +22,7 @@ module Evaluation = {
   let init = {
     evaluate: true,
     evaluator_type: Evaluator,
+    show_evaluate_steps: false,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,
@@ -31,6 +33,7 @@ module Evaluation = {
   type update =
     | Toggle_evaluate
     | Toggle_use_step_evaluator
+    | Toggle_show_evaluate_steps
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
     | Toggle_show_casts
@@ -46,6 +49,10 @@ module Evaluation = {
           | Evaluator => StepEvaluator
           | StepEvaluator => Evaluator
           },
+      }
+    | Toggle_show_evaluate_steps => {
+        ...settings,
+        show_evaluate_steps: !settings.show_evaluate_steps,
       }
     | Toggle_show_case_clauses => {
         ...settings,
