@@ -14,10 +14,3 @@ let split_last = (xs: list('a)): (list('a), 'a) =>
   | None => failwith("empty list")
   | Some(r) => r
   };
-
-let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c)) = xs => {
-  let rec go: ((list('a), list('b), list('c)), list(('a, 'b, 'c))) => (list('a), list('b), list('c)) = ((as, bs, cs) as res) => fun
-    | [] => res
-    | [(a, b, c), ...xs] => go (([a, ...as], [b, ...bs], [c, ...cs]), xs)
-  go([], xs)
-};

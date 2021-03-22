@@ -70,6 +70,16 @@ let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
     ([x, ...xs], [y, ...ys]);
   };
 
+let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c)) =
+  l => {
+    let rec go = ((xs, ys, zs) as res) =>
+      fun
+      | [] => res
+      | [(x, y, z), ...rest] =>
+        go(([x, ...xs], [y, ...ys], [z, ...zs]), rest);
+    go(([], [], []), l);
+  };
+
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */

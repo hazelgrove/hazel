@@ -26,6 +26,7 @@ let map2_opt: (('a, 'b) => 'c, list('a), list('b)) => option(list('c));
 let zip: (list('a), list('b)) => list(('a, 'b));
 
 let unzip: list(('a, 'b)) => (list('a), list('b));
+let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
 
 /* repeat an element n times */
 let replicate: (int, 'a) => list('a);
