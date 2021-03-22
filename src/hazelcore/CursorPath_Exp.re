@@ -705,7 +705,7 @@ and holes_zoperand =
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
   | CursorE(_, ListNil(err))
-  | CursorE(OnText(_), Prj(err, _, _)) =>
+  | CursorE(OnText(_), Prj(StandardErrStatus(err), _, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>

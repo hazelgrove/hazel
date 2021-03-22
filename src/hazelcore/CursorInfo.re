@@ -32,6 +32,8 @@ type typed =
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // cursor is on a label
   | AnaLabel(HTyp.t)
+  // cursor is on a projection in projection error status
+  | AnaPrjErr(HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -65,6 +67,8 @@ type typed =
   | SynInvalid
   // cursor is on label
   | SynLabel(LabelErrStatus.t, Label.t)
+  // cursor is on a projection in error status
+  | SynPrjErr(PrjErrStatus.t)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword

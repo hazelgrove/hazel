@@ -135,6 +135,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
   | Label(_, _) => Some(Hole)
+  | Prj(InPrjHole(_, _), _, _) => Some(Hole)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -144,7 +145,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _, _) =>
+  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -157,7 +158,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => None
+  | Prj(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
@@ -208,7 +209,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let+ _ = ana(splice_ctx, expansion, expansion_ty);
     expansion_ty;
   | Parenthesized(body) => syn(ctx, body)
-  | Prj(NotInHole, body, label) =>
+  | Prj(StandardErrStatus(NotInHole), body, label) =>
     switch (syn_operand(ctx, body)) {
     | None => None
     | Some(ty) => HTyp.get_projected_type(ty, label)
@@ -322,7 +323,7 @@ and ana_operand =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _, _) =>
+  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -335,7 +336,7 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) =>
+  | Prj(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -346,7 +347,7 @@ and ana_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _)
-  | Prj(NotInHole, _, _) =>
+  | Prj(StandardErrStatus(NotInHole), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ty, ty') ? Some() : None;
@@ -1006,8 +1007,8 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, body);
     switch (HTyp.get_projected_type(ty, l)) {
-    | None => (Prj(InHole(TypeInconsistent, u_gen), block, l), Hole, u_gen)
-    | Some(proj_ty) => (Prj(NotInHole, block, l), proj_ty, u_gen)
+    | None => (Prj(InPrjHole(DoesNotAppear, u_gen), block, l), Hole, u_gen)
+    | Some(proj_ty) => (Prj(StandardErrStatus(NotInHole), block, l), proj_ty, u_gen)
     };
   };
 }
@@ -1353,7 +1354,7 @@ and ana_fix_holes_operand =
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
+      (UHExp.set_err_status_operand(InPrjHole(DoesNotAppear, u), e), u_gen);
     };
   | ListNil(_) =>
     switch (HTyp.matched_list(ty)) {

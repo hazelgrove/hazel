@@ -783,7 +783,7 @@ and syn_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Prj(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -803,7 +803,7 @@ and syn_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Prj(StandardErrStatus(InHole(WrongLength, _)), _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -835,7 +835,18 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    } /* not in hole */
+    } 
+  | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
+    // ECD YOU ARE HERE: Figuring out what prj of a does prj hole elaborates to
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let d = DHExp.EmptyHole(u, 0, sigma);
+    let ty = HTyp.Hole;
+    let delta =
+      MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+    Elaborates(d, ty, delta);
+
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -860,7 +871,8 @@ and syn_elab_operand =
       | InLabelHole(_, u) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
-        let d = DHExp.EmptyHole(u, 0, sigma);
+        // ECD: Changed label code here, change back if failing later
+        let d = DHExp.Label(l);
         let ty = HTyp.Hole;
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);

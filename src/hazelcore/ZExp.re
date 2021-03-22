@@ -544,7 +544,7 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
-  | PrjZE(_, zexp, label) => PrjZE(err, zexp, label)
+  | PrjZE(_, zexp, label) => PrjZE(StandardErrStatus(err), zexp, label)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -581,7 +581,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | PrjZE(InHole(TypeInconsistent, _), _, _)
+  | PrjZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -600,7 +600,12 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
       _,
     )
-  | PrjZE(NotInHole | InHole(WrongLength, _), _, _)
+  | PrjZE(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InPrjHole(_, _),
+      _,
+      _,
+    )
   | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =

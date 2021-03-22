@@ -845,6 +845,8 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Label(_, _) =>
       Some(CursorInfo_common.mk(AnaLabel(ty), ctx, cursor_term))
+    | Prj(InPrjHole(_), _) =>
+      Some(CursorInfo_common.mk(AnaPrjErr(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -854,7 +856,7 @@ and ana_cursor_info_zoperand =
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-    | Prj(InHole(TypeInconsistent, _), _, _) =>
+    | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -883,7 +885,7 @@ and ana_cursor_info_zoperand =
         _,
       )
     | ApPalette(InHole(WrongLength, _), _, _, _)
-    | Prj(InHole(WrongLength, _), _, _) => None
+    | Prj(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -943,7 +945,12 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _)
-  | PrjZE(InHole(WrongLength, _), _, _) => None
+  | PrjZE(
+      StandardErrStatus(InHole(WrongLength, _)) | InPrjHole(_, _),
+      _,
+      _,
+    ) =>
+    None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -1015,7 +1022,9 @@ and ana_cursor_info_zoperand =
     }
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | PrjZE(NotInHole, zoperand_, _) =>
+  | PrjZE(InPrjHole(_, _), _, _) =>
+    Some(CursorInfo_common.mk(AnaPrjErr(ty), ctx, cursor_term))
+  | PrjZE(StandardErrStatus(NotInHole), zoperand_, _) =>
     syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand_)
   };
 }
