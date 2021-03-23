@@ -57,7 +57,7 @@ let string_to_operator =
   | "&&" => Some(And)
   | "||" => Some(Or)
   | "," => Some(Comma)
-  | var when Var.is_operator(var) => Some(UserOp(var))
+  | var when Var.is_exp_operator(var) => Some(UserOp(var))
   | _ => None;
 
 let is_Space =

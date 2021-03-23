@@ -43,7 +43,7 @@ let of_text = (text: string): t =>
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
-    } else if (text |> Var.is_operator) {
+    } else if (text |> Var.is_incomplete_operator) {
       UserOp(text);
     } else if (text |> Var.is_valid) {
       Var(text);
