@@ -1235,21 +1235,23 @@ and syn_perform_opseq =
     let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
     Succeeded(SynDone((exp, ty, meta_var)));
 
-  | (Backspace, ZOperand(CursorE(_, Var(_, _, x)) as zoperand, surround))
+  /* ++_<| [k+1] [k+2] -->  [k+3] ++ [k+4] [k+1] [k+2]*/
+  | (
+      Backspace,
+      ZOperand(CursorE(OnOp(Before), Var(_, _, x)) as zoperand, surround),
+    )
       when
         (
           ZExp.is_before_zoperand(zoperand)
           || ZExp.is_after_zoperand(zoperand)
         )
-        && Var.is_operator(x) =>
+        && Var.is_incomplete_operator(x) =>
     let op =
       Operators_Exp.string_to_operator(
         StringUtil.backspace(String.length(x), x),
       );
     switch (op) {
-    | None =>
-      print_endline("failed to delete");
-      Failed; //syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+    | None => Failed
     | Some(operator) =>
       print_endline(
         Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
@@ -1329,8 +1331,7 @@ and syn_perform_opseq =
       | (OnText(i), _) =>
         let oper' = StringUtil.insert(i, new_op_char, old_op_str);
         (OnText(i + 1), oper');
-      | (OnDelim(_, _), _) =>
-        (pos, old_op_str ++ new_op_char);
+      | (OnDelim(_, _), _) => (pos, old_op_str ++ new_op_char)
       | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
       | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
       };
@@ -1406,19 +1407,12 @@ and syn_perform_opseq =
     let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
     syn_perform_opseq(ctx, keyword_action(k), (zopseq, ty, u_gen));
 
-  | (
-      Construct(SOp(os) as sop),
-      ZOperand(CursorE(OnText(j), Var(_, _, x)), _),
-    )
-      when Var.is_operator(x) && os != SSpace =>
-    print_endline("correct case");
-    // ANCHOR 1
-    let s = Action_common.shape_to_string(sop);
-    syn_insert_text(ctx, u_gen, (j, s), x);
-
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+        ZExp.is_before_zoperand(zoperand)
+        || ZExp.is_after_zoperand(zoperand)
+        && (!ZExp.is_operator_var(zoperand) || os == SSpace) =>
+    print_endline("construct problem");
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -1429,7 +1423,7 @@ and syn_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    }
+    };
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -1547,6 +1541,7 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
+  print_endline("seyn perform operand");
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1714,11 +1709,18 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
-  | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, x)
+    if (Var.is_operator(x) && sop != SSpace) {
+      let s = Action_common.shape_to_string(shape);
+      syn_insert_text(ctx, u_gen, (j, s), x);
+    } else {
+      syn_split_text(ctx, u_gen, j, sop, x);
+    }
+
   | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -1865,6 +1867,12 @@ and syn_perform_operand =
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
+
+  /* constructing a user op variable */
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) && sop != SSpace =>
+    let s = Action_common.shape_to_string(shape);
+    syn_insert_text(ctx, u_gen, (j, s), x);
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
@@ -2747,15 +2755,6 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zopseq) => ana_perform_opseq(ctx, a, (zopseq, u_gen), ty)
     };
-  | (
-      Construct(SOp(os) as sop),
-      ZOperand(CursorE(OnText(j), Var(_, _, x)), _),
-    )
-      when Var.is_operator(x) && os != SSpace =>
-    print_endline("correct ana case");
-    // ANCHOR 2
-    let s = Action_common.shape_to_string(sop);
-    ana_insert_text(ctx, u_gen, (j, s), x, ty);
   | (Construct(SOp(SComma)), _)
       when
         ZExp.is_after_zopseq(zopseq)
@@ -2826,7 +2825,9 @@ and ana_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+        ZExp.is_before_zoperand(zoperand)
+        || ZExp.is_after_zoperand(zoperand)
+        && (!ZExp.is_operator_var(zoperand) || os == SSpace) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -3169,11 +3170,17 @@ and ana_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
-  | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    ana_split_text(ctx, u_gen, j, sop, x, ty)
+    if (Var.is_operator(x) && sop != SSpace) {
+      let s = Action_common.shape_to_string(shape);
+      ana_insert_text(ctx, u_gen, (j, s), x, ty);
+    } else {
+      ana_split_text(ctx, u_gen, j, sop, x, ty);
+    }
+
   | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -3248,6 +3255,11 @@ and ana_perform_operand =
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), ty)
+
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) && sop != SSpace =>
+    let s = Action_common.shape_to_string(shape);
+    ana_insert_text(ctx, u_gen, (j, s), x, ty);
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {

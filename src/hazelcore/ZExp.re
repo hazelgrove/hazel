@@ -287,6 +287,11 @@ and is_outer_zoperand =
   | CaseZR(_)
   | ApPaletteZ(_) => false;
 
+let is_operator_var =
+  fun
+  | CursorE(OnText(_), Var(_, _, x)) => Var.is_operator(x)
+  | _ => false;
+
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
   fun
