@@ -1235,6 +1235,35 @@ and syn_perform_opseq =
     let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
     Succeeded(SynDone((exp, ty, meta_var)));
 
+  | (Backspace, ZOperand(CursorE(_, Var(_, _, x)) as zoperand, surround))
+      when
+        (
+          ZExp.is_before_zoperand(zoperand)
+          || ZExp.is_after_zoperand(zoperand)
+        )
+        && Var.is_operator(x) =>
+    let op =
+      Operators_Exp.string_to_operator(
+        StringUtil.backspace(String.length(x), x),
+      );
+    switch (op) {
+    | None =>
+      print_endline("failed to delete");
+      Failed; //syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+    | Some(operator) =>
+      print_endline(
+        Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
+      );
+      print_endline("delete first half operator");
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        construct_operator(u_gen, operator, zoperand, surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    };
+
   | (Delete, ZOperator((OnText(i), oper), seq)) =>
     let new_op_str = StringUtil.delete(i, oper |> Operators_Exp.to_string);
     let new_op = Operators_Exp.string_to_operator(new_op_str);
@@ -1300,7 +1329,8 @@ and syn_perform_opseq =
       | (OnText(i), _) =>
         let oper' = StringUtil.insert(i, new_op_char, old_op_str);
         (OnText(i + 1), oper');
-      | (OnDelim(_, _), _)
+      | (OnDelim(_, _), _) =>
+        (pos, old_op_str ++ new_op_char);
       | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
       | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
       };
@@ -1375,6 +1405,16 @@ and syn_perform_opseq =
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
     let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
     syn_perform_opseq(ctx, keyword_action(k), (zopseq, ty, u_gen));
+
+  | (
+      Construct(SOp(os) as sop),
+      ZOperand(CursorE(OnText(j), Var(_, _, x)), _),
+    )
+      when Var.is_operator(x) && os != SSpace =>
+    print_endline("correct case");
+    // ANCHOR 1
+    let s = Action_common.shape_to_string(sop);
+    syn_insert_text(ctx, u_gen, (j, s), x);
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
@@ -1582,7 +1622,27 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
-    syn_backspace_text(ctx, u_gen, j, x)
+    /* | (Construct(SOp(os)), ZOperand(zoperand, surround)) */
+    /* when */
+    /* ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) => */
+    switch (Operators_Exp.string_to_operator(StringUtil.backspace(j, x))) {
+    | None => syn_backspace_text(ctx, u_gen, j, x)
+    | Some(_) =>
+      print_endline(
+        Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
+      );
+      // ANCHOR 3
+      print_endline("construct operator during deletion");
+      syn_backspace_text(ctx, u_gen, j, x);
+    /* let construct_operator =
+         ZExp.is_before_zoperand(zoperand)
+           ? construct_operator_before_zoperand
+           : construct_operator_after_zoperand;
+       let (zseq, u_gen) =
+         construct_operator(u_gen, operator, zoperand, surround);
+       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq))); */
+    }
+
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -2687,7 +2747,15 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zopseq) => ana_perform_opseq(ctx, a, (zopseq, u_gen), ty)
     };
-
+  | (
+      Construct(SOp(os) as sop),
+      ZOperand(CursorE(OnText(j), Var(_, _, x)), _),
+    )
+      when Var.is_operator(x) && os != SSpace =>
+    print_endline("correct ana case");
+    // ANCHOR 2
+    let s = Action_common.shape_to_string(sop);
+    ana_insert_text(ctx, u_gen, (j, s), x, ty);
   | (Construct(SOp(SComma)), _)
       when
         ZExp.is_after_zopseq(zopseq)
