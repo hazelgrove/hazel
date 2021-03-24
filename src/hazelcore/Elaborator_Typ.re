@@ -61,7 +61,7 @@ and syn_operand = (ctx, delta, operand) => {
       Kind.KHole,
       Delta.add(
         0,
-        Delta.V(Delta.TypeHole, Kind.KHole, Contexts.tyvars(ctx)),
+        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
     ))
@@ -79,7 +79,7 @@ and syn_operand = (ctx, delta, operand) => {
       Kind.KHole,
       Delta.add(
         u,
-        Delta.V(Delta.TypeHole, Kind.KHole, Contexts.tyvars(ctx)),
+        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
     ))
@@ -121,7 +121,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
       Kind.KHole,
       Delta.add(
         0,
-        Delta.V(Delta.TypeHole, Kind.KHole, Contexts.tyvars(ctx)),
+        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
     ))
@@ -133,7 +133,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
       Kind.KHole,
       Delta.add(
         u,
-        Delta.V(Delta.TypeHole, Kind.KHole, Contexts.tyvars(ctx)),
+        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
     ))
