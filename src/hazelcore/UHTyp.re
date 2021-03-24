@@ -97,41 +97,6 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ctx: TyVarCtx.t, ty: t): HTyp.t => expand_opseq(ctx, ty)
-and expand_opseq = ctx =>
-  fun
-  | OpSeq(skel, seq) => expand_skel(ctx, skel, seq)
-and expand_skel = (ctx, skel, seq) =>
-  switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
-  | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(ctx, skel1, seq);
-    let ty2 = expand_skel(ctx, skel2, seq);
-    Arrow(ty1, ty2);
-  | BinOp(_, Prod, _, _) =>
-    Prod(
-      skel
-      |> get_prod_elements
-      |> List.map(skel => expand_skel(ctx, skel, seq)),
-    )
-  | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(ctx, skel1, seq);
-    let ty2 = expand_skel(ctx, skel2, seq);
-    Sum(ty1, ty2);
-  }
-and expand_operand = ctx =>
-  fun
-  | Hole => Hole
-  | TyVar(NotInVarHole, t) =>
-    TyVar(TyVarCtx.index_of_exn(ctx, t), TyId.to_string(t))
-  | TyVar(InVarHole(_, u), t) => TyVarHole(u, TyId.to_string(t))
-  | Unit => Prod([])
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Parenthesized(opseq) => expand(ctx, opseq)
-  | List(opseq) => List(expand(ctx, opseq));
-
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false

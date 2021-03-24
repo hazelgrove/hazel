@@ -29,7 +29,7 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
 
-let expand: (TyVarCtx.t, t) => HTyp.t;
+/* "expand" is handled by Elaborator_Typ.syn/ana */
 
 let is_complete: t => bool;
 
