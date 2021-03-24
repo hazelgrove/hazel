@@ -125,8 +125,9 @@ and ana_operand = (ctx, delta, kind, operand) => {
         delta,
       ),
     ))
-  // TODO: Is this the only NEHole case? Even though it's the syn UVar case?
+  // TODO: Add an NEHole case when it's possible to have an arbitrary type hole
   | TyVar(InVarHole(_, u), t) =>
+    /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
     Some((
       TyVarHole(u, TyId.to_string(t)),
