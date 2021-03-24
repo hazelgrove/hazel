@@ -9,11 +9,16 @@ type step_result =
 
 exception InvalidInput(int);
 
-let rec step = (d: DHExp.t): step_result =>
+[@deriving sexp]
+type evaluator_option = {pause_at_empty_hole: bool};
+
+let default_option = {pause_at_empty_hole: true};
+
+let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   switch (d) {
   | BoundVar(_) => raise(InvalidInput(1))
   | Let(dp, d1, d2) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(Let(dp, d1', d2))
     | Step(d1') => Step(Let(dp, d1', d2))
     | BoxedValue(d1)
@@ -27,18 +32,19 @@ let rec step = (d: DHExp.t): step_result =>
   | FixF(x, _, d1) => Step(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(Ap(d1', d2))
     | Step(d1') => Step(Ap(d1', d2))
     | BoxedValue(Lam(dp, _, d3)) =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') =>
-        switch (d2') {
-        | Cast(EmptyHole(_, _, _), _, Hole) => Pause(Ap(d1, d2'))
-        | _ =>
+        switch (opt.pause_at_empty_hole, d2') {
+        | (true, DHExp.Cast(EmptyHole(_, _, _), _, Hole)) =>
+          Pause(Ap(d1, d2'))
+        | (_, _) =>
           switch (Elaborator_Exp.matches(dp, d2')) {
           | DoesNotMatch => Indet(d)
           | Indet => Indet(d)
@@ -50,7 +56,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
       | BoxedValue(d2')
@@ -60,7 +66,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     | BoxedValue(_) => raise(InvalidInput(2))
     | Indet(d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
       | BoxedValue(d2')
@@ -73,11 +79,11 @@ let rec step = (d: DHExp.t): step_result =>
   | FloatLit(_)
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(BinBoolOp(op, d1', d2))
     | Step(d1') => Step(BinBoolOp(op, d1', d2))
     | BoxedValue(BoolLit(b1) as d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | Step(d2') => Step(BinBoolOp(op, d1, d2'))
       | BoxedValue(BoolLit(b2)) =>
@@ -87,7 +93,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     | BoxedValue(_) => raise(InvalidInput(4))
     | Indet(d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | Step(d2') => Step(BinBoolOp(op, d1, d2'))
       | BoxedValue(d2')
@@ -95,11 +101,11 @@ let rec step = (d: DHExp.t): step_result =>
       }
     }
   | BinIntOp(op, d1, d2) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(BinIntOp(op, d1', d2))
     | Step(d1') => Step(BinIntOp(op, d1', d2))
     | BoxedValue(IntLit(n1) as d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinIntOp(op, d1, d2'))
       | Step(d2') => Step(BinIntOp(op, d1, d2'))
       | BoxedValue(IntLit(n2)) =>
@@ -118,7 +124,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     | BoxedValue(_) => raise(InvalidInput(4))
     | Indet(d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinIntOp(op, d1, d2'))
       | Step(d2') => Step(BinIntOp(op, d1, d2'))
       | BoxedValue(d2')
@@ -126,11 +132,11 @@ let rec step = (d: DHExp.t): step_result =>
       }
     }
   | BinFloatOp(op, d1, d2) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(BinFloatOp(op, d1', d2))
     | Step(d1') => Step(BinFloatOp(op, d1', d2))
     | BoxedValue(FloatLit(f1) as d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
       | BoxedValue(FloatLit(f2)) =>
@@ -140,7 +146,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     | BoxedValue(_) => raise(InvalidInput(7))
     | Indet(d1') =>
-      switch (step(d2)) {
+      switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
       | BoxedValue(d2')
@@ -148,14 +154,14 @@ let rec step = (d: DHExp.t): step_result =>
       }
     }
   | Inj(ty, side, d1) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(Inj(ty, side, d1'))
     | Step(d1') => Step(Inj(ty, side, d1'))
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Pair(d1, d2) =>
-    switch (step(d1), step(d2)) {
+    switch (step(d1, opt), step(d2, opt)) {
     | (Pause(d1'), _) => Pause(Pair(d1', d2))
     | (_, Pause(d2')) => Pause(Pair(d1, d2'))
     | (Step(d1'), _) => Step(Pair(d1', d2))
@@ -166,7 +172,7 @@ let rec step = (d: DHExp.t): step_result =>
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
     }
   | Cons(d1, d2) =>
-    switch (step(d1), step(d2)) {
+    switch (step(d1, opt), step(d2, opt)) {
     | (Pause(d1'), _) => Pause(Cons(d1', d2))
     | (_, Pause(d2')) => Pause(Cons(d1, d2'))
     | (Step(d1'), _) => Step(Cons(d1', d2))
@@ -176,12 +182,13 @@ let rec step = (d: DHExp.t): step_result =>
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
-  | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
+  | ConsistentCase(Case(d1, rules, n)) =>
+    evaluate_case(None, d1, rules, n, opt)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(Some((u, i, sigma)), d1, rules, n)
+    evaluate_case(Some((u, i, sigma)), d1, rules, n, opt)
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(NonEmptyHole(reason, u, i, sigma, d1'))
     | Step(d1') => Step(NonEmptyHole(reason, u, i, sigma, d1'))
     | BoxedValue(d1')
@@ -191,7 +198,7 @@ let rec step = (d: DHExp.t): step_result =>
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(Cast(d1', ty, ty'))
     | Step(d1') => Step(Cast(d1', ty, ty'))
     | BoxedValue(d1') as result =>
@@ -279,7 +286,7 @@ let rec step = (d: DHExp.t): step_result =>
       }
     }
   | FailedCast(d1, ty, ty') =>
-    switch (step(d1)) {
+    switch (step(d1, opt)) {
     | Pause(d1') => Pause(FailedCast(d1', ty, ty'))
     | Step(d1') => Step(FailedCast(d1', ty, ty'))
     | BoxedValue(d1')
@@ -293,9 +300,10 @@ and evaluate_case =
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
+      opt: evaluator_option,
     )
     : step_result =>
-  switch (step(scrut)) {
+  switch (step(scrut, opt)) {
   | Pause(scrut') =>
     let case = DHExp.Case(scrut', rules, current_rule_index);
     switch (inconsistent_info) {
@@ -329,7 +337,13 @@ and evaluate_case =
         };
       | Matches(env) => Step(Elaborator_Exp.subst(env, d))
       | DoesNotMatch =>
-        evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
+        evaluate_case(
+          inconsistent_info,
+          scrut,
+          rules,
+          current_rule_index + 1,
+          opt,
+        )
       }
     }
   };
@@ -373,15 +387,15 @@ module EvalCtx = {
       );
 };
 
-let is_final = (d: DHExp.t): bool =>
-  switch (step(d)) {
+let is_final = (d: DHExp.t, opt: evaluator_option): bool =>
+  switch (step(d, opt)) {
   | Step(_) => false
   | Pause(_)
   | BoxedValue(_)
   | Indet(_) => true
   };
 
-let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
+let rec decompose = (d: DHExp.t, opt: evaluator_option): (EvalCtx.t, DHExp.t) =>
   switch (d) {
   | EmptyHole(_, _, _)
   | Keyword(_, _, _, _)
@@ -396,131 +410,131 @@ let rec decompose = (d: DHExp.t): (EvalCtx.t, DHExp.t) =>
   | Triv
   | FixF(_, _, _) => (Mark, d)
   | Ap(d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (Ap2(d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Ap1(ctx, d2), d0);
     }
   | NonEmptyHole(reason, u, i, sigma, d1) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (NonEmptyHole(reason, u, i, sigma, ctx), d0);
     }
   | BinBoolOp(op, d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (BinBoolOp2(op, d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (BinBoolOp1(op, ctx, d2), d0);
     }
   | BinIntOp(op, d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (BinIntOp2(op, d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (BinIntOp1(op, ctx, d2), d0);
     }
   | BinFloatOp(op, d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (BinFloatOp2(op, d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (BinFloatOp1(op, ctx, d2), d0);
     }
   | Cons(d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (Cons2(d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Cons1(ctx, d2), d0);
     }
   | Cast(d1, ty1, ty2) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Cast(ctx, ty1, ty2), d0);
     }
   | FailedCast(d1, ty1, ty2) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (FailedCast(ctx, ty1, ty2), d0);
     }
   | Pair(d1, d2) =>
-    if (is_final(d1)) {
-      if (is_final(d2)) {
+    if (is_final(d1, opt)) {
+      if (is_final(d2, opt)) {
         (Mark, d);
       } else {
-        let (ctx, d0) = decompose(d2);
+        let (ctx, d0) = decompose(d2, opt);
         (Pair2(d1, ctx), d0);
       };
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Pair1(ctx, d2), d0);
     }
   | Let(dp, d1, d2) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Let(dp, ctx, d2), d0);
     }
   | Inj(ty, side, d1) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (Inj(ty, side, ctx), d0);
     }
   | InvalidOperation(d1, err) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (InvalidOperation(ctx, err), d0);
     }
   | ConsistentCase(Case(d1, rule, n)) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (ConsistentCase(ctx, rule, n), d0);
     }
   | InconsistentBranches(u, i, sigma, Case(d1, rule, n)) =>
-    if (is_final(d1)) {
+    if (is_final(d1, opt)) {
       (Mark, d);
     } else {
-      let (ctx, d0) = decompose(d1);
+      let (ctx, d0) = decompose(d1, opt);
       (InconsistentBranches(u, i, sigma, ctx, rule, n), d0);
     }
   };
@@ -553,12 +567,12 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
     InconsistentBranches(u, i, sigma, Case(compose((ctx1, d)), rule, n))
   };
 
-let ctx_step = (d: DHExp.t): DHExp.t =>
-  if (is_final(d)) {
+let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
+  if (is_final(d, opt)) {
     d;
   } else {
-    let (ctx, d0) = decompose(d);
-    switch (step(d0)) {
+    let (ctx, d0) = decompose(d, opt);
+    switch (step(d0, opt)) {
     | Pause(d0')
     | BoxedValue(d0')
     | Indet(d0')
@@ -566,28 +580,29 @@ let ctx_step = (d: DHExp.t): DHExp.t =>
     };
   };
 
-let rec steps = (d: DHExp.t): DHExp.t => {
-  let d' = ctx_step(d);
+let rec steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
+  let d' = ctx_step(d, opt);
   // print_string(d' |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string);
-  d' == d ? d : steps(d');
+  d' == d ? d : steps(d', opt);
 };
 
-let step_evaluate = (d: DHExp.t): option(DHExp.t) =>
-  try(Some(steps(d))) {
+let step_evaluate = (d: DHExp.t, opt: evaluator_option): option(DHExp.t) =>
+  try(Some(steps(d, opt))) {
   | InvalidInput(_) => None
   };
 
-let rec quick_steps = (d: DHExp.t): step_result =>
-  switch (step(d)) {
+let rec quick_steps = (d: DHExp.t, opt: evaluator_option): step_result =>
+  switch (step(d, opt)) {
   | Pause(d) => Pause(d)
-  | Step(d0) => quick_steps(d0)
+  | Step(d0) => quick_steps(d0, opt)
   | Indet(d) => Indet(d)
   | BoxedValue(d) => BoxedValue(d)
   };
 
-let quick_step_evaluate = (d: DHExp.t): Evaluator.result =>
+let quick_step_evaluate =
+    (d: DHExp.t, opt: evaluator_option): Evaluator.result =>
   try(
-    switch (quick_steps(d)) {
+    switch (quick_steps(d, opt)) {
     | Pause(d)
     | Step(d)
     | Indet(d) => Indet(d)
@@ -597,10 +612,10 @@ let quick_step_evaluate = (d: DHExp.t): Evaluator.result =>
   | InvalidInput(i) => InvalidInput(i)
   };
 
-let step_evaluate_web = (d: DHExp.t): Evaluator.result =>
+let step_evaluate_web = (d: DHExp.t, opt: evaluator_option): Evaluator.result =>
   //for hazelweb
   try(
-    switch (step(steps(d))) {
+    switch (step(steps(d, opt), opt)) {
     | Step(d)
     | Pause(d)
     | Indet(d) => Indet(d)
@@ -610,11 +625,12 @@ let step_evaluate_web = (d: DHExp.t): Evaluator.result =>
   | InvalidInput(i) => InvalidInput(i)
   };
 
-let rec step_evaluate_record = (d: DHExp.t): list(DHExp.t) => {
-  let d' = ctx_step(d);
-  if (is_final(d')) {
+let rec step_evaluate_record =
+        (d: DHExp.t, opt: evaluator_option): list(DHExp.t) => {
+  let d' = ctx_step(d, opt);
+  if (is_final(d', opt)) {
     [d'];
   } else {
-    [d', ...step_evaluate_record(d')];
+    [d', ...step_evaluate_record(d', opt)];
   };
 };

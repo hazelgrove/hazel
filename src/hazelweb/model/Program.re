@@ -107,7 +107,7 @@ exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let evaluate_step =
-  Memo.general(~cache_size_bound=1000, EvaluatorStep.step_evaluate_web);
+  Memo.general(~cache_size_bound=1000, EvaluatorStep.quick_step_evaluate);
 
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {

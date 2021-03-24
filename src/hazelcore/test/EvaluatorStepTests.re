@@ -15,7 +15,7 @@ let gen_ans = (r: DHExp.t): option(DHExp.t) =>
   };
 
 let testing = (t: DHExp.t): bool =>
-  EvaluatorStep.step_evaluate(t) == gen_ans(t);
+  EvaluatorStep.step_evaluate(t, EvaluatorStep.default_option) == gen_ans(t);
 
 let%test "bin op test" = {
   let test = [
@@ -40,10 +40,11 @@ let%test "fibo" = {
   let _ = Evaluator.evaluate(program);
   Format.printf("evaluate\tExecution time: %fs\n", Sys.time() -. t);
   let t = Sys.time();
-  let _ = EvaluatorStep.quick_step_evaluate(program);
+  let _ =
+    EvaluatorStep.quick_step_evaluate(program, EvaluatorStep.default_option);
   Format.printf("quick_step\tExecution time: %fs\n", Sys.time() -. t);
   let t = Sys.time();
-  let _ = EvaluatorStep.step_evaluate(program);
+  let _ = EvaluatorStep.step_evaluate(program, EvaluatorStep.default_option);
   Format.printf("step_evaluate\tExecution time: %fs\n", Sys.time() -. t);
   // switch (EvaluatorStep.quick_step_evaluate(program)) {
   // | BoxedValue(d)
