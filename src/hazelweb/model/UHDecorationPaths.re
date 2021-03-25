@@ -39,7 +39,6 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | BinOp({op_index, _}) => steps == [op_index]
     | Operand
     | Case
-    | List(_)
     | Rule => steps == []
     };
   let err_holes =
