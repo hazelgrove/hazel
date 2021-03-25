@@ -358,7 +358,8 @@ let summary_bar =
   let arrow =
     Node.div(
       [
-        Attr.classes(["clickable"]),
+        Attr.classes(["clickable-help"]),
+        Attr.create("title", "Click to toggle expanded cursor inspector"),
         Attr.on_click(_ =>
           Event.Many([
             Event.Prevent_default,
@@ -377,25 +378,9 @@ let summary_bar =
   let summary =
     Node.div(
       [
-        Attr.create(
-          "title",
-          "Click to view expanded form of symbols in message",
-        ),
         Attr.classes(
           novice_mode
-            ? ["clickable", "summary-message", "novice-mode"]
-            : ["clickable", "summary-message"],
-        ),
-        Attr.on_click(_ =>
-          Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(
-              ModelAction.UpdateSettings(
-                CursorInspector(Toggle_novice_mode),
-              ),
-            ),
-          ])
+            ? ["summary-message", "novice-mode"] : ["summary-message"],
         ),
       ],
       novice_mode
@@ -405,7 +390,8 @@ let summary_bar =
   let fill_icon =
     Node.div(
       [
-        Attr.classes(["clickable"]),
+        Attr.classes(["clickable-help"]),
+        Attr.create("title", "Click to toggle strategy guide"),
         Attr.on_click(_ =>
           Event.Many([
             Event.Prevent_default,
@@ -424,7 +410,22 @@ let summary_bar =
   let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
     show_strategy_guide ? List.append(body, [fill_space, fill_icon]) : body;
-  Node.div([Attr.classes(["type-info-summary"])], body);
+  Node.div(
+    [
+      Attr.create("title", "Click to toggle form of message"),
+      Attr.classes(["type-info-summary", "clickable-help"]),
+      Attr.on_click(_ =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_novice_mode)),
+          ),
+        ])
+      ),
+    ],
+    body,
+  );
 };
 
 let view =

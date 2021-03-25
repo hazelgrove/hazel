@@ -94,6 +94,12 @@ let shortcut_node = text =>
     [Vdom.Node.text(text)],
   );
 
+let example_lit_node = text =>
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["code-font", "example"])],
+    [Vdom.Node.text(text)],
+  );
+
 let keyword_node = text =>
   Vdom.Node.div(
     [Vdom.Attr.classes(["code-font", "keyword"])],
@@ -101,51 +107,59 @@ let keyword_node = text =>
   );
 
 let option = nodes => Vdom.(Node.div([Attr.classes(["option"])], nodes));
-
+let mini_option = nodes =>
+  Vdom.(Node.div([Attr.classes(["mini-option"])], nodes));
+let fill_space = Vdom.(Node.span([Attr.classes(["filler"])], []));
 let lit_msg = (ty: HTyp.t) => {
   let int_lit =
     option([
-      Vdom.Node.text("Enter an Integer (e.g. "),
-      code_node("1"),
+      Vdom.Node.text("Enter an Integer Literal"),
+      fill_space,
+      Vdom.Node.text("(e.g. "),
+      example_lit_node("1"),
       Vdom.Node.text(")"),
     ]);
   let float_lit =
     option([
-      Vdom.Node.text("Enter a Float (e.g. "),
-      code_node("1.0"),
+      Vdom.Node.text("Enter a Floating Point Literal"),
+      fill_space,
+      Vdom.Node.text("(e.g. "),
+      example_lit_node("1.0"),
       Vdom.Node.text(")"),
     ]);
   let bool_lit =
     option([
-      Vdom.Node.text("Enter a Boolean (e.g. "),
-      code_node("true"),
+      Vdom.Node.text("Enter a Boolean Literal"),
+      fill_space,
+      Vdom.Node.text("(e.g. "),
+      example_lit_node("true"),
       Vdom.Node.text(")"),
     ]);
   let fun_lit =
     option([
-      Vdom.Node.text("Enter a Function (enter "),
+      Vdom.Node.text("Enter a Function Literal"),
+      fill_space,
       shortcut_node("\\"),
-      Vdom.Node.text(")"),
     ]);
   let sum_lit =
     option([
-      Vdom.Node.text("Enter an Injection (enter "),
-      shortcut_node("Alt + l"),
+      Vdom.Node.text("Enter an Injection Literal"),
+      fill_space,
+      shortcut_node("Alt+l"),
       Vdom.Node.text("or"),
-      shortcut_node("Alt + r"),
-      Vdom.Node.text(")"),
+      shortcut_node("Alt+r"),
     ]);
   let prod_lit =
     option([
-      Vdom.Node.text("Enter a Tuple (enter "),
-      shortcut_node(")"),
-      Vdom.Node.text(")"),
+      Vdom.Node.text("Enter a Tuple Literal"),
+      fill_space,
+      shortcut_node("("),
     ]);
   let list_lit =
     option([
-      Vdom.Node.text("Enter a List (enter "),
+      Vdom.Node.text("Enter an Empty List Literal"),
+      fill_space,
       shortcut_node("["),
-      Vdom.Node.text(")"),
     ]);
   switch (ty) {
   | Hole => [
@@ -188,129 +202,99 @@ let list_vars_view = (vars: VarCtx.t) => {
 };
 
 /**
- * Create a div containing divs for all arithmetic operation options that will be shown.
+ * Create a div containing divs for all operator options that will be shown.
  * Return a Node.t
  */
-let other_arithmetic_options = cursor_info => {
+let operator_options = cursor_info => {
   open Vdom;
-  let int_options =
-    ["+", "-", "*", "/"]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(HTyp.Int, HTyp.Arrow(Int, Int))),
-           ],
-         )
-       });
-  let float_options =
-    ["+.", "-.", "*.", "/."]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Float))),
-           ],
-         )
-       });
-  let int_options_2 =
-    ["<", ">", "=="]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(HTyp.Int, HTyp.Arrow(Int, Bool))),
-           ],
-         )
-       });
-  let float_options_2 =
-    ["<.", ">.", "==."]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Bool))),
-           ],
-         )
-       });
+  let int_options = [
+    shortcut_node("+"),
+    shortcut_node("-"),
+    shortcut_node("*"),
+    shortcut_node("/"),
+  ];
+  let int_to_bool_options = [
+    shortcut_node("<"),
+    shortcut_node(">"),
+    shortcut_node("="),
+  ];
+  let float_options = [
+    shortcut_node("+."),
+    shortcut_node("-."),
+    shortcut_node("*."),
+    shortcut_node("/."),
+  ];
+  let float_to_bool_options = [
+    shortcut_node("<."),
+    shortcut_node(">."),
+    shortcut_node("=."),
+  ];
+
+  let int_operators_wrapper = options =>
+    mini_option([
+      Vdom.Node.text("Integer Operation"),
+      fill_space,
+      ...options,
+    ]);
+
+  let float_operators_wrapper = options =>
+    mini_option([
+      Vdom.Node.text("Floating Point Operation"),
+      fill_space,
+      ...options,
+    ]);
+
+  let arithmetic_options_wrapper = options =>
+    Node.div(
+      [Attr.classes(["option"])],
+      [
+        Node.div(
+          [Attr.classes(["sub-options"])],
+          [Node.text("Arithmetic Operation")] @ options,
+        ),
+      ],
+    );
+
   let boolean_options =
-    ["&&", "||"]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(Bool, Arrow(Bool, Bool))),
-           ],
-         )
-       });
-
-  let list_options = t2 =>
-    ["::"]
-    |> List.map(s => {
-         Node.div(
-           [Attr.classes(["mini-option"])],
-           [
-             code_node(s),
-             Node.text(":"),
-             HTypCode.view(HTyp.Arrow(t2, Arrow(List(t2), List(t2)))),
-           ],
-         )
-       });
-
-  let arithmetic_options_wrapper = options => [
     Node.div(
       [Attr.classes(["option"])],
       [
-        Node.div(
-          [Attr.classes([])],
-          [Node.text("Arithmetic operation")] @ options,
-        ),
+        Node.text("Boolean Operation"),
+        fill_space,
+        shortcut_node("&&"),
+        shortcut_node("||"),
       ],
-    ),
-  ];
+    );
 
-  let boolean_options_wrapper = options => [
+  let list_options =
     Node.div(
       [Attr.classes(["option"])],
-      [
-        Node.div(
-          [Attr.classes([])],
-          [Node.text("Boolean operation")] @ options,
-        ),
-      ],
-    ),
-  ];
+      [Node.text("List Operation"), fill_space, shortcut_node(";")],
+    );
 
-  let list_options_wrapper = options => [
-    Node.div(
-      [Attr.classes(["option"])],
-      [
-        Node.div(
-          [Attr.classes([])],
-          [Node.text("List operation")] @ options,
-        ),
-      ],
-    ),
-  ];
-
-  let ty: option(HTyp.t) = get_type(cursor_info);
-  switch (ty) {
-  | Some(Hole) => arithmetic_options_wrapper(int_options @ float_options)
-  | Some(Int) => arithmetic_options_wrapper(int_options)
-  | Some(Float) => arithmetic_options_wrapper(float_options)
-  | Some(Bool) =>
-    boolean_options_wrapper(int_options_2 @ float_options_2 @ boolean_options)
-  | Some(List(t2)) => list_options_wrapper(list_options(t2))
+  switch (get_type(cursor_info)) {
+  | Some(Hole) => [
+      arithmetic_options_wrapper([
+        int_operators_wrapper(int_options @ int_to_bool_options),
+        float_operators_wrapper(float_options @ float_to_bool_options),
+      ]),
+      boolean_options,
+      list_options,
+    ]
+  | Some(Int) => [
+      arithmetic_options_wrapper([int_operators_wrapper(int_options)]),
+    ]
+  | Some(Float) => [
+      arithmetic_options_wrapper([float_operators_wrapper(float_options)]),
+    ]
+  | Some(Bool) => [
+      arithmetic_options_wrapper([
+        int_operators_wrapper(int_to_bool_options),
+        float_operators_wrapper(float_to_bool_options),
+      ]),
+      boolean_options,
+    ]
+  | Some(List(_)) => [list_options]
   | _ => []
   };
 };
@@ -443,7 +427,7 @@ let view =
         [
           Node.div(
             [Attr.classes(["options"])],
-            fun_view @ other_arithmetic_options(cursor_info),
+            fun_view @ operator_options(cursor_info),
           ),
         ],
       )
