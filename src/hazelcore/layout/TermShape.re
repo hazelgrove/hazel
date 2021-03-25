@@ -5,7 +5,6 @@ type t =
   | Rule
   | Invalid
   | Case({err: CaseErrStatus.t})
-  | List({err: ListErrStatus.t})
   | Var({
       err: ErrStatus.t,
       verr: VarErrStatus.t,
