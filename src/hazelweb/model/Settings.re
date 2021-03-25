@@ -131,9 +131,9 @@ module CursorInspector = {
     type_assist_fun: bool,
     type_assist_branch: bool,
     /* pat */
-    type_assist_binding: bool,
-    type_assist_wild: bool,
-    type_assist_pat: bool,
+    type_assist_val: bool,
+    type_assist_structure: bool,
+    type_assist_any: bool,
   };
 
   let init = {
@@ -148,9 +148,9 @@ module CursorInspector = {
     type_assist_fun: false,
     type_assist_branch: false,
     /* pat */
-    type_assist_binding: false,
-    type_assist_wild: false,
-    type_assist_pat: false,
+    type_assist_val: false,
+    type_assist_structure: false,
+    type_assist_any: false,
   };
 
   [@deriving sexp]
@@ -166,9 +166,9 @@ module CursorInspector = {
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
     // pat
-    | Toggle_type_assist_binding
-    | Toggle_type_assist_wild
-    | Toggle_type_assist_pat;
+    | Toggle_type_assist_val
+    | Toggle_type_assist_structure
+    | Toggle_type_assist_any;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -199,17 +199,17 @@ module CursorInspector = {
         ...settings,
         type_assist_branch: !settings.type_assist_branch,
       }
-    | Toggle_type_assist_binding => {
+    | Toggle_type_assist_val => {
         ...settings,
-        type_assist_binding: !settings.type_assist_binding,
+        type_assist_val: !settings.type_assist_val,
       }
-    | Toggle_type_assist_wild => {
+    | Toggle_type_assist_structure => {
         ...settings,
-        type_assist_wild: !settings.type_assist_wild,
+        type_assist_structure: !settings.type_assist_structure,
       }
-    | Toggle_type_assist_pat => {
+    | Toggle_type_assist_any => {
         ...settings,
-        type_assist_pat: !settings.type_assist_pat,
+        type_assist_any: !settings.type_assist_any,
       }
     };
 };

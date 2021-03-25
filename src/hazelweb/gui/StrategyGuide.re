@@ -170,7 +170,7 @@ let lit_msg_exp = (ty: HTyp.t) => {
   };
 };
 
-let lit_msg_pat = (ty: HTyp.t) => {
+let val_msg_pat = (ty: HTyp.t) => {
   let int_lit =
     option([
       Vdom.Node.text("Enter an Integer (e.g. "),
@@ -195,27 +195,19 @@ let lit_msg_pat = (ty: HTyp.t) => {
       shortcut_node("\\"),
       Vdom.Node.text(")"),
     ]);
-  let sum_lit =
-    option([
-      Vdom.Node.text("Enter an Injection (enter "),
-      shortcut_node("Alt + l"),
-      Vdom.Node.text("or"),
-      shortcut_node("Alt + r"),
-      Vdom.Node.text(")"),
-    ]);
   switch (ty) {
-  | Hole => [int_lit, float_lit, bool_lit, fun_lit, sum_lit]
+  | Hole => [int_lit, float_lit, bool_lit, fun_lit]
   | Int => [int_lit]
   | Float => [float_lit]
   | Bool => [bool_lit]
   | Arrow(_, _) => [fun_lit]
-  | Sum(_, _) => [sum_lit]
+  | Sum(_, _)
   | Prod(_)
   | List(_) => [option([Vdom.Node.text("No suggestions.")])]
   };
 };
 
-let pat_msg = (ty: HTyp.t) => {
+let structure_msg = (ty: HTyp.t) => {
   let prod_pat =
     option([
       Vdom.Node.text("Enter a Tuple pattern (enter "),
@@ -243,7 +235,7 @@ let pat_msg = (ty: HTyp.t) => {
       Vdom.Node.text(")"),
     ]);
   switch (ty) {
-  | Hole => [prod_pat, list_pat, list_lit_pat]
+  | Hole => [sum_pat, prod_pat, list_pat, list_lit_pat]
   | Prod(_) => [prod_pat]
   | List(_) => [list_pat, list_lit_pat]
   | Sum(_) => [sum_pat]
@@ -275,7 +267,7 @@ let list_vars_view = (vars: VarCtx.t) => {
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
  */
-let list_bindings_view = (ty: HTyp.t) => {
+let list_any_view = (ty: HTyp.t) => {
   let suggestions =
     switch (ty) {
     | Int => ["n"]
@@ -284,16 +276,7 @@ let list_bindings_view = (ty: HTyp.t) => {
     | List(_) => ["xs"]
     | _ => ["x", "y", "z"]
     };
-  List.map(
-    binding => {
-      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
-    },
-    suggestions,
-  );
-};
-
-let list_wild_view = () => {
-  let suggestions = ["_"];
+  let suggestions = suggestions @ ["_"];
   List.map(
     binding => {
       Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
@@ -641,10 +624,9 @@ let view_pat =
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
-  let lit_open = cursor_inspector.type_assist_lit;
-  let binding_open = cursor_inspector.type_assist_binding;
-  let wild_open = cursor_inspector.type_assist_wild;
-  let pat_open = cursor_inspector.type_assist_pat;
+  let val_open = cursor_inspector.type_assist_val;
+  let structure_open = cursor_inspector.type_assist_structure;
+  let any_open = cursor_inspector.type_assist_any;
 
   let ty = get_type(cursor_info);
 
@@ -691,90 +673,65 @@ let view_pat =
       )
     );
 
-  let lit =
+  let value =
     subsection_header(
-      Toggle_type_assist_lit,
-      "Fill with " ++ type_to_str(ty) ++ " literal",
-      lit_open,
+      Toggle_type_assist_val,
+      "Match with " ++ type_to_str(ty) ++ " value",
+      val_open,
     );
-  let lit_body =
+  let val_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], lit_msg_pat(typ))],
+        [Node.div([Attr.classes(["options"])], val_msg_pat(typ))],
       )
     );
 
-  let pat =
+  let structure =
     subsection_header(
-      Toggle_type_assist_pat,
-      "Fill with " ++ type_to_str(ty) ++ " pattern",
-      pat_open,
+      Toggle_type_assist_structure,
+      "Match with " ++ type_to_str(ty) ++ " structure",
+      structure_open,
     );
-  let pat_body =
+  let structure_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], pat_msg(typ))],
+        [Node.div([Attr.classes(["options"])], structure_msg(typ))],
       )
     );
 
-  let binding_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_bindings_view(typ)));
-  let binding =
+  let any_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_any_view(typ)));
+  let any =
     subsection_header(
-      Toggle_type_assist_binding,
-      "Fill with a binding",
-      binding_open,
+      Toggle_type_assist_any,
+      "Match with anything",
+      any_open,
     );
-  let binding_body =
+  let any_body =
     Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [binding_view],
-      )
-    );
-
-  let wild_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_wild_view()));
-  let wild =
-    subsection_header(
-      Toggle_type_assist_wild,
-      "Fill with a wildcard",
-      wild_open,
-    );
-  let wild_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [wild_view],
-      )
+      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view])
     );
 
   let body = [];
   let body =
-    if (lit_open) {
-      body @ [fill_hole_msg, lit, lit_body];
+    if (val_open) {
+      body @ [fill_hole_msg, value, val_body];
     } else {
-      body @ [fill_hole_msg, lit];
+      body @ [fill_hole_msg, value];
     };
   let body =
-    if (pat_open) {
-      body @ [pat, pat_body];
+    if (structure_open) {
+      body @ [structure, structure_body];
     } else {
-      body @ [pat];
+      body @ [structure];
     };
   let body =
-    if (binding_open) {
-      body @ [binding, binding_body];
+    if (any_open) {
+      body @ [any, any_body];
     } else {
-      body @ [binding];
-    };
-  let body =
-    if (wild_open) {
-      body @ [wild, wild_body];
-    } else {
-      body @ [wild];
+      body @ [any];
     };
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
