@@ -215,7 +215,7 @@ let key_handlers =
           } else {
             Event.Ignore;
           }
-        | Some(Tab) =>
+        | Some(Alt_H) =>
           prevent_stop_inject(ModelAction.OpenMiniBuffer(MoveToHole))
         | Some(kc) =>
           prevent_stop_inject(

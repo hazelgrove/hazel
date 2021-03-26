@@ -3,6 +3,8 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Ev = Dom_html.Event;
 
+let is_mac = Key.is_mac;
+
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
 let log_sexp = (sexp: Sexplib.Sexp.t) => log(Sexplib.Sexp.to_string(sexp));

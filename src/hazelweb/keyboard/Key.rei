@@ -30,3 +30,5 @@ let key1: (string, string) => t;
 let the_key: string => t;
 
 let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
+
+let is_mac: unit => bool;

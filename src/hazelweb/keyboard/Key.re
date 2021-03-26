@@ -25,17 +25,32 @@ let key1 = (plain_name, key) => {
 
 let the_key = key => key1(key, key);
 
+let is_mac = () =>
+  Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+    Js.string("MAC"),
+  )
+  >= 0;
+
+let mac_alt_variant =
+  fun
+  | "h" => "˙"
+  | k => k;
+
 let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>
   switch (r) {
   | Code(c) =>
     let code = get_code(evt);
     String.equal(code, c);
   | Key(k) =>
-    let key = get_key(evt);
-    String.equal(String.uppercase_ascii(key), String.uppercase_ascii(k));
+    let key = String.uppercase_ascii(get_key(evt));
+    // if mac, then check key is same as k or mac alt variant
+    String.equal(key, String.uppercase_ascii(k))
+    || is_mac()
+    && Js.to_bool(evt##.altKey)
+    && String.equal(key, String.uppercase_ascii(mac_alt_variant(k)));
   };
 
-let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
+let matches = (k: t, evt: Js.t(Dom_html.keyboardEvent)) => {
   let recognition_methods = k.recognition_methods;
   ListUtil.any(recognition_methods, recognize(evt));
 };
