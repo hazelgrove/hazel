@@ -1,3 +1,2 @@
-1. (Stickily) position mini buffer in top right corner of cell
-2. fix bug where mini buffer is open and you try to use a drop down menu
+1. fix bug where mini buffer is open and you try to use a drop down menu
 2. maybe something other than alt-h? (brings up help menu on linux/windows)
