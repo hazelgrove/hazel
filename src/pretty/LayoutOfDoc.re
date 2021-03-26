@@ -1916,56 +1916,75 @@ let map: Array.t(int) => Array.t(int) =
 // 34-36ns (complete layout_map)
 
 // Omits pos argument
-let layout_map: Array.t(int) => Array.t(int) =
+let layout_map: (int, Array.t(int)) => Array.t(int) =
   Js.Unsafe.js_expr(
-    "function layout_map_imp(input) {
+    "function layout_map_imp(size, input) {
       //var js_size = size + 1 | 0;
       //console.log(\"size: %o\", size);
       //console.log(\"input: %o\", input);
       //throw 5;
-      var size = input.length;
       var output = new Array(size);
-    output[0] = 0;
-    for (var i =  1; i < size; i++) {
-      var res = input[i]
-      output[i] = res + 1 | 0;
+      output[0] = 0;
+      for (var i =  1; i < size; i++) {
+        var res = input[i]
+        output[i] = res + 1 | 0;
+      }
+      //return [0, size, output];
+      return output;
+      //\"layout_map_imp\";
     }
-    //return [0, size, output];
-    return output;
-    //\"layout_map_imp\";
-  }
     ",
   );
 
 let layout_merge:
-  (Array.t(int), Array.t(int), Array.t(int), Array.t(int)) =>
-  (Array.t(int), Array.t(int)) =
+  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
+  (int, Array.t(int), Array.t(int)) =
   Js.Unsafe.js_expr(
-    "function layout_merge(pos1, res1, pos2, res2) {
-      \"layout_merge\";
-    // var len = input.length;
-    //var js_size1 = pos1.length;
-    //var js_size2 = pos2.length;
-    //var pre_js_size = js_size1 + js_size2 | 0;
-    // var js_size = pre_js_size - 1 | 0;
-    var js_size = res1.length; // |0 (37-39)
-    var end = js_size * 2 | 0;
+    "function layout_merge(size1, pos1, res1, size2, pos2, res2) {
+      //\"layout_merge\";
+    var js_size = size1; // |0 (37-39)
+    var end = size1 + size2 | 0;
     var pos = new Array(end);
     // pos[0] = [0];
-    var res = new Array(js_size);
-    var i = 1;
-    while (i < js_size) {
-      pos[i] = pos1[i];
-      res[i] = res1[i] + 1 | 0;
-      i++;
+    var res = new Array(end);
+    var i = 0;
+    var i1 = 0;
+    var i2 = 0;
+    while (i1 < size1 && i2 < size2) {
+      if (pos1[i1] < pos2[i2]) {
+        //console.log(\"1\");
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+      } else if (pos1[i1] > pos2[i2]) {
+        //console.log(\"2\");
+        pos[i] = pos2[i2];
+        res[i] = res2[i2] + 1 | 0;
+        i2 = i2 + 1 | 0;
+      } else {
+        //console.log(\"3\");
+        // TODO: res1[i1] <=> res2[i2]
+        pos[i] = pos1[i1];
+        res[i] = res1[i1] + 1 | 0;
+        i1 = i1 + 1 | 0;
+        i2 = i2 + 1 | 0;
+      }
+      i = i + 1 | 0;
     }
-    var j = 1;
-    while (i < js_size) {
-      pos[i] = pos2[j];
+    while (i1 < size1) {
+      pos[i] = pos1[i1];
+      res[i] = res1[i1] + 1 | 0;
       i++;
-      j++;
+      i1++; // TODO: |0
+    }
+    while (i2 < size2) {
+      pos[i] = pos2[i2];
+      res[i] = res2[i2] + 1 | 0;
+      i++;
+      i2++;
     }
     //pos.length = js_size;
+    // res.length = js_size;
     //res[0] = [0];
     // var i1 = 1;
     // var i2 = 1;
@@ -2005,7 +2024,7 @@ let layout_merge:
     // }
     //var size = i;
     //return [0, size, pos, res];
-    return [0, pos, res];
+    return [0, size1, pos, res];
   }
     ",
   );
@@ -2020,7 +2039,7 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
@@ -2028,7 +2047,7 @@ let rec fib2 =
       let res = 0;
       mem := gensym^;
       (
-        11,
+        10,
         [|
           pos + 0,
           pos + 1,
@@ -2060,7 +2079,7 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
@@ -2068,7 +2087,7 @@ let rec fib2 =
       let res = 1;
       mem := gensym^;
       (
-        11,
+        10,
         [|
           pos + 0,
           pos + 1,
@@ -2099,13 +2118,13 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
-      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|]);
       //let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
@@ -2114,13 +2133,13 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
-      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
+      let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|]);
       //let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
@@ -2130,7 +2149,7 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
@@ -2153,7 +2172,7 @@ let rec fib2 =
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
-        11,
+        10,
         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
       );
@@ -2163,19 +2182,21 @@ let rec fib2 =
       //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
       //let out = out1r;
       //let (out_s, out_p, out_r) = (out1s, out1p, out1r);
-      let (out_p, out_r) =
+      let (out_s, out_p, out_r) =
         Js.Unsafe.fun_call(
           layout_merge,
           [|
+            Js.Unsafe.inject(out1s),
             Js.Unsafe.inject(out1p),
             Js.Unsafe.inject(out1r),
+            Js.Unsafe.inject(out2s),
             Js.Unsafe.inject(out2p),
             Js.Unsafe.inject(out2r),
           |],
         );
       mem := gensym^;
       //(out_s, out_p, out_r);
-      (out1s, out_p, out_r);
+      (out_s, out_p, out_r);
     };
   };
 };
