@@ -48,6 +48,7 @@
   --verr-hole-z: 1;
   --code-text-z: 2;
   --caret-z: 5;
+  --mini-buffer-z: 6;
 }
 
 /* general */
@@ -913,6 +914,14 @@ h1 {
 }
 #code-root .code-closed-child.Typ {
   filter: url(#typ-closed-child-drop-shadow);
+}
+
+#mini-buffer {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  background-color: white;
+  z-index: var(--mini-buffer-z);
 }
 
 .code .VBox {
