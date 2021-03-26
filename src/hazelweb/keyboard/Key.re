@@ -43,8 +43,8 @@ let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>
     String.equal(code, c);
   | Key(k) =>
     let key = String.uppercase_ascii(get_key(evt));
-    // if mac, then check key is same as k or mac alt variant
     String.equal(key, String.uppercase_ascii(k))
+    // if mac, then check key is same as k or mac alt variant
     || is_mac()
     && Js.to_bool(evt##.altKey)
     && String.equal(key, String.uppercase_ascii(mac_alt_variant(k)));

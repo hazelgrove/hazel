@@ -32,6 +32,7 @@ let view = (~inject, model: Model.t) => {
                       Event.Prevent_default,
                       Event.Stop_propagation,
                       inject(ModelAction.CloseMiniBuffer),
+                      inject(ModelAction.FocusCell),
                     ])
                   | _ => Event.Many([])
                   }
