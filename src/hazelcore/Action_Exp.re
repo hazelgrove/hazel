@@ -520,7 +520,8 @@ let rec syn_move =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init =>
+  | Init
+  | FillExpHole(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -579,7 +580,8 @@ let rec ana_move =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init =>
+  | Init
+  | FillExpHole(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -594,20 +596,27 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-  | (Failed | CursorEscaped(_)) as err => err
-  | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
-  | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-    let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
-    let new_ze =
-      (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-      |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
-    let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
-    let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  switch (a) {
+  | FillExpHole(u, e) =>
+    let e = UHExp.fill_hole(u, e, ZExp.erase(ze));
+    let (e, ty, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, e);
+    Succeeded((ZExp.place_before(e), ty, u_gen));
+  | _ =>
+    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
+    | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
+      let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
+      let new_ze =
+        (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+        |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
+      let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
+      let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    }
   };
 }
 and syn_perform_block =
@@ -1005,6 +1014,8 @@ and syn_perform_line =
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
+  | (FillExpHole(_), CursorL(_)) => Failed
+
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
@@ -1079,7 +1090,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | FillExpHole(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1411,6 +1422,10 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
+
+  | (FillExpHole(_), CursorE(_)) =>
+    // FillExpHole handled at top level
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1999,7 +2014,7 @@ and syn_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight, CursorR(_)) => Failed
+  | (SwapLeft | SwapRight | FillExpHole(_), CursorR(_)) => Failed
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
@@ -2148,7 +2163,7 @@ and ana_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight, CursorR(_)) => Failed
+  | (SwapLeft | SwapRight | FillExpHole(_), CursorR(_)) => Failed
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
@@ -2624,6 +2639,8 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
+  | (FillExpHole(_), ZOperator(_)) => Failed
+
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (
       SwapLeft,
@@ -2812,6 +2829,10 @@ and ana_perform_operand =
 
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
+
+  | (FillExpHole(_), CursorE(_)) =>
+    // FillExpHole handled at top level
+    Failed
 
   /* Backspace & Delete */
 
