@@ -420,10 +420,27 @@ let summary_bar =
       ],
       [Node.text(Unicode.light_bulb)],
     );
+  let assistant_icon =
+    Node.div(
+      [
+        Attr.classes(["clickable"]),
+        Attr.on_click(_ =>
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(
+              ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
+            ),
+          ])
+        ),
+      ],
+      [Node.text(Unicode.robot_arm)],
+    );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
-    show_strategy_guide ? List.append(body, [fill_space, fill_icon]) : body;
+    show_strategy_guide
+      ? List.append(body, [fill_space, fill_icon, assistant_icon]) : body;
   Node.div([Attr.classes(["type-info-summary"])], body);
 };
 
@@ -627,7 +644,12 @@ let view =
     };
 
   let content =
-    if (cursor_inspector.type_assist && on_empty_hole) {
+    if (cursor_inspector.assistant && on_empty_hole) {
+      List.append(
+        content, //TODO: andrew: replace with assistant UI
+        [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],
+      );
+    } else if (cursor_inspector.type_assist && on_empty_hole) {
       List.append(
         content,
         [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],

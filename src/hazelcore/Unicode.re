@@ -7,6 +7,7 @@ let typeB = "𝔹"; // U+1D539 "Mathematical double-struck capital B"
 
 let inconsistent = "≁"; //  U+2241 "Not Tilde"
 let light_bulb = "💡"; // U+1F4A1 "Electric Light Bulb"
+let robot_arm = "🦾"; // U+1F9BE "Mechanical Arm"
 
 let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 

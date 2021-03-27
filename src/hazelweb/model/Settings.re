@@ -1,3 +1,4 @@
+open Sexplib.Std;
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
@@ -129,6 +130,8 @@ module CursorInspector = {
     type_assist_fun: bool,
     type_assist_branch: bool,
     type_assist_other: bool,
+    assistant: bool,
+    assistant_selection: option(int),
   };
 
   let init = {
@@ -141,6 +144,8 @@ module CursorInspector = {
     type_assist_fun: false,
     type_assist_branch: false,
     type_assist_other: false,
+    assistant: false,
+    assistant_selection: None,
   };
 
   [@deriving sexp]
@@ -153,7 +158,9 @@ module CursorInspector = {
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
-    | Toggle_type_assist_other;
+    | Toggle_type_assist_other
+    | Toggle_assistant
+    | Choose_assistant_selection(option(int));
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -163,7 +170,11 @@ module CursorInspector = {
         show_expanded: !settings.show_expanded,
       }
     | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
-    | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
+    | Toggle_type_assist => {
+        ...settings,
+        type_assist: !settings.type_assist,
+        assistant: false,
+      }
     | Toggle_type_assist_lit => {
         ...settings,
         type_assist_lit: !settings.type_assist_lit,
@@ -184,6 +195,12 @@ module CursorInspector = {
         ...settings,
         type_assist_other: !settings.type_assist_other,
       }
+    | Toggle_assistant => {
+        ...settings,
+        assistant: !settings.assistant,
+        type_assist: false,
+      }
+    | Choose_assistant_selection(_) => failwith("TODO andrew")
     };
 };
 
