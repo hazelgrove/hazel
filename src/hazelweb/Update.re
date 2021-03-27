@@ -64,7 +64,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | AcceptSuggestion(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -203,6 +204,13 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
+      | AcceptSuggestion(action) =>
+        //TODO(andrew): betterize this garbagio
+        // right now this loses cursor position
+        // might want to turn off assistant? or not?
+        let new_program =
+          model |> Model.get_program |> Program.perform_edit_action(action);
+        model |> Model.update_program(action, new_program);
       };
     },
   );

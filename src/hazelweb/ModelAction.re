@@ -42,4 +42,5 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | UpdateIsMac(bool)
+  | AcceptSuggestion(Action.t);

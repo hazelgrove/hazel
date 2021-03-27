@@ -647,7 +647,7 @@ let view =
     if (cursor_inspector.assistant && on_empty_hole) {
       List.append(
         content, //TODO: andrew: replace with assistant UI
-        [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],
+        [Assistant.view(~inject, /*cursor_inspector,*/ cursor_info)],
       );
     } else if (cursor_inspector.type_assist && on_empty_hole) {
       List.append(

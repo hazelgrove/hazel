@@ -288,3 +288,15 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
+
+let rotate_right = (xs: list('x)): list('x) =>
+  xs |> List.rev |> rotate |> List.rev;
+
+let rotate_n = (n: int, xs: list('x)): list('x) => {
+  // TODO(andrew): this probably has an off by one
+  let length = List.length(xs);
+  let n = n mod length;
+  let before = sublist(n, xs);
+  let after = sublist(~lo=n, length, xs);
+  after @ before;
+};

@@ -93,3 +93,5 @@ let load_cardstack: (t, int) => t;
  * movements.
  */
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
+
+let update_program: (Action.t, Program.t, t) => t;
