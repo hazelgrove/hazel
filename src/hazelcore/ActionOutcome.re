@@ -1,15 +1,10 @@
-open Sexplib.Std;
-
 [@deriving sexp]
-type t_('success) =
+type t('success) =
   | Succeeded('success)
-  | CursorEscaped(Side.t);
+  | CursorEscaped(Side.t)
+  | Failed;
 
-[@deriving sexp]
-type t('success) = option(t_('success));
-
-let succeeded = x => Some(Succeeded(x));
-
-let cursor_escaped = s => Some(CursorEscaped(s));
-
-include OptUtil;
+let of_option =
+  fun
+  | Some(x) => Succeeded(x)
+  | None => Failed;

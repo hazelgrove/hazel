@@ -520,20 +520,27 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        open ActionOutcome.Syntax;
-        let hty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
-        let* kind = Statics_Typ.syn(ctx, hty) |> ActionOutcome.of_option;
-        let+ {zty: new_zann, u_gen, kind: _} =
-          Action_Typ.Syn.perform(
-            ctx,
-            a,
-            {Action_Typ.Syn.Success.Poly.zty: zann, u_gen, kind},
-            (),
-          )
-          |> ActionOutcome.rescue_escaped(_ => Failed);
-        let new_zseq =
-          ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-        mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+        switch (Elaborator_Typ.syn_kind(ctx, zann |> ZTyp.erase)) {
+        | None => Failed
+        | Some(kind) =>
+          switch (
+            Action_Typ.syn_perform(
+              ctx,
+              a,
+              {Action_Typ.Syn_success.Poly.zty: zann, u_gen, kind},
+            )
+          ) {
+          | None => Failed
+          | Some(Succeeded({zty: new_zann, u_gen, kind: _})) =>
+            let new_zseq =
+              ZSeq.ZOperand(
+                ZPat.TypeAnnZA(err, operand, new_zann),
+                surround,
+              );
+            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+          | Some(CursorEscaped(_side)) => Failed
+          }
+        }
       | _ => Failed
       }
     | Some(operator) =>

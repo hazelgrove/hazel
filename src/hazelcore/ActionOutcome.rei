@@ -1,13 +1,7 @@
 [@deriving sexp]
-type t_('success) =
+type t('success) =
   | Succeeded('success)
-  | CursorEscaped(Side.t);
+  | CursorEscaped(Side.t)
+  | Failed;
 
-[@deriving sexp]
-type t('success) = option(t_('success));
-
-let succeeded: 'success => t('success);
-
-let cursor_escaped: Side.t => t('success);
-
-include Monads.MONAD with type t('a) := option('a);
+let of_option: option('a) => t('a);

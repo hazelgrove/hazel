@@ -90,7 +90,7 @@ let syn_backspace_text_ =
     )
     : ActionOutcome.t('success) =>
   if (caret_index == 0) {
-    Some(CursorEscaped(Before));
+    CursorEscaped(Before);
   } else {
     let new_text = text |> StringUtil.backspace(caret_index);
     mk_syn_text(ctx, u_gen, caret_index - 1, new_text);
@@ -108,7 +108,7 @@ let ana_backspace_text_ =
     )
     : ActionOutcome.t('success) =>
   if (caret_index == 0) {
-    Some(CursorEscaped(Before));
+    CursorEscaped(Before);
   } else {
     let new_text = text |> StringUtil.backspace(caret_index);
     mk_ana_text(ctx, u_gen, caret_index - 1, new_text, ty);
@@ -125,7 +125,7 @@ let syn_delete_text_ =
     )
     : ActionOutcome.t('success) =>
   if (caret_index == String.length(text)) {
-    Some(CursorEscaped(After));
+    CursorEscaped(After);
   } else {
     let new_text = text |> StringUtil.delete(caret_index);
     mk_syn_text(ctx, u_gen, caret_index, new_text);
@@ -143,7 +143,7 @@ let ana_delete_text_ =
     )
     : ActionOutcome.t('success) =>
   if (caret_index == String.length(text)) {
-    Some(CursorEscaped(After));
+    CursorEscaped(After);
   } else {
     let new_text = text |> StringUtil.delete(caret_index);
     mk_ana_text(ctx, u_gen, caret_index, new_text, ty);

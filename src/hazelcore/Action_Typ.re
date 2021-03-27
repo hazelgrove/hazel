@@ -1,3 +1,28 @@
+module Outcome = {
+  open Sexplib.Std;
+
+  [@deriving sexp]
+  type t_('success) =
+    | Succeeded('success)
+    | CursorEscaped(Side.t);
+
+  [@deriving sexp]
+  type t('success) = option(t_('success));
+
+  let succeeded = x => Some(Succeeded(x));
+
+  let cursor_escaped = side => Some(CursorEscaped(side));
+
+  include OptUtil;
+
+  let of_action_outcome = (a: ActionOutcome.t('a)) =>
+    switch (a) {
+    | Succeeded(x) => succeeded(x)
+    | CursorEscaped(side) => cursor_escaped(side)
+    | Failed => None
+    };
+};
+
 let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
@@ -69,7 +94,7 @@ let construct_operator =
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
 
-open ActionOutcome;
+open Outcome;
 module Syn_success = {
   module Poly = {
     [@deriving sexp]
@@ -84,10 +109,9 @@ module Syn_success = {
   type t = Poly.t(ZTyp.t);
 
   let mk_result =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t): ActionOutcome.t(t) => {
-    open ActionOutcome.Syntax;
-    let+ (_, kind, _) =
-      Elaborator_Typ.syn(ctx, Delta.empty, zty |> ZTyp.erase);
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t): Outcome.t(t) => {
+    open Outcome.Syntax;
+    let+ kind = Elaborator_Typ.syn_kind(ctx, zty |> ZTyp.erase);
     Succeeded({Poly.zty, kind, u_gen});
   };
 };
@@ -100,35 +124,35 @@ let mk_syn_text =
   switch (TyTextShape.of_tyid(TyId.of_string(text))) {
   | None =>
     if (text |> StringUtil.is_empty) {
-      succeeded({
+      Succeeded({
         zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
         kind: Kind.KHole,
         u_gen,
       });
     } else {
-      None;
+      Failed;
     }
   | Some(Bool) =>
-    succeeded({
+    Succeeded({
       zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
       kind: Kind.Type,
       u_gen,
     })
   | Some(Int) =>
-    succeeded({
+    Succeeded({
       zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int)),
       kind: Kind.Type,
       u_gen,
     })
   | Some(Float) =>
-    succeeded({
+    Succeeded({
       zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float)),
       kind: Kind.Type,
       u_gen,
     })
   | Some(ExpandingKeyword(k)) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
-    succeeded({
+    Succeeded({
       zty:
         ZOpSeq.wrap(
           ZTyp.CursorT(
@@ -146,14 +170,14 @@ let mk_syn_text =
     if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
       let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-      succeeded({
+      Succeeded({
         zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
         kind: k,
         u_gen,
       });
     } else {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
-      succeeded({
+      Succeeded({
         zty:
           ZOpSeq.wrap(
             ZTyp.CursorT(text_cursor, TyVar(InVarHole(Free, u), x)),
@@ -165,12 +189,12 @@ let mk_syn_text =
   };
 };
 
-open ActionOutcome;
-open ActionOutcome.Syntax;
+open Outcome;
+open Outcome.Syntax;
 
 let rec syn_move =
         (a: Action.t, {zty, kind: _, u_gen: _} as syn_r: Syn_success.t)
-        : ActionOutcome.t(Syn_success.t) =>
+        : Outcome.t(Syn_success.t) =>
   switch (a) {
   | MoveTo(path) =>
     let* zty = CursorPath_Typ.follow(path, zty |> ZTyp.erase);
@@ -224,7 +248,7 @@ let syn_split_text =
       sop: Action.operator_shape,
       text: string,
     )
-    : ActionOutcome.t(Syn_success.t) => {
+    : Outcome.t(Syn_success.t) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TyTextShape.of_tyid(TyId.of_string(l)),
@@ -241,15 +265,14 @@ let syn_split_text =
       let zoperand = roperand |> ZTyp.place_before_operand;
       ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    let* (_, kind, _) =
-      Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(new_zty));
+    let* kind = Elaborator_Typ.syn_kind(ctx, ZTyp.erase(new_zty));
     succeeded({zty: new_zty, kind, u_gen});
   };
 };
 
 let rec syn_perform =
         (ctx: Contexts.t, a: Action.t, syn_r: Syn_success.t)
-        : ActionOutcome.t(Syn_success.t) =>
+        : Outcome.t(Syn_success.t) =>
   syn_perform_opseq(ctx, a, syn_r)
 and syn_perform_opseq =
     (
@@ -257,7 +280,7 @@ and syn_perform_opseq =
       a: Action.t,
       {zty: ZOpSeq(skel, zseq) as zopseq, kind: _, u_gen} as syn_r: Syn_success.t,
     )
-    : ActionOutcome.t(Syn_success.t) =>
+    : Outcome.t(Syn_success.t) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -323,7 +346,7 @@ and syn_perform_opseq =
     syn_perform_opseq(ctx, MoveRight, syn_r)
 
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     let* op = operator_of_shape(os);
     Syn_success.mk_result(
       ctx,
@@ -363,7 +386,7 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
 
-    let* (_, kind, _) = Elaborator_Typ.syn(ctx, Delta.empty, uhty);
+    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
     let* outcome = syn_perform_operand(ctx, a, {zty: zoperand, kind, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
@@ -396,7 +419,7 @@ and syn_perform_opseq =
   }
 and syn_perform_operand =
     (ctx: Contexts.t, a: Action.t, {zty: zoperand, kind, u_gen})
-    : ActionOutcome.t(Syn_success.t) =>
+    : Outcome.t(Syn_success.t) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -427,8 +450,10 @@ and syn_perform_operand =
       caret_index,
       operand |> UHTyp.to_string_exn,
     )
+    |> Outcome.of_action_outcome
   | (Delete, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
     syn_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string_exn)
+    |> Outcome.of_action_outcome
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorT(OnDelim(_, Before), _)) =>
@@ -464,8 +489,10 @@ and syn_perform_operand =
   /* TyVar-related Backspace & Delete */
   | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
     syn_delete_text(ctx, u_gen, caret_index, text |> TyId.to_string)
+    |> Outcome.of_action_outcome
   | (Backspace, CursorT(OnText(caret_index), TyVar(_, text))) =>
     syn_backspace_text(ctx, u_gen, caret_index, text |> TyId.to_string)
+    |> Outcome.of_action_outcome
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -496,14 +523,16 @@ and syn_perform_operand =
     }
 
   | (Construct(SChar(s)), CursorT(_, Hole)) =>
-    syn_insert_text(ctx, u_gen, (0, s), "")
+    syn_insert_text(ctx, u_gen, (0, s), "") |> Outcome.of_action_outcome
   | (
       Construct(SChar(s)),
       CursorT(OnText(j), (Int | Bool | Float) as operand),
     ) =>
     syn_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.to_string_exn)
+    |> Outcome.of_action_outcome
   | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x |> TyId.to_string)
+    |> Outcome.of_action_outcome
   | (Construct(SChar(_)), CursorT(_)) => None
 
   | (Construct(SList), CursorT(_)) =>
@@ -536,7 +565,7 @@ and syn_perform_operand =
     syn_split_text(ctx, u_gen, j, os, id |> TyId.to_string)
 
   | (Construct(SOp(os)), CursorT(_)) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     let* op = operator_of_shape(os);
     Syn_success.mk_result(
       ctx,
@@ -549,7 +578,7 @@ and syn_perform_operand =
 
   /* Zipper Cases */
   | (_, ParenthesizedZ(zbody)) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     let* outcome = syn_perform(ctx, a, {zty: zbody, kind, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
@@ -566,7 +595,7 @@ and syn_perform_operand =
       )
     };
   | (_, ListZ(zbody)) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     let* outcome = syn_perform(ctx, a, {zty: zbody, kind, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
@@ -588,8 +617,8 @@ and syn_perform_operand =
   | (Init, _) => failwith("Init action should not be performed.")
   };
 
-open ActionOutcome;
-open ActionOutcome.Syntax;
+open Outcome;
+open Outcome.Syntax;
 module Ana_success = {
   module Poly = {
     [@deriving sexp]
@@ -606,7 +635,7 @@ module Ana_success = {
 
   let mk_result =
       (_ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, _k: Kind.t)
-      : ActionOutcome.t(t) => {
+      : Outcome.t(t) => {
     // TODO: Add an error status: Don't fail -- put an error status on it when it can fail
     succeeded({
       Poly.zty,
@@ -618,7 +647,7 @@ open Ana_success.Poly;
 
 let rec ana_move =
         (a: Action.t, {zty, u_gen: _} as ana_r: Ana_success.t, kind: Kind.t)
-        : ActionOutcome.t(Ana_success.t) =>
+        : Outcome.t(Ana_success.t) =>
   switch (a) {
   | MoveTo(path) =>
     let* zty = CursorPath_Typ.follow(path, zty |> ZTyp.erase);
@@ -668,14 +697,14 @@ and ana_perform_opseq =
       {zty: ZOpSeq(_, zseq) as zopseq, u_gen}: Ana_success.t,
       k: Kind.t,
     )
-    : ActionOutcome.t(Ana_success.t) => {
+    : Outcome.t(Ana_success.t) => {
   switch (a, zseq) {
   | (_, ZOperand(zoperand, (E, E))) =>
     ana_perform_operand(ctx, a, {zty: zoperand, u_gen}, k)
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
-    let* (_, kind, _) = Elaborator_Typ.syn(ctx, Delta.empty, uhty);
+    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
     let* outcome =
       syn_perform_operand(
         ctx,
@@ -713,7 +742,7 @@ and ana_perform_opseq =
       }
     };
   | (_, _) =>
-    open ActionOutcome.Syntax;
+    open Outcome.Syntax;
     // Subsumption
 
     let* outcome =
@@ -736,8 +765,8 @@ and ana_perform_operand =
       {zty: zoperand, u_gen}: Ana_success.Poly.t(ZTyp.zoperand),
       kind: Kind.t,
     )
-    : ActionOutcome.t(Ana_success.t) => {
-  open ActionOutcome.Syntax;
+    : Outcome.t(Ana_success.t) => {
+  open Outcome.Syntax;
 
   let* outcome =
     syn_perform_operand(
