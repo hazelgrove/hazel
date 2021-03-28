@@ -106,8 +106,11 @@ let get_expansion = (program: t): DHExp.t =>
 exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let evaluate_step =
-  Memo.general(~cache_size_bound=1000, EvaluatorStep.quick_step_evaluate);
+let evaluate_step = (opt: EvaluatorStep.evaluator_option) =>
+  Memo.general(
+    ~cache_size_bound=1000,
+    EvaluatorStep.quick_step_evaluate(_, opt),
+  );
 
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
@@ -122,8 +125,9 @@ let get_result = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
-let get_result_step = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate_step) {
+let get_result_step =
+    (program: t, opt: EvaluatorStep.evaluator_option): Result.t =>
+  switch (program |> get_expansion |> evaluate_step(opt)) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
@@ -135,8 +139,9 @@ let get_result_step = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
-let get_evaluate_steps = (program: t): list(DHExp.t) =>
-  program |> get_expansion |> EvaluatorStep.step_evaluate_record;
+let get_evaluate_steps =
+    (program: t, opt: EvaluatorStep.evaluator_option): list(DHExp.t) =>
+  program |> get_expansion |> EvaluatorStep.step_evaluate_record(_, opt);
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(

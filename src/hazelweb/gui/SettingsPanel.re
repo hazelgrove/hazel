@@ -86,6 +86,18 @@ let view =
             evaluation.show_evaluate_steps,
           ),
           labeled_checkbox(
+            ~id="pause_at_empty_hole",
+            ~classes=["twice-indented-option"],
+            ~label="Pause at empty hole",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_pause_at_empty_hole)),
+                ),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.step_evaluator_option.pause_at_empty_hole,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",

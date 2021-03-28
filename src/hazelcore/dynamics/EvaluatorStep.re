@@ -580,14 +580,17 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
     };
   };
 
-let rec steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
+let rec ctx_steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
   let d' = ctx_step(d, opt);
-  // print_string(d' |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string);
-  d' == d ? d : steps(d', opt);
+  if (is_final(d', opt)) {
+    d';
+  } else {
+    ctx_steps(d', opt);
+  };
 };
 
 let step_evaluate = (d: DHExp.t, opt: evaluator_option): option(DHExp.t) =>
-  try(Some(steps(d, opt))) {
+  try(Some(ctx_steps(d, opt))) {
   | InvalidInput(_) => None
   };
 
@@ -605,19 +608,6 @@ let quick_step_evaluate =
     switch (quick_steps(d, opt)) {
     | Pause(d)
     | Step(d)
-    | Indet(d) => Indet(d)
-    | BoxedValue(d) => BoxedValue(d)
-    }
-  ) {
-  | InvalidInput(i) => InvalidInput(i)
-  };
-
-let step_evaluate_web = (d: DHExp.t, opt: evaluator_option): Evaluator.result =>
-  //for hazelweb
-  try(
-    switch (step(steps(d, opt), opt)) {
-    | Step(d)
-    | Pause(d)
     | Indet(d) => Indet(d)
     | BoxedValue(d) => BoxedValue(d)
     }
