@@ -646,6 +646,15 @@ let filled_type_view =
   let function_filled_t = cursor_inspector.type_assist_func_filled_ty;
   let pat_filled_t = cursor_inspector.type_assist_pat_filled_ty;
 
+  switch (ty) {
+  | Some(Hole) => print_endline("Hole")
+  | Some(Int) => print_endline("Int")
+  | Some(Float) => print_endline("Float")
+  | Some(Bool) => print_endline("Bool")
+  | Some(List(_)) => print_endline("List")
+  | _ => print_endline("else")
+  };
+
   let fill_hole_msg =
     Vdom.(
       Node.div(
