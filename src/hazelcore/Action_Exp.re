@@ -1961,76 +1961,92 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, ty, u_gen)));
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
-    switch (syn_perform(ctx, a, (zt2, ty, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, ty, u_gen),
-      )
-    | Succeeded((zt2, ty2, u_gen)) =>
-      switch (Statics_Exp.syn(ctx, t3)) {
-      | None => Failed
-      | Some(ty3) =>
-        let real_ty = HTyp.join(GLB, ty2, ty3);
-        switch (real_ty) {
-        | Some(real_type) =>
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
-            );
-          Succeeded(SynDone((new_ze, real_type, u_gen)));
-        | None =>
-          print_endline(__LOC__);
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          let branch_types = [ty2, ty3];
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              IfZ2(InconsistentBranches(branch_types, u), t1, zt2, t3),
-            );
-          print_endline(__LOC__);
-          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
-        };
-      }
-    }
-  | (_, IfZ3(_, t1, t2, zt3)) =>
-    switch (syn_perform(ctx, a, (zt3, ty, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, ty, u_gen),
-      )
-    | Succeeded((zt3, ty3, u_gen)) =>
-      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty3)));
-      switch (Statics_Exp.syn(ctx, t2)) {
-      | None => Failed
-      | Some(ty2) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
+    | None => Failed
+    | Some(gen_ty2) =>
+      print_endline(__LOC__);
+      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(gen_ty2)));
+      print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_t(zt2)));
+      switch (syn_perform(ctx, a, (zt2, gen_ty2, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded((zt2, ty2, u_gen)) =>
         print_endline(__LOC__);
         print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty2)));
-        let real_ty = HTyp.join(GLB, ty2, ty3);
-        switch (real_ty) {
-        | Some(real_type) =>
-          print_endline(__LOC__);
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
+        switch (Statics_Exp.syn(ctx, t3)) {
+        | None => Failed
+        | Some(ty3) =>
+          let real_ty = HTyp.join(GLB, ty2, ty3);
+          switch (real_ty) {
+          | Some(real_type) =>
+            print_endline(
+              Sexplib.Sexp.to_string(HTyp.sexp_of_t(real_type)),
             );
-          Succeeded(SynDone((new_ze, real_type, u_gen)));
-        | None =>
-          print_endline(__LOC__);
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          let branch_types = [ty2, ty3];
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              IfZ3(InconsistentBranches(branch_types, u), t1, t2, zt3),
-            );
-          print_endline(__LOC__);
-          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
+              );
+            Succeeded(SynDone((new_ze, real_type, u_gen)));
+          | None =>
+            print_endline(__LOC__);
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let branch_types = [ty2, ty3];
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                IfZ2(InconsistentBranches(branch_types, u), t1, zt2, t3),
+              );
+            print_endline(__LOC__);
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          };
         };
       };
+    }
+  | (_, IfZ3(_, t1, t2, zt3)) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zt3))) {
+    | None => Failed
+    | Some(gen_ty3) =>
+      switch (syn_perform(ctx, a, (zt3, gen_ty3, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded((zt3, ty3, u_gen)) =>
+        print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty3)));
+        switch (Statics_Exp.syn(ctx, t2)) {
+        | None => Failed
+        | Some(ty2) =>
+          print_endline(__LOC__);
+          print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty2)));
+          let real_ty = HTyp.join(GLB, ty2, ty3);
+          switch (real_ty) {
+          | Some(real_type) =>
+            print_endline(__LOC__);
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
+              );
+            Succeeded(SynDone((new_ze, real_type, u_gen)));
+          | None =>
+            print_endline(__LOC__);
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let branch_types = [ty2, ty3];
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                IfZ3(InconsistentBranches(branch_types, u), t1, t2, zt3),
+              );
+            print_endline(__LOC__);
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          };
+        };
+      }
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
