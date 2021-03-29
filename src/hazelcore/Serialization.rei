@@ -6,6 +6,6 @@ let string_of_exp: UHExp.t => string;
 let exp_of_string: string => UHExp.t;
 
 /* exp_of_string followed by hole fixing */
-let fixed_exp_of_string: string => UHExp.t;
+let fixed_exp_of_string: string => option(UHExp.t);
 
 /* feel free to add other similar helper functions here */
