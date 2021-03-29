@@ -1,3 +1,6 @@
+// D in POPL 2019 -> DHExp in code
+// Write elaboration rule as given in POPL 2019 
+// Elaborator is more like a compiler
 /* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
@@ -838,13 +841,18 @@ and syn_elab_operand =
     } 
   | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
     // ECD YOU ARE HERE: Figuring out what prj of a does prj hole elaborates to
-    let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
-    let d = DHExp.EmptyHole(u, 0, sigma);
-    let ty = HTyp.Hole;
-    let delta =
-      MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-    Elaborates(d, ty, delta);
+    switch(syn_elab_operand(ctx, delta, body)){
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d, ty, delta) => 
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let d = DHExp.Prj(d, label);
+        let ty = HTyp.Hole;
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        Elaborates(d, ty, delta);
+    }
+    
 
   /* not in hole */
   | EmptyHole(u) =>
@@ -986,6 +994,7 @@ and syn_elab_operand =
       switch (DHExp.get_projected(d, l), HTyp.get_projected_type(e_ty, l)) {
       | (None, _)
       | (_, None) => DoesNotElaborate
+      // ECD: You are here, Need to figure out how prj not in hole elaborates to a dexpression of prj
       | (Some(d'), Some(ty')) => Elaborates(d', ty', delta)
       }
     }

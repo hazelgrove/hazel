@@ -160,6 +160,7 @@ type t =
   | Triv
   | Label(Label.t)
   | Label_Elt(Label.t, t)
+  | Prj(t, Label.t)
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
@@ -202,6 +203,7 @@ let rec constructor_string = (d: t): string =>
   | InvalidOperation(_) => "InvalidOperation"
   | Label(label) => label
   | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
+  | Prj(body, pl) => constructor_string(body) ++ l
   };
 
 let rec mk_tuple: list(t) => t =
