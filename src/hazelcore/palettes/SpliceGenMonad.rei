@@ -1,4 +1,7 @@
-include Monads.MONAD;
+[@deriving sexp]
+type t('a);
+
+include Monads.MONAD with type t('a) := t('a);
 
 let exec:
   (t('a), SpliceInfo.t(UHExp.t), MetaVarGen.t) =>

@@ -17,10 +17,12 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
-  | Inj(InHole(_), _, _) => false
+  | Inj(InHole(_), _, _)
+  | TypeAnn(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
+  | TypeAnn(NotInHole, op, _) => binds_var_operand(x, op)
   };
 
 let rec find_uses =
@@ -48,7 +50,7 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
   | CommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_uses_opseq(~steps, x, opseq), false)
   | EmptyLine => ([], false)
-  | LetLine(p, _, def) => (
+  | LetLine(p, def) => (
       find_uses(~steps=steps @ [2], x, def),
       binds_var(x, p),
     )
@@ -70,14 +72,14 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
-  | Lam(InHole(_), _, _, _)
+  | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)
   | TightAp(InHole(_), _, _)
   | ApPalette(_) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
-  | Lam(NotInHole, p, _, body) =>
-    binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
+  | Lam(NotInHole, p, body) =>
+    binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),
