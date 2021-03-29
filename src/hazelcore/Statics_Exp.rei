@@ -38,10 +38,10 @@ let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
  */
 let syn_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t) =>
-  (UHExp.t, HTyp.t, MetaVarGen.t);
+  option((UHExp.t, HTyp.t, MetaVarGen.t));
 let syn_fix_holes_block:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.block) =>
-  (UHExp.block, HTyp.t, MetaVarGen.t);
+  option((UHExp.block, HTyp.t, MetaVarGen.t));
 let syn_fix_holes_lines:
   (
     Contexts.t,
@@ -49,10 +49,10 @@ let syn_fix_holes_lines:
     ~renumber_empty_holes: bool=?,
     list(UHExp.line)
   ) =>
-  (list(UHExp.line), Contexts.t, MetaVarGen.t);
+  option((list(UHExp.line), Contexts.t, MetaVarGen.t));
 let syn_fix_holes_opseq:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
-  (UHExp.opseq, HTyp.t, MetaVarGen.t);
+  option((UHExp.opseq, HTyp.t, MetaVarGen.t));
 let syn_fix_holes_rules:
   (
     Contexts.t,
@@ -61,7 +61,7 @@ let syn_fix_holes_rules:
     UHExp.rules,
     HTyp.t
   ) =>
-  (UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t));
+  option((UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t)));
 
 /**
  * Given a pattern `e` in analytic position under context `ctx`,
@@ -71,7 +71,7 @@ let syn_fix_holes_rules:
  */
 let ana_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t, HTyp.t) =>
-  (UHExp.t, MetaVarGen.t);
+  option((UHExp.t, MetaVarGen.t));
 let ana_fix_holes_block:
   (
     Contexts.t,
@@ -80,7 +80,7 @@ let ana_fix_holes_block:
     UHExp.block,
     HTyp.t
   ) =>
-  (UHExp.block, MetaVarGen.t);
+  option((UHExp.block, MetaVarGen.t));
 let ana_fix_holes_opseq:
   (
     Contexts.t,
@@ -89,7 +89,7 @@ let ana_fix_holes_opseq:
     UHExp.opseq,
     HTyp.t
   ) =>
-  (UHExp.opseq, MetaVarGen.t);
+  option((UHExp.opseq, MetaVarGen.t));
 let ana_fix_holes_rules:
   (
     Contexts.t,
@@ -99,24 +99,27 @@ let ana_fix_holes_rules:
     HTyp.t,
     HTyp.t
   ) =>
-  (UHExp.rules, MetaVarGen.t);
+  option((UHExp.rules, MetaVarGen.t));
 
 let syn_fix_holes_z:
-  (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
+  (Contexts.t, MetaVarGen.t, ZExp.t) =>
+  option((ZExp.t, HTyp.t, MetaVarGen.t));
 let syn_fix_holes_zlines:
   (Contexts.t, MetaVarGen.t, ZExp.zblock) =>
-  (ZExp.zblock, Contexts.t, MetaVarGen.t);
+  option((ZExp.zblock, Contexts.t, MetaVarGen.t));
 let syn_fix_holes_zrules:
   (Contexts.t, MetaVarGen.t, ZExp.zrules, HTyp.t) =>
-  (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t);
+  option((ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t));
 
 let ana_fix_holes_z:
-  (Contexts.t, MetaVarGen.t, ZExp.t, HTyp.t) => (ZExp.t, MetaVarGen.t);
+  (Contexts.t, MetaVarGen.t, ZExp.t, HTyp.t) =>
+  option((ZExp.t, MetaVarGen.t));
 
 let fix_and_renumber_holes:
-  (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
+  (Contexts.t, UHExp.t) => option((UHExp.t, HTyp.t, MetaVarGen.t));
 
-let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
+let fix_and_renumber_holes_z:
+  (Contexts.t, ZExp.t) => option(Statics.edit_state);
 
 let joined_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
 
