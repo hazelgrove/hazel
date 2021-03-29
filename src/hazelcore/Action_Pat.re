@@ -32,15 +32,17 @@ type syn_success = (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
 type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
 
 let mk_and_syn_fix_ZOpSeq =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq)
+    : ActionOutcome.t(syn_success) => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
-  Statics_Pat.syn_fix_holes_z(ctx, u_gen, zopseq);
+  Statics_Pat.syn_fix_holes_z(ctx, u_gen, zopseq) |> ActionOutcome.of_option;
 };
 let mk_and_ana_fix_ZOpSeq =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
-    : ana_success => {
+    : ActionOutcome.t(ana_success) => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
-  Statics_Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty);
+  Statics_Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty)
+  |> ActionOutcome.of_option;
 };
 
 let mk_syn_result =
@@ -178,7 +180,7 @@ let syn_split_text =
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_ze));
+    Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_ze) |> ActionOutcome.of_option;
   };
 };
 let ana_split_text =
@@ -205,7 +207,8 @@ let ana_split_text =
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
+    Statics_Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty)
+    |> ActionOutcome.of_option;
   };
 };
 
@@ -447,7 +450,7 @@ and syn_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
     let new_zseq = delete_operator(surround);
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -461,7 +464,7 @@ and syn_perform_opseq =
     let S(operand, new_prefix) = prefix_tl;
     let zoperand = operand |> ZPat.place_after_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
 
   | (
       Backspace,
@@ -475,7 +478,7 @@ and syn_perform_opseq =
     let zoperand =
       ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
 
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
@@ -489,7 +492,7 @@ and syn_perform_opseq =
     let S(operand, new_suffix) = suffix_tl;
     let zoperand = operand |> ZPat.place_before_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
 
   /* Construction */
 
@@ -537,7 +540,7 @@ and syn_perform_opseq =
                 ZPat.TypeAnnZA(err, operand, new_zann),
                 surround,
               );
-            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+            mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
           | Some(CursorEscaped(_side)) => Failed
           }
         }
@@ -550,7 +553,7 @@ and syn_perform_opseq =
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+      mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq);
     }
 
   /* SwapLeft and SwapRight actions */
@@ -567,7 +570,7 @@ and syn_perform_opseq =
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
   | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
   | (
       SwapRight,
@@ -578,7 +581,7 @@ and syn_perform_opseq =
     ) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
 
   /* Zipper */
 
@@ -598,7 +601,7 @@ and syn_perform_opseq =
         syn_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq)
       | Succeeded((zp, _, _, u_gen)) =>
         let zseq = resurround_z(zp, surround);
-        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+        mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq);
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
@@ -607,7 +610,7 @@ and syn_perform_opseq =
         syn_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq)
       | Succeeded((zp, _, u_gen)) =>
         let new_zseq = resurround_z(zp, surround);
-        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+        mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
@@ -689,13 +692,12 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
-    Succeeded(
-      Statics_Pat.syn_fix_holes_z(
-        ctx,
-        u_gen,
-        op |> ZPat.place_after_operand |> ZOpSeq.wrap,
-      ),
+    Statics_Pat.syn_fix_holes_z(
+      ctx,
+      u_gen,
+      op |> ZPat.place_after_operand |> ZOpSeq.wrap,
     )
+    |> ActionOutcome.of_option
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
@@ -725,7 +727,8 @@ and syn_perform_operand =
       CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
     ) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
-    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor));
+    Statics_Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor)
+    |> ActionOutcome.of_option;
 
   /* Construction */
 
@@ -827,7 +830,7 @@ and syn_perform_operand =
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, (E, E));
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+      mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq);
     }
 
   | (Construct(SAnn), CursorP(_)) =>
@@ -871,8 +874,7 @@ and syn_perform_operand =
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     | Succeeded((ZOpSeq(_, zseq), _, ctx, u_gen)) =>
       let newseq = annotate_last_operand(zseq, ann);
-      let (zpat, ty, ctx, u_gen) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq);
-      Succeeded((zpat, ty, ctx, u_gen));
+      mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq);
     }
   | (_, TypeAnnZA(_, op, zann)) =>
     // TODO: Do we need to thread delta through here?
@@ -890,14 +892,19 @@ and syn_perform_operand =
       | Some(CursorEscaped(side)) =>
         syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
       | Some(Succeeded({zty: zann, u_gen, kind: _})) =>
-        let (zpat, ctx, u_gen) =
-          Statics_Pat.ana_fix_holes_z(
-            ctx,
-            u_gen,
-            ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
-            ty,
-          );
-        Succeeded((zpat, ty, ctx, u_gen));
+        OptUtil.Syntax.(
+          {
+            let+ (zpat, ctx, u_gen) =
+              Statics_Pat.ana_fix_holes_z(
+                ctx,
+                u_gen,
+                ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
+                ty,
+              );
+            (zpat, ty, ctx, u_gen);
+          }
+          |> ActionOutcome.of_option
+        )
       }
     }
 
@@ -953,7 +960,7 @@ and ana_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
     let new_zseq = delete_operator(surround);
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -967,7 +974,7 @@ and ana_perform_opseq =
     let S(operand, new_prefix) = prefix_tl;
     let zoperand = operand |> ZPat.place_after_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
 
   | (
       Backspace,
@@ -981,7 +988,7 @@ and ana_perform_opseq =
     let zoperand =
       ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
 
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
@@ -995,7 +1002,7 @@ and ana_perform_opseq =
     let S(operand, new_suffix) = suffix_tl;
     let zoperand = operand |> ZPat.place_before_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
 
   /* Construction */
 
@@ -1018,16 +1025,21 @@ and ana_perform_opseq =
         ZPat.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
         && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (opseq, ctx, u_gen) =
-      Statics_Pat.ana_fix_holes_opseq(
-        ctx,
-        u_gen,
-        zopseq |> ZPat.erase_zopseq,
-        // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
-      );
-    let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-    Succeeded((new_zopseq, ctx, u_gen));
+    OptUtil.Syntax.(
+      {
+        let+ (opseq, ctx, u_gen) =
+          Statics_Pat.ana_fix_holes_opseq(
+            ctx,
+            u_gen,
+            zopseq |> ZPat.erase_zopseq,
+            // safe because pattern guard
+            ty |> HTyp.get_prod_elements |> List.hd,
+          );
+        let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
+        (new_zopseq, ctx, u_gen);
+      }
+    )
+    |> ActionOutcome.of_option
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
@@ -1059,7 +1071,7 @@ and ana_perform_opseq =
                 ZPat.TypeAnnZA(err, operand, new_zann),
                 surround,
               );
-            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
+            mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty');
           }
         }
       | _ => Failed
@@ -1071,7 +1083,7 @@ and ana_perform_opseq =
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+      mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
     }
 
   /* invalid swap actions */
@@ -1088,7 +1100,7 @@ and ana_perform_opseq =
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
   | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
   | (
       SwapRight,
@@ -1099,7 +1111,7 @@ and ana_perform_opseq =
     ) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
 
   /* Zipper */
   | (_, ZOperand(zoperand, (E, E))) =>
@@ -1118,7 +1130,7 @@ and ana_perform_opseq =
         ana_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq, ty)
       | Succeeded((zp, _, _, u_gen)) =>
         let zseq = resurround_z(zp, surround);
-        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+        mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
@@ -1127,7 +1139,7 @@ and ana_perform_opseq =
         ana_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq, ty)
       | Succeeded((zp, _, u_gen)) =>
         let new_zseq = resurround_z(zp, surround);
-        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+        mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
@@ -1269,18 +1281,16 @@ and ana_perform_operand =
       CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
     ) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
-    Succeeded(
-      Statics_Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty),
-    );
+    Statics_Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty)
+    |> ActionOutcome.of_option;
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
-    Succeeded(
-      Statics_Pat.ana_fix_holes_z(
-        ctx,
-        u_gen,
-        op |> ZPat.place_after_operand |> ZOpSeq.wrap,
-        ty,
-      ),
+    Statics_Pat.ana_fix_holes_z(
+      ctx,
+      u_gen,
+      op |> ZPat.place_after_operand |> ZOpSeq.wrap,
+      ty,
     )
+    |> ActionOutcome.of_option
   /* Construct */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
@@ -1370,22 +1380,34 @@ and ana_perform_operand =
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
-      let (zbody, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes_z(
-          ctx,
-          u_gen,
-          ZOpSeq.wrap(zoperand),
-          body_ty,
-        );
-      let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
-      Succeeded((zp, ctx, u_gen));
+      OptUtil.Syntax.(
+        {
+          let+ (zbody, ctx, u_gen) =
+            Statics_Pat.ana_fix_holes_z(
+              ctx,
+              u_gen,
+              ZOpSeq.wrap(zoperand),
+              body_ty,
+            );
+          let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
+          (zp, ctx, u_gen);
+        }
+      )
+      |> ActionOutcome.of_option;
     | None =>
-      let (zbody, _, ctx, u_gen) =
-        Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let zp =
-        ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
-      Succeeded((zp, ctx, u_gen));
+      OptUtil.Syntax.(
+        {
+          let+ (zbody, _, ctx, u_gen) =
+            Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
+          let (u, u_gen) = u_gen |> MetaVarGen.next;
+          let zp =
+            ZOpSeq.wrap(
+              ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody),
+            );
+          (zp, ctx, u_gen);
+        }
+      )
+      |> ActionOutcome.of_option
     }
 
   | (Construct(SOp(os)), CursorP(_)) =>
@@ -1398,7 +1420,7 @@ and ana_perform_operand =
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, (E, E));
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+      mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
     }
 
   /* Invalid SwapLeft and SwapRight actions */
@@ -1457,8 +1479,7 @@ and ana_perform_operand =
       // systematically as part of an opseq, so we have to reassociate the annotation
       // onto the trailing operand.
       let newseq = annotate_last_operand(zseq, ann);
-      let (zpat, ctx, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, newseq, ty);
-      Succeeded((zpat, ctx, u_gen));
+      mk_and_ana_fix_ZOpSeq(ctx, u_gen, newseq, ty);
     }
   | (_, TypeAnnZA(err, op, zann)) =>
     // TODO: Do we need to thread delta through here?
@@ -1482,16 +1503,21 @@ and ana_perform_operand =
           ty,
         )
       | Some(Succeeded({zty: zann, u_gen, kind: _})) =>
-        let (new_op, ctx, u_gen) =
-          Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
-        let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-        if (HTyp.consistent(ty, ty')) {
-          Succeeded((new_zopseq, ctx, u_gen));
-        } else {
-          let (new_zopseq, u_gen) =
-            new_zopseq |> ZPat.mk_inconsistent(u_gen);
-          Succeeded((new_zopseq, ctx, u_gen));
-        };
+        OptUtil.Syntax.(
+          {
+            let+ (new_op, ctx, u_gen) =
+              Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
+            let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+            if (HTyp.consistent(ty, ty')) {
+              (new_zopseq, ctx, u_gen);
+            } else {
+              let (new_zopseq, u_gen) =
+                new_zopseq |> ZPat.mk_inconsistent(u_gen);
+              (new_zopseq, ctx, u_gen);
+            };
+          }
+        )
+        |> ActionOutcome.of_option
       }
     }
   /* Subsumption */
