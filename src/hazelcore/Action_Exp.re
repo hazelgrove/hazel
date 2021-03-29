@@ -1440,7 +1440,7 @@ and syn_perform_operand =
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) | TightAp(_) |
         Parenthesized(_) |
         ApPalette(_),
       ),
@@ -1527,7 +1527,7 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) | TightAp(_, e)) as operand,
       ),
     ) =>
     let place_cursor =
@@ -1546,6 +1546,13 @@ and syn_perform_operand =
       };
     let new_ze = e |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+  | (
+    Backspace,
+    CursorE( OnDelim(k, After), TightAp(_, func, arg) as operand)
+    ) =>
+    //HEY RAEF!
+    //Need case here! Very complicated subscript version... TBD *****************************************************<---
+
 
   /* TODO consider deletion of type ascription on case */
 

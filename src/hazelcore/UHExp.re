@@ -24,6 +24,8 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  //TightAp is an operand which works on a function and its applied argument(s); PROBLEM: current form: g(x)(x) which is nasty
+  | TightAp(ErrStatus.t, t, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -77,6 +79,9 @@ let case =
     )
     : operand =>
   Case(err, scrut, rules);
+
+let tightap = (~err: ErrStatus.t=NotInHole, func: t, arg: t): operand =>
+  TightAp(err, func, arg);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
@@ -194,6 +199,7 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | TightAp(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -219,6 +225,8 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
+  //make the error status of a matched TightAp the err; keep the deconstucted internal vals the same
+  | TightAp(_, func, arg) => TightAp(err, func, arg)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -253,6 +261,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TightAp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -268,6 +277,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
+  | TightAp(NotInHole | InHole(WrongLength, _), _, _)
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
@@ -368,6 +378,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
+  | TightAp(InHole(_), _, _) => false
+  | TightAp(NotInHole, func, arg) =>
+    is_complete(func, check_type_holes) && is_complete(arg, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

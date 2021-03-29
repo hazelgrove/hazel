@@ -73,6 +73,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)
+  | TightAp(InHole(_), _, _)
   | ApPalette(_) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>
@@ -91,6 +92,10 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
          )
       |> List.concat;
     scrut_uses @ rules_uses;
+  | TightAp(NotInHole, func, arg) =>
+    let func_uses = find_uses(~steps=steps @ [0], x, func);
+    let arg_uses = find_uses(~steps=steps @ [1], x, arg);
+    func_uses @ arg_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }
 and find_uses_rule =

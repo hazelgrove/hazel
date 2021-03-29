@@ -21,6 +21,8 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | LamZA(_, _, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
   | LamZE(_, _, _, zexp)
   | InjZ(_, _, zexp)
+  | TightApZE1(_, zexp, _)
+  | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
@@ -84,6 +86,8 @@ and get_zoperand_from_zexp_operand =
   | LamZA(_, _, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
   | LamZE(_, _, _, zexp)
   | InjZ(_, _, zexp)
+  | TightApZE1(_, zexp, _)
+  | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
@@ -140,6 +144,8 @@ and get_outer_zrules_from_zexp_operand =
   | LamZA(_, _, _, _) => outer_zrules
   | LamZE(_, _, _, zexp)
   | InjZ(_, _, zexp)
+  | TightApZE1(_, zexp, _)
+  | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
@@ -605,6 +611,10 @@ and syn_cursor_info_zoperand =
         )
       };
     }
+  | TightApZE1(_, zfunc, _) =>
+    //Try to understand this more! <--------------------------------------------------------------
+    syn_cursor_info(~steps=steps @ [0], ctx, zfunc)
+  | TightApZE2(_, _, zarg) => syn_cursor_info(~steps=steps @ [1], ctx, zarg)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
@@ -832,6 +842,7 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | TightAp(InHole(TypeInconsistent, _), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' =
         zoperand
@@ -860,6 +871,7 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
+    | TightAp(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -867,6 +879,7 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
+    | TightAp(NotInHole, _, _)
     | ApPalette(NotInHole, _, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None

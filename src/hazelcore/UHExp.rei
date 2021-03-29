@@ -22,6 +22,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | TightAp(ErrStatus.t, t, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -50,6 +51,8 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
+
+let tightap: (~err: ErrStatus.t=?, t, t) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
