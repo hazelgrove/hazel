@@ -597,10 +597,21 @@ let rec syn_perform =
         )
         : ActionOutcome.t(syn_done) => {
   switch (a) {
-  | FillExpHole(u, e) =>
-    let e = UHExp.fill_hole(u, e, ZExp.erase(ze));
-    let (e, ty, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, e);
-    Succeeded((ZExp.place_before(e), ty, u_gen));
+  | FillExpHole(u, fill_e) =>
+    let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
+    let steps_to_this_hole =
+      CursorPath_common.steps_to_hole(holes, u)
+      |> OptUtil.get(_ => failwith("FillExpHole 1"));
+    let e = UHExp.fill_hole(u, fill_e, ZExp.erase(ze));
+    let (e_new, ty, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, e);
+    let new_path =
+      CursorPath_Exp.of_steps(steps_to_this_hole, e_new)
+      |> OptUtil.get(_ => failwith("FillExpHole 2"));
+    let new_ze =
+      CursorPath_Exp.follow(new_path, e_new)
+      |> OptUtil.get(_ => failwith("FillExpHole 3"));
+
+    Succeeded((new_ze, ty, u_gen));
   | _ =>
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
