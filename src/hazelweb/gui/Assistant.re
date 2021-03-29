@@ -41,38 +41,45 @@ let wrap_space = (operator, seq) =>
   Seq.S(operator, A(Operators_Exp.Space, seq));
 
 let rec mk_ap_seq_holes =
-        (/*f : Var.t,*/ f_ty: HTyp.t, hole_ty: HTyp.t)
+        (f_ty: HTyp.t, hole_ty: HTyp.t)
         : option(Seq.t(UHExp.operand, UHExp.operator)) => {
-  // say f_ty = Int->Int, hole_ty = Int
-  // want S(UHExp.var(f), A(Space , S(EmptyHole, E)))
   switch (f_ty) {
   | Arrow(_, output_ty) =>
     if (HTyp.consistent(output_ty, hole_ty)) {
-      Some
-        (S(EmptyHole(0), E));
-        //S(UHExp.var(f), A(Space , S(EmptyHole(0), E)))
+      Some(S(EmptyHole(0), E));
     } else {
       let+ affix = mk_ap_seq_holes(output_ty, hole_ty);
       wrap_space(UHExp.EmptyHole(0), affix);
-      //Seq.S(UHExp.EmptyHole(0), A(Operators_Exp.Space, affix))
     }
   | _ => None
   };
 };
 
-let mk_ap = (f: Var.t, f_ty: HTyp.t, hole_ty: HTyp.t): option(UHExp.t) => {
+let mk_ap =
+    (ctx, u_gen, f: Var.t, f_ty: HTyp.t, hole_ty: HTyp.t): option(UHExp.t) => {
   let+ inner_seq = mk_ap_seq_holes(f_ty, hole_ty);
-  wrap_space(UHExp.var(f), inner_seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  wrap_space(UHExp.var(f), inner_seq)
+  |> UHExp.mk_OpSeq
+  |> UHExp.Block.wrap'
+  |> Statics_Exp.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes=true)
+  |> (((x, _, _)) => x);
 };
 
 let mk_app_action =
-    (t: CursorInfo.cursor_term, f_name: string, f_ty: HTyp.t, hole_ty: HTyp.t)
+    (
+      ctx,
+      u_gen,
+      t: CursorInfo.cursor_term,
+      f_name: string,
+      f_ty: HTyp.t,
+      hole_ty: HTyp.t,
+    )
     : assistant_action => {
   // what should behavior be if hole_ty is Hole?
   // Right now it suggests a single-arg app
   // possiblities: no suggestion vs. all options vs. fully applied
   let e =
-    mk_ap(f_name, f_ty, hole_ty)
+    mk_ap(ctx, u_gen, f_name, f_ty, hole_ty)
     |> OptUtil.get(_ => failwith("mk_app_action"));
   {
     category: InsertApp,
@@ -87,52 +94,51 @@ let code_node = text =>
     [Vdom.Attr.classes(["code-font"])],
     [Vdom.Node.text(text)],
   );
+
 let list_vars_view = (inject, t, vars: VarCtx.t) => {
-  let b =
-    VarMap.map(
-      ((var, ty)) => {
-        let {action, _} = mk_var_action(t, var);
-        Node.div(
-          [
-            Attr.classes(["option"]),
-            Attr.on_click(_ => {
-              Event.Many([
-                Event.Prevent_default,
-                Event.Stop_propagation,
-                inject(ModelAction.AcceptSuggestion(action)),
-              ])
-            }),
-          ],
-          [code_node(var), Node.text(" : "), HTypCode.view(ty)],
-        );
-      },
-      vars,
-    );
-  List.map(((_, b)) => {b}, b);
+  VarMap.map(
+    ((var, ty)) => {
+      let {action, _} = mk_var_action(t, var);
+      Node.div(
+        [
+          Attr.classes(["option"]),
+          Attr.on_click(_ => {
+            Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.AcceptSuggestion(action)),
+            ])
+          }),
+        ],
+        [code_node(var), Node.text(" : "), HTypCode.view(ty)],
+      );
+    },
+    vars,
+  )
+  |> List.map(((_, b)) => b);
 };
 
-let list_fns_view = (inject, t, hole_ty, fn_vars: VarCtx.t) => {
-  let b =
-    VarMap.map(
-      ((var, ty)) => {
-        let {action, _} = mk_app_action(t, var, ty, hole_ty);
-        Node.div(
-          [
-            Attr.classes(["option"]),
-            Attr.on_click(_ => {
-              Event.Many([
-                Event.Prevent_default,
-                Event.Stop_propagation,
-                inject(ModelAction.AcceptSuggestion(action)),
-              ])
-            }),
-          ],
-          [code_node(var), Node.text(" : "), HTypCode.view(ty)],
-        );
-      },
-      fn_vars,
-    );
-  List.map(((_, b)) => {b}, b);
+let list_fns_view = (ctx, u_gen, inject, t, hole_ty, fn_vars: VarCtx.t) => {
+  VarMap.map(
+    ((var, ty)) => {
+      let {action, _} = mk_app_action(ctx, u_gen, t, var, ty, hole_ty);
+      Node.div(
+        [
+          Attr.classes(["option"]),
+          Attr.on_click(_ => {
+            Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.AcceptSuggestion(action)),
+            ])
+          }),
+        ],
+        [code_node(var), Node.text(" : "), HTypCode.view(ty)],
+      );
+    },
+    fn_vars,
+  )
+  |> List.map(((_, b)) => b);
 };
 
 let view =
@@ -143,13 +149,17 @@ let view =
     )
     : Vdom.Node.t => {
   let ty =
-    OptUtil.get(() => failwith("no"), StrategyGuide.get_type(cursor_info));
+    OptUtil.get(
+      () => failwith("assistant view"),
+      StrategyGuide.get_type(cursor_info),
+    );
   let env = StrategyGuide.extract_vars(ctx, ty);
   let fn_env = StrategyGuide.fun_vars(ctx, ty);
 
+  let u_gen = 0; // TODO: get u_gen from somewhere
   Node.div(
     [Attr.classes(["type-driven"])],
-    list_fns_view(inject, cursor_term, ty, fn_env)
+    list_fns_view(ctx, u_gen, inject, cursor_term, ty, fn_env)
     @ list_vars_view(inject, cursor_term, env),
   );
 };
