@@ -162,15 +162,14 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       );
     correct_rule_types ? Some(HTyp.Hole) : None;
   | If(InconsistentBranches(_, _), t1, t2, t3) =>
-    print_endline(__LOC__);
     switch (ana(ctx, t1, HTyp.Bool)) {
     | None => None
     | Some(_) =>
       switch (syn(ctx, t2), syn(ctx, t3)) {
       | (Some(ty2), Some(ty3)) =>
         switch (HTyp.join(GLB, ty2, ty3)) {
-        | Some(_) => Some(HTyp.Hole)
-        | None => None
+        | Some(ty) => Some(ty)
+        | None => Some(HTyp.Hole)
         }
       | (None, None) => None
       | (_, _) => Some(HTyp.Hole)

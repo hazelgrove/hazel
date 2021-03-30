@@ -1016,7 +1016,7 @@ and ana_cursor_info_zoperand =
       )
     }
   | IfZ1(StandardErrStatus(NotInHole), zt1, _, _) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zt1, ty)
+    ana_cursor_info(~steps=steps @ [0], ctx, zt1, HTyp.Bool)
   | IfZ2(StandardErrStatus(NotInHole), _, zt2, _) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zt2, ty)
   | IfZ3(StandardErrStatus(NotInHole), _, _, zt3) =>

@@ -576,7 +576,6 @@ let rec ana_move =
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
     }
   | MoveRight =>
-    print_endline("right");
     switch (ZExp.move_cursor_right(ze)) {
     | None => CursorEscaped(After)
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
@@ -619,7 +618,6 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: If, prefix, subject, suffix, u_gen})) =>
-    print_endline(__LOC__);
     let zt1_hole = subject |> ZExp.place_before;
     let (if_then, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let (if_else, u_gen) = u_gen |> UHExp.new_EmptyHole;
@@ -818,7 +816,7 @@ and syn_perform_block =
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
           /* failing here */
-          | None => Failed
+          | None => Failed;
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -1884,9 +1882,7 @@ and syn_perform_operand =
     | None => Failed
     | Some(ty1) =>
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
-      | Failed =>
-        print_endline("caseze failed");
-        Failed;
+      | Failed => Failed;
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -1918,9 +1914,7 @@ and syn_perform_operand =
     | None => Failed
     | Some(pat_ty) =>
       switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
-      | Failed =>
-        print_endline("casezr failed");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -1964,9 +1958,6 @@ and syn_perform_operand =
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
     | None => Failed
     | Some(gen_ty2) =>
-      print_endline(__LOC__);
-      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(gen_ty2)));
-      print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_t(zt2)));
       switch (syn_perform(ctx, a, (zt2, gen_ty2, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -1976,31 +1967,24 @@ and syn_perform_operand =
           (zoperand, ty, u_gen),
         )
       | Succeeded((zt2, ty2, u_gen)) =>
-        print_endline(__LOC__);
-        print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty2)));
         switch (Statics_Exp.syn(ctx, t3)) {
         | None => Failed
         | Some(ty3) =>
           let real_ty = HTyp.join(GLB, ty2, ty3);
           switch (real_ty) {
           | Some(real_type) =>
-            print_endline(
-              Sexplib.Sexp.to_string(HTyp.sexp_of_t(real_type)),
-            );
             let new_ze =
               ZExp.ZBlock.wrap(
                 IfZ2(StandardErrStatus(NotInHole), t1, zt2, t3),
               );
             Succeeded(SynDone((new_ze, real_type, u_gen)));
           | None =>
-            print_endline(__LOC__);
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let branch_types = [ty2, ty3];
             let new_ze =
               ZExp.ZBlock.wrap(
                 IfZ2(InconsistentBranches(branch_types, u), t1, zt2, t3),
               );
-            print_endline(__LOC__);
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           };
         };
@@ -2019,30 +2003,24 @@ and syn_perform_operand =
           (zoperand, ty, u_gen),
         )
       | Succeeded((zt3, ty3, u_gen)) =>
-        print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty3)));
         switch (Statics_Exp.syn(ctx, t2)) {
         | None => Failed
         | Some(ty2) =>
-          print_endline(__LOC__);
-          print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty2)));
           let real_ty = HTyp.join(GLB, ty2, ty3);
           switch (real_ty) {
           | Some(real_type) =>
-            print_endline(__LOC__);
             let new_ze =
               ZExp.ZBlock.wrap(
                 IfZ3(StandardErrStatus(NotInHole), t1, t2, zt3),
               );
             Succeeded(SynDone((new_ze, real_type, u_gen)));
           | None =>
-            print_endline(__LOC__);
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let branch_types = [ty2, ty3];
             let new_ze =
               ZExp.ZBlock.wrap(
                 IfZ3(InconsistentBranches(branch_types, u), t1, t2, zt3),
               );
-            print_endline(__LOC__);
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           };
         };
@@ -2397,7 +2375,6 @@ and ana_perform_block =
   /* Backspace & Delete */
 
   | (Delete, _) when ZExp.is_after_zline(zline) =>
-    print_endline("1");
     switch (zline |> ZExp.erase_zline, suffix) {
     | (_, []) => CursorEscaped(After)
     | (EmptyLine, [suffix_hd, ...new_suffix]) =>
