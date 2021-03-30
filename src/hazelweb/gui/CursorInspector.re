@@ -36,7 +36,8 @@ let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
     | PatAnalyzed(ty)
     | SynMatchingArrow(_, ty) => [colon, HTypCode.view(ty)]
     | Synthesized(ty)
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty)
+    | OnLetLine(ty) =>
       switch (ty) {
       | HTyp.Hole => [colon, emphasize_text("Any Type")]
       | _ => [colon, HTypCode.view(ty)]
@@ -175,7 +176,8 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         ]
       }
     | Synthesized(ty)
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty)
+    | OnLetLine(ty) =>
       switch (ty) {
       | HTyp.Hole => [
           Node.text("Expecting " ++ article),
@@ -568,6 +570,7 @@ let view =
     | PatSynthesized(_) => OK
     | PatSynKeyword(_) => BindingError
     | OnLine => OK
+    | OnLetLine(_) => OK
     | OnRule => OK
     };
 
