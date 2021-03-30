@@ -214,7 +214,7 @@ let perform_action =
       | CursorEscaped(_) => raise(CursorEscaped)
       | Succeeded((ze, ty, u_gen)) =>
         let u_gen =
-          UHExp.is_complete(ZExp.erase(ze), false) ? MetaVarGen.init : u_gen;
+          UHExp.is_complete(ZExp.erase(ze)) ? MetaVarGen.init : u_gen;
         {
           ...program,
           edit_state: {

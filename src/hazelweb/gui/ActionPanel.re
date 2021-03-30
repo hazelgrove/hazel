@@ -296,7 +296,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SLet),
         ),
-        combo(Colon, simple("Type ascription")),
+        combo(Colon, simple("Type annotation")),
       ],
     ),
     section(
@@ -470,7 +470,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SAnd)) => Added
   | Construct(SOp(SOr)) => Added
   | Construct(SParenthesized) => Added
-  | Construct(SAsc) => Added
+  | Construct(SAnn) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added
