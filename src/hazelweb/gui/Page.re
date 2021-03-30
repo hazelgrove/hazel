@@ -146,12 +146,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                       Node.div(
                         [Attr.classes(["htype-view"])],
-                        [
-                          {
-                            let (_, ty, _) = program.edit_state;
-                            HTypCode.view(ty);
-                          },
-                        ],
+                        [HTypCode.view(program.edit_state.ty)],
                       ),
                     ],
                   ),
@@ -244,7 +239,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
-                  CursorInspector.view(~inject, model),
+                  CursorInspector.view(
+                    ~inject,
+                    Program.get_cursor_info(program),
+                  ),
                   ContextInspector.view(
                     ~inject,
                     ~selected_instance,

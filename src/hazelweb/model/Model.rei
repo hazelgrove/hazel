@@ -27,20 +27,15 @@ let cutoff: (t, t) => bool;
 let init: unit => t;
 
 let get_program: t => Program.t;
-
-let get_edit_state: t => Statics.edit_state;
+let map_program: (Program.t => Program.t, t) => t;
 
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;
 
-let get_cursor_info: t => CursorInfo.t;
+let get_cursor_info: t => option(CursorInfo.t);
 
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
-
-let focus_cell: t => t;
-let blur_cell: t => t;
-let is_cell_focused: t => bool;
 
 /**
  * Update selected instances when user clicks on a hole
@@ -52,9 +47,9 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 let prev_card: t => t;
 let next_card: t => t;
 
-let perform_edit_action: (Action.t, t) => t;
+let perform_action: (~move_via: MoveInput.t=?, Action.t, t) => t;
 
-let move_via_key: (MoveKey.t, t) => t;
+let move_via_key: (MoveKey.t, t) => option(t);
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
 
 /**

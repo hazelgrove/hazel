@@ -56,6 +56,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
+  | FocusWindow
+  | BlurWindow
   | Undo
   | Redo
   | ShiftHistory(_)
@@ -92,7 +94,7 @@ let apply_action =
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
-        switch (model |> Model.perform_edit_action(a)) {
+        switch (model |> Model.perform_action(a)) {
         | new_model => new_model
         | exception Program.FailedAction =>
           JSUtil.log("[Program.FailedAction]");
@@ -111,11 +113,9 @@ let apply_action =
           model;
         }
       | MoveAction(Key(move_key)) =>
-        switch (model |> Model.move_via_key(move_key)) {
-        | new_model => new_model
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
-          model;
+        switch (Model.move_via_key(move_key, model)) {
+        | None => model
+        | Some(m) => m
         }
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
@@ -128,8 +128,10 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell => model |> Model.focus_cell
-      | BlurCell => model |> Model.blur_cell
+      | FocusCell => model |> Model.map_program(Program.focus)
+      | BlurCell => model |> Model.map_program(Program.blur)
+      | FocusWindow => Model.map_program(Program.focus_window, model)
+      | BlurWindow => Model.map_program(Program.blur_window, model)
       | Undo =>
         let new_history =
           model.undo_history

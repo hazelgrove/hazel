@@ -5,7 +5,8 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
+let view =
+    (~inject: ModelAction.t => Event.t, ci: option(CursorInfo.t)): Node.t => {
   let typebar = ty =>
     Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
   let matched_ty_bar = (ty1, ty2) =>
@@ -129,7 +130,6 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
@@ -335,7 +335,22 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       (ind1, ind2, OK);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, err_state_b) =
+    switch (ci) {
+    | Some(ci) => get_indicator_info(ci.typed)
+    | None =>
+      let ind1 =
+        Node.div(
+          [Attr.classes(["indicator", "expected-indicator"])],
+          [Panel.view_of_main_title_bar(""), special_msg_bar("-")],
+        );
+      let ind2 =
+        Node.div(
+          [Attr.classes(["indicator", "got-indicator"])],
+          [Panel.view_of_other_title_bar(""), special_msg_bar("-")],
+        );
+      (ind1, ind2, OK);
+    };
 
   // this determines the color
   let cls_of_err_state_b =

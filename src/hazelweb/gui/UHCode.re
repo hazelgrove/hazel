@@ -142,7 +142,9 @@ let key_handlers =
           }
         | Some(kc) =>
           prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            ModelAction.EditAction(
+              KeyComboAction.get(Some(cursor_info), kc),
+            ),
           )
         | None =>
           switch (JSUtil.is_single_key(evt)) {
@@ -232,20 +234,19 @@ let view =
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);
       };
-      let caret = {
-        let caret_pos = Program.get_caret_position(~settings, program);
-        program.is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
+      let caret =
+        switch (Program.get_caret_position(~settings, program)) {
+        | None => []
+        | Some(caret_pos) => [
+            UHDecoration.Caret.view(~font_metrics, caret_pos),
+          ]
+        };
 
       let key_handlers =
-        program.is_focused
-          ? key_handlers(
-              ~inject,
-              ~is_mac,
-              ~cursor_info=Program.get_cursor_info(program),
-            )
-          : [];
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some(cursor_info) => key_handlers(~inject, ~is_mac, ~cursor_info)
+        };
 
       let click_handler = evt => {
         let container_rect =
@@ -280,7 +281,10 @@ let view =
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.on_blur(_ =>
+            JSUtil.window_has_focus()
+              ? inject(ModelAction.BlurCell) : Event.Many([])
+          ),
           ...key_handlers,
         ],
         caret

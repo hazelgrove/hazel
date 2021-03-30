@@ -23,6 +23,7 @@ let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
   | None => if_absent()
   | Some(a) => a
   };
+let get_or_raise = e => get(() => raise(e));
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
