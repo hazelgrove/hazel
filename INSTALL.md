@@ -55,7 +55,7 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    brew install gcc git make
+    brew install gcc git make pkg-config
     ```
 
 ## Install and Initialize `opam`
