@@ -7,6 +7,13 @@ type step_result =
   | Step(DHExp.t)
   | Pause(DHExp.t);
 
+type exp =
+  | A(int)
+  | B(int)
+  | C(int, int);
+
+let add_one = x => x + 1;
+
 exception InvalidInput(int);
 
 [@deriving sexp]
@@ -33,17 +40,15 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(Ap(d1', d2))
     | Step(d1') => Step(Ap(d1', d2))
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
+      | Pause(d2') => Pause(Ap(d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') =>
         switch (opt.pause_at_empty_hole, d2') {
-        | (true, DHExp.Cast(EmptyHole(_, _, _), _, Hole)) =>
-          Pause(Ap(d1, d2'))
+        | (true, DHExp.Cast(_, _, Hole)) => Pause(Ap(d1, d2'))
         | (_, _) =>
           switch (Elaborator_Exp.matches(dp, d2')) {
           | DoesNotMatch => Indet(d)
@@ -57,8 +62,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
+      | Pause(d2') => Pause(Ap(d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
@@ -67,10 +72,17 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(_) => raise(InvalidInput(2))
     | Indet(d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(Ap(d1, d2'))
       | Step(d2') => Step(Ap(d1, d2'))
+      | Pause(d2') => Pause(Ap(d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') => Indet(Ap(d1', d2'))
+      }
+    | Pause(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(Ap(d1, d2'))
+      | Pause(d2')
+      | BoxedValue(d2')
+      | Indet(d2') => Pause(Ap(d1', d2'))
       }
     }
   | ListNil(_)
@@ -80,12 +92,11 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(BinBoolOp(op, d1', d2))
     | Step(d1') => Step(BinBoolOp(op, d1', d2))
     | BoxedValue(BoolLit(b1) as d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | Step(d2') => Step(BinBoolOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | BoxedValue(BoolLit(b2)) =>
         BoxedValue(EvaluatorCommon.eval_bin_bool_op(op, b1, b2))
       | BoxedValue(_) => raise(InvalidInput(3))
@@ -94,20 +105,26 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(_) => raise(InvalidInput(4))
     | Indet(d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | Step(d2') => Step(BinBoolOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+      }
+    | Pause(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinBoolOp(op, d1, d2'))
+      | Pause(d2')
+      | BoxedValue(d2')
+      | Indet(d2') => Pause(BinBoolOp(op, d1', d2'))
       }
     }
   | BinIntOp(op, d1, d2) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(BinIntOp(op, d1', d2))
     | Step(d1') => Step(BinIntOp(op, d1', d2))
     | BoxedValue(IntLit(n1) as d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(BinIntOp(op, d1, d2'))
       | Step(d2') => Step(BinIntOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinIntOp(op, d1, d2'))
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
@@ -130,15 +147,21 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
+    | Pause(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinIntOp(op, d1, d2'))
+      | Pause(d2')
+      | BoxedValue(d2')
+      | Indet(d2') => Pause(BinIntOp(op, d1', d2'))
+      }
     }
   | BinFloatOp(op, d1, d2) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(BinFloatOp(op, d1', d2))
     | Step(d1') => Step(BinFloatOp(op, d1', d2))
     | BoxedValue(FloatLit(f1) as d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | BoxedValue(FloatLit(f2)) =>
         Step(EvaluatorCommon.eval_bin_float_op(op, f1, f2))
       | BoxedValue(_) => raise(InvalidInput(8))
@@ -147,25 +170,32 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(_) => raise(InvalidInput(7))
     | Indet(d1') =>
       switch (step(d2, opt)) {
-      | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      }
+    | Pause(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinFloatOp(op, d1, d2'))
+      | Pause(d2')
+      | BoxedValue(d2')
+      | Indet(d2') => Pause(BinFloatOp(op, d1', d2'))
       }
     }
   | Inj(ty, side, d1) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(Inj(ty, side, d1'))
     | Step(d1') => Step(Inj(ty, side, d1'))
+    | Pause(d1') => Pause(Inj(ty, side, d1'))
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Pair(d1, d2) =>
     switch (step(d1, opt), step(d2, opt)) {
-    | (Pause(d1'), _) => Pause(Pair(d1', d2))
-    | (_, Pause(d2')) => Pause(Pair(d1, d2'))
     | (Step(d1'), _) => Step(Pair(d1', d2))
     | (_, Step(d2')) => Step(Pair(d1, d2'))
+    | (Pause(d1'), _) => Pause(Pair(d1', d2))
+    | (_, Pause(d2')) => Pause(Pair(d1, d2'))
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
@@ -173,10 +203,10 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     }
   | Cons(d1, d2) =>
     switch (step(d1, opt), step(d2, opt)) {
-    | (Pause(d1'), _) => Pause(Cons(d1', d2))
-    | (_, Pause(d2')) => Pause(Cons(d1, d2'))
     | (Step(d1'), _) => Step(Cons(d1', d2))
     | (_, Step(d2')) => Step(Cons(d1, d2'))
+    | (Pause(d1'), _) => Pause(Cons(d1', d2))
+    | (_, Pause(d2')) => Pause(Cons(d1, d2'))
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
@@ -189,8 +219,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(NonEmptyHole(reason, u, i, sigma, d1'))
     | Step(d1') => Step(NonEmptyHole(reason, u, i, sigma, d1'))
+    | Pause(d1') => Pause(NonEmptyHole(reason, u, i, sigma, d1'))
     | BoxedValue(d1')
     | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
     }
@@ -199,8 +229,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(Cast(d1', ty, ty'))
     | Step(d1') => Step(Cast(d1', ty, ty'))
+    | Pause(d1') => Pause(Cast(d1', ty, ty'))
     | BoxedValue(d1') as result =>
       switch (
         EvaluatorCommon.ground_cases_of(ty),
@@ -287,8 +317,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     }
   | FailedCast(d1, ty, ty') =>
     switch (step(d1, opt)) {
-    | Pause(d1') => Pause(FailedCast(d1', ty, ty'))
     | Step(d1') => Step(FailedCast(d1', ty, ty'))
+    | Pause(d1') => Pause(FailedCast(d1', ty, ty'))
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
