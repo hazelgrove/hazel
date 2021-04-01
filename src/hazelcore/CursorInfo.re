@@ -106,7 +106,7 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
-  | OnType
+  | OnType(bool)
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;

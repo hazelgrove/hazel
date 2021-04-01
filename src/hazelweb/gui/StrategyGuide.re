@@ -64,6 +64,13 @@ let get_type = (cursor_info: CursorInfo.t) => {
   my_type(cursor_info.typed);
 };
 
+let is_complex_type = (cursor_info: CursorInfo.t) => {
+  switch (cursor_info.typed) {
+  | OnType(b) => b
+  | _ => false
+  };
+};
+
 /**
  * Gets the type in string format.
  * Return string
@@ -637,14 +644,11 @@ let filled_type_view =
       cursor_info: CursorInfo.t,
     ) => {
   let ty = get_type(cursor_info);
+  let is_complex = is_complex_type(cursor_info);
   let ctx = cursor_info.ctx;
 
   let _ = ty;
   let _ = ctx;
-
-  let compound_filled_t = cursor_inspector.type_assist_comp_filled_ty;
-  let function_filled_t = cursor_inspector.type_assist_func_filled_ty;
-  let pat_filled_t = cursor_inspector.type_assist_pat_filled_ty;
 
   switch (ty) {
   | Some(Hole) => print_endline("Hole")
@@ -667,6 +671,12 @@ let filled_type_view =
         ],
       )
     );
+
+  let compound_filled_t = cursor_inspector.type_assist_comp_filled_ty;
+  let function_filled_t = cursor_inspector.type_assist_func_filled_ty;
+  let pat_filled_t = cursor_inspector.type_assist_pat_filled_ty;
+  let new_type_filled_t = cursor_inspector.type_assist_new_type_filled_ty;
+
   let compound_filled_arrow =
     if (compound_filled_t) {
       Icons.down_arrow(["fill-arrow"]);
@@ -693,6 +703,7 @@ let filled_type_view =
         [Node.text("Convert to a compound type"), compound_filled_arrow],
       )
     );
+
   let compound_filled_body =
     Vdom.(
       Node.div(
@@ -785,6 +796,55 @@ let filled_type_view =
     );
   let _ = pat_filled_body;
 
+  let new_type_filled_arrow =
+    if (new_type_filled_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+
+  let new_type_filled =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_new_type_filled_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [Node.text("Add another type"), new_type_filled_arrow],
+      )
+    );
+
+  let new_type_filled_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div(
+              [Attr.classes(["options"])],
+              [
+                Node.div(
+                  [Attr.classes(["option"])],
+                  [Node.text("Enter ,")],
+                ),
+              ],
+            )
+          ),
+        ],
+      )
+    );
+  let _ = new_type_filled_body;
+
   let body =
     if (compound_filled_t) {
       List.append([fill_hole_msg], [compound_filled, compound_filled_body]);
@@ -798,11 +858,19 @@ let filled_type_view =
       List.append(body, [func_filled]);
     };
   let body =
-    if (pat_filled_t) {
-      List.append(body, [pat_filled, pat_filled_body]);
-    } else {
-      List.append(body, [pat_filled]);
-    };
+    is_complex
+      ? if (new_type_filled_t) {
+          List.append(body, [new_type_filled, new_type_filled_body]);
+        } else {
+          List.append(body, [new_type_filled]);
+        }
+      : (
+        if (pat_filled_t) {
+          List.append(body, [pat_filled, pat_filled_body]);
+        } else {
+          List.append(body, [pat_filled]);
+        }
+      );
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
 };

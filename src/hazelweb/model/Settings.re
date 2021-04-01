@@ -135,6 +135,7 @@ module CursorInspector = {
     type_assist_comp_filled_ty: bool,
     type_assist_func_filled_ty: bool,
     type_assist_pat_filled_ty: bool,
+    type_assist_new_type_filled_ty: bool,
   };
 
   let init = {
@@ -153,6 +154,7 @@ module CursorInspector = {
     type_assist_comp_filled_ty: false,
     type_assist_func_filled_ty: false,
     type_assist_pat_filled_ty: false,
+    type_assist_new_type_filled_ty: false,
   };
 
   [@deriving sexp]
@@ -171,7 +173,8 @@ module CursorInspector = {
     | Toggle_type_assist_func_ty
     | Toggle_type_assist_comp_filled_ty
     | Toggle_type_assist_func_filled_ty
-    | Toggle_type_assist_pat_filled_ty;
+    | Toggle_type_assist_pat_filled_ty
+    | Toggle_type_assist_new_type_filled_ty;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -225,6 +228,11 @@ module CursorInspector = {
     | Toggle_type_assist_pat_filled_ty => {
         ...settings,
         type_assist_pat_filled_ty: !settings.type_assist_pat_filled_ty,
+      }
+    | Toggle_type_assist_new_type_filled_ty => {
+        ...settings,
+        type_assist_new_type_filled_ty:
+          !settings.type_assist_new_type_filled_ty,
       }
     };
 };

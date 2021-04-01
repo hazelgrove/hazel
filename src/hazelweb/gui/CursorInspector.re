@@ -140,7 +140,7 @@ let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
+    | OnType(_) => []
     | OnLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
@@ -324,7 +324,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
+    | OnType(_) => [Node.text("Got " ++ article), term_tag]
     | OnLine => /* TODO */ [
         Node.text("Got " ++ article),
         term_tag,
@@ -557,7 +557,7 @@ let view =
       }
     | SynInconsistentBranches(_) => TypeInconsistency
     | SynInconsistentBranchesArrow(_) => TypeInconsistency
-    | OnType => OK
+    | OnType(_) => OK
     | PatAnalyzed(_) => OK
     | PatAnaTypeInconsistent(_) => TypeInconsistency
     | PatAnaWrongLength(_) => TypeInconsistency
