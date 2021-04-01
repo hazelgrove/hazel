@@ -291,7 +291,7 @@ and syn_fix_holes_opseq =
     : option((UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t)) => {
   let+ (skel, seq, ty, ctx, u_gen) =
     syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
-  (OpSeq.OpSeq(skel, seq), ty, ctx, u_gen);
+  (OpSeq(skel, seq), ty, ctx, u_gen);
 }
 and syn_fix_holes_skel =
     (
@@ -310,13 +310,12 @@ and syn_fix_holes_skel =
     let seq = seq |> Seq.update_nth_operand(n, pn);
     (skel, seq, ty, ctx, u_gen);
   | BinOp(_, Comma, _, _) =>
-    let+ ((ctx, u_gen, seq), rev_pairs) =
+    let ((ctx, u_gen, seq), pairs) =
       skel
       |> UHPat.get_tuple_elements
-      |> List.fold_left(
-           (acc_opt, skel) => {
-             let* ((ctx, u_gen, seq), rev_pairs) = acc_opt;
-             let+ (skel, seq, ty, ctx, u_gen) =
+      |> ListUtil.map_with_accumulator(
+           ((ctx, u_gen, seq), skel) => {
+             let (skel, seq, ty, ctx, u_gen) =
                syn_fix_holes_skel(
                  ctx,
                  u_gen,
@@ -324,15 +323,15 @@ and syn_fix_holes_skel =
                  skel,
                  seq,
                );
-             ((ctx, u_gen, seq), [(skel, ty), ...rev_pairs]);
+             ((ctx, u_gen, seq), (skel, ty));
            },
-           Some(((ctx, u_gen, seq), [])),
+           (ctx, u_gen, seq),
          );
-    let (skels, tys) = List.split(rev_pairs |> List.rev);
-    (UHPat.mk_tuple(skels), seq, HTyp.Prod(tys), ctx, u_gen);
+    let (skels, tys) = List.split(pairs);
+    Some((UHPat.mk_tuple(skels), seq, Prod(tys), ctx, u_gen));
   | BinOp(_, Space, skel1, skel2) =>
     let* (skel1, seq, ctx, u_gen) = {
-      let+ (skel1, seq, ty, ctx, u_gen) =
+      let* (skel1, seq, ty, ctx, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let (skel1, seq, u_gen) =
         switch (HTyp.matched_arrow(ty)) {
@@ -408,7 +407,7 @@ and syn_fix_holes_operand =
   | Parenthesized(p) =>
     let* (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-    Some((UHPat.Parenthesized(p), ty, ctx, u_gen));
+    Some((Parenthesized(p), ty, ctx, u_gen));
   | Inj(_, side, p1) =>
     let+ (p1, ty1, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
@@ -420,7 +419,7 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let* (ty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
+    let* (ty, _, _) = Elaborator_Typ.syn(ctx, ann);
     let+ (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
@@ -450,9 +449,16 @@ and ana_fix_holes_opseq =
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
-         (acc_opt, (skel: UHPat.skel, ty: HTyp.t)) => {
-           let* (rev_skels, seq, ctx, u_gen) = acc_opt;
-           let+ (skel, seq, ctx, u_gen) =
+         (
+           (
+             rev_skels: list(UHPat.skel),
+             seq: UHPat.seq,
+             ctx: Contexts.t,
+             u_gen: MetaVarGen.t,
+           ),
+           (skel: UHPat.skel, ty: HTyp.t),
+         ) => {
+           let (skel, seq, ctx, u_gen) =
              ana_fix_holes_skel(
                ctx,
                u_gen,
@@ -463,20 +469,30 @@ and ana_fix_holes_opseq =
              );
            ([skel, ...rev_skels], seq, ctx, u_gen);
          },
-         Some(([], seq, ctx, u_gen)),
+         ([], seq, ctx, u_gen),
        )
-    |> Option.map(((rev_skels, seq, ctx, u_gen)) => {
-         let skel = rev_skels |> List.rev |> UHPat.mk_tuple;
-         (OpSeq.OpSeq(skel, seq), ctx, u_gen);
-       })
+    |> (
+      fun
+      | (rev_skels, seq, ctx, u_gen) => {
+          let skel = rev_skels |> List.rev |> UHPat.mk_tuple;
+          Some((OpSeq.OpSeq(skel, seq), ctx, u_gen));
+        }
+    )
   | None =>
     if (List.length(HTyp.get_prod_elements(ty)) == 1) {
       skel
       |> UHPat.get_tuple_elements
       |> List.fold_left(
-           (acc_opt, skel: UHPat.skel) => {
-             let* (rev_skels, seq, ctx, u_gen) = acc_opt;
-             let+ (skel, seq, _, ctx, u_gen) =
+           (
+             (
+               rev_skels: list(UHPat.skel),
+               seq: UHPat.seq,
+               ctx: Contexts.t,
+               u_gen: MetaVarGen.t,
+             ),
+             skel: UHPat.skel,
+           ) => {
+             let (skel, seq, _, ctx, u_gen) =
                syn_fix_holes_skel(
                  ctx,
                  u_gen,
@@ -486,18 +502,21 @@ and ana_fix_holes_opseq =
                );
              ([skel, ...rev_skels], seq, ctx, u_gen);
            },
-           Some(([], seq, ctx, u_gen)),
+           ([], seq, ctx, u_gen),
          )
-      |> Option.map(((rev_skels, seq, ctx, u_gen)) => {
-           let (u, u_gen) = MetaVarGen.next(u_gen);
-           let skel = UHPat.mk_tuple(List.rev(rev_skels));
-           let opseq =
-             UHPat.set_err_status_opseq(
-               InHole(TypeInconsistent, u),
-               OpSeq.OpSeq(skel, seq),
-             );
-           (opseq, ctx, u_gen);
-         });
+      |> (
+        fun
+        | (rev_skels, seq, ctx, u_gen) => {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let skel = UHPat.mk_tuple(List.rev(rev_skels));
+            let opseq =
+              UHPat.set_err_status_opseq(
+                InHole(TypeInconsistent, u),
+                OpSeq.OpSeq(skel, seq),
+              );
+            Some((opseq, ctx, u_gen));
+          }
+      );
     } else {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let+ (opseq, _, _, u_gen) =
@@ -668,26 +687,26 @@ and ana_fix_holes_operand =
   | Parenthesized(p1) =>
     let+ (p1, ctx, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
-    (UHPat.Parenthesized(p1), ctx, u_gen);
+    (Parenthesized(p1), ctx, u_gen);
   | Inj(_, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let+ (p1, ctx, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
-      (UHPat.Inj(NotInHole, side, p1), ctx, u_gen);
+      (Inj(NotInHole, side, p1), ctx, u_gen);
     | None =>
       let+ (p1, _, ctx, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHPat.Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
+      (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
     let* (ty_ann, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
     if (HTyp.consistent(ty, ty_ann)) {
       let+ (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
-      (UHPat.TypeAnn(NotInHole, op, ann), ctx, u_gen);
+      (TypeAnn(NotInHole, op, ann), ctx, u_gen);
     } else {
       let+ (op, _, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
