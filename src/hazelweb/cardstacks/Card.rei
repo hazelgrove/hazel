@@ -7,4 +7,4 @@ type t = {
   edit_state: Statics.edit_state,
 };
 
-let mk: CardInfo.t => option(t);
+let mk: CardInfo.t => t;
