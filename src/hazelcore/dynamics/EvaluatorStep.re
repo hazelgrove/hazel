@@ -47,16 +47,16 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Pause(d2') => Pause(Ap(d1, d2'))
       | BoxedValue(d2')
       | Indet(d2') =>
-        switch (opt.pause_at_empty_hole, d2') {
-        | (true, DHExp.Cast(_, _, Hole)) => Pause(Ap(d1, d2'))
-        | (_, _) =>
-          switch (Elaborator_Exp.matches(dp, d2')) {
-          | DoesNotMatch => Indet(d)
-          | Indet => Indet(d)
-          | Matches(env) =>
-            /* beta rule */
-            Step(Elaborator_Exp.subst(env, d3))
-          }
+        switch (Elaborator_Exp.matches(dp, d2')) {
+        | DoesNotMatch => Indet(d)
+        | Indet => Indet(d) // opt.pause_at_empty_hole ? Pause(Ap(d1, d2')) : Indet(d)
+        | Matches(env) =>
+          /* beta rule */
+          let subexp = Elaborator_Exp.subst(env, d3);
+          switch (opt.pause_at_empty_hole, quick_steps(subexp, opt)) {
+          | (true, Pause(_)) => Pause(Ap(d1, d2'))
+          | _ => Step(subexp)
+          };
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -350,20 +350,29 @@ and evaluate_case =
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      switch (inconsistent_info) {
-      | None => Indet(ConsistentCase(case))
-      | Some((u, i, sigma)) =>
-        Indet(InconsistentBranches(u, i, sigma, case))
-      };
-    | Some(Rule(dp, d)) =>
-      switch (Elaborator_Exp.matches(dp, scrut)) {
-      | Indet =>
+      if (opt.pause_at_empty_hole) {
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        switch (inconsistent_info) {
+        | None => Pause(ConsistentCase(case))
+        | Some((u, i, sigma)) =>
+          Pause(InconsistentBranches(u, i, sigma, case))
+        };
+      } else {
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
         | None => Indet(ConsistentCase(case))
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
+        };
+      }
+    | Some(Rule(dp, d)) =>
+      switch (Elaborator_Exp.matches(dp, scrut)) {
+      | Indet =>
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        switch (inconsistent_info) {
+        | None => Pause(ConsistentCase(case))
+        | Some((u, i, sigma)) =>
+          Pause(InconsistentBranches(u, i, sigma, case))
         };
       | Matches(env) => Step(Elaborator_Exp.subst(env, d))
       | DoesNotMatch =>
@@ -376,6 +385,13 @@ and evaluate_case =
         )
       }
     }
+  }
+and quick_steps = (d: DHExp.t, opt: evaluator_option): step_result =>
+  switch (step(d, opt)) {
+  | Pause(d) => Pause(d)
+  | Step(d0) => quick_steps(d0, opt)
+  | Indet(d) => Indet(d)
+  | BoxedValue(d) => BoxedValue(d)
   };
 
 module EvalCtx = {
@@ -622,14 +638,6 @@ let rec ctx_steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
 let step_evaluate = (d: DHExp.t, opt: evaluator_option): option(DHExp.t) =>
   try(Some(ctx_steps(d, opt))) {
   | InvalidInput(_) => None
-  };
-
-let rec quick_steps = (d: DHExp.t, opt: evaluator_option): step_result =>
-  switch (step(d, opt)) {
-  | Pause(d) => Pause(d)
-  | Step(d0) => quick_steps(d0, opt)
-  | Indet(d) => Indet(d)
-  | BoxedValue(d) => BoxedValue(d)
   };
 
 let quick_step_evaluate =
