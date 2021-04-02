@@ -500,7 +500,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   Event.Prevent_default,
                   Event.Stop_propagation,
                   inject(ModelAction.ToggleHistoryGroup(group_id)),
-                  inject(FocusCell),
+                  inject(Focus(Cell)),
                 ])
               ),
               Attr.create("title", "Collapse Group"),
@@ -517,7 +517,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   Event.Prevent_default,
                   Event.Stop_propagation,
                   inject(ModelAction.ToggleHistoryGroup(group_id)),
-                  inject(FocusCell),
+                  inject(Focus(Cell)),
                 ])
               ),
               Attr.create("title", "Expand Group"),
@@ -664,7 +664,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         call_by_mouseenter: false,
                       }),
                     ),
-                    inject(FocusCell),
+                    inject(Focus(Cell)),
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
@@ -677,7 +677,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: true,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -693,7 +693,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: false,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -714,7 +714,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         call_by_mouseenter: false,
                       }),
                     ),
-                    inject(FocusCell),
+                    inject(Focus(Cell)),
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
@@ -727,7 +727,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: true,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -743,7 +743,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: false,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -827,7 +827,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         call_by_mouseenter: false,
                       }),
                     ),
-                    inject(FocusCell),
+                    inject(Focus(Cell)),
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
@@ -840,7 +840,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: true,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -856,7 +856,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: false,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -877,7 +877,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         call_by_mouseenter: false,
                       }),
                     ),
-                    inject(FocusCell),
+                    inject(Focus(Cell)),
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
@@ -890,7 +890,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: true,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -906,7 +906,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           call_by_mouseenter: false,
                         }),
                       ),
-                      inject(FocusCell),
+                      inject(Focus(Cell)),
                     ]);
                   } else {
                     Vdom.Event.Ignore;
@@ -1006,14 +1006,20 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button"]),
             Attr.disabled,
             Attr.on_click(_ =>
-              Vdom.Event.Many([inject(ModelAction.Undo), inject(FocusCell)])
+              Vdom.Event.Many([
+                inject(ModelAction.Undo),
+                inject(Focus(Cell)),
+              ])
             ),
             Attr.create("title", title),
           ]
           : [
             Attr.classes(["history-button"]),
             Attr.on_click(_ =>
-              Vdom.Event.Many([inject(ModelAction.Undo), inject(FocusCell)])
+              Vdom.Event.Many([
+                inject(ModelAction.Undo),
+                inject(Focus(Cell)),
+              ])
             ),
             Attr.create("title", title),
           ],
@@ -1032,14 +1038,20 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button"]),
             Attr.disabled,
             Attr.on_click(_ =>
-              Vdom.Event.Many([inject(ModelAction.Redo), inject(FocusCell)])
+              Vdom.Event.Many([
+                inject(ModelAction.Redo),
+                inject(Focus(Cell)),
+              ])
             ),
             Attr.create("title", title),
           ]
           : [
             Attr.classes(["history-button"]),
             Attr.on_click(_ =>
-              Vdom.Event.Many([inject(ModelAction.Redo), inject(FocusCell)])
+              Vdom.Event.Many([
+                inject(ModelAction.Redo),
+                inject(Focus(Cell)),
+              ])
             ),
             Attr.create("title", title),
           ],
@@ -1057,7 +1069,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             Attr.on_click(_ =>
               Vdom.Event.Many([
                 inject(ModelAction.ToggleHiddenHistoryAll),
-                inject(FocusCell),
+                inject(Focus(Cell)),
               ])
             ),
             Attr.create("title", "Collapse Groups"),
@@ -1073,7 +1085,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             Attr.on_click(_ =>
               Vdom.Event.Many([
                 inject(ModelAction.ToggleHiddenHistoryAll),
-                inject(FocusCell),
+                inject(Focus(Cell)),
               ])
             ),
             Attr.create("title", "Expand Groups"),
@@ -1136,7 +1148,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               Attr.on_mousemove(evt => {
                 /* update mouse position */
                 model.mouse_position := JSUtil.get_mouse_position(evt);
-                Vdom.Event.Many([inject(FocusCell)]);
+                Vdom.Event.Many([inject(Focus(Cell))]);
               }),
               Attr.on("scroll", _ => {
                 /* on_mouseenter/on_mouseleave will not be fired when scrolling,
@@ -1152,7 +1164,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         call_by_mouseenter: true,
                       }),
                     ),
-                    inject(FocusCell),
+                    inject(Focus(Cell)),
                   ])
                 | None => Vdom.Event.Ignore
                 }

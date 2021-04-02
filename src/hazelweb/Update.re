@@ -58,8 +58,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | InvalidVar(_)
-  | FocusCell
-  | BlurCell
+  | Focus(_)
+  | Blur
   | Undo
   | Redo
   | ShiftHistory(_)
@@ -122,7 +122,11 @@ let apply_action =
           model;
         }
       | CloseMiniBuffer => {...model, mini_buffer: None}
-      | OpenMiniBuffer(a) => {...model, mini_buffer: Some(a)}
+      | OpenMiniBuffer(a) => {
+          ...model,
+          mini_buffer: Some(a),
+          focused: Some(MiniBuffer),
+        }
       | SubmitMiniBuffer(string) =>
         Model.complete_mini_buffer_action(string, model)
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
@@ -136,8 +140,9 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell => model |> Model.focus_cell
-      | BlurCell => model |> Model.blur_cell
+      | Focus(Cell) => {...model, focused: Some(Cell)}
+      | Focus(MiniBuffer) => {...model, focused: Some(MiniBuffer)}
+      | Blur => {...model, focused: None}
       | Undo =>
         let new_history =
           model.undo_history

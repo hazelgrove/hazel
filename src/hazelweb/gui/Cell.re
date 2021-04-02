@@ -32,11 +32,13 @@ let view = (~inject, model: Model.t) => {
                       Event.Prevent_default,
                       Event.Stop_propagation,
                       inject(ModelAction.CloseMiniBuffer),
-                      inject(ModelAction.FocusCell),
+                      inject(ModelAction.Focus(Cell)),
                     ])
                   | _ => Event.Many([])
                   }
                 }),
+                Attr.on_focus(_ => inject(ModelAction.Focus(MiniBuffer))),
+                Attr.on_blur(_ => inject(ModelAction.Blur)),
               ],
               [],
             ),
@@ -54,6 +56,7 @@ let view = (~inject, model: Model.t) => {
                 ~inject,
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
+                ~is_focused=model.focused == Some(Cell),
                 ~settings,
                 program,
               ),

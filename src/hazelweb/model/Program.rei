@@ -10,13 +10,9 @@ type t =
     edit_state: Statics.edit_state,
     width: int,
     start_col_of_vertical_movement: option(int),
-    is_focused: bool,
   };
 
-let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
-
-let focus: t => t;
-let blur: t => t;
+let mk: (~width: int, Statics.edit_state) => t;
 
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
@@ -31,7 +27,7 @@ let get_steps: t => CursorPath.steps;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
-let get_decoration_paths: t => UHDecorationPaths.t;
+let get_decoration_paths: (~is_focused: bool, t) => UHDecorationPaths.t;
 
 /**
  * Raised when edit state does not elaborate

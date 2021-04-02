@@ -2,6 +2,11 @@
 type mini_buffer_action =
   | MoveToHole;
 
+[@deriving sexp]
+type focused_element =
+  | Cell
+  | MiniBuffer;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -14,6 +19,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   mini_buffer: option(mini_buffer_action),
+  focused: option(focused_element),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -85,6 +91,7 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     mini_buffer: None,
+    focused: Some(Cell),
   };
 };
 
@@ -130,13 +137,13 @@ let map_selected_instances =
   selected_instances: f(model.selected_instances),
 };
 
-let focus_cell = map_program(Program.focus);
-let blur_cell = map_program(Program.blur);
+let is_cell_focused = model => model.focused == Some(Cell);
 
-let is_cell_focused = model => {
-  let program = get_program(model);
-  program.is_focused;
+let focus = (elem: focused_element, model) => {
+  ...model,
+  focused: Some(elem),
 };
+let blur = model => {...model, focused: None};
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
@@ -159,7 +166,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
        }
      )
   |> map_selected_instances(UserSelectedInstances.add(u, i))
-  |> focus_cell;
+  |> focus(Cell);
 
 let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
@@ -202,12 +209,12 @@ let update_program = (a: Action.t, new_program, model) => {
 let prev_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.prev_card))
-  |> focus_cell;
+  |> focus(Cell);
 };
 let next_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.next_card))
-  |> focus_cell;
+  |> focus(Cell);
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
@@ -247,7 +254,7 @@ let select_case_branch =
   model
   |> put_program(new_program)
   |> update_program(action, new_program)
-  |> focus_cell;
+  |> focus(Cell);
 };
 
 let toggle_left_sidebar = (model: t): t => {
@@ -272,7 +279,7 @@ let load_example = (model: t, e: UHExp.t): t =>
      );
 
 let load_cardstack = (model, idx) => {
-  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
+  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus(Cell);
 };
 
 let load_undo_history =
@@ -309,7 +316,8 @@ let complete_mini_buffer_action = (mini_buffer: string, m: t) => {
         // TODO: review whether incorrect contents should leave mini buffer open
         m
       | Some(action) =>
-        perform_edit_action(action, {...m, mini_buffer: None}) |> focus_cell
+        perform_edit_action(action, {...m, mini_buffer: None})
+        |> focus(Cell)
       };
     }
   };

@@ -113,7 +113,9 @@ let create =
             | None => ()
             };
           };
-          if (Model.is_cell_focused(model)) {
+          switch (model.focused) {
+          | None => ()
+          | Some(Cell) =>
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
@@ -123,15 +125,18 @@ let create =
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
-          };
-          switch (
-            model.mini_buffer,
-            Js.Opt.to_option(Dom_html.document##.activeElement),
-          ) {
-          | (Some(_), Some(elt)) when Js.to_string(elt##.id) == "mini-buffer" =>
-            ()
-          | (None, _) => ()
-          | (Some(_), _) => JSUtil.force_get_elem_by_id("mini-buffer")##focus
+          | Some(MiniBuffer) =>
+            switch (
+              model.mini_buffer,
+              Js.Opt.to_option(Dom_html.document##.activeElement),
+            ) {
+            | (Some(_), Some(elt))
+                when Js.to_string(elt##.id) == "mini-buffer" =>
+              ()
+            | (None, _) => ()
+            | (Some(_), _) =>
+              JSUtil.force_get_elem_by_id("mini-buffer")##focus
+            }
           };
         },
       model,

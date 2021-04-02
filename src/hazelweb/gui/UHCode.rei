@@ -12,6 +12,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~is_mac: bool,
     ~settings: Settings.t,
+    ~is_focused: bool,
     Program.t
   ) =>
   Vdom.Node.t;

@@ -1,2 +1,13 @@
 1. fix bug where mini buffer is open and you try to use a drop down menu
+
+STATE:
+
+we've made the model keep trqack of the focused element
+but this means the browser's idea of focus and the model's idea of what has focus can be out of sync.
+This can lead to a race condition where pressing (alt-h 4) quickly will not jump to hole 4.
+This can be fixed in one of three ways:
+a. Move all of the state into the model, don't have different keypress handlers for minibuffer & cell.
+b. Try to keep state in sync somehow.
+c. Move more focus state into the browser dom & keep less in model.
+
 2. maybe something other than alt-h? (brings up help menu on linux/windows)

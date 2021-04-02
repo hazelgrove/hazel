@@ -35,8 +35,8 @@ type t =
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
-  | FocusCell
-  | BlurCell
+  | Focus(Model.focused_element)
+  | Blur
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)

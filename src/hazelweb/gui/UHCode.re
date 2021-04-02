@@ -293,6 +293,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
+      ~is_focused: bool,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -306,17 +307,17 @@ let view =
 
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
-        let dpaths = Program.get_decoration_paths(program);
+        let dpaths = Program.get_decoration_paths(~is_focused, program);
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
         let caret_pos = Program.get_caret_position(~settings, program);
-        program.is_focused
+        is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
 
       let key_handlers =
-        program.is_focused
+        is_focused
           ? key_handlers(
               ~inject,
               ~is_mac,
@@ -356,8 +357,8 @@ let view =
           Attr.on_mousedown(click_handler),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.on_focus(_ => inject(ModelAction.Focus(Cell))),
+          Attr.on_blur(_ => inject(ModelAction.Blur)),
           ...key_handlers,
         ],
         caret

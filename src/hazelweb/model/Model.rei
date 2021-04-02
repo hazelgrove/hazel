@@ -2,6 +2,11 @@
 type mini_buffer_action =
   | MoveToHole;
 
+[@deriving sexp]
+type focused_element =
+  | Cell
+  | MiniBuffer;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -21,6 +26,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   mini_buffer: option(mini_buffer_action),
+  focused: option(focused_element),
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -43,8 +49,8 @@ let get_cursor_info: t => CursorInfo.t;
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
 
-let focus_cell: t => t;
-let blur_cell: t => t;
+let focus: (focused_element, t) => t;
+let blur: t => t;
 let is_cell_focused: t => bool;
 
 /**

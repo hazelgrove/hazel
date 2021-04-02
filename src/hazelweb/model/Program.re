@@ -10,14 +10,12 @@ type t = {
   edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
-  is_focused: bool,
 };
 
-let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
+let mk = (~width: int, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
-  is_focused,
 };
 
 let put_start_col = (start_col, program) => {
@@ -28,9 +26,6 @@ let clear_start_col = program => {
   ...program,
   start_col_of_vertical_movement: None,
 };
-
-let focus = program => {...program, is_focused: true};
-let blur = program => {...program, is_focused: false};
 
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
@@ -61,8 +56,9 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  let current_term = program.is_focused ? Some(get_path(program)) : None;
+let get_decoration_paths =
+    (~is_focused: bool, program: t): UHDecorationPaths.t => {
+  let current_term = is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps}) =>
@@ -200,7 +196,7 @@ let move_via_click =
     |> fst
     |> CursorPath_common.rev;
   let new_program =
-    program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+    program |> clear_start_col |> perform_edit_action(MoveTo(path));
   (new_program, MoveTo(path));
 };
 
