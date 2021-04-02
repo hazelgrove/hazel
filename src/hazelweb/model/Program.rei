@@ -76,3 +76,6 @@ let cursor_on_exp_hole: t => option(MetaVar.t);
 
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
+
+let get_err_holes_decoration_paths:
+  UHExp.t => (list(CursorPath.steps), list(CursorPath.steps));

@@ -447,6 +447,7 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Event.t,
+      ~font_metrics: FontMetrics.t,
       loc: (float, float),
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -647,7 +648,13 @@ let view =
     if (cursor_inspector.assistant && on_empty_hole) {
       List.append(
         content, //TODO: andrew: replace with assistant UI
-        [Assistant.view(~inject, /*cursor_inspector,*/ cursor_info)],
+        [
+          Assistant.view(
+            ~inject,
+            ~font_metrics,
+            /*cursor_inspector,*/ cursor_info,
+          ),
+        ],
       );
     } else if (cursor_inspector.type_assist && on_empty_hole) {
       List.append(

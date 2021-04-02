@@ -61,28 +61,33 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
+let get_err_holes_decoration_paths =
+    (e: UHExp.t): (list(CursorPath.steps), list(CursorPath.steps)) => {
+  CursorPath_Exp.holes(e, [], [])
+  |> List.filter_map((CursorPath.{sort, steps}) =>
+       switch (sort) {
+       | TypHole => None
+       | PatHole(_, shape)
+       | ExpHole(_, shape) =>
+         switch (shape) {
+         | Empty => None
+         | VarErr
+         | TypeErr => Some((shape, steps))
+         }
+       }
+     )
+  |> List.partition(
+       fun
+       | (CursorPath.TypeErr, _) => true
+       | (_var_err, _) => false,
+     )
+  |> TupleUtil.map2(List.map(snd));
+};
+
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
-         switch (sort) {
-         | TypHole => None
-         | PatHole(_, shape)
-         | ExpHole(_, shape) =>
-           switch (shape) {
-           | Empty => None
-           | VarErr
-           | TypeErr => Some((shape, steps))
-           }
-         }
-       )
-    |> List.partition(
-         fun
-         | (CursorPath.TypeErr, _) => true
-         | (_var_err, _) => false,
-       )
-    |> TupleUtil.map2(List.map(snd));
+    program |> get_uhexp |> get_err_holes_decoration_paths;
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses

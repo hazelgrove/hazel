@@ -8,7 +8,7 @@ type assistant_action_categories =
 
 type assistant_action = {
   category: assistant_action_categories,
-  // view: actually, calc this from action uhexp
+  view: list(Vdom.Node.t),
   text: string, // what to type to autocomplete
   action: Action.t,
 };
@@ -24,18 +24,21 @@ let get_hole_number = (t: CursorInfo.cursor_term): MetaVar.t => {
 };
 
 let mk_var_action =
-    (t: CursorInfo.cursor_term, name: string): assistant_action => {
+    (t: CursorInfo.cursor_term, name: string, font_metrics): assistant_action => {
   {
     category: InsertVar,
     text: name,
+    view: UHCode.codebox_view(~font_metrics, 80, mk_var(name)),
     action: FillExpHole(get_hole_number(t), mk_var(name)),
   };
 };
 
-let collate_insert_var_actions =
-    (t: CursorInfo.cursor_term, env: VarCtx.t): list(assistant_action) => {
-  List.map(((name, _)) => mk_var_action(t, name), env);
-};
+/*
+ let collate_insert_var_actions =
+     (t: CursorInfo.cursor_term, env: VarCtx.t): list(assistant_action) => {
+   List.map(((name, _)) => mk_var_action(t, name), env);
+ };
+ */
 
 let wrap_space = (operator, seq) =>
   Seq.S(operator, A(Operators_Exp.Space, seq));
@@ -71,6 +74,7 @@ let mk_app_action =
       u_gen,
       t: CursorInfo.cursor_term,
       f_name: string,
+      font_metrics,
       f_ty: HTyp.t,
       hole_ty: HTyp.t,
     )
@@ -85,6 +89,7 @@ let mk_app_action =
     category: InsertApp,
     text: f_name,
     action: FillExpHole(get_hole_number(t), e),
+    view: UHCode.codebox_view(~font_metrics, 80, e),
   };
 };
 
@@ -95,10 +100,10 @@ let code_node = text =>
     [Vdom.Node.text(text)],
   );
 
-let list_vars_view = (inject, t, vars: VarCtx.t) => {
+let list_vars_view = (inject, font_metrics, t, vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
-      let {action, _} = mk_var_action(t, var);
+      let {action, view, _} = mk_var_action(t, var, font_metrics);
       Node.div(
         [
           Attr.classes(["option"]),
@@ -110,7 +115,7 @@ let list_vars_view = (inject, t, vars: VarCtx.t) => {
             ])
           }),
         ],
-        [code_node(var), Node.text(" : "), HTypCode.view(ty)],
+        view @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
       );
     },
     vars,
@@ -118,10 +123,12 @@ let list_vars_view = (inject, t, vars: VarCtx.t) => {
   |> List.map(((_, b)) => b);
 };
 
-let list_fns_view = (ctx, u_gen, inject, t, hole_ty, fn_vars: VarCtx.t) => {
+let list_fns_view =
+    (ctx, u_gen, inject, font_metrics, t, hole_ty, fn_vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
-      let {action, _} = mk_app_action(ctx, u_gen, t, var, ty, hole_ty);
+      let {action, view, _} =
+        mk_app_action(ctx, u_gen, t, var, font_metrics, ty, hole_ty);
       Node.div(
         [
           Attr.classes(["option"]),
@@ -133,7 +140,7 @@ let list_fns_view = (ctx, u_gen, inject, t, hole_ty, fn_vars: VarCtx.t) => {
             ])
           }),
         ],
-        [code_node(var), Node.text(" : "), HTypCode.view(ty)],
+        view @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
       );
     },
     fn_vars,
@@ -144,6 +151,7 @@ let list_fns_view = (ctx, u_gen, inject, t, hole_ty, fn_vars: VarCtx.t) => {
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
+      ~font_metrics: FontMetrics.t,
       //settings: Settings.CursorInspector.t,
       {ctx, cursor_term, _} as cursor_info: CursorInfo.t,
     )
@@ -159,7 +167,7 @@ let view =
   let u_gen = 0; // TODO: get u_gen from somewhere
   Node.div(
     [Attr.classes(["type-driven"])],
-    list_fns_view(ctx, u_gen, inject, cursor_term, ty, fn_env)
-    @ list_vars_view(inject, cursor_term, env),
+    list_fns_view(ctx, u_gen, inject, font_metrics, cursor_term, ty, fn_env)
+    @ list_vars_view(inject, font_metrics, cursor_term, env),
   );
 };

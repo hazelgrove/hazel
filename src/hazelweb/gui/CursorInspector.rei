@@ -6,6 +6,7 @@ open Virtual_dom;
 let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
+    ~font_metrics: FontMetrics.t,
     (float, float),
     Settings.CursorInspector.t,
     CursorInfo.t

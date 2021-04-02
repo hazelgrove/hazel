@@ -7,11 +7,20 @@ let focus: unit => unit;
  * Code representation of UHExp.
  */
 let view:
+  (~font_metrics: FontMetrics.t, ~settings: Settings.t, Program.t) =>
+  (Base.list(Vdom.Node.t), list(Vdom.Node.t));
+
+let view_of_box: UHBox.t => Base.list(Vdom.Node.t);
+let decoration_views:
+  (~font_metrics: FontMetrics.t, UHDecorationPaths.t, UHLayout.t) =>
+  list(Vdom.Node.t);
+let key_handlers:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    ~font_metrics: FontMetrics.t,
     ~is_mac: bool,
-    ~settings: Settings.t,
-    Program.t
+    ~cursor_info: CursorInfo.t
   ) =>
-  Vdom.Node.t;
+  list(Vdom.Attr.t);
+
+let codebox_view:
+  (~font_metrics: FontMetrics.t, int, UHExp.t) => list(Vdom.Node.t);
