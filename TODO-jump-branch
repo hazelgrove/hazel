@@ -2,7 +2,7 @@
 
 STATE:
 
-we've made the model keep trqack of the focused element
+we've made the model keep track of the focused element
 but this means the browser's idea of focus and the model's idea of what has focus can be out of sync.
 This can lead to a race condition where pressing (alt-h 4) quickly will not jump to hole 4.
 This can be fixed in one of three ways:
