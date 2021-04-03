@@ -18,7 +18,7 @@ module Index = {
 type t =
   | TyVar(Index.t, Var.t) /* bound type variable */
   | TyVarHole(MetaVar.t, Var.t) /* free type variables */
-  | Hole
+  | Hole(MetaVar.t)
   | Int
   | Float
   | Bool
@@ -41,7 +41,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole
+  | Hole(_)
   | Prod([])
   | TyVar(_)
   | TyVarHole(_)
@@ -62,8 +62,8 @@ let eq = (x, y) =>
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Hole, _)
-  | (_, Hole) => true
+  | (Hole(_), _)
+  | (_, Hole(_)) => true
   | (TyVarHole(_), _)
   | (_, TyVarHole(_)) => true
   | (TyVar(i, _), TyVar(j, _)) => Index.eq(i, j) /* TODO: When we bind variables, do this properly */
@@ -102,11 +102,15 @@ let rec consistent_all = (types: list(t)): bool =>
   };
 
 /* matched arrow types */
-let matched_arrow =
+let matched_arrow = u_gen =>
   fun
-  | Hole
-  | TyVarHole(_) => Some((Hole, Hole))
-  | Arrow(ty1, ty2) => Some((ty1, ty2))
+  | Hole(_)
+  | TyVarHole(_) => {
+      let (u1, u_gen) = MetaVarGen.next(u_gen);
+      let (u2, u_gen) = MetaVarGen.next(u_gen);
+      Some((u_gen, Hole(u1), Hole(u2)));
+    }
+  | Arrow(ty1, ty2) => Some((u_gen, ty1, ty2))
   | _ => None;
 
 let get_prod_elements: t => list(t) =
@@ -117,25 +121,29 @@ let get_prod_elements: t => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 /* matched sum types */
-let matched_sum =
+let matched_sum = u_gen =>
   fun
-  | Hole
-  | TyVarHole(_) => Some((Hole, Hole))
-  | Sum(tyL, tyR) => Some((tyL, tyR))
+  | Hole(_)
+  | TyVarHole(_) => {
+      let (u1, u_gen) = MetaVarGen.next(u_gen);
+      let (u2, u_gen) = MetaVarGen.next(u_gen);
+      Some((u_gen, Hole(u1), Hole(u2)));
+    }
+  | Sum(tyL, tyR) => Some((u_gen, tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole
-  | TyVarHole(_) => Some(Hole)
+  | Hole(u)
+  | TyVarHole(u, _) => Some(Hole(u))
   | List(ty) => Some(ty)
   | _ => None;
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole => false
+  | Hole(_) => false
   | TyVarHole(_) => false
   | TyVar(_) => true
   | Int => true
@@ -148,17 +156,17 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
-  | (_, Hole)
-  | (_, TyVarHole(_)) =>
+  | (TyVarHole(u, _), TyVarHole(_, _)) => Some(Hole(u))
+  | (_, Hole(u))
+  | (_, TyVarHole(u, _)) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(Hole(u))
     | LUB => Some(ty1)
     }
-  | (Hole, _)
-  | (TyVarHole(_), _) =>
+  | (Hole(u), _)
+  | (TyVarHole(u, _), _) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(Hole(u))
     | LUB => Some(ty2)
     }
   | (TyVar(_), _)

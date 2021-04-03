@@ -5,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t)
   | Unit
   | Int
   | Float
@@ -27,7 +27,7 @@ let rec get_prod_elements: skel => list(skel) =
 
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
-  | Hole
+  | Hole(_)
   | TyVar(_)
   | Unit
   | Int
@@ -58,7 +58,7 @@ let contract = (ty: HTyp.t): t => {
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
       switch (ty) {
-      | Hole => Seq.wrap(Hole)
+      | Hole(u) => Seq.wrap(Hole(u))
       | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, TyId.of_string(t)))
       | TyVarHole(u, t) =>
         Seq.wrap(TyVar(InVarHole(Free, u), TyId.of_string(t)))
@@ -99,7 +99,7 @@ let contract = (ty: HTyp.t): t => {
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
-  | Hole => false
+  | Hole(_) => false
   | TyVar(NotInVarHole, _) => true
   | TyVar(InVarHole(_), _) => false
   | Unit => true
