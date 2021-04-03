@@ -416,7 +416,10 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let ty = UHTyp.expand(Contexts.tyvars(ctx), ann);
+    let (uty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ann);
+    // TODO: Should syn_fix_holes just return the HTyp instead so we don't need a force unwrap here?
+    let (ty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, uty) |> Option.get;
+    Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
@@ -699,7 +702,11 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
-    let ty_ann = UHTyp.expand(Contexts.tyvars(ctx), ann);
+    let (uty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ann);
+    // TODO: Should syn_fix_holes just return the HTyp instead so we don't need a force unwrap here?
+    let (ty_ann, _, _) =
+      Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
+
     if (HTyp.consistent(ty, ty_ann)) {
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
