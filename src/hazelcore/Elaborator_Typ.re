@@ -53,14 +53,13 @@ and syn_operand = (ctx, delta, operand) => {
   };
 
   switch (operand) {
-  | Hole =>
+  | Hole(u) =>
     /* TElabSHole */
-    // TODO: Thread u properly
     Some((
-      HTyp.Hole,
+      HTyp.Hole(u),
       Kind.KHole,
       Delta.add(
-        0,
+        u,
         Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
@@ -113,14 +112,13 @@ and ana_skel = (ctx, delta, kind, skel, seq) =>
   }
 and ana_operand = (ctx, delta, kind, operand) => {
   switch (operand) {
-  | UHTyp.Hole =>
+  | UHTyp.Hole(u) =>
     /* TElabAHole */
-    // TODO: Thread u properly
     Some((
-      Hole,
+      Hole(u),
       Kind.KHole,
       Delta.add(
-        0,
+        u,
         Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
         delta,
       ),
@@ -156,3 +154,114 @@ let syn_kind = (ctx, uhty) =>
   syn(ctx, Delta.empty, uhty) |> Option.map(((_, k, _)) => k);
 let ana_kind = (ctx, uhty, kind) =>
   ana(ctx, Delta.empty, uhty, kind) |> Option.map(((_, k, _)) => k);
+
+let rec syn_fix_holes:
+  (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
+  (ctx, u_gen) =>
+    fun
+    | OpSeq(skel, seq) => {
+        let (skel, seq, kind, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, skel, seq);
+        (OpSeq(skel, seq), kind, u_gen);
+      }
+and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    let en = seq |> Seq.nth_operand(n);
+    let (en, ty, u_gen) = syn_fix_holes_operand(ctx, u_gen, en);
+    let seq = seq |> Seq.update_nth_operand(n, en);
+    (skel, seq, ty, u_gen);
+  | BinOp(_, op, skel1, skel2) =>
+    /* TElabSBinOp */
+    let (skel1, seq, u_gen) =
+      ana_fix_holes_skel(ctx, u_gen, Kind.Type, skel1, seq);
+    let (skel2, seq, u_gen) =
+      ana_fix_holes_skel(ctx, u_gen, Kind.Type, skel2, seq);
+    (BinOp(NotInHole, op, skel1, skel2), seq, Kind.Type, u_gen);
+  }
+and syn_fix_holes_operand = (ctx, u_gen, operand) =>
+  switch (operand) {
+  | UHTyp.Hole(u) =>
+    /* TElabSHole */
+    (Hole(u), Kind.KHole, u_gen)
+  // TODO: NEHole case
+  | TyVar(NotInVarHole, t) =>
+    /* TElabSVar */
+    let idx_opt = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
+    switch (idx_opt) {
+    | Some(idx) =>
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
+      (TyVar(NotInVarHole, t), k, u_gen);
+    | None =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      (
+        UHTyp.TyVar(InVarHole(VarErrStatus.HoleReason.Free, u), t),
+        Kind.KHole,
+        u_gen,
+      );
+    };
+  | TyVar(InVarHole(r, u), t) =>
+    /* TElabSUVar */
+    // TODO: id(\Phi) in TyVarHole
+    (UHTyp.TyVar(InVarHole(r, u), t), Kind.KHole, u_gen)
+  | (Unit | Int | Float | Bool) as ty => (ty, Kind.Type, u_gen)
+  | Parenthesized(body) =>
+    let (block, kind, u_gen) = syn_fix_holes(ctx, u_gen, body);
+    (Parenthesized(block), kind, u_gen);
+  | List(opseq) =>
+    /* TElabSList */
+    let (opseq, u_gen) = ana_fix_holes(ctx, u_gen, opseq, Kind.Type);
+    (List(opseq), Kind.Type, u_gen);
+  }
+and ana_fix_holes:
+  (Contexts.t, MetaVarGen.t, UHTyp.t, Kind.t) => (UHTyp.t, MetaVarGen.t) =
+  (ctx, u_gen, opseq, kind) =>
+    switch (opseq) {
+    | OpSeq(skel, seq) =>
+      let (skel, seq, u_gen) =
+        ana_fix_holes_skel(ctx, u_gen, kind, skel, seq);
+      (OpSeq(skel, seq), u_gen);
+    }
+and ana_fix_holes_skel = (ctx, u_gen, kind, skel, seq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    let en = seq |> Seq.nth_operand(n);
+    let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, kind, en);
+    let seq = seq |> Seq.update_nth_operand(n, en);
+    (skel, seq, u_gen);
+  | BinOp(_, _, _, _) =>
+    /* TElabASubsume */
+    let (skel, seq, k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
+    if (Kind.consistent(kind, k')) {
+      (skel, seq, u_gen);
+    } else {
+      failwith("TODO: Add inconsistent kind hole");
+    };
+  }
+and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
+  switch (operand) {
+  | UHTyp.Hole(u) =>
+    /* TElabAHole */
+    (Hole(u), u_gen)
+  | TyVar(InVarHole(r, u), t) =>
+    /* TElabAUVar */
+    // TODO: id(\Phi) in TyVarHole
+    (TyVar(InVarHole(r, u), t), u_gen)
+  | Parenthesized(body) =>
+    let (block, u_gen) = ana_fix_holes(ctx, u_gen, body, kind);
+    (Parenthesized(block), u_gen);
+  | TyVar(NotInVarHole, _)
+  | Unit
+  | Int
+  | Float
+  | Bool
+  | List(_) =>
+    /* TElabASubsume */
+    let (ty, k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
+    if (Kind.consistent(kind, k')) {
+      (ty, u_gen);
+    } else {
+      failwith("TODO: Add inconsistent kind hole");
+    };
+  };
+};
