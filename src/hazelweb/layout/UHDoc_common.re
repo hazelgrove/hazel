@@ -83,8 +83,8 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
-  let open_Lam = (): t => mk(~index=1, ".{");
+  let sym_Lam = (): t => mk(~index=0, "fun");
+  let open_Lam = (): t => mk(~index=1, "{");
   let close_Lam = (): t => mk(~index=2, "}");
 
   let open_Case = (): t => mk(~index=0, "case");
@@ -340,7 +340,11 @@ let mk_Lam = (p: formatted_child, body: formatted_child): t => {
   let open_group = {
     let lam_delim = Delim.sym_Lam();
     let open_delim = Delim.open_Lam();
-    Doc.hcats([lam_delim, p |> pad_closed_child(~sort=Pat), open_delim])
+    Doc.hcats([
+      lam_delim,
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+      open_delim,
+    ])
     |> annot_Tessera;
   };
   let close_group = Delim.close_Lam() |> annot_Tessera;
