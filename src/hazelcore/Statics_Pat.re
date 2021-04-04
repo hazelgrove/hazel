@@ -108,7 +108,7 @@ and syn_operand =
         };
       switch (Statics_common.glb(syn_subskels(subskels))) {
       | Some(ty) => Some((List(ty), ctx))
-      | _ => None
+      | _ => Some((List(Hole), ctx))
       };
     }
   | TypeAnn(NotInHole, op, ann) =>

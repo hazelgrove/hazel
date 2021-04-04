@@ -179,10 +179,9 @@ and syn_elab_operand =
       };
     let (types, deltas) = List.split(syn_subskels(subskels));
     switch (Statics_common.glb(types)) {
-    // Add listlit in DHExp.re
     | Some(ty) =>
       Elaborates(ListLit(List(ty), deltas), List(ty), ctx, delta)
-    | _ => DoesNotElaborate
+    | _ => Elaborates(ListLit(List(Hole), deltas), List(Hole), ctx, delta)
     };
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {

@@ -1610,14 +1610,6 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(_)), CursorE(_)) => Failed
-
-  // | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
-  //   let new_ze =
-  //     UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
-  //   let new_ty = HTyp.List(Hole);
-  //   Succeeded(SynDone((new_ze, new_ty, u_gen)));
-  // | (Construct(SListNil), CursorE(_)) => Failed
-
   | (Construct(SListLit), CursorE(_, EmptyHole(_))) =>
     let new_ze =
       ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
