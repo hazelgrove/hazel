@@ -913,7 +913,6 @@ and syn_elab_operand =
   | ListLit(_, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
     let subskels = UHExp.get_tuple_elements(skel);
-
     let glb_ty: option(HTyp.t) =
       subskels
       |> List.map(subskel => Statics_Exp.syn_skel(ctx, subskel, seq))
@@ -935,7 +934,17 @@ and syn_elab_operand =
       );
 
     switch (glb_ty) {
-    | None => DoesNotElaborate
+    | None =>
+      let f = (delta, subskel) =>
+        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
+        | DoesNotElaborate => None
+        | Elaborates(d, ty, delta) => Some((delta, DHExp.cast(d, ty, Hole)))
+        };
+      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
+      | None => DoesNotElaborate
+      | Some((delta, lst)) =>
+        Elaborates(ListLit(Hole, lst), List(Hole), delta)
+      };
     | Some(glb_ty) =>
       let f = (delta, subskel) =>
         switch (syn_elab_skel(ctx, delta, subskel, seq)) {
