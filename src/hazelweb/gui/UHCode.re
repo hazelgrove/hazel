@@ -246,7 +246,7 @@ let key_handlers =
           }
         | Some(Ctrl_Space) =>
           prevent_stop_inject(
-            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+            ModelAction.UpdateSettings(CursorInspector(Toggle_type_assist)),
           )
         | Some(kc) =>
           prevent_stop_inject(

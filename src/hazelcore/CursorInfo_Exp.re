@@ -276,20 +276,24 @@ and syn_cursor_info_line =
     (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
-  | CursorL(_, LetLine(_)) =>
+  | CursorL(_, LetLine(p, def)) =>
     /* Need to add new variable to ctx before calling syn */
     /* See if this is actually different from how done in Statics -
        make work the same */
-    let ty =
-      switch (Statics_Exp.syn(ctx, suffix)) {
-      | Some(ty) => ty
-      | None => HTyp.Hole
-      };
-    Some(
-      CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnLetLine(ty), ctx, extract_from_zline(zline)),
-      ),
-    );
+    switch (Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix])) {
+    | None => None
+    | Some(ty) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(
+            OnLetLine(ty),
+            ctx,
+            extract_from_zline(zline),
+          ),
+        ),
+      )
+    }
+
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(

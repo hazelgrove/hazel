@@ -68,9 +68,9 @@ let get_type = (cursor_info: CursorInfo.t) => {
  * Gets the type in string format.
  * Return string
  */
-let type_to_str = (ty: option(HTyp.t)) => {
+let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
   switch (ty) {
-  | Some(Hole) => "a"
+  | Some(Hole) => empty_hole ? "" : "a"
   | Some(Int) => "Integer"
   | Some(Float) => "Float"
   | Some(Bool) => "Boolean"
@@ -353,7 +353,7 @@ let view =
         [
           Node.div(
             [Attr.classes(["words"])],
-            [Node.text("Which strategy do you want to try?")],
+            [Node.text("Here are the options at this position")],
           ),
         ],
       )
@@ -362,7 +362,10 @@ let view =
   let lit =
     subsection_header(
       Toggle_type_assist_lit,
-      "Fill with " ++ type_to_str(ty) ++ " literal",
+      /* TODO: a vs an*/
+      "Will a "
+      ++ type_to_str(~empty_hole=true, ty)
+      ++ " literal give what you need?",
       lit_open,
     );
   let lit_body =
@@ -389,7 +392,7 @@ let view =
   let var =
     subsection_header(
       Toggle_type_assist_var,
-      "Fill with a Variable",
+      "Is there a variable that represents what you need?",
       var_open,
     );
   let var_body =
@@ -401,8 +404,18 @@ let view =
     );
 
   let fun_h =
-    subsection_header(Toggle_type_assist_fun, "Apply a Function", fun_open);
+    subsection_header(
+      Toggle_type_assist_fun,
+      "Is there a function that will calculate what you need?",
+      fun_open,
+    );
   let fun_ctx = fun_vars(ctx, typ);
+  let fun_ap_opt =
+    option([
+      Vdom.Node.text("Apply a Function"),
+      fill_space,
+      shortcut_node("Space"),
+    ]);
   let fun_view =
     if (VarMap.is_empty(fun_ctx)) {
       [
@@ -416,9 +429,10 @@ let view =
             ],
           )
         ),
+        fun_ap_opt,
       ];
     } else {
-      list_vars_view(fun_vars(ctx, typ));
+      [fun_ap_opt, ...list_vars_view(fun_vars(ctx, typ))];
     };
   let fun_body =
     Vdom.(
@@ -436,7 +450,7 @@ let view =
   let branch =
     subsection_header(
       Toggle_type_assist_branch,
-      "Consider by cases",
+      "Are there different cases to consider?",
       branch_open,
     );
   let branch_body =
@@ -446,14 +460,23 @@ let view =
         [
           Node.div(
             [Attr.classes(["option"])],
-            [Node.text("Create "), keyword_node("case")],
+            [
+              Node.text("Consider by "),
+              keyword_node("case"),
+              fill_space,
+              example_lit_node("\"case \""),
+            ],
           ),
         ],
       )
     );
 
   let other =
-    subsection_header(Toggle_type_assist_other, "Other", other_open);
+    subsection_header(
+      Toggle_type_assist_other,
+      "Do you want to create a new variable first?",
+      other_open,
+    );
   let other_body =
     Vdom.(
       Node.div(
@@ -465,6 +488,8 @@ let view =
               Node.text("Create "),
               keyword_node("let"),
               Node.text(" binding"),
+              fill_space,
+              example_lit_node("\"let \""),
             ],
           ),
         ],
