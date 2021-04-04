@@ -6,12 +6,17 @@ type assistant_action_categories =
   | InsertVar
   | InsertApp;
 
+let action_abbrev =
+  fun
+  | InsertVar => "VAR"
+  | InsertApp => "APP";
+
 type assistant_action = {
   category: assistant_action_categories,
-  //view: list(Vdom.Node.t),
-  text: string, // what to type to autocomplete
+  text: string,
   action: Action.t,
   result: UHExp.t,
+  res_ty: HTyp.t,
 };
 
 let mk_var = name =>
@@ -23,23 +28,6 @@ let get_hole_number = (t: CursorInfo.cursor_term): MetaVar.t => {
   | _ => failwith("get_hole_number: Not on hole")
   };
 };
-
-let mk_var_action =
-    (t: CursorInfo.cursor_term, name: string): assistant_action => {
-  {
-    category: InsertVar,
-    text: name,
-    result: mk_var(name), //UHCode.codebox_view(~font_metrics, 80, mk_var(name)),
-    action: FillExpHole(get_hole_number(t), mk_var(name)),
-  };
-};
-
-/*
- let collate_insert_var_actions =
-     (t: CursorInfo.cursor_term, env: VarCtx.t): list(assistant_action) => {
-   List.map(((name, _)) => mk_var_action(t, name), env);
- };
- */
 
 let wrap_space = (operator, seq) =>
   Seq.S(operator, A(Operators_Exp.Space, seq));
@@ -60,8 +48,13 @@ let rec mk_ap_seq_holes =
 };
 
 let mk_ap =
-    (ctx, u_gen, f: Var.t, f_ty: HTyp.t, hole_ty: HTyp.t): option(UHExp.t) => {
-  let+ inner_seq = mk_ap_seq_holes(f_ty, hole_ty);
+    (
+      {ty, ctx, u_gen, _}: AssistantCommon.cursor_info_pro,
+      f: Var.t,
+      f_ty: HTyp.t,
+    )
+    : option(UHExp.t) => {
+  let+ inner_seq = mk_ap_seq_holes(f_ty, ty);
   wrap_space(UHExp.var(f), inner_seq)
   |> UHExp.mk_OpSeq
   |> UHExp.Block.wrap'
@@ -69,107 +62,84 @@ let mk_ap =
   |> (((x, _, _)) => x);
 };
 
-let mk_app_action =
-    (
-      ctx,
-      u_gen,
-      t: CursorInfo.cursor_term,
-      f_name: string,
-      f_ty: HTyp.t,
-      hole_ty: HTyp.t,
-    )
+let mk_var_action =
+    ({term, _}: AssistantCommon.cursor_info_pro, name: string, ty: HTyp.t)
     : assistant_action => {
-  // what should behavior be if hole_ty is Hole?
-  // Right now it suggests a single-arg app
-  // possiblities: no suggestion vs. all options vs. fully applied
-  let e =
-    mk_ap(ctx, u_gen, f_name, f_ty, hole_ty)
-    |> OptUtil.get(_ => failwith("mk_app_action"));
+  let e = mk_var(name);
   {
-    category: InsertApp,
-    text: f_name,
-    action: FillExpHole(get_hole_number(t), e),
-    result: e //: UHCode.codebox_view(~font_metrics, 80, e),
+    category: InsertVar,
+    text: name,
+    result: e,
+    res_ty: ty,
+    action: FillExpHole(get_hole_number(term), e),
   };
 };
 
-//copied
-let code_node = text =>
-  Vdom.Node.div(
-    [Vdom.Attr.classes(["code-font"])],
-    [Vdom.Node.text(text)],
-  );
-
-let list_vars_view = (inject, font_metrics, t, vars: VarCtx.t) => {
-  VarMap.map(
-    ((var, ty)) => {
-      let {action, result, _} = mk_var_action(t, var);
-      Node.div(
-        [
-          Attr.classes(["option"]),
-          Attr.on_click(_ => {
-            Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.AcceptSuggestion(action)),
-            ])
-          }),
-        ],
-        UHCode.codebox_view(~font_metrics, 80, result)
-        @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
-      );
-    },
-    vars,
-  )
-  |> List.map(((_, b)) => b);
+let mk_app_action =
+    (cursor: AssistantCommon.cursor_info_pro, name: string, ty: HTyp.t)
+    : assistant_action => {
+  let e =
+    mk_ap(cursor, name, ty) |> OptUtil.get(_ => failwith("mk_app_action"));
+  {
+    category: InsertApp,
+    text: name,
+    action: FillExpHole(get_hole_number(cursor.term), e),
+    res_ty: ty,
+    result: e,
+  };
 };
 
-let list_fns_view =
-    (ctx, u_gen, inject, font_metrics, t, hole_ty, fn_vars: VarCtx.t) => {
-  VarMap.map(
-    ((var, ty)) => {
-      let {action, result, _} =
-        mk_app_action(ctx, u_gen, t, var, ty, hole_ty);
-      Node.div(
-        [
-          Attr.classes(["option"]),
-          Attr.on_click(_ => {
-            Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.AcceptSuggestion(action)),
-            ])
-          }),
-        ],
-        UHCode.codebox_view(~font_metrics, 80, result)
-        @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
-      );
-    },
-    fn_vars,
-  )
-  |> List.map(((_, b)) => b);
+let compute_actions =
+    ({mode, ctx, ty, _} as cursor: AssistantCommon.cursor_info_pro)
+    : list(assistant_action) => {
+  let vars =
+    switch (mode) {
+    | Synthetic =>
+      AssistantCommon.extract_vars(ctx, HTyp.Hole)
+      |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
+    | Analytic =>
+      AssistantCommon.extract_vars(ctx, ty)
+      |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
+    };
+  let apps =
+    switch (mode) {
+    | Synthetic => []
+    | Analytic =>
+      AssistantCommon.fun_vars(ctx, ty)
+      |> List.map(((name, f_ty)) => mk_app_action(cursor, name, f_ty))
+    };
+  vars @ apps;
+};
+
+let action_view = (inject, font_metrics, act: assistant_action) => {
+  let {action, result, res_ty, _} = act;
+  let width = 80; //TODO: unhardcode?
+  Node.div(
+    [
+      Attr.classes(["option"]),
+      Attr.on_click(_ => {
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(ModelAction.AcceptSuggestion(action)),
+        ])
+      }),
+    ],
+    UHCode.codebox_view(~font_metrics, width, result)
+    @ [Node.text(" : "), HTypCode.view(res_ty)],
+  );
 };
 
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      //settings: Settings.CursorInspector.t,
-      {ctx, cursor_term, _} as cursor_info: CursorInfo.t,
+      cursor_info: CursorInfo.t,
       u_gen: MetaVarGen.t,
     )
     : Vdom.Node.t => {
-  let ty =
-    OptUtil.get(
-      () => failwith("assistant view"),
-      AssistantCommon.get_type(cursor_info),
-    );
-  let env = AssistantCommon.extract_vars(ctx, ty);
-  let fn_env = AssistantCommon.fun_vars(ctx, ty);
-
-  Node.div(
-    [Attr.classes(["type-driven"])],
-    list_fns_view(ctx, u_gen, inject, font_metrics, cursor_term, ty, fn_env)
-    @ list_vars_view(inject, font_metrics, cursor_term, env),
-  );
+  let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
+  let actions = compute_actions(cursor);
+  let action_views = List.map(action_view(inject, font_metrics), actions);
+  Node.div([Attr.classes(["type-driven"])], action_views);
 };
