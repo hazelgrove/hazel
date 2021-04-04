@@ -98,9 +98,9 @@ let promote_cursor_info =
    * Gets the type in string format.
    * Return string
    */
-let type_to_str = (ty: option(HTyp.t)) => {
+let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
   switch (ty) {
-  | Some(Hole) => "a"
+  | Some(Hole) => empty_hole ? "" : "a"
   | Some(Int) => "Integer"
   | Some(Float) => "Float"
   | Some(Bool) => "Boolean"

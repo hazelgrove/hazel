@@ -20,7 +20,16 @@ let emphasize_text = (~only_right=false, msg: string) => {
   Node.div([Attr.classes(classes)], [Node.text(msg)]);
 };
 
-let colon = Node.div([Attr.classes(["colon"])], [Node.text(":")]);
+let syn =
+  Node.div(
+    [Attr.classes(["bidirectional"]), Attr.create("title", "Synthesize")],
+    [Node.text(Unicode.synSym)],
+  );
+let ana =
+  Node.div(
+    [Attr.classes(["bidirectional"]), Attr.create("title", "Analyze")],
+    [Node.text(Unicode.anaSym)],
+  );
 
 let mk_expecting_of_type = (~article, ~term_tag) => [
   Node.text("Expecting " ++ article),
@@ -28,99 +37,150 @@ let mk_expecting_of_type = (~article, ~term_tag) => [
   Node.text("of type"),
 ];
 
-let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
+let any_typ_msg =
+  Node.div(
+    [Attr.classes(["compressed"])],
+    [
+      emphasize_text("Any Type ("),
+      HTypCode.view(HTyp.Hole),
+      emphasize_text(")"),
+    ],
+  );
+
+let is_end_keyword =
+    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
+  switch (term) {
+  | Exp(OnText(index), _) =>
+    index == String.length(ExpandingKeyword.to_string(keyword))
+  | _ => false
+  };
+/* TODO: don't just copy and paste functions like this from Strategy Guide*/
+let shortcut_node = text =>
+  Node.div([Attr.classes(["code-font", "shortcut"])], [Node.text(text)]);
+
+let keyword_msg = (term, keyword, main_msg) =>
+  if (is_end_keyword(term, keyword)) {
+    main_msg
+    @ [
+      Node.text("("),
+      shortcut_node("Space"),
+      Node.text(" to expand keyword)"),
+    ];
+  } else {
+    main_msg;
+  };
+
+let advanced_summary =
+    (
+      typed: CursorInfo.typed,
+      term: CursorInfo.cursor_term,
+      tag_typ: TermSort.t,
+    ) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty)
-    | SynMatchingArrow(_, ty) => [colon, HTypCode.view(ty)]
+    | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
+    | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty)
+    | OnLetLine(ty) =>
       switch (ty) {
-      | HTyp.Hole => [colon, emphasize_text("Any Type")]
-      | _ => [colon, HTypCode.view(ty)]
+      | HTyp.Hole => [syn, any_typ_msg]
+      | _ => [syn, HTypCode.view(ty)]
       }
     /* Use the got type if not just Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       switch (got_ty) {
-      | HTyp.Hole => [colon, HTypCode.view(expected_ty)]
-      | _ => [colon, HTypCode.view(got_ty)]
+      | HTyp.Hole => [ana, HTypCode.view(expected_ty)]
+      | _ => [ana, HTypCode.view(got_ty)]
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
       [
-        colon,
+        ana,
         HTypCode.view(~diff_steps=expected_diff, expected_ty),
         inconsistent_symbol,
         HTypCode.view(~diff_steps=got_diff, got_ty),
       ];
     | SynErrorArrow(_expected_ty, got_ty) => [
-        colon,
+        syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
         HTypCode.view(got_ty),
       ]
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
+        ana,
         emphasize_text(string_of_int(expected_len) ++ "-tuple"),
         inconsistent_symbol,
         emphasize_text(string_of_int(got_len) ++ "-tuple"),
       ]
     | AnaInvalid(expected_ty)
     | PatAnaInvalid(expected_ty) => [
-        colon,
+        ana,
         HTypCode.view(expected_ty),
         inconsistent_symbol,
         emphasize_text("Invalid Text"),
       ]
     | SynInvalid => [emphasize_text("Invalid Text")]
     | SynInvalidArrow(_) => [
-        colon,
+        syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
         emphasize_text("Invalid Text"),
       ]
     | AnaFree(expected_ty) => [
-        colon,
+        ana,
         HTypCode.view(expected_ty),
         inconsistent_symbol,
         emphasize_text("Free Variable"),
       ]
-    | SynFree => [emphasize_text("Free Variable")]
+    | SynFree => [syn, emphasize_text("Free Variable")]
     | SynFreeArrow(_) => [
-        colon,
+        syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
         emphasize_text("Free Variable"),
       ]
-    | AnaKeyword(expected_ty, _)
+    | AnaKeyword(expected_ty, keyword) =>
+      let main_msg = [
+        ana,
+        HTypCode.view(expected_ty),
+        inconsistent_symbol,
+        emphasize_text("Reserved Keyword"),
+      ];
+      keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) => [
-        colon,
+        ana,
         HTypCode.view(expected_ty),
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ]
-    | SynKeyword(_)
-    | PatSynKeyword(_) => [emphasize_text("Reserved Keyword")]
-    | SynKeywordArrow(_) => [
-        colon,
+    | SynKeyword(keyword) =>
+      let main_msg = [syn, emphasize_text("Reserved Keyword")];
+      keyword_msg(term, keyword, main_msg);
+    | PatSynKeyword(_) => [syn, emphasize_text("Reserved Keyword")]
+    | SynKeywordArrow(_, keyword) =>
+      let main_msg = [
+        syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
-      ]
+      ];
+      keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
         if (HTyp.consistent(ty, got_ty)) {
-          [colon, HTypCode.view(ty)];
+          [syn, HTypCode.view(ty)];
         } else {
           let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
           [
-            colon,
+            syn,
             HTypCode.view(~diff_steps=ty_diff, ty),
             inconsistent_symbol,
             HTypCode.view(~diff_steps=got_diff, got_ty),
@@ -132,10 +192,11 @@ let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => [
+        syn,
         emphasize_text("Inconsistent Branch Types"),
       ]
     | SynInconsistentBranchesArrow(_) => [
-        colon,
+        syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
@@ -148,7 +209,12 @@ let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
   List.cons(term_tag, message(typed));
 };
 
-let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
+let novice_summary =
+    (
+      typed: CursorInfo.typed,
+      term: CursorInfo.cursor_term,
+      tag_typ: TermSort.t,
+    ) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let article =
     switch (tag_typ) {
@@ -175,13 +241,14 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         ]
       }
     | Synthesized(ty)
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty)
+    | OnLetLine(ty) =>
       switch (ty) {
       | HTyp.Hole => [
           Node.text("Expecting " ++ article),
           term_tag,
           Node.text("of"),
-          emphasize_text("Any Type"),
+          any_typ_msg,
         ]
       | _ => [
           Node.text("Got " ++ article),
@@ -263,7 +330,15 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         Node.text("but got a"),
         emphasize_text("Free Variable"),
       ]
-    | AnaKeyword(expected_ty, _)
+    | AnaKeyword(expected_ty, keyword) =>
+      let main_msg =
+        expecting_of_type
+        @ [
+          HTypCode.view(expected_ty),
+          Node.text("but got a"),
+          emphasize_text("Reserved Keyword"),
+        ];
+      keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) =>
       expecting_of_type
       @ [
@@ -271,20 +346,28 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
       ]
-    | SynKeyword(_)
+    | SynKeyword(keyword) =>
+      let main_msg = [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Reserved Keyword"),
+      ];
+      keyword_msg(term, keyword, main_msg);
     | PatSynKeyword(_) => [
         Node.text("Got " ++ article),
         term_tag,
         emphasize_text("Reserved Keyword"),
       ]
-    | SynKeywordArrow(_) => [
+    | SynKeywordArrow(_, keyword) =>
+      let main_msg = [
         Node.text("Expecting " ++ article),
         term_tag,
         Node.text("of"),
         emphasize_text("Function Type"),
         Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
-      ]
+      ];
+      keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -358,7 +441,8 @@ let summary_bar =
   let arrow =
     Node.div(
       [
-        Attr.classes(["clickable"]),
+        Attr.classes(["clickable-help"]),
+        Attr.create("title", "Click to toggle expanded cursor inspector"),
         Attr.on_click(_ =>
           Event.Many([
             Event.Prevent_default,
@@ -377,35 +461,20 @@ let summary_bar =
   let summary =
     Node.div(
       [
-        Attr.create(
-          "title",
-          "Click to view expanded form of symbols in message",
-        ),
         Attr.classes(
           novice_mode
-            ? ["clickable", "summary-message", "novice-mode"]
-            : ["clickable", "summary-message"],
-        ),
-        Attr.on_click(_ =>
-          Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(
-              ModelAction.UpdateSettings(
-                CursorInspector(Toggle_novice_mode),
-              ),
-            ),
-          ])
+            ? ["summary-message", "novice-mode"] : ["summary-message"],
         ),
       ],
       novice_mode
-        ? novice_summary(ci.typed, tag_type)
-        : advanced_summary(ci.typed, tag_type),
+        ? novice_summary(ci.typed, ci.cursor_term, tag_type)
+        : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
   let fill_icon =
     Node.div(
       [
-        Attr.classes(["clickable"]),
+        Attr.classes(["clickable-help"]),
+        Attr.create("title", "Click to toggle strategy guide"),
         Attr.on_click(_ =>
           Event.Many([
             Event.Prevent_default,
@@ -441,7 +510,22 @@ let summary_bar =
   let body =
     show_strategy_guide
       ? List.append(body, [fill_space, fill_icon, assistant_icon]) : body;
-  Node.div([Attr.classes(["type-info-summary"])], body);
+  Node.div(
+    [
+      Attr.create("title", "Click to toggle form of message"),
+      Attr.classes(["type-info-summary", "clickable-help"]),
+      Attr.on_click(_ =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_novice_mode)),
+          ),
+        ])
+      ),
+    ],
+    body,
+  );
 };
 
 let view =
@@ -586,6 +670,7 @@ let view =
     | PatSynthesized(_) => OK
     | PatSynKeyword(_) => BindingError
     | OnLine => OK
+    | OnLetLine(_) => OK
     | OnRule => OK
     };
 

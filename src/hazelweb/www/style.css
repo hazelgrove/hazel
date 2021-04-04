@@ -383,6 +383,10 @@ body {
   max-width: 305px;
 }
 
+.sub-options {
+  width: 100%;
+}
+
 .mini-option {
   display: flex;
   align-items: flex-start;
@@ -413,11 +417,26 @@ body {
   font-weight: bold;
 }
 
-.body-bar .option .code-font.shortcut {
+.body-bar .option .example { 
+  background-color: #eee;
+}
+
+.body-bar .option .filler {
+  flex-grow: 1;
+}
+
+.code-font.shortcut {
   font-family: var(--code-font-family); 
   padding-left: 5px;
   padding-right: 5px;
-  background-color:#a0845b;
+  /* Based on https://developer.mozilla.org/en-US/docs/Web/HTML/Element/kbd */
+  background-color: #eee;
+  border-radius: 3px;
+  border: 1px solid #b4b4b4;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 2px 0 0 rgba(255, 255, 255, .7) inset;
+  color: #333;
+  line-height: 1;
+  padding: 2px 4px;
 }
 
 .body-bar .option {
@@ -480,7 +499,7 @@ body {
   box-shadow: 0 0 0 1px #f1760a inset;
 }
 
-.type-info-summary .colon {
+.type-info-summary .bidirectional {
   margin-left: 10px;
   font-weight: bolder;
   font-family: var(--code-font-family);
@@ -497,8 +516,8 @@ body {
   align-items: flex-start;
 }
 
-.type-info-summary .clickable{
-  cursor: pointer;
+.clickable-help {
+  cursor: help;
 }
 
 .HTypCode .Diff {
@@ -513,6 +532,17 @@ body {
 .type-info-summary .emphasize-text.only-right {
   margin-left: 0px;
 }
+
+.type-info-summary .compressed {
+  display: flex;
+  margin: 0 10px;
+}
+
+.type-info-summary .compressed .HTypCode,
+.type-info-summary .compressed .emphasize-text {
+  margin: 0px;
+}
+
 
 .cursor-inspector-arrow {
   color: white;

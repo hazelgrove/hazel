@@ -252,7 +252,12 @@ and syn_cursor_info_zblock =
   | None => None
   | Some(ctx) =>
     switch (
-      syn_cursor_info_line(~steps=steps @ [List.length(prefix)], ctx, zline)
+      syn_cursor_info_line(
+        ~steps=steps @ [List.length(prefix)],
+        ctx,
+        zline,
+        suffix,
+      )
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
@@ -268,9 +273,27 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
+    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
+  | CursorL(_, LetLine(p, def)) =>
+    /* Need to add new variable to ctx before calling syn */
+    /* See if this is actually different from how done in Statics -
+       make work the same */
+    switch (Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix])) {
+    | None => None
+    | Some(ty) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(
+            OnLetLine(ty),
+            ctx,
+            extract_from_zline(zline),
+          ),
+        ),
+      )
+    }
+
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
@@ -627,6 +650,7 @@ and ana_cursor_info_zblock =
           ~steps=steps @ [List.length(prefix)],
           ctx,
           zline,
+          suffix,
         )
       ) {
       | None => None
