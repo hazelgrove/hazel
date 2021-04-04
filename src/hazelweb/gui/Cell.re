@@ -14,6 +14,7 @@ let view_of_cursor_inspector =
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       l: UHLayout.t,
+      u_gen: MetaVarGen.t,
     ) => {
   let cursor =
     switch (cursor) {
@@ -33,10 +34,11 @@ let view_of_cursor_inspector =
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
+    u_gen,
   );
 };
 
-let view_internal =
+let code_view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
@@ -72,6 +74,7 @@ let view_internal =
               settings.cursor_inspector,
               ci,
               l,
+              Program.get_ugen(program),
             ),
           ];
         } else {
@@ -148,7 +151,7 @@ let view = (~inject, model: Model.t) => {
           Node.div(
             [Attr.id("code-container")],
             [
-              view_internal(
+              code_view(
                 ~inject,
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,

@@ -9,6 +9,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     (float, float),
     Settings.CursorInspector.t,
-    CursorInfo.t
+    CursorInfo.t,
+    MetaVarGen.t
   ) =>
   Vdom.Node.t;

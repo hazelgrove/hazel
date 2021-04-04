@@ -39,6 +39,8 @@ let get_zexp = program => {
   ze;
 };
 
+let get_ugen = ({edit_state: (_, _, u), _}) => u;
+
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
 let get_uhexp = program => program |> get_zexp |> erase;
 

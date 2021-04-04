@@ -451,6 +451,7 @@ let view =
       loc: (float, float),
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
+      u_gen: MetaVarGen.t,
     )
     : Node.t => {
   let inconsistent_branches_ty_bar =
@@ -653,6 +654,7 @@ let view =
             ~inject,
             ~font_metrics,
             /*cursor_inspector,*/ cursor_info,
+            u_gen,
           ),
         ],
       );

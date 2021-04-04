@@ -19,6 +19,7 @@ let focus: t => t;
 let blur: t => t;
 
 let get_zexp: t => ZExp.t;
+let get_ugen: t => MetaVarGen.t;
 let get_uhexp: t => UHExp.t;
 
 let get_path: t => CursorPath.t;

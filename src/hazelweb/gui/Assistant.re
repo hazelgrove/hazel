@@ -8,9 +8,10 @@ type assistant_action_categories =
 
 type assistant_action = {
   category: assistant_action_categories,
-  view: list(Vdom.Node.t),
+  //view: list(Vdom.Node.t),
   text: string, // what to type to autocomplete
   action: Action.t,
+  result: UHExp.t,
 };
 
 let mk_var = name =>
@@ -24,11 +25,11 @@ let get_hole_number = (t: CursorInfo.cursor_term): MetaVar.t => {
 };
 
 let mk_var_action =
-    (t: CursorInfo.cursor_term, name: string, font_metrics): assistant_action => {
+    (t: CursorInfo.cursor_term, name: string): assistant_action => {
   {
     category: InsertVar,
     text: name,
-    view: UHCode.codebox_view(~font_metrics, 80, mk_var(name)),
+    result: mk_var(name), //UHCode.codebox_view(~font_metrics, 80, mk_var(name)),
     action: FillExpHole(get_hole_number(t), mk_var(name)),
   };
 };
@@ -74,7 +75,6 @@ let mk_app_action =
       u_gen,
       t: CursorInfo.cursor_term,
       f_name: string,
-      font_metrics,
       f_ty: HTyp.t,
       hole_ty: HTyp.t,
     )
@@ -89,7 +89,7 @@ let mk_app_action =
     category: InsertApp,
     text: f_name,
     action: FillExpHole(get_hole_number(t), e),
-    view: UHCode.codebox_view(~font_metrics, 80, e),
+    result: e //: UHCode.codebox_view(~font_metrics, 80, e),
   };
 };
 
@@ -103,7 +103,7 @@ let code_node = text =>
 let list_vars_view = (inject, font_metrics, t, vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
-      let {action, view, _} = mk_var_action(t, var, font_metrics);
+      let {action, result, _} = mk_var_action(t, var);
       Node.div(
         [
           Attr.classes(["option"]),
@@ -115,7 +115,8 @@ let list_vars_view = (inject, font_metrics, t, vars: VarCtx.t) => {
             ])
           }),
         ],
-        view @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
+        UHCode.codebox_view(~font_metrics, 80, result)
+        @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
       );
     },
     vars,
@@ -127,8 +128,8 @@ let list_fns_view =
     (ctx, u_gen, inject, font_metrics, t, hole_ty, fn_vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
-      let {action, view, _} =
-        mk_app_action(ctx, u_gen, t, var, font_metrics, ty, hole_ty);
+      let {action, result, _} =
+        mk_app_action(ctx, u_gen, t, var, ty, hole_ty);
       Node.div(
         [
           Attr.classes(["option"]),
@@ -140,7 +141,8 @@ let list_fns_view =
             ])
           }),
         ],
-        view @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
+        UHCode.codebox_view(~font_metrics, 80, result)
+        @ [/*code_node(var)*/ Node.text(" : "), HTypCode.view(ty)],
       );
     },
     fn_vars,
@@ -154,6 +156,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       //settings: Settings.CursorInspector.t,
       {ctx, cursor_term, _} as cursor_info: CursorInfo.t,
+      u_gen: MetaVarGen.t,
     )
     : Vdom.Node.t => {
   let ty =
@@ -164,7 +167,6 @@ let view =
   let env = AssistantCommon.extract_vars(ctx, ty);
   let fn_env = AssistantCommon.fun_vars(ctx, ty);
 
-  let u_gen = 0; // TODO: get u_gen from somewhere
   Node.div(
     [Attr.classes(["type-driven"])],
     list_fns_view(ctx, u_gen, inject, font_metrics, cursor_term, ty, fn_env)
