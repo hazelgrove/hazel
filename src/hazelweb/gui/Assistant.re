@@ -159,10 +159,10 @@ let view =
   let ty =
     OptUtil.get(
       () => failwith("assistant view"),
-      StrategyGuide.get_type(cursor_info),
+      AssistantCommon.get_type(cursor_info),
     );
-  let env = StrategyGuide.extract_vars(ctx, ty);
-  let fn_env = StrategyGuide.fun_vars(ctx, ty);
+  let env = AssistantCommon.extract_vars(ctx, ty);
+  let fn_env = AssistantCommon.fun_vars(ctx, ty);
 
   let u_gen = 0; // TODO: get u_gen from somewhere
   Node.div(
