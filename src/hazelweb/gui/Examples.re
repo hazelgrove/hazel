@@ -356,6 +356,11 @@ let rec qsort_n = (n: int): UHExp.t =>
     ];
   };
 
+let assistant_test =
+  {|((LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole pi)E))((ExpLine(OpSeq(Placeholder 0)(S(FloatLit NotInHole 3.14159)E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole numCircles)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 6)E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole truth)E))((ExpLine(OpSeq(Placeholder 0)(S(BoolLit NotInHole false)E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole circumference)E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole r)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 666)E)))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole area)E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole r)(OpSeq(Placeholder 0)(S Float E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole n)(OpSeq(Placeholder 0)(S Int E)))E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 5)E)))))E)))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 1)E))))|}
+  |> Sexplib.Sexp.of_string
+  |> UHExp.t_of_sexp;
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -370,5 +375,6 @@ let examples =
     |> add("qsort_example_10", qsort_n(10))
     |> add("qsort_example_30", qsort_n(30))
     |> add("qsort_example_100", qsort_n(100))
+    |> add("assistant_test", assistant_test)
   );
 let get = id => StringMap.find(id, examples);

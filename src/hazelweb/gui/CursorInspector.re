@@ -697,19 +697,10 @@ let view =
     | _ => "below"
     };
   let on_empty_hole =
-    switch (cursor_info.cursor_term) {
-    | Exp(_, EmptyHole(_)) => true
-    | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => false
-    | Pat(_, _) => false
-    | Typ(_, Hole) => false
-    | Typ(_, _) => false
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _)
-    | Line(_, _)
-    | Rule(_, _) => false
-    };
+    AssistantCommon.on_empty_expr_hole(cursor_info.cursor_term);
+  let assistant_on =
+    cursor_inspector.assistant
+    && AssistantCommon.on_empty_expr_hole(cursor_info.cursor_term);
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -731,14 +722,15 @@ let view =
     };
 
   let content =
-    if (cursor_inspector.assistant && on_empty_hole) {
+    if (assistant_on) {
       List.append(
-        content, //TODO: andrew: replace with assistant UI
+        content,
         [
           Assistant.view(
             ~inject,
             ~font_metrics,
-            /*cursor_inspector,*/ cursor_info,
+            cursor_inspector,
+            cursor_info,
             u_gen,
           ),
         ],
@@ -754,7 +746,10 @@ let view =
   Node.div(
     [
       Attr.id("cursor-inspector"),
-      Attr.classes(["cursor-inspector-outer", above_or_below]),
+      Attr.classes(
+        ["cursor-inspector-outer", above_or_below]
+        @ (assistant_on ? ["assistant-active"] : []),
+      ),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),
       pos_attr,

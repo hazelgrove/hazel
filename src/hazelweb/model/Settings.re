@@ -1,4 +1,4 @@
-open Sexplib.Std;
+//open Sexplib.Std;
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
@@ -145,7 +145,7 @@ module CursorInspector = {
     type_assist_branch: false,
     type_assist_other: false,
     assistant: false,
-    assistant_selection: None,
+    assistant_selection: Some(0),
   };
 
   [@deriving sexp]
@@ -160,7 +160,8 @@ module CursorInspector = {
     | Toggle_type_assist_branch
     | Toggle_type_assist_other
     | Toggle_assistant
-    | Choose_assistant_selection(option(int));
+    | Increment_assistant_selection
+    | Decrement_assistant_selection;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -200,7 +201,16 @@ module CursorInspector = {
         assistant: !settings.assistant,
         type_assist: false,
       }
-    | Choose_assistant_selection(_) => failwith("TODO andrew")
+    | Increment_assistant_selection => {
+        ...settings,
+        assistant_selection:
+          Option.map(i => i + 1, settings.assistant_selection),
+      }
+    | Decrement_assistant_selection => {
+        ...settings,
+        assistant_selection:
+          Option.map(i => i - 1, settings.assistant_selection),
+      }
     };
 };
 

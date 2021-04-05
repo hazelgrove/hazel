@@ -179,59 +179,102 @@ let decoration_views =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+    (
+      ~settings: Settings.t,
+      ~u_gen,
+      ~inject,
+      ~is_mac: bool,
+      ~cursor_info: CursorInfo.t,
+      ~assistant_active: bool,
+    )
+    : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Space) =>
-          prevent_stop_inject(
-            ModelAction.UpdateSettings(CursorInspector(Toggle_type_assist)),
-          )
-        | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-          )
+      // TODO(andrew): do this mode stuff more better
+      switch (Key.get_key(evt)) {
+      | "Enter" when assistant_active =>
+        let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
+        let actions = AssistantCore.compute_actions(cursor);
+        let selected_index =
+          //TODO(andrew): unfuck below code
+          switch (settings.cursor_inspector.assistant_selection) {
+          | None => 0
+          | Some(i) =>
+            let z = i mod List.length(actions);
+            z + (z < 0 ? List.length(actions) : 0);
+          };
+
+        prevent_stop_inject(
+          ModelAction.AcceptSuggestion(
+            List.nth(actions, selected_index).action,
+          ),
+        );
+      | "ArrowDown" when assistant_active =>
+        prevent_stop_inject(
+          ModelAction.UpdateSettings(
+            CursorInspector(Increment_assistant_selection),
+          ),
+        )
+      | "ArrowUp" when assistant_active =>
+        prevent_stop_inject(
+          ModelAction.UpdateSettings(
+            CursorInspector(Decrement_assistant_selection),
+          ),
+        )
+      | _ =>
+        switch (MoveKey.of_key(Key.get_key(evt))) {
+        | Some(move_key) =>
+          prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
         | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | None => Event.Ignore
-          | Some(single_key) =>
+          switch (HazelKeyCombos.of_evt(evt)) {
+          | Some(Ctrl_Z) =>
+            if (is_mac) {
+              Event.Ignore;
+            } else {
+              prevent_stop_inject(ModelAction.Undo);
+            }
+          | Some(Meta_Z) =>
+            if (is_mac) {
+              prevent_stop_inject(ModelAction.Undo);
+            } else {
+              Event.Ignore;
+            }
+          | Some(Ctrl_Shift_Z) =>
+            if (is_mac) {
+              Event.Ignore;
+            } else {
+              prevent_stop_inject(ModelAction.Redo);
+            }
+          | Some(Meta_Shift_Z) =>
+            if (is_mac) {
+              prevent_stop_inject(ModelAction.Redo);
+            } else {
+              Event.Ignore;
+            }
+          | Some(Ctrl_Space) =>
             prevent_stop_inject(
-              ModelAction.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
+              ModelAction.UpdateSettings(
+                CursorInspector(Toggle_type_assist),
               ),
             )
+          | Some(kc) =>
+            prevent_stop_inject(
+              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            )
+          | None =>
+            switch (JSUtil.is_single_key(evt)) {
+            | None => Event.Ignore
+            | Some(single_key) =>
+              prevent_stop_inject(
+                ModelAction.EditAction(
+                  Construct(SChar(JSUtil.single_key_string(single_key))),
+                ),
+              )
+            }
           }
         }
       }

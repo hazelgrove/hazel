@@ -20,18 +20,16 @@ type cursor_info_pro = {
  * Return a VarCtx.t
  */
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let (vars, _) = ctx;
   let can_extract = ((_, ty: HTyp.t)) => {
     HTyp.consistent(ty, typ);
   };
-  vars |> VarMap.filter(can_extract);
+  ctx |> Contexts.gamma |> VarMap.filter(can_extract);
 };
 
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
 let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let (vars, _) = ctx;
   let rec compatible_funs = right_ty =>
     if (HTyp.consistent(right_ty, typ)) {
       true;
@@ -47,10 +45,11 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
     | _ => false
     };
   };
-  vars |> VarMap.filter(can_extract);
+  ctx |> Contexts.gamma |> VarMap.filter(can_extract);
 };
 
 let rec get_type_and_mode = (typed: CursorInfo.typed) => {
+  //print_endline("get_type_and_mode");
   switch (typed) {
   | Analyzed(ty) => Some((ty, Analytic))
   | AnaAnnotatedLambda(expected_ty, _) => Some((expected_ty, Analytic))
@@ -83,6 +82,30 @@ let get_type = (cursor_info: CursorInfo.t) => {
 let get_mode = (cursor_info: CursorInfo.t) => {
   let+ (_, mode) = get_type_and_mode(cursor_info.typed);
   mode;
+};
+
+let on_empty_expr_hole: CursorInfo.cursor_term => bool =
+  fun
+  | Exp(_, EmptyHole(_)) => true
+  | Exp(_, _) => false
+  | Pat(_, EmptyHole(_)) => false
+  | Pat(_, _) => false
+  | Typ(_, Hole) => false
+  | Typ(_, _) => false
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Line(_, _)
+  | Rule(_, _) => false;
+
+let on_expr_var: CursorInfo.cursor_term => bool =
+  fun
+  | Exp(_, Var(_)) => true
+  | Exp(_, _) => false
+  | _ => false;
+
+let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
+  on_empty_expr_hole(term) || on_expr_var(term);
 };
 
 let promote_cursor_info =

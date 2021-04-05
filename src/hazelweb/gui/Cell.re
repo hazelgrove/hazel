@@ -63,7 +63,8 @@ let code_view =
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        if (program.is_focused && settings.cursor_inspector.visible) {
+        // TODO(andrew): uncomment below (commented for testing purposes)
+        if (/*program.is_focused &&*/ settings.cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [
@@ -84,9 +85,17 @@ let code_view =
       let key_handlers =
         program.is_focused
           ? UHCode.key_handlers(
+              ~settings,
+              ~u_gen=Program.get_ugen(program),
               ~inject,
               ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
+              //TODO(andrew): clean up below
+              ~assistant_active=
+                settings.cursor_inspector.assistant
+                && AssistantCommon.on_empty_expr_hole(
+                     Program.get_cursor_info(program).cursor_term,
+                   ),
             )
           : [];
 
