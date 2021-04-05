@@ -140,7 +140,8 @@ let bring_prefix_matches_to_top =
 let compute_actions =
     ({term, _} as cursor: AssistantCommon.cursor_info_pro)
     : list(assistant_action) => {
-  //TODO(andrew): bug: if list rotated, filter looks weird
+  // TODO(andrew): bug: if list rotated, filter looks weird
+  // BUG: move to next hole should reset scroll position
   compute_var_actions(cursor)
   @ compute_app_actions(cursor)
   |> bring_prefix_matches_to_top(get_filter_string(term))
