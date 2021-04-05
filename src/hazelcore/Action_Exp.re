@@ -521,7 +521,8 @@ let rec syn_move =
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(_) =>
+  | FillExpHole(_)
+  | ReplaceAtCursor(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -581,7 +582,8 @@ let rec ana_move =
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(_) =>
+  | FillExpHole(_)
+  | ReplaceAtCursor(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -1026,6 +1028,9 @@ and syn_perform_line =
   | (SwapRight, CursorL(_)) => Failed
 
   | (FillExpHole(_), CursorL(_)) => Failed
+  | (ReplaceAtCursor(_), CursorL(_)) =>
+    //TODO(andrew): handle this case
+    Failed
 
   /* Zipper */
 
@@ -1101,7 +1106,8 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_) | FillExpHole(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1437,6 +1443,17 @@ and syn_perform_operand =
   | (FillExpHole(_), CursorE(_)) =>
     // FillExpHole handled at top level
     Failed
+
+  | (ReplaceAtCursor(new_operand), CursorE(_, _operand)) =>
+    let zoperand = new_operand |> ZExp.place_after_operand;
+    switch (
+      syn_perform_operand(ctx, MoveToNextHole, (zoperand, Hole, u_gen))
+    ) {
+    | Failed =>
+      let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+      Succeeded(SynDone((ze, Hole, u_gen)));
+    | s => s
+    };
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2025,7 +2042,8 @@ and syn_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight | FillExpHole(_), CursorR(_)) => Failed
+  | (SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_), CursorR(_)) =>
+    Failed
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
@@ -2174,7 +2192,8 @@ and ana_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight | FillExpHole(_), CursorR(_)) => Failed
+  | (SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_), CursorR(_)) =>
+    Failed
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
@@ -2650,7 +2669,7 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (FillExpHole(_), ZOperator(_)) => Failed
+  | (FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
 
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (
@@ -2844,6 +2863,17 @@ and ana_perform_operand =
   | (FillExpHole(_), CursorE(_)) =>
     // FillExpHole handled at top level
     Failed
+
+  | (ReplaceAtCursor(new_operand), CursorE(_)) =>
+    let zoperand = new_operand |> ZExp.place_after_operand;
+    switch (
+      ana_perform_operand(ctx, MoveToNextHole, (zoperand, u_gen), Hole)
+    ) {
+    | Failed =>
+      let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+      Succeeded(AnaDone((ze, u_gen)));
+    | success => success
+    };
 
   /* Backspace & Delete */
 

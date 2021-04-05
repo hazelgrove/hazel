@@ -49,4 +49,5 @@ type t =
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(MetaVar.t, UHExp.t);
+  | FillExpHole(MetaVar.t, UHExp.t)
+  | ReplaceAtCursor(UHExp.operand);

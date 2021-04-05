@@ -55,13 +55,33 @@ let mk_ap =
   |> (((x, _, _)) => x);
 };
 
+let mk_ap_operand =
+    (
+      {ty, ctx, u_gen, _}: AssistantCommon.cursor_info_pro,
+      f: Var.t,
+      f_ty: HTyp.t,
+    )
+    : option(UHExp.operand) => {
+  let+ inner_seq = mk_ap_seq_holes(f_ty, ty);
+  wrap_space(UHExp.var(f), inner_seq)
+  |> UHExp.mk_OpSeq
+  |> UHExp.Block.wrap'
+  |> Statics_Exp.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes=true)
+  |> (((x, _, _)) => UHExp.Parenthesized(x));
+};
+
 let mk_var_action =
-    ({term, _}: AssistantCommon.cursor_info_pro, name: string, ty: HTyp.t)
+    (
+      _ /*{term, _}*/: AssistantCommon.cursor_info_pro,
+      name: string,
+      ty: HTyp.t,
+    )
     : assistant_action => {
   let e = mk_var(name);
   {
     category: InsertVar,
-    action: FillExpHole(get_hole_number(term), e),
+    action: ReplaceAtCursor(UHExp.var(name)),
+    //FillExpHole(get_hole_number(term), e),
     text: name,
     result: e,
     res_ty: ty,
@@ -73,10 +93,14 @@ let mk_app_action =
     : assistant_action => {
   let e =
     mk_ap(cursor, name, ty) |> OptUtil.get(_ => failwith("mk_app_action"));
+  let op =
+    mk_ap_operand(cursor, name, ty)
+    |> OptUtil.get(_ => failwith("mk_app_action 2"));
   {
     category: InsertApp,
     text: name,
-    action: FillExpHole(get_hole_number(cursor.term), e),
+    action: ReplaceAtCursor(op),
+    //FillExpHole(get_hole_number(cursor.term), e),
     res_ty: ty,
     result: e,
   };

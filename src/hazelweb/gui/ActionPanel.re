@@ -493,5 +493,6 @@ let _check_actions = (a: Action.t) =>
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
-  | FillExpHole(_) => Added
+  | FillExpHole(_)
+  | ReplaceAtCursor(_) => Added
   };
