@@ -206,14 +206,23 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
   let typ_view = (typ: UHTyp.operand) => {
     switch (typ) {
-    | Hole =>
+    | Hole(_) =>
       Vdom.(
         Node.span(
           [],
           [indicate_words_view("type: "), code_keywords_view("Hole")],
         )
       )
-
+    | TyVar(_, x) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            indicate_words_view("type variable: "),
+            code_view(x |> TyId.to_string),
+          ],
+        )
+      )
     | Unit =>
       Vdom.(
         Node.span(

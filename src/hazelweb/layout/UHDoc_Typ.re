@@ -50,7 +50,10 @@ and mk_operand =
       (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
       (
         switch (operand) {
-        | Hole => mk_EmptyHole("?")
+        | Hole(_) => mk_EmptyHole("?")
+        | TyVar(_verr, tyid) =>
+          // TODO: How to print verr?
+          UHDoc_common.mk_Var(~sort=Typ, TyId.to_string(tyid))
         | Unit => UHDoc_common.mk_Unit()
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()

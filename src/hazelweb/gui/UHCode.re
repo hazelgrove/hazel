@@ -185,6 +185,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             | Text => ["code-text"]
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
+            | Keyword => ["code-keyword"]
             };
           [Node.span([Attr.classes(clss)], vs)];
         | HoleLabel({len}) =>
