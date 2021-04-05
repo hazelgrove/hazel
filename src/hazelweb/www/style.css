@@ -635,6 +635,21 @@ body {
   align-items: center;
 }
 
+#assistant > .choice:hover  {
+  display: flex;
+  align-items: center;
+  color: #3fb47a;
+  background-color: rgba(201, 201, 201, 1);
+}
+
+#assistant > .choice:hover > .category  {
+  background-color: rgb(90 90 90);
+}
+
+#assistant > .choice:hover> .type {
+  color: rgb(120 120 120);
+}
+
 #assistant > .selected  {
   color: #3fb47a;
   background-color: rgba(201, 201, 201, 1);

@@ -60,5 +60,5 @@ let view =
       (i, a) => action_view(inject, font_metrics, a, i == 0),
       actions,
     );
-  Node.div([Attr.id("assistant")], action_views);
+  div([id("assistant")], action_views);
 };

@@ -178,6 +178,20 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
+let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
+  let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
+  let actions = AssistantCore.compute_actions(cursor);
+  let selected_index =
+    //TODO(andrew): unfuck below duplicated from assistant.re code
+    switch (settings.cursor_inspector.assistant_selection) {
+    | None => 0
+    | Some(i) =>
+      let z = i mod List.length(actions);
+      z + (z < 0 ? List.length(actions) : 0);
+    };
+  List.nth(actions, selected_index).action;
+};
+
 let key_handlers =
     (
       ~settings: Settings.t,
@@ -196,23 +210,12 @@ let key_handlers =
     Attr.on_keydown(evt => {
       // TODO(andrew): do this mode stuff more better
       switch (Key.get_key(evt)) {
-      | "Enter" when assistant_active =>
-        let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
-        let actions = AssistantCore.compute_actions(cursor);
-        let selected_index =
-          //TODO(andrew): unfuck below code
-          switch (settings.cursor_inspector.assistant_selection) {
-          | None => 0
-          | Some(i) =>
-            let z = i mod List.length(actions);
-            z + (z < 0 ? List.length(actions) : 0);
-          };
-
+      | "Tab" when assistant_active =>
         prevent_stop_inject(
           ModelAction.AcceptSuggestion(
-            List.nth(actions, selected_index).action,
+            get_selected_action(cursor_info, u_gen, settings),
           ),
-        );
+        )
       | "ArrowDown" when assistant_active =>
         prevent_stop_inject(
           ModelAction.UpdateSettings(
