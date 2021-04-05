@@ -831,7 +831,8 @@ and syn_perform_operand =
     }
 
   | (Construct(SAnn), CursorP(_)) =>
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole(u)));
     let new_zp =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),

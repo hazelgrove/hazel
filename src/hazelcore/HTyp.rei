@@ -12,7 +12,7 @@ module Index: {
 type t =
   | TyVar(Index.t, Var.t) /* bound type variable */
   | TyVarHole(MetaVar.t, Var.t) /* free type variables */
-  | Hole(MetaVar.t)
+  | Hole
   | Int
   | Float
   | Bool
@@ -39,8 +39,8 @@ let consistent: (t, t) => bool;
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
-let matched_arrow: (MetaVarGen.t, t) => option((MetaVarGen.t, t, t));
-let matched_sum: (MetaVarGen.t, t) => option((MetaVarGen.t, t, t));
+let matched_arrow: t => option((t, t));
+let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
 
 let complete: t => bool;

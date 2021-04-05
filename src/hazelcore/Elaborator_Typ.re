@@ -56,7 +56,7 @@ and syn_operand = (ctx, delta, operand) => {
   | Hole(u) =>
     /* TElabSHole */
     Some((
-      HTyp.Hole(u),
+      HTyp.Hole,
       Kind.KHole,
       Delta.add(
         u,
@@ -115,7 +115,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
   | UHTyp.Hole(u) =>
     /* TElabAHole */
     Some((
-      Hole(u),
+      Hole,
       Kind.KHole,
       Delta.add(
         u,

@@ -418,8 +418,8 @@ and syn_fix_holes_operand =
   | TypeAnn(_, op, ann) =>
     let (uty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ann);
     // TODO: Should syn_fix_holes just return the HTyp instead so we don't need a force unwrap here?
-    let (ty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, uty) |> Option.get;
-    Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
+    let (ty, _, _) =
+      Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
