@@ -599,6 +599,17 @@ let rec syn_perform =
         )
         : ActionOutcome.t(syn_done) => {
   switch (a) {
+  | ReplaceAtCursor(_) =>
+    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
+    | Succeeded(SynDone((ze, ty, u_gen) as result)) =>
+      switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
+      | Succeeded((ze, ty, u_gen)) => Succeeded((ze, ty, u_gen))
+      | _ => Succeeded(result)
+      }
+    | Succeeded(SynExpands(_)) => Failed //TODO(andrew): think about this case
+    | Failed => Failed
+    | CursorEscaped(x) => CursorEscaped(x)
+    }
   | FillExpHole(u, fill_e) =>
     let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
     let steps_to_this_hole =
@@ -1445,15 +1456,20 @@ and syn_perform_operand =
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_, _operand)) =>
-    let zoperand = new_operand |> ZExp.place_after_operand;
-    switch (
-      syn_perform_operand(ctx, MoveToNextHole, (zoperand, Hole, u_gen))
-    ) {
-    | Failed =>
-      let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
-      Succeeded(SynDone((ze, Hole, u_gen)));
-    | s => s
-    };
+    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+    Succeeded(SynDone((ze, Hole, u_gen)));
+  // TODO(andrew): remove below code, probably
+  // move to next hole is now at syn_perform top level
+  /*
+   let zoperand = new_operand |> ZExp.place_after_operand;
+   switch (
+     syn_perform_operand(ctx, MoveToNextHole, (zoperand, Hole, u_gen))
+   ) {
+   | Failed =>
+     let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+     Succeeded(SynDone((ze, Hole, u_gen)));
+   | s => s
+   };*/
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2865,15 +2881,19 @@ and ana_perform_operand =
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_)) =>
-    let zoperand = new_operand |> ZExp.place_after_operand;
-    switch (
-      ana_perform_operand(ctx, MoveToNextHole, (zoperand, u_gen), Hole)
-    ) {
-    | Failed =>
-      let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
-      Succeeded(AnaDone((ze, u_gen)));
-    | success => success
-    };
+    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+    Succeeded(AnaDone((ze, u_gen)));
+  //TODO(andrew): remove
+  /*
+   let zoperand = new_operand |> ZExp.place_after_operand;
+   switch (
+     ana_perform_operand(ctx, MoveToNextHole, (zoperand, u_gen), Hole)
+   ) {
+   | Failed =>
+     let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+     Succeeded(AnaDone((ze, u_gen)));
+   | success => success
+   };*/
 
   /* Backspace & Delete */
 
