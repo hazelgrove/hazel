@@ -42,8 +42,8 @@ and syn_elab_skel =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.Hole(u), gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole(u), ctx, delta);
+        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.Hole, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
@@ -116,8 +116,8 @@ and syn_elab_operand =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.Hole(u), gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole(u), ctx, delta);
+        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.Hole, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -129,19 +129,19 @@ and syn_elab_operand =
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let ty = HTyp.Hole(u);
+    let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.InvalidText(u, 0, t);
-    let ty = HTyp.Hole(u);
+    let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), Hole(u), ctx, delta)
+    Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);

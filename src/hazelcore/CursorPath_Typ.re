@@ -26,7 +26,7 @@ and follow_operand =
   | [] => operand |> ZTyp.place_cursor_operand(cursor)
   | [x, ...xs] =>
     switch (operand) {
-    | Hole(_)
+    | Hole
     | Unit
     | Int
     | Float

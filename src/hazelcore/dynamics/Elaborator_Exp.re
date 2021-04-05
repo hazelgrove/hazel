@@ -159,8 +159,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (BoolLit(_), Cast(d, Bool, Hole(_))) => matches(dp, d)
-  | (BoolLit(_), Cast(d, Hole(_), Bool)) => matches(dp, d)
+  | (BoolLit(_), Cast(d, Bool, Hole)) => matches(dp, d)
+  | (BoolLit(_), Cast(d, Hole, Bool)) => matches(dp, d)
   | (BoolLit(_), _) => DoesNotMatch
   | (IntLit(n1), IntLit(n2)) =>
     if (n1 == n2) {
@@ -168,8 +168,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (IntLit(_), Cast(d, Int, Hole(_))) => matches(dp, d)
-  | (IntLit(_), Cast(d, Hole(_), Int)) => matches(dp, d)
+  | (IntLit(_), Cast(d, Int, Hole)) => matches(dp, d)
+  | (IntLit(_), Cast(d, Hole, Int)) => matches(dp, d)
   | (IntLit(_), _) => DoesNotMatch
   | (FloatLit(n1), FloatLit(n2)) =>
     if (n1 == n2) {
@@ -177,8 +177,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (FloatLit(_), Cast(d, Float, Hole(_))) => matches(dp, d)
-  | (FloatLit(_), Cast(d, Hole(_), Float)) => matches(dp, d)
+  | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
+  | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
@@ -188,8 +188,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
   | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
     matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole(_))) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole(_), Sum(_, _))) => matches(dp, d)
+  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
+  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -218,16 +218,16 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       [(head1, head2)],
       List.combine(tail1, tail2),
     )
-  | (Pair(_, _), Cast(d, Hole(_), Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole(_))) => matches(dp, d)
+  | (Pair(_, _), Cast(d, Hole, Prod(_)))
+  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
   | (Pair(_, _), _) => DoesNotMatch
   | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole(_), Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole(_))) => matches(dp, d)
+  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
+  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole(_), List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole(_))) => matches(dp, d)
+  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
+  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
   | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
   | (ListNil, _) => DoesNotMatch
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
@@ -248,8 +248,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
   | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole(_), List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole(_))) => matches(dp, d)
+  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
@@ -282,8 +282,8 @@ and matches_cast_Inj =
     }
   | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
     matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole(_))
-  | Cast(d', Hole(_), Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(d', Sum(_, _), Hole)
+  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -346,8 +346,8 @@ and matches_cast_Pair =
       [(head1, head2), ...left_casts],
       List.combine(tail1, tail2) @ right_casts,
     )
-  | Cast(d', Prod(_), Hole(_))
-  | Cast(d', Hole(_), Prod(_)) =>
+  | Cast(d', Prod(_), Hole)
+  | Cast(d', Hole, Prod(_)) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
@@ -418,8 +418,8 @@ and matches_cast_Cons =
     }
   | Cast(d', List(ty1), List(ty2)) =>
     matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole(_), List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -577,12 +577,8 @@ and syn_elab_skel =
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
-        MetaVarMap.add(
-          u,
-          Delta.Hole.Expression(HTyp.Hole(u), gamma),
-          delta,
-        );
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(u), delta);
+        MetaVarMap.add(u, Delta.Hole.Expression(HTyp.Hole, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
