@@ -34,3 +34,8 @@ let delete = (caret_index: int, s: string): string => {
 };
 
 let utf8_length = CamomileLibrary.UTF8.length;
+
+let match_prefix = (prefix: string, target: string): bool => {
+  let re = Str.regexp(prefix);
+  Str.string_match(re, target, 0);
+};

@@ -69,10 +69,12 @@ let rec get_type_and_mode = (typed: CursorInfo.typed) => {
     | (NoBranches, _) => get_type_and_mode(typed)
     | _ => None
     }
+  //TODO(andrew): clarify intentions wrt expected/actual type...
   | AnaFree(ty) => Some((ty, Analytic))
   | SynFree => Some((Hole, Synthetic))
-  // TODO(andrew): does hole make sense here?
-  // this is just done to prevent crash atm
+  | SynFreeArrow(ty) => Some((ty, Synthetic))
+  | SynErrorArrow(expected_ty, _) => Some((expected_ty, Synthetic))
+  | AnaTypeInconsistent(expected_ty, _) => Some((expected_ty, Analytic))
   | _ => None
   };
 };

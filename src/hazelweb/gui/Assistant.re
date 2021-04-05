@@ -11,10 +11,18 @@ let action_abbrev =
   | InsertApp => "app";
 
 let action_view =
-    (inject, font_metrics, act: assistant_action, is_selected: bool) => {
+    (
+      inject,
+      font_metrics,
+      act: assistant_action,
+      is_selected: bool,
+      prefix_overlay: string,
+    ) => {
   let {action, result, res_ty, category, _} = act;
   let width = 80; //TODO: unhardcode?
   let abbr = action_abbrev(category);
+  let prefix_overlay =
+    StringUtil.match_prefix(prefix_overlay, act.text) ? prefix_overlay : "";
   div(
     [
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
@@ -27,6 +35,7 @@ let action_view =
       }),
     ],
     [div([classes(["category", abbr])], [text(abbr)])]
+    @ [div([classes(["overlay"])], [text(prefix_overlay)])]
     @ UHCode.codebox_view(~font_metrics, width, result)
     @ [
       span([classes(["type-ann"])], [text(" : ")]),
@@ -54,9 +63,11 @@ let view =
       z + (z < 0 ? List.length(actions) : 0);
     };
   let actions = ListUtil.rotate_n(selected_index, actions);
+  let prefix_string =
+    AssistantCore.get_filter_string(cursor_info.cursor_term);
   let action_views =
     List.mapi(
-      (i, a) => action_view(inject, font_metrics, a, i == 0),
+      (i, a) => action_view(inject, font_metrics, a, i == 0, prefix_string),
       actions,
     );
   div([id("assistant")], action_views);

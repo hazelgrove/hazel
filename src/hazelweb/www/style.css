@@ -632,7 +632,22 @@ body {
 
 #assistant > .choice  {
   display: flex;
+  position: relative;
   align-items: center;
+}
+
+#assistant > .choice > .overlay {
+  display: flex;
+  align-items: center;
+  height: 2.5em;
+  width: 2.5em;
+  position: absolute;
+  /* TODO(andrew): fix these hack values */
+  top: -0.1rem; 
+  left: 2.93rem;
+  z-index: 9000;
+  color: #7affb9;
+  text-decoration: underline;
 }
 
 #assistant > .choice:hover  {

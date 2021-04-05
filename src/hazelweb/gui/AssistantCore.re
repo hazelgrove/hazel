@@ -109,12 +109,39 @@ let compute_app_actions =
 //TODO: sort actions intelligently;
 let sort = action_list /*, user_model*/ => action_list;
 
+let get_filter_string = (term: CursorInfo.cursor_term): string => {
+  switch (term) {
+  | Exp(_, Var(_, _, s)) => s
+  | _ => ""
+  };
+};
+
+let bring_prefix_matches_to_top =
+    (prefix: string, actions: list(assistant_action))
+    : list(assistant_action) => {
+  let gooduns =
+    List.filter(
+      ({text, _}) => StringUtil.match_prefix(prefix, text),
+      actions,
+    );
+  // NOTE: sort gooduns if they are nontrivial matches
+  let gooduns =
+    prefix == ""
+      ? gooduns
+      : List.sort((a1, a2) => String.compare(a1.text, a2.text), gooduns);
+  let baduns =
+    List.filter(
+      ({text, _}) => !StringUtil.match_prefix(prefix, text),
+      actions,
+    );
+  gooduns @ baduns;
+};
+
 let compute_actions =
     ({term, _} as cursor: AssistantCommon.cursor_info_pro)
     : list(assistant_action) => {
-  print_endline("compute_actions: cursor_term:");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_cursor_term(term)),
-  );
-  sort(compute_var_actions(cursor) @ compute_app_actions(cursor));
+  compute_var_actions(cursor)
+  @ compute_app_actions(cursor)
+  |> bring_prefix_matches_to_top(get_filter_string(term))
+  |> sort;
 };
