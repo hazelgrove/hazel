@@ -186,7 +186,7 @@ let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
     switch (settings.cursor_inspector.assistant_selection) {
     | None => 0
     | Some(i) =>
-      let z = i mod List.length(actions);
+      let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
       z + (z < 0 ? List.length(actions) : 0);
     };
   List.nth(actions, selected_index).action;
@@ -215,6 +215,10 @@ let key_handlers =
           ModelAction.AcceptSuggestion(
             get_selected_action(cursor_info, u_gen, settings),
           ),
+        )
+      | "Escape" when assistant_active =>
+        prevent_stop_inject(
+          ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
         )
       | "ArrowDown" when assistant_active =>
         prevent_stop_inject(

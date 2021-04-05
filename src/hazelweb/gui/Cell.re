@@ -93,7 +93,7 @@ let code_view =
               //TODO(andrew): clean up below
               ~assistant_active=
                 settings.cursor_inspector.assistant
-                && AssistantCommon.on_empty_expr_hole(
+                && AssistantCommon.valid_assistant_term(
                      Program.get_cursor_info(program).cursor_term,
                    ),
             )

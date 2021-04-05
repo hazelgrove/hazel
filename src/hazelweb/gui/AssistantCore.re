@@ -85,9 +85,15 @@ let mk_app_action =
 };
 
 let compute_var_actions =
-    ({ctx, ty, _} as cursor: AssistantCommon.cursor_info_pro) => {
-  AssistantCommon.extract_vars(ctx, ty)
-  |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty));
+    ({ctx, ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
+  switch (mode) {
+  | Synthetic =>
+    AssistantCommon.extract_vars(ctx, Hole)
+    |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
+  | Analytic =>
+    AssistantCommon.extract_vars(ctx, ty)
+    |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
+  };
 };
 
 let compute_app_actions =
@@ -104,6 +110,11 @@ let compute_app_actions =
 let sort = action_list /*, user_model*/ => action_list;
 
 let compute_actions =
-    (cursor: AssistantCommon.cursor_info_pro): list(assistant_action) => {
+    ({term, _} as cursor: AssistantCommon.cursor_info_pro)
+    : list(assistant_action) => {
+  print_endline("compute_actions: cursor_term:");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_cursor_term(term)),
+  );
   sort(compute_var_actions(cursor) @ compute_app_actions(cursor));
 };

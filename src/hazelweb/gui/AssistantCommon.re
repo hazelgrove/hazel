@@ -49,7 +49,10 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 };
 
 let rec get_type_and_mode = (typed: CursorInfo.typed) => {
-  //print_endline("get_type_and_mode");
+  print_endline("get_type_and_mode");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_typed(typed)),
+  );
   switch (typed) {
   | Analyzed(ty) => Some((ty, Analytic))
   | AnaAnnotatedLambda(expected_ty, _) => Some((expected_ty, Analytic))
@@ -66,6 +69,10 @@ let rec get_type_and_mode = (typed: CursorInfo.typed) => {
     | (NoBranches, _) => get_type_and_mode(typed)
     | _ => None
     }
+  | AnaFree(ty) => Some((ty, Analytic))
+  | SynFree => Some((Hole, Synthetic))
+  // TODO(andrew): does hole make sense here?
+  // this is just done to prevent crash atm
   | _ => None
   };
 };

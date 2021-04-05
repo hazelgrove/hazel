@@ -50,7 +50,7 @@ let view =
     switch (settings.assistant_selection) {
     | None => 0
     | Some(i) =>
-      let z = i mod List.length(actions);
+      let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
       z + (z < 0 ? List.length(actions) : 0);
     };
   let actions = ListUtil.rotate_n(selected_index, actions);

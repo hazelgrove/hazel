@@ -431,6 +431,7 @@ let summary_bar =
       show_expanded: bool,
       novice_mode: bool,
       show_strategy_guide: bool,
+      assistant_enabled: bool,
     ) => {
   let arrow_direction =
     if (show_expanded) {
@@ -506,10 +507,10 @@ let summary_bar =
       [Node.text(Unicode.robot_arm)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
-    show_strategy_guide
-      ? List.append(body, [fill_space, fill_icon, assistant_icon]) : body;
+    (show ? [summary, fill_space, arrow] : [summary])
+    @ (show_strategy_guide ? [fill_space, fill_icon] : [])
+    @ (assistant_enabled ? [assistant_icon] : []);
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
@@ -698,9 +699,9 @@ let view =
     };
   let on_empty_hole =
     AssistantCommon.on_empty_expr_hole(cursor_info.cursor_term);
-  let assistant_on =
-    cursor_inspector.assistant
-    && AssistantCommon.on_empty_expr_hole(cursor_info.cursor_term);
+  let assistant_enabled =
+    AssistantCommon.valid_assistant_term(cursor_info.cursor_term);
+  let assistant_on = assistant_enabled && cursor_inspector.assistant;
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -714,6 +715,7 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       on_empty_hole,
+      assistant_enabled,
     );
   let content =
     switch (cursor_inspector.show_expanded, expanded) {
