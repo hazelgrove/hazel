@@ -13,9 +13,8 @@ let action_abbrev =
 let action_view =
     (inject, font_metrics, act: assistant_action, is_selected: bool) => {
   let {action, result, res_ty, category, _} = act;
-  let width = 80;
+  let width = 80; //TODO: unhardcode?
   let abbr = action_abbrev(category);
-  //TODO: unhardcode?
   div(
     [
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
