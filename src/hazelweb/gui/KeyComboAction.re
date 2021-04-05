@@ -7,7 +7,8 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (
       GT,
       fun
-      | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
+      | {CursorInfo.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
+        Construct(SOp(SArrow))
       | _ => Construct(SOp(SGreaterThan)),
     ),
     (Ampersand, _ => Construct(SOp(SAnd))),
@@ -33,7 +34,8 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType, _} => Construct(SList)
+      | {CursorInfo.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
+        Construct(SList)
       | _ => Construct(SListNil),
     ),
     (Semicolon, _ => Construct(SOp(SCons))),

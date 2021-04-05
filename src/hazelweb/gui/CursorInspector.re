@@ -115,6 +115,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
 
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
+  let got_free_tyvar_indicator =
+    got_indicator("Got a free type variable", typebar(HTyp.Hole));
 
   let got_invalid_indicator =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
@@ -274,7 +276,15 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
-    | OnType =>
+    | TypKeyword(_keyword) =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | TypFree =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_free_tyvar_indicator;
+      (ind1, ind2, BindingError);
+    | OnType(_kind) =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);

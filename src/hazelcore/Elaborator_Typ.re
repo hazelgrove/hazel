@@ -152,6 +152,11 @@ and ana_operand = (ctx, delta, kind, operand) => {
 
 let syn_kind = (ctx, uhty) =>
   syn(ctx, Delta.empty, uhty) |> Option.map(((_, k, _)) => k);
+let syn_kind_skel = (ctx, skel, seq) =>
+  syn_skel(ctx, Delta.empty, skel, seq) |> Option.map(((_, k, _)) => k);
+let syn_kind_operand = (ctx, operand) =>
+  syn_operand(ctx, Delta.empty, operand) |> Option.map(((_, k, _)) => k);
+
 let ana_kind = (ctx, uhty, kind) =>
   ana(ctx, Delta.empty, uhty, kind) |> Option.map(((_, k, _)) => k);
 

@@ -25,7 +25,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some(m: memoization_value('v)) =>
+      | Some((m: memoization_value('v))) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
@@ -124,6 +124,12 @@ let mk_op = (op_text: string): t =>
   Doc.annot(
     UHAnnot.mk_Token(~len=StringUtil.utf8_length(op_text), ~shape=Op, ()),
     Doc.text(op_text),
+  );
+
+let mk_keyword = (s: string): t =>
+  Doc.annot(
+    UHAnnot.mk_Token(~shape=Keyword, ~len=StringUtil.utf8_length(s), ()),
+    Doc.text(s),
   );
 
 let mk_space_op: t = space_;
@@ -278,13 +284,13 @@ let mk_Unit = (): t =>
   Delim.mk(~index=0, "()") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
-  Delim.mk(~index=0, "Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_keyword("Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Int = (): t =>
-  Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_keyword("Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
-  Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_keyword("Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
