@@ -20,6 +20,7 @@ let grounded_List = NotGroundOrHole(List(Hole));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
+  | TyVarHole(_, _)
   | Hole => Hole
   | Bool
   | Int
@@ -27,6 +28,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground
+  | TyVar(_) => failwith("TODO: Add context here so we can lookup")
   | Prod(tys) =>
     if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
       Ground;
@@ -240,7 +242,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
+        | Cast(d1'', ty'', Hole | TyVarHole(_)) =>
           if (HTyp.eq(ty'', ty')) {
             BoxedValue(d1'');
           } else {
