@@ -112,6 +112,7 @@ We use
       acquiring semantic info as well as layout concerns, goes
       beyond `Statics.edit_state` in that it contains information like
       current editor width, whether its focused, etc...
+      - To den
     - `Result`: result of evaluating a Hazel program
     - `UndoHistory`: undo logic
     - `UserSelectedInstances`:
@@ -139,3 +140,12 @@ We use
 
 
   - TODO add annotated screenshot of Hazel UI
+
+## Decorations
+
+Decorations like err holes, current term indicator, variable uses, etc are computed as separate layers from the code text. First, the code text is turned into a `UHDoc.t`, which is then pretty printed to a `UHLayout.t`. The doc/layout nodes are annotated by steps a la CursorPath. Separately, steps/paths to decorations are computed in `Program.get_decoration_paths`. Given a `UHLayout.t` and a `UHDecorationPaths.t`, `UHCode.decoration_views` recurses through the `UHLayout.t` , maintaining a collection of a decoration paths describing any remaining decorations in the current layout node and which it uses to determine when it needs to take the measurements of the current layout node to draw a decoration.
+
+To reuse an existing decoration style, all you’ll need to do is make sure that the decoration paths produced by `Program.get_decoration_paths` include your type variable errors. You won’t need to change any types eg add a new record field to `UHDecorationPaths.t`.
+
+For a new time of hole, for example, this likely involves including this special type in the output of `CursorPath_Exp.holes`.
+
