@@ -123,10 +123,3 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
-
-let to_string_exn =
-  fun
-  | Int => "Int"
-  | Float => "Float"
-  | Bool => "Bool"
-  | _ => failwith("to_string_exn only works with int/float/bool for now");

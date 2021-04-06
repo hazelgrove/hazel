@@ -32,5 +32,3 @@ let contract: HTyp.t => t;
 /* "expand" is handled by Elaborator_Typ.syn/ana */
 
 let is_complete: t => bool;
-
-let to_string_exn: operand => string;

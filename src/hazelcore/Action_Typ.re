@@ -440,19 +440,24 @@ and syn_perform_operand =
 
   /* Backspace and Delete */
 
-  | (
-      Backspace,
-      CursorT(OnText(caret_index), (Int | Bool | Float) as operand),
-    ) =>
-    syn_backspace_text(
-      ctx,
-      u_gen,
-      caret_index,
-      operand |> UHTyp.to_string_exn,
-    )
+  | (Backspace, CursorT(OnText(caret_index), Int)) =>
+    syn_backspace_text(ctx, u_gen, caret_index, "Int")
     |> Outcome.of_action_outcome
-  | (Delete, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
-    syn_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string_exn)
+  | (Backspace, CursorT(OnText(caret_index), Bool)) =>
+    syn_backspace_text(ctx, u_gen, caret_index, "Bool")
+    |> Outcome.of_action_outcome
+  | (Backspace, CursorT(OnText(caret_index), Float)) =>
+    syn_backspace_text(ctx, u_gen, caret_index, "Float")
+    |> Outcome.of_action_outcome
+
+  | (Delete, CursorT(OnText(caret_index), Int)) =>
+    syn_delete_text(ctx, u_gen, caret_index, "Int")
+    |> Outcome.of_action_outcome
+  | (Delete, CursorT(OnText(caret_index), Bool)) =>
+    syn_delete_text(ctx, u_gen, caret_index, "Bool")
+    |> Outcome.of_action_outcome
+  | (Delete, CursorT(OnText(caret_index), Float)) =>
+    syn_delete_text(ctx, u_gen, caret_index, "Float")
     |> Outcome.of_action_outcome
 
   /* ( _ <|)   ==>   ( _| ) */
@@ -531,12 +536,13 @@ and syn_perform_operand =
 
   | (Construct(SChar(s)), CursorT(_, Hole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "") |> Outcome.of_action_outcome
-  | (
-      Construct(SChar(s)),
-      CursorT(OnText(j), (Int | Bool | Float) as operand),
-    ) =>
-    syn_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.to_string_exn)
-    |> Outcome.of_action_outcome
+  | (Construct(SChar(s)), CursorT(OnText(j), Int)) =>
+    syn_insert_text(ctx, u_gen, (j, s), "Int") |> Outcome.of_action_outcome
+  | (Construct(SChar(s)), CursorT(OnText(j), Bool)) =>
+    syn_insert_text(ctx, u_gen, (j, s), "Bool") |> Outcome.of_action_outcome
+  | (Construct(SChar(s)), CursorT(OnText(j), Float)) =>
+    syn_insert_text(ctx, u_gen, (j, s), "Float") |> Outcome.of_action_outcome
+
   | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x |> TyId.to_string)
     |> Outcome.of_action_outcome
@@ -557,14 +563,22 @@ and syn_perform_operand =
     )
 
   /* split */
-  | (
-      Construct(SOp(os)),
-      CursorT(OnText(j), (Int | Bool | Float) as operand),
-    )
+  | (Construct(SOp(os)), CursorT(OnText(j), Int))
       when
         !ZTyp.is_before_zoperand(zoperand)
         && !ZTyp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, os, operand |> UHTyp.to_string_exn)
+    syn_split_text(ctx, u_gen, j, os, "Int")
+  | (Construct(SOp(os)), CursorT(OnText(j), Bool))
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, os, "Bool")
+  | (Construct(SOp(os)), CursorT(OnText(j), Float))
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, os, "Float")
+
   | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, id)))
       when
         !ZTyp.is_before_zoperand(zoperand)

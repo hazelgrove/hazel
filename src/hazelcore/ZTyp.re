@@ -11,16 +11,13 @@ type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
 type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
-// TODO: Remove the dependency on the partial function
-let length_of_operand_str_exn = (operand: UHTyp.operand): int =>
-  operand |> UHTyp.to_string_exn |> String.length;
-
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole(_)
   | Unit => CursorPosition.delim_cursors(1)
-  | (Int | Float | Bool) as operand =>
-    operand |> length_of_operand_str_exn |> CursorPosition.text_cursors
+  | Int => String.length("Int") |> CursorPosition.text_cursors
+  | Float => String.length("Float") |> CursorPosition.text_cursors
+  | Bool => String.length("Bool") |> CursorPosition.text_cursors
   | TyVar(_, x) => CursorPosition.text_cursors(TyId.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
@@ -80,8 +77,9 @@ and is_after_zoperand =
   fun
   | CursorT(cursor, Hole(_))
   | CursorT(cursor, Unit) => cursor == OnDelim(0, After)
-  | CursorT(cursor, (Int | Float | Bool) as operand) =>
-    cursor == OnText(length_of_operand_str_exn(operand))
+  | CursorT(cursor, Int) => cursor == OnText(String.length("Int"))
+  | CursorT(cursor, Float) => cursor == OnText(String.length("Float"))
+  | CursorT(cursor, Bool) => cursor == OnText(String.length("Bool"))
   | CursorT(cursor, TyVar(_, x)) => cursor == OnText(TyId.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
@@ -110,8 +108,9 @@ and place_after_opseq = opseq =>
 and place_after_operand =
   fun
   | (Hole(_) | Unit) as operand => CursorT(OnDelim(0, After), operand)
-  | (Int | Float | Bool) as operand =>
-    CursorT(OnText(length_of_operand_str_exn(operand)), operand)
+  | Int => CursorT(OnText(String.length("Int")), Int)
+  | Float => CursorT(OnText(String.length("Float")), Float)
+  | Bool => CursorT(OnText(String.length("Bool")), Bool)
   | TyVar(_, x) as operand => CursorT(OnText(TyId.length(x)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
