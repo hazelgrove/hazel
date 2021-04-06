@@ -174,7 +174,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       | (None, None) => None
       | (_, _) => Some(HTyp.Hole)
       }
-    };
+    }
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)

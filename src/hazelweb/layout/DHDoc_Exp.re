@@ -144,6 +144,21 @@ let rec mk =
           ]),
         );
       };
+    let go_if = (d1, d2, d3) =>
+      if (enforce_inline) {
+        fail();
+      } else {
+        hseps([
+          DHDoc_common.Delim.open_If,
+          mk_cast(go'(d1)),
+          DHDoc_common.Delim.open_Then,
+          linebreak(),
+          mk_cast(go'(d2)),
+          hcat(linebreak(), DHDoc_common.Delim.open_Else),
+          linebreak(),
+          mk_cast(go'(d3)),
+        ]);
+      };
     let mk_left_associative_operands = (precedence_op, d1, d2) => (
       go'(~parenthesize=precedence(d1) > precedence_op, d1),
       go'(~parenthesize=precedence(d2) >= precedence_op, d2),
@@ -213,29 +228,9 @@ let rec mk =
       | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | InconsistentBranchesIf(u, i, _sigma, If(d1, d2, d3)) =>
-        vseps([
-          DHDoc_common.Delim.open_If,
-          mk_cast(go'(d1)),
-          DHDoc_common.Delim.open_Then,
-          linebreak(),
-          mk_cast(go'(d2)),
-          hcat(linebreak(), DHDoc_common.Delim.open_Else),
-          linebreak(),
-          mk_cast(go'(d3)),
-        ])
-        |> annot(DHAnnot.InconsistentBranchesIf((u, i)))
+        go_if(d1, d2, d3) |> annot(DHAnnot.InconsistentBranchesIf((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
-      | ConsistentIf(If(d1, d2, d3)) =>
-        hseps([
-          DHDoc_common.Delim.open_If,
-          mk_cast(go'(d1)),
-          DHDoc_common.Delim.open_Then,
-          linebreak(),
-          mk_cast(go'(d2)),
-          hcat(linebreak(), DHDoc_common.Delim.open_Else),
-          linebreak(),
-          mk_cast(go'(d3)),
-        ])
+      | ConsistentIf(If(d1, d2, d3)) => go_if(d1, d2, d3)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;

@@ -1016,6 +1016,11 @@ h1 {
   margin: -1px;
 }
 
+.InconsistentBranchesIf {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
+
 .DHCode .Collapsed {
   color: #999;
 }

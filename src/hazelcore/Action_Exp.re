@@ -579,7 +579,7 @@ let rec ana_move =
     switch (ZExp.move_cursor_right(ze)) {
     | None => CursorEscaped(After)
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
-    };
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -816,7 +816,7 @@ and syn_perform_block =
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
           /* failing here */
-          | None => Failed;
+          | None => Failed
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -1882,7 +1882,7 @@ and syn_perform_operand =
     | None => Failed
     | Some(ty1) =>
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
-      | Failed => Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -1987,8 +1987,8 @@ and syn_perform_operand =
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           };
-        };
-      };
+        }
+      }
     }
   | (_, IfZ3(_, t1, t2, zt3)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zt3))) {
@@ -2023,7 +2023,7 @@ and syn_perform_operand =
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           };
-        };
+        }
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
@@ -2389,7 +2389,7 @@ and ana_perform_block =
       );
     | _ =>
       ana_perform(ctx, MoveRight, (zblock, u_gen), ty) |> wrap_in_AnaDone
-    };
+    }
   | (Backspace, _) when ZExp.is_before_zline(zline) =>
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)

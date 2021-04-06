@@ -203,12 +203,17 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | If(_, t1, t2, t3) =>
-          let guard = mk_child(~memoize, ~enforce_inline, ~child_step=0, t1);
-          let then_branch =
-            mk_child(~memoize, ~enforce_inline, ~child_step=1, t2);
-          let else_branch =
-            mk_child(~memoize, ~enforce_inline, ~child_step=2, t3);
-          UHDoc_common.mk_If(guard, then_branch, else_branch);
+          if (enforce_inline) {
+            Doc.fail();
+          } else {
+            let guard =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, t1);
+            let then_branch =
+              mk_child(~memoize, ~enforce_inline, ~child_step=1, t2);
+            let else_branch =
+              mk_child(~memoize, ~enforce_inline, ~child_step=2, t3);
+            UHDoc_common.mk_If(guard, then_branch, else_branch);
+          }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
       )
