@@ -743,6 +743,12 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
       | (_, Error(msg)) => InvalidInput(msg)
       | (Ok(sim), Ok(dargs)) =>
         let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
+        let dargs =
+          // strip casts
+          List.map(
+            ((v, ty, d)) => (v, ty, Option.map(DHExp.strip_casts', d)),
+            dargs,
+          );
         let dargs_opt' =
           dargs
           |> ListUtil.map_with_accumulator_opt(
