@@ -1408,7 +1408,16 @@ module SliderLivelitView = {
         ],
       );
     ({dargs, _}: LivelitView.splice_and_param_getters) => {
-      switch (dargs) {
+      let stripped_dargs =
+        Option.map(
+          List.map(
+            PairUtil.map_snd(
+              Option.map(PairUtil.map_fst(DHExp.strip_casts')),
+            ),
+          ),
+          dargs,
+        );
+      switch (stripped_dargs) {
       | Some([
           ("min", Some((DHExp.IntLit(min), _))),
           ("max", Some((DHExp.IntLit(max), _))),
