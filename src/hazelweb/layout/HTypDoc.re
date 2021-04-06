@@ -56,15 +56,24 @@ let rec mk =
     | Bool => (text("Bool"), parenthesize)
     | List(ty) =>
       let close = strategy_guide ? ", ...]" : "]";
+      let center =
+        hcats(
+          [
+            mk(ty) |> pad_child(~enforce_inline),
+            (
+              (~enforce_inline) =>
+                annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+            )
+            |> pad_child(~enforce_inline),
+          ]
+          |> ListUtil.join(
+               hcats([text(","), choices([linebreak(), space()])]),
+             ),
+        );
       (
         hcats([
           mk_delim("["),
-          mk(ty) |> pad_child(~enforce_inline),
-          (
-            (~enforce_inline) =>
-              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
-          )
-          |> pad_child(~enforce_inline),
+          center,
           mk_delim(close),
         ]),
         parenthesize,

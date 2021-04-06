@@ -780,7 +780,7 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Convert to a PAT type"), pat_filled_arrow],
+        [Node.text("Create PAT tuple"), pat_filled_arrow],
       )
     );
   let pat_filled_body =
@@ -820,7 +820,7 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Add another type"), new_type_filled_arrow],
+        [Node.text("Add to tuple"), new_type_filled_arrow],
       )
     );
 
