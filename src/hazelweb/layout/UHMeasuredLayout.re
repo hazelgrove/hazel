@@ -131,8 +131,8 @@ let first_path_in_row =
              let UHAnnot.{shape, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text
-               | Keyword => OnText(0)
+               | Text => OnText(0)
+               | Keyword
                | Op => OnOp(Before)
                | Delim(k) => OnDelim(k, Before)
                };
@@ -176,8 +176,8 @@ let last_path_in_row =
              let UHAnnot.{shape, len, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text
-               | Keyword => OnText(len)
+               | Text => OnText(len)
+               | Keyword
                | Op => OnOp(After)
                | Delim(k) => OnDelim(k, After)
                };
@@ -283,8 +283,8 @@ let next_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text
-               | Keyword => (OnText(from_start + 1), 1)
+               | Text => (OnText(from_start + 1), 1)
+               | Keyword
                | Op => (OnOp(After), len)
                | Delim(k) => (OnDelim(k, After), len)
                };
@@ -328,10 +328,10 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Keyword
              | Text =>
                let offset = min(from_start, len);
                (OnText(offset), offset);
+             | Keyword
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>
                is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)

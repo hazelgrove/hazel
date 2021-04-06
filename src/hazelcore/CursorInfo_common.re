@@ -27,7 +27,15 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | BoolLit(_, _) => true
     | _ => false
     }
-  | Typ(_, _)
+  | Typ(_, typ) =>
+    switch (typ) {
+    | Hole(_)
+    | Int
+    | Float
+    | Bool
+    | TyVar(_) => true
+    | _ => false
+    }
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _) => false
