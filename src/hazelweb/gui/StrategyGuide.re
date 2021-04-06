@@ -299,7 +299,10 @@ let operator_options = cursor_info => {
   };
 };
 
-let view =
+let type_driven = body =>
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+
+let exp_hole_view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cursor_inspector: Settings.CursorInspector.t,
@@ -309,6 +312,7 @@ let view =
   let var_open = cursor_inspector.type_assist_var;
   let fun_open = cursor_inspector.type_assist_fun;
   let branch_open = cursor_inspector.type_assist_branch;
+  let new_var_open = cursor_inspector.type_assist_new_var;
   let other_open = cursor_inspector.type_assist_other;
 
   let ty = get_type(cursor_info);
@@ -465,19 +469,21 @@ let view =
               keyword_node("case"),
               fill_space,
               example_lit_node("\"case \""),
+              Node.text(" or "),
+              shortcut_node("Alt+c"),
             ],
           ),
         ],
       )
     );
 
-  let other =
+  let new_var =
     subsection_header(
-      Toggle_type_assist_other,
-      "Do you want to create a new variable first?",
-      other_open,
+      Toggle_type_assist_new_var,
+      "Do you want to create a new variable?",
+      new_var_open,
     );
-  let other_body =
+  let new_var_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
@@ -490,6 +496,48 @@ let view =
               Node.text(" binding"),
               fill_space,
               example_lit_node("\"let \""),
+            ],
+          ),
+        ],
+      )
+    );
+
+  let other =
+    subsection_header(Toggle_type_assist_other, "Other Actions", other_open);
+  let other_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [Node.text("Parenthesize"), fill_space, shortcut_node("(")],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Move to next/previous hole"),
+              fill_space,
+              shortcut_node("Tab"),
+              shortcut_node("Shift+Tab"),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Swap line up/down"),
+              fill_space,
+              shortcut_node("Ctrl+Alt+i"),
+              shortcut_node("Ctrl+Alt+k"),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Swap operand left/right"),
+              fill_space,
+              shortcut_node("Ctrl+Alt+j"),
+              shortcut_node("Ctrl+Alt+l"),
             ],
           ),
         ],
@@ -520,11 +568,93 @@ let view =
       body @ [branch];
     };
   let body =
+    if (new_var_open) {
+      body @ [new_var, new_var_body];
+    } else {
+      body @ [new_var];
+    };
+  let body =
     if (other_open) {
       body @ [other, other_body];
     } else {
       body @ [other];
     };
+  type_driven(body);
+};
 
-  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+let rules_view = (cursor_info: CursorInfo.t) => {
+  /* TOOD: Make work for if on outermost part of rule exp? */
+  switch (cursor_info.cursor_term) {
+  | Rule(OnDelim(0, After), _)
+  | Exp(OnDelim(1, Before), Case(_)) =>
+    Some(
+      type_driven([
+        Vdom.(
+          Node.div(
+            [Attr.classes(["panel-title-bar", "body-bar"])],
+            [
+              Node.div(
+                [Attr.classes(["option"])],
+                [
+                  Node.text("Add rule before"),
+                  fill_space,
+                  shortcut_node("Enter"),
+                ],
+              ),
+            ],
+          )
+        ),
+      ]),
+    )
+  | Rule(OnDelim(1, Before), _) =>
+    Some(
+      type_driven([
+        Vdom.(
+          Node.div(
+            [Attr.classes(["panel-title-bar", "body-bar"])],
+            [
+              Node.div(
+                [Attr.classes(["option"])],
+                [
+                  Node.text("Add rule after"),
+                  fill_space,
+                  shortcut_node("Enter"),
+                ],
+              ),
+            ],
+          )
+        ),
+      ]),
+    )
+  | _ => None
+  };
+};
+
+let lines_view = () => {
+  type_driven([
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new line"),
+              fill_space,
+              shortcut_node("Enter"),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new comment line"),
+              fill_space,
+              shortcut_node("#"),
+              shortcut_node("Shift+Enter"),
+            ],
+          ),
+        ],
+      )
+    ),
+  ]);
 };

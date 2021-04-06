@@ -277,7 +277,6 @@ and syn_cursor_info_line =
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
-    /* Need to add new variable to ctx before calling syn */
     /* See if this is actually different from how done in Statics -
        make work the same */
     switch (Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix])) {
@@ -293,7 +292,6 @@ and syn_cursor_info_line =
         ),
       )
     }
-
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
