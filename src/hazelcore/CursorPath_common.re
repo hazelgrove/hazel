@@ -398,7 +398,8 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
         switch (sort) {
         | ExpHole(u', _)
         | PatHole(u', _) => MetaVar.eq(u, u')
-        | TypHole => false
+        | TypHole
+        | TyVarHole => false
         },
       hole_list,
     )

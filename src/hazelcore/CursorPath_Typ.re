@@ -151,9 +151,9 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole(_)
+  | Hole(_) => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
   | TyVar(InVarHole(_), _) => [
-      {sort: TypHole, steps: List.rev(rev_steps)},
+      {sort: TyVarHole, steps: List.rev(rev_steps)},
       ...hs,
     ]
   | Unit
