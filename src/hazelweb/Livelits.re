@@ -1736,7 +1736,7 @@ module DataFrameLivelitView = {
           [
             Node.div(
               [Attr.classes(["formula-bar-prompt"])],
-              [Node.text(" > ")],
+              [Node.text(" = ")],
             ),
             uhcode(m.selected),
           ],
