@@ -6,10 +6,9 @@ module T = {
     let (a, psi') = cmd(psi);
     f(a, psi');
   };
-  let map = Monads.MapDefinition.Define_using_bind;
 };
 include T;
-include Monads.Make(T);
+include Monads.MakeB(T);
 
 let exec = (cmd, psi, u_gen) => {
   let (a, psi) = cmd(psi);

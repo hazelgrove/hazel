@@ -3,12 +3,12 @@ open Sexplib.Conv;
 module T = {
   [@deriving sexp]
   type t('a) = option('a);
-  let map = Monads.MapDefinition.Custom((x, f) => Option.map(f, x));
+  let map = (x, f) => Option.map(f, x);
   let bind = Option.bind;
   let return = x => Some(x);
 };
 include T;
-include Monads.Make(T);
+include Monads.MakeZ((Monads.Zip_of_Functor(T)));
 
 let map2 =
     (f: ('a, 'b) => 'c, opt1: option('a), opt2: option('b)): option('c) =>
