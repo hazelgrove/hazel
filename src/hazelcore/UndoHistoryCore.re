@@ -56,10 +56,10 @@ type timestamp = float;
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
   | Exp(cursor_pos, _)
-  | Pat(cursor_pos, _)
+  | Pat(cursor_pos, _, _)
   | Typ(cursor_pos, _)
   | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
+  | PatOp(cursor_pos, _, _)
   | TypOp(cursor_pos, _)
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
@@ -151,7 +151,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
-  | Pat(_, operand) =>
+  | Pat(_, operand, _) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
@@ -176,7 +176,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | List(_) => MaxLen
     }
   | ExpOp(_, _)
-  | PatOp(_, _)
+  | PatOp(_, _, _)
   | TypOp(_, _)
   | Rule(_, _) => MaxLen
   | Line(_, line) =>

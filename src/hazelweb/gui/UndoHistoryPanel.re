@@ -247,10 +247,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
-    | Pat(_, pat) => pat_view(pat, show_indicate_word)
+    | Pat(_, pat, _) => pat_view(pat, show_indicate_word)
     | Typ(_, typ) => typ_view(typ)
     | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
+    | PatOp(_, op, _) => code_view(Operators_Pat.to_string(op))
     | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
@@ -421,7 +421,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let display_tag_typ =
-      (undo_history_entry: undo_history_entry): option(TermSort.t) => {
+      (undo_history_entry: undo_history_entry): option(TermTag.t) => {
     switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {

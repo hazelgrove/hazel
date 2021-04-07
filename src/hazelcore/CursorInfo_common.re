@@ -17,7 +17,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     | _ => false
     }
-  | Pat(_, pat) =>
+  | Pat(_, pat, _) =>
     switch (pat) {
     | EmptyHole(_)
     | Wild(_)
@@ -29,7 +29,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     }
   | Typ(_, _)
   | ExpOp(_, _)
-  | PatOp(_, _)
+  | PatOp(_, _, _)
   | TypOp(_, _) => false
   | Line(_, line) =>
     switch (line) {
@@ -46,12 +46,12 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, EmptyHole(_)) => true
   | Exp(_, _) => false
-  | Pat(_, EmptyHole(_)) => true
-  | Pat(_, _) => false
+  | Pat(_, EmptyHole(_), _) => true
+  | Pat(_, _, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
   | ExpOp(_, _)
-  | PatOp(_, _)
+  | PatOp(_, _, _)
   | TypOp(_, _)
   | Line(_, _)
   | Rule(_, _) => false
@@ -63,10 +63,10 @@ let is_empty_line = (cursor_term): bool => {
   | Line(_, EmptyLine) => true
   | Line(_, _) => false
   | Exp(_, _)
-  | Pat(_, _)
+  | Pat(_, _, _)
   | Typ(_, _)
   | ExpOp(_, _)
-  | PatOp(_, _)
+  | PatOp(_, _, _)
   | TypOp(_, _)
   | Rule(_, _) => false
   };

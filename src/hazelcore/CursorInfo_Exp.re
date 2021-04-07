@@ -9,7 +9,8 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LetLineZP(zpat, _) =>
+    CursorInfo_Pat.extract_cursor_term(~pat_tag=CursorInfo.Var, zpat)
   | LetLineZE(_, zexp) => extract_cursor_term(zexp)
   };
 }
@@ -17,7 +18,8 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
-  | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LamZP(_, zpat, _) =>
+    CursorInfo_Pat.extract_cursor_term(~pat_tag=CursorInfo.Var, zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
@@ -60,7 +62,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LetLineZP(zpat, _) =>
+    CursorInfo_Pat.get_zoperand_from_zpat(~pat_tag=CursorInfo.Var, zpat)
   | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
   };
 }
@@ -78,7 +81,8 @@ and get_zoperand_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => Some(ZExp(zoperand))
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
-  | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LamZP(_, zpat, _) =>
+    CursorInfo_Pat.get_zoperand_from_zpat(~pat_tag=CursorInfo.Var, zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
@@ -291,6 +295,7 @@ and syn_cursor_info_line =
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
         ~steps=steps @ [0],
+        ~pat_tag=CursorInfo.Var,
         ctx,
         zp,
         ty_def,
@@ -520,7 +525,13 @@ and syn_cursor_info_zoperand =
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty);
+      CursorInfo_Pat.ana_cursor_info(
+        ~steps=steps @ [0],
+        ~pat_tag=CursorInfo.Var,
+        ctx,
+        zp,
+        ty,
+      );
     switch (defferrable) {
     | CursorNotOnDeferredVarPat(ci) => ci
     | CursorOnDeferredVarPat(deferred_ci, x) =>
@@ -902,6 +913,7 @@ and ana_cursor_info_zoperand =
     let+ defferrable =
       CursorInfo_Pat.ana_cursor_info(
         ~steps=steps @ [0],
+        ~pat_tag=CursorInfo.Var,
         ctx,
         zp,
         ty_p_given,

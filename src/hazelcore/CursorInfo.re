@@ -112,12 +112,17 @@ type typed =
   | OnRule;
 
 [@deriving sexp]
+type pat_tag =
+  | Case
+  | Var;
+
+[@deriving sexp]
 type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
+  | Pat(CursorPosition.t, UHPat.operand, pat_tag)
   | Typ(CursorPosition.t, UHTyp.operand)
   | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
+  | PatOp(CursorPosition.t, UHPat.operator, pat_tag)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);

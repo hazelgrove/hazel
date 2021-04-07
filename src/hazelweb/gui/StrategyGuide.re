@@ -744,7 +744,8 @@ let view =
       cursor_info: CursorInfo.t,
     ) => {
   switch (cursor_info.cursor_term) {
-  | Pat(_, EmptyHole(_)) => view_pat(~inject, cursor_inspector, cursor_info)
+  | Pat(_, EmptyHole(_), _) =>
+    view_pat(~inject, cursor_inspector, cursor_info)
   | Exp(_, EmptyHole(_))
   | _ => view_exp(~inject, cursor_inspector, cursor_info)
   };

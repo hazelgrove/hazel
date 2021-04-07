@@ -28,7 +28,7 @@ let mk_expecting_of_type = (~article, ~term_tag) => [
   Node.text("of type"),
 ];
 
-let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
+let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermTag.t) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
@@ -148,12 +148,13 @@ let advanced_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
   List.cons(term_tag, message(typed));
 };
 
-let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
+let novice_summary = (typed: CursorInfo.typed, tag_typ: TermTag.t) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let article =
     switch (tag_typ) {
     | Exp => "an"
     | Pat
+    | Var
     | Typ => "a"
     };
   let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
@@ -596,12 +597,12 @@ let view =
     switch (cursor_info.cursor_term) {
     | Exp(_, EmptyHole(_)) => true
     | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => true
-    | Pat(_, _) => false
+    | Pat(_, EmptyHole(_), _) => true
+    | Pat(_, _, _) => false
     | Typ(_, Hole) => false
     | Typ(_, _) => false
     | ExpOp(_, _)
-    | PatOp(_, _)
+    | PatOp(_, _, _)
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => false

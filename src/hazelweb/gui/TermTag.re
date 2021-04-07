@@ -1,20 +1,28 @@
 module Vdom = Virtual_dom.Vdom;
 
-let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => {
+type t =
+  | Exp
+  | Pat
+  | Var
+  | Typ;
+
+let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): t => {
   switch (cursor_term) {
   | Exp(_, _)
   | ExpOp(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
-  | Pat(_, _)
-  | PatOp(_, _) => Pat
+  | Pat(_, _, Case)
+  | PatOp(_, _, Case) => Pat
+  | Pat(_, _, Var)
+  | PatOp(_, _, Var) => Var
   | Typ(_, _)
   | TypOp(_, _) => Typ
   };
 };
 
 let term_tag_view =
-    (tag: TermSort.t, ~show_tooltip: bool=false, add_classes: list(string))
+    (tag: t, ~show_tooltip: bool=false, add_classes: list(string))
     : Vdom.Node.t => {
   switch (tag) {
   | Exp =>
@@ -31,6 +39,13 @@ let term_tag_view =
       show_tooltip
         ? [Vdom.Attr.create("title", "Pattern"), classes] : [classes];
     Vdom.(Node.div(attrs, [Node.text("PAT")]));
+  | Var =>
+    let classes =
+      Vdom.Attr.classes(["term-tag", "term-tag-var", ...add_classes]);
+    let attrs =
+      show_tooltip
+        ? [Vdom.Attr.create("title", "Variable(s)"), classes] : [classes];
+    Vdom.(Node.div(attrs, [Node.text("VAR")]));
   | Typ =>
     let classes =
       Vdom.Attr.classes(["term-tag", "term-tag-typ", ...add_classes]);
