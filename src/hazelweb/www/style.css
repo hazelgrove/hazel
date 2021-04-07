@@ -74,7 +74,7 @@
   /* matrix header margin + cell width/height are duplicated in code */
   --matrix-header-margin: 2px;
   --matrix-cell-width: 100px;
-  --matrix-cell-height: 30px;
+  --matrix-cell-height: 29px;
   --matrix-add-button-size: 26px;
   --matrix-outer-grid-gap: 4px;
   --matrix-cells-padding: 1px;
@@ -1127,6 +1127,8 @@ h1 {
   overflow: overlay;
   outline: 1px solid var(--matrix-cell-border-color);
   padding: var(--matrix-cells-padding);
+  /* necessary for consistent width border, not sure why */
+  border-bottom: 1px solid var(--matrix-cell-border-color);
 }
 
 .matrix-livelit .col-header,
