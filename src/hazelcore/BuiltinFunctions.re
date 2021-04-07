@@ -13,6 +13,7 @@ let ctx: VarCtx.t = [
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
   ("assert", Arrow(Bool, Prod([]))),
+  ("weights", List(Float)),
   (
     "compute_weighted_averages",
     Arrow(
@@ -32,7 +33,7 @@ let ctx: VarCtx.t = [
   ),
   (
     "format_for_university",
-    Arrow(Prod([String, String]), Prod([String, String])),
+    Arrow(List(Prod([String, String])), List(Prod([String, String]))),
   ),
 ];
 

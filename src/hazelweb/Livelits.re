@@ -409,30 +409,47 @@ module GradeCutoffLivelitView = {
         {a, b, c, d, selecting}: BuiltinLivelits.GradeCutoffLivelitCore.model,
         trigger,
         _,
-        {dargs, _}: LivelitView.splice_and_param_getters,
+        {dargs: _, _}: LivelitView.splice_and_param_getters,
       ) => {
-    let data_opt =
-      switch (dargs) {
-      | None
-      | Some([(_, None)]) => None
-      | Some([(_, Some((d, _)))]) => Some(DHExp.strip_casts'(d))
-      | Some(l) =>
-        failwith(
-          "Invalid grade_cutoffs params: "
-          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
-        )
-      };
     /*
-     let grades = [93, 88, 75, 86, 78, 82, 67, 54, 45, 71, 69, 62, 97, 83, 85];
      let data_opt =
-       Some(
-         grades
-         |> List.fold_left(
-              (acc, g) => DHExp.Cons(IntLit(g), acc),
-              DHExp.ListNil(Int),
-            ),
-       );
+       switch (dargs) {
+       | None
+       | Some([(_, None)]) => None
+       | Some([(_, Some((d, _)))]) => Some(DHExp.strip_casts'(d))
+       | Some(l) =>
+         failwith(
+           "Invalid grade_cutoffs params: "
+           ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+         )
+       };
      */
+    let grades = [
+      93.,
+      88.,
+      75.,
+      86.,
+      78.,
+      82.,
+      67.,
+      54.,
+      45.,
+      71.,
+      69.,
+      62.,
+      97.,
+      83.,
+      85.,
+    ];
+    let data_opt =
+      Some(
+        grades
+        |> List.fold_left(
+             (acc, g) =>
+               DHExp.Cons(Pair(StringLit(""), FloatLit(g)), acc),
+             DHExp.ListNil(Float),
+           ),
+      );
     let grades_invalids_opt =
       Option.map(dhexp_to_grades_invalids([], 0), data_opt);
     let grades_svgs_invalids_opt =
