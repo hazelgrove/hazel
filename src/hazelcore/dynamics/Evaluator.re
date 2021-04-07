@@ -252,7 +252,7 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
         }
       | _ => BoxedValue(Triv)
       }
-    | "weights" => Indet(ApBuiltin(x, l))
+    // | "weights" => Indet(ApBuiltin(x, l))
     | "format_for_university" =>
       switch (l) {
       | [student_grades] => BoxedValue(student_grades)

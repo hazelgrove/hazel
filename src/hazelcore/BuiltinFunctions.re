@@ -13,7 +13,7 @@ let ctx: VarCtx.t = [
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
   ("assert", Arrow(Bool, Prod([]))),
-  ("weights", List(Float)),
+  // ("weights", List(Float)),
   (
     "compute_weighted_averages",
     Arrow(
