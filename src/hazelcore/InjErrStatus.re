@@ -1,7 +1,16 @@
-// open Sexplib.Std;
+module HoleReason = {
+  /* Variable: `reason` */
+  [@deriving sexp]
+  type t =
+    | InjectionInSyntheticPosition
+    | ExpectedTypeNotConsistentWithSums
+    | BadTag;
 
+  let eq = (x, y) => x == y;
+};
+
+/* Variable: `err` */
 [@deriving sexp]
 type t =
-  | StandardErrStatus(ErrStatus.t)
-  | InconsistentSumType(HTyp.t, MetaVar.t)
-  | InconsistentTag(Tag.t, MetaVar.t);
+  | NotInHole
+  | InHole(HoleReason.t, MetaVar.t);

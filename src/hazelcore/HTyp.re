@@ -8,7 +8,7 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(t, t)
+  | Sum(TagMap.t(option(t)))
   | Prod(list(t))
   | List(t);
 
@@ -30,7 +30,7 @@ let precedence = (ty: t): int =>
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  | Sum(_, _) => precedence_Sum
+  | Sum(_) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
@@ -50,11 +50,24 @@ let rec consistent = (x, y) =>
   | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
+  | (Sum(tys), Sum(tys')) =>
+    List.for_all2(
+      ((tag, ty_opt), (tag', ty_opt')) =>
+        Tag.eq(tag, tag')
+        && (
+          switch (ty_opt, ty_opt') {
+          | (None, None) => true
+          | (Some(ty), Some(ty')) => consistent(ty, ty')
+          | _ => false
+          }
+        ),
+      TagMap.bindings(tys),
+      TagMap.bindings(tys'),
+    )
   | (Arrow(_, _), _) => false
-  | (Sum(_, _), _) => false
+  | (Sum(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.for_all2_opt(consistent, tys1, tys2)
     |> Option.value(~default=false)
@@ -90,13 +103,6 @@ let get_prod_elements: t => list(t) =
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
-/* matched sum types */
-let matched_sum =
-  fun
-  | Hole => Some((Hole, Hole))
-  | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
-
 /* matched list types */
 let matched_list =
   fun
@@ -111,8 +117,24 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
-  | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Sum(tys) =>
+    List.for_all(
+      ((tag: Tag.t, ty_opt)) =>
+        (
+          switch (tag) {
+          | Tag(_) => true
+          | TagHole(_) => false
+          }
+        )
+        && (
+          switch (ty_opt) {
+          | Some(ty) => complete(ty)
+          | None => false
+          }
+        ),
+      TagMap.bindings(tys),
+    )
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
@@ -140,11 +162,16 @@ let rec join = (j, ty1, ty2) =>
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
+  | (Sum(tys), Sum(tys')) =>
+    Option.map(
+      joined_tys => Sum(joined_tys |> List.to_seq |> TagMap.of_seq),
+      List.fold_left2(
+        (_, _, _) => None,
+        Some([]),
+        TagMap.bindings(tys),
+        TagMap.bindings(tys'),
+      ),
+    )
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.map2_opt(join(j), tys1, tys2)
