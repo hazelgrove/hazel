@@ -1541,7 +1541,7 @@ module SliderLivelitFloatView = {
 };
 
 module DataFrameLivelitView = {
-  let name = "$data_frame";
+  let name = "$dataframe";
   let expansion_ty =
     HTyp.(Prod([List(String), List(Prod([String, List(Float)]))]));
   let param_tys = [];
