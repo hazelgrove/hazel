@@ -465,6 +465,57 @@ module VarErrHole = {
        );
 };
 
+module AssertResult = {
+  let view =
+      (
+        ~assert_map: list(AssertResult.t),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Node.t => {
+    let total_offset = offset + List.hd(subject.metrics).width;
+    let symbol =
+      switch (AssertMap.check(assert_map)) {
+      | _ => "✔"
+      };
+    Node.create_svg(
+      "assert-result",
+      [
+        Attr.classes(["AssertPass"]),
+        Attr.create("x", string_of_int(total_offset)),
+        Attr.create("y", "0"),
+        Attr.create("text-anchor", "middle"),
+        Attr.create("text-align", "middle"),
+        Attr.create("fill", "black"),
+      ],
+      [Node.text(symbol)],
+    );
+  };
+  /*
+     subject
+     |> rects(
+          ~vtrim=
+            contains_current_term
+              ? 0.0 : CurrentTerm.inline_open_child_border_height,
+          {row: 0, col: offset},
+        )
+     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+     |> SvgUtil.Path.view(
+          ~attrs=
+            Attr.[
+              switch (AssertMap.check(assert_map)) {
+              | Pass => classes(["AssertPass"])
+
+              | Fail => classes(["AssertFail"])
+
+              | Comp => classes(["AssertComp"])
+
+              | Indet => classes(["AssertIndet"])
+              },
+            ],
+        );
+   */
+};
+
 module Caret = {
   let view =
       (~font_metrics: FontMetrics.t, {row, col}: MeasuredPosition.t): Node.t => {

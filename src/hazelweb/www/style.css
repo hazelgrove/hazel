@@ -47,6 +47,7 @@
   --err-hole-z: 1;
   --verr-hole-z: 1;
   --code-text-z: 2;
+  --assert-result-z: 6;
   --caret-z: 5;
 }
 
@@ -700,17 +701,17 @@ body {
 
 /* options panel */
 
-#OptionsPanel .labeled-checkbox {
+#SettingsPanel .labeled-checkbox {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.5ch;
   align-items: center;
 }
-#OptionsPanel .indented-option {
+#SettingsPanel .indented-option {
   position: relative;
   left: 2.5ch;
 }
-#OptionsPanel label[disabled] {
+#SettingsPanel label[disabled] {
   opacity: 0.5;
 }
 
@@ -898,6 +899,9 @@ h1 {
 }
 #code-root .current-term-container {
   z-index: var(--current-term-z);
+}
+#code-root .assert-result-container {
+  z-index: var(--assert-result-z);
 }
 
 #code-root .current-term-drop-shadow.Exp {

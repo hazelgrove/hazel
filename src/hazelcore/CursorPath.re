@@ -16,13 +16,15 @@ type rev_t = (CursorPosition.t, rev_steps);
 type hole_shape =
   | TypeErr
   | VarErr
-  | Empty;
+  | Empty
+  | Assertlit;
 
 [@deriving sexp]
 type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | ExpHole(MetaVar.t, hole_shape)
+  | Assert(AssertNumber.t, hole_shape);
 
 [@deriving sexp]
 type hole_info = {

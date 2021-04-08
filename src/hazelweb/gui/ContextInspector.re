@@ -5,7 +5,7 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~selected_instance: option(HoleInstance.t),
-      ~compute_results: Model.compute_results,
+      ~settings: Settings.Evaluation.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -52,9 +52,7 @@ let view =
               [
                 DHCode.view(
                   ~inject,
-                  ~show_fn_bodies=false,
-                  ~show_case_clauses=false,
-                  ~show_casts=compute_results.show_casts,
+                  ~settings,
                   ~selected_instance,
                   ~width=30,
                   d,
@@ -99,6 +97,7 @@ let view =
                     ~inject,
                     ~width=30,
                     ~selected_instance,
+                    ~settings,
                     inst,
                   ),
                 ],
@@ -203,6 +202,7 @@ let view =
               ~inject,
               ~width=30,
               ~selected_instance,
+              ~settings,
               inst,
             ),
           ],
@@ -248,6 +248,7 @@ let view =
                     ~inject,
                     ~width=30,
                     ~selected_instance,
+                    ~settings,
                     inst,
                   ),
                 ],
@@ -278,7 +279,7 @@ let view =
       |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
-      if (compute_results.compute_results) {
+      if (settings.evaluate) {
         let (_, hii, _) = fst(program |> Program.get_result);
         switch (selected_instance) {
         | None => Elaborator_Exp.id_env(ctx)
@@ -317,7 +318,7 @@ let view =
    * Shows the `InstancePath` to the currently selected instance.
    */
   let path_viewer =
-    if (compute_results.compute_results) {
+    if (settings.evaluate) {
       let ctx =
         program
         |> Program.get_cursor_info
