@@ -82,7 +82,8 @@ let decoration_cls: UHDecorationShape.t => string =
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
-  | CurrentTerm => "current-term";
+  | CurrentTerm => "current-term"
+  | AssertResult(_) => "assert-result";
 
 let decoration_view =
     (
@@ -99,6 +100,7 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    | AssertResult(lst) => AssertResult.view(~assert_map=lst)
     }
   );
 
@@ -151,6 +153,13 @@ let decoration_views =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let cls = decoration_cls(dshape);
+               print_endline("current");
+               print_endline(
+                 Sexplib.Sexp.to_string(UHDecorationShape.sexp_of_t(dshape)),
+               );
+               /*print_endline(
+                   Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
+                 );*/
                let view =
                  decoration_view(
                    ~contains_current_term=Option.is_some(dpaths.current_term),
@@ -273,31 +282,6 @@ let rec view_of_box = (program: Program.t, box: UHBox.t): list(Vdom.Node.t) => {
           ];
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | AssertNum({num}) =>
-          let assert_map = snd(Program.get_result(program));
-          switch (AssertMap.lookup(num, assert_map)) {
-          | Some(a) =>
-            switch (AssertMap.check(a)) {
-            | Pass => [
-                Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
-              ]
-
-            | Fail => [
-                Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
-              ]
-
-            | Comp => [
-                Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
-              ]
-
-            | Indet => [
-                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
-              ]
-            }
-          | None => [
-              Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
-            ]
-          };
         | _ => vs
         };
       }
@@ -314,37 +298,29 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~measure: bool,
       ~is_mac: bool,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
-      let l =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=false,
-          program,
-        );
+
+      let l = Program.get_layout(~settings, program);
 
       let code_text = view_of_box(program, UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
+        print_endline(
+          Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
+        );
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
+        let caret_pos = Program.get_caret_position(~settings, program);
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };

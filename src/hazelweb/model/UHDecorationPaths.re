@@ -5,8 +5,8 @@ type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  current_term: option(CursorPath.t),
   assert_results: list((CursorPath.steps, list(AssertResult.t))),
+  current_term: option(CursorPath.t),
 };
 
 let is_empty = (dpaths: t): bool =>
@@ -16,7 +16,7 @@ let is_empty = (dpaths: t): bool =>
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+  let {err_holes, var_err_holes, var_uses, assert_results, current_term} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -28,11 +28,29 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term};
+  let remove_pair =
+    fun
+    | (steps, lst) =>
+      switch (steps) {
+      | [step', ...stepd] when step == step' => Some((stepd, lst))
+      | _ => None
+      };
+  let assert_results = assert_results |> List.filter_map(remove_pair);
+  {err_holes, var_err_holes, var_uses, assert_results, current_term};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let is_current = steps =>
+    switch (shape) {
+    | SubBlock({hd_index, _}) => steps == [hd_index]
+    | NTuple({comma_indices, _}) =>
+      List.exists(n => steps == [n], comma_indices)
+    | BinOp({op_index, _}) => steps == [op_index]
+    | Operand
+    | Case
+    | Rule => steps == []
+    };
+  let is_current_pair = ((steps, _)) =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
@@ -64,5 +82,16 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
-};
+  let assert_results =
+    dpaths.assert_results
+    |> List.find_opt(is_current_pair)  // findopt for pair case
+    |> Option.map(((_, lst)) => UHDecorationShape.AssertResult(lst))
+    |> Option.to_list;
+  List.concat([
+    err_holes,
+    var_err_holes,
+    var_uses,
+    assert_results,
+    current_term,
+  ]);
+} /*taking precedent on the current term*/;
