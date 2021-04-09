@@ -85,7 +85,7 @@ let decoration_views =
             ),
           );
           let current_vs =
-            decoration_container(
+            Decoration_common.container(
               ~font_metrics,
               ~height=Lazy.force(height),
               ~width=Lazy.force(width),
