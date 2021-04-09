@@ -70,14 +70,7 @@ let rec mk =
                hcats([text(","), choices([linebreak(), space()])]),
              ),
         );
-      (
-        hcats([
-          mk_delim("["),
-          center,
-          mk_delim(close),
-        ]),
-        parenthesize,
-      );
+      (hcats([mk_delim("["), center, mk_delim(close)]), parenthesize);
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
