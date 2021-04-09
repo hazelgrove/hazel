@@ -6,77 +6,6 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-/**
- * A buffered container for SVG elements so that strokes along
- * the bounding box of the elements do not get clipped by the
- * viewBox boundaries
- */
-let decoration_container =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~origin: MeasuredPosition.t,
-      ~height: int,
-      ~width: int,
-      ~cls: string,
-      svgs: list(Vdom.Node.t),
-    )
-    : Vdom.Node.t => {
-  let buffered_height = height + 1;
-  let buffered_width = width + 1;
-
-  let buffered_height_px =
-    Float.of_int(buffered_height) *. font_metrics.row_height;
-  let buffered_width_px =
-    Float.of_int(buffered_width) *. font_metrics.col_width;
-
-  let container_origin_x =
-    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
-  let container_origin_y =
-    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
-
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes([
-          "decoration-container",
-          Printf.sprintf("%s-container", cls),
-        ]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "top: calc(%fpx - 1px); left: %fpx;",
-            container_origin_x,
-            container_origin_y,
-          ),
-        ),
-      ],
-      [
-        Node.create_svg(
-          "svg",
-          [
-            Attr.classes([cls]),
-            Attr.create(
-              "viewBox",
-              Printf.sprintf(
-                "-0.5 -0.5 %d %d",
-                buffered_width,
-                buffered_height,
-              ),
-            ),
-            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-            Attr.create(
-              "height",
-              Printf.sprintf("%fpx", buffered_height_px),
-            ),
-            Attr.create("preserveAspectRatio", "none"),
-          ],
-          svgs,
-        ),
-      ],
-    )
-  );
-};
-
 let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
@@ -105,11 +34,7 @@ let decoration_view =
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
-  let corner_radius = 2.5;
-  let corner_radii = (
-    corner_radius /. font_metrics.col_width,
-    corner_radius /. font_metrics.row_height,
-  );
+  let corner_radii = Decoration_common.corner_radii(font_metrics);
 
   let rec go =
           (
@@ -187,7 +112,7 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               decoration_container(
+               Decoration_common.container(
                  ~font_metrics,
                  ~height=MeasuredLayout.height(m),
                  ~width=MeasuredLayout.width(~offset, m),

@@ -5,6 +5,8 @@ module HoleReason = {
     | TypeInconsistent
     | WrongLength
     | OperatorError(OperatorErrStatus.HoleReason.t);
+
+  let eq = (x, y) => x == y;
 };
 
 /* Variable: `err` */
@@ -12,3 +14,12 @@ module HoleReason = {
 type t =
   | NotInHole
   | InHole(HoleReason.t, MetaVar.t);
+
+let make_recycled_InHole: (t, HoleReason.t, MetaVarGen.t) => (t, MetaVarGen.t) =
+  (err, reason, u_gen) =>
+    switch (err) {
+    | NotInHole =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (InHole(reason, u), u_gen);
+    | InHole(_, u) => (InHole(reason, u), u_gen)
+    };
