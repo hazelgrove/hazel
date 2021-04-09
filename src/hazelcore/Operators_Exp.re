@@ -127,3 +127,9 @@ let rec associativity =
     }
   | UserOp(op) => associativity(operator_of_char(op.[0]))
   | _ => Associativity.Left;
+
+let delete_var_yields_op = (pos, x) =>
+  string_to_operator(StringUtil.delete(pos, x));
+
+let backspace_var_yields_op = (pos, x) =>
+  string_to_operator(StringUtil.backspace(pos, x));

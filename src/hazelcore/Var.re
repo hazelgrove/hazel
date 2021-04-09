@@ -24,7 +24,9 @@ let is_exp_operator = s => {
 };
 
 let is_incomplete_operator = s => {
-  is_operator(s) && !Re.Str.string_match(valid_complete_operator_regex, s, 0);
+  is_operator(s)
+  && s != "_"
+  && !Re.Str.string_match(valid_complete_operator_regex, s, 0);
 };
 
 let is_valid = s => {
