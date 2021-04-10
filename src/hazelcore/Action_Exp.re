@@ -2766,8 +2766,8 @@ and ana_perform_operand =
     Failed
 
   | _ when ZExp.is_inconsistent(zoperand) =>
-    let err = zoperand |> ZExp.get_err_status_zoperand;
     let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
+    let err = ZExp.get_err_status_zoperand(zoperand);
     let operand' = zoperand' |> ZExp.erase_zoperand;
     switch (Statics_Exp.syn_operand(ctx, operand')) {
     | None => Failed
@@ -2796,10 +2796,13 @@ and ana_perform_operand =
           Succeeded(AnaDone((ze', u_gen)));
         } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
                    && HTyp.get_prod_arity(ty) > 1) {
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
+          let (err, u_gen) =
+            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
+          let new_ze = ze' |> ZExp.set_err_status(err);
           Succeeded(AnaDone((new_ze, u_gen)));
         } else {
+          let (err, u_gen) =
+            ErrStatus.make_recycled_InHole(err, TypeInconsistent, u_gen);
           let new_ze = ze' |> ZExp.set_err_status(err);
           Succeeded(AnaDone((new_ze, u_gen)));
         }
@@ -3127,12 +3130,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      let ty1 =
-        switch (Statics_Pat.syn(ctx, p)) {
-        | Some((ty_p, _)) => ty_p
-        | None => ty1_given
-        };
-      switch (Statics_Pat.ana(ctx, p, ty1)) {
+      switch (Statics_Pat.ana(ctx, p, ty1_given)) {
       | None => Failed
       | Some(ctx_body) =>
         switch (ana_perform(ctx_body, a, (zbody, u_gen), ty2)) {
@@ -3148,7 +3146,7 @@ and ana_perform_operand =
           let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
           Succeeded(AnaDone((new_ze, u_gen)));
         }
-      };
+      }
     }
   | (_, InjZ(_, side, zbody)) =>
     switch (HTyp.matched_sum(ty)) {

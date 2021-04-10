@@ -108,6 +108,7 @@ type typed =
   /* cursor in type position */
   | OnType(bool)
   /* (we will have a richer structure here later)*/
+  | OnLetLine(HTyp.t)
   | OnLine
   | OnRule;
 

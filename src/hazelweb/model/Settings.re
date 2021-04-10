@@ -128,6 +128,7 @@ module CursorInspector = {
     type_assist_var: bool,
     type_assist_fun: bool,
     type_assist_branch: bool,
+    type_assist_new_var: bool,
     type_assist_other: bool,
     type_assist_prim_ty: bool,
     type_assist_comp_ty: bool,
@@ -141,12 +142,13 @@ module CursorInspector = {
   let init = {
     visible: true,
     show_expanded: false,
-    novice_mode: false,
+    novice_mode: true,
     type_assist: false,
     type_assist_lit: false,
     type_assist_var: false,
     type_assist_fun: false,
     type_assist_branch: false,
+    type_assist_new_var: false,
     type_assist_other: false,
     type_assist_prim_ty: false,
     type_assist_comp_ty: false,
@@ -174,7 +176,9 @@ module CursorInspector = {
     | Toggle_type_assist_comp_filled_ty
     | Toggle_type_assist_func_filled_ty
     | Toggle_type_assist_pat_filled_ty
-    | Toggle_type_assist_new_type_filled_ty;
+    | Toggle_type_assist_new_type_filled_ty
+    | Toggle_type_assist_new_var
+    | Toggle_type_assist_other;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -200,6 +204,10 @@ module CursorInspector = {
     | Toggle_type_assist_branch => {
         ...settings,
         type_assist_branch: !settings.type_assist_branch,
+      }
+    | Toggle_type_assist_new_var => {
+        ...settings,
+        type_assist_new_var: !settings.type_assist_new_var,
       }
     | Toggle_type_assist_other => {
         ...settings,
