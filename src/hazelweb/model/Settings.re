@@ -177,8 +177,7 @@ module CursorInspector = {
     | Toggle_type_assist_func_filled_ty
     | Toggle_type_assist_pat_filled_ty
     | Toggle_type_assist_new_type_filled_ty
-    | Toggle_type_assist_new_var
-    | Toggle_type_assist_other;
+    | Toggle_type_assist_new_var;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {

@@ -670,13 +670,13 @@ let lines_view = () => {
 
 let get_shortcut = (typ: HTyp.t) => {
   switch (typ) {
-  | HTyp.Int => ""
-  | HTyp.Float => ""
-  | HTyp.Bool => ""
-  | HTyp.List(_) => "(enter [)"
-  | HTyp.Sum(_, _) => "(enter |)"
-  | HTyp.Prod(_) => "(enter ,)"
-  | HTyp.Arrow(_, _) => "(enter >)"
+  | HTyp.Int => "I"
+  | HTyp.Float => "F"
+  | HTyp.Bool => "B"
+  | HTyp.List(_) => "["
+  | HTyp.Sum(_, _) => "|"
+  | HTyp.Prod(_) => "("
+  | HTyp.Arrow(_, _) => ">"
   | _ => raise(Invalid_argument("Invalid HTyp"))
   };
 };
@@ -686,16 +686,16 @@ let list_primitives_view = () => {
   let primitive_options =
     [HTyp.Int, HTyp.Float, HTyp.Bool]
     |> List.map(s => {
+         let enter_msg = s == HTyp.Int ? "Enter an " : "Enter a ";
          Node.div(
            [Attr.classes(["option"])],
            [
+             Node.text(enter_msg),
              Node.text(type_to_str(Some(s))),
-             Node.text(" "),
-             Node.text(get_shortcut(s)),
-             Node.text(": "),
-             HTypCode.view(s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
            ],
-         )
+         );
        });
   primitive_options;
 };
@@ -712,11 +712,12 @@ let list_compounds_view = () => {
          Node.div(
            [Attr.classes(["option"])],
            [
+             Node.text("Enter a "),
              Node.text(type_to_str(Some(s))),
-             Node.text(" "),
-             Node.text(get_shortcut(s)),
              Node.text(": "),
              HTypCode.view(~strategy_guide=true, s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
            ],
          )
        });
@@ -731,23 +732,16 @@ let list_function_view = () => {
          Node.div(
            [Attr.classes(["option"])],
            [
+             Node.text("Enter a "),
              Node.text(type_to_str(Some(s))),
-             Node.text(" "),
-             Node.text(get_shortcut(s)),
              Node.text(": "),
              HTypCode.view(s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
            ],
          )
        });
   function_options;
-};
-
-let get_filled_shortcut = (typ: HTyp.t) => {
-  switch (typ) {
-  | HTyp.List(_) => "(enter [)"
-  | HTyp.Prod(_) => "(enter ()"
-  | _ => raise(Invalid_argument("Invalid HTyp"))
-  };
 };
 
 let list_compounds_filled_view = () => {
@@ -758,11 +752,12 @@ let list_compounds_filled_view = () => {
          Node.div(
            [Attr.classes(["option"])],
            [
+             Node.text("Create a "),
              Node.text(type_to_str(Some(s))),
-             Node.text(" "),
-             Node.text(get_filled_shortcut(s)),
              Node.text(": "),
              HTypCode.view(~strategy_guide=true, s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
            ],
          )
        });
@@ -772,8 +767,31 @@ let list_compounds_filled_view = () => {
 let list_pat_filled_view = () => {
   open Vdom;
   let function_options =
-    Node.div([Attr.classes(["option"])], [Node.text("Enter ,")]);
+    Node.div(
+      [Attr.classes(["option"])],
+      [Node.text("Create a PAT tuple "), fill_space, shortcut_node(",")],
+    );
   [function_options];
+};
+
+let list_function_filled_view = () => {
+  open Vdom;
+  let function_options =
+    [HTyp.Arrow(HTyp.Hole, HTyp.Hole)]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text("Create a "),
+             Node.text(type_to_str(Some(s))),
+             Node.text(": "),
+             HTypCode.view(s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         )
+       });
+  function_options;
 };
 
 let filled_type_view =
@@ -839,7 +857,10 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Convert to a compound type"), compound_filled_arrow],
+        [
+          Node.text("Is converting to a compound type what you need?"),
+          compound_filled_arrow,
+        ],
       )
     );
 
@@ -882,7 +903,10 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Convert to a function type"), func_filled_arrow],
+        [
+          Node.text("Is converting to a function type what you need?"),
+          func_filled_arrow,
+        ],
       )
     );
   let func_filled_body =
@@ -890,7 +914,12 @@ let filled_type_view =
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
         [
-          Vdom.(Node.div([Attr.classes(["options"])], list_function_view())),
+          Vdom.(
+            Node.div(
+              [Attr.classes(["options"])],
+              list_function_filled_view(),
+            )
+          ),
         ],
       )
     );
@@ -919,7 +948,7 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Create PAT tuple"), pat_filled_arrow],
+        [Node.text("Do you want to create a pattern?"), pat_filled_arrow],
       )
     );
   let pat_filled_body =
@@ -959,7 +988,10 @@ let filled_type_view =
             ])
           ),
         ],
-        [Node.text("Add to tuple"), new_type_filled_arrow],
+        [
+          Node.text("Do you want to add another type?"),
+          new_type_filled_arrow,
+        ],
       )
     );
 
@@ -974,7 +1006,11 @@ let filled_type_view =
               [
                 Node.div(
                   [Attr.classes(["option"])],
-                  [Node.text("Enter ,")],
+                  [
+                    Node.text("Add another type"),
+                    fill_space,
+                    shortcut_node(","),
+                  ],
                 ),
               ],
             )
@@ -1065,7 +1101,7 @@ let type_view =
             ])
           ),
         ],
-        [Node.text("Fill with a Primitive type"), primitive_arrow],
+        [Node.text("Is a Primitive type what you need?"), primitive_arrow],
       )
     );
   let primitive_body =
@@ -1104,7 +1140,7 @@ let type_view =
             ])
           ),
         ],
-        [Node.text("Fill with a Compound type"), compound_arrow],
+        [Node.text("Is a Compound type what you need?"), compound_arrow],
       )
     );
   let compound_body =
@@ -1143,7 +1179,7 @@ let type_view =
             ])
           ),
         ],
-        [Node.text("Fill with a Function type"), func_arrow],
+        [Node.text("Is a Function type what you need?"), func_arrow],
       )
     );
   let func_body =

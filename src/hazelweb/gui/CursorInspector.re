@@ -738,7 +738,7 @@ let view =
     | (true, Some(ind)) => [summary, ...ind]
     | _ => [summary]
     };
-/* TODO need to make sure lightbulb shows up when needs to */
+  /* TODO need to make sure lightbulb shows up when needs to */
   let content =
     if (cursor_inspector.type_assist) {
       switch (cursor_info.cursor_term) {
@@ -759,21 +759,21 @@ let view =
         | None => content
         | Some(sg_rules) => List.append(content, [sg_rules])
         }
-      | Typ(_, Hole) => 
+      | Typ(_, Hole) =>
         List.append(
-            content,
-            [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
+          content,
+          [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
         )
       | Typ(_, _) =>
         List.append(
-            content,
-            [
-                StrategyGuide.filled_type_view(
-                    ~inject,
-                    cursor_inspector,
-                    cursor_info,
-                ),
-            ],
+          content,
+          [
+            StrategyGuide.filled_type_view(
+              ~inject,
+              cursor_inspector,
+              cursor_info,
+            ),
+          ],
         )
       | Line(_) =>
         /* TODO: Make work in general? */
