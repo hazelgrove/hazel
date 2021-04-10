@@ -253,7 +253,7 @@ let structure_msg = (ty: HTyp.t) => {
   | Prod(_) => [prod_pat]
   | List(_) => [list_pat, list_lit_pat]
   | Sum(_) => [sum_pat]
-  | _ => []
+  | _ => [option([Vdom.Node.text("No suggestions.")])]
   };
 };
 
@@ -874,5 +874,81 @@ let pat_hole_view =
     };
 
   type_driven(body);
-  /* Vdom.(Node.div([Attr.classes(["type-driven"])], body)); */
+};
+
+let var_hole_view =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+    ) => {
+  let any_open = cursor_inspector.type_assist_any;
+
+  let ty = get_type(cursor_info);
+
+  let typ =
+    switch (ty) {
+    | Some(my_ty) => my_ty
+    | None => raise(Invalid_argument("Should have a type..."))
+    };
+
+  let subsection_header = (setting, text, open_section) => {
+    let subsection_arrow =
+      if (open_section) {
+        Icons.down_arrow(["fill-arrow"]);
+      } else {
+        Icons.left_arrow(["fill-arrow"]);
+      };
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ => {
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+            ])
+          }),
+        ],
+        [Node.text(text), subsection_arrow],
+      )
+    );
+  };
+
+  let fill_hole_msg =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+        [
+          Node.div(
+            [Attr.classes(["words"])],
+            [Node.text("Which strategy do you want to try?")],
+          ),
+        ],
+      )
+    );
+
+  let any_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_any_view(typ)));
+  let any =
+    subsection_header(
+      Toggle_type_assist_any,
+      "Match with anything",
+      any_open,
+    );
+  let any_body =
+    Vdom.(
+      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view])
+    );
+
+  let body = [];
+  let body =
+    if (any_open) {
+      body @ [fill_hole_msg, any, any_body];
+    } else {
+      body @ [fill_hole_msg, any];
+    };
+
+  type_driven(body);
 };

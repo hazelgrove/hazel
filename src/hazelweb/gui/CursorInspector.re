@@ -726,11 +726,22 @@ let view =
             ),
           ],
         )
-      | Pat(_, EmptyHole(_), _) =>
+      | Pat(_, EmptyHole(_), Case) =>
         List.append(
           content,
           [
             StrategyGuide.pat_hole_view(
+              ~inject,
+              cursor_inspector,
+              cursor_info,
+            ),
+          ],
+        )
+      | Pat(_, EmptyHole(_), Var) =>
+        List.append(
+          content,
+          [
+            StrategyGuide.var_hole_view(
               ~inject,
               cursor_inspector,
               cursor_info,
