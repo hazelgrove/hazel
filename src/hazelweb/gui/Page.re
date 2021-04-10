@@ -165,6 +165,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~selected_instance,
                     ~settings=settings.evaluation,
                     ~width=80,
+                    ~font_metrics=model.font_metrics,
                     settings.evaluation.show_unevaluated_expansion
                       ? program |> Program.get_expansion
                       : program |> Program.get_result |> Result.get_dhexp,
@@ -247,6 +248,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~inject,
                     ~selected_instance,
                     ~settings=settings.evaluation,
+                    ~font_metrics=model.font_metrics,
                     program,
                   ),
                   UndoHistoryPanel.view(~inject, model),

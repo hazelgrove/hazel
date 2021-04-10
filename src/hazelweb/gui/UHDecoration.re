@@ -3,42 +3,6 @@ open Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-type rects = list(SvgUtil.Rect.t);
-
-let rects =
-    (~vtrim=0.0, start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
-  let mk_rect =
-      (
-        ~is_first=false,
-        ~is_last=false,
-        start: MeasuredPosition.t,
-        box: MeasuredLayout.box,
-      ) =>
-    SvgUtil.Rect.{
-      min: {
-        x: Float.of_int(start.col),
-        y: Float.of_int(start.row) +. (is_first ? vtrim : 0.0),
-      },
-      width: Float.of_int(box.width),
-      height:
-        Float.of_int(box.height)
-        -. (is_first ? vtrim : 0.0)
-        -. (is_last ? vtrim : 0.0),
-    };
-  let n = List.length(m.metrics);
-  m.metrics
-  |> List.mapi((i, box) => (i, box))
-  |> ListUtil.map_with_accumulator(
-       (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
-         (
-           {row: start.row + box.height, col: 0},
-           mk_rect(~is_first=i == 0, ~is_last=i == n - 1, start, box),
-         ),
-       start,
-     )
-  |> snd;
-};
-
 module VarUse = {
   let view =
       (
@@ -47,7 +11,7 @@ module VarUse = {
       )
       : Node.t =>
     subject
-    |> rects({row: 0, col: offset})
+    |> Decoration_common.rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
     |> SvgUtil.Path.view(
          ~attrs=
@@ -64,7 +28,8 @@ module CurrentTerm = {
   let tessera_margin = 0.03; // y units
 
   let inline_open_child_rects =
-      (start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
+      (start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+      : list(SvgUtil.Rect.t) => {
     // TODO relax assumption
     assert(MeasuredLayout.height(m) == 1);
     // make singleton skinny rect along bottom
@@ -91,7 +56,7 @@ module CurrentTerm = {
         start: MeasuredPosition.t,
         m: UHMeasuredLayout.t,
       )
-      : rects => {
+      : list(SvgUtil.Rect.t) => {
     let overflow_left =
       overflow_left ? multiline_open_child_border_width : 0.0;
     [
@@ -197,20 +162,26 @@ module CurrentTerm = {
   // highlighted tesserae (ignoring closed children)
   let current_term_tessera_rects =
       (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
-      : rects =>
+      : list(SvgUtil.Rect.t) =>
     subject
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) =>
+           (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, Tessera) => rects(~vtrim=tessera_margin, start, m)
+             | (_, Tessera) =>
+               Decoration_common.rects(
+                 ~indent,
+                 ~vtrim=tessera_margin,
+                 start,
+                 m,
+               )
              | _ => []
              },
        );
@@ -218,16 +189,16 @@ module CurrentTerm = {
   // closed child "cutouts" from highlighted tesserae
   let current_term_closed_child_rects =
       (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
-      : list((TermSort.t, rects)) =>
+      : list((TermSort.t, list(SvgUtil.Rect.t))) =>
     subject
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rss) => rss,
          ~cat=(_, rss1, rss2) => rss1 @ rss2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) =>
+           (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
              // hack for case and subblocks
              // TODO remove when we have tiles
@@ -235,7 +206,10 @@ module CurrentTerm = {
              | (Case, Term({shape: Rule, _})) => go(m)
              | (_, Tessera) => go(m)
              | (_, ClosedChild({sort, _})) => [
-                 (sort, rects(~vtrim=0.1, start, m)),
+                 (
+                   sort,
+                   Decoration_common.rects(~indent, ~vtrim=0.1, start, m),
+                 ),
                ]
              | _ => []
              },
@@ -244,7 +218,7 @@ module CurrentTerm = {
   // highlighted borders of open children
   let current_term_open_child_rects =
       (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
-      : rects => {
+      : list(SvgUtil.Rect.t) => {
     let has_multiline_open_child =
       subject
       |> MeasuredLayout.fold(
@@ -267,10 +241,10 @@ module CurrentTerm = {
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
          ~text=(_, _) => [],
-         ~align=(_, _) => [],
+         ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
          ~annot=
-           (go, start, annot: UHAnnot.t, m) => {
+           (~go, ~indent as _, ~start, annot: UHAnnot.t, m) => {
              // some tesserae need to be padded on left side to form
              // a straight edge with borders of neighboring multiline
              // open children
@@ -301,8 +275,10 @@ module CurrentTerm = {
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
              | (_, OpenChild(InlineWithBorder)) =>
+               // TODO(d) specify indent?
                inline_open_child_rects(start, m)
              | (_, OpenChild(Multiline)) =>
+               // TODO(d) specify indent?
                multiline_open_child_rects(
                  ~overflow_left=overflow_left(shape),
                  ~vtrim_bot=start.row == subject_height - 1,
@@ -374,14 +350,19 @@ module CurrentTerm = {
     let closed_children =
       (offset, subject)
       |> current_term_closed_child_rects(~shape)
-      |> List.map(((sort, rs)) =>
+      |> List.map(((sort, rs: list(SvgUtil.Rect.t))) => {
+           let max_width =
+             rs
+             |> List.map((r: SvgUtil.Rect.t) => r.width)
+             |> List.fold_left(max, 0.);
            rs
+           |> List.map(r => SvgUtil.Rect.{...r, width: max_width})
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
            |> SvgUtil.Path.view(
                 ~attrs=
                   Attr.[classes(["code-closed-child", sort_cls(sort)])],
-              )
-         );
+              );
+         });
     let outer_filter =
       Node.create_svg(
         "filter",
@@ -416,53 +397,35 @@ module CurrentTerm = {
 };
 
 module ErrHole = {
-  let view =
-      (
-        ~contains_current_term: bool,
-        ~corner_radii: (float, float),
-        (offset, subject): UHMeasuredLayout.with_offset,
-      )
-      : Node.t =>
-    subject
-    |> rects(
-         ~vtrim=
-           contains_current_term
-             ? 0.0 : CurrentTerm.inline_open_child_border_height,
-         {row: 0, col: offset},
-       )
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Attr.[
-             classes(["err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
+  let view:
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    (~contains_current_term) =>
+      Decoration_common.ErrHole.view(
+        ~vtrim=
+          contains_current_term
+            ? 0.0 : CurrentTerm.inline_open_child_border_height,
+      );
 };
 
 module VarErrHole = {
-  let view =
-      (
-        ~contains_current_term: bool,
-        ~corner_radii: (float, float),
-        (offset, subject): UHMeasuredLayout.with_offset,
-      )
-      : Node.t =>
-    subject
-    |> rects(
-         ~vtrim=
-           contains_current_term
-             ? 0.0 : CurrentTerm.inline_open_child_border_height,
-         {row: 0, col: offset},
-       )
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Attr.[
-             classes(["var-err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
+  let view:
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    (~contains_current_term) =>
+      Decoration_common.VarErrHole.view(
+        ~vtrim=
+          contains_current_term
+            ? 0.0 : CurrentTerm.inline_open_child_border_height,
+      );
 };
 
 module Caret = {
