@@ -23,18 +23,22 @@ let is_exp_operator = s => {
   && String.length(s) > 0;
 };
 
-let is_incomplete_operator = s => {
-  is_operator(s)
-  && s != "_"
-  && !Re.Str.string_match(valid_complete_operator_regex, s, 0);
-};
-
 let is_valid = s => {
   Re.Str.string_match(valid_var_regex, s, 0) || is_operator(s);
 };
 
 let is_valid_operator = s => {
   Re.Str.string_match(valid_operator_regex, s, 0);
+};
+
+let is_complete_operator = s => {
+  Re.Str.string_match(valid_complete_operator_regex, s, 0);
+};
+
+let is_incomplete_operator = s => {
+  is_operator(s)
+  && s != "_"
+  && !Re.Str.string_match(valid_operator_regex, s, 0);
 };
 
 /* helper function for guarding options with is_valid */
@@ -70,3 +74,5 @@ let split = (pos, name) => {
 };
 
 let surround_underscore = s => "_" ++ s ++ "_";
+
+let remove_underscores = s => String.sub(s, 0, String.length(s) - 1);

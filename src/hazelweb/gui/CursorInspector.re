@@ -128,7 +128,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
-
+  let got_reserved_operator_indicator = 
+    got_indicator("Got a reserved operator variable", typebar(HTyp.Hole));
+    
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
