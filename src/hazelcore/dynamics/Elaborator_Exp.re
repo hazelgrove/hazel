@@ -2,7 +2,9 @@
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
   | BoundVar(y) =>
-    if (Var.eq(x, y)) {
+    if (Var.is_operator(x) && Var.eq(Var.surround_underscore(y), x)) {
+      d1;
+    } else if (Var.eq(x, y)) {
       d1;
     } else {
       d2;
@@ -59,6 +61,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | FreeUserOp(u, i, sigma, op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    FreeUserOp(u, i, sigma, op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -152,6 +158,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
+  | (_, FreeUserOp(_, _, _, _, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -296,6 +303,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -361,6 +369,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -432,6 +441,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -679,6 +689,67 @@ and syn_elab_skel =
         };
       }
     }
+  | BinOp(InHole(OperatorError(_), u), UserOp(op), skel1, skel2) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let delta =
+      MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+
+    switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1', delta) =>
+      switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2', delta) =>
+        let dc1 = DHExp.cast(d1, ty1', Hole);
+        let dc2 = DHExp.cast(d2, ty2', Hole);
+        let d = DHExp.FreeUserOp(u, 0, sigma, op, dc1, dc2);
+
+        Elaborates(d, Hole, delta);
+      }
+    };
+  | BinOp(InHole(OperatorError(_), u), _, _, _) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let d = DHExp.EmptyHole(u, 0, sigma);
+    Elaborates(d, Hole, delta);
+  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+    switch (VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))) {
+    | None => DoesNotElaborate
+    | Some(ty) =>
+      switch (HTyp.matched_two_ary_arrow(ty)) {
+      | Some((ty_left, (ty_right, ty_out))) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty_left)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(dleft, ty_left', delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty_right)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(dright, ty_right', delta) =>
+            let cop =
+              DHExp.cast(
+                DHExp.BoundVar(op),
+                ty,
+                Arrow(ty_left', Arrow(Hole, ty_out)),
+              );
+
+            let dop_left = DHExp.Ap(cop, dleft);
+
+            let dcop_left =
+              DHExp.cast(
+                dop_left,
+                Arrow(Hole, ty_out),
+                HTyp.Arrow(ty_right', ty_out),
+              );
+
+            let dcop = DHExp.Ap(dcop_left, dright);
+
+            Elaborates(dcop, ty_out, delta);
+          }
+        }
+      | _ => DoesNotElaborate
+      }
+    }
+
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -721,15 +792,16 @@ and syn_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
+  | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
+    DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -782,6 +854,11 @@ and syn_elab_operand =
     | Some(ty) => Elaborates(BoundVar(x), ty, delta)
     | None => DoesNotElaborate
     };
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _) =>
+    // TODO: Could possibly elaborate reserved operator variables to
+    //       their corresponding function. For example, _+_ could elaborate
+    //       to \x.\y.x+y in gamma
+    DoesNotElaborate
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -791,6 +868,8 @@ and syn_elab_operand =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | ReservedOperator =>
+        failwith("reserved operator variables should elaborate normally")
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -1023,7 +1102,7 @@ and ana_elab_opseq =
     } else {
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(TypeInconsistent | OperatorError(_), _) => DoesNotElaborate
       | InHole(WrongLength as reason, u) =>
         switch (
           syn_elab_opseq(
@@ -1091,6 +1170,7 @@ and ana_elab_skel =
         };
       }
     }
+  | BinOp(InHole(OperatorError(_), _), _, _, _)
   | BinOp(
       _,
       Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
@@ -1102,7 +1182,8 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
@@ -1149,21 +1230,23 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(d, e_ty, delta);
     }
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Lam(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | OperatorError(_), _)), _, _)
+  | ApPalette(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _) => DoesNotElaborate
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1172,6 +1255,8 @@ and ana_elab_operand =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
       | Keyword(k) => Keyword(u, 0, sigma, k)
+      | ReservedOperator =>
+        failwith("reserved operator variables should elaborate normally")
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
@@ -1329,6 +1414,11 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | FreeUserOp(u, _, sigma, op, d1, d2) =>
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (FreeUserOp(u, i, sigma, op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1427,6 +1517,12 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | FreeUserOp(u, i, sigma, op, d1, d2) =>
+    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (FreeUserOp(u, i, sigma, op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);

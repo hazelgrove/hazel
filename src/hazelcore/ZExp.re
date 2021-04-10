@@ -66,7 +66,9 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
-  | _ => [OnOp(Before), OnOp(After)];
+  | op =>
+    CursorPosition.text_cursors(Var.length(Operators_Exp.to_string(op)))
+    @ [OnOp(Before), OnOp(After)];
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   fun
   /* outer nodes - delimiter */
@@ -285,6 +287,11 @@ and is_outer_zoperand =
   | CaseZR(_)
   | ApPaletteZ(_) => false;
 
+let is_operator_var =
+  fun
+  | CursorE(OnText(_), Var(_, _, x)) => Var.is_operator(x)
+  | _ => false;
+
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
   fun
@@ -369,10 +376,12 @@ let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHExp.operator): option(zoperator) =>
   is_valid_cursor_operator(cursor, operator)
     ? Some((cursor, operator)) : None;
+
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)
     ? Some(CursorE(cursor, operand)) : None;
+
 let place_cursor_line =
     (cursor: CursorPosition.t, line: UHExp.line): option(zline) =>
   switch (line) {
@@ -526,22 +535,43 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
   /* not in hole */
-  | LamZP(NotInHole | InHole(WrongLength, _), _, _)
-  | LamZE(NotInHole | InHole(WrongLength, _), _, _)
-  | InjZ(NotInHole | InHole(WrongLength, _), _, _)
+  | LamZP(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | LamZE(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | InjZ(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
   | CaseZE(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
   | CaseZR(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPaletteZ(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
@@ -633,7 +663,12 @@ and move_cursor_left_zoperator =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
-  | (OnOp(After), op) => Some((OnOp(Before), op))
+  | (OnOp(After), op) =>
+    switch (op) {
+    | UserOp(sym) when String.length(sym) > 1 =>
+      Some((OnText(String.length(sym) - 1), op))
+    | _ => Some((OnOp(Before), op))
+    }
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None

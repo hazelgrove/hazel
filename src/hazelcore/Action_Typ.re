@@ -13,6 +13,7 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   | SGreaterThan
   | SEquals
   | SSpace
+  | SUserOp(_)
   | SCons => None
   };
 

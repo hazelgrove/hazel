@@ -66,6 +66,7 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)

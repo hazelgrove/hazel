@@ -247,20 +247,50 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength, _), _)
-  | FloatLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Var(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | IntLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | FloatLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | BoolLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | ListNil(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+    )
+  | Lam(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | Inj(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
   | Case(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -279,6 +309,7 @@ let text_operand =
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | UserOp(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (

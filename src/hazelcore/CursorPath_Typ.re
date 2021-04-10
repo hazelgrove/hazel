@@ -125,6 +125,7 @@ and of_steps_operator =
 
 let hole_sort = _ => CursorPath.TypHole;
 let is_space = _ => false;
+let is_user_op = _ => false;
 
 let rec holes =
         (
@@ -138,6 +139,7 @@ let rec holes =
        ~holes_operand,
        ~hole_sort,
        ~is_space,
+       ~is_user_op,
        ~rev_steps,
        uty,
      )
@@ -169,6 +171,7 @@ and holes_zopseq =
     ~holes_zoperand,
     ~hole_sort,
     ~is_space,
+    ~is_user_op,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zopseq,
     zopseq,

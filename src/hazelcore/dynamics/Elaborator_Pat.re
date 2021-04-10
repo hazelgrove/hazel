@@ -45,7 +45,8 @@ and syn_elab_skel =
         MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
-  | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | BinOp(InHole(WrongLength | OperatorError(_), _), _, _, _) =>
+    DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
     switch (UHPat.get_tuple_elements(skel)) {
     | [skel1, skel2, ...tail] =>
@@ -119,13 +120,13 @@ and syn_elab_operand =
         MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
-  | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Wild(InHole(WrongLength | OperatorError(_), _))
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -142,6 +143,12 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
+  | Var(NotInHole, InVarHole(ReservedOperator, u), x) =>
+    let gamma = Contexts.gamma(ctx);
+    let dp = DHPat.InvalidText(u, 0, x);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
+    Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);
@@ -244,6 +251,7 @@ and ana_elab_opseq =
       switch (opseq |> UHPat.get_err_status_opseq) {
       | NotInHole
       | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(OperatorError(_) as reason, u)
       | InHole(WrongLength as reason, u) =>
         switch (
           syn_elab_opseq(
@@ -280,6 +288,8 @@ and ana_elab_skel =
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, pn, ty);
+
+  | BinOp(InHole(OperatorError(_) as reason, u), op, skel1, skel2)
   | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -339,14 +349,15 @@ and ana_elab_operand =
       let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
       Elaborates(dp, ty, ctx, delta);
     };
-  | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _)
-  | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Wild(InHole(WrongLength | OperatorError(_), _))
+  | Var(InHole(WrongLength | OperatorError(_), _), _, _)
+  | IntLit(InHole(WrongLength | OperatorError(_), _), _)
+  | FloatLit(InHole(WrongLength | OperatorError(_), _), _)
+  | BoolLit(InHole(WrongLength | OperatorError(_), _), _)
+  | ListNil(InHole(WrongLength | OperatorError(_), _))
+  | Inj(InHole(WrongLength | OperatorError(_), _), _, _)
+  | TypeAnn(InHole(WrongLength | OperatorError(_), _), _, _) =>
+    DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -359,6 +370,7 @@ and ana_elab_operand =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _)
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)

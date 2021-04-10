@@ -33,6 +33,7 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
+    | SUserOp(op) => op
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };

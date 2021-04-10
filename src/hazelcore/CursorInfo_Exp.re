@@ -365,15 +365,33 @@ and syn_cursor_info_skel =
         ctx,
         zoperand,
       )
-    | ZOperator(_) =>
+    | ZOperator((_, op), _) =>
+      let syn_ty = (ty: HTyp.t) => {
+        switch (op) {
+        | UserOp(sym) =>
+          let free_arrow_type = HTyp.Arrow(Hole, Arrow(Hole, Hole));
+          switch (
+            VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(sym))
+          ) {
+          | Some(ty) =>
+            switch (HTyp.matched_two_ary_arrow(ty)) {
+            | Some((_, (_, ty_out))) => CursorInfo.Synthesized(ty_out)
+            | _ => CursorInfo.SynErrorArrow(free_arrow_type, ty)
+            }
+          | _ => SynFreeArrow(free_arrow_type)
+          };
+        | _ => Synthesized(ty)
+        };
+      };
+
       Statics_Exp.syn_skel(ctx, skel, seq)
-      |> Option.map(ty =>
+      |> Option.map(ty => {
            CursorInfo_common.mk(
-             Synthesized(ty),
+             syn_ty(ty),
              ctx,
              extract_from_zexp_zseq(zseq),
            )
-         )
+         });
     };
   } else {
     // recurse toward cursor
@@ -383,6 +401,26 @@ and syn_cursor_info_skel =
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
+    | BinOp(_, UserOp(op), skel1, skel2) =>
+      let op_typ =
+        Option.value(
+          VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op)),
+          ~default=Hole,
+        );
+
+      switch (HTyp.matched_two_ary_arrow(op_typ)) {
+      | Some((ty1, (ty2, _))) =>
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
+        | Some(_) as result => result
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
+        }
+      | _ =>
+        switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+        | Some(_) as result => result
+        | _ => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+        }
+      };
+
     | BinOp(
         _,
         Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
@@ -420,7 +458,7 @@ and syn_cursor_info_skel =
         switch (cursor_on_outer_expr(zoperand)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
         | Some(StandardErr(InHole(WrongLength, _))) => None
-        | Some(StandardErr(InHole(TypeInconsistent, _))) =>
+        | Some(StandardErr(InHole(TypeInconsistent | OperatorError(_), _))) =>
           let operand_nih =
             zoperand
             |> ZExp.erase_zoperand
@@ -428,6 +466,7 @@ and syn_cursor_info_skel =
           Statics_Exp.syn_operand(ctx, operand_nih)
           |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+        | Some(VarErr(ReservedOperator)) => None
         | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
@@ -670,6 +709,13 @@ and ana_cursor_info_zopseq =
           cursor_term,
         ),
       );
+    | InHole(OperatorError(Free), _) =>
+      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+      Statics_Exp.syn_opseq(ctx, opseq')
+      |> Option.map(ty' =>
+           CursorInfo_common.mk(AnaFree(ty'), ctx, cursor_term)
+         );
+    | InHole(OperatorError(TypeInconsistent), _)
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
       Statics_Exp.syn_opseq(ctx, opseq')
@@ -733,6 +779,25 @@ and ana_cursor_info_skel =
         |> Option.map(_ =>
              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
            )
+      | InHole(OperatorError(Free), _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        Statics_Exp.syn_opseq(ctx, opseq')
+        |> Option.map(ty' =>
+             switch (HTyp.matched_two_ary_arrow(ty')) {
+             | Some((ty1, (ty2, ty3))) =>
+               CursorInfo_common.mk(
+                 SynFreeArrow(Arrow(ty1, Arrow(ty2, ty3))),
+                 ctx,
+                 cursor_term,
+               )
+             | None => CursorInfo_common.mk(Analyzed(ty'), ctx, cursor_term)
+             }
+           );
+      | InHole(OperatorError(TypeInconsistent), _) =>
+        // This case occurs when a user operator is constructed with
+        // some expression that is not a 2-ary function. Let subsumption
+        // take care of this case to say that Int ~/~ _ -> _ -> _ for example.
+        syn_cursor_info_skel(~steps, ctx, skel, zseq)
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
@@ -778,7 +843,8 @@ and ana_cursor_info_skel =
         FEquals |
         And |
         Or |
-        Space,
+        Space |
+        UserOp(_),
         _,
         _,
       ) =>
@@ -803,8 +869,27 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
+    | Var(_, InVarHole(ReservedOperator, _), _) => None
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+    | Var(InHole(OperatorError(_), _), _, _)
+    | IntLit(InHole(OperatorError(_), _), _)
+    | FloatLit(InHole(OperatorError(_), _), _)
+    | BoolLit(InHole(OperatorError(_), _), _)
+    | ListNil(InHole(OperatorError(_), _))
+    | Lam(InHole(OperatorError(_), _), _, _)
+    | Inj(InHole(OperatorError(_), _), _, _)
+    | Case(StandardErrStatus(InHole(OperatorError(_), _)), _, _)
+    | ApPalette(InHole(OperatorError(_), _), _, _, _) =>
+      let operand' =
+        zoperand
+        |> ZExp.erase_zoperand
+        |> UHExp.set_err_status_operand(NotInHole);
+      switch (Statics_Exp.syn_operand(ctx, operand')) {
+      | None => None
+      | Some(_) =>
+        Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+      };
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -890,12 +975,20 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
-  | LamZP(InHole(TypeInconsistent, _), _, _)
-  | LamZE(InHole(TypeInconsistent, _), _, _)
-  | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+  | LamZP(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | LamZE(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | InjZ(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | CaseZE(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | CaseZR(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPaletteZ(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);

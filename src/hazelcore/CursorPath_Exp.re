@@ -405,6 +405,7 @@ and holes_line =
          ~holes_operand,
          ~hole_sort=hole_sort(TypeErr),
          ~is_space=Operators_Exp.is_Space,
+         ~is_user_op=Operators_Exp.is_UserOp,
          ~rev_steps,
          opseq,
        )
@@ -555,6 +556,7 @@ and holes_zopseq =
     ~holes_zoperand,
     ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Exp.is_Space,
+    ~is_user_op=Operators_Exp.is_UserOp,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,
     zopseq,

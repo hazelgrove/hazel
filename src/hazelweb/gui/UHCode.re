@@ -70,6 +70,33 @@ let decoration_views =
       | Step(step) =>
         let stepped = UHDecorationPaths.take_step(step, dpaths);
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      | Token({shape: Op, _}) =>
+        if (List.length(dpaths.op_err_holes) > 0) {
+          let offset = start.col - indent;
+          let origin = MeasuredPosition.{row: start.row, col: indent};
+          let height = lazy(MeasuredLayout.height(m));
+          let width = lazy(MeasuredLayout.width(~offset, m));
+          let (cls, decoration) = (
+            "var-err-hole",
+            UHDecoration.VarErrHole.view(
+              ~contains_current_term=Option.is_some(dpaths.current_term),
+              ~corner_radii,
+              (offset, m),
+            ),
+          );
+          let current_vs =
+            Decoration_common.container(
+              ~font_metrics,
+              ~height=Lazy.force(height),
+              ~width=Lazy.force(width),
+              ~origin,
+              ~cls,
+              [decoration],
+            );
+          go'(~tl=[current_vs, ...tl], dpaths, m);
+        } else {
+          go'(~tl, dpaths, m);
+        }
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
         let current_vs =

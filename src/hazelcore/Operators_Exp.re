@@ -18,7 +18,8 @@ type t =
   | Comma
   | Cons
   | And
-  | Or;
+  | Or
+  | UserOp(Var.t);
 
 let to_string =
   fun
@@ -40,14 +41,51 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||";
+  | Or => "||"
+  | UserOp(var) => var;
+
+let string_to_operator =
+  fun
+  | "+" => Some(Plus)
+  | "-" => Some(Minus)
+  | "*" => Some(Times)
+  | "/" => Some(Divide)
+  | "<" => Some(LessThan)
+  | ">" => Some(GreaterThan)
+  | "==" => Some(Equals)
+  | "::" => Some(Cons)
+  | "&&" => Some(And)
+  | "||" => Some(Or)
+  | "," => Some(Comma)
+  | var when Var.is_exp_operator(var) => Some(UserOp(var))
+  | _ => None;
 
 let is_Space =
   fun
   | Space => true
   | _ => false;
 
-let precedence =
+let is_UserOp =
+  fun
+  | UserOp(_) => true
+  | _ => false;
+
+let operator_of_char =
+  fun
+  | '+' => Plus
+  | '-' => Minus
+  | '*' => Times
+  | '/' => Divide
+  | '=' => Equals
+  | '&' => And
+  | '|' => Or
+  | '<' => LessThan
+  | '>' => GreaterThan
+  | ':' => Cons
+  | _ => failwith("Error creating user operator with an invalid symbol.");
+
+// Todo: Refactor precedence into an ordered list, and insert user defined operators properly.
+let rec precedence =
   fun
   | Comma => 2
   | Or => 3
@@ -67,15 +105,31 @@ let precedence =
   | Divide => 8
   | FTimes => 8
   | FDivide => 8
-  | Space => 9;
+  | Space => 9
+  | UserOp(op) when String.length(op) == 0 => {
+      failwith("Error checking precedence of an empty user operator.");
+    }
+  | UserOp(op) => {
+      precedence(operator_of_char(op.[0]));
+    };
 
 let precedence_const = 0;
 let precedence_Ap = 1;
 let precedence_max = 10;
 
-let associativity =
+let rec associativity =
   fun
   | Cons => Associativity.Right
   | And => Associativity.Right
   | Or => Associativity.Right
+  | UserOp(op) when String.length(op) == 0 => {
+      failwith("Error checking associativity of an empty user operator");
+    }
+  | UserOp(op) => associativity(operator_of_char(op.[0]))
   | _ => Associativity.Left;
+
+let delete_var_yields_op = (pos, x) =>
+  string_to_operator(StringUtil.delete(pos, x));
+
+let backspace_var_yields_op = (pos, x) =>
+  string_to_operator(StringUtil.backspace(pos, x));

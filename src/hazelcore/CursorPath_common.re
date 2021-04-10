@@ -158,6 +158,7 @@ let holes_skel_ =
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
       ~hole_sort: MetaVar.t => hole_sort,
       ~is_space: 'operator => bool,
+      ~is_user_op: 'operator => bool,
       ~rev_steps: rev_steps,
       skel: Skel.t('operator),
       seq: Seq.t('operand, 'operator),
@@ -186,6 +187,21 @@ let holes_skel_ =
           ...hs,
         ];
       };
+    | BinOp(err, op, skel1, skel2) when op |> is_user_op =>
+      // If this skel is a user op, then it is possible that the hole associated
+      // with the expression is an empty var hole rather than a type hole.
+      let hs = hs |> go(skel2);
+      let hs =
+        switch (err) {
+        | NotInHole => hs
+        | InHole(_, u) =>
+          let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
+          [
+            {sort: ExpHole(u, Empty), steps: List.rev([step, ...rev_steps])},
+            ...hs,
+          ];
+        };
+      hs |> go(skel1);
     | BinOp(err, _, skel1, skel2) =>
       let hs = hs |> go(skel2);
       let hs =
@@ -208,6 +224,7 @@ let holes_opseq =
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
       ~hole_sort: MetaVar.t => hole_sort,
       ~is_space: 'operator => bool,
+      ~is_user_op: 'operator => bool,
       ~rev_steps: rev_steps,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
       hs: hole_list,
@@ -217,6 +234,7 @@ let holes_opseq =
     ~holes_operand,
     ~hole_sort,
     ~is_space,
+    ~is_user_op,
     ~rev_steps,
     skel,
     seq,
@@ -229,6 +247,7 @@ let holes_zopseq_ =
       ~holes_zoperand: ('zoperand, rev_steps) => zhole_list,
       ~hole_sort: MetaVar.t => hole_sort,
       ~is_space: 'operator => bool,
+      ~is_user_op: 'operator => bool,
       ~rev_steps: rev_steps,
       ~erase_zopseq:
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
@@ -243,6 +262,7 @@ let holes_zopseq_ =
       ~holes_operand,
       ~hole_sort,
       ~is_space,
+      ~is_user_op,
       ~rev_steps,
       skel,
       seq,

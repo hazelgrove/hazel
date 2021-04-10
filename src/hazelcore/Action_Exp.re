@@ -12,6 +12,7 @@ let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   | SCons => Some(Cons)
   | SAnd => Some(And)
   | SOr => Some(Or)
+  | SUserOp(op) => Some(UserOp(op))
   | SArrow
   | SVBar => None
   };
@@ -30,6 +31,7 @@ let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   | Cons => Some(SCons)
   | And => Some(SAnd)
   | Or => Some(SOr)
+  | UserOp(op) => Some(SUserOp(op))
   | FPlus
   | FMinus
   | FTimes
@@ -313,6 +315,17 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  | UserOp(x) =>
+    switch (VarMap.lookup(ctx |> Contexts.gamma, Var.surround_underscore(x))) {
+    | Some(ty) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
+      Succeeded(SynDone((ze, ty, u_gen)));
+    | None =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var = UHExp.var(~var_err=InVarHole(Free, u), x);
+      let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+      Succeeded(SynDone((new_ze, Hole, u_gen)));
+    }
   | Underscore as shape
   | Var(_) as shape =>
     let x =
@@ -366,6 +379,7 @@ let mk_ana_text =
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
+  | UserOp(_)
   | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
@@ -1076,7 +1090,7 @@ and syn_perform_opseq =
     : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
-  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+  | (_, ZOperator((OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
@@ -1125,18 +1139,49 @@ and syn_perform_opseq =
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => Failed
     };
-  /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
-    let new_ze =
-      ZExp.ZBlock.wrap'(
-        ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
-      );
-    syn_perform(ctx, Backspace, (new_ze, ty, u_gen)) |> wrap_in_SynDone;
+    let sym = Operators_Exp.to_string(op);
+    switch (op) {
+    | _ when String.length(sym) > 1 =>
+      /* Delete before == Delete first character, when operator is many character */
+      let new_op = StringUtil.delete(0, sym);
+      let new_zoperator =
+        switch (Operators_Exp.string_to_operator(new_op)) {
+        | Some(op') => (CursorPosition.OnOp(Before), op')
+        | None => (CursorPosition.OnOp(Before), op)
+        };
+
+      let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | _ =>
+      /* Delete before operator == Backspace after operator, when operator is single character */
+      let new_ze =
+        ZExp.ZBlock.wrap'(
+          ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
+        );
+      syn_perform(ctx, Backspace, (new_ze, ty, u_gen)) |> wrap_in_SynDone;
+    };
 
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    let new_zseq = delete_operator(surround);
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+  | (Backspace, ZOperator((OnOp(After), op), surround)) =>
+    let sym = Operators_Exp.to_string(op);
+    let op_len = String.length(sym);
+
+    switch (op) {
+    | op when op_len > 1 =>
+      let new_op = StringUtil.backspace(op_len, sym);
+      let new_zoperator =
+        switch (Operators_Exp.string_to_operator(new_op)) {
+        | Some(op') => (CursorPosition.OnOp(After), op')
+        | None => (CursorPosition.OnOp(After), op)
+        };
+
+      let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | _ =>
+      let new_zseq = delete_operator(surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    };
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -1166,6 +1211,76 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
+  | (Backspace, ZOperator((OnText(i), oper), seq)) =>
+    let new_op_str = StringUtil.backspace(i, oper |> Operators_Exp.to_string);
+    let new_op = Operators_Exp.string_to_operator(new_op_str);
+
+    let mk_zoperator = op => {
+      let position =
+        if (i - 1 == 0) {
+          CursorPosition.OnOp(Before);
+        } else {
+          CursorPosition.OnText(i - 1);
+        };
+      ZSeq.ZOperator((position, op), seq);
+    };
+
+    let new_zseq =
+      switch (new_op) {
+      | Some(UserOp(_) as new_op') => mk_zoperator(new_op')
+      | Some(new_op') => mk_zoperator(new_op')
+      | _ => delete_operator(seq)
+      };
+
+    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+    Succeeded(SynDone((exp, ty, meta_var)));
+  | (Delete, ZOperand(CursorE(OnText(j), Var(_, _, x)), surround))
+      when Operators_Exp.delete_var_yields_op(j, x) != None =>
+    let op = Operators_Exp.delete_var_yields_op(j, x);
+    switch (op) {
+    | None => Failed
+    | Some(operator) =>
+      switch (shape_of_operator(operator)) {
+      | Some(sop) =>
+        let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+        let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
+        syn_perform_opseq(ctx, Construct(SOp(sop)), (zopseq, ty, u_gen));
+      | _ => Failed
+      }
+    };
+
+  | (Backspace, ZOperand(CursorE(OnText(j), Var(_, _, x)), surround))
+      when Operators_Exp.backspace_var_yields_op(j, x) != None =>
+    let operator = Operators_Exp.backspace_var_yields_op(j, x);
+    switch (operator) {
+    | None => Failed
+    | Some(operator) =>
+      switch (shape_of_operator(operator)) {
+      | Some(sop) =>
+        let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+        let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
+        syn_perform_opseq(ctx, Construct(SOp(sop)), (zopseq, ty, u_gen));
+      | _ => Failed
+      }
+    };
+
+  | (Delete, ZOperator((OnText(i), oper), seq)) =>
+    let new_op_str = StringUtil.delete(i, oper |> Operators_Exp.to_string);
+    let new_op = Operators_Exp.string_to_operator(new_op_str);
+    let new_zoperator =
+      switch (new_op) {
+      | Some(UserOp(_)) => (
+          CursorPosition.OnText(i),
+          Operators_Exp.UserOp(new_op_str),
+        )
+      | Some(op) => (CursorPosition.OnOp(After), op)
+      | None => (CursorPosition.OnOp(After), oper)
+      };
+
+    let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+    Succeeded(SynDone((exp, ty, meta_var)));
+
   /* Construction */
 
   /* Making Float Operators from Int Operators */
@@ -1194,7 +1309,41 @@ and syn_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
-  /* ...while other construction is applied after movement */
+
+  /* ...while construction of operators on operators creates user defined operator symbols,...*/
+  | (Construct(SOp(_) as sop), ZOperator((pos, oper), seq)) =>
+    let old_op_str = Operators_Exp.to_string(oper);
+    let new_op_char =
+      Action_common.shape_to_string(sop).[0] |> String.make(1);
+
+    let (pos', oper') =
+      switch (pos, oper) {
+      | (
+          _,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
+        ) => (
+          pos,
+          "",
+        )
+      | (OnText(i), _) =>
+        let oper' = StringUtil.insert(i, new_op_char, old_op_str);
+        (OnText(i + 1), oper');
+      | (OnDelim(_, _), _) => (pos, old_op_str ++ new_op_char)
+      | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
+      | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
+      };
+
+    switch (pos', Operators_Exp.string_to_operator(oper')) {
+    | (pos', Some(new_operator)) =>
+      let new_zoperator = (pos', new_operator);
+      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+      let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+
+      Succeeded(SynDone((exp, ty, meta_var)));
+    | _ => Failed
+    };
+  /* ...and construction of operands is applied after movement.*/
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)
@@ -1258,7 +1407,10 @@ and syn_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+        ZExp.is_before_zoperand(zoperand)
+        || ZExp.is_after_zoperand(zoperand)
+        && (!ZExp.is_operator_var(zoperand) || os == SSpace) =>
+    print_endline("construct problem");
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -1269,7 +1421,7 @@ and syn_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    }
+    };
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -1387,6 +1539,7 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
+  print_endline("seyn perform operand");
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1534,11 +1687,18 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
-  | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, x)
+    if (Var.is_operator(x) && sop != SSpace) {
+      let s = Action_common.shape_to_string(shape);
+      syn_insert_text(ctx, u_gen, (j, s), x);
+    } else {
+      syn_split_text(ctx, u_gen, j, sop, x);
+    }
+
   | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -1685,6 +1845,12 @@ and syn_perform_operand =
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
+
+  /* constructing a user op variable */
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) && sop != SSpace =>
+    let s = Action_common.shape_to_string(shape);
+    syn_insert_text(ctx, u_gen, (j, s), x);
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
@@ -2464,10 +2630,28 @@ and ana_perform_opseq =
     ana_perform_opseq(ctx, Backspace, (new_zopseq, u_gen), ty);
 
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    let new_zseq = delete_operator(surround);
-    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
-    |> wrap_in_AnaDone;
+  | (Backspace, ZOperator((OnOp(After), op), surround)) =>
+    let sym = Operators_Exp.to_string(op);
+    let op_len = String.length(sym);
+
+    switch (op) {
+    | op when op_len > 1 =>
+      let new_op = StringUtil.backspace(op_len, sym);
+      let new_zoperator =
+        switch (Operators_Exp.string_to_operator(new_op)) {
+        | Some(op') => (CursorPosition.OnOp(After), op')
+        | None => (CursorPosition.OnOp(After), op)
+        };
+
+      let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+    | _ =>
+      let new_zseq = delete_operator(surround);
+      ActionOutcome.Succeeded(
+        mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
+      )
+      |> wrap_in_AnaDone;
+    };
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -2483,6 +2667,35 @@ and ana_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
+
+  | (Delete, ZOperand(CursorE(OnText(j), Var(_, _, x)), surround))
+      when Operators_Exp.delete_var_yields_op(j, x) != None =>
+    let op = Operators_Exp.delete_var_yields_op(j, x);
+    switch (op) {
+    | None => Failed
+    | Some(operator) =>
+      switch (shape_of_operator(operator)) {
+      | Some(sop) =>
+        let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+        let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
+        ana_perform_opseq(ctx, Construct(SOp(sop)), (zopseq, u_gen), ty);
+      | _ => Failed
+      }
+    };
+  | (Backspace, ZOperand(CursorE(OnText(j), Var(_, _, x)), surround))
+      when Operators_Exp.backspace_var_yields_op(j, x) != None =>
+    let operator = Operators_Exp.backspace_var_yields_op(j, x);
+    switch (operator) {
+    | None => Failed
+    | Some(operator) =>
+      switch (shape_of_operator(operator)) {
+      | Some(sop) =>
+        let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+        let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
+        ana_perform_opseq(ctx, Construct(SOp(sop)), (zopseq, u_gen), ty);
+      | _ => Failed
+      }
+    };
 
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
@@ -2528,6 +2741,37 @@ and ana_perform_opseq =
       when ZExp.is_after_zoperator(zoperator) =>
     ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), ty)
   /* ...or construction after movement */
+  | (Construct(SOp(_) as sop), ZOperator((pos, oper), seq)) =>
+    let old_op_str = Operators_Exp.to_string(oper);
+    let new_op_char =
+      Action_common.shape_to_string(sop).[0] |> String.make(1);
+    let (pos', oper') =
+      switch (pos, oper) {
+      | (
+          _,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
+        ) => (
+          pos,
+          "",
+        )
+      | (OnText(i), _) =>
+        let oper' = StringUtil.insert(i, new_op_char, old_op_str);
+        (OnText(i + 1), oper');
+      | (OnDelim(_, _), _)
+      | (OnOp(After), _) => (pos, old_op_str ++ new_op_char)
+      | (OnOp(Before), _) => (OnText(1), new_op_char ++ old_op_str)
+      };
+
+    switch (pos', Operators_Exp.string_to_operator(oper')) {
+    | (pos', Some(new_operator)) =>
+      let new_zoperator = (pos', new_operator);
+      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+      let (zexp, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty);
+
+      Succeeded(AnaDone((zexp, u_gen)));
+    | _ => Failed
+    };
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)
@@ -2536,7 +2780,6 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zopseq) => ana_perform_opseq(ctx, a, (zopseq, u_gen), ty)
     };
-
   | (Construct(SOp(SComma)), _)
       when
         ZExp.is_after_zopseq(zopseq)
@@ -2607,7 +2850,9 @@ and ana_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+        ZExp.is_before_zoperand(zoperand)
+        || ZExp.is_after_zoperand(zoperand)
+        && (!ZExp.is_operator_var(zoperand) || os == SSpace) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -2742,7 +2987,7 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -2953,11 +3198,17 @@ and ana_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
-  | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
-    ana_split_text(ctx, u_gen, j, sop, x, ty)
+    if (Var.is_operator(x) && sop != SSpace) {
+      let s = Action_common.shape_to_string(shape);
+      ana_insert_text(ctx, u_gen, (j, s), x, ty);
+    } else {
+      ana_split_text(ctx, u_gen, j, sop, x, ty);
+    }
+
   | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -3032,6 +3283,11 @@ and ana_perform_operand =
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), ty)
+
+  | (Construct(SOp(sop) as shape), CursorE(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) && sop != SSpace =>
+    let s = Action_common.shape_to_string(shape);
+    ana_insert_text(ctx, u_gen, (j, s), x, ty);
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
@@ -3217,7 +3473,8 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_subsume =
     (
       ctx: Contexts.t,

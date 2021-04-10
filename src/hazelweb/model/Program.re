@@ -83,12 +83,36 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
+
+  let op_err_holes = {
+    let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
+    hole_list
+    |> List.filter_map((CursorPath.{sort, steps}) => {
+         switch (sort) {
+         | TypHole => None
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | TypeErr => Some(steps)
+           | VarErr => None
+           | Empty => Some(steps)
+           }
+         }
+       });
+  };
+
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  UHDecorationPaths.{
+    err_holes,
+    var_err_holes,
+    var_uses,
+    op_err_holes,
+    current_term,
+  };
 };
 
 exception DoesNotElaborate;

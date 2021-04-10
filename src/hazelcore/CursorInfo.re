@@ -97,6 +97,8 @@ type typed =
   | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on a reserved operator variable
+  | PatAnaReservedOperator(HTyp.t)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -105,6 +107,7 @@ type typed =
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
+  | PatSynReservedOperator
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/

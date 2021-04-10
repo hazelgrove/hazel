@@ -47,7 +47,9 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   );
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
-  | _ => [OnOp(Before), OnOp(After)];
+  | op =>
+    CursorPosition.text_cursors(Var.length(Operators_Pat.to_string(op)))
+    @ [OnOp(Before), OnOp(After)];
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
@@ -87,18 +89,30 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
     let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
+  | InjZ(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      inj_side,
+      zp,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
   | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
+  | TypeAnnZP(
+      NotInHole | InHole(WrongLength | OperatorError(_), _),
+      zop,
+      ann,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
   | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
+  | TypeAnnZA(
+      NotInHole | InHole(WrongLength | OperatorError(_), _),
+      op,
+      zann,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), u_gen);
   };

@@ -3,6 +3,7 @@ let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   | SComma => Some(Comma)
   | SSpace => Some(Space)
   | SCons => Some(Cons)
+  | SUserOp(_)
   | SAnd
   | SOr
   | SMinus
@@ -93,6 +94,14 @@ let mk_syn_text =
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | UserOp(x)
+  | Var(x) when ExpandingKeyword.is_ReservedOperator(x) =>
+    print_endline("correct case of mk syn text pat");
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var = UHPat.var(~var_err=InVarHole(ReservedOperator, u), x);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | UserOp(x)
   | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
@@ -141,6 +150,13 @@ let mk_ana_text =
     let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
+  | UserOp(x)
+  | Var(x) when ExpandingKeyword.is_ReservedOperator(x) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var = UHPat.var(~var_err=InVarHole(ReservedOperator, u), x);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, ctx, u_gen));
+  | UserOp(x)
   | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
@@ -736,6 +752,13 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
+  | (Construct(SOp(_) as op), CursorP(OnText(j), Var(_, _, x)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand)
+        && Var.is_operator(x) =>
+    let operator_string = Action_common.shape_to_string(op);
+    syn_insert_text(ctx, u_gen, (j, operator_string), x);
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1013,6 +1036,9 @@ and ana_perform_opseq =
        * to Typ.perform. Note that in the case of the one currently existing overlap,
        * SComma, this means that Pat gets priority, and one must insert parens around
        * a type annotation to express a product type.
+       *
+       * If the cursor is on a wildcard or a variable, we're trying to insert a user
+       * defined operator.
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
@@ -1023,6 +1049,21 @@ and ana_perform_opseq =
           let ty' = UHTyp.expand(ZTyp.erase(new_zann));
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
         | _ => Failed
+        }
+      | CursorP(_, Wild(_) | Var(_)) =>
+        switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform_opseq(
+            ctx,
+            u_gen,
+            Action_common.escape(side),
+            zopseq,
+            ty,
+          )
+        | Succeeded((zp, _, u_gen)) =>
+          let new_zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
         }
       | _ => Failed
       }
@@ -1277,6 +1318,10 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
+  | (Construct(SOp(_) as op), CursorP(OnText(j), Var(_, _, x)))
+      when Var.is_operator(x) =>
+    let operator_string = Action_common.shape_to_string(op);
+    ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1297,16 +1342,25 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
+  | (Construct(SOp(os)), CursorP(OnDelim(_, side), Wild(_))) =>
+    let index =
+      switch (side) {
+      | Before => 0
+      | After => 1
+      };
 
-  | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
-    ana_insert_text(ctx, u_gen, (0, s), "", ty)
+    let operator = Action_common.shape_to_string(SOp(os));
+    ana_insert_text(ctx, u_gen, (index, operator), "_", ty);
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
     let index =
       switch (side) {
       | Before => 0
       | After => 1
       };
+
     ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+  | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
+    ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>

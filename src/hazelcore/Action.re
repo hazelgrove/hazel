@@ -15,7 +15,8 @@ type operator_shape =
   | SVBar
   | SCons
   | SAnd
-  | SOr;
+  | SOr
+  | SUserOp(string);
 
 [@deriving sexp]
 type shape =

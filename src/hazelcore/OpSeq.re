@@ -61,6 +61,7 @@ let mk_inconsistent =
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (opseq, u_gen)
   | OpSeq(
       BinOp(NotInHole, op, skel1, skel2) |
+      BinOp(InHole(OperatorError(_), _), op, skel1, skel2) |
       BinOp(InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>

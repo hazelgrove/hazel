@@ -26,7 +26,8 @@ module BinBoolOp = {
     | FEquals
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | UserOp(_) => None
     };
 
   let to_op = (op: t): UHExp.operator =>
@@ -67,7 +68,8 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | UserOp(_) => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -113,7 +115,8 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | UserOp(_) => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -153,6 +156,7 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -186,6 +190,7 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | FreeUserOp(_, _, _, _, _, _) => "FreeBinUserOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

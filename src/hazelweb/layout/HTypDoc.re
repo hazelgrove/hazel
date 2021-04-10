@@ -29,8 +29,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
-    mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
-    mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+    mk'(~parenthesize=HTyp.precedence(ty1) >= precedence_op, ty1),
+    mk'(~parenthesize=HTyp.precedence(ty2) > precedence_op, ty2),
   );
   let doc =
     switch (ty) {
@@ -59,13 +59,13 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Prod([head, ...tail]) =>
       [
         mk'(
-          ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+          ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
           head,
         ),
         ...List.map(
              ty =>
                mk'(
-                 ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                 ~parenthesize=HTyp.precedence(ty) >= HTyp.precedence_Prod,
                  ty,
                ),
              tail,

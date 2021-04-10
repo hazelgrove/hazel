@@ -55,7 +55,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
-        if (Var.is_case(var_str) || Var.is_let(var_str)) {
+        if (Var.is_operator(var_str)) {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("user operator: "), code_view(var_str)],
+            )
+          );
+        } else if (Var.is_case(var_str) || Var.is_let(var_str)) {
           Vdom.(
             Node.span(
               [],
@@ -146,9 +153,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
-        Vdom.(
-          Node.span([], [indicate_words_view("var: "), code_view(var_str)])
-        );
+        if (Var.is_operator(var_str)) {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("user operator: "), code_view(var_str)],
+            )
+          );
+        } else {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("var: "), code_view(var_str)],
+            )
+          );
+        };
       } else {
         code_view(var_str);
       }

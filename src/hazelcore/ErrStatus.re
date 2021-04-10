@@ -3,7 +3,8 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | TypeInconsistent
-    | WrongLength;
+    | WrongLength
+    | OperatorError(OperatorErrStatus.HoleReason.t);
 
   let eq = (x, y) => x == y;
 };

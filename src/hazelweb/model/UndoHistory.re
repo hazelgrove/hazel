@@ -570,6 +570,7 @@ let get_new_action_group =
         | SVBar
         | SCons
         | SAnd
+        | SUserOp(_)
         | SOr => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {

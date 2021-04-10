@@ -101,6 +101,21 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel1, seq, Float)
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
+  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+    switch (VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))) {
+    | Some(ty) =>
+      switch (HTyp.matched_two_ary_arrow(ty)) {
+      | Some((ty1, (ty2, ty3))) =>
+        let ana_t1 = ana_skel(ctx, skel1, seq, ty1);
+        let ana_t2 = ana_skel(ctx, skel2, seq, ty2);
+        switch (ana_t1, ana_t2) {
+        | (Some(_), Some(_)) => Some(ty3)
+        | _ => Some(Hole)
+        };
+      | _ => Some(Hole)
+      }
+    | None => Some(Hole)
+    }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
@@ -123,15 +138,19 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   /* in hole */
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Var(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Case(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPalette(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -264,7 +283,7 @@ and ana_skel =
     let* ty_elt = HTyp.matched_list(ty);
     let* _ = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, List(ty_elt));
-  | BinOp(InHole(TypeInconsistent, _), _, _, _)
+  | BinOp(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
   | BinOp(
       NotInHole,
       And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
@@ -275,7 +294,8 @@ and ana_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
@@ -288,15 +308,19 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some()
   | InvalidText(_) => Some()
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Var(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Case(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPalette(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -428,6 +452,21 @@ and syn_nth_type_mode' =
         let* ty1 = syn_skel(ctx, skel1, seq);
         ana_go(skel2, ty1);
       }
+    | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+      switch (
+        VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))
+      ) {
+      | Some(ty) =>
+        switch (HTyp.matched_two_ary_arrow(ty)) {
+        | Some((ty1, (ty2, _))) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? ana_go(skel1, ty1) : ana_go(skel2, ty2)
+        | _ => n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
+        }
+      | None =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? ana_go(skel1, Hole) : ana_go(skel2, Hole)
+      }
     };
   go(skel);
 }
@@ -478,6 +517,7 @@ and ana_nth_type_mode' =
         n <= Skel.rightmost_tm_index(skel1)
           ? go(skel1, ty_elt) : go(skel2, ty)
       }
+    | BinOp(InHole(OperatorError(_), _), _, _, _) => syn_go(skel)
     | BinOp(
         NotInHole,
         And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
@@ -488,7 +528,8 @@ and ana_nth_type_mode' =
         FLessThan |
         FGreaterThan |
         FEquals |
-        Space,
+        Space |
+        UserOp(_),
         _,
         _,
       ) =>
@@ -739,6 +780,84 @@ and syn_fix_holes_skel =
         UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
+  | BinOp(_, UserOp(op), skel1, skel2) =>
+    switch (VarMap.lookup(Contexts.gamma(ctx), Var.surround_underscore(op))) {
+    | Some(ty) =>
+      switch (HTyp.matched_two_ary_arrow(ty)) {
+      | Some((t1, (t2, tout))) =>
+        let (skel1, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel1,
+            seq,
+            t1,
+          );
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            t2,
+          );
+
+        (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
+      | _ =>
+        let (skel1, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel1,
+            seq,
+            Hole,
+          );
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            Hole,
+          );
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let var_reason = OperatorErrStatus.HoleReason.TypeInconsistent;
+        let reason = ErrStatus.HoleReason.OperatorError(var_reason);
+        let err_status = ErrStatus.InHole(reason, u);
+
+        (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
+      }
+    | _ =>
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          Hole,
+        );
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          Hole,
+        );
+
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let var_reason = OperatorErrStatus.HoleReason.Free;
+      let reason = ErrStatus.HoleReason.OperatorError(var_reason);
+      let err_status = ErrStatus.InHole(reason, u);
+
+      (BinOp(err_status, UserOp(op), skel1, skel2), seq, Hole, u_gen);
+    }
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
       skel
@@ -1166,7 +1285,8 @@ and ana_fix_holes_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
