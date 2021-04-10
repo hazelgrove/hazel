@@ -128,9 +128,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
-  let got_reserved_operator_indicator = 
+  let got_reserved_operator_indicator =
     got_indicator("Got a reserved operator variable", typebar(HTyp.Hole));
-    
+
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
@@ -182,6 +182,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | AnaReservedOperator(expected_ty, _) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_reserved_operator_indicator;
+      (ind1, ind2, BindingError);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -197,6 +201,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | SynReservedOperator =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_reserved_operator_indicator;
       (ind1, ind2, BindingError);
     | SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");

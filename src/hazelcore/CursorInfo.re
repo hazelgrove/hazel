@@ -30,6 +30,8 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on a reserved operator variable
+  | AnaReservedOperator(HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -65,6 +67,8 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
+  // cursor is on a reserved operator variable
+  | SynReservedOperator
   // cursor is on the clause of a case
   | SynBranchClause
       // lub of other branches
