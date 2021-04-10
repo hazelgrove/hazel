@@ -466,6 +466,7 @@ and syn_cursor_info_skel =
           Statics_Exp.syn_operand(ctx, operand_nih)
           |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+        | Some(VarErr(ReservedOperator)) => None
         | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
@@ -868,6 +869,7 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
+    | Var(_, InVarHole(ReservedOperator, _), _) => None
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Var(InHole(OperatorError(_), _), _, _)

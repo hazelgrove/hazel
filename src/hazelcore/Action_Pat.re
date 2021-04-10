@@ -95,6 +95,13 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x)
+  | Var(x) when ExpandingKeyword.is_ReservedOperator(x) =>
+    print_endline("correct case of mk syn text pat");
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var = UHPat.var(~var_err=InVarHole(ReservedOperator, u), x);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | UserOp(x)
   | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
@@ -141,6 +148,12 @@ let mk_ana_text =
   | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, ctx, u_gen));
+  | UserOp(x)
+  | Var(x) when ExpandingKeyword.is_ReservedOperator(x) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var = UHPat.var(~var_err=InVarHole(ReservedOperator, u), x);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | UserOp(x)

@@ -330,7 +330,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
     | PatSynReservedOperator =>
-      let ind1 = expected_ty_indicator(expected_ty);
+      let ind1 = expected_any_indicator_pat;
       let ind2 = got_reserved_operator_indicator;
       (ind1, ind2, BindingError);
     | OnLine =>

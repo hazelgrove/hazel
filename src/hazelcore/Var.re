@@ -75,4 +75,4 @@ let split = (pos, name) => {
 
 let surround_underscore = s => "_" ++ s ++ "_";
 
-let remove_underscores = s => String.sub(s, 0, String.length(s) - 1);
+let remove_underscores = s => String.sub(s, 1, String.length(s) - 2);

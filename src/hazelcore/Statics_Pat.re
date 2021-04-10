@@ -67,7 +67,8 @@ and syn_operand =
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
+  | Var(NotInHole, InVarHole(ReservedOperator | Keyword(_), _), _) =>
+    Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
@@ -166,7 +167,8 @@ and ana_operand =
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
+  | Var(NotInHole, InVarHole(ReservedOperator | Keyword(_), _), _) =>
+    Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | Wild(NotInHole) => Some(ctx)
@@ -393,7 +395,12 @@ and syn_fix_holes_operand =
   | Wild(_) => (operand_nih, Hole, ctx, u_gen)
   | InvalidText(_) => (operand_nih, Hole, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
+  | Var(_, InVarHole(ReservedOperator | Keyword(_), _), _) => (
+      operand_nih,
+      Hole,
+      ctx,
+      u_gen,
+    )
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     (operand_nih, Hole, ctx, u_gen);
@@ -655,7 +662,11 @@ and ana_fix_holes_operand =
   | Wild(_) => (operand_nih, ctx, u_gen)
   | InvalidText(_) => (operand_nih, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
+  | Var(_, InVarHole(ReservedOperator | Keyword(_), _), _) => (
+      operand_nih,
+      ctx,
+      u_gen,
+    )
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     (operand_nih, ctx, u_gen);

@@ -462,6 +462,12 @@ and ana_cursor_info_zoperand =
     | ListNil(InHole(WrongLength, _))
     | TypeAnn(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _) => None
+    | Var(_, InVarHole(ReservedOperator, _), _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaReservedOperator(ty), ctx, cursor_term),
+        ),
+      )
     | Var(
         NotInHole | InHole(OperatorError(_), _),
         InVarHole(Keyword(k), _),

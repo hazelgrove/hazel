@@ -854,6 +854,11 @@ and syn_elab_operand =
     | Some(ty) => Elaborates(BoundVar(x), ty, delta)
     | None => DoesNotElaborate
     };
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _) =>
+    // TODO: Could possibly elaborate reserved operator variables to
+    //       their corresponding function. For example, _+_ could elaborate
+    //       to \x.\y.x+y in gamma
+    DoesNotElaborate
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -863,6 +868,8 @@ and syn_elab_operand =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | ReservedOperator =>
+        failwith("reserved operator variables should elaborate normally")
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -1239,6 +1246,7 @@ and ana_elab_operand =
     let d = DHExp.EmptyHole(u, 0, sigma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _) => DoesNotElaborate
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1247,6 +1255,8 @@ and ana_elab_operand =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
       | Keyword(k) => Keyword(u, 0, sigma, k)
+      | ReservedOperator =>
+        failwith("reserved operator variables should elaborate normally")
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)

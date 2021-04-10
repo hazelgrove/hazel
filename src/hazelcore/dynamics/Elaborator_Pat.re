@@ -143,6 +143,12 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
+  | Var(NotInHole, InVarHole(ReservedOperator, u), x) =>
+    let gamma = Contexts.gamma(ctx);
+    let dp = DHPat.InvalidText(u, 0, x);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
+    Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);
@@ -364,6 +370,7 @@ and ana_elab_operand =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
+  | Var(NotInHole, InVarHole(ReservedOperator, _), _)
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)

@@ -8,7 +8,7 @@ let is_Case = String.equal("case");
 let is_ReservedOperator = x =>
   if (Var.is_complete_operator(x)) {
     switch (x |> Var.remove_underscores |> Operators_Exp.string_to_operator) {
-    | Some(UserOp(_))
+    | Some(UserOp(_)) => false
     | None => false
     | _ => true
     };
