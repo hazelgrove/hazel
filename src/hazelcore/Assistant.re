@@ -3,7 +3,8 @@ open OptUtil.Syntax;
 type assistant_action_categories =
   | InsertLit
   | InsertVar
-  | InsertApp;
+  | InsertApp
+  | InsertConstructor;
 
 type assistant_action = {
   category: assistant_action_categories,
@@ -13,21 +14,16 @@ type assistant_action = {
   res_ty: HTyp.t,
 };
 
-let mk_var = name =>
-  Seq.mk(UHExp.var(name), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+let wrap = operand =>
+  Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 
-let mk_bool_lit = b =>
-  Seq.mk(UHExp.boollit(b), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+let mk_hole = u_gen => fst(UHExp.new_EmptyHole(u_gen));
 
-let mk_list_nil =
-  Seq.mk(UHExp.listnil(), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+let mk_var_uhexp = name => wrap(UHExp.var(name));
 
-let _get_hole_number = (t: CursorInfo.cursor_term): MetaVar.t => {
-  switch (t) {
-  | Exp(_, EmptyHole(n)) => n
-  | _ => failwith("get_hole_number: Not on hole")
-  };
-};
+let mk_bool_lit_uhexp = b => wrap(UHExp.boollit(b));
+
+let mk_list_nil_uhexp = wrap(UHExp.listnil());
 
 let wrap_space = (operator, seq) =>
   Seq.S(operator, A(Operators_Exp.Space, seq));
@@ -65,7 +61,7 @@ let mk_ap =
 let mk_var_action =
     (_: AssistantCommon.cursor_info_pro, name: string, ty: HTyp.t)
     : assistant_action => {
-  let e = mk_var(name);
+  let e = mk_var_uhexp(name);
   {
     category: InsertVar,
     action: ReplaceAtCursor(UHExp.var(name)),
@@ -96,9 +92,8 @@ let mk_bool_lit_action = (b: bool): assistant_action => {
     category: InsertLit,
     text: string_of_bool(b),
     action: ReplaceAtCursor(UHExp.boollit(b)),
-    //FillExpHole(get_hole_number(cursor.term), e),
     res_ty: HTyp.Bool,
-    result: mk_bool_lit(b),
+    result: mk_bool_lit_uhexp(b),
   };
 };
 
@@ -107,16 +102,30 @@ let mk_nil_list_action: assistant_action = {
     category: InsertLit,
     text: "[]",
     action: ReplaceAtCursor(UHExp.listnil()),
-    //FillExpHole(get_hole_number(cursor.term), e),
     res_ty: HTyp.Bool,
-    result: mk_list_nil,
+    result: mk_list_nil_uhexp,
+  };
+};
+
+let mk_inj_action =
+    ({u_gen, _}: AssistantCommon.cursor_info_pro, side: InjSide.t)
+    : assistant_action => {
+  let operand = UHExp.inj(side, wrap(mk_hole(u_gen)));
+  let uhexp = Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  {
+    category: InsertConstructor, //TODO(andrew): change
+    text: "inj" ++ InjSide.to_string(side) ++ "",
+    // TODO: reconcile visual presentation ie brackets
+    action: ReplaceAtCursor(operand),
+    res_ty: HTyp.Bool,
+    result: uhexp,
   };
 };
 
 let compute_lit_actions =
-    ({expected_ty, mode, _}: AssistantCommon.cursor_info_pro) => {
+    ({expected_ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
   switch (mode) {
-  | Synthetic => []
+  | Synthetic => [mk_inj_action(cursor, L), mk_inj_action(cursor, R)]
   | Analytic =>
     switch (expected_ty) {
     | Bool => [mk_bool_lit_action(true), mk_bool_lit_action(false)]

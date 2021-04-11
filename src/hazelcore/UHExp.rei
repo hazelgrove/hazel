@@ -49,6 +49,8 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
+let inj: (~err: ErrStatus.t=?, InjSide.t, t) => operand;
+
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;

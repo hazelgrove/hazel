@@ -61,6 +61,9 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Lam(err, p, body);
 
+let inj = (~err: ErrStatus.t=NotInHole, side: InjSide.t, body: t): operand =>
+  Inj(err, side, body);
+
 let case =
     (
       ~err: CaseErrStatus.t=StandardErrStatus(NotInHole),

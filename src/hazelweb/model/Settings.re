@@ -132,6 +132,7 @@ module CursorInspector = {
     type_assist_other: bool,
     assistant: bool,
     assistant_selection: option(int),
+    assistant_choices_limit: int,
   };
 
   let init = {
@@ -146,6 +147,7 @@ module CursorInspector = {
     type_assist_other: false,
     assistant: false,
     assistant_selection: Some(0),
+    assistant_choices_limit: 6,
   };
 
   [@deriving sexp]

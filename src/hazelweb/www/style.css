@@ -709,6 +709,11 @@ body {
   box-shadow: inset -1px -1px 0 rgba(255,255,255,0.4);
 }
 
+#assistant > .choice > .code .code-delim {
+  /* HACK: override bold, mostly for completion overlay */
+  font-weight: normal;
+}
+
 #assistant > .choice:hover > .code .HoleLabel,
 #assistant > .selected > .code .HoleLabel  {
   background-color: #94f893;

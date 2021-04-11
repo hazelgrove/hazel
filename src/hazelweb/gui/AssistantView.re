@@ -9,7 +9,8 @@ let action_abbrev =
   fun
   | InsertVar => "var"
   | InsertApp => "app"
-  | InsertLit => "lit";
+  | InsertLit => "lit"
+  | InsertConstructor => "con";
 
 let action_view =
     (
@@ -65,7 +66,9 @@ let view =
         let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
         z + (z < 0 ? List.length(actions) : 0);
       };
-    let actions = ListUtil.rotate_n(selected_index, actions);
+    let actions =
+      ListUtil.rotate_n(selected_index, actions)
+      |> ListUtil.sublist(settings.assistant_choices_limit);
     let prefix_string = Assistant.get_filter_string(cursor_info.cursor_term);
     let action_views =
       List.mapi(
