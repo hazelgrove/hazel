@@ -3,12 +3,26 @@
 // output with your test's output.
 //
 // More at https://github.com/janestreet/ppx_expect
+
+open Js_of_ocaml_toplevel;
+
 let%expect_test "expect_test" = {
-  let eval = code => {
-    let as_buf = Lexing.from_string(code);
-    let parsed = Toploop.parse_toplevel_phrase^(as_buf);
-    ignore(Toploop.execute_phrase(true, Format.std_formatter, parsed));
-  };
+  let () = JsooTop.initialize();
+
+  let execute: string => string =
+    code => {
+      let buffer = Buffer.create(100);
+      let formatter = Format.formatter_of_buffer(buffer);
+      JsooTop.execute(true, formatter, code);
+      let result = Buffer.contents(buffer);
+      result;
+    };
+
+  let eval: string => unit =
+    code => {
+      let _result = execute(code);
+      ();
+    };
 
   eval("let () = print_endline \"hazel\";;");
   %expect
