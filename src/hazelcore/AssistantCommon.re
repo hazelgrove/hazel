@@ -20,10 +20,9 @@ type cursor_info_pro = {
  * Return a VarCtx.t
  */
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let can_extract = ((_, ty: HTyp.t)) => {
-    HTyp.consistent(ty, typ);
-  };
-  ctx |> Contexts.gamma |> VarMap.filter(can_extract);
+  ctx
+  |> Contexts.gamma
+  |> VarMap.filter(((_, ty: HTyp.t)) => HTyp.consistent(ty, typ));
 };
 
 /**

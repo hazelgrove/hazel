@@ -180,9 +180,9 @@ let decoration_views =
 
 let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
   let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
-  let actions = AssistantCore.compute_actions(cursor);
+  let actions = Assistant.compute_actions(cursor);
   let selected_index =
-    //TODO(andrew): unfuck below duplicated from assistant.re code
+    //TODO(andrew): unfuck below duplicated from AssistantView.re code
     switch (settings.cursor_inspector.assistant_selection) {
     | None => 0
     | Some(i) =>

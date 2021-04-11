@@ -1,9 +1,9 @@
 module Vdom = Virtual_dom.Vdom;
-open Vdom;
+open Virtual_dom.Vdom;
 open Node;
 open Attr;
 //open OptUtil.Syntax;
-open AssistantCore;
+open Assistant;
 
 let action_abbrev =
   fun
@@ -63,8 +63,7 @@ let view =
       z + (z < 0 ? List.length(actions) : 0);
     };
   let actions = ListUtil.rotate_n(selected_index, actions);
-  let prefix_string =
-    AssistantCore.get_filter_string(cursor_info.cursor_term);
+  let prefix_string = Assistant.get_filter_string(cursor_info.cursor_term);
   let action_views =
     List.mapi(
       (i, a) => action_view(inject, font_metrics, a, i == 0, prefix_string),

@@ -728,7 +728,7 @@ let view =
       List.append(
         content,
         [
-          Assistant.view(
+          AssistantView.view(
             ~inject,
             ~font_metrics,
             cursor_inspector,
