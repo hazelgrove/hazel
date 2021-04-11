@@ -42,12 +42,12 @@ let rec mk_ap_seq_holes =
 
 let mk_ap =
     (
-      {ty, ctx, u_gen, _}: AssistantCommon.cursor_info_pro,
+      {expected_ty, ctx, u_gen, _}: AssistantCommon.cursor_info_pro,
       f: Var.t,
       f_ty: HTyp.t,
     )
     : option(UHExp.t) => {
-  let+ inner_seq = mk_ap_seq_holes(f_ty, ty);
+  let+ inner_seq = mk_ap_seq_holes(f_ty, expected_ty);
   wrap_space(UHExp.var(f), inner_seq)
   |> UHExp.mk_OpSeq
   |> UHExp.Block.wrap'
@@ -85,23 +85,25 @@ let mk_app_action =
 };
 
 let compute_var_actions =
-    ({ctx, ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
+    ({ctx, expected_ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
   switch (mode) {
   | Synthetic =>
     AssistantCommon.extract_vars(ctx, Hole)
     |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
   | Analytic =>
-    AssistantCommon.extract_vars(ctx, ty)
+    AssistantCommon.extract_vars(ctx, expected_ty)
     |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
+  | UnknownMode => []
   };
 };
 
 let compute_app_actions =
-    ({ctx, ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
+    ({ctx, expected_ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
   switch (mode) {
-  | Synthetic => []
+  | Synthetic
+  | UnknownMode => []
   | Analytic =>
-    AssistantCommon.fun_vars(ctx, ty)
+    AssistantCommon.fun_vars(ctx, expected_ty)
     |> List.map(((name, f_ty)) => mk_app_action(cursor, name, f_ty))
   };
 };

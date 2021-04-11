@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -179,7 +180,7 @@ let decoration_views =
 };
 
 let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
-  let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
+  let* cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
   let actions = Assistant.compute_actions(cursor);
   let selected_index =
     //TODO(andrew): unfuck below duplicated from AssistantView.re code
@@ -189,7 +190,7 @@ let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
       let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
       z + (z < 0 ? List.length(actions) : 0);
     };
-  List.nth(actions, selected_index).action;
+  Some(List.nth(actions, selected_index).action);
 };
 
 let key_handlers =
@@ -211,11 +212,11 @@ let key_handlers =
       // TODO(andrew): do this mode stuff more better
       switch (Key.get_key(evt)) {
       | "Tab" when assistant_active =>
-        prevent_stop_inject(
-          ModelAction.AcceptSuggestion(
-            get_selected_action(cursor_info, u_gen, settings),
-          ),
-        )
+        switch (get_selected_action(cursor_info, u_gen, settings)) {
+        | None => Event.Ignore
+        | Some(action) =>
+          prevent_stop_inject(ModelAction.AcceptSuggestion(action))
+        }
       | "Escape" when assistant_active =>
         prevent_stop_inject(
           ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),

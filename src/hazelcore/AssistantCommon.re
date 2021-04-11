@@ -3,10 +3,12 @@ open OptUtil.Syntax;
 [@deriving sexp]
 type mode =
   | Analytic
-  | Synthetic;
+  | Synthetic
+  | UnknownMode;
 
 type cursor_info_pro = {
-  ty: HTyp.t,
+  expected_ty: HTyp.t,
+  actual_ty: option(HTyp.t),
   mode,
   term: CursorInfo.cursor_term,
   ctx: Contexts.t,
@@ -47,34 +49,54 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   ctx |> Contexts.gamma |> VarMap.filter(can_extract);
 };
 
-let rec get_type_and_mode = (typed: CursorInfo.typed) => {
+let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   print_endline("get_type_and_mode");
   print_endline(
     Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_typed(typed)),
   );
   switch (typed) {
-  | Analyzed(ty) => Some((ty, Analytic))
-  | AnaAnnotatedLambda(expected_ty, _) => Some((expected_ty, Analytic))
-  | AnaSubsumed(expected_ty, _) => Some((expected_ty, Analytic))
-  | Synthesized(ty) => Some((ty, Synthetic))
-  | SynMatchingArrow(syn_ty, _) => Some((syn_ty, Synthetic))
+  | AnaAnnotatedLambda(expected, actual)
+  | AnaTypeInconsistent(expected, actual)
+  | AnaSubsumed(expected, actual) => (
+      Some(expected),
+      Some(actual),
+      Analytic,
+    )
+
+  | AnaWrongLength(_, _, expected)
+  | AnaFree(expected)
+  | AnaInvalid(expected)
+  | AnaKeyword(expected, _)
+  | Analyzed(expected) => (Some(expected), None, Analytic)
+
+  | SynErrorArrow(expected, actual)
+  | SynMatchingArrow(expected, actual) => (
+      Some(expected),
+      Some(actual),
+      Synthetic,
+    )
+
+  | SynFreeArrow(actual)
+  | SynKeywordArrow(actual, _)
+  | SynInvalidArrow(actual)
+  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+
+  | SynInvalid
+  | SynFree
+  | SynKeyword(_) => (Some(Hole), None, Synthetic)
+
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-      | (true, _) => Some((ty, Synthetic))
-      | _ => None
+      | (true, _) => (Some(Hole), None, Synthetic)
+      | _ => (None, None, Synthetic)
       }
-    | (NoBranches, _) => get_type_and_mode(typed)
-    | _ => None
+    | (NoBranches, _) => get_types_and_mode(typed)
+    | _ => (None, None, Synthetic)
     }
-  //TODO(andrew): clarify intentions wrt expected/actual type...
-  | AnaFree(ty) => Some((ty, Analytic))
-  | SynFree => Some((Hole, Synthetic))
-  | SynFreeArrow(ty) => Some((ty, Synthetic))
-  | SynErrorArrow(expected_ty, _) => Some((expected_ty, Synthetic))
-  | AnaTypeInconsistent(expected_ty, _) => Some((expected_ty, Analytic))
-  | _ => None
+
+  | _ => (None, None, UnknownMode)
   };
 };
 
@@ -82,13 +104,14 @@ let rec get_type_and_mode = (typed: CursorInfo.typed) => {
    * Gets the type of the expression at the cursor.
    * Return HTyp.t
    */
-let get_type = (cursor_info: CursorInfo.t) => {
-  let+ (ty, _) = get_type_and_mode(cursor_info.typed);
-  ty;
+let get_type = (cursor_info: CursorInfo.t): option(HTyp.t) => {
+  let (expected_ty, _, _) = get_types_and_mode(cursor_info.typed);
+  let+ expected_ty = expected_ty;
+  expected_ty;
 };
 
 let get_mode = (cursor_info: CursorInfo.t) => {
-  let+ (_, mode) = get_type_and_mode(cursor_info.typed);
+  let (_, _, mode) = get_types_and_mode(cursor_info.typed);
   mode;
 };
 
@@ -118,11 +141,10 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
 
 let promote_cursor_info =
     ({cursor_term, typed, ctx, uses}: CursorInfo.t, u_gen: MetaVarGen.t)
-    : cursor_info_pro => {
-  let (ty, mode) =
-    get_type_and_mode(typed)
-    |> OptUtil.get(_ => failwith("promote_cursor_info failed"));
-  {ty, mode, u_gen, term: cursor_term, ctx, uses};
+    : option(cursor_info_pro) => {
+  let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
+  let+ expected_ty = expected_ty;
+  {expected_ty, actual_ty, mode, u_gen, term: cursor_term, ctx, uses};
 };
 
 /**

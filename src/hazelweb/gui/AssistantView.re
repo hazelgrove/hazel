@@ -53,21 +53,25 @@ let view =
       u_gen: MetaVarGen.t,
     )
     : Vdom.Node.t => {
-  let cursor = AssistantCommon.promote_cursor_info(cursor_info, u_gen);
-  let actions = compute_actions(cursor);
-  let selected_index =
-    switch (settings.assistant_selection) {
-    | None => 0
-    | Some(i) =>
-      let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
-      z + (z < 0 ? List.length(actions) : 0);
-    };
-  let actions = ListUtil.rotate_n(selected_index, actions);
-  let prefix_string = Assistant.get_filter_string(cursor_info.cursor_term);
-  let action_views =
-    List.mapi(
-      (i, a) => action_view(inject, font_metrics, a, i == 0, prefix_string),
-      actions,
-    );
-  div([id("assistant")], action_views);
+  switch (AssistantCommon.promote_cursor_info(cursor_info, u_gen)) {
+  | None => text("error")
+  | Some(cursor) =>
+    let actions = compute_actions(cursor);
+    let selected_index =
+      switch (settings.assistant_selection) {
+      | None => 0
+      | Some(i) =>
+        let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
+        z + (z < 0 ? List.length(actions) : 0);
+      };
+    let actions = ListUtil.rotate_n(selected_index, actions);
+    let prefix_string = Assistant.get_filter_string(cursor_info.cursor_term);
+    let action_views =
+      List.mapi(
+        (i, a) =>
+          action_view(inject, font_metrics, a, i == 0, prefix_string),
+        actions,
+      );
+    div([id("assistant")], action_views);
+  };
 };
