@@ -8,7 +8,8 @@ open Assistant;
 let action_abbrev =
   fun
   | InsertVar => "var"
-  | InsertApp => "app";
+  | InsertApp => "app"
+  | InsertLit => "lit";
 
 let action_view =
     (

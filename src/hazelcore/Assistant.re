@@ -1,6 +1,7 @@
 open OptUtil.Syntax;
 
 type assistant_action_categories =
+  | InsertLit
   | InsertVar
   | InsertApp;
 
@@ -14,6 +15,12 @@ type assistant_action = {
 
 let mk_var = name =>
   Seq.mk(UHExp.var(name), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+
+let mk_bool_lit = b =>
+  Seq.mk(UHExp.boollit(b), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+
+let mk_list_nil =
+  Seq.mk(UHExp.listnil(), []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 
 let _get_hole_number = (t: CursorInfo.cursor_term): MetaVar.t => {
   switch (t) {
@@ -84,6 +91,42 @@ let mk_app_action =
   };
 };
 
+let mk_bool_lit_action = (b: bool): assistant_action => {
+  {
+    category: InsertLit,
+    text: string_of_bool(b),
+    action: ReplaceAtCursor(UHExp.boollit(b)),
+    //FillExpHole(get_hole_number(cursor.term), e),
+    res_ty: HTyp.Bool,
+    result: mk_bool_lit(b),
+  };
+};
+
+let mk_nil_list_action: assistant_action = {
+  {
+    category: InsertLit,
+    text: "[]",
+    action: ReplaceAtCursor(UHExp.listnil()),
+    //FillExpHole(get_hole_number(cursor.term), e),
+    res_ty: HTyp.Bool,
+    result: mk_list_nil,
+  };
+};
+
+let compute_lit_actions =
+    ({expected_ty, mode, _}: AssistantCommon.cursor_info_pro) => {
+  switch (mode) {
+  | Synthetic => []
+  | Analytic =>
+    switch (expected_ty) {
+    | Bool => [mk_bool_lit_action(true), mk_bool_lit_action(false)]
+    | List(_) => [mk_nil_list_action]
+    | _ => []
+    }
+  | UnknownMode => []
+  };
+};
+
 let compute_var_actions =
     ({ctx, expected_ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
   switch (mode) {
@@ -146,6 +189,7 @@ let compute_actions =
   // BUG: move to next hole should reset scroll position
   compute_var_actions(cursor)
   @ compute_app_actions(cursor)
+  @ compute_lit_actions(cursor)
   |> bring_prefix_matches_to_top(get_filter_string(term))
   |> sort;
 };
