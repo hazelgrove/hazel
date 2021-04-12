@@ -65,7 +65,6 @@ let mk_var_action =
   {
     category: InsertVar,
     action: ReplaceAtCursor(UHExp.var(name)),
-    //FillExpHole(get_hole_number(term), e),
     text: name,
     result: e,
     res_ty: ty,
@@ -81,7 +80,6 @@ let mk_app_action =
     category: InsertApp,
     text: name,
     action: ReplaceAtCursor(UHExp.Parenthesized(e)),
-    //FillExpHole(get_hole_number(cursor.term), e),
     res_ty: ty,
     result: e,
   };
@@ -113,7 +111,7 @@ let mk_inj_action =
   let operand = UHExp.inj(side, wrap(mk_hole(u_gen)));
   let uhexp = Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
   {
-    category: InsertConstructor, //TODO(andrew): change
+    category: InsertConstructor,
     text: "inj" ++ InjSide.to_string(side) ++ "",
     // TODO: reconcile visual presentation ie brackets
     action: ReplaceAtCursor(operand),
@@ -160,10 +158,11 @@ let compute_app_actions =
   };
 };
 
-//TODO: sort actions intelligently;
+// TODO: sort actions intelligently
 let sort = action_list /*, user_model*/ => action_list;
 
-let get_filter_string = (term: CursorInfo.cursor_term): string => {
+// TODO: expand to other forms?
+let term_to_string = (term: CursorInfo.cursor_term): string => {
   switch (term) {
   | Exp(_, Var(_, _, s)) => s
   | _ => ""
@@ -194,11 +193,11 @@ let bring_prefix_matches_to_top =
 let compute_actions =
     ({term, _} as cursor: AssistantCommon.cursor_info_pro)
     : list(assistant_action) => {
-  // TODO(andrew): bug: if list rotated, filter looks weird
-  // BUG: move to next hole should reset scroll position
+  // BUG(andrew): if list rotated, filter looks weird
+  // BUG(andrew): move to next hole should reset scroll position
   compute_var_actions(cursor)
   @ compute_app_actions(cursor)
   @ compute_lit_actions(cursor)
-  |> bring_prefix_matches_to_top(get_filter_string(term))
+  |> bring_prefix_matches_to_top(term_to_string(term))
   |> sort;
 };

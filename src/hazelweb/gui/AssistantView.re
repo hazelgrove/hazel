@@ -2,10 +2,9 @@ module Vdom = Virtual_dom.Vdom;
 open Virtual_dom.Vdom;
 open Node;
 open Attr;
-//open OptUtil.Syntax;
 open Assistant;
 
-let action_abbrev =
+let action_abbreviation =
   fun
   | InsertVar => "var"
   | InsertApp => "app"
@@ -16,28 +15,28 @@ let action_view =
     (
       inject,
       font_metrics,
-      act: assistant_action,
+      {action, result, res_ty, category, text: act_str, _}: assistant_action,
       is_selected: bool,
-      prefix_overlay: string,
+      search_string: string,
     ) => {
-  let {action, result, res_ty, category, _} = act;
   let width = 80; //TODO: unhardcode?
-  let abbr = action_abbrev(category);
-  let prefix_overlay =
-    StringUtil.match_prefix(prefix_overlay, act.text) ? prefix_overlay : "";
+  let abbr = action_abbreviation(category);
+  let search_string =
+    StringUtil.match_prefix(search_string, act_str) ? search_string : "";
+  let perform_action = _ => {
+    Event.Many([
+      Event.Prevent_default,
+      Event.Stop_propagation,
+      inject(ModelAction.AcceptSuggestion(action)),
+    ]);
+  };
   div(
     [
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
-      on_click(_ => {
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(ModelAction.AcceptSuggestion(action)),
-        ])
-      }),
+      on_click(perform_action),
     ],
     [div([classes(["category", abbr])], [text(abbr)])]
-    @ [div([classes(["overlay"])], [text(prefix_overlay)])]
+    @ [div([classes(["overlay"])], [text(search_string)])]
     @ UHCode.codebox_view(~font_metrics, width, result)
     @ [
       span([classes(["type-ann"])], [text(" : ")]),
@@ -46,11 +45,23 @@ let action_view =
   );
 };
 
+let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
+
+let get_action_index = (assistant_selection: option(int), actions): int => {
+  let num_actions = List.length(actions);
+  switch (assistant_selection) {
+  | None => 0
+  | Some(i) =>
+    let z = num_actions == 0 ? 0 : i mod num_actions;
+    z + (z < 0 ? num_actions : 0);
+  };
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      settings: Settings.CursorInspector.t,
+      {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       u_gen: MetaVarGen.t,
     )
@@ -59,22 +70,16 @@ let view =
   | None => text("error")
   | Some(cursor) =>
     let actions = compute_actions(cursor);
-    let selected_index =
-      switch (settings.assistant_selection) {
-      | None => 0
-      | Some(i) =>
-        let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
-        z + (z < 0 ? List.length(actions) : 0);
-      };
-    let actions =
-      ListUtil.rotate_n(selected_index, actions)
-      |> ListUtil.sublist(settings.assistant_choices_limit);
-    let prefix_string = Assistant.get_filter_string(cursor_info.cursor_term);
+    let action_index = get_action_index(assistant_selection, actions);
+    let actions_visible =
+      ListUtil.rotate_n(action_index, actions)
+      |> trim(assistant_choices_limit);
+    let search_string = Assistant.term_to_string(cursor.term);
     let action_views =
       List.mapi(
         (i, a) =>
-          action_view(inject, font_metrics, a, i == 0, prefix_string),
-        actions,
+          action_view(inject, font_metrics, a, i == 0, search_string),
+        actions_visible,
       );
     div([id("assistant")], action_views);
   };

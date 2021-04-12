@@ -50,10 +50,6 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 };
 
 let rec get_types_and_mode = (typed: CursorInfo.typed) => {
-  print_endline("get_type_and_mode");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_typed(typed)),
-  );
   switch (typed) {
   | AnaAnnotatedLambda(expected, actual)
   | AnaTypeInconsistent(expected, actual)
