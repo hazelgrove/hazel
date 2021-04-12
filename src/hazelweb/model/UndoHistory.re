@@ -577,6 +577,7 @@ let get_new_action_group =
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
+              | Lam //TODOAlec
               | Let =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
@@ -585,7 +586,7 @@ let get_new_action_group =
                 ) {
                 | OnText(pos) =>
                   if (pos == 3) {
-                    /* the caret is at the end of "let" */
+                    /* the caret is at the end of "let" or "fun" */
                     Some(
                       ConstructEdit(SLet),
                     );

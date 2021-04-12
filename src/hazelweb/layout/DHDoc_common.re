@@ -56,10 +56,11 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  let sym_Lam = mk(Unicode.lamSym);
-  let colon_Lam = mk(":");
-  let open_Lam = mk(".{");
-  let close_Lam = mk("}");
+  //TODOAlec
+  let sym_Lam = mk(Doc_common.Delim.sym_Lam);
+  let colon_Lam = mk(Doc_common.Delim.colon_Lam);
+  let open_Lam = mk(Doc_common.Delim.open_Lam);
+  let close_Lam = mk(Doc_common.Delim.close_Lam);
 
   let fix_FixF = mk("fix");
   let colon_FixF = mk(":");

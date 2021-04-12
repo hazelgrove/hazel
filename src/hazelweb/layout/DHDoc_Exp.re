@@ -285,9 +285,15 @@ let rec mk =
             mk_cast(go(~enforce_inline, dbody));
           hcats([
             DHDoc_common.Delim.sym_Lam,
-            DHDoc_Pat.mk(~enforce_inline=true, dp),
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
             DHDoc_common.Delim.colon_Lam,
+            space(), // TODOAlec - better way to pad type?
             DHDoc_Typ.mk(~enforce_inline=true, ty),
+            space(),
             DHDoc_common.Delim.open_Lam,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Lam,
