@@ -1,4 +1,4 @@
-//open Sexplib.Std;
+open Sexplib.Std;
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
@@ -136,9 +136,9 @@ module CursorInspector = {
   };
 
   let init = {
-    visible: true,
+    visible: false, //true, TODO(andrew): change this back?
     show_expanded: false,
-    novice_mode: true,
+    novice_mode: false, //true, TODO(andrew): change this back?
     type_assist: false,
     type_assist_lit: false,
     type_assist_var: false,
@@ -153,6 +153,7 @@ module CursorInspector = {
   [@deriving sexp]
   type update =
     | Toggle_visible
+    | Set_visible(bool)
     | Toggle_show_expanded
     | Toggle_novice_mode
     | Toggle_type_assist
@@ -162,12 +163,14 @@ module CursorInspector = {
     | Toggle_type_assist_branch
     | Toggle_type_assist_other
     | Toggle_assistant
+    | Set_assistant(bool)
     | Increment_assistant_selection
     | Decrement_assistant_selection;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_visible => {...settings, visible: !settings.visible}
+    | Set_visible(b) => {...settings, visible: b}
     | Toggle_show_expanded => {
         ...settings,
         show_expanded: !settings.show_expanded,
@@ -203,6 +206,7 @@ module CursorInspector = {
         assistant: !settings.assistant,
         type_assist: false,
       }
+    | Set_assistant(b) => {...settings, assistant: b, type_assist: false}
     | Increment_assistant_selection => {
         ...settings,
         assistant_selection:

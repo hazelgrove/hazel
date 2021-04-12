@@ -348,11 +348,11 @@ let mk_Lam = (p: formatted_child, body: formatted_child): t => {
   |> annot_Operand(~sort=Exp);
 };
 
-let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
+let mk_Case = (~single_line=false, scrut: formatted_child, rules: list(t)): t => {
   let open_group = Delim.open_Case() |> annot_Tessera;
   let close_group = Delim.close_Case() |> annot_Tessera;
   Doc.(
-    vseps(
+    (single_line ? hcats : vseps)(
       [
         hcats([
           open_group,

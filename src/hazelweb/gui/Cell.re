@@ -128,7 +128,34 @@ let code_view =
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler
-          Attr.on_mousedown(click_handler),
+          Attr.on_mousedown(evt =>
+            Event.Many([
+              click_handler(evt),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Set_visible(false)),
+                ),
+              ),
+            ])
+          ),
+          Attr.on_contextmenu(evt => {
+            // TODO(andrew): make this sane
+            Event.Many([
+              Event.Prevent_default,
+              //Event.Stop_propagation,
+              click_handler(evt),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Set_visible(true)),
+                ),
+              ),
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Set_assistant(true)),
+                ),
+              ),
+            ])
+          }),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),

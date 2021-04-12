@@ -120,10 +120,35 @@ let mk_inj_action =
   };
 };
 
+let mk_case_action =
+    ({u_gen, _}: AssistantCommon.cursor_info_pro): assistant_action => {
+  let rule =
+    UHExp.Rule(
+      UHPat.new_EmptyHole(u_gen + 1)
+      |> (((o, _)) => o |> (op => Seq.mk(op, []) |> UHPat.mk_OpSeq)),
+      wrap(mk_hole(u_gen + 2)),
+    );
+  let operand = UHExp.case(wrap(mk_hole(u_gen)), [rule]);
+  let uhexp = Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  {
+    category: InsertConstructor, // TODO(andrew): new category
+    text: "case",
+    // TODO: reconcile visual presentation ie brackets
+    action: ReplaceAtCursor(operand),
+    res_ty: HTyp.Hole,
+    result: uhexp,
+  };
+};
+
 let compute_lit_actions =
     ({expected_ty, mode, _} as cursor: AssistantCommon.cursor_info_pro) => {
   switch (mode) {
-  | Synthetic => [mk_inj_action(cursor, L), mk_inj_action(cursor, R)]
+  // TODO(andrew): move these somewhere more sensible
+  | Synthetic => [
+      mk_inj_action(cursor, L),
+      mk_inj_action(cursor, R),
+      mk_case_action(cursor),
+    ]
   | Analytic =>
     switch (expected_ty) {
     | Bool => [mk_bool_lit_action(true), mk_bool_lit_action(false)]

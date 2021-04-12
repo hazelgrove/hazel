@@ -471,7 +471,7 @@ let summary_bar =
         ? novice_summary(ci.typed, ci.cursor_term, tag_type)
         : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
-  let fill_icon =
+  let fill_icon = symbol =>
     Node.div(
       [
         Attr.classes(["clickable-help"]),
@@ -482,19 +482,14 @@ let summary_bar =
             Event.Stop_propagation,
             inject(
               ModelAction.UpdateSettings(
-                CursorInspector(Toggle_type_assist),
+                CursorInspector(
+                  show_strategy_guide ? Toggle_type_assist : Toggle_assistant,
+                ),
               ),
             ),
           ])
         ),
-      ],
-      [Node.text(Unicode.light_bulb)],
-    );
-  let assistant_icon =
-    Node.div(
-      [
-        Attr.classes(["clickable"]),
-        Attr.on_click(_ =>
+        Attr.on_contextmenu(_ =>
           Event.Many([
             Event.Prevent_default,
             Event.Stop_propagation,
@@ -504,13 +499,39 @@ let summary_bar =
           ])
         ),
       ],
-      [Node.text(Unicode.robot_arm)],
+      [Node.text(symbol)],
     );
+  /*
+   let assistant_icon =
+     Node.div(
+       [
+         Attr.classes(["clickable"]),
+         Attr.on_contextmenu(_ =>
+           Event.Many([
+             Event.Prevent_default,
+             Event.Stop_propagation,
+             inject(
+               ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
+             ),
+           ])
+         ),
+       ],
+       [Node.text(Unicode.robot_arm)],
+     );
+     */
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
     (show ? [summary, fill_space, arrow] : [summary])
-    @ (show_strategy_guide ? [fill_space, fill_icon] : [])
-    @ (assistant_enabled ? [assistant_icon] : []);
+    @ (
+      show_strategy_guide || assistant_enabled
+        ? [
+          fill_space,
+          fill_icon(
+            show_strategy_guide ? Unicode.light_bulb : Unicode.robot_arm,
+          ),
+        ]
+        : []
+    ) /*@ (assistant_enabled ? [assistant_icon] : [])*/; //TODO(andrew)
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),

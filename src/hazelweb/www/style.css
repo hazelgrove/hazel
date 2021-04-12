@@ -665,7 +665,7 @@ body {
 #assistant > .choice > .overlay {
   display: flex;
   align-items: center;
-  height: 2.5em;
+  min-height: 2.5em;
   width: 2.5em;
   position: absolute;
   /* TODO(andrew): fix these hack values */
@@ -696,7 +696,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 2.5rem;
+  min-height: 2.5rem;
+  height: 100%;
   width: 2.5rem;
   background-color: #888;
   font-weight:600;
