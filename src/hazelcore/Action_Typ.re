@@ -93,7 +93,8 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | SwapDown
   | Init
   | FillExpHole(_)
-  | ReplaceAtCursor(_) =>
+  | ReplaceAtCursor(_)
+  | ReplaceOpSeqAroundCursor(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -116,7 +117,8 @@ and perform_opseq =
       SwapUp |
       SwapDown |
       FillExpHole(_) |
-      ReplaceAtCursor(_),
+      ReplaceAtCursor(_) |
+      ReplaceOpSeqAroundCursor(_),
       _,
     )
   /* Invalid cursor positions */
@@ -236,7 +238,8 @@ and perform_operand =
       SwapUp |
       SwapDown |
       FillExpHole(_) |
-      ReplaceAtCursor(_),
+      ReplaceAtCursor(_) |
+      ReplaceOpSeqAroundCursor(_),
       _,
     ) =>
     Failed

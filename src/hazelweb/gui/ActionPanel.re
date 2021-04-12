@@ -494,5 +494,6 @@ let _check_actions = (a: Action.t) =>
   | MoveTo(_) => Added
   | Init => Added
   | FillExpHole(_)
-  | ReplaceAtCursor(_) => Added
+  | ReplaceAtCursor(_)
+  | ReplaceOpSeqAroundCursor(_) => Added
   };

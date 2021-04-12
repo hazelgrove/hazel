@@ -50,4 +50,7 @@ type t =
   | SwapDown
   | Init
   | FillExpHole(MetaVar.t, UHExp.t)
-  | ReplaceAtCursor(UHExp.operand);
+  | ReplaceAtCursor(UHExp.operand)
+  | ReplaceOpSeqAroundCursor(
+      ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator),
+    );

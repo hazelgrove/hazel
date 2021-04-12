@@ -522,7 +522,8 @@ let rec syn_move =
   | SwapDown
   | Init
   | FillExpHole(_)
-  | ReplaceAtCursor(_) =>
+  | ReplaceAtCursor(_)
+  | ReplaceOpSeqAroundCursor(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -583,7 +584,8 @@ let rec ana_move =
   | SwapDown
   | Init
   | FillExpHole(_)
-  | ReplaceAtCursor(_) =>
+  | ReplaceAtCursor(_)
+  | ReplaceOpSeqAroundCursor(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -1039,7 +1041,7 @@ and syn_perform_line =
   | (SwapRight, CursorL(_)) => Failed
 
   | (FillExpHole(_), CursorL(_)) => Failed
-  | (ReplaceAtCursor(_), CursorL(_)) =>
+  | (ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_), CursorL(_)) =>
     //TODO(andrew): handle this case
     Failed
 
@@ -1117,7 +1119,11 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) =>
+  | (
+      UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_) |
+      ReplaceOpSeqAroundCursor(_),
+      ZOperator(_),
+    ) =>
     Failed
 
   /* Movement handled at top level */
@@ -1337,6 +1343,10 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
+  | (ReplaceOpSeqAroundCursor(new_zseq), _) =>
+    // TODO(andrew): find way to ensure this is localmost zopseq around cursor
+    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)))
+
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
@@ -1453,6 +1463,10 @@ and syn_perform_operand =
 
   | (FillExpHole(_), CursorE(_)) =>
     // FillExpHole handled at top level
+    Failed
+
+  | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
+    // ReplaceOpSeqAroundCursor handled at opseq level
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_, _operand)) =>
@@ -2062,7 +2076,11 @@ and syn_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_), CursorR(_)) =>
+  | (
+      SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_) |
+      ReplaceOpSeqAroundCursor(_),
+      CursorR(_),
+    ) =>
     Failed
 
   /* SwapUp and SwapDown actions */
@@ -2212,7 +2230,11 @@ and ana_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_), CursorR(_)) =>
+  | (
+      SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_) |
+      ReplaceOpSeqAroundCursor(_),
+      CursorR(_),
+    ) =>
     Failed
 
   /* SwapUp and SwapDown actions */
@@ -2689,7 +2711,11 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
+  | (
+      FillExpHole(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
+      ZOperator(_),
+    ) =>
+    Failed
 
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (
@@ -2715,6 +2741,10 @@ and ana_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
+
+  | (ReplaceOpSeqAroundCursor(new_zseq), _) =>
+    // TODO(andrew): find way to ensure this is localmost zopseq around cursor
+    Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)))
 
   /* Zipper */
 
@@ -2882,6 +2912,10 @@ and ana_perform_operand =
 
   | (FillExpHole(_), CursorE(_)) =>
     // FillExpHole handled at top level
+    Failed
+
+  | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
+    // ReplaceOpSeqAroundCursor handled at opseq level
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_)) =>
