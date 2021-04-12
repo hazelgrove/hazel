@@ -195,6 +195,12 @@ let compute_actions =
     : list(assistant_action) => {
   // BUG(andrew): if list rotated, filter looks weird
   // BUG(andrew): move to next hole should reset scroll position
+  print_endline("COMPUTE ACTIONS:");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      CursorInfo.sexp_of_syntactic_context(cursor.syntactic_context),
+    ),
+  );
   compute_var_actions(cursor)
   @ compute_app_actions(cursor)
   @ compute_lit_actions(cursor)

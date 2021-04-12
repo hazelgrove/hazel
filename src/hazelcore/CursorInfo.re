@@ -123,6 +123,15 @@ type cursor_term =
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
+[@deriving sexp]
+type syntactic_context =
+  // zseq containing the selected operand and the expected type of the whole opseq
+  | ExpSeq(
+      HTyp.t,
+      ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator),
+    )
+  | NoSeq;
+
 // TODO refactor into variants
 // based on term sort and shape
 //[@deriving sexp]
@@ -130,6 +139,7 @@ type t = {
   cursor_term,
   typed,
   ctx: Contexts.t,
+  syntactic_context,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };

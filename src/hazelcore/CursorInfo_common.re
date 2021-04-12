@@ -72,11 +72,14 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let mk = (~uses=?, typed, ctx, cursor_term) => {
+let mk =
+    (~uses=?, ~syntactic_context=CursorInfo.NoSeq, typed, ctx, cursor_term)
+    : CursorInfo.t => {
   typed,
   ctx,
   uses,
   cursor_term,
+  syntactic_context,
 };
 
 let get_ctx = ci => ci.ctx;

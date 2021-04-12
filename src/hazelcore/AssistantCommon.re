@@ -14,6 +14,7 @@ type cursor_info_pro = {
   ctx: Contexts.t,
   uses: option(UsageAnalysis.uses_list),
   u_gen: MetaVarGen.t,
+  syntactic_context: CursorInfo.syntactic_context,
 };
 
 /**
@@ -136,11 +137,23 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
 };
 
 let promote_cursor_info =
-    ({cursor_term, typed, ctx, uses}: CursorInfo.t, u_gen: MetaVarGen.t)
+    (
+      {cursor_term, typed, ctx, uses, syntactic_context}: CursorInfo.t,
+      u_gen: MetaVarGen.t,
+    )
     : option(cursor_info_pro) => {
   let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
   let+ expected_ty = expected_ty;
-  {expected_ty, actual_ty, mode, u_gen, term: cursor_term, ctx, uses};
+  {
+    expected_ty,
+    actual_ty,
+    mode,
+    u_gen,
+    term: cursor_term,
+    ctx,
+    uses,
+    syntactic_context,
+  };
 };
 
 /**
