@@ -21,7 +21,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
-  | Inj(ErrStatus.t, Tag.t, t)
+  | Inj(InjErrStatus.t, Tag.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
@@ -184,9 +184,9 @@ and get_err_status_operand =
   | BoolLit(err, _)
   | ListNil(err)
   | Lam(err, _, _)
-  | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
+  | Inj(_, _, _) => NotInHole
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 

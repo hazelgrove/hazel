@@ -44,6 +44,13 @@ let for_all2_opt =
   | exception (Invalid_argument(_)) => None
   };
 
+/* Added to List in 4.12 but included here until we upgrade to 4.12 */
+let equal = (cmp: ('a, 'a) => bool, xs: list('a), ys: list('a)) =>
+  switch (List.for_all2(cmp, xs, ys)) {
+  | b => b
+  | exception (Invalid_argument(_)) => false
+  };
+
 let map2_opt =
     (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
   switch (List.map2(f, xs, ys)) {

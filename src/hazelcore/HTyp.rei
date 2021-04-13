@@ -6,7 +6,7 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(t, t)
+  | Sum(TagMap.t(option(t)))
   | Prod(list(t))
   | List(t);
 
@@ -29,7 +29,6 @@ let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
 let matched_arrow: t => option((t, t));
-let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
 
 let complete: t => bool;

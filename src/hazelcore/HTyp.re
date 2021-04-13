@@ -37,7 +37,37 @@ let precedence = (ty: t): int =>
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let eq = (==);
+
+let rec eq = (ty, ty') =>
+  switch (ty, ty') {
+  | (Hole, Hole) => true
+  | (Hole, _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(tys), Sum(tys')) =>
+    TagMap.equal(
+      (map1, map2) =>
+        switch (map1, map2) {
+        | (None, None) => true
+        | (None, _) => false
+        | (Some(ty), Some(ty')) => eq(ty, ty')
+        | (Some(_), _) => false
+        },
+      tys,
+      tys',
+    )
+  | (Sum(_), _) => false
+  | (Prod(tys1), Prod(tys2)) => ListUtil.equal(eq, tys1, tys2)
+  | (Prod(_), _) => false
+  | (List(ty), List(ty')) => eq(ty, ty')
+  | (List(_), _) => false
+  };
 
 /* type consistency */
 let rec consistent = (x, y) =>
@@ -52,21 +82,18 @@ let rec consistent = (x, y) =>
   | (Bool, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
-  | (Sum(tys), Sum(tys')) =>
-    List.for_all2(
-      ((tag, ty_opt), (tag', ty_opt')) =>
-        Tag.eq(tag, tag')
-        && (
-          switch (ty_opt, ty_opt') {
-          | (None, None) => true
-          | (Some(ty), Some(ty')) => consistent(ty, ty')
-          | _ => false
-          }
-        ),
-      TagMap.bindings(tys),
-      TagMap.bindings(tys'),
-    )
   | (Arrow(_, _), _) => false
+  | (Sum(tys), Sum(tys')) =>
+    TagMap.equal(
+      (ty_opt, ty_opt') =>
+        switch (ty_opt, ty_opt') {
+        | (None, None) => true
+        | (Some(ty), Some(ty')) => consistent(ty, ty')
+        | _ => false
+        },
+      tys,
+      tys',
+    )
   | (Sum(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.for_all2_opt(consistent, tys1, tys2)
@@ -130,7 +157,7 @@ let rec complete =
         && (
           switch (ty_opt) {
           | Some(ty) => complete(ty)
-          | None => false
+          | None => true
           }
         ),
       TagMap.bindings(tys),
@@ -165,12 +192,29 @@ let rec join = (j, ty1, ty2) =>
   | (Sum(tys), Sum(tys')) =>
     Option.map(
       joined_tys => Sum(joined_tys |> List.to_seq |> TagMap.of_seq),
-      List.fold_left2(
-        (_, _, _) => None,
-        Some([]),
-        TagMap.bindings(tys),
-        TagMap.bindings(tys'),
-      ),
+      switch (
+        List.fold_left2(
+          (acc_opt, (tag, ty_opt), (tag', ty_opt')) =>
+            Option.bind(acc_opt, acc =>
+              switch (Tag.eq(tag, tag'), ty_opt, ty_opt') {
+              | (false, _, _)
+              | (true, None, None) => Some([(tag, None), ...acc])
+              | (true, Some(ty), Some(ty')) =>
+                Option.bind(join(j, ty, ty'), joined_ty =>
+                  Some([(tag, Some(joined_ty)), ...acc])
+                )
+              | (_, Some(_), None)
+              | (_, None, Some(_)) => None
+              }
+            ),
+          Some([]),
+          TagMap.bindings(tys),
+          TagMap.bindings(tys'),
+        )
+      ) {
+      | opt => opt
+      | exception (Invalid_argument(_)) => None
+      },
     )
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
