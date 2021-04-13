@@ -655,11 +655,13 @@ body {
 #assistant > .choice  {
   display: flex;
   position: relative;
-  align-items: center;
+  align-items: stretch;
 }
 
 #assistant > .choice > .type {
   color: #e5e3e3 !important;
+  display: flex;
+  align-items: center;
 }
 
 #assistant > .choice > .overlay {
@@ -697,7 +699,6 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 2.5rem;
-  height: 100%;
   width: 2.5rem;
   background-color: #888;
   font-weight:600;
@@ -754,6 +755,8 @@ body {
 }
 
 #assistant > .choice > .type-ann {
+  display: flex;
+  align-items: center;
   color: rgb(130 130 130);
 }
 
