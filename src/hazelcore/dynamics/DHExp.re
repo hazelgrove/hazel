@@ -156,11 +156,12 @@ type t =
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
-  | Pair(t, t)
-  | Triv
-  | Label(Label.t)
-  | Label_Elt(Label.t, t)
-  | Prj(t, Label.t)
+  | Pair(t, t) // List of option t, label single tuple constructor
+  | Triv // Eliminate triv, it is just the zero tuple
+  | Label(Label.t) // Call this labelerr to make it clearer that this is an bad label not attatched to anything
+  | Label_Elt(Label.t, t) // Eliminate
+  | Prj(t, Label.t, int) // Prj projects positionally, computer integer during elaboration
+  | ErrPrj(t) // Error Prj, evaluates the body then is indet 
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
