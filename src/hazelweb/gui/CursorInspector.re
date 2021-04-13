@@ -743,7 +743,7 @@ let view =
     | (true, Some(ind)) => [summary, ...ind]
     | _ => [summary]
     };
-
+  /* TODO need to make sure lightbulb shows up when needs to */
   let content =
     if (assistant_on) {
       List.append(
@@ -758,11 +758,30 @@ let view =
           ),
         ],
       );
-    } else if (cursor_inspector.type_assist && on_empty_hole) {
-      List.append(
-        content,
-        [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],
-      );
+    } else if (cursor_inspector.type_assist) {
+      switch (cursor_info.cursor_term) {
+      | Exp(_, EmptyHole(_)) =>
+        List.append(
+          content,
+          [
+            StrategyGuide.exp_hole_view(
+              ~inject,
+              cursor_inspector,
+              cursor_info,
+            ),
+          ],
+        )
+      | Rule(_)
+      | Exp(_, Case(_)) =>
+        switch (StrategyGuide.rules_view(cursor_info)) {
+        | None => content
+        | Some(sg_rules) => List.append(content, [sg_rules])
+        }
+      | Line(_) =>
+        /* TODO: Make work in general? */
+        List.append(content, [StrategyGuide.lines_view()])
+      | _ => content
+      };
     } else {
       content;
     };

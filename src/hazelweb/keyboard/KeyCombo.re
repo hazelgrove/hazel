@@ -11,10 +11,10 @@ let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
 let shift = key => {mod_keys: ModKeys.shift, key};
 let ctrl = key => {mod_keys: ModKeys.ctrl, key};
 let alt = key => {mod_keys: ModKeys.alt, key};
-let _meta = key => {mod_keys: ModKeys.meta, key};
+let meta = key => {mod_keys: ModKeys.meta, key};
 let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
 let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
-let _meta_shift = key => {mod_keys: ModKeys.meta_shift, key};
+let meta_shift = key => {mod_keys: ModKeys.meta_shift, key};
 
 let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
   ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -60,5 +60,5 @@ let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
 let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
 let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
 let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
-let meta_z = ctrl(Key.the_key("z"));
-let meta_shift_z = ctrl_shift(Key.the_key("Z"));
+let meta_z = meta(Key.the_key("z"));
+let meta_shift_z = meta_shift(Key.the_key("Z"));

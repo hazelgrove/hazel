@@ -129,6 +129,7 @@ module CursorInspector = {
     type_assist_var: bool,
     type_assist_fun: bool,
     type_assist_branch: bool,
+    type_assist_new_var: bool,
     type_assist_other: bool,
     assistant: bool,
     assistant_selection: option(int),
@@ -144,6 +145,7 @@ module CursorInspector = {
     type_assist_var: false,
     type_assist_fun: false,
     type_assist_branch: false,
+    type_assist_new_var: false,
     type_assist_other: false,
     assistant: false,
     assistant_selection: Some(0),
@@ -161,6 +163,7 @@ module CursorInspector = {
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
+    | Toggle_type_assist_new_var
     | Toggle_type_assist_other
     | Toggle_assistant
     | Set_assistant(bool)
@@ -196,6 +199,10 @@ module CursorInspector = {
     | Toggle_type_assist_branch => {
         ...settings,
         type_assist_branch: !settings.type_assist_branch,
+      }
+    | Toggle_type_assist_new_var => {
+        ...settings,
+        type_assist_new_var: !settings.type_assist_new_var,
       }
     | Toggle_type_assist_other => {
         ...settings,
