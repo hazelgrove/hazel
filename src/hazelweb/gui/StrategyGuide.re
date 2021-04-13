@@ -13,6 +13,8 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   vars |> VarMap.filter(can_extract);
 };
 
+/* TODO: go through helpers and move things can to hazelcore (e.g. if types for the function are all in hazelcore, probably can just move to hazelcore)
+   Check with Andrew where he is working on these common things */
 /**
  * Filter the variables that are functions that have the correct resulting type
  */
@@ -68,17 +70,17 @@ let get_type = (cursor_info: CursorInfo.t) => {
  * Gets the type in string format.
  * Return string
  */
-let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
+let type_to_str = (ty: option(HTyp.t)) => {
   switch (ty) {
-  | Some(Hole) => empty_hole ? "" : "a"
-  | Some(Int) => "Integer"
-  | Some(Float) => "Float"
-  | Some(Bool) => "Boolean"
-  | Some(Arrow(_, _)) => "Function"
-  | Some(Sum(_, _)) => "Sum"
-  | Some(Prod(_)) => "Product"
-  | Some(List(_)) => "List"
-  | _ => raise(Invalid_argument("No Literal"))
+  | Some(Hole) => "a"
+  | Some(Int) => "an Integer"
+  | Some(Float) => "a Float"
+  | Some(Bool) => "a Boolean"
+  | Some(Arrow(_, _)) => "a Function"
+  | Some(Sum(_, _)) => "a Sum"
+  | Some(Prod(_)) => "a Product"
+  | Some(List(_)) => "a List"
+  | None => raise(Invalid_argument("No Literal"))
   };
 };
 
@@ -299,6 +301,26 @@ let operator_options = cursor_info => {
   };
 };
 
+let add_rule_after_option =
+  Vdom.(
+    Node.div(
+      [Attr.classes(["option"])],
+      [Node.text("Add rule after"), fill_space, shortcut_node("Enter")],
+    )
+  );
+
+let comment_line_option =
+  Vdom.(
+    Node.div(
+      [Attr.classes(["option"])],
+      [
+        Node.text("Create new comment line"),
+        fill_space,
+        shortcut_node("#"),
+      ],
+    )
+  );
+
 let type_driven = body =>
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
 
@@ -366,10 +388,7 @@ let exp_hole_view =
   let lit =
     subsection_header(
       Toggle_type_assist_lit,
-      /* TODO: a vs an*/
-      "Will a "
-      ++ type_to_str(~empty_hole=true, ty)
-      ++ " literal give what you need?",
+      "Will " ++ type_to_str(ty) ++ " literal give what you need?",
       lit_open,
     );
   let lit_body =
@@ -504,43 +523,52 @@ let exp_hole_view =
 
   let other =
     subsection_header(Toggle_type_assist_other, "Other Actions", other_open);
+  let other_main_options =
+    Vdom.[
+      Node.div(
+        [Attr.classes(["option"])],
+        [Node.text("Parenthesize"), fill_space, shortcut_node("(")],
+      ),
+      Node.div(
+        [Attr.classes(["option"])],
+        [
+          Node.text("Move to next/previous hole"),
+          fill_space,
+          shortcut_node("Tab"),
+          shortcut_node("Shift+Tab"),
+        ],
+      ),
+      Node.div(
+        [Attr.classes(["option"])],
+        [
+          Node.text("Swap line up/down"),
+          fill_space,
+          shortcut_node("Ctrl+Alt+i"),
+          shortcut_node("Ctrl+Alt+k"),
+        ],
+      ),
+      Node.div(
+        [Attr.classes(["option"])],
+        [
+          Node.text("Swap operand left/right"),
+          fill_space,
+          shortcut_node("Ctrl+Alt+j"),
+          shortcut_node("Ctrl+Alt+l"),
+        ],
+      ),
+    ];
+  let other_options =
+    switch (cursor_info.parent_info) {
+    | EndBranchClause =>
+      List.append(other_main_options, [add_rule_after_option])
+    | EmptyHoleLine => List.append(other_main_options, [comment_line_option])
+    | NoParentInfo => other_main_options
+    };
   let other_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [Node.text("Parenthesize"), fill_space, shortcut_node("(")],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Move to next/previous hole"),
-              fill_space,
-              shortcut_node("Tab"),
-              shortcut_node("Shift+Tab"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Swap line up/down"),
-              fill_space,
-              shortcut_node("Ctrl+Alt+i"),
-              shortcut_node("Ctrl+Alt+k"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Swap operand left/right"),
-              fill_space,
-              shortcut_node("Ctrl+Alt+j"),
-              shortcut_node("Ctrl+Alt+l"),
-            ],
-          ),
-        ],
+        other_options,
       )
     );
   let body =
@@ -583,10 +611,9 @@ let exp_hole_view =
 };
 
 let rules_view = (cursor_info: CursorInfo.t) => {
-  /* TOOD: Make work for if on outermost part of rule exp? */
-  switch (cursor_info.cursor_term) {
-  | Rule(OnDelim(0, After), _)
-  | Exp(OnDelim(1, Before), Case(_)) =>
+  switch (cursor_info.cursor_term, cursor_info.parent_info) {
+  | (Rule(OnDelim(0, After), _), _)
+  | (Exp(OnDelim(1, Before), Case(_)), _) =>
     Some(
       type_driven([
         Vdom.(
@@ -606,22 +633,14 @@ let rules_view = (cursor_info: CursorInfo.t) => {
         ),
       ]),
     )
-  | Rule(OnDelim(1, Before), _) =>
+  | (Rule(OnDelim(1, Before), _), _)
+  | (_, EndBranchClause) =>
     Some(
       type_driven([
         Vdom.(
           Node.div(
             [Attr.classes(["panel-title-bar", "body-bar"])],
-            [
-              Node.div(
-                [Attr.classes(["option"])],
-                [
-                  Node.text("Add rule after"),
-                  fill_space,
-                  shortcut_node("Enter"),
-                ],
-              ),
-            ],
+            [add_rule_after_option],
           )
         ),
       ]),
@@ -630,31 +649,16 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   };
 };
 
-let lines_view = () => {
-  type_driven([
+let lines_view = (suggest_comment: bool) => {
+  let new_line =
     Vdom.(
       Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create new line"),
-              fill_space,
-              shortcut_node("Enter"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create new comment line"),
-              fill_space,
-              shortcut_node("#"),
-              shortcut_node("Shift+Enter"),
-            ],
-          ),
-        ],
+        [Attr.classes(["option"])],
+        [Node.text("Create new line"), fill_space, shortcut_node("Enter")],
       )
-    ),
+    );
+  let body = suggest_comment ? [new_line, comment_line_option] : [new_line];
+  type_driven([
+    Vdom.(Node.div([Attr.classes(["panel-title-bar", "body-bar"])], body)),
   ]);
 };

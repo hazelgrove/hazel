@@ -107,8 +107,9 @@ type typed =
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | OnType
+  | SynLetLine(HTyp.t)
+  | AnaLetLine(HTyp.t)
   /* (we will have a richer structure here later)*/
-  | OnLetLine(HTyp.t)
   | OnLine
   | OnRule;
 
@@ -123,6 +124,12 @@ type cursor_term =
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
+[@deriving sexp]
+type parent_info =
+  | EndBranchClause
+  | EmptyHoleLine
+  | NoParentInfo;
+
 // TODO refactor into variants
 // based on term sort and shape
 //[@deriving sexp]
@@ -132,4 +139,5 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  parent_info,
 };

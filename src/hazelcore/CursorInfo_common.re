@@ -72,14 +72,29 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let mk = (~uses=?, typed, ctx, cursor_term) => {
+let mk = (~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
   typed,
   ctx,
   uses,
   cursor_term,
+  parent_info,
 };
 
 let get_ctx = ci => ci.ctx;
+
+let set_end_branch_clause = (ci, is_end_branch_clause) =>
+  if (is_end_branch_clause) {
+    {...ci, parent_info: EndBranchClause};
+  } else {
+    ci;
+  };
+
+let set_is_empty_hole_line = (ci, is_empty_hole_line) =>
+  if (is_empty_hole_line) {
+    {...ci, parent_info: EmptyHoleLine};
+  } else {
+    ci;
+  };
 
 /*
  * there are cases we can't determine where to find the uses of a variable

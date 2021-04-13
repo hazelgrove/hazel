@@ -80,13 +80,14 @@ let advanced_summary =
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
+    | PatAnalyzed(ty)
+    | AnaLetLine(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
     | PatSynthesized(ty)
-    | OnLetLine(ty) =>
-      switch (ty) {
-      | HTyp.Hole => [syn, any_typ_msg]
+    | SynLetLine(ty) =>
+      switch (term) {
+      | Exp(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
     /* Use the got type if not just Hole */
@@ -186,9 +187,6 @@ let advanced_summary =
             HTypCode.view(~diff_steps=got_diff, got_ty),
           ];
         }
-      /*| (InconsistentBranchTys(_), _) => [
-          emphasize_text("Inconsistent Branch Types"),
-        ]*/
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => [
@@ -206,7 +204,10 @@ let advanced_summary =
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
   };
-  List.cons(term_tag, message(typed));
+  switch (typed) {
+  | OnLine => message(typed) /* Don't display the term tag for empty and comment lines */
+  | _ => List.cons(term_tag, message(typed))
+  };
 };
 
 let novice_summary =
@@ -226,7 +227,8 @@ let novice_summary =
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
+    | PatAnalyzed(ty)
+    | AnaLetLine(ty) => expecting_of_type @ [HTypCode.view(ty)]
     /* Use the got type if not just a Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
@@ -242,10 +244,10 @@ let novice_summary =
       }
     | Synthesized(ty)
     | PatSynthesized(ty)
-    | OnLetLine(ty) =>
-      switch (ty) {
-      | HTyp.Hole => [
-          Node.text("Expecting " ++ article),
+    | SynLetLine(ty) =>
+      switch (term) {
+      | Exp(_, EmptyHole(_)) => [
+          Node.text("Got " ++ article),
           term_tag,
           Node.text("of"),
           any_typ_msg,
@@ -266,7 +268,6 @@ let novice_summary =
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
-
       expecting_of_type
       @ [
         HTypCode.view(~diff_steps=expected_diff, expected_ty),
@@ -387,11 +388,6 @@ let novice_summary =
             HTypCode.view(~diff_steps=got_diff, got_ty),
           ];
         }
-      /*| (InconsistentBranchTys(_), _) => [
-          Node.text("Got " ++ article),
-          term_tag,
-          emphasize_text("Inconsistent Branch Types"),
-        ]*/
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => [
@@ -409,8 +405,8 @@ let novice_summary =
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
     | OnLine => /* TODO */ [
-        Node.text("Got " ++ article),
-        term_tag,
+        Node.text("Got a "),
+        /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
     | OnRule => /* TODO */ [
@@ -430,7 +426,7 @@ let summary_bar =
       show: bool,
       show_expanded: bool,
       novice_mode: bool,
-      show_strategy_guide: bool,
+      show_strategy_guide_icon: bool,
     ) => {
   let arrow_direction =
     if (show_expanded) {
@@ -492,7 +488,8 @@ let summary_bar =
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
-    show_strategy_guide ? List.append(body, [fill_space, fill_icon]) : body;
+    show_strategy_guide_icon
+      ? List.append(body, [fill_space, fill_icon]) : body;
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
@@ -651,7 +648,8 @@ let view =
     | PatSynthesized(_) => OK
     | PatSynKeyword(_) => BindingError
     | OnLine => OK
-    | OnLetLine(_) => OK
+    | SynLetLine(_) => OK
+    | AnaLetLine(_) => OK
     | OnRule => OK
     };
 
@@ -677,19 +675,27 @@ let view =
     | Exp(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
-  let on_empty_hole =
-    switch (cursor_info.cursor_term) {
-    | Exp(_, EmptyHole(_)) => true
-    | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => false
-    | Pat(_, _) => false
-    | Typ(_, Hole) => false
-    | Typ(_, _) => false
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _)
-    | Line(_, _)
-    | Rule(_, _) => false
+  let (show_strategy_guide_icon, strategy_guide) =
+    switch (cursor_info.cursor_term, cursor_info.parent_info) {
+    | (Exp(_, EmptyHole(_)), _) => (
+        true,
+        Some(
+          StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
+        ),
+      )
+    | (Rule(_), _)
+    | (Exp(_, Case(_)), _)
+    | (_, EndBranchClause) =>
+      switch (StrategyGuide.rules_view(cursor_info)) {
+      | None => (false, None)
+      | Some(sg_rules) => (true, Some(sg_rules))
+      }
+    | (Line(_, EmptyLine), _) => (
+        true,
+        Some(StrategyGuide.lines_view(true)),
+      )
+    | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
+    | _ => (false, None)
     };
   let show =
     switch (expanded) {
@@ -703,41 +709,18 @@ let view =
       show,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
-      on_empty_hole,
+      show_strategy_guide_icon,
     );
   let content =
     switch (cursor_inspector.show_expanded, expanded) {
     | (true, Some(ind)) => [summary, ...ind]
     | _ => [summary]
     };
-/* TODO need to make sure lightbulb shows up when needs to */
   let content =
-    if (cursor_inspector.type_assist) {
-      switch (cursor_info.cursor_term) {
-      | Exp(_, EmptyHole(_)) =>
-        List.append(
-          content,
-          [
-            StrategyGuide.exp_hole_view(
-              ~inject,
-              cursor_inspector,
-              cursor_info,
-            ),
-          ],
-        )
-      | Rule(_)
-      | Exp(_, Case(_)) =>
-        switch (StrategyGuide.rules_view(cursor_info)) {
-        | None => content
-        | Some(sg_rules) => List.append(content, [sg_rules])
-        }
-      | Line(_) =>
-        /* TODO: Make work in general? */
-        List.append(content, [StrategyGuide.lines_view()])
-      | _ => content
-      };
-    } else {
-      content;
+    switch (cursor_inspector.type_assist, strategy_guide) {
+    | (true, Some(strategy_guide)) =>
+      List.append(content, [strategy_guide])
+    | _ => content
     };
   Node.div(
     [
