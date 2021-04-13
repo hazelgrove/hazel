@@ -1,87 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
 
-/**
- * Extract from the context the variables that are consistent with the type that
- * we are looking for.
- * Return a VarCtx.t
- */
-let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let (vars, _) = ctx;
-  let can_extract = ((_, ty: HTyp.t)) => {
-    HTyp.consistent(ty, typ);
-  };
-  vars |> VarMap.filter(can_extract);
-};
-
-/**
- * Filter the variables that are functions that have the correct resulting type
- */
-let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let (vars, _) = ctx;
-  let rec compatible_funs = right_ty =>
-    if (HTyp.consistent(right_ty, typ)) {
-      true;
-    } else {
-      switch (right_ty) {
-      | Arrow(_, right_ty) => compatible_funs(right_ty)
-      | _ => false
-      };
-    };
-  let can_extract = ((_, ty: HTyp.t)) => {
-    switch (ty) {
-    | Arrow(_, t2) => compatible_funs(t2)
-    | _ => false
-    };
-  };
-  vars |> VarMap.filter(can_extract);
-};
-
-/**
- * Gets the type of the expression at the cursor.
- * Return HTyp.t
- */
-let get_type = (cursor_info: CursorInfo.t) => {
-  let rec my_type = (typed: CursorInfo.typed) =>
-    switch (typed) {
-    | Analyzed(ty) => Some(ty)
-    | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
-    | AnaSubsumed(expected_ty, _) => Some(expected_ty)
-    | Synthesized(ty) => Some(ty)
-    | SynMatchingArrow(syn_ty, _) => Some(syn_ty)
-    | SynBranchClause(join, typed, _) =>
-      switch (join, typed) {
-      | (JoinTy(ty), Synthesized(got_ty)) =>
-        switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-        | (true, true) => Some(ty)
-        | (true, false) => Some(ty)
-        | _ => None
-        }
-      | (NoBranches, _) => my_type(typed)
-      | _ => None
-      }
-    | _ => None
-    };
-  my_type(cursor_info.typed);
-};
-
-/**
- * Gets the type in string format.
- * Return string
- */
-let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
-  switch (ty) {
-  | Some(Hole) => empty_hole ? "" : "a"
-  | Some(Int) => "Integer"
-  | Some(Float) => "Float"
-  | Some(Bool) => "Boolean"
-  | Some(Arrow(_, _)) => "Function"
-  | Some(Sum(_, _)) => "Sum"
-  | Some(Prod(_)) => "Product"
-  | Some(List(_)) => "List"
-  | _ => raise(Invalid_argument("No Literal"))
-  };
-};
-
 let code_node = text =>
   Vdom.Node.div(
     [Vdom.Attr.classes(["code-font"])],
@@ -272,7 +190,7 @@ let operator_options = cursor_info => {
       [Node.text("List Operation"), fill_space, shortcut_node(";")],
     );
 
-  switch (get_type(cursor_info)) {
+  switch (Assistant_common.get_type(cursor_info)) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
@@ -315,7 +233,7 @@ let exp_hole_view =
   let new_var_open = cursor_inspector.type_assist_new_var;
   let other_open = cursor_inspector.type_assist_other;
 
-  let ty = get_type(cursor_info);
+  let ty = Assistant_common.get_type(cursor_info);
   let ctx = cursor_info.ctx;
 
   let typ =
@@ -348,7 +266,7 @@ let exp_hole_view =
     );
   };
 
-  let var_ctx = extract_vars(ctx, typ);
+  let var_ctx = Assistant_common.extract_vars(ctx, typ);
 
   let fill_hole_msg =
     Vdom.(
@@ -368,7 +286,7 @@ let exp_hole_view =
       Toggle_type_assist_lit,
       /* TODO: a vs an*/
       "Will a "
-      ++ type_to_str(~empty_hole=true, ty)
+      ++ Assistant_common.type_to_str(~empty_hole=true, ty)
       ++ " literal give what you need?",
       lit_open,
     );
@@ -413,7 +331,7 @@ let exp_hole_view =
       "Is there a function that will calculate what you need?",
       fun_open,
     );
-  let fun_ctx = fun_vars(ctx, typ);
+  let fun_ctx = Assistant_common.fun_vars(ctx, typ);
   let fun_ap_opt =
     option([
       Vdom.Node.text("Apply a Function"),
@@ -436,7 +354,7 @@ let exp_hole_view =
         fun_ap_opt,
       ];
     } else {
-      [fun_ap_opt, ...list_vars_view(fun_vars(ctx, typ))];
+      [fun_ap_opt, ...list_vars_view(Assistant_common.fun_vars(ctx, typ))];
     };
   let fun_body =
     Vdom.(

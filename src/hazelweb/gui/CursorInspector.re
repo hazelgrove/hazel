@@ -710,7 +710,7 @@ let view =
     | (true, Some(ind)) => [summary, ...ind]
     | _ => [summary]
     };
-/* TODO need to make sure lightbulb shows up when needs to */
+  /* TODO need to make sure lightbulb shows up when needs to */
   let content =
     if (cursor_inspector.type_assist) {
       switch (cursor_info.cursor_term) {
