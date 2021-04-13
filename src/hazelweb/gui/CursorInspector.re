@@ -719,9 +719,9 @@ let view =
     | _ => "below"
     };
   let on_empty_hole =
-    AssistantCommon.on_empty_expr_hole(cursor_info.cursor_term);
+    Assistant_common.on_empty_expr_hole(cursor_info.cursor_term);
   let assistant_enabled =
-    AssistantCommon.valid_assistant_term(cursor_info.cursor_term);
+    Assistant_common.valid_assistant_term(cursor_info.cursor_term);
   let assistant_on = assistant_enabled && cursor_inspector.assistant;
   let show =
     switch (expanded) {

@@ -190,7 +190,7 @@ let operator_options = cursor_info => {
       [Node.text("List Operation"), fill_space, shortcut_node(";")],
     );
 
-  switch (AssistantCommon.get_type(cursor_info)) {
+  switch (Assistant_common.get_type(cursor_info)) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
@@ -229,7 +229,7 @@ let view =
   let branch_open = cursor_inspector.type_assist_branch;
   let other_open = cursor_inspector.type_assist_other;
 
-  let ty = AssistantCommon.get_type(cursor_info);
+  let ty = Assistant_common.get_type(cursor_info);
   let ctx = cursor_info.ctx;
 
   let typ =
@@ -262,7 +262,7 @@ let view =
     );
   };
 
-  let var_ctx = AssistantCommon.extract_vars(ctx, typ);
+  let var_ctx = Assistant_common.extract_vars(ctx, typ);
 
   let fill_hole_msg =
     Vdom.(
@@ -282,7 +282,7 @@ let view =
       Toggle_type_assist_lit,
       /* TODO: a vs an*/
       "Will a "
-      ++ AssistantCommon.type_to_str(~empty_hole=true, ty)
+      ++ Assistant_common.type_to_str(~empty_hole=true, ty)
       ++ " literal give what you need?",
       lit_open,
     );
@@ -327,7 +327,7 @@ let view =
       "Is there a function that will calculate what you need?",
       fun_open,
     );
-  let fun_ctx = AssistantCommon.fun_vars(ctx, typ);
+  let fun_ctx = Assistant_common.fun_vars(ctx, typ);
   let fun_ap_opt =
     option([
       Vdom.Node.text("Apply a Function"),
@@ -350,7 +350,7 @@ let view =
         fun_ap_opt,
       ];
     } else {
-      [fun_ap_opt, ...list_vars_view(AssistantCommon.fun_vars(ctx, typ))];
+      [fun_ap_opt, ...list_vars_view(Assistant_common.fun_vars(ctx, typ))];
     };
   let fun_body =
     Vdom.(

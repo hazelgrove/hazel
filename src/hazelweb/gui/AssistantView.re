@@ -3,6 +3,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Attr;
 open Assistant;
+open Assistant_Exp;
 
 let action_abbreviation =
   fun
@@ -66,7 +67,7 @@ let view =
       u_gen: MetaVarGen.t,
     )
     : Vdom.Node.t => {
-  switch (AssistantCommon.promote_cursor_info(cursor_info, u_gen)) {
+  switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
   | None => text("error")
   | Some(cursor) =>
     let actions = compute_actions(cursor);
@@ -74,7 +75,7 @@ let view =
     let actions_visible =
       ListUtil.rotate_n(action_index, actions)
       |> trim(assistant_choices_limit);
-    let search_string = Assistant.term_to_string(cursor.term);
+    let search_string = Assistant_common.term_to_str(cursor.term);
     let action_views =
       List.mapi(
         (i, a) =>

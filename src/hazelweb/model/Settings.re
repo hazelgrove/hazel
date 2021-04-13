@@ -136,9 +136,9 @@ module CursorInspector = {
   };
 
   let init = {
-    visible: false, //true, TODO(andrew): change this back?
+    visible: true, //false, TODO(andrew): change this
     show_expanded: false,
-    novice_mode: false, //true, TODO(andrew): change this back?
+    novice_mode: true, //false, TODO(andrew): change this
     type_assist: false,
     type_assist_lit: false,
     type_assist_var: false,

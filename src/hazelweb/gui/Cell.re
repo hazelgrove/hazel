@@ -93,7 +93,7 @@ let code_view =
               //TODO(andrew): clean up below
               ~assistant_active=
                 settings.cursor_inspector.assistant
-                && AssistantCommon.valid_assistant_term(
+                && Assistant_common.valid_assistant_term(
                      Program.get_cursor_info(program).cursor_term,
                    ),
             )
@@ -131,31 +131,32 @@ let code_view =
           Attr.on_mousedown(evt =>
             Event.Many([
               click_handler(evt),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_visible(false)),
-                ),
-              ),
+              /*
+               inject(
+                 ModelAction.UpdateSettings(
+                   CursorInspector(Set_visible(false)),
+                 ),
+               ),*/
             ])
           ),
-          Attr.on_contextmenu(evt => {
-            // TODO(andrew): make this sane
-            Event.Many([
-              Event.Prevent_default,
-              //Event.Stop_propagation,
-              click_handler(evt),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_visible(true)),
+          /*Attr.on_contextmenu(evt => {
+              // TODO(andrew): make this sane
+              Event.Many([
+                Event.Prevent_default,
+                //Event.Stop_propagation,
+                click_handler(evt),
+                inject(
+                  ModelAction.UpdateSettings(
+                    CursorInspector(Set_visible(true)),
+                  ),
                 ),
-              ),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_assistant(true)),
+                inject(
+                  ModelAction.UpdateSettings(
+                    CursorInspector(Set_assistant(true)),
+                  ),
                 ),
-              ),
-            ])
-          }),
+              ])
+            }),*/
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
