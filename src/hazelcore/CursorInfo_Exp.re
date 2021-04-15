@@ -902,12 +902,16 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
+  | TightApZE1(InHole(WrongLength, _), _, _)
+  | TightApZE2(InHole(WrongLength, _), _, _)
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TightApZE1(InHole(TypeInconsistent, _), _, _)
+  | TightApZE2(InHole(TypeInconsistent, _), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
@@ -958,6 +962,10 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+  | TightApZE1(NotInHole, zfunc, _) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, zfunc, ty)
+  | TightApZE2(NotInHole, _, zarg) =>
+    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

@@ -346,8 +346,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
   | TightAp(InHole(_), _, _) => false
-  | TightAp(NotInHole, func, arg) =>
-    is_complete(func, check_type_holes) && is_complete(arg, check_type_holes)
+  | TightAp(NotInHole, func, arg) => is_complete(func) && is_complete(arg)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

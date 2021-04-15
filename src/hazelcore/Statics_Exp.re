@@ -131,6 +131,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TightAp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
@@ -143,6 +144,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | TightAp(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
@@ -179,6 +181,12 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
+  | TightAp(NotInHole, func, arg) =>
+    let* ty_func = syn(ctx, func);
+    let* (ma_ty_1, ma_ty_2) = HTyp.matched_arrow(ty_func);
+    //if the ana works, the rest is guaranteed to be fine. Use map and output the second type of func's MA type
+    let+ _ = ana(ctx, arg, ma_ty_1);
+    ma_ty_2;
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
@@ -296,6 +304,7 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TightAp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
@@ -308,6 +317,7 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | TightAp(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
@@ -332,6 +342,11 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
+  | TightAp(NotInHole, func, arg) =>
+    //go under subsumption
+    let* ty' = syn(ctx, operand)
+    //if the result is consistent with what is desired, return some; else none
+    HType.consistent(ty', ty) ? Some() : None;
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
@@ -846,6 +861,20 @@ and syn_fix_holes_operand =
         u_gen,
       )
     };
+  | TightAp(_, func, arg) =>
+    //may need to call other ana; also, may have wrong error status! <---------------
+    let (func, ty_func, u_gen) = 
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, func);
+    let (arg, ty_arg, u_gen) = 
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg);
+    let* (ma_ty1_func, ma_ty2_func) = HTyp.matched_arrow(func);
+
+    if (HTyp.consistent(ty_arg, ma_ty2_func)) {
+      (TightAp(NotInHole, func, arg), ma_ty2_func, u_gen);
+    }
+    else {
+      (TightAp(InHole(TypeInconsistent), func, arg), HTyp.Hole, u_gen);
+    }
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {

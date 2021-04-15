@@ -1485,7 +1485,10 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) | TightAp(_, e)) as operand,
+        (
+          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
+          TightAp(_, _, e)
+        ) as operand,
       ),
     ) =>
     let place_cursor =
@@ -1506,10 +1509,9 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
   | (
     Backspace,
-    CursorE( OnDelim(k, After), TightAp(_, func, arg) as operand)
+    CursorE(OnDelim(k, After), TightAp(_, func, arg) as operand),
     ) =>
-    //HEY RAEF!
-    //Need case here! Very complicated subscript version... TBD *****************************************************<---
+    //current guess; same as case above. Although idk lol
 
 
   /* TODO consider deletion of type ascription on case */
