@@ -61,10 +61,9 @@ that you know the OCaml syntax for.
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
 are a few extensions that might be helpful.
 
-- These extensions provide support for editing ReasonML and Dune source code:
+- This extension provides full support for editing ReasonML source code and relevant tools:
 
-  - [reason-vscode](https://marketplace.visualstudio.com/items?itemName=jaredly.reason-vscode)
-  - [Dune](https://marketplace.visualstudio.com/items?itemName=maelvalais.dune)
+  - [ocaml-platform](https://github.com/ocamllabs/vscode-ocaml-platform)
 
 - Due to Reason's poor parse errors, unbalanced parentheses can be difficult
   to find.  The following extensions help with that.
