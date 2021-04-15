@@ -42,25 +42,13 @@ and get_zoperand_from_ztyp_operand =
   };
 };
 
-let rec extract_outer_typ = (ztyp: ZTyp.t): bool => {
-  switch (ztyp) {
-  | ZOpSeq(_, zseq) =>
-    switch (zseq) {
-    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
-    | ZOperator(_, _) => false
-    }
-  };
-}
-and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): bool => {
-  switch (ztyp_operand) {
-  | CursorT(_, _) => false
-  | ParenthesizedZ(_)
-  | ListZ(_) => true
-  };
-};
-
 let cursor_info =
     (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) => {
-  let b = extract_outer_typ(typ);
-  Some(CursorInfo_common.mk(OnType(b), ctx, extract_cursor_term(typ)));
+  Some(
+    CursorInfo_common.mk(
+      OnType(!ZTyp.is_after(typ)),
+      ctx,
+      extract_cursor_term(typ),
+    ),
+  );
 };
