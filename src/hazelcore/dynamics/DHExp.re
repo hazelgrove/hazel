@@ -156,12 +156,10 @@ type t =
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
-  | Pair(t, t) // List of option t, label single tuple constructor
-  | Triv // Eliminate triv, it is just the zero tuple
-  | Label(Label.t) // Call this labelerr to make it clearer that this is an bad label not attatched to anything
-  | Label_Elt(Label.t, t) // Eliminate
+  | Tuple(list(option(Label.t), t)) // List of option t, label single tuple constructor
+  | ErrLabel(Label.t) // Call this labelerr to make it clearer that this is an bad label not attatched to anything
   | Prj(t, Label.t, int) // Prj projects positionally, computer integer during elaboration
-  | ErrPrj(t) // Error Prj, evaluates the body then is indet 
+  | ErrPrj(t, Label.t) // Error Prj, evaluates the body then is indet 
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
@@ -206,12 +204,6 @@ let rec constructor_string = (d: t): string =>
   | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
   | Prj(body, pl) => constructor_string(body) ++ l
   };
-
-let rec mk_tuple: list(t) => t =
-  fun
-  | [] => failwith("mk_tuple: expected at least 1 element")
-  | [d] => d
-  | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let rec get_projected = (d: t, l: Label.t): option(t) => {
   switch (d) {
