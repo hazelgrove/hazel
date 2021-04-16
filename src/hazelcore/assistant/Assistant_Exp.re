@@ -95,7 +95,7 @@ let mk_nil_list_action: assistant_action = {
     category: InsertLit,
     text: "[]",
     action: ReplaceAtCursor(UHExp.listnil()),
-    res_ty: HTyp.Bool,
+    res_ty: HTyp.List(Hole),
     result: mk_list_nil_uhexp,
   };
 };
@@ -109,7 +109,7 @@ let mk_inj_action =
     text: "inj" ++ InjSide.to_string(side) ++ "",
     // TODO: reconcile visual presentation ie brackets
     action: ReplaceAtCursor(operand),
-    res_ty: HTyp.Bool,
+    res_ty: HTyp.Sum(Hole, Hole),
     result: uhexp,
   };
 };
@@ -132,18 +132,26 @@ let mk_case_action = ({u_gen, _}: cursor_info_pro): assistant_action => {
   };
 };
 
-let compute_lit_actions = ({expected_ty, mode, _} as cursor: cursor_info_pro) => {
+let compute_gen_actions = (cursor: cursor_info_pro) => {
+  [mk_case_action(cursor)];
+};
+
+let compute_ctor_actions =
+    ({expected_ty, mode, _} as cursor: cursor_info_pro) => {
   switch (mode) {
-  // TODO(andrew): move these somewhere more sensible
+  // TODO(andrew): factor this more cleanly
   | Synthetic => [
+      mk_bool_lit_action(true),
+      mk_bool_lit_action(false),
+      mk_nil_list_action,
       mk_inj_action(cursor, L),
       mk_inj_action(cursor, R),
-      mk_case_action(cursor),
     ]
   | Analytic =>
     switch (expected_ty) {
     | Bool => [mk_bool_lit_action(true), mk_bool_lit_action(false)]
     | List(_) => [mk_nil_list_action]
+    | Sum(_) => [mk_inj_action(cursor, L), mk_inj_action(cursor, R)]
     | _ => []
     }
   | UnknownMode => []
