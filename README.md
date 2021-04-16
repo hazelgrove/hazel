@@ -61,7 +61,8 @@ that you know the OCaml syntax for.
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
 are a few extensions that might be helpful.
 
-- This extension provides full support for editing ReasonML source code and relevant tools:
+- This extension provides full support for editing ReasonML source code and
+  relevant tools:
 
   - [ocaml-platform](https://github.com/ocamllabs/vscode-ocaml-platform)
 
@@ -71,6 +72,16 @@ are a few extensions that might be helpful.
   - [Bracket Pair Colorizer 2](https://marketplace.visualstudio.com/items?itemName=coenraads.bracket-pair-colorizer-2)
   - [Indenticator](https://marketplace.visualstudio.com/items?itemName=sirtori.indenticator)
   - [indent-rainbow](https://marketplace.visualstudio.com/items?itemName=oderwat.indent-rainbow)
+
+In addition to these extensions, enabling the breadcrumbs bar can make
+navigating a large code base easier. There are multiple ways to make the
+breadcrumbs bar visible:
+
+- Click **View** / **Show Breadcrumbs** from the menu bar.
+- Press `Ctrl+Shift+P` (macOS: `Cmd+Shift+P`), start typing `breadcrumbs`, and
+  select `View: Toggle Breadcrumbs` from the dropdown menu to toggle breadcrumbs
+  on and off.
+- Press `Ctrl+Shift+.` to start breadcrumbs navigation.
 
 ### Build System Details
 
