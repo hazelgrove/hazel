@@ -216,6 +216,9 @@ let key_handlers =
             Event.Ignore;
           }
         | Some(Alt_H) =>
+          // 1. create mini buffer or make invisible mini buffer visible + focus it
+          //    - mini buffer has its own key handlers for submitting/closing
+          // 2. send action up to model saying now mini buffer is in MoveToHole state
           prevent_stop_inject(ModelAction.OpenMiniBuffer(MoveToHole))
         | Some(kc) =>
           prevent_stop_inject(

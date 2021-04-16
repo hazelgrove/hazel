@@ -1,13 +1,47 @@
 1. fix bug where mini buffer is open and you try to use a drop down menu
 
+2. maybe something other than alt-h? (brings up help menu on linux/windows)
+
+3. fix bug where rapid input from Talon breaks when focus needs to change
 STATE:
 
-we've made the model keep track of the focused element
-but this means the browser's idea of focus and the model's idea of what has focus can be out of sync.
-This can lead to a race condition where pressing (alt-h 4) quickly will not jump to hole 4.
-This can be fixed in one of three ways:
-a. Move all of the state into the model, don't have different keypress handlers for minibuffer & cell.
-b. Try to keep state in sync somehow.
-c. Move more focus state into the browser dom & keep less in model.
+Talon sends input to the browser in rapid succession, often too quickly
+for incr_dom to render all intermediate views. This is problematic when
+a sequence of actions depends on different focused elements to receive
+them -- eg open mini buffer then enter hole number -- because the focused
+element (mini buffer) we expect to receive actions later in the sequence
+(hole number) will not be present in the view. Currently this example
+action sequence causes the hole number to be entered in the element
+focused at the beginning of the action sequence, the cell.
 
-2. maybe something other than alt-h? (brings up help menu on linux/windows)
+One solution is pushing all keyboard event handling into the model, where
+the model encodes focus state and focusable element content and all
+keyboard events are sent directly up to the model for it to determine
+what changes to make based on its internal focus management. This has
+the advantages of not depending on the view state and aligning with
+how we already handle the cell focus/contents. It has the heavy
+disadvantage of having to re-invent basic text editing in input
+elements (eg manage input element state, the caret position, handle key
+inputs, etc).
+
+Another solution is to avoid communicating with the model when switching
+focus by imperatively updating the DOM (eg make mini buffer visible
+and focus it) which makes the new focused element immediately available
+to receive the subsequent keyboard inputs. (see UHCode.re for comments)
+This works and lets us avoid re-inventing text editing.
+The downside is that it deviates from how we handle focus currently
+in the cell, where we do explicitly encode the cell's focus state and
+contents in the model. Either we can try to support these disparate
+focus systems, which complicates the codebase, or we can rework how
+we manage cell focus management for the sake of consistency.
+
+The latter solution + reworking cell focus management is probably
+the right way to go. We're currently managing the cell's focus state
+in the model because we show different decorations based on the focus state
+and, thinking ahead to livelits, we need to be able manage focus state
+based on different livelit actions and we figured this would be easier
+to do within the model. But we should be able to do both of these things
+without managing focus in model: decoration styling can be shown or not
+depending on whether they're contained in focused element, and focus
+management based on livelit actions can use the same imperative focus
+commands as we'd use for switching between cell and mini buffer.
