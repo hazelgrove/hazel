@@ -55,7 +55,6 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | AnaFree(expected)
   | AnaInvalid(expected)
   | AnaKeyword(expected, _)
-  | AnaLetLine(expected)
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
   | SynErrorArrow(_, actual)
@@ -64,7 +63,6 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | SynLetLine(actual)
   | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
 
   | SynInvalid
@@ -101,7 +99,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
   | OnType
-  | OnLine
+  | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
   };
 };
@@ -126,22 +124,22 @@ let get_mode = (cursor_info: CursorInfo.t) => {
 
 let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   fun
-  | Exp(_, EmptyHole(_)) => true
-  | Exp(_, _) => false
-  | Pat(_, EmptyHole(_)) => false
-  | Pat(_, _) => false
-  | Typ(_, Hole) => false
-  | Typ(_, _) => false
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
+  | ExpOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_, _) => false
+  | PatOperand(_, EmptyHole(_)) => false
+  | PatOperand(_, _) => false
+  | TypOperand(_, Hole) => false
+  | TypOperand(_, _) => false
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
   | Line(_, _)
   | Rule(_, _) => false;
 
 let on_expr_var: CursorInfo.cursor_term => bool =
   fun
-  | Exp(_, Var(_)) => true
-  | Exp(_, _) => false
+  | ExpOperand(_, Var(_)) => true
+  | ExpOperand(_, _) => false
   | _ => false;
 
 let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
@@ -172,7 +170,7 @@ let type_to_str = (ty: option(HTyp.t)) => {
 */
 let term_to_str = (term: CursorInfo.cursor_term): string => {
   switch (term) {
-  | Exp(_, Var(_, _, s)) => s
+  | ExpOperand(_, Var(_, _, s)) => s
   | _ => ""
   };
 };

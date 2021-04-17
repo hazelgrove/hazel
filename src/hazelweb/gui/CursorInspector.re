@@ -8,10 +8,19 @@ type err_state_b =
 let inconsistent_symbol =
   Node.div(
     [
-      Attr.classes(["consistency-symbol", "inconsistent-symbol"]),
+      Attr.classes(["consistency-symbol", "inconsistent"]),
       Attr.create("title", "Inconsistent"),
     ],
     [Node.text(Unicode.inconsistent)],
+  );
+
+let consistent_symbol =
+  Node.div(
+    [
+      Attr.classes(["consistency-symbol", "consistent"]),
+      Attr.create("title", "Consistent"),
+    ],
+    [Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
@@ -50,20 +59,17 @@ let any_typ_msg =
 let is_end_keyword =
     (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
   switch (term) {
-  | Exp(OnText(index), _) =>
+  | ExpOperand(OnText(index), _) =>
     index == String.length(ExpandingKeyword.to_string(keyword))
   | _ => false
   };
-/* TODO: don't just copy and paste functions like this from Strategy Guide*/
-let shortcut_node = text =>
-  Node.div([Attr.classes(["code-font", "shortcut"])], [Node.text(text)]);
 
 let keyword_msg = (term, keyword, main_msg) =>
   if (is_end_keyword(term, keyword)) {
     main_msg
     @ [
       Node.text("("),
-      shortcut_node("Space"),
+      AssistantView_common.shortcut_node("Space"),
       Node.text(" to expand keyword)"),
     ];
   } else {
@@ -80,23 +86,26 @@ let advanced_summary =
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty)
-    | AnaLetLine(ty) => [ana, HTypCode.view(ty)]
+    | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | PatSynthesized(ty)
-    | SynLetLine(ty) =>
+    | PatSynthesized(ty) =>
       switch (term) {
-      | Exp(_, EmptyHole(_)) => [syn, any_typ_msg]
+      | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    /* Use the got type if not just Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty) {
-      | HTyp.Hole => [ana, HTypCode.view(expected_ty)]
-      | _ => [ana, HTypCode.view(got_ty)]
+      if (HTyp.eq(expected_ty, got_ty)) {
+        [ana, HTypCode.view(expected_ty)];
+      } else {
+        [
+          ana,
+          HTypCode.view(expected_ty),
+          consistent_symbol,
+          HTypCode.view(got_ty),
+        ];
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
@@ -200,12 +209,12 @@ let advanced_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => []
-    | OnLine => /* TODO */ [emphasize_text("Line")]
+    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
   };
   switch (typed) {
-  | OnLine => message(typed) /* Don't display the term tag for empty and comment lines */
+  | OnNonLetLine => message(typed) /* Don't display the term tag for empty and comment lines */
   | _ => List.cons(term_tag, message(typed))
   };
 };
@@ -227,26 +236,24 @@ let novice_summary =
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
-    | PatAnalyzed(ty)
-    | AnaLetLine(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    /* Use the got type if not just a Hole */
+    | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty) {
-      | HTyp.Hole => expecting_of_type @ [HTypCode.view(expected_ty)]
-      | _ => [
-          Node.text("Got " ++ article),
-          term_tag,
-          Node.text("of type"),
+      if (HTyp.eq(expected_ty, got_ty)) {
+        expecting_of_type @ [HTypCode.view(expected_ty)];
+      } else {
+        expecting_of_type
+        @ [
+          HTypCode.view(expected_ty),
+          Node.text("and got consistent type"),
           HTypCode.view(got_ty),
-        ]
+        ];
       }
     | Synthesized(ty)
-    | PatSynthesized(ty)
-    | SynLetLine(ty) =>
+    | PatSynthesized(ty) =>
       switch (term) {
-      | Exp(_, EmptyHole(_)) => [
+      | ExpOperand(_, EmptyHole(_)) => [
           Node.text("Got " ++ article),
           term_tag,
           Node.text("of"),
@@ -404,7 +411,7 @@ let novice_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
-    | OnLine => /* TODO */ [
+    | OnNonLetLine => /* TODO */ [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
@@ -423,7 +430,7 @@ let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
       ci: CursorInfo.t,
-      show: bool,
+      show_expansion_arrow: bool,
       show_expanded: bool,
       novice_mode: bool,
       show_strategy_guide_icon: bool,
@@ -486,7 +493,7 @@ let summary_bar =
       [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  let body = show ? [summary, fill_space, arrow] : [summary];
+  let body = show_expansion_arrow ? [summary, fill_space, arrow] : [summary];
   let body =
     show_strategy_guide_icon
       ? List.append(body, [fill_space, fill_icon]) : body;
@@ -581,7 +588,7 @@ let view =
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
     );
 
-  let expanded =
+  let expanded_msg =
     switch (cursor_info.typed) {
     | SynBranchClause(
         InconsistentBranchTys(rule_types, path_to_case),
@@ -647,9 +654,7 @@ let view =
     | PatAnaKeyword(_) => BindingError
     | PatSynthesized(_) => OK
     | PatSynKeyword(_) => BindingError
-    | OnLine => OK
-    | SynLetLine(_) => OK
-    | AnaLetLine(_) => OK
+    | OnNonLetLine => OK
     | OnRule => OK
     };
 
@@ -672,19 +677,19 @@ let view =
     );
   let above_or_below =
     switch (cursor_info.cursor_term) {
-    | Exp(OnDelim(0, _), Case(_)) => "above"
+    | ExpOperand(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
   let (show_strategy_guide_icon, strategy_guide) =
     switch (cursor_info.cursor_term, cursor_info.parent_info) {
-    | (Exp(_, EmptyHole(_)), _) => (
+    | (ExpOperand(_, EmptyHole(_)), _) => (
         true,
         Some(
           StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
         ),
       )
     | (Rule(_), _)
-    | (Exp(_, Case(_)), _)
+    | (ExpOperand(_, Case(_)), _)
     | (_, EndBranchClause) =>
       switch (StrategyGuide.rules_view(cursor_info)) {
       | None => (false, None)
@@ -697,8 +702,8 @@ let view =
     | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
     | _ => (false, None)
     };
-  let show =
-    switch (expanded) {
+  let show_expansion_arrow =
+    switch (expanded_msg) {
     | Some(_) => true
     | None => false
     };
@@ -706,13 +711,13 @@ let view =
     summary_bar(
       ~inject,
       cursor_info,
-      show,
+      show_expansion_arrow,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       show_strategy_guide_icon,
     );
   let content =
-    switch (cursor_inspector.show_expanded, expanded) {
+    switch (cursor_inspector.show_expanded, expanded_msg) {
     | (true, Some(ind)) => [summary, ...ind]
     | _ => [summary]
     };

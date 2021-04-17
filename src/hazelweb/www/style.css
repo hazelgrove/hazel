@@ -463,13 +463,21 @@ body {
 
 .type-info-summary .consistency-symbol {
   background-color:white;
-  color: #bb0707;
-  box-shadow: 0 0 0 1px #bb0707;
   font-size: var(--code-font-size);
   font-weight: bold;
   font-family: var(--code-font-family);
   border-radius:100%;
   text-align: center;
+}
+
+.type-info-summary .consistency-symbol.inconsistent {
+  color: #bb0707;
+  box-shadow: 0 0 0 1px #bb0707;
+}
+
+.type-info-summary .consistency-symbol.consistent {
+  color: #073f24;
+  box-shadow: 0 0 0 1px #073f24;
 }
 
 .type-info-summary .novice-mode .term-tag {

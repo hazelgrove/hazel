@@ -15,7 +15,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
-  | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
+  | CursorE(cursor_pos, operand) => ExpOperand(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
@@ -46,7 +46,7 @@ and extract_from_zexp_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
   | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
   | ZOperator(zoperator, _) =>
     let (cursor_pos, uop) = zoperator;
-    ExpOp(cursor_pos, uop);
+    ExpOperator(cursor_pos, uop);
   };
 };
 
@@ -283,7 +283,7 @@ and syn_cursor_info_line =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            SynLetLine(ty),
+            Synthesized(ty),
             ctx,
             extract_from_zline(zline),
           ),
@@ -293,7 +293,7 @@ and syn_cursor_info_line =
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnLine, ctx, extract_from_zline(zline)),
+        CursorInfo_common.mk(OnNonLetLine, ctx, extract_from_zline(zline)),
       ),
     )
   | ExpLineZ(ze) =>
@@ -337,8 +337,8 @@ and syn_cursor_info_line =
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
-    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
+    CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
 and syn_cursor_info_zopseq =
     (
@@ -657,7 +657,7 @@ and ana_cursor_info_zblock =
           | Some () =>
             Some(
               CursorInfo_common.mk(
-                AnaLetLine(ty),
+                Analyzed(ty),
                 ctx,
                 extract_from_zline(zline),
               ),
@@ -690,13 +690,12 @@ and ana_cursor_info_zblock =
   switch (ci) {
   | None => None
   | Some(ci) =>
-    print_endline(string_of_bool(ZExp.is_empty_hole_line(zline)));
     Some(
       CursorInfo_common.set_is_empty_hole_line(
         ci,
         ZExp.is_empty_hole_line(zline),
       ),
-    );
+    )
   };
 }
 and ana_cursor_info_zopseq =

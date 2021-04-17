@@ -2,14 +2,14 @@ module Vdom = Virtual_dom.Vdom;
 
 let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => {
   switch (cursor_term) {
-  | Exp(_, _)
-  | ExpOp(_, _)
+  | ExpOperand(_, _)
+  | ExpOperator(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
-  | Pat(_, _)
-  | PatOp(_, _) => Pat
-  | Typ(_, _)
-  | TypOp(_, _) => Typ
+  | PatOperand(_, _)
+  | PatOperator(_, _) => Pat
+  | TypOperand(_, _)
+  | TypOperator(_, _) => Typ
   };
 };
 
