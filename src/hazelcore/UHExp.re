@@ -40,6 +40,7 @@ type seq = OpSeq.seq(operand, operator);
 type affix = Seq.affix(operand, operator);
 
 let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
+let addline = (p: UHPat.t, def: t): line => AddLine(p, def);
 
 let var =
     (
@@ -80,7 +81,7 @@ module Line = {
     | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
-    | AndLine(_) 
+    | AndLine(_)
     | LetLine(_) => line
     };
 
@@ -88,8 +89,8 @@ module Line = {
     fun
     | EmptyLine
     | CommentLine(_)
-    | LetLine(_) => None
     | AndLine(_)
+    | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
     line
@@ -301,6 +302,7 @@ let rec is_complete_line = (l: line): bool => {
   | EmptyLine
   | CommentLine(_) => true
   | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | AddLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   };
 }
