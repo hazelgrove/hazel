@@ -56,16 +56,8 @@ let any_typ_msg =
     ],
   );
 
-let is_end_keyword =
-    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
-  switch (term) {
-  | ExpOperand(OnText(index), _) =>
-    index == String.length(ExpandingKeyword.to_string(keyword))
-  | _ => false
-  };
-
 let keyword_msg = (term, keyword, main_msg) =>
-  if (is_end_keyword(term, keyword)) {
+  if (CursorInfo_common.is_end_keyword(term, keyword)) {
     main_msg
     @ [
       Node.text("("),
@@ -484,7 +476,7 @@ let summary_bar =
             Event.Stop_propagation,
             inject(
               ModelAction.UpdateSettings(
-                CursorInspector(Toggle_type_assist),
+                CursorInspector(Toggle_strategy_guide),
               ),
             ),
           ])
@@ -722,7 +714,7 @@ let view =
     | _ => [summary]
     };
   let content =
-    switch (cursor_inspector.type_assist, strategy_guide) {
+    switch (cursor_inspector.strategy_guide, strategy_guide) {
     | (true, Some(strategy_guide)) =>
       List.append(content, [strategy_guide])
     | _ => content

@@ -226,20 +226,24 @@ let exp_hole_view =
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
-  let lit_open = cursor_inspector.type_assist_lit;
-  let var_open = cursor_inspector.type_assist_var;
-  let fun_open = cursor_inspector.type_assist_fun;
-  let branch_open = cursor_inspector.type_assist_branch;
-  let new_var_open = cursor_inspector.type_assist_new_var;
-  let other_open = cursor_inspector.type_assist_other;
+  let lit_open = cursor_inspector.strategy_guide_lit;
+  let var_open = cursor_inspector.strategy_guide_var;
+  let fun_open = cursor_inspector.strategy_guide_fun;
+  let branch_open = cursor_inspector.strategy_guide_branch;
+  let new_var_open = cursor_inspector.strategy_guide_new_var;
+  let other_open = cursor_inspector.strategy_guide_other;
 
-  let ty = Assistant_common.get_type(cursor_info);
   let ctx = cursor_info.ctx;
 
   let typ =
-    switch (ty) {
-    | Some(my_ty) => my_ty
-    | None => raise(Invalid_argument("Should have a type..."))
+    switch (Assistant_common.get_type(cursor_info)) {
+    | Some(ty) => ty
+    | None =>
+      raise(
+        Invalid_argument(
+          "Strategy Guide should have type information at the cursor",
+        ),
+      )
     };
 
   let subsection_header = (setting, text, open_section) => {
@@ -279,9 +283,9 @@ let exp_hole_view =
 
   let lit =
     subsection_header(
-      Toggle_type_assist_lit,
+      Toggle_strategy_guide_lit,
       "Will "
-      ++ Assistant_common.type_to_str(ty)
+      ++ Assistant_common.type_to_str(typ)
       ++ " literal give what you need?",
       lit_open,
     );
@@ -302,7 +306,7 @@ let exp_hole_view =
     };
   let var =
     subsection_header(
-      Toggle_type_assist_var,
+      Toggle_strategy_guide_var,
       "Is there a variable that represents what you need?",
       var_open,
     );
@@ -311,7 +315,7 @@ let exp_hole_view =
 
   let fun_h =
     subsection_header(
-      Toggle_type_assist_fun,
+      Toggle_strategy_guide_fun,
       "Is there a function that will calculate what you need?",
       fun_open,
     );
@@ -349,7 +353,7 @@ let exp_hole_view =
 
   let branch =
     subsection_header(
-      Toggle_type_assist_branch,
+      Toggle_strategy_guide_branch,
       "Are there different cases to consider?",
       branch_open,
     );
@@ -373,7 +377,7 @@ let exp_hole_view =
 
   let new_var =
     subsection_header(
-      Toggle_type_assist_new_var,
+      Toggle_strategy_guide_new_var,
       "Do you want to create a new variable?",
       new_var_open,
     );
@@ -395,7 +399,11 @@ let exp_hole_view =
     );
 
   let other =
-    subsection_header(Toggle_type_assist_other, "Other Actions", other_open);
+    subsection_header(
+      Toggle_strategy_guide_other,
+      "Other Actions",
+      other_open,
+    );
   let other_main_options = [
     Node.div(
       [Attr.classes(["option"])],

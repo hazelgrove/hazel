@@ -123,26 +123,26 @@ module CursorInspector = {
     visible: bool,
     show_expanded: bool,
     novice_mode: bool,
-    type_assist: bool,
-    type_assist_lit: bool,
-    type_assist_var: bool,
-    type_assist_fun: bool,
-    type_assist_branch: bool,
-    type_assist_new_var: bool,
-    type_assist_other: bool,
+    strategy_guide: bool,
+    strategy_guide_lit: bool,
+    strategy_guide_var: bool,
+    strategy_guide_fun: bool,
+    strategy_guide_branch: bool,
+    strategy_guide_new_var: bool,
+    strategy_guide_other: bool,
   };
 
   let init = {
     visible: true,
     show_expanded: false,
     novice_mode: true,
-    type_assist: false,
-    type_assist_lit: false,
-    type_assist_var: false,
-    type_assist_fun: false,
-    type_assist_branch: false,
-    type_assist_new_var: false,
-    type_assist_other: false,
+    strategy_guide: false,
+    strategy_guide_lit: false,
+    strategy_guide_var: false,
+    strategy_guide_fun: false,
+    strategy_guide_branch: false,
+    strategy_guide_new_var: false,
+    strategy_guide_other: false,
   };
 
   [@deriving sexp]
@@ -150,13 +150,13 @@ module CursorInspector = {
     | Toggle_visible
     | Toggle_show_expanded
     | Toggle_novice_mode
-    | Toggle_type_assist
-    | Toggle_type_assist_lit
-    | Toggle_type_assist_var
-    | Toggle_type_assist_fun
-    | Toggle_type_assist_branch
-    | Toggle_type_assist_new_var
-    | Toggle_type_assist_other;
+    | Toggle_strategy_guide
+    | Toggle_strategy_guide_lit
+    | Toggle_strategy_guide_var
+    | Toggle_strategy_guide_fun
+    | Toggle_strategy_guide_branch
+    | Toggle_strategy_guide_new_var
+    | Toggle_strategy_guide_other;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -166,30 +166,33 @@ module CursorInspector = {
         show_expanded: !settings.show_expanded,
       }
     | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
-    | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
-    | Toggle_type_assist_lit => {
+    | Toggle_strategy_guide => {
         ...settings,
-        type_assist_lit: !settings.type_assist_lit,
+        strategy_guide: !settings.strategy_guide,
       }
-    | Toggle_type_assist_var => {
+    | Toggle_strategy_guide_lit => {
         ...settings,
-        type_assist_var: !settings.type_assist_var,
+        strategy_guide_lit: !settings.strategy_guide_lit,
       }
-    | Toggle_type_assist_fun => {
+    | Toggle_strategy_guide_var => {
         ...settings,
-        type_assist_fun: !settings.type_assist_fun,
+        strategy_guide_var: !settings.strategy_guide_var,
       }
-    | Toggle_type_assist_branch => {
+    | Toggle_strategy_guide_fun => {
         ...settings,
-        type_assist_branch: !settings.type_assist_branch,
+        strategy_guide_fun: !settings.strategy_guide_fun,
       }
-    | Toggle_type_assist_new_var => {
+    | Toggle_strategy_guide_branch => {
         ...settings,
-        type_assist_new_var: !settings.type_assist_new_var,
+        strategy_guide_branch: !settings.strategy_guide_branch,
       }
-    | Toggle_type_assist_other => {
+    | Toggle_strategy_guide_new_var => {
         ...settings,
-        type_assist_other: !settings.type_assist_other,
+        strategy_guide_new_var: !settings.strategy_guide_new_var,
+      }
+    | Toggle_strategy_guide_other => {
+        ...settings,
+        strategy_guide_other: !settings.strategy_guide_other,
       }
     };
 };

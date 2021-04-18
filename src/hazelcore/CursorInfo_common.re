@@ -72,6 +72,34 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
+let on_empty_expr_hole: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_, _) => false
+  | PatOperand(_, EmptyHole(_)) => false
+  | PatOperand(_, _) => false
+  | TypOperand(_, Hole) => false
+  | TypOperand(_, _) => false
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
+  | Line(_, _)
+  | Rule(_, _) => false;
+
+let on_expr_var: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, Var(_)) => true
+  | ExpOperand(_, _) => false
+  | _ => false;
+
+let is_end_keyword =
+    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
+  switch (term) {
+  | ExpOperand(OnText(index), _) =>
+    index == String.length(ExpandingKeyword.to_string(keyword))
+  | _ => false
+  };
+
 let mk = (~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
   typed,
   ctx,

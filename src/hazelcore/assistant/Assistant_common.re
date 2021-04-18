@@ -122,45 +122,25 @@ let get_mode = (cursor_info: CursorInfo.t) => {
   mode;
 };
 
-let on_empty_expr_hole: CursorInfo.cursor_term => bool =
-  fun
-  | ExpOperand(_, EmptyHole(_)) => true
-  | ExpOperand(_, _) => false
-  | PatOperand(_, EmptyHole(_)) => false
-  | PatOperand(_, _) => false
-  | TypOperand(_, Hole) => false
-  | TypOperand(_, _) => false
-  | ExpOperator(_, _)
-  | PatOperator(_, _)
-  | TypOperator(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false;
-
-let on_expr_var: CursorInfo.cursor_term => bool =
-  fun
-  | ExpOperand(_, Var(_)) => true
-  | ExpOperand(_, _) => false
-  | _ => false;
-
 let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
-  on_empty_expr_hole(term) || on_expr_var(term);
+  CursorInfo_common.on_empty_expr_hole(term)
+  || CursorInfo_common.on_expr_var(term);
 };
 
 /**
  * Gets the type in string format.
  * Return string
  */
-let type_to_str = (ty: option(HTyp.t)) => {
+let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
-  | Some(Hole) => "a"
-  | Some(Int) => "an Integer"
-  | Some(Float) => "a Float"
-  | Some(Bool) => "a Boolean"
-  | Some(Arrow(_, _)) => "a Function"
-  | Some(Sum(_, _)) => "a Sum"
-  | Some(Prod(_)) => "a Product"
-  | Some(List(_)) => "a List"
-  | None => raise(Invalid_argument("No Literal"))
+  | Hole => "a"
+  | Int => "an Integer"
+  | Float => "a Float"
+  | Bool => "a Boolean"
+  | Arrow(_, _) => "a Function"
+  | Sum(_, _) => "a Sum"
+  | Prod(_) => "a Product"
+  | List(_) => "a List"
   };
 };
 
