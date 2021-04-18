@@ -10,6 +10,7 @@ and line =
   | EmptyLine
   | CommentLine(string)
   | LetLine(UHPat.t, t)
+  | AndLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -79,6 +80,7 @@ module Line = {
     | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
+    | AndLine(_) 
     | LetLine(_) => line
     };
 
@@ -87,6 +89,7 @@ module Line = {
     | EmptyLine
     | CommentLine(_)
     | LetLine(_) => None
+    | AndLine(_)
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
     line
