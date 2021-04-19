@@ -193,29 +193,16 @@ let rec constructor_string = (d: t): string =>
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
-  | Pair(_, _) => "Pair"
-  | Triv => "Triv"
+  | Tuple(_) => "Tuple"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
-  | Label(label) => label
-  | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
-  | Prj(body, pl) => constructor_string(body) ++ l
+  | ErrLabel(_) => "ErrLabel"
+  | Prj(_, _, _) => "Prj"
+  | ErrPrj(_, _) => "ErrPrj"
   };
-
-let rec get_projected = (d: t, l: Label.t): option(t) => {
-  switch (d) {
-  | Label_Elt(l', d') => l == l' ? Some(d') : None
-  | Pair(d1, d2) =>
-    switch (get_projected(d1, l)) {
-    | None => get_projected(d2, l)
-    | Some(d') => Some(d')
-    }
-  | _ => None
-  };
-};
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {

@@ -69,10 +69,10 @@ type t =
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
-  | Pair(t, t)
-  | Triv
-  | Label(Label.t)
-  | Label_Elt(Label.t, t)
+  | Tuple(list(option(Label.t), t))
+  | ErrLabel(Label.t)
+  | Prj(t, Label.t, int) 
+  | ErrPrj(t, Label.t)
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
@@ -84,10 +84,6 @@ and rule =
   | Rule(DHPat.t, t);
 
 let constructor_string: t => string;
-
-let mk_tuple: list(t) => t;
-
-let get_projected: (t, Label.t) => option(t);
 
 let cast: (t, HTyp.t, HTyp.t) => t;
 

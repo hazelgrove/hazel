@@ -66,7 +66,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
-  | Pair(d3, d4) =>
+  | Tuple(tuple_elts) =>
+    List.fold_left (fun ) // ECD: You are here, implementing Tuple evaluation with fold left by substituting variables for tupl elt 1 feading into tpl elt 2 .... tupl elt n
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Pair(d3, d4);
