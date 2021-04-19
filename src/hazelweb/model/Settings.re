@@ -35,7 +35,7 @@ module Evaluation = {
   type update =
     | Toggle_evaluate
     | Toggle_use_step_evaluator
-    | Toggle_pause_at_empty_hole
+    | Toggle_pause_subexpression
     | Toggle_show_evaluate_steps
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
@@ -53,13 +53,13 @@ module Evaluation = {
           | StepEvaluator => Evaluator
           },
       }
-    | Toggle_pause_at_empty_hole => {
+    | Toggle_pause_subexpression => {
         ...settings,
         step_evaluator_option:
           // ...settings.step_evaluator_option,
           {
-            pause_at_empty_hole:
-              !settings.step_evaluator_option.pause_at_empty_hole,
+            pause_subexpression:
+              !settings.step_evaluator_option.pause_subexpression,
           },
       }
     | Toggle_show_evaluate_steps => {

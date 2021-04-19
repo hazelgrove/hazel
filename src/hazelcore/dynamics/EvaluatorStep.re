@@ -17,9 +17,9 @@ let add_one = x => x + 1;
 exception InvalidInput(int);
 
 [@deriving sexp]
-type evaluator_option = {pause_at_empty_hole: bool};
+type evaluator_option = {pause_subexpression: bool};
 
-let default_option = {pause_at_empty_hole: true};
+let default_option = {pause_subexpression: true};
 
 let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   switch (d) {
@@ -49,11 +49,11 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Indet(d2') =>
         switch (Elaborator_Exp.matches(dp, d2')) {
         | DoesNotMatch => Indet(d)
-        | Indet => Indet(d) // opt.pause_at_empty_hole ? Pause(Ap(d1, d2')) : Indet(d)
+        | Indet => Indet(d) // opt.pause_subexpression ? Pause(Ap(d1, d2')) : Indet(d)
         | Matches(env) =>
           /* beta rule */
           let subexp = Elaborator_Exp.subst(env, d3);
-          switch (opt.pause_at_empty_hole, quick_steps(subexp, opt)) {
+          switch (opt.pause_subexpression, quick_steps(subexp, opt)) {
           | (true, Pause(_)) => Pause(Ap(d1, d2'))
           | _ => Step(subexp)
           };
@@ -350,7 +350,7 @@ and evaluate_case =
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
-      if (opt.pause_at_empty_hole) {
+      if (opt.pause_subexpression) {
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
         | None => Pause(ConsistentCase(case))
