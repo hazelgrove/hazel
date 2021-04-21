@@ -107,7 +107,8 @@ and ana_skel = (ctx, delta, kind, skel, seq) =>
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
     let* (ty, k', delta) = syn_skel(ctx, delta, skel, seq);
-    let+ () = Kind.consistent(kind, k') |> OptUtil.of_bool;
+    let+ () =
+      Construction.consistent_subkind(ctx, kind, k') |> OptUtil.of_bool;
     (ty, k', delta);
   }
 and ana_operand = (ctx, delta, kind, operand) => {
@@ -145,7 +146,8 @@ and ana_operand = (ctx, delta, kind, operand) => {
   | List(_) =>
     /* TElabASubsume */
     let* (ty, k', delta) = syn_operand(ctx, delta, operand);
-    let+ () = Kind.consistent(kind, k') |> OptUtil.of_bool;
+    let+ () =
+      Construction.consistent_subkind(ctx, kind, k') |> OptUtil.of_bool;
     (ty, k', delta);
   };
 };
@@ -237,7 +239,7 @@ and ana_fix_holes_skel = (ctx, u_gen, kind, skel, seq) =>
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
     let (skel, seq, k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-    if (Kind.consistent(kind, k')) {
+    if (Construction.consistent_subkind(ctx, kind, k')) {
       (skel, seq, u_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole");
@@ -263,7 +265,7 @@ and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
   | List(_) =>
     /* TElabASubsume */
     let (ty, k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
-    if (Kind.consistent(kind, k')) {
+    if (Construction.consistent_subkind(ctx, kind, k')) {
       (ty, u_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole");
