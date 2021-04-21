@@ -209,7 +209,7 @@ and set_err_status_operand = (err, operand) =>
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, def) => Lam(err, p, def)
-  | Inj(_, inj_side, body) => Inj(err, inj_side, body)
+  | Inj(_, _, _) => operand
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
@@ -230,20 +230,22 @@ and mk_inconsistent_block =
   let (conclusion, u_gen) = conclusion |> mk_inconsistent_opseq(u_gen);
   (Block.join_conclusion(leading, conclusion), u_gen);
 }
+/* called when we find a type inconsistency */
 and mk_inconsistent_opseq = (u_gen, opseq) =>
   OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen, opseq)
 and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
-  /* already in hole */
+  /* cannot be inconsistent */
   | EmptyHole(_)
   | InvalidText(_, _)
+  | Inj(_, _, _) => (operand, u_gen)
+  /* already in hole  */
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
@@ -253,7 +255,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
