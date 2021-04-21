@@ -1,8 +1,7 @@
 [@deriving sexp]
 type t =
   | KHole
-  | Type;
-
-let consistent: (t, t) => bool;
+  | Type
+  | Singleton(HTyp.t);
 
 let to_string: t => string;
