@@ -33,7 +33,7 @@ let%test "bin op test" = {
 let%test "fibo" = {
   let t = Sys.time();
   let program: DHExp.t =
-    "(Let(Var fibo)(Cast(FixF fibo(Arrow Hole Int)(Lam(Var x)Hole(ConsistentCase(Case(BinIntOp LessThan(Cast(BoundVar x)Hole Int)(IntLit 3))((Rule(BoolLit true)(IntLit 1))(Rule(BoolLit false)(BinIntOp Plus(Ap(Cast(BoundVar fibo)(Arrow Hole Int)(Arrow Int Int))(BinIntOp Minus(Cast(BoundVar x)Hole Int)(IntLit 1)))(Ap(Cast(BoundVar fibo)(Arrow Hole Int)(Arrow Int Int))(BinIntOp Minus(Cast(BoundVar x)Hole Int)(IntLit 2))))))0))))(Arrow Hole Int)(Arrow Int Int))(Ap(BoundVar fibo)(IntLit 4)))"
+    "(Let(Var fibo)(Cast(FixF fibo(Arrow Hole Int)(Lam(Var x)Hole(ConsistentCase(Case(BinIntOp LessThan(Cast(BoundVar x)Hole Int)(IntLit 3))((Rule(BoolLit true)(IntLit 1))(Rule(BoolLit false)(BinIntOp Plus(Ap(Cast(BoundVar fibo)(Arrow Hole Int)(Arrow Int Int))(BinIntOp Minus(Cast(BoundVar x)Hole Int)(IntLit 1)))(Ap(Cast(BoundVar fibo)(Arrow Hole Int)(Arrow Int Int))(BinIntOp Minus(Cast(BoundVar x)Hole Int)(IntLit 2))))))0))))(Arrow Hole Int)(Arrow Int Int))(Ap(BoundVar fibo)(IntLit 2)))"
     |> Sexplib.Sexp.of_string
     |> DHExp.t_of_sexp;
   Format.printf("Fibo:\n");

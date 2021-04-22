@@ -596,16 +596,16 @@ let rec decompose = (d: DHExp.t, opt: evaluator_option): (EvalCtx.t, DHExp.t) =>
 let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
   switch (d) {
   | EmptyHole(_, _, _)
-  | Keyword(_, _, _, _)
   | FreeVar(_, _, _, _)
   | InvalidText(_, _, _, _)
-  | BoundVar(_)
   | Lam(_, _, _)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => []
+  | BoundVar(_)
+  | Keyword(_, _, _, _)
+  | Triv
   | FixF(_, _, _) => [{ctx: Mark, exp: d}]
   | Ap(d1, d2) =>
     if (is_final(d1, opt) && is_final(d2, opt)) {
@@ -834,9 +834,10 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
   if (is_final(d, opt)) {
     d;
   } else {
-    let ld = decompose_all(d, opt);
-    let ctx = List.nth(ld, 0).ctx;
-    let d0 = List.nth(ld, 0).exp;
+    // let ld = decompose_all(d, opt);
+    // let ctx = List.nth(ld, 0).ctx;
+    // let d0 = List.nth(ld, 0).exp;
+    let (ctx, d0) = decompose(d, opt);
     switch (step(d0, opt)) {
     | Pause(d0')
     | BoxedValue(d0')
