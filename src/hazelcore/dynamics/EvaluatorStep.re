@@ -594,212 +594,216 @@ let rec decompose = (d: DHExp.t, opt: evaluator_option): (EvalCtx.t, DHExp.t) =>
   };
 
 let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
-  switch (d) {
-  | EmptyHole(_, _, _)
-  | FreeVar(_, _, _, _)
-  | InvalidText(_, _, _, _)
-  | Lam(_, _, _)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | BoundVar(_)
-  | Keyword(_, _, _, _)
-  | Triv
-  | FixF(_, _, _) => [{ctx: Mark, exp: d}]
-  | Ap(d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Ap1(obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+  if (is_final(d, opt)) {
+    [];
+  } else {
+    switch (d) {
+    | EmptyHole(_, _, _)
+    | FreeVar(_, _, _, _)
+    | InvalidText(_, _, _, _)
+    | Lam(_, _, _)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | ListNil(_)
+    | BoundVar(_)
+    | Keyword(_, _, _, _)
+    | Triv
+    | FixF(_, _, _) => [{ctx: Mark, exp: d}]
+    | Ap(d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: Ap2(d1, obj.ctx), exp: obj.exp},
-          ld2,
-        );
-    }
-  | NonEmptyHole(reason, u, i, sigma, d1) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: NonEmptyHole(reason, u, i, sigma, obj.ctx), exp: obj.exp},
-        ld1,
-      );
-    }
-  | BinBoolOp(op, d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: BinBoolOp1(op, obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+            {ctx: Ap1(obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: Ap2(d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | NonEmptyHole(reason, u, i, sigma, d1) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: BinBoolOp2(op, d1, obj.ctx), exp: obj.exp},
-          ld2,
+            {ctx: NonEmptyHole(reason, u, i, sigma, obj.ctx), exp: obj.exp},
+          ld1,
         );
-    }
-  | BinIntOp(op, d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: BinIntOp1(op, obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+      }
+    | BinBoolOp(op, d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: BinIntOp2(op, d1, obj.ctx), exp: obj.exp},
-          ld2,
-        );
-    }
-  | BinFloatOp(op, d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: BinFloatOp1(op, obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+            {ctx: BinBoolOp1(op, obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: BinBoolOp2(op, d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | BinIntOp(op, d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: BinFloatOp2(op, d1, obj.ctx), exp: obj.exp},
-          ld2,
-        );
-    }
-  | Cons(d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Cons1(obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+            {ctx: BinIntOp1(op, obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: BinIntOp2(op, d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | BinFloatOp(op, d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: Cons2(d1, obj.ctx), exp: obj.exp},
-          ld2,
-        );
-    }
-  | Cast(d1, ty1, ty2) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Cast(obj.ctx, ty1, ty2), exp: obj.exp},
-        ld1,
-      );
-    }
-  | FailedCast(d1, ty1, ty2) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: FailedCast(obj.ctx, ty1, ty2), exp: obj.exp},
-        ld1,
-      );
-    }
-  | Pair(d1, d2) =>
-    if (is_final(d1, opt) && is_final(d2, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      let ld2 = decompose_all(d2, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Pair1(obj.ctx, d2), exp: obj.exp},
-        ld1,
-      )
-      @ List.map(
+            {ctx: BinFloatOp1(op, obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: BinFloatOp2(op, d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | Cons(d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            {ctx: Pair2(d1, obj.ctx), exp: obj.exp},
-          ld2,
+            {ctx: Cons1(obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: Cons2(d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | Cast(d1, ty1, ty2) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: Cast(obj.ctx, ty1, ty2), exp: obj.exp},
+          ld1,
         );
-    }
-  | Let(dp, d1, d2) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Let(dp, obj.ctx, d2), exp: obj.exp},
-        ld1,
-      );
-    }
-  | Inj(ty, side, d1) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: Inj(ty, side, obj.ctx), exp: obj.exp},
-        ld1,
-      );
-    }
-  | InvalidOperation(d1, err) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: InvalidOperation(obj.ctx, err), exp: obj.exp},
-        ld1,
-      );
-    }
-  | ConsistentCase(Case(d1, rule, n)) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {ctx: ConsistentCase(obj.ctx, rule, n), exp: obj.exp},
-        ld1,
-      );
-    }
-  | InconsistentBranches(u, i, sigma, Case(d1, rule, n)) =>
-    if (is_final(d1, opt)) {
-      [{ctx: Mark, exp: d}];
-    } else {
-      let ld1 = decompose_all(d1, opt);
-      List.map(
-        (obj: EvalObj.t): EvalObj.t =>
-          {
-            ctx: InconsistentBranches(u, i, sigma, obj.ctx, rule, n),
-            exp: obj.exp,
-          },
-        ld1,
-      );
-    }
+      }
+    | FailedCast(d1, ty1, ty2) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: FailedCast(obj.ctx, ty1, ty2), exp: obj.exp},
+          ld1,
+        );
+      }
+    | Pair(d1, d2) =>
+      if (is_final(d1, opt) && is_final(d2, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        let ld2 = decompose_all(d2, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: Pair1(obj.ctx, d2), exp: obj.exp},
+          ld1,
+        )
+        @ List.map(
+            (obj: EvalObj.t): EvalObj.t =>
+              {ctx: Pair2(d1, obj.ctx), exp: obj.exp},
+            ld2,
+          );
+      }
+    | Let(dp, d1, d2) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: Let(dp, obj.ctx, d2), exp: obj.exp},
+          ld1,
+        );
+      }
+    | Inj(ty, side, d1) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: Inj(ty, side, obj.ctx), exp: obj.exp},
+          ld1,
+        );
+      }
+    | InvalidOperation(d1, err) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: InvalidOperation(obj.ctx, err), exp: obj.exp},
+          ld1,
+        );
+      }
+    | ConsistentCase(Case(d1, rule, n)) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {ctx: ConsistentCase(obj.ctx, rule, n), exp: obj.exp},
+          ld1,
+        );
+      }
+    | InconsistentBranches(u, i, sigma, Case(d1, rule, n)) =>
+      if (is_final(d1, opt)) {
+        [{ctx: Mark, exp: d}];
+      } else {
+        let ld1 = decompose_all(d1, opt);
+        List.map(
+          (obj: EvalObj.t): EvalObj.t =>
+            {
+              ctx: InconsistentBranches(u, i, sigma, obj.ctx, rule, n),
+              exp: obj.exp,
+            },
+          ld1,
+        );
+      }
+    };
   };
 
 let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
@@ -834,10 +838,10 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
   if (is_final(d, opt)) {
     d;
   } else {
-    // let ld = decompose_all(d, opt);
-    // let ctx = List.nth(ld, 0).ctx;
-    // let d0 = List.nth(ld, 0).exp;
-    let (ctx, d0) = decompose(d, opt);
+    let ld = decompose_all(d, opt);
+    let ctx = List.nth(ld, 0).ctx;
+    let d0 = List.nth(ld, 0).exp;
+    //let (ctx, d0) = decompose(d, opt);
     switch (step(d0, opt)) {
     | Pause(d0')
     | BoxedValue(d0')
