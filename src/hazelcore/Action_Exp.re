@@ -1793,7 +1793,25 @@ and syn_perform_operand =
         (zoperand, ty, u_gen),
       )
     | Succeeded((([], ExpLineZ(new_zopseq), []), new_ty, u_gen)) =>
-      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(new_zopseq)); //make the helper function
+      let (new_ty, err, u_gen) = {
+        let list_types = HTyp.get_prod_elements(new_ty);
+        switch (Statics_common.glb(list_types)) {
+        | None =>
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          (
+            HTyp.Hole,
+            ListErrStatus.InconsistentBranches(list_types, u),
+            u_gen,
+          );
+
+        | Some(common_type) => (
+            List(common_type),
+            StandardErrStatus(NotInHole),
+            u_gen,
+          )
+        };
+      };
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(~err, new_zopseq));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     | Succeeded(_) => Failed
     }

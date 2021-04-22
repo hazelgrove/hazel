@@ -177,10 +177,15 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | ListLit(_, types) =>
+      | ListLit(_, _, _, StandardErrStatus(_), _, types) =>
         let new_list = List.map(go', types);
         let new_list = List.map(mk_cast, new_list);
         DHDoc_common.mk_ListLit(new_list, new_list);
+      | ListLit(u, i, _sigma, InconsistentBranches(_, _), _, types) =>
+        let new_list = List.map(go', types);
+        let new_list = List.map(mk_cast, new_list);
+        DHDoc_common.mk_ListLit(new_list, new_list)
+        |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
         DHDoc_common.mk_Inj(

@@ -66,8 +66,14 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  // | ListNil(HTyp.t)
-  | ListLit(HTyp.t, list(t))
+  | ListLit(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t_(t),
+      ListErrStatus.t,
+      HTyp.t,
+      list(t),
+    )
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
