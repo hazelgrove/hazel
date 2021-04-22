@@ -153,7 +153,14 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListLit(HTyp.t, list(t))
+  | ListLit(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t_(t),
+      ListErrStatus.t,
+      HTyp.t,
+      list(t),
+    )
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
@@ -165,6 +172,7 @@ type t =
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
+// | ListLit(HTyp.t, list(t))
 and rule =
   | Rule(DHPat.t, t);
 
@@ -186,7 +194,7 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  | ListLit(_, _) => "ListLit"
+  | ListLit(_, _, _, _, _, _) => "ListLit"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"

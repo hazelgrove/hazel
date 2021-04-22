@@ -46,9 +46,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Cons(d3, d4);
-  | ListLit(t, types) =>
+  | ListLit(u, i, sigma, err, t, types) =>
+    let subst_sigma = subst_var_env(d1, x, sigma);
     let subst_types = List.map(subst_var(d1, x), types);
-    ListLit(t, subst_types);
+    ListLit(u, i, subst_sigma, err, t, subst_types);
   | BinBoolOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -233,8 +234,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), Cons(_, _))
   | (ListLit(_, _), Cons(_, _))
-  | (Cons(_, _), ListLit(_, _))
-  | (ListLit(_, _), ListLit(_, _)) => matches_cast_Cons(dp, d, [])
+  | (Cons(_, _), ListLit(_))
+  | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
@@ -284,7 +285,7 @@ and matches_cast_Inj =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | ListLit(_, _) => DoesNotMatch
+  | ListLit(_, _, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -364,8 +365,8 @@ and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
     : match_result =>
   switch (d) {
-  | ListLit(_, []) => DoesNotMatch
-  | ListLit(ty, [dhd, ...dtl] as ds) =>
+  | ListLit(_, _, _, _, _, []) => DoesNotMatch
+  | ListLit(u, i, sigma, err, ty, [dhd, ...dtl] as ds) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
@@ -380,7 +381,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.ListLit(ty, dtl);
+        let d2 = DHExp.ListLit(u, i, sigma, err, ty, dtl);
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | Indet => Indet
@@ -408,74 +409,6 @@ and matches_cast_Cons =
       }
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
-  // | Cons(d1, d2) =>
-  //   switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-  //   | DoesNotMatch => DoesNotMatch
-  //   | Indet =>
-  //     let list_casts =
-  //       List.map(
-  //         (c: (HTyp.t, HTyp.t)) => {
-  //           let (ty1, ty2) = c;
-  //           (HTyp.List(ty1), HTyp.List(ty2));
-  //         },
-  //         elt_casts,
-  //       );
-  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-  //     | DoesNotMatch => DoesNotMatch
-  //     | Indet
-  //     | Matches(_) => Indet
-  //     };
-  //   | Matches(env1) =>
-  //     let list_casts =
-  //       List.map(
-  //         (c: (HTyp.t, HTyp.t)) => {
-  //           let (ty1, ty2) = c;
-  //           (HTyp.List(ty1), HTyp.List(ty2));
-  //         },
-  //         elt_casts,
-  //       );
-  //     switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-  //     | DoesNotMatch => DoesNotMatch
-  //     | Indet => Indet
-  //     | Matches(env1) =>
-  //       let list_casts =
-  //         List.map(
-  //           (c: (HTyp.t, HTyp.t)) => {
-  //             let (ty1, ty2) = c;
-  //             (HTyp.List(ty1), HTyp.List(ty2));
-  //           },
-  //           elt_casts,
-  //         );
-  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-  //       | DoesNotMatch => DoesNotMatch
-  //       | Indet => Indet
-  //       | Matches(env2) => Matches(Environment.union(env1, env2))
-  //       };
-  //     };
-  //   | ListLit(_, []) => DoesNotMatch
-  //   | ListLit(ty, [dphd, ...dptl]) =>
-  //     // failwith("unimplemented")
-  //     switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
-  //     | DoesNotMatch => DoesNotMatch
-  //     | Indet => Indet
-  //     | Matches(env1) =>
-  //       let list_casts =
-  //         List.map(
-  //           (c: (HTyp.t, HTyp.t)) => {
-  //             let (ty1, ty2) = c;
-  //             (HTyp.List(ty1), HTyp.List(ty2));
-  //           },
-  //           elt_casts,
-  //         );
-  //       let dp2 = DHPat.ListLit(ty, dptl);
-  //       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-  //       | DoesNotMatch => DoesNotMatch
-  //       | Indet => Indet
-  //       | Matches(env2) => Matches(Environment.union(env1, env2))
-  //       };
-  //     }
-  //   | _ => failwith("called matches_cast_Cons with non-list pattern")
-  //   }
   | Cons(d1, d2) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
@@ -499,7 +432,6 @@ and matches_cast_Cons =
       }
     | ListLit(_, []) => DoesNotMatch
     | ListLit(ty, [dphd, ...dptl]) =>
-      // failwith("unimplemented")
       switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | Indet => Indet
@@ -908,9 +840,15 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | ListLit(_, None) =>
-    Elaborates(ListLit(List(Hole), []), List(Hole), delta)
-  | ListLit(_, Some(opseq)) =>
+  | ListLit(err, None) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    Elaborates(
+      ListLit(0, 0, sigma, err, List(Hole), []),
+      List(Hole),
+      delta,
+    );
+  | ListLit(err, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
     let subskels = UHExp.get_tuple_elements(skel);
     let glb_ty: option(HTyp.t) =
@@ -943,7 +881,22 @@ and syn_elab_operand =
       switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
       | None => DoesNotElaborate
       | Some((delta, lst)) =>
-        Elaborates(ListLit(Hole, lst), List(Hole), delta)
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        switch (err) {
+        | StandardErrStatus(_) =>
+          Elaborates(
+            ListLit(0, 0, sigma, err, Hole, lst),
+            List(Hole),
+            delta,
+          )
+        | InconsistentBranches(_, u) =>
+          Elaborates(
+            ListLit(u, 0, sigma, err, Hole, lst),
+            List(Hole),
+            delta,
+          )
+        };
       };
     | Some(glb_ty) =>
       let f = (delta, subskel) =>
@@ -955,7 +908,23 @@ and syn_elab_operand =
       switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
       | None => DoesNotElaborate
       | Some((delta, lst)) =>
-        Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+        // Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        switch (err) {
+        | StandardErrStatus(_) =>
+          Elaborates(
+            ListLit(0, 0, sigma, err, glb_ty, lst),
+            List(glb_ty),
+            delta,
+          )
+        | InconsistentBranches(_, u) =>
+          Elaborates(
+            ListLit(u, 0, sigma, err, glb_ty, lst),
+            List(glb_ty),
+            delta,
+          )
+        };
       };
     };
   | Lam(NotInHole, p, body) =>
@@ -1459,10 +1428,11 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
-  | ListLit(t, deltas) =>
+  | ListLit(u, _, sigma, err, t, deltas) =>
     let (new_deltas, _) =
       List.split(List.map(renumber_result_only(path, hii), deltas));
-    (ListLit(t, new_deltas), hii);
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    (ListLit(u, i, sigma, err, t, new_deltas), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -1560,10 +1530,12 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
-  | ListLit(t, deltas) =>
+  | ListLit(u, i, sigma, err, t, deltas) =>
     let (new_deltas, _) =
       List.split(List.map(renumber_sigmas_only(path, hii), deltas));
-    (ListLit(t, new_deltas), hii);
+    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+    (ListLit(u, i, sigma, err, t, new_deltas), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);

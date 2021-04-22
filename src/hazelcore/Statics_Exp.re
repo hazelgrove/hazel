@@ -206,7 +206,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         };
       switch (Statics_common.glb(syn_subskels(subskels))) {
       | Some(ty) => Some(List(ty))
-      | _ => Some(List(Hole))
+      | _ => Some(Hole)
       };
     }
 
