@@ -40,7 +40,7 @@ type seq = OpSeq.seq(operand, operator);
 type affix = Seq.affix(operand, operator);
 
 let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
-let addline = (p: UHPat.t, def: t): line => AddLine(p, def);
+let andline = (p: UHPat.t, def: t): line => AndLine(p, def);
 
 let var =
     (
