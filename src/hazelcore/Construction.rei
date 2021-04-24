@@ -7,4 +7,4 @@ let consistent_subkind: (Contexts.t, Kind.t, Kind.t) => bool;
 let kequiv: (Contexts.t, Kind.t, Kind.t) => bool;
 
 /// ty1 is equivalent to ty2 and its kind is k
-let kcequiv: (Contexts.t, HTyp.t, HTyp.t) => option(Kind.t);
+let kcequiv: (Contexts.t, HTyp.t, HTyp.t, Kind.t) => bool;
