@@ -1930,7 +1930,7 @@ let map: Array.t(int) => Array.t(int) =
 // 34-36ns (complete layout_map)
 
 // Omits pos argument
-let layout_map: (int, Array.t(int)) => Array.t(int) =
+let layout_map_align: (int, Array.t(Layout.t(unit))) => Array.t(Layout.t(unit)) =
   Js.Unsafe.js_expr(
     "function layout_map_imp(size, input) {
       //var js_size = size + 1 | 0;
@@ -1941,7 +1941,27 @@ let layout_map: (int, Array.t(int)) => Array.t(int) =
       output[0] = 0;
       for (var i =  1; i < size; i++) {
         var res = input[i]
-        output[i] = res + 1 | 0;
+        output[i] = Align_share(res);
+      }
+      //return [0, size, output];
+      return output;
+      //\"layout_map_imp\";
+    }
+    ",
+  );
+
+let layout_map_annot: (unit, int, Array.t(Layout.t(unit))) => Array.t(Layout.t(unit)) =
+  Js.Unsafe.js_expr(
+    "function layout_map_imp(annot, size, input) {
+      //var js_size = size + 1 | 0;
+      //console.log(\"size: %o\", size);
+      //console.log(\"input: %o\", input);
+      //throw 5;
+      var output = new Array(size);
+      output[0] = 0;
+      for (var i =  1; i < size; i++) {
+        var res = input[i]
+        output[i] = Annot_share(annot, res); // TODO: apply wrapper
       }
       //return [0, size, output];
       return output;
@@ -1951,8 +1971,8 @@ let layout_map: (int, Array.t(int)) => Array.t(int) =
   );
 
 let layout_merge:
-  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
-  (int, Array.t(int), Array.t(int)) =
+  (int, Array.t(int), Layout.t(unit), int, Array.t(int), Layout.t(unit)) =>
+  (int, Array.t(int), Layout.t(unit)) =
   Js.Unsafe.js_expr(
     "function layout_merge_imp(size1, pos1, res1, size2, pos2, res2) {
       //\"layout_merge\";
@@ -1970,18 +1990,18 @@ let layout_merge:
       if (pos1[i1] < pos2[i2]) {
         //console.log(\"1\");
         pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
+        res[i] = res1[i1]; // TODO: wrap?
         i1 = i1 + 1 | 0;
       } else if (pos1[i1] > pos2[i2]) {
         //console.log(\"2\");
         pos[i] = pos2[i2];
-        res[i] = res2[i2] + 1 | 0;
+        res[i] = res2[i2]; // TODO: wrap?
         i2 = i2 + 1 | 0;
       } else {
         //console.log(\"3\");
         // TODO: res1[i1] <=> res2[i2]
         pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
+        res[i] = res1[i1]; // TODO: wrap?
         i1 = i1 + 1 | 0;
         i2 = i2 + 1 | 0;
       }
@@ -1989,13 +2009,13 @@ let layout_merge:
     }
     while (i1 < size1) {
       pos[i] = pos1[i1];
-      res[i] = res1[i1] + 1 | 0;
+      res[i] = res1[i1]; // TODO: wrap?
       i++;
       i1++; // TODO: |0
     }
     while (i2 < size2) {
       pos[i] = pos2[i2];
-      res[i] = res2[i2] + 1 | 0;
+      res[i] = res2[i2]; // TODO: wrap?
       i++;
       i2++;
     }
@@ -2077,7 +2097,7 @@ let layout_fold:
 
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
-        : (int, Array.t(int), Array.t(int)) => {
+        : (int, Array.t(int), Array.t(Layout.t(unit))) => {
   count := count^ + 1;
   switch (x) {
   | Text2(mem, i) =>
@@ -2087,18 +2107,18 @@ let rec fib2 =
       (
         11,
         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        // [|
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        // |],
+        //[|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let res = 0;
@@ -2119,18 +2139,26 @@ let rec fib2 =
           pos + 9,
         |],
         [|
-          // Layout.Text(t),
-          // Layout.Text(t),
-          33331,
-          res + 1,
-          res + 2,
-          res + 3,
-          res + 4,
-          res + 5,
-          res + 6,
-          res + 7,
-          res + 8,
-          res + 9,
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          // 33331,
+          // res + 1,
+          // res + 2,
+          // res + 3,
+          // res + 4,
+          // res + 5,
+          // res + 6,
+          // res + 7,
+          // res + 8,
+          // res + 9,
         |],
       );
     };
@@ -2141,21 +2169,22 @@ let rec fib2 =
       (
         11,
         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        // [|
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        //   Layout.Text("Z"),
-        // |],
+        // [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let res = 1;
+      let t = "Z";
       mem := gensym^;
       (
         11,
@@ -2172,16 +2201,26 @@ let rec fib2 =
           pos + 9,
         |],
         [|
-          res + 0,
-          res + 1,
-          res + 2,
-          res + 3,
-          res + 4,
-          res + 5,
-          res + 6,
-          res + 7,
-          res + 8,
-          res + 9,
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          Layout.Text(t),
+          // res + 0,
+          // res + 1,
+          // res + 2,
+          // res + 3,
+          // res + 4,
+          // res + 5,
+          // res + 6,
+          // res + 7,
+          // res + 8,
+          // res + 9,
         |],
       );
     };
@@ -2191,35 +2230,57 @@ let rec fib2 =
       (
         11,
         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
-          layout_map,
+          layout_map_align,
           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
         );
-      //let out = out1r;
+      // let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
     };
-  | Annot2(mem, _ann, f) =>
+  | Annot2(mem, annot, f) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
       (
         11,
         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
-          layout_map,
-          [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
+          layout_map_annot,
+          [|Js.Unsafe.inject(annot), Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
         );
-      //let out = out1r;
+      // let out = out1r;
       mem := gensym^;
       (out1s, out1p, out);
     };
@@ -2230,7 +2291,18 @@ let rec fib2 =
       (
         11,
         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
@@ -2256,14 +2328,25 @@ let rec fib2 =
       (
         11,
         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        // [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+          Layout.Text("Z"),
+        |],
       );
     } else {
       let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
       let (out2s, out2p, out2r) = fib2(~width, ~pos, f2);
       //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
       //let out = out1r;
-      //let (out_s, out_p, out_r) = (out1s, out1p, out1r);
+      // let (out_s, out_p, out_r) = (out1s, out1p, out1r);
       let (out_s, out_p, out_r) =
         Js.Unsafe.fun_call(
           layout_merge,
@@ -2277,12 +2360,14 @@ let rec fib2 =
           |],
         );
       mem := gensym^;
-      //(out_s, out_p, out_r);
       (out_s, out_p, out_r);
+      // (out1s, out1p, out1r);
     };
   };
 };
 
+let _ = Js.export("Align_share", fun (x) => Layout.Align(x));
+let _ = Js.export("Annot_share", fun (x, y) => Layout.Annot(x, y));
 let _ = Js.export("fib2_share", fib2);
 let _ = Js.export("layout_merge_share", layout_merge);
 
