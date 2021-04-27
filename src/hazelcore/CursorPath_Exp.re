@@ -819,8 +819,9 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), Prj(err, exp, _)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
-      | NotInHole => None
-      | InHole(_, u) =>
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InPrjHole(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_exp = holes_operand(exp, [0, ...rev_steps], []);
@@ -1005,8 +1006,9 @@ and holes_zoperand =
   | PrjZE(err, zoperand_, _) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | NotInHole => []
-      | InHole(_, u) => [
+      | SandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InPrjHole(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };

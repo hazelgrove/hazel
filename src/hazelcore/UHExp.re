@@ -441,7 +441,10 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (operand, u_gen)
+  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
+      operand,
+      u_gen,
+    )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -457,7 +460,12 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
     )
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Prj(StandardErrStatus(NotInHole | InHole(WrongLength, _)) | InPrjHole(_, _), _, _) =>
+  | Prj(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InPrjHole(_, _),
+      _,
+      _,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -562,8 +570,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Prj(StandareErrStatus(InHole(_)) | InPrjHole(_, _), _, _) => false
-  | Prj(StandardErrStatus(NotInHole), op, _) => is_complete_operand(op, check_type_holes)
+  | Prj(StandardErrStatus(InHole(_)) | InPrjHole(_, _), _, _) => false
+  | Prj(StandardErrStatus(NotInHole), op, _) =>
+    is_complete_operand(op, check_type_holes)
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

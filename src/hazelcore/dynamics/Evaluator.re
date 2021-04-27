@@ -125,8 +125,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
-  | FloatLit(_)
-  | Triv => BoxedValue(d)
+  | FloatLit(_) => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -198,7 +197,13 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
-  | Pair(d1, d2) =>
+  | Tuple(tuple_elts) =>
+    List.fold_left( (acc, (label, dn)) => switch(acc) {
+      | 
+    } ) // ECD: You are here, trying to write eval case for tuple, need to iterate thru tuple elts and build up
+    // Evaluated value, where if any thing evals to InvalidInput stop and return that,
+    // if anything is indet need to build up indet tuple with the rest of the evaluated expressions
+    // If all evaluate to boxed value, return boxed value with tuple and all evaluated expressions as list
     switch (evaluate(d1), evaluate(d2)) {
     | (InvalidInput(msg), _)
     | (_, InvalidInput(msg)) => InvalidInput(msg)

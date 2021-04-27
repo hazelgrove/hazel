@@ -1,5 +1,5 @@
 // D in POPL 2019 -> DHExp in code
-// Write elaboration rule as given in POPL 2019 
+// Write elaboration rule as given in POPL 2019
 // Elaborator is more like a compiler
 /* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
@@ -12,7 +12,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | InvalidText(_) => d2
-  | Label(_) => d2
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -45,8 +44,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
-  | Triv => d2
+  | ListNil(_) => d2
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -67,10 +65,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
   | Tuple(tuple_elts) =>
-    List.fold_left (fun ) // ECD: You are here, implementing Tuple evaluation with fold left by substituting variables for tupl elt 1 feading into tpl elt 2 .... tupl elt n
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Pair(d3, d4);
+    let subst_tuple_elts =
+      List.map((label, dn) => (label, subst_var(d1, x, dn)), tuple_elts);
+    Tuple(subst_tuple_elts);
+  | ErrLabel(_) => d2
+  | Prj(d3, label, index) => Prj(subst_var(d1, x, d3), label, index)
+  | ErrPrj(d3, label) => ErrPrj(subst_var(d1, x, d3), label)
   | ConsistentCase(Case(d3, rules, n)) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
@@ -839,21 +839,20 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    } 
+    }
   | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
     // ECD YOU ARE HERE: Figuring out what prj of a does prj hole elaborates to
-    switch(syn_elab_operand(ctx, delta, body)){
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d, ty, delta) => 
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let d = DHExp.Prj(d, label);
-        let ty = HTyp.Hole;
-        let delta =
-          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-        Elaborates(d, ty, delta);
+    switch (syn_elab_operand(ctx, delta, body)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d, ty, delta) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let d = DHExp.Prj(d, label);
+      let ty = HTyp.Hole;
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+      Elaborates(d, ty, delta);
     }
-    
 
   /* not in hole */
   | EmptyHole(u) =>

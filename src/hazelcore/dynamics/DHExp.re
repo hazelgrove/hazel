@@ -156,10 +156,10 @@ type t =
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
-  | Tuple(list(option(Label.t), t)) // List of option t, label single tuple constructor
+  | Tuple(list((option(Label.t), t))) // List of option t, label single tuple constructor
   | ErrLabel(Label.t) // Call this labelerr to make it clearer that this is an bad label not attatched to anything
   | Prj(t, Label.t, int) // Prj projects positionally, computer integer during elaboration
-  | ErrPrj(t, Label.t) // Error Prj, evaluates the body then is indet 
+  | ErrPrj(t, Label.t) // Error Prj, evaluates the body then is indet
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
@@ -172,7 +172,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
-let rec constructor_string = (d: t): string =>
+let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"

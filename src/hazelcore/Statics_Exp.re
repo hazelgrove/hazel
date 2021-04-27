@@ -1008,7 +1008,11 @@ and syn_fix_holes_operand =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, body);
     switch (HTyp.get_projected_type(ty, l)) {
     | None => (Prj(InPrjHole(DoesNotAppear, u_gen), block, l), Hole, u_gen)
-    | Some(proj_ty) => (Prj(StandardErrStatus(NotInHole), block, l), proj_ty, u_gen)
+    | Some(proj_ty) => (
+        Prj(StandardErrStatus(NotInHole), block, l),
+        proj_ty,
+        u_gen,
+      )
     };
   };
 }
