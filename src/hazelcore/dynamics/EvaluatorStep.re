@@ -838,10 +838,10 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
   if (is_final(d, opt)) {
     d;
   } else {
-    let ld = decompose_all(d, opt);
-    let ctx = List.nth(ld, 0).ctx;
-    let d0 = List.nth(ld, 0).exp;
-    //let (ctx, d0) = decompose(d, opt);
+    //let ld = decompose(d, opt);
+    //let ctx = List.nth(ld, 0).ctx;
+    //let d0 = List.nth(ld, 0).exp;
+    let (ctx, d0) = decompose(d, opt);
     switch (step(d0, opt)) {
     | Pause(d0')
     | BoxedValue(d0')
@@ -849,6 +849,15 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
     | Step(d0') => compose((ctx, d0'))
     };
   };
+
+let obj_step = (obj: EvalObj.t, opt: evaluator_option): DHExp.t => {
+  switch (step(obj.exp, opt)) {
+  | Pause(d0')
+  | BoxedValue(d0')
+  | Indet(d0')
+  | Step(d0') => compose((obj.ctx, d0'))
+  };
+};
 
 let rec ctx_steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
   let d' = ctx_step(d, opt);
