@@ -59,9 +59,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole(0 /* TODO: What do we do here? */))
-      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, TyId.of_string(t)))
-      | TyVarHole(u, t) =>
-        Seq.wrap(TyVar(InVarHole(Free, u), TyId.of_string(t)))
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)

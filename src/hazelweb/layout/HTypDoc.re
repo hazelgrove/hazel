@@ -35,8 +35,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   let doc =
     switch (ty) {
     | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
-    | TyVar(_idx, tyid) => text(tyid)
-    | TyVarHole(_, tyid) => annot(HTypAnnot.TyVarHole, text(tyid))
+    | TyVar(_idx, tyid) => text(TyId.to_string(tyid))
+    | TyVarHole(_, tyid) =>
+      annot(HTypAnnot.TyVarHole, text(TyId.to_string(tyid)))
     | Int => text("Int")
     | Float => text("Float")
     | Bool => text("Bool")

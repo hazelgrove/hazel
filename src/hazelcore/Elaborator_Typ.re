@@ -69,12 +69,12 @@ and syn_operand = (ctx, delta, operand) => {
     /* TElabSVar */
     let+ idx = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
     let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-    (HTyp.TyVar(idx, TyId.to_string(t)), k, delta);
+    (HTyp.TyVar(idx, t), k, delta);
   | TyVar(InVarHole(_, u), t) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
     Some((
-      HTyp.TyVarHole(u, TyId.to_string(t)),
+      HTyp.TyVarHole(u, t),
       Kind.KHole,
       Delta.add(
         u,
@@ -128,7 +128,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
     Some((
-      TyVarHole(u, TyId.to_string(t)),
+      TyVarHole(u, t),
       Kind.KHole,
       Delta.add(
         u,

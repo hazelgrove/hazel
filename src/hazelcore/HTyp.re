@@ -16,8 +16,8 @@ module Index = {
 /* types with holes */
 [@deriving sexp]
 type t =
-  | TyVar(Index.t, Var.t) /* bound type variable */
-  | TyVarHole(MetaVar.t, Var.t) /* free type variables */
+  | TyVar(Index.t, TyId.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, TyId.t) /* free type variables */
   | Hole
   | Int
   | Float
