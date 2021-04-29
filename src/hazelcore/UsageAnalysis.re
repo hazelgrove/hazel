@@ -54,6 +54,7 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
       find_uses(~steps=steps @ [2], x, def),
       binds_var(x, p),
     )
+  | TyAliasLine(_, _, e) => (find_uses(~steps, x, e), false)
   }
 and find_uses_opseq =
     (~steps, x: Var.t, OpSeq(_, seq): UHExp.opseq): uses_list =>

@@ -21,3 +21,8 @@ let palette_ctx: t => PaletteCtx.t =
   ({tyvars: _, gamma: _, palette}) => palette;
 
 let tyvars: t => TyVarCtx.t = ({tyvars, gamma: _, palette: _}) => tyvars;
+
+let extend_tyvars = (ctx: t, binding: (TyId.t, Kind.t)): t => {
+  let tyvars' = TyVarCtx.extend(ctx.tyvars, binding);
+  {...ctx, tyvars: tyvars'};
+};

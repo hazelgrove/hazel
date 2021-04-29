@@ -8,6 +8,8 @@ and zline =
   | ExpLineZ(zopseq)
   | LetLineZP(ZPat.t, UHExp.t)
   | LetLineZE(UHPat.t, t)
+  | TyAliasLineT(TPat.t, ZTyp.t)
+  | TyAliasLineP(ZTPat.t, UHTyp.t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
