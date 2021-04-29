@@ -89,7 +89,7 @@ let advanced_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      if (HTyp.eq(expected_ty, got_ty)) {
+      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
         [ana, HTypCode.view(expected_ty)];
       } else {
         [
@@ -232,7 +232,7 @@ let novice_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      if (HTyp.eq(expected_ty, got_ty)) {
+      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
         expecting_of_type @ [HTypCode.view(expected_ty)];
       } else {
         expecting_of_type
