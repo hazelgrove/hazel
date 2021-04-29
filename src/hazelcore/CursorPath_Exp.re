@@ -1006,7 +1006,7 @@ and holes_zoperand =
   | PrjZE(err, zoperand_, _) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | SandardErrStatus(NotInHole) => []
+      | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InPrjHole(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},

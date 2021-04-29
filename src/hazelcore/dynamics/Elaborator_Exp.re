@@ -66,7 +66,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     Inj(ty, side, d3);
   | Tuple(tuple_elts) =>
     let subst_tuple_elts =
-      List.map((label, dn) => (label, subst_var(d1, x, dn)), tuple_elts);
+      List.map(
+        ((label, dn)) => (label, subst_var(d1, x, dn)),
+        tuple_elts,
+      );
     Tuple(subst_tuple_elts);
   | ErrLabel(_) => d2
   | Prj(d3, label, index) => Prj(subst_var(d1, x, d3), label, index)
@@ -96,9 +99,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
-  | Label_Elt(l, d) =>
-    let d' = subst_var(d1, x, d);
-    Label_Elt(l, d');
   }
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>

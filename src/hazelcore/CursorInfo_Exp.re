@@ -845,7 +845,7 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Label(_, _) =>
       Some(CursorInfo_common.mk(AnaLabel(ty), ctx, cursor_term))
-    | Prj(InPrjHole(_), _) =>
+    | Prj(InPrjHole(_), _, _) =>
       Some(CursorInfo_common.mk(AnaPrjErr(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)

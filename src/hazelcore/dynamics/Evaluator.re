@@ -198,20 +198,31 @@ let rec evaluate = (d: DHExp.t): result =>
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Tuple(tuple_elts) =>
-    List.fold_left( (acc, (label, dn)) => switch(acc) {
-      | 
-    } ) // ECD: You are here, trying to write eval case for tuple, need to iterate thru tuple elts and build up
-    // Evaluated value, where if any thing evals to InvalidInput stop and return that,
-    // if anything is indet need to build up indet tuple with the rest of the evaluated expressions
-    // If all evaluate to boxed value, return boxed value with tuple and all evaluated expressions as list
-    switch (evaluate(d1), evaluate(d2)) {
-    | (InvalidInput(msg), _)
-    | (_, InvalidInput(msg)) => InvalidInput(msg)
-    | (Indet(d1), Indet(d2))
-    | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
-    }
+    List.fold_left(
+      (acc, (label, dn)) =>
+        switch (acc) {
+        | InvalidInput(_) => acc
+        | Indet(Tuple(tuple_elts)) =>
+          switch (evaluate(dn)) {
+          | InvalidInput(msg) as invalid => invalid
+          | BoxedValue(dn)
+          | Indet(dn) => Indet(Tuple([(label, dn), ...tuple_elts]))
+          }
+        | Indet(_) => failwith("Impossible")
+        | BoxedVal(Tuple(tuple_elts)) =>
+          switch (evaluate(dn)) {
+          | InvalidInput(msg) as invalid => invalid
+          | BoxedValue(dn) =>
+            BoxedValue(Tuple([(label, dn), ...tuple_elts]))
+          | Indet(dn) => Indet(Tuple([(label, dn), ...tuple_elts]))
+          }
+        | BoxedValue(_) => failwith("Impossible")
+        },
+      BoxedValue(Tuple([])),
+      List.rev(tuple_elts),
+    )
+  | Prj
+  | ErrPrj => failwith("Unimplemented")
   | Cons(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {
     | (InvalidInput(msg), _)
@@ -234,7 +245,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | FreeVar(_) => Indet(d)
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
-  | Label(_) => Indet(d)
+  | ErrLabel(_) => Indet(d)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -331,13 +342,6 @@ let rec evaluate = (d: DHExp.t): result =>
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d')
     | Indet(d') => Indet(InvalidOperation(d', err))
-    }
-  | Label_Elt(label, d) =>
-    // ECD: need to see if this works
-    switch (evaluate(d)) {
-    | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(d) => BoxedValue(Label_Elt(label, d))
-    | Indet(d) => Indet(Label_Elt(label, d))
     }
   }
 and evaluate_case =
