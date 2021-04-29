@@ -126,14 +126,20 @@ let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   | Line(_, _)
   | Rule(_, _) => false;
 
-let on_expr_var: CursorInfo.cursor_term => bool =
+/* TODO(andrew): Make this function less conceptually bullshit */
+let on_textable_expr: CursorInfo.cursor_term => bool =
   fun
+  | ExpOp(_, _) // TODO(andrew)
+  | Exp(_, InvalidText(_))
+  | Exp(_, IntLit(_))
+  | Exp(_, FloatLit(_))
+  | Exp(_, BoolLit(_))
   | Exp(_, Var(_)) => true
   | Exp(_, _) => false
   | _ => false;
 
 let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
-  on_empty_expr_hole(term) || on_expr_var(term);
+  on_empty_expr_hole(term) || on_textable_expr(term);
 };
 
 let promote_cursor_info =
@@ -177,7 +183,11 @@ let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
 // TODO: expand to other forms?
 let term_to_str = (term: CursorInfo.cursor_term): string => {
   switch (term) {
-  | Exp(_, Var(_, _, s)) => s
+  | Exp(_, Var(_, _, s))
+  | Exp(_, InvalidText(_, s))
+  | Exp(_, IntLit(_, s))
+  | Exp(_, FloatLit(_, s)) => s
+  | Exp(_, BoolLit(_, b)) => string_of_bool(b)
   | _ => ""
   };
 };

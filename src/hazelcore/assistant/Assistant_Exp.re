@@ -5,7 +5,8 @@ type assistant_action_categories =
   | InsertLit
   | InsertVar
   | InsertApp
-  | InsertConstructor;
+  | InsertConstructor
+  | ReplaceOperator;
 
 type assistant_action = {
   category: assistant_action_categories,
@@ -28,6 +29,9 @@ let mk_list_nil_uhexp = wrap(UHExp.listnil());
 
 let wrap_space = (operator, seq) =>
   Seq.S(operator, A(Operators_Exp.Space, seq));
+
+let mk_bin_seq = (operand1, operator, operand2) =>
+  Seq.seq_op_seq(Seq.wrap(operand1), operator, Seq.wrap(operand2));
 
 let rec mk_ap_seq_holes =
         (f_ty: HTyp.t, hole_ty: HTyp.t)
@@ -181,3 +185,127 @@ let compute_app_actions =
     |> List.map(((name, f_ty)) => mk_app_action(cursor, name, f_ty))
   };
 };
+
+type zseq_exp =
+  ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator);
+let mk_fancy_action = (_zseq: zseq_exp, _cursor_info_pro): assistant_action => {
+  let new_seq =
+    mk_bin_seq(
+      UHExp.intlit("666"),
+      Operators_Exp.Plus,
+      UHExp.intlit("666"),
+    );
+  let ZOpSeq(_, new_zseq) =
+    new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
+  let uhexp =
+    new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  {
+    category: InsertConstructor, // TODO(andrew): new category
+    text: "",
+    action: ReplaceOpSeqAroundCursor(new_zseq),
+    res_ty: HTyp.Int,
+    result: uhexp,
+  };
+};
+let compute_fancy_actions =
+    (
+      {/*ctx, expected_ty, mode,*/ syntactic_context, _} as cursor: cursor_info_pro,
+    ) => {
+  switch (syntactic_context) {
+  | ExpSeq(_synctx_ty, zseq) => [mk_fancy_action(zseq, cursor)]
+  | _ => []
+  };
+};
+
+let compute_operand_actions = ({term, _} as cursor) =>
+  switch (term) {
+  | Exp(_) =>
+    List.map(
+      f => f(cursor),
+      [
+        compute_var_actions,
+        compute_app_actions,
+        compute_ctor_actions,
+        compute_gen_actions,
+      ],
+    )
+  | _ => []
+  };
+
+let exp_operator_of_ty =
+    (inl: HTyp.t, inr: HTyp.t, out: HTyp.t): list(Operators_Exp.t) => {
+  Operators_Exp.
+    // TODO: Add Comma, Cons, Space ops (requires a bit more deconstruction)
+    (
+      List.concat([
+        HTyp.consistent_all([inl, inr, out, HTyp.Bool]) ? [And, Or] : [],
+        HTyp.consistent_all([inl, inr, out, HTyp.Int])
+          ? [Plus, Minus, Times, Divide] : [],
+        HTyp.consistent_all([inl, inr, out, HTyp.Float])
+          ? [FPlus, FMinus, FTimes, FDivide] : [],
+        HTyp.consistent_all([inl, inr, HTyp.Int])
+        && HTyp.consistent(out, HTyp.Bool)
+          ? [LessThan, GreaterThan, Equals] : [],
+        HTyp.consistent_all([inl, inr, HTyp.Float])
+        && HTyp.consistent(out, HTyp.Bool)
+          ? [FLessThan, FGreaterThan, FEquals] : [],
+      ])
+    );
+};
+
+let mk_replace_operator_action =
+    (seq_ty, zseq, new_operator): assistant_action => {
+  // TODO: this is hardcoded for binops, and resets cursor pos. rewrite!
+  let init_seq = zseq |> ZExp.erase_zseq;
+  //let init_skel = init_seq |> UHExp.associate;
+  let new_seq =
+    switch (init_seq) {
+    | S(operand1, A(_operator, S(operand2, E))) =>
+      Seq.S(operand1, A(new_operator, S(operand2, E)))
+    | _ => failwith("TODO andrew...")
+    };
+  let ZOpSeq(_, new_zseq) =
+    new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
+  let uhexp =
+    new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  {
+    category: ReplaceOperator,
+    text: Operators_Exp.to_string(new_operator),
+    action: ReplaceOpSeqAroundCursor(new_zseq),
+    res_ty: seq_ty,
+    result: uhexp,
+  };
+};
+
+let compute_replace_operator_actions = ({ctx, _}, seq_ty, zseq) => {
+  print_endline("computing operator replace actions");
+  let init_seq = zseq |> ZExp.erase_zseq;
+  let* (in1_ty, in2_ty) =
+    switch (init_seq) {
+    | S(operand1, A(_operator, S(operand2, E))) =>
+      let* in1_ty =
+        Statics_Exp.syn_operand(
+          ctx,
+          UHExp.set_err_status_operand(NotInHole, operand1),
+        );
+      let* in2_ty =
+        Statics_Exp.syn_operand(
+          ctx,
+          UHExp.set_err_status_operand(NotInHole, operand2),
+        );
+      Some((in1_ty, in2_ty));
+    | _ => None
+    };
+  let ops = exp_operator_of_ty(in1_ty, in2_ty, seq_ty);
+  Some(List.map(mk_replace_operator_action(seq_ty, zseq), ops));
+};
+
+let compute_operator_actions = ({term, syntactic_context, _} as cursor) =>
+  switch (term, syntactic_context) {
+  | (ExpOp(_), ExpSeq(seq_ty, zseq)) =>
+    OptUtil.get(
+      _ => failwith("whatever, gawd!!!"),
+      compute_replace_operator_actions(cursor, seq_ty, zseq),
+    )
+  | _ => []
+  };

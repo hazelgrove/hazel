@@ -32,15 +32,9 @@ let compute_actions =
       CursorInfo.sexp_of_syntactic_context(cursor.syntactic_context),
     ),
   );
-  List.map(
-    f => f(cursor),
-    [
-      compute_var_actions,
-      compute_app_actions,
-      compute_ctor_actions,
-      compute_gen_actions,
-    ],
-  )
+  compute_operand_actions(cursor)
+  @ [compute_operator_actions(cursor)]
+  //@ [compute_fancy_actions(cursor)]
   |> List.concat
   |> raise_search_matches(term_to_str(term));
 };

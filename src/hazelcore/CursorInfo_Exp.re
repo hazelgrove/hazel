@@ -379,6 +379,7 @@ and syn_cursor_info_zopseq =
            Synthesized(ty),
            ctx,
            extract_from_zexp_zseq(zseq),
+           ~syntactic_context,
          )
        )
   | _ =>
@@ -418,6 +419,7 @@ and syn_cursor_info_skel =
              Synthesized(ty),
              ctx,
              extract_from_zexp_zseq(zseq),
+             ~syntactic_context,
            )
          )
     };
@@ -906,7 +908,12 @@ and ana_cursor_info_skel =
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
         |> Option.map(_ =>
-             CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
+             CursorInfo_common.mk(
+               Analyzed(ty),
+               ctx,
+               cursor_term,
+               ~syntactic_context,
+             )
            )
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
@@ -918,6 +925,7 @@ and ana_cursor_info_skel =
                AnaTypeInconsistent(ty, ty'),
                ctx,
                cursor_term,
+               ~syntactic_context,
              )
            );
       };

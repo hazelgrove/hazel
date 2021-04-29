@@ -167,6 +167,7 @@ module CursorInspector = {
     | Toggle_type_assist_other
     | Toggle_assistant
     | Set_assistant(bool)
+    | Reset_assistant_selection
     | Increment_assistant_selection
     | Decrement_assistant_selection;
 
@@ -214,6 +215,10 @@ module CursorInspector = {
         type_assist: false,
       }
     | Set_assistant(b) => {...settings, assistant: b, type_assist: false}
+    | Reset_assistant_selection => {
+        ...settings,
+        assistant_selection: Some(0),
+      }
     | Increment_assistant_selection => {
         ...settings,
         assistant_selection:

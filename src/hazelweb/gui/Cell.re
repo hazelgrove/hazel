@@ -151,6 +151,11 @@ let code_view =
               ),
               inject(
                 ModelAction.UpdateSettings(
+                  CursorInspector(Reset_assistant_selection),
+                ),
+              ),
+              inject(
+                ModelAction.UpdateSettings(
                   CursorInspector(Set_assistant(true)),
                 ),
               ),

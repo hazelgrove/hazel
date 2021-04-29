@@ -131,6 +131,15 @@ let key_handlers =
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  let pre_event = event =>
+    Event.Many([
+      prevent_stop_inject(
+        ModelAction.UpdateSettings(
+          CursorInspector(Reset_assistant_selection),
+        ),
+      ),
+      event,
+    ]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
@@ -159,57 +168,61 @@ let key_handlers =
           ),
         )
       | _ =>
-        switch (MoveKey.of_key(Key.get_key(evt))) {
-        | Some(move_key) =>
-          prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-        | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Undo);
-            }
-          | Some(Meta_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Undo);
-            } else {
-              Event.Ignore;
-            }
-          | Some(Ctrl_Shift_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Redo);
-            }
-          | Some(Meta_Shift_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Redo);
-            } else {
-              Event.Ignore;
-            }
-          | Some(Ctrl_Space) =>
-            prevent_stop_inject(
-              ModelAction.UpdateSettings(
-                CursorInspector(Toggle_type_assist),
-              ),
-            )
-          | Some(kc) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-            )
+        // TODO(andrew): slightly hacky way to preceed all fallthru
+        // events with resetting the current assistant selection
+        pre_event(
+          switch (MoveKey.of_key(Key.get_key(evt))) {
+          | Some(move_key) =>
+            prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
           | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
+            switch (HazelKeyCombos.of_evt(evt)) {
+            | Some(Ctrl_Z) =>
+              if (is_mac) {
+                Event.Ignore;
+              } else {
+                prevent_stop_inject(ModelAction.Undo);
+              }
+            | Some(Meta_Z) =>
+              if (is_mac) {
+                prevent_stop_inject(ModelAction.Undo);
+              } else {
+                Event.Ignore;
+              }
+            | Some(Ctrl_Shift_Z) =>
+              if (is_mac) {
+                Event.Ignore;
+              } else {
+                prevent_stop_inject(ModelAction.Redo);
+              }
+            | Some(Meta_Shift_Z) =>
+              if (is_mac) {
+                prevent_stop_inject(ModelAction.Redo);
+              } else {
+                Event.Ignore;
+              }
+            | Some(Ctrl_Space) =>
               prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist),
                 ),
               )
+            | Some(kc) =>
+              prevent_stop_inject(
+                ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+              )
+            | None =>
+              switch (JSUtil.is_single_key(evt)) {
+              | None => Event.Ignore
+              | Some(single_key) =>
+                prevent_stop_inject(
+                  ModelAction.EditAction(
+                    Construct(SChar(JSUtil.single_key_string(single_key))),
+                  ),
+                )
+              }
             }
-          }
-        }
+          },
+        )
       }
     }),
   ];

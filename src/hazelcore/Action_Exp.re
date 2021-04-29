@@ -1119,11 +1119,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (
-      UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
-      ZOperator(_),
-    ) =>
+  | (UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) =>
     Failed
 
   /* Movement handled at top level */
@@ -1343,7 +1339,10 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
-  | (ReplaceOpSeqAroundCursor(new_zseq), _) =>
+  | (
+      ReplaceOpSeqAroundCursor(new_zseq),
+      ZOperator(_) | ZOperand(CursorE(_), _),
+    ) =>
     // TODO(andrew): find way to ensure this is localmost zopseq around cursor
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)))
 
@@ -2711,11 +2710,7 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (
-      FillExpHole(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
-      ZOperator(_),
-    ) =>
-    Failed
+  | (FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
 
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (

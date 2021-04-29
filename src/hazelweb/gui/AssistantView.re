@@ -10,7 +10,8 @@ let action_abbreviation =
   | InsertVar => "var"
   | InsertApp => "app"
   | InsertLit => "lit"
-  | InsertConstructor => "con";
+  | InsertConstructor => "con"
+  | ReplaceOperator => "opr";
 
 let action_view =
     (
