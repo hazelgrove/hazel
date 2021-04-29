@@ -103,6 +103,35 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
+let view_of_cursor_inspector =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      (steps, cursor): CursorPath.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+      l: UHLayout.t,
+    ) => {
+  let cursor =
+    switch (cursor) {
+    | OnText(_) => CursorPosition.OnText(0)
+    | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
+    | OnOp(_) => CursorPosition.OnOp(Before)
+    };
+  let m = UHMeasuredLayout.mk(l);
+  let cursor_pos =
+    UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
+    |> OptUtil.get(() => failwith("could not find caret"));
+  let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
+  let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
+  CursorInspector.view(
+    ~inject,
+    (cursor_x, cursor_y),
+    cursor_inspector,
+    cursor_info,
+  );
+};
+
 let key_handlers =
     (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
@@ -140,6 +169,10 @@ let key_handlers =
           } else {
             Event.Ignore;
           }
+        | Some(Ctrl_Space) =>
+          prevent_stop_inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+          )
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
@@ -237,6 +270,23 @@ let view =
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
+      let cursor_inspector =
+        if (program.is_focused && settings.cursor_inspector.visible) {
+          let path = Program.get_path(program);
+          let ci = Program.get_cursor_info(program);
+          [
+            view_of_cursor_inspector(
+              ~inject,
+              ~font_metrics,
+              path,
+              settings.cursor_inspector,
+              ci,
+              l,
+            ),
+          ];
+        } else {
+          [];
+        };
 
       let key_handlers =
         program.is_focused
@@ -284,6 +334,7 @@ let view =
           ...key_handlers,
         ],
         caret
+        @ cursor_inspector
         @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },

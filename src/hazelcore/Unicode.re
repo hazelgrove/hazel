@@ -5,6 +5,11 @@ let castArrowSym = "⇨";
 let typeN = "ℕ"; // U+2115 "Double-struck capital N"
 let typeB = "𝔹"; // U+1D539 "Mathematical double-struck capital B"
 
+let inconsistent = "≁"; //  U+2241 "Not Tilde"
+let light_bulb = "💡"; // U+1F4A1 "Electric Light Bulb"
+let synSym = "⇒"; // U+21D2 "Rightwards Double Arrow"
+let anaSym = "⇐"; // U+21CF "Leftwards Double Arrow"
+
 let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 
 let left_triangle = "◀"; // U+25C0 "Black left-pointing triangle"
