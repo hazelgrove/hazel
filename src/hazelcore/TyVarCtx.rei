@@ -5,6 +5,8 @@ let to_list: t => list((TyId.t, Kind.t));
 
 let of_list: list((TyId.t, Kind.t)) => t;
 
+let extend: (t, (TyId.t, Kind.t)) => t;
+
 let empty: t;
 
 let index_of: (t, TyId.t) => option(HTyp.Index.t);

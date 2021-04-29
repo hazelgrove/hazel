@@ -9,6 +9,11 @@ let to_list = x => x;
 
 let empty = [];
 
+// TODO: Handle singeltons properly
+let extend = (ctx: t, binding: (TyId.t, Kind.t)): t => {
+  [binding, ...ctx];
+};
+
 let index_of = (ctx: t, x: TyId.t): option(HTyp.Index.t) => {
   let rec go = (ctx: t, x: TyId.t, n: int): option(HTyp.Index.t) =>
     switch (ctx) {

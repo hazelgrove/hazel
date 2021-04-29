@@ -10,3 +10,5 @@ let gamma: t => VarCtx.t;
 let palette_ctx: t => PaletteCtx.t;
 
 let tyvars: t => TyVarCtx.t;
+
+let extend_tyvars: (t, (TyId.t, Kind.t)) => t;

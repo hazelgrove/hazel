@@ -85,6 +85,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2))
       }
     }
+  | TyAlias(_, _, _, d) => evaluate(d)
   | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>

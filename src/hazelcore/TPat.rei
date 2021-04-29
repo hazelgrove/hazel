@@ -1,0 +1,12 @@
+module VarPatErrStatus: {
+  [@deriving sexp]
+  type t =
+    | Keyword(ExpandingKeyword.t);
+};
+
+[@deriving sexp]
+type t =
+  | EmptyHole
+  | TyVar(option(VarPatErrStatus.t), TyId.t);
+
+let is_complete: t => bool;
