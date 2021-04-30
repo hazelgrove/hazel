@@ -115,15 +115,66 @@ module Performance = {
     };
 };
 
+/**
+ * Flags for display of right panel
+ */
+module RightPanel = {
+  type t = {
+    panel_open: bool,
+    cursor_inspector: bool,
+    context_inspector: bool,
+    undo_history_panel: bool,
+    settings_panel: bool,
+  };
+  let init = {
+    panel_open: true,
+    cursor_inspector: true,
+    context_inspector: true,
+    undo_history_panel: true,
+    settings_panel: true,
+  };
+
+  [@deriving sexp]
+  type update =
+    | Toggle_open
+    | Toggle_cursor_inspector
+    | Toggle_context_inspector
+    | Toggle_undo_history_panel
+    | Toggle_settings_panel;
+
+  let apply_update = (u: update, settings: t) =>
+    switch (u) {
+    | Toggle_open => {...settings, panel_open: !settings.panel_open}
+    | Toggle_cursor_inspector => {
+        ...settings,
+        cursor_inspector: !settings.cursor_inspector,
+      }
+    | Toggle_context_inspector => {
+        ...settings,
+        context_inspector: !settings.context_inspector,
+      }
+    | Toggle_undo_history_panel => {
+        ...settings,
+        undo_history_panel: !settings.undo_history_panel,
+      }
+    | Toggle_settings_panel => {
+        ...settings,
+        settings_panel: !settings.settings_panel,
+      }
+    };
+};
+
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,
+  right_panel: RightPanel.t,
   memoize_doc: bool,
 };
 
 let init: t = {
   evaluation: Evaluation.init,
   performance: Performance.init,
+  right_panel: RightPanel.init,
   memoize_doc: true,
 };
 
@@ -131,7 +182,8 @@ let init: t = {
 type update =
   | Toggle_memoize_doc
   | Evaluation(Evaluation.update)
-  | Performance(Performance.update);
+  | Performance(Performance.update)
+  | RightPanel(RightPanel.update);
 
 let apply_update = (u: update, settings: t) =>
   switch (u) {
@@ -143,5 +195,9 @@ let apply_update = (u: update, settings: t) =>
   | Performance(u) => {
       ...settings,
       performance: Performance.apply_update(u, settings.performance),
+    }
+  | RightPanel(u) => {
+      ...settings,
+      right_panel: RightPanel.apply_update(u, settings.right_panel),
     }
   };

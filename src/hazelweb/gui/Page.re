@@ -242,19 +242,58 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
               ),
-              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
+              Sidebar.right(
+                ~inject,
+                ~is_open=model.settings.right_panel.panel_open,
                 [
-                  CursorInspector.view(~inject, model),
-                  ContextInspector.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    ~font_metrics=model.font_metrics,
-                    program,
+                  (
+                    model.settings.right_panel.cursor_inspector,
+                    Node.text("CI"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_cursor_inspector),
+                      ),
+                    ),
+                    () => CursorInspector.view(~inject, model),
                   ),
-                  UndoHistoryPanel.view(~inject, model),
-                  SettingsPanel.view(~inject, settings),
-                ]
+                  (
+                    model.settings.right_panel.context_inspector,
+                    Node.text("CX"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_context_inspector),
+                      ),
+                    ),
+                    () =>
+                      ContextInspector.view(
+                        ~inject,
+                        ~selected_instance,
+                        ~settings=settings.evaluation,
+                        ~font_metrics=model.font_metrics,
+                        program,
+                      ),
+                  ),
+                  (
+                    model.settings.right_panel.undo_history_panel,
+                    Node.text("H"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_undo_history_panel),
+                      ),
+                    ),
+                    () => UndoHistoryPanel.view(~inject, model),
+                  ),
+                  (
+                    model.settings.right_panel.settings_panel,
+                    Node.text("S"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_settings_panel),
+                      ),
+                    ),
+                    () => SettingsPanel.view(~inject, settings),
+                  ),
+                ],
               ),
             ],
           ),

@@ -45,7 +45,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | EditAction(_)
   | MoveAction(_)
   | ToggleLeftSidebar
-  | ToggleRightSidebar
   | LoadExample(_)
   | LoadCardstack(_)
   | NextCard
@@ -119,7 +118,6 @@ let apply_action =
         }
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
-      | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)

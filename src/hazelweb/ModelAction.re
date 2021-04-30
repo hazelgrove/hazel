@@ -23,7 +23,6 @@ type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)
   | ToggleLeftSidebar
-  | ToggleRightSidebar
   | LoadExample(Examples.id)
   | LoadCardstack(int)
   | NextCard

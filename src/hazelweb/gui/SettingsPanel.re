@@ -48,7 +48,7 @@ let summary = Vdom.Node.create("summary");
 let view =
     (~inject: ModelAction.t => Vdom.Event.t, settings: Settings.t)
     : Vdom.Node.t => {
-  let Settings.{memoize_doc, performance, evaluation} = settings;
+  let Settings.{memoize_doc, performance, evaluation, _} = settings;
   let evaluation_checkboxes =
     Vdom.(
       Node.div(

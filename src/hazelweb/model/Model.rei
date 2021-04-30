@@ -4,7 +4,6 @@ type t = {
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
-  right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   /**
@@ -66,7 +65,6 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  * Show/hide sidebars
  */
 let toggle_left_sidebar: t => t;
-let toggle_right_sidebar: t => t;
 
 /**
  * Load an expression into the editor

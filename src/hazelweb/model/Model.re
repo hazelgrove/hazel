@@ -4,7 +4,6 @@ type t = {
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
-  right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
@@ -69,7 +68,6 @@ let init = (): t => {
     selected_instances,
     undo_history,
     left_sidebar_open: false,
-    right_sidebar_open: true,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -244,10 +242,6 @@ let select_case_branch =
 let toggle_left_sidebar = (model: t): t => {
   ...model,
   left_sidebar_open: !model.left_sidebar_open,
-};
-let toggle_right_sidebar = (model: t): t => {
-  ...model,
-  right_sidebar_open: !model.right_sidebar_open,
 };
 
 let load_example = (model: t, e: UHExp.t): t =>
