@@ -1971,15 +1971,17 @@ let layout_map_annot: (unit, int, Array.t(Layout.t(unit))) => Array.t(Layout.t(u
   );
 
 let layout_merge:
-  (int, Array.t(int), Layout.t(unit), int, Array.t(int), Layout.t(unit)) =>
-  (int, Array.t(int), Layout.t(unit)) =
+  (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit)), int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =>
+  (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =
   Js.Unsafe.js_expr(
-    "function layout_merge_imp(size1, pos1, res1, size2, pos2, res2) {
+    "function layout_merge_imp(size1, pos1, cost1, res1, size2, pos2, cost2, res2) {
       //\"layout_merge\";
     var js_size = size1; // |0 (37-39)
     var end = size1 + size2 | 0;
     end = end - 1 | 0;
     var pos = new Array(end);
+    pos[0] = 0;
+    var cost = new Array(end);
     pos[0] = 0;
     var res = new Array(end);
     res[0] = 0;
@@ -2000,8 +2002,16 @@ let layout_merge:
       } else {
         //console.log(\"3\");
         // TODO: res1[i1] <=> res2[i2]
-        pos[i] = pos1[i1];
-        res[i] = res1[i1]; // TODO: wrap?
+        // Note: this makes choice be left biased
+        if (cost1[i1] <= cost2[i2]) {
+          pos[i] = pos1[i1];
+          cost[i] = cost1[i1];
+          res[i] = res1[i1]; // TODO: wrap?
+        } else {
+          pos[i] = pos2[i2];
+          cost[i] = cost2[i2];
+          res[i] = res2[i2]; // TODO: wrap?
+        }
         i1 = i1 + 1 | 0;
         i2 = i2 + 1 | 0;
       }
@@ -2060,34 +2070,25 @@ let layout_merge:
     // }
     //var size = i;
     //return [0, size, pos, res];
-    return [0, size1, pos, res];
+    // TODO: compute real costs
+    return [0, size1, pos, cost, res];
   }
     ",
   );
 
 let layout_fold:
-  (int, int, my_fib, int, Array.t(int), Array.t(int)) =>
-  (int, Array.t(int), Array.t(int)) =
+  (int, int, my_fib, int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =>
+  (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =
   Js.Unsafe.js_expr(
-    "function layout_fold_imp(width, pos, f2, size1, pos1, res1) {
+    "function layout_fold_imp(width, pos, f2, size1, pos1, cost1, res1) {
       //\"layout_fold\";
-      if (size1 == 1) { return [0, 1, [0], [0]]; }
-      // TODO: var js_size = size1 | 0;
+      if (size1 == 1) { return [0, 1, [0], [0], [0]]; }
       var xxx = fib2_share(width, pos1[1], f2);
-      //return xxx;
-      //console.log(xxx);
-      // no yyy:9.6 46 206
-      // no merge: 20 41 472
-      // merge: 48 103 472
       var i = 2;
-      //var yyy = fib2_share(width, 1, f2);
       while (i < size1) {
         var p = pos1[i];
-      //   // TODO: get original numbers
-      //   // TODO: test without merge
         var yyy = fib2_share(width, p, f2);
-        xxx = layout_merge_share(xxx[1], xxx[2], xxx[3], yyy[1], yyy[2], yyy[3]);
-      //   //xxx = yyy;
+        xxx = layout_merge_share(xxx[1], xxx[2], xxx[3], xxx[4], yyy[1], yyy[2], yyy[3], yyy[4]);
         i = i + 1 | 0;
       }
       return xxx;
@@ -2097,7 +2098,7 @@ let layout_fold:
 
 let rec fib2 =
         (~width: int, ~pos: int, x: my_fib)
-        : (int, Array.t(int), Array.t(Layout.t(unit))) => {
+        : (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) => {
   count := count^ + 1;
   switch (x) {
   | Text2(mem, i) =>
@@ -2107,6 +2108,7 @@ let rec fib2 =
       (
         11,
         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         //[|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2138,6 +2140,7 @@ let rec fib2 =
           pos + 8,
           pos + 9,
         |],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text(t),
           Layout.Text(t),
@@ -2169,6 +2172,7 @@ let rec fib2 =
       (
         11,
         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         // [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2200,6 +2204,7 @@ let rec fib2 =
           pos + 8,
           pos + 9,
         |],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text(t),
           Layout.Text(t),
@@ -2230,6 +2235,7 @@ let rec fib2 =
       (
         11,
         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         // [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2244,7 +2250,7 @@ let rec fib2 =
         |],
       );
     } else {
-      let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+      let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_align,
@@ -2252,7 +2258,7 @@ let rec fib2 =
         );
       // let out = out1r;
       mem := gensym^;
-      (out1s, out1p, out);
+      (out1s, out1p, out1c, out);
     };
   | Annot2(mem, annot, f) =>
     let old_mem = mem^;
@@ -2260,6 +2266,7 @@ let rec fib2 =
       (
         11,
         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         // [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2274,7 +2281,7 @@ let rec fib2 =
         |],
       );
     } else {
-      let (out1s, out1p, out1r) = fib2(~width, ~pos, f);
+      let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_annot,
@@ -2282,7 +2289,7 @@ let rec fib2 =
         );
       // let out = out1r;
       mem := gensym^;
-      (out1s, out1p, out);
+      (out1s, out1p, out1c, out);
     };
   | Cat2(mem, f1, f2) =>
     // TODO: maybe without memoization?
@@ -2291,6 +2298,7 @@ let rec fib2 =
       (
         11,
         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         // [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2305,9 +2313,9 @@ let rec fib2 =
         |],
       );
     } else {
-      let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
+      let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f1);
       // let _ = fib2(~width, ~pos, f2);
-      let (out_s, out_p, out_r) =
+      let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_fold,
           [|
@@ -2316,11 +2324,12 @@ let rec fib2 =
             Js.Unsafe.inject(f2),
             Js.Unsafe.inject(out1s),
             Js.Unsafe.inject(out1p),
+            Js.Unsafe.inject(out1c),
             Js.Unsafe.inject(out1r),
           |],
         );
       mem := gensym^;
-      (out_s, out_p, out_r);
+      (out_s, out_p, out_c, out_r);
     };
   | Choice2(mem, f1, f2) =>
     let old_mem = mem^;
@@ -2328,6 +2337,7 @@ let rec fib2 =
       (
         11,
         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         // [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
           Layout.Text("Z"),
@@ -2342,25 +2352,27 @@ let rec fib2 =
         |],
       );
     } else {
-      let (out1s, out1p, out1r) = fib2(~width, ~pos, f1);
-      let (out2s, out2p, out2r) = fib2(~width, ~pos, f2);
+      let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f1);
+      let (out2s, out2p, out2c, out2r) = fib2(~width, ~pos, f2);
       //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
       //let out = out1r;
       // let (out_s, out_p, out_r) = (out1s, out1p, out1r);
-      let (out_s, out_p, out_r) =
+      let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_merge,
           [|
             Js.Unsafe.inject(out1s),
             Js.Unsafe.inject(out1p),
+            Js.Unsafe.inject(out1c),
             Js.Unsafe.inject(out1r),
             Js.Unsafe.inject(out2s),
             Js.Unsafe.inject(out2p),
+            Js.Unsafe.inject(out2c),
             Js.Unsafe.inject(out2r),
           |],
         );
       mem := gensym^;
-      (out_s, out_p, out_r);
+      (out_s, out_p, out_c, out_r);
       // (out1s, out1p, out1r);
     };
   };
