@@ -8,9 +8,8 @@ and zline =
   | ExpLineZ(zopseq)
   | LetLineZP(ZPat.t, UHExp.t)
   | LetLineZE(UHPat.t, t)
-  | TyAliasLineP(ZTPat.t, UHTyp.t, UHExp.t)
-  | TyAliasLineT(TPat.t, ZTyp.t, UHExp.t)
-  | TyAliasLineE(TPat.t, UHTyp.t, t)
+  | TyAliasLineP(ZTPat.t, UHTyp.t)
+  | TyAliasLineT(TPat.t, ZTyp.t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
@@ -47,7 +46,6 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _))) => true
   | LetLineZE(_)
-  | TyAliasLineE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
@@ -116,8 +114,7 @@ module ZLine = {
     | LetLineZP(_)
     | LetLineZE(_)
     | TyAliasLineP(_)
-    | TyAliasLineT(_)
-    | TyAliasLineE(_) => failwith("force_get_zopseq: expected ExpLineZ")
+    | TyAliasLineT(_) => failwith("force_get_zopseq: expected ExpLineZ")
     | ExpLineZ(zopseq) => zopseq;
 };
 
@@ -144,7 +141,6 @@ and is_before_zline = (zline: zline): bool =>
   | LetLineZP(_)
   | LetLineZE(_)
   | TyAliasLineP(_)
-  | TyAliasLineE(_)
   | TyAliasLineT(_) => false
   }
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
@@ -229,8 +225,7 @@ and is_after_zline =
   | LetLineZP(_)
   | LetLineZE(_)
   | TyAliasLineP(_)
-  | TyAliasLineT(_)
-  | TyAliasLineE(_) => false
+  | TyAliasLineT(_) => false
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -281,8 +276,7 @@ and is_outer_zline = (zline: zline): bool =>
   | LetLineZP(_)
   | LetLineZE(_)
   | TyAliasLineP(_)
-  | TyAliasLineT(_)
-  | TyAliasLineE(_) => false
+  | TyAliasLineT(_) => false
   }
 and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
 and is_outer_zoperand =
@@ -423,7 +417,6 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | LetLineZE(_)
   | TyAliasLineP(_)
   | TyAliasLineT(_)
-  | TyAliasLineE(_)
   | CursorL(_) => zli
   };
 let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
@@ -445,9 +438,8 @@ and erase_zline =
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
   | LetLineZP(zp, def) => LetLine(ZPat.erase(zp), def)
   | LetLineZE(p, zdef) => LetLine(p, erase(zdef))
-  | TyAliasLineE(p, ty, zexp) => TyAliasLine(p, ty, erase(zexp))
-  | TyAliasLineT(p, zty, e) => TyAliasLine(p, ZTyp.erase(zty), e)
-  | TyAliasLineP(zp, ty, e) => TyAliasLine(ZTPat.erase(zp), ty, e)
+  | TyAliasLineT(p, zty) => TyAliasLine(p, ZTyp.erase(zty))
+  | TyAliasLineP(zp, ty) => TyAliasLine(ZTPat.erase(zp), ty)
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -633,11 +625,10 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | 1 => Some(LetLineZP(ZPat.place_after(p), def))
     | _ => Some(LetLineZE(p, place_after(def)))
     }
-  | CursorL(OnDelim(k, Before), TyAliasLine(p, ty, e)) =>
+  | CursorL(OnDelim(k, Before), TyAliasLine(p, ty)) =>
     switch (k) {
-    | 1 => Some(TyAliasLineP(ZTPat.place_after(p), ty, e))
-    | 2 => Some(TyAliasLineT(p, ZTyp.place_after(ty), e))
-    | _ => Some(TyAliasLineE(p, ty, place_after(e)))
+    | 1 => Some(TyAliasLineP(ZTPat.place_after(p), ty))
+    | _ => Some(TyAliasLineT(p, ZTyp.place_after(ty)))
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
@@ -655,25 +646,17 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | Some(zdef) => Some(LetLineZE(p, zdef))
     | None => Some(CursorL(OnDelim(1, After), LetLine(p, erase(zdef))))
     }
-  | TyAliasLineP(zp, ty, e) =>
+  | TyAliasLineP(zp, ty) =>
     switch (ZTPat.move_cursor_left(zp)) {
-    | Some(zp) => Some(TyAliasLineP(zp, ty, e))
+    | Some(zp) => Some(TyAliasLineP(zp, ty))
     | None =>
-      Some(
-        CursorL(OnDelim(0, After), TyAliasLine(ZTPat.erase(zp), ty, e)),
-      )
+      Some(CursorL(OnDelim(0, After), TyAliasLine(ZTPat.erase(zp), ty)))
     }
-  | TyAliasLineT(p, zty, e) =>
+  | TyAliasLineT(p, zty) =>
     switch (ZTyp.move_cursor_left(zty)) {
-    | Some(zty) => Some(TyAliasLineT(p, zty, e))
+    | Some(zty) => Some(TyAliasLineT(p, zty))
     | None =>
-      Some(CursorL(OnDelim(1, After), TyAliasLine(p, ZTyp.erase(zty), e)))
-    }
-  | TyAliasLineE(p, ty, zexp) =>
-    switch (move_cursor_left(zexp)) {
-    | Some(zexp) => Some(TyAliasLineE(p, ty, zexp))
-    | None =>
-      Some(CursorL(OnDelim(2, After), TyAliasLine(p, ty, erase(zexp))))
+      Some(CursorL(OnDelim(1, After), TyAliasLine(p, ZTyp.erase(zty))))
     }
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -842,11 +825,10 @@ and move_cursor_right_zline =
     | 1 => Some(LetLineZE(p, place_before(def)))
     | _ => None
     }
-  | CursorL(OnDelim(k, After), TyAliasLine(p, ty, e)) =>
+  | CursorL(OnDelim(k, After), TyAliasLine(p, ty)) =>
     switch (k) {
-    | 0 => Some(TyAliasLineP(ZTPat.place_before(p), ty, e))
-    | 1 => Some(TyAliasLineT(p, ZTyp.place_before(ty), e))
-    | 2 => Some(TyAliasLineE(p, ty, place_before(e)))
+    | 0 => Some(TyAliasLineP(ZTPat.place_before(p), ty))
+    | 1 => Some(TyAliasLineT(p, ZTyp.place_before(ty)))
     | _ => None
     }
   | ExpLineZ(zopseq) =>
@@ -865,29 +847,18 @@ and move_cursor_right_zline =
     | Some(zdef) => Some(LetLineZE(p, zdef))
     | None => Some(CursorL(OnDelim(2, Before), LetLine(p, erase(zdef))))
     }
-  | TyAliasLineP(zp, ty, e) =>
+  | TyAliasLineP(zp, ty) =>
     switch (ZTPat.move_cursor_right(zp)) {
-    | Some(zp) => Some(TyAliasLineP(zp, ty, e))
+    | Some(zp) => Some(TyAliasLineP(zp, ty))
     | None =>
-      Some(
-        CursorL(OnDelim(1, Before), TyAliasLine(ZTPat.erase(zp), ty, e)),
-      )
+      Some(CursorL(OnDelim(1, Before), TyAliasLine(ZTPat.erase(zp), ty)))
     }
-  | TyAliasLineT(p, zty, e) =>
+  | TyAliasLineT(p, zty) =>
     switch (ZTyp.move_cursor_right(zty)) {
-    | Some(zty) => Some(TyAliasLineT(p, zty, e))
+    | Some(zty) => Some(TyAliasLineT(p, zty))
     | None =>
-      Some(
-        CursorL(OnDelim(2, Before), TyAliasLine(p, ZTyp.erase(zty), e)),
-      )
+      Some(CursorL(OnDelim(2, Before), TyAliasLine(p, ZTyp.erase(zty))))
     }
-  | TyAliasLineE(p, ty, zexp) =>
-    switch (move_cursor_right(zexp)) {
-    | Some(zexp) => Some(TyAliasLineE(p, ty, zexp))
-    | None =>
-      Some(CursorL(OnDelim(2, Before), TyAliasLine(p, ty, erase(zexp))))
-    }
-
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
@@ -1028,9 +999,8 @@ and cursor_on_EmptyHole_zline =
   | ExpLineZ(zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
   | LetLineZP(_) => None
   | LetLineZE(_, ze) => cursor_on_EmptyHole(ze)
-  | TyAliasLineP(_zp, _, _) => None // even though there is a EmptyHole, we don't use the u for typatterns
-  | TyAliasLineT(_, _zty, _) => None // or types
-  | TyAliasLineE(_, _, ze) => cursor_on_EmptyHole(ze)
+  | TyAliasLineP(_zp, _) => None // even though there is a EmptyHole, we don't use the u for typatterns
+  | TyAliasLineT(_, _zty) => None // or types
 and cursor_on_EmptyHole_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => None

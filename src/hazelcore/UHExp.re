@@ -11,7 +11,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
-  | TyAliasLine(TPat.t, UHTyp.t, t)
+  | TyAliasLine(TPat.t, UHTyp.t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -301,8 +301,7 @@ let rec is_complete_line = (l: line): bool => {
   | EmptyLine
   | CommentLine(_) => true
   | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
-  | TyAliasLine(tpat, ty, body) =>
-    TPat.is_complete(tpat) && UHTyp.is_complete(ty) && is_complete(body)
+  | TyAliasLine(tpat, ty) => TPat.is_complete(tpat) && UHTyp.is_complete(ty)
   | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   };
 }
