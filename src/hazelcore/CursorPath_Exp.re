@@ -11,6 +11,9 @@ and of_zline = (zline: ZExp.zline): CursorPath.t =>
   | CursorL(cursor, _) => ([], cursor)
   | LetLineZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LetLineZE(_, zdef) => cons'(1, of_z(zdef))
+  | TyAliasLineP(zp, _, _) => cons'(0, CursorPath_TPat.of_z(zp))
+  | TyAliasLineT(_, zty, _) => cons'(0, CursorPath_Typ.of_z(zty))
+  | TyAliasLineE(_, _, ze) => cons'(0, of_z(ze))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   }
 and of_zopseq = (zopseq: ZExp.zopseq): CursorPath.t =>
@@ -67,7 +70,7 @@ and follow_line =
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
     follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | ([], EmptyLine | LetLine(_) | CommentLine(_)) =>
+  | ([], EmptyLine | LetLine(_) | CommentLine(_) | TyAliasLine(_)) =>
     line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, def)) =>
@@ -80,6 +83,22 @@ and follow_line =
       def
       |> follow((xs, cursor))
       |> Option.map(zdef => ZExp.LetLineZE(p, zdef))
+    | _ => None
+    }
+  | ([x, ...xs], TyAliasLine(p, ty, e)) =>
+    switch (x) {
+    | 0 =>
+      p
+      |> CursorPath_TPat.follow((xs, cursor))
+      |> Option.map(zp => ZExp.TyAliasLineP(zp, ty, e))
+    | 1 =>
+      ty
+      |> CursorPath_Typ.follow((xs, cursor))
+      |> Option.map(zty => ZExp.TyAliasLineT(p, zty, e))
+    | 2 =>
+      e
+      |> follow((xs, cursor))
+      |> Option.map(ze => ZExp.TyAliasLineE(p, ty, ze))
     | _ => None
     }
   }
@@ -228,7 +247,7 @@ and of_steps_line =
     : option(CursorPath.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | ([], EmptyLine | LetLine(_) | CommentLine(_)) =>
+  | ([], EmptyLine | LetLine(_) | CommentLine(_) | TyAliasLine(_)) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
@@ -243,6 +262,19 @@ and of_steps_line =
       |> CursorPath_Pat.of_steps(xs, ~side)
       |> Option.map(path => cons'(0, path))
     | 1 => def |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
+    | _ => None
+    }
+  | ([x, ...xs], TyAliasLine(p, ty, e)) =>
+    switch (x) {
+    | 0 =>
+      p
+      |> CursorPath_TPat.of_steps(xs, ~side)
+      |> Option.map(path => cons'(0, path))
+    | 1 =>
+      ty
+      |> CursorPath_Typ.of_steps(xs, ~side)
+      |> Option.map(path => cons'(1, path))
+    | 2 => e |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
     | _ => None
     }
   }
@@ -400,6 +432,11 @@ and holes_line =
     hs
     |> holes(def, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  | TyAliasLine(p, ty, e) =>
+    hs
+    |> holes(e, [2, ...rev_steps])
+    |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
+    |> CursorPath_TPat.holes(p, [0, ...rev_steps])
   | ExpLine(opseq) =>
     hs
     |> CursorPath_common.holes_opseq(
@@ -526,6 +563,35 @@ and holes_zline =
       CursorPath_common.mk_zholes(~holes_before=holes_p @ holes_def, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorL(cursor, TyAliasLine(p, ty, e)) =>
+    let holes_p = CursorPath_TPat.holes(p, [0, ...rev_steps], []);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    let holes_e = holes(e, [2, ...rev_steps], []);
+    switch (cursor) {
+    | OnDelim(0, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_after=holes_p @ holes_ty @ holes_e,
+        (),
+      )
+    | OnDelim(1, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p,
+        ~holes_after=holes_ty @ holes_e,
+        (),
+      )
+    | OnDelim(2, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p @ holes_ty,
+        ~holes_after=holes_e,
+        (),
+      )
+    | OnDelim(3, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p @ holes_ty @ holes_e,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
   | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
   | LetLineZP(zp, body) =>
     let CursorPath.{holes_before, hole_selected, holes_after} =
@@ -543,6 +609,39 @@ and holes_zline =
       holes_z(zbody, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
+  | TyAliasLineP(zp, ty, e) =>
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_TPat.holes_z(zp, [0, ...rev_steps]);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    let holes_e = holes(e, [2, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_ty @ holes_e,
+      (),
+    );
+  | TyAliasLineT(p, zty, e) =>
+    let holes_p = CursorPath_TPat.holes(p, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(zty, [0, ...rev_steps]);
+    let holes_e = holes(e, [2, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_e,
+      (),
+    );
+  | TyAliasLineE(p, ty, ze) =>
+    let holes_p = CursorPath_TPat.holes(p, [0, ...rev_steps], []);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(ze, [2, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_p @ holes_ty @ holes_before,
       ~hole_selected,
       ~holes_after,
       (),
