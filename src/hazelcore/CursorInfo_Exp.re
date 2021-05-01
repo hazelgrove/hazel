@@ -11,6 +11,8 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LetLineZE(_, zexp) => extract_cursor_term(zexp)
+  | TyAliasLineP(zpat, _) => CursorInfo_TPat.extract_cursor_term(zpat)
+  | TyAliasLineT(_, zty) => CursorInfo_Typ.extract_cursor_term(zty)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -62,6 +64,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  | TyAliasLineP(zpat, _) => CursorInfo_TPat.get_zoperand_from_zpat(zpat)
+  | TyAliasLineT(_, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -112,6 +116,8 @@ and get_outer_zrules_from_zline =
     get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
   | LetLineZP(_) => outer_zrules
   | LetLineZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | TyAliasLineP(_) => outer_zrules
+  | TyAliasLineT(_) => outer_zrules
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -215,7 +221,9 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
       | CursorL(_, _)
       | LetLineZP(_)
-      | LetLineZE(_) => true
+      | LetLineZE(_)
+      | TyAliasLineP(_)
+      | TyAliasLineT(_) => true
       }
     | Some((_, _)) => false
     };
@@ -229,7 +237,9 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
       | CursorL(_, _)
       | LetLineZP(_)
-      | LetLineZE(_) => false
+      | LetLineZE(_)
+      | TyAliasLineP(_)
+      | TyAliasLineT(_) => false
       }
     | _ => false
     };

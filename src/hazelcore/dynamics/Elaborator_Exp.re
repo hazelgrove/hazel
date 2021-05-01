@@ -1318,6 +1318,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(p, ty, k, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TyAlias(p, ty, k, d1), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -1416,6 +1419,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(p, ty, k, d1) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    (TyAlias(p, ty, k, d1), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
