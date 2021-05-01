@@ -44,7 +44,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | EmptyLine
     | CommentLine(_) => true
     | LetLine(_)
-    | ExpLine(_) => false
+    | ExpLine(_)
+    | TyAliasLine(_) => false
     }
   | Rule(_, _) => false
   };
