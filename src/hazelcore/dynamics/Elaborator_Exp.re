@@ -19,6 +19,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4);
+  | TyAlias(dp, dty, k, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    TyAlias(dp, dty, k, d3);
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {
@@ -290,6 +293,7 @@ and matches_cast_Inj =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | TyAlias(_, _, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -355,6 +359,7 @@ and matches_cast_Pair =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | TyAlias(_, _, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -426,6 +431,7 @@ and matches_cast_Cons =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | TyAlias(_, _, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -555,6 +561,14 @@ and syn_elab_line =
           LinesExpand(prelude, ctx, delta);
         };
       };
+    }
+  | TyAliasLine(p, ty) =>
+    switch (Elaborator_Typ.syn(ctx, delta, ty)) {
+    | None => LinesDoNotExpand
+    | Some((hty, kind, delta)) =>
+      let ctx2 = Statics_TPat.matches(ctx, p, hty, kind);
+      let prelude = d => DHExp.TyAlias(p, hty, kind, d);
+      LinesExpand(prelude, ctx2, delta);
     }
   }
 and syn_elab_opseq =
