@@ -7,13 +7,6 @@ type step_result =
   | Step(DHExp.t)
   | Pause(DHExp.t);
 
-type exp =
-  | A(int)
-  | B(int)
-  | C(int, int);
-
-let add_one = x => x + 1;
-
 exception InvalidInput(int);
 
 [@deriving sexp]

@@ -93,12 +93,15 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
+open EvaluatorStep;
+
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
+          ~eva_obj=None,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -118,20 +121,31 @@ let rec mk =
     | _ => doc
     };
   let rec go =
-          (~parenthesize=false, ~enforce_inline, d: DHExp.t)
+          (
+            ~parenthesize=false,
+            ~enforce_inline,
+            eva_obj: option(EvalObj.t),
+            d: DHExp.t,
+          )
           : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
-    let go' = go(~enforce_inline);
+    let go' = go(~enforce_inline, None);
+    let go_eva' = go(~enforce_inline); // it will only use eva_obj without d
     let go_case = (dscrut, drs) =>
       if (enforce_inline) {
         fail();
       } else {
         let scrut_doc =
           choices([
-            hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+            hcats([
+              space(),
+              mk_cast(go(~enforce_inline=true, eva_obj, dscrut)),
+            ]),
             hcats([
               linebreak(),
-              indent_and_align(mk_cast(go(~enforce_inline=false, dscrut))),
+              indent_and_align(
+                mk_cast(go(~enforce_inline=false, eva_obj, dscrut)),
+              ),
             ]),
           ]);
         vseps(
@@ -142,13 +156,15 @@ let rec mk =
           ]),
         );
       };
-    let mk_left_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) > precedence_op, d1),
-      go'(~parenthesize=precedence(d2) >= precedence_op, d2),
+    let mk_left_associative_operands =
+        (~eva_obj1=None, ~eva_obj2=None, precedence_op, d1, d2) => (
+      go_eva'(~parenthesize=precedence(d1) > precedence_op, eva_obj1, d1),
+      go_eva'(~parenthesize=precedence(d2) >= precedence_op, eva_obj2, d2),
     );
-    let mk_right_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) >= precedence_op, d1),
-      go'(~parenthesize=precedence(d2) > precedence_op, d2),
+    let mk_right_associative_operands =
+        (~eva_obj1=None, ~eva_obj2=None, precedence_op, d1, d2) => (
+      go_eva'(~parenthesize=precedence(d1) >= precedence_op, eva_obj1, d1),
+      go_eva'(~parenthesize=precedence(d2) > precedence_op, eva_obj2, d2),
     );
     let cast =
       switch (d) {
@@ -156,161 +172,202 @@ let rec mk =
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
-      switch (d) {
-      | EmptyHole(u, i, _sigma) =>
-        let selected =
-          switch (selected_instance) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
-          };
-        DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, _sigma, d) =>
-        go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-
-      | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
-      | FreeVar(u, i, _sigma, x) =>
-        text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, _sigma, t) =>
-        DHDoc_common.mk_InvalidText(t, (u, i))
-      | BoundVar(x) => text(x)
-      | Triv => DHDoc_common.Delim.triv
-      | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | IntLit(n) => DHDoc_common.mk_IntLit(n)
-      | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | ListNil(_) => DHDoc_common.Delim.list_nil
-      | Inj(_, inj_side, d) =>
-        let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
-        DHDoc_common.mk_Inj(
-          inj_side,
-          child |> DHDoc_common.pad_child(~enforce_inline),
-        );
-      | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
-        DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-      | BinIntOp(op, d1, d2) =>
-        // TODO assumes all bin int ops are left associative
-        let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
-      | BinFloatOp(op, d1, d2) =>
-        // TODO assumes all bin float ops are left associative
-        let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
-      | Cons(d1, d2) =>
-        let (doc1, doc2) =
-          mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
-        DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
-      | BinBoolOp(op, d1, d2) =>
-        let (doc1, doc2) =
-          mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
-      | Pair(d1, d2) =>
-        DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
-      | Cast(d, _, _) =>
-        let (doc, _) = go'(d);
-        doc;
-      | Let(dp, ddef, dbody) =>
-        let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef));
-        vseps([
-          hcats([
-            DHDoc_common.Delim.mk("let"),
-            DHDoc_Pat.mk(dp)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.mk("="),
-            def_doc
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline=false,
-               ),
-            DHDoc_common.Delim.mk("in"),
-          ]),
-          mk_cast(go(~enforce_inline=false, dbody)),
-        ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
-        let (d_doc, _) = go'(d);
-        let cast_decoration =
-          hcats([
-            DHDoc_common.Delim.open_FailedCast,
-            hseps([
-              DHDoc_Typ.mk(~enforce_inline=true, ty1),
-              DHDoc_common.Delim.arrow_FailedCast,
-              DHDoc_Typ.mk(~enforce_inline=true, ty3),
+      switch (eva_obj) {
+      | None =>
+        switch (d) {
+        | EmptyHole(u, i, _sigma) =>
+          let selected =
+            switch (selected_instance) {
+            | None => false
+            | Some((u', i')) => u == u' && i == i'
+            };
+          DHDoc_common.mk_EmptyHole(~selected, (u, i));
+        | NonEmptyHole(reason, u, i, _sigma, d) =>
+          go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+        | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
+        | FreeVar(u, i, _sigma, x) =>
+          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        | InvalidText(u, i, _sigma, t) =>
+          DHDoc_common.mk_InvalidText(t, (u, i))
+        | BoundVar(x) => text(x)
+        | Triv => DHDoc_common.Delim.triv
+        | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+        | IntLit(n) => DHDoc_common.mk_IntLit(n)
+        | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+        | ListNil(_) => DHDoc_common.Delim.list_nil
+        | Inj(_, inj_side, d) =>
+          let child = (~enforce_inline) =>
+            mk_cast(go(~enforce_inline, None, d));
+          DHDoc_common.mk_Inj(
+            inj_side,
+            child |> DHDoc_common.pad_child(~enforce_inline),
+          );
+        | Ap(d1, d2) =>
+          let (doc1, doc2) =
+            mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
+          DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+        | BinIntOp(op, d1, d2) =>
+          // TODO assumes all bin int ops are left associative
+          let (doc1, doc2) =
+            mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
+          hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
+        | BinFloatOp(op, d1, d2) =>
+          // TODO assumes all bin float ops are left associative
+          let (doc1, doc2) =
+            mk_left_associative_operands(
+              precedence_bin_float_op(op),
+              d1,
+              d2,
+            );
+          hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
+        | Cons(d1, d2) =>
+          let (doc1, doc2) =
+            mk_right_associative_operands(
+              DHDoc_common.precedence_Cons,
+              d1,
+              d2,
+            );
+          DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
+        | BinBoolOp(op, d1, d2) =>
+          let (doc1, doc2) =
+            mk_right_associative_operands(
+              precedence_bin_bool_op(op),
+              d1,
+              d2,
+            );
+          hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
+        | Pair(d1, d2) =>
+          DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
+        | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
+          go_case(dscrut, drs)
+          |> annot(DHAnnot.InconsistentBranches((u, i)))
+        | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+        | Cast(d, _, _) =>
+          let (doc, _) = go'(d);
+          doc;
+        | Let(dp, ddef, dbody) =>
+          let def_doc = (~enforce_inline) =>
+            mk_cast(go(~enforce_inline, None, ddef));
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk("let"),
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+              DHDoc_common.Delim.mk("="),
+              def_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
             ]),
-            DHDoc_common.Delim.close_FailedCast,
-          ])
-          |> annot(DHAnnot.FailedCastDecoration);
-        hcats([d_doc, cast_decoration]);
-      | FailedCast(_d, _ty1, _ty2) =>
-        failwith("unexpected FailedCast without inner cast")
-      | InvalidOperation(d, err) =>
-        switch (err) {
-        | DivideByZero =>
+            mk_cast(go(~enforce_inline=false, None, dbody)),
+          ]);
+        | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
           let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.DivideByZero);
-          hcats([d_doc, decoration]);
+          let cast_decoration =
+            hcats([
+              DHDoc_common.Delim.open_FailedCast,
+              hseps([
+                DHDoc_Typ.mk(~enforce_inline=true, ty1),
+                DHDoc_common.Delim.arrow_FailedCast,
+                DHDoc_Typ.mk(~enforce_inline=true, ty3),
+              ]),
+              DHDoc_common.Delim.close_FailedCast,
+            ])
+            |> annot(DHAnnot.FailedCastDecoration);
+          hcats([d_doc, cast_decoration]);
+        | FailedCast(_d, _ty1, _ty2) =>
+          failwith("unexpected FailedCast without inner cast")
+        | InvalidOperation(d, err) =>
+          switch (err) {
+          | DivideByZero =>
+            let (d_doc, _) = go'(d);
+            let decoration =
+              Doc.text(InvalidOperationError.err_msg(err))
+              |> annot(DHAnnot.DivideByZero);
+            hcats([d_doc, decoration]);
+          }
+        /*
+         let (d_doc, d_cast) as dcast_doc = go'(d);
+         let cast_decoration =
+           hcats([
+             DHDoc_common.Delim.open_FailedCast,
+             hseps([
+               DHDoc_Typ.mk(~enforce_inline=true, ty1),
+               DHDoc_common.Delim.arrow_FailedCast,
+               DHDoc_Typ.mk(~enforce_inline=true, ty2),
+             ]),
+             DHDoc_common.Delim.close_FailedCast,
+           ])
+           |> annot(DHAnnot.FailedCastDecoration);
+         switch (d_cast) {
+         | Some(ty1') when HTyp.eq(ty1, ty1') =>
+           hcats([d_doc, cast_decoration])
+         | _ => hcats([mk_cast(dcast_doc), cast_decoration])
+         };
+         */
+        | Lam(dp, ty, dbody) =>
+          if (settings.show_fn_bodies) {
+            let body_doc = (~enforce_inline) =>
+              mk_cast(go(~enforce_inline, None, dbody));
+            hcats([
+              DHDoc_common.Delim.sym_Lam,
+              DHDoc_Pat.mk(~enforce_inline=true, dp),
+              DHDoc_common.Delim.colon_Lam,
+              DHDoc_Typ.mk(~enforce_inline=true, ty),
+              DHDoc_common.Delim.open_Lam,
+              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+              DHDoc_common.Delim.close_Lam,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
+        | FixF(x, ty, dbody) =>
+          if (settings.show_fn_bodies) {
+            let doc_body = (~enforce_inline) =>
+              go(~enforce_inline, None, dbody) |> mk_cast;
+            hcats([
+              DHDoc_common.Delim.fix_FixF,
+              space(),
+              text(x),
+              DHDoc_common.Delim.colon_FixF,
+              DHDoc_Typ.mk(~enforce_inline=true, ty),
+              DHDoc_common.Delim.open_FixF,
+              doc_body |> DHDoc_common.pad_child(~enforce_inline),
+              DHDoc_common.Delim.close_FixF,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
         }
-      /*
-       let (d_doc, d_cast) as dcast_doc = go'(d);
-       let cast_decoration =
-         hcats([
-           DHDoc_common.Delim.open_FailedCast,
-           hseps([
-             DHDoc_Typ.mk(~enforce_inline=true, ty1),
-             DHDoc_common.Delim.arrow_FailedCast,
-             DHDoc_Typ.mk(~enforce_inline=true, ty2),
-           ]),
-           DHDoc_common.Delim.close_FailedCast,
-         ])
-         |> annot(DHAnnot.FailedCastDecoration);
-       switch (d_cast) {
-       | Some(ty1') when HTyp.eq(ty1, ty1') =>
-         hcats([d_doc, cast_decoration])
-       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-       };
-       */
-      | Lam(dp, ty, dbody) =>
-        if (settings.show_fn_bodies) {
-          let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody));
-          hcats([
-            DHDoc_common.Delim.sym_Lam,
-            DHDoc_Pat.mk(~enforce_inline=true, dp),
-            DHDoc_common.Delim.colon_Lam,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_Lam,
-            body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Lam,
-          ]);
-        } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
-        }
-      | FixF(x, ty, dbody) =>
-        if (settings.show_fn_bodies) {
-          let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
-          hcats([
-            DHDoc_common.Delim.fix_FixF,
-            space(),
-            text(x),
-            DHDoc_common.Delim.colon_FixF,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_FixF,
-            doc_body |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_FixF,
-          ]);
-        } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
+      | Some(eva_obj) =>
+        switch (eva_obj.ctx) {
+        | Mark => go'(eva_obj.exp) |> mk_cast |> annot(DHAnnot.Steppable)
+        | Ap1(ctx1, d2)
+        | Ap2(d1, ctx2)
+        | BinBoolOp1(op, ctx1, d2)
+        | BinBoolOp2(op, d1, ctx2)
+        | BinIntOp1(op, ctx1, d2)
+        | BinIntOp2(op, d1, ctx2)
+        | BinFloatOp1(op, ctx1, d2)
+        | BinFloatOp2(op, d2, ctx2)
+        | Cons1(ctx1, d2)
+        | Cons2(d1, ctx2)
+        | Pair1(ctx1, d2)
+        | Pair2(d1, ctx2)
+        | Let(pat, ctx0, d0)
+        | Inj(ty, inj, ctx0)
+        | NonEmptyHole(reason, u, i, sigma, ctx0)
+        | Cast(ctx0, ty1, ty2)
+        | FailedCast(ctx0, ty1, ty2)
+        | InvalidOperation(ctx0, err)
+        | ConsistentCase(ctx0, rule, n)
+        | InconsistentBranches(u, i, sigma, ctx0, rule, n) =>
+          annot(DHAnnot.Collapsed, text("<fn>"))
         }
       };
     let doc =
