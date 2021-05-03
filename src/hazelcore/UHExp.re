@@ -25,11 +25,13 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+  | Struct(ErrStatus.t, UHPat.t, list(binding))
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
 and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+and splice_map = SpliceInfo.splice_map(t)
+and binding = string; // placeholder
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -186,6 +188,7 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | Struct(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -213,6 +216,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | Struct(_, n, b) => Struct(err, n, b)
   };
 
 let is_inconsistent = operand =>

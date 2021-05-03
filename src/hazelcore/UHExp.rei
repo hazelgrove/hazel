@@ -23,11 +23,13 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+  | Struct(ErrStatus.t, UHPat.t, list(binding))
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
 and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+and splice_map = SpliceInfo.splice_map(t)
+and binding = string; // placeholder
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
