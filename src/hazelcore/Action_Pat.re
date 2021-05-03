@@ -789,7 +789,6 @@ and syn_perform_operand =
       u_gen,
       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
     )
-  | (Construct(SMODULE), CursorP(_)) => Failed
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
@@ -1328,7 +1327,6 @@ and ana_perform_operand =
   | (Construct(SParenthesized), CursorP(_)) =>
     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     mk_ana_result(ctx, u_gen, new_zp, ty);
-  | (Construct(SMODULE), CursorP(_)) => Failed
 
   | (Construct(SInj(side)), CursorP(_)) =>
     switch (HTyp.matched_sum(ty)) {

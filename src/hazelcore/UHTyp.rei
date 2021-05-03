@@ -11,7 +11,6 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | MODULE(t)
   | List(t);
 
 [@deriving sexp]

@@ -495,7 +495,6 @@ let get_new_action_group =
         }
       | SCommentLine
       | SParenthesized
-      | SMODULE
       | SList
       | SAnn
       | SLam

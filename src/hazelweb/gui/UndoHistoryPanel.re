@@ -124,7 +124,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | MODULE(_) => indicate_words_view("module")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
@@ -244,7 +243,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | MODULE(_) => indicate_words_view("module")
     | List(_) => code_keywords_view("[ ]")
     };
   };
@@ -321,7 +319,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SAnn
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
-    | SMODULE => indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {

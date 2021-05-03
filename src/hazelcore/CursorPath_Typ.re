@@ -4,7 +4,6 @@ and of_zoperand =
   fun
   | CursorT(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
-  | MODULEZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
 and of_zoperator =
   fun
@@ -38,14 +37,6 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
-      | _ => None
-      }
-    | MODULE(body) =>
-      switch (x) {
-      | 0 =>
-        body
-        |> follow((xs, cursor))
-        |> Option.map(zbody => ZTyp.MODULEZ(zbody))
       | _ => None
       }
     | List(body) =>
@@ -99,13 +90,6 @@ and of_steps_operand =
     | Float
     | Bool => None
     | Parenthesized(body) =>
-      switch (x) {
-      | 0 =>
-        of_steps(xs, ~side, body)
-        |> Option.map(path => CursorPath_common.cons'(0, path))
-      | _ => None
-      }
-    | MODULE(body) =>
       switch (x) {
       | 0 =>
         of_steps(xs, ~side, body)
@@ -171,7 +155,6 @@ and holes_operand =
   | Float
   | Bool => hs
   | Parenthesized(body)
-  | MODULE(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   };
 
@@ -200,20 +183,16 @@ and holes_zoperand =
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
-  | CursorT(
-      OnDelim(k, _),
-      Parenthesized(body) | MODULE(body) | List(body),
-    ) =>
+  | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | MODULE(_) | List(_)) =>
+  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody)
-  | MODULEZ(zbody)
   | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   };

@@ -22,7 +22,6 @@ type shape =
   | SCommentLine
   | SList
   | SParenthesized
-  | SMODULE
   | SChar(string)
   | SAnn
   | SLam

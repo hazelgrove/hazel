@@ -32,8 +32,6 @@ let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
-let mk_MODULE: UHDoc_common.formatted_child => UHDoc.t =
-  UHDoc_common.mk_MODULE(~sort=Exp);
 let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
@@ -190,9 +188,6 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | MODULE(body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_MODULE(body);
         | Case(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();

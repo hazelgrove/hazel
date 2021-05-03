@@ -149,7 +149,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
-    | MODULE(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
   | Pat(_, operand) =>
@@ -174,7 +173,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Float
     | Bool
     | Parenthesized(_)
-    | MODULE(_)
     | List(_) => MaxLen
     }
   | ExpOp(_, _)

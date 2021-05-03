@@ -37,8 +37,7 @@ type t =
   | Ctrl_Alt_J
   | Ctrl_Alt_L
   | Meta_Z
-  | Meta_Shift_Z
-  | LEFTCURLY;
+  | Meta_Shift_Z;
 
 let get_details: t => KeyCombo.t;
 

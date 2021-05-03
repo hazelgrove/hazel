@@ -11,7 +11,6 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | MODULE(t)
   | List(t);
 
 [@deriving sexp]
@@ -34,7 +33,6 @@ let unwrap_parentheses = (operand: operand): t =>
   | Bool
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
-  | MODULE(p) => p
   };
 
 let associate =
@@ -122,7 +120,6 @@ and expand_operand =
   | Float => Float
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
-  | MODULE(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
 
 let rec is_complete_operand = (operand: 'operand) => {
@@ -133,7 +130,6 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Float => true
   | Bool => true
   | Parenthesized(body) => is_complete(body)
-  | MODULE(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
 }

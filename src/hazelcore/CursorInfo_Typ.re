@@ -16,7 +16,6 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
-  | MODULEZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
   };
 };
@@ -39,7 +38,6 @@ and get_zoperand_from_ztyp_operand =
   switch (zoperand) {
   | CursorT(_, _) => Some(ZTyp(zoperand))
   | ParenthesizedZ(ztyp)
-  | MODULEZ(ztyp)
   | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
   };
 };

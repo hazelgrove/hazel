@@ -1400,7 +1400,6 @@ and syn_perform_operand =
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        MODULE(_) |
         ApPalette(_),
       ),
     ) =>
@@ -1486,10 +1485,7 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (
-          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
-          MODULE(e)
-        ) as operand,
+        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
       ),
     ) =>
     let place_cursor =
@@ -1600,10 +1596,6 @@ and syn_perform_operand =
   | (Construct(SParenthesized), CursorE(_)) =>
     let new_ze =
       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
-    Succeeded(SynDone((new_ze, ty, u_gen)));
-
-  | (Construct(SMODULE), CursorE(_)) =>
-    let new_ze = ZExp.ZBlock.wrap(MODULEZ(ZExp.ZBlock.wrap(zoperand)));
     Succeeded(SynDone((new_ze, ty, u_gen)));
 
   | (Construct(SInj(side)), CursorE(_)) =>
@@ -1762,19 +1754,6 @@ and syn_perform_operand =
       )
     | Succeeded((new_zbody, new_ty, u_gen)) =>
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
-      Succeeded(SynDone((new_ze, new_ty, u_gen)));
-    }
-  | (_, MODULEZ(zbody)) =>
-    switch (syn_perform(ctx, a, (zbody, ty, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, ty, u_gen),
-      )
-    | Succeeded((new_zbody, new_ty, u_gen)) =>
-      let new_ze = ZExp.ZBlock.wrap(MODULEZ(new_zbody));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
@@ -2777,7 +2756,6 @@ and ana_perform_operand =
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        MODULE(_) |
         ApPalette(_),
       ),
     ) =>
@@ -2904,10 +2882,7 @@ and ana_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (
-          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
-          MODULE(e)
-        ) as operand,
+        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
       ),
     ) =>
     let place_cursor =
@@ -3007,17 +2982,9 @@ and ana_perform_operand =
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
-  | (Construct(SMODULE), CursorE(_, EmptyHole(_) as hole))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
-    let new_ze = ZExp.MODULEZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
-    Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SParenthesized), CursorE(_)) =>
     let new_ze =
       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
-    Succeeded(AnaDone((new_ze, u_gen)));
-  | (Construct(SMODULE), CursorE(_)) =>
-    let new_ze = ZExp.ZBlock.wrap(MODULEZ(ZExp.ZBlock.wrap(zoperand)));
     Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Construct(SInj(side)), CursorE(_)) =>
@@ -3138,20 +3105,6 @@ and ana_perform_operand =
       )
     | Succeeded((zbody, u_gen)) =>
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(zbody));
-      Succeeded(AnaDone((new_ze, u_gen)));
-    }
-  | (_, MODULEZ(zbody)) =>
-    switch (ana_perform(ctx, a, (zbody, u_gen), ty)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, u_gen),
-        ty,
-      )
-    | Succeeded((zbody, u_gen)) =>
-      let new_ze = ZExp.ZBlock.wrap(MODULEZ(zbody));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
