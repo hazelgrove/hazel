@@ -615,10 +615,10 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  | Succeeded(SynExpands({kw: Lam, prefix, subject, suffix, u_gen})) =>
-    let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
-    let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+  | Succeeded(SynExpands({kw: Lam, prefix: _, subject, suffix: _, u_gen})) =>
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let new_ze =
+      ZExp.ZBlock.wrap(LamZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
@@ -1621,6 +1621,7 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
 
   | (Construct(SLam), CursorE(_, operand)) =>
+    //TODOAlec
     let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let new_ze =
       ZExp.ZBlock.wrap(

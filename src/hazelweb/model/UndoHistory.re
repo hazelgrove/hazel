@@ -577,7 +577,7 @@ let get_new_action_group =
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
-              | Lam //TODOAlec
+              | Lam
               | Let =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
@@ -588,7 +588,14 @@ let get_new_action_group =
                   if (pos == 3) {
                     /* the caret is at the end of "let" or "fun" */
                     Some(
-                      ConstructEdit(SLet),
+                      ConstructEdit(
+                        switch (k) {
+                        | Lam => SLam
+                        | Let => SLet
+                        /* the below case will never happen */
+                        | _ => SLet
+                        },
+                      ),
                     );
                   } else {
                     Some(ConstructEdit(SOp(SSpace)));
@@ -622,6 +629,8 @@ let get_new_action_group =
                 let (left_var, _) = Var.split(index, var);
                 if (Var.is_let(left_var)) {
                   Some(ConstructEdit(SLet));
+                } else if (Var.is_lam(left_var)) {
+                  Some(ConstructEdit(SLam));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));
                 } else {
