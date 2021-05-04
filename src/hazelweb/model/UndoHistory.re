@@ -593,7 +593,7 @@ let get_new_action_group =
                         | Lam => SLam
                         | Let => SLet
                         /* the below case will never happen */
-                        | _ => SLet
+                        | _ => failwith("impossible")
                         },
                       ),
                     );

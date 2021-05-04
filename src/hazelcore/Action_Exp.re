@@ -74,7 +74,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
-  | Lam => Construct(SLam) //TODOAlec
+  | Lam => Construct(SLam)
   };
 
 //TBD
@@ -1621,7 +1621,6 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
 
   | (Construct(SLam), CursorE(_, operand)) =>
-    //TODOAlec
     let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let new_ze =
       ZExp.ZBlock.wrap(
@@ -2230,12 +2229,11 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  | Succeeded(AnaExpands({kw: Lam, prefix, subject, suffix, u_gen})) =>
-    // TODOAlec - this was copied directly from the case above, fix it for functions
-    let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
-    let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+  | Succeeded(AnaExpands({kw: Lam, prefix: _, subject, suffix: _, u_gen})) =>
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let new_ze =
+      ZExp.ZBlock.wrap(LamZP(NotInHole, ZOpSeq.wrap(zhole), subject));
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
   }
 and ana_perform_block =
     (

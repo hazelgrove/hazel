@@ -291,7 +291,7 @@ let rec mk =
                  ~enforce_inline,
                ),
             DHDoc_common.Delim.colon_Lam,
-            space(), // TODOAlec - better way to pad type?
+            space(),
             DHDoc_Typ.mk(~enforce_inline=true, ty),
             space(),
             DHDoc_common.Delim.open_Lam,

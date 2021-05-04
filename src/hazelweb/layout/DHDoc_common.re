@@ -56,7 +56,6 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  //TODOAlec
   let sym_Lam = mk(Doc_common.Delim.sym_Lam);
   let colon_Lam = mk(Doc_common.Delim.colon_Lam);
   let open_Lam = mk(Doc_common.Delim.open_Lam);

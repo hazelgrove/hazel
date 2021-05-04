@@ -83,7 +83,6 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  //TODOAlec
   let sym_Lam = (): t => mk(~index=0, Doc_common.Delim.sym_Lam);
   let open_Lam = (): t => mk(~index=1, Doc_common.Delim.open_Lam);
   let close_Lam = (): t => mk(~index=2, Doc_common.Delim.close_Lam);

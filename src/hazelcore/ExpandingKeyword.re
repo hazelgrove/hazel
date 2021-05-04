@@ -2,7 +2,7 @@
 type t =
   | Let
   | Case
-  | Lam; //TODOAlec
+  | Lam;
 
 let is_Let = String.equal("let");
 let is_Case = String.equal("case");
