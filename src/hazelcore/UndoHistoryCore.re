@@ -57,6 +57,7 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
   | Exp(cursor_pos, _)
   | Pat(cursor_pos, _)
+  | TPat(cursor_pos, _)
   | Typ(cursor_pos, _)
   | ExpOp(cursor_pos, _)
   | PatOp(cursor_pos, _)
@@ -165,10 +166,15 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
+  | TPat(_, p) =>
+    switch (p) {
+    | EmptyHole => MinLen
+    | TyVar(_, id) => Len(id |> TyId.length)
+    }
   | Typ(_, operand) =>
     switch (operand) {
     | Hole(_) => MinLen
-    | TyVar(_, id) => Len(String.length(id |> TyId.to_string))
+    | TyVar(_, id) => Len(id |> TyId.length)
     | Unit
     | Int
     | Float

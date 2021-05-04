@@ -105,6 +105,9 @@ type typed =
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
+  /* cursor in type-pattern position */
+  | OnTPat
+  | OnTPatHole
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
@@ -117,6 +120,7 @@ type typed =
 type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
+  | TPat(CursorPosition.t, TPat.t)
   | Typ(CursorPosition.t, UHTyp.operand)
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
