@@ -64,7 +64,7 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
-  | TyAliasLineP(zpat, _) => CursorInfo_TPat.get_zoperand_from_zpat(zpat)
+  | TyAliasLineP(zpat, _) => CursorInfo_TPat.get_zoperand_from_ztpat(zpat)
   | TyAliasLineT(_, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
@@ -195,6 +195,7 @@ let caret_is_after_zoperand = (zexp: ZExp.t): bool => {
     switch (zop) {
     | ZExp(zoperand) => ZExp.is_after_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_after_zoperand(zoperand)
+    | ZTPat(p) => ZTPat.is_after(p)
     | ZTyp(zoperand) => ZTyp.is_after_zoperand(zoperand)
     }
   };
@@ -206,6 +207,7 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
     switch (zop) {
     | ZExp(zoperand) => ZExp.is_before_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_before_zoperand(zoperand)
+    | ZTPat(p) => ZTPat.is_before(p)
     | ZTyp(zoperand) => ZTyp.is_before_zoperand(zoperand)
     }
   };
@@ -322,6 +324,18 @@ and syn_cursor_info_line =
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+  | TyAliasLineP(zp, _) =>
+    switch (CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, zp)) {
+    | None => None
+    // TODO: Are we actually on a deferred var pattern because it's a type variable?
+    | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
+    }
+  | TyAliasLineT(_, zty) =>
+    switch (CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zty)) {
+    | None => None
+    // TODO: Are we actually on a deferred var pattern because it's a type variable?
+    | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
+    }
   }
 and syn_cursor_info_zopseq =
     (
@@ -622,7 +636,9 @@ and ana_cursor_info_zblock =
       switch (zline) {
       | CursorL(_)
       | LetLineZP(_)
-      | LetLineZE(_) => None
+      | LetLineZE(_)
+      | TyAliasLineP(_)
+      | TyAliasLineT(_) => None
       | ExpLineZ(zopseq) =>
         ana_cursor_info_zopseq(
           ~steps=steps @ [List.length(prefix)],
