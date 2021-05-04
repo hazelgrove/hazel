@@ -148,6 +148,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Lam(_)
     | Inj(_, _, _)
     | Case(_, _, _)
+    | TightAp(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }

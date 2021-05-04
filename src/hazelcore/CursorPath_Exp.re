@@ -26,7 +26,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | TightApZE1(_, zfunc, _) => cons'(0, of_z(zfunc))
+  | TightApZE1(_, zfunc, _) => cons'(0, of_zoperand(zfunc))
   | TightApZE2(_, _, zarg) => cons'(1, of_z(zarg))
   | ApPaletteZ(_, _, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
@@ -160,7 +160,7 @@ and follow_operand =
       switch (x) {
       | 0 =>
         func
-        |> follow((xs, cursor))
+        |> follow_operand((xs, cursor))
         |> Option.map(zfunc => ZExp.TightApZE1(err, zfunc, arg))
       | 1 =>
         arg
@@ -342,7 +342,9 @@ and of_steps_operand =
     | TightAp(_, func, arg) =>
       switch (x) {
       | 0 =>
-        func |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+        func
+        |> of_steps_operand(xs, ~side)
+        |> Option.map(path => cons'(0, path))
       | 1 => arg |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
       | _ => None
       }
@@ -471,7 +473,7 @@ and holes_operand =
   | TightAp(err, func, arg) =>
     hs
     |> holes(arg, [1, ...rev_steps])
-    |> holes(func, [0, ...rev_steps])
+    |> holes_operand(func, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
@@ -724,7 +726,7 @@ and holes_zoperand =
       | InHole(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
-    let holes_func = holes(func, [0, ...rev_steps], []);
+    let holes_func = holes_operand(func, [0, ...rev_steps], []);
     let holes_arg = holes(arg, [1, ...rev_steps], []);
     switch (k) {
     | 0 =>
@@ -873,7 +875,7 @@ and holes_zoperand =
       };
     let holes_arg = holes(arg, [1, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_z(zfunc, [0, ...rev_steps]);
+      holes_zoperand(zfunc, [0, ...rev_steps]);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
       ~hole_selected,
@@ -891,7 +893,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let holes_func = holes(func, [0, ...rev_steps], []);
+    let holes_func = holes_operand(func, [0, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zarg, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(

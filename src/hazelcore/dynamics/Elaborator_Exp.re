@@ -710,6 +710,7 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
+  | TightAp(InHole(TypeInconsistent as reason, u), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -729,6 +730,7 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | TightAp(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -844,6 +846,21 @@ and syn_elab_operand =
       | Some((drs, glb, delta)) =>
         let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
         Elaborates(d, glb, delta);
+      }
+    }
+  | TightAp(NotInHole, func, arg) =>
+    switch (syn_elab_operand(ctx, delta, func)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty_f, delta) =>
+      switch (HTyp.matched_arrow(ty_f)) {
+      | None => DoesNotElaborate
+      | Some((ma_ty1, ma_ty2)) =>
+        switch (ana_elab(ctx, delta, arg, ma_ty1)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d2, _, delta) =>
+          let d = DHExp.Ap(d1, d2);
+          Elaborates(d, ma_ty2, delta);
+        }
       }
     }
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
@@ -1129,6 +1146,7 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
+  | TightAp(InHole(TypeInconsistent as reason, u), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -1157,6 +1175,7 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | TightAp(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -1226,6 +1245,17 @@ and ana_elab_operand =
       | Some((drs, delta)) =>
         let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
         Elaborates(d, ty, delta);
+      }
+    }
+  | TightAp(NotInHole, _, _) =>
+    //go under subsumption
+    switch (syn_elab_operand(ctx, delta, operand)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d, ty_syn, delta) =>
+      if (HTyp.consistent(ty_syn, ty)) {
+        Elaborates(d, ty_syn, delta);
+      } else {
+        DoesNotElaborate;
       }
     }
   | ListNil(NotInHole) =>

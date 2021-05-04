@@ -24,8 +24,9 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  //TightAp is an operand which works on a function and its applied argument(s); PROBLEM: current form: g(x)(x) which is nasty
-  | TightAp(ErrStatus.t, t, t)
+  //TightAp is an operand which works on a function and its applied argument(s); args must be of tuple type (or a single one)
+  //The function position is an operand and the argument is a regular UHExp.
+  | TightAp(ErrStatus.t, operand, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -72,7 +73,7 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
-let tightap = (~err: ErrStatus.t=NotInHole, func: t, arg: t): operand =>
+let tightap = (~err: ErrStatus.t=NotInHole, func: operand, arg: t): operand =>
   TightAp(err, func, arg);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
@@ -346,7 +347,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
   | TightAp(InHole(_), _, _) => false
-  | TightAp(NotInHole, func, arg) => is_complete(func) && is_complete(arg)
+  | TightAp(NotInHole, func, arg) =>
+    is_complete_operand(func) && is_complete(arg)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

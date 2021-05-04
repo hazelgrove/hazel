@@ -22,7 +22,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  | TightAp(ErrStatus.t, t, t)
+  | TightAp(ErrStatus.t, operand, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -52,7 +52,7 @@ let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
-let tightap: (~err: ErrStatus.t=?, t, t) => operand;
+let tightap: (~err: ErrStatus.t=?, operand, t) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
@@ -97,11 +97,19 @@ let get_err_status_opseq: opseq => ErrStatus.t;
 
 let get_err_status_operand: operand => ErrStatus.t;
 
+//let set_err_status: (ErrStatus.t, t) => t;
+
+//let set_err_status_block: (ErrStatus.t, block) => block;
+
 let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
 let is_inconsistent: operand => bool;
+
+let mk_inconsistent: (MetaVarGen.t, t) => (t, MetaVarGen.t);
+
+let mk_inconsistent_block: (MetaVarGen.t, block) => (block, MetaVarGen.t);
 
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 

@@ -1507,12 +1507,6 @@ and syn_perform_operand =
       };
     let new_ze = e |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
-  | (
-    Backspace,
-    CursorE(OnDelim(k, After), TightAp(_, func, arg) as operand),
-    ) =>
-    //current guess; same as case above. Although idk lol
-
 
   /* TODO consider deletion of type ascription on case */
 
@@ -1826,6 +1820,85 @@ and syn_perform_operand =
         Succeeded(SynDone((new_ze, new_ty, u_gen)));
       };
     | _ => Failed /* should never happen */
+    }
+  | (_, TightApZE1(_, zfunc, arg)) =>
+    //synthesize the type of the function
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zfunc))) {
+    | None => Failed
+    | Some(ty_func) =>
+      //continue syn perform by zipper pattern
+      switch (syn_perform_operand(ctx, a, (zfunc, ty_func, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded(SynDone((zfunc, ty_func', u_gen))) =>
+        //using zfunc, make a new zoperand of the zfunc?
+        let zfunc_op = switch (zfunc) {
+          | [] => //zexp gone
+          | _ => //
+            let (pref, zl, suff) = ZList.prj(zfunc);
+            if (List.length(pref) == 0 && List.length(suff) == 0) {
+              //only a zline
+              switch (zl) {
+                | CursorL(cur_pos, uline) =>
+                | ExpLineZ(zopseq) =>
+                | LetLineZP(zpat, uhexp) =>
+                | LetLineZE(upat, zexp) =>
+              }
+            }
+            else {
+              //multiple lines, where not all are zlines
+            }
+        }
+        //construct a new zexp and syn_fix_holes_z on it
+        let (new_ze, ztyp, u_gen) = 
+          Statics_Exp.syn_fix_holes_z(
+            ctx, 
+            u_gen, 
+            ZExp.ZBlock.wrap(TightApZE1(NotInHole, zfunc_op, arg)),
+          );
+
+          Succeeded(SynDone((new_ze, ztyp, u_gen)));
+      }
+    }
+  | (_, TightApZE2(_, func, zarg)) =>
+    //synthesize the type of the argument
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zarg))) {
+    | None => Failed
+    | Some(ty_arg) =>
+      //continue syn perform by zipper pattern
+      switch (syn_perform(ctx, a, (zarg, ty_arg, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded((zarg, ty_arg', u_gen)) =>
+        //try to generate matched arrow to assess argument
+        switch (Statics_Exp.syn(ctx, func)) {
+        | None => Failed
+        | Some(ty_func) =>
+          //extract matched arrow type to compare with synthesized argument type
+          switch (HTyp.matched_arrow(ty_func)) {
+          | None => Failed
+          | Some((ma_ty1, ma_ty2)) =>
+            //if they existent, see if it is consistent with the argument type
+            if (HTyp.consistent(ty_arg', ma_ty1)) {
+              let new_ze =
+                ZExp.ZBlock.wrap(TightApZE2(NotInHole, func, zarg));
+              Succeeded(SynDone((new_ze, ma_ty2, u_gen)));
+            } else {
+              Failed;
+            }
+          }
+        }
+      }
     }
   | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
   /* TODO let (next_lbl, z_nat_map) = z_hole_data;
@@ -2765,6 +2838,7 @@ and ana_perform_operand =
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
+        TightAp(_) |
         ApPalette(_),
       ),
     ) =>
@@ -2891,7 +2965,10 @@ and ana_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (
+          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
+          TightAp(_, _, e)
+        ) as operand,
       ),
     ) =>
     let place_cursor =

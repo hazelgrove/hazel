@@ -20,9 +20,9 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | TightApZE1(_, zexp, _)
   | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
+  | TightApZE1(_, zop, _) => extract_from_zexp_operand(zop)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
@@ -83,9 +83,9 @@ and get_zoperand_from_zexp_operand =
   | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | TightApZE1(_, zexp, _)
   | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | TightApZE1(_, zop, _) => get_zoperand_from_zexp_operand(zop)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
@@ -139,9 +139,10 @@ and get_outer_zrules_from_zexp_operand =
   | LamZP(_) => outer_zrules
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | TightApZE1(_, zexp, _)
   | TightApZE2(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | TightApZE1(_, zop, _) =>
+    get_outer_zrules_from_zexp_operand(zop, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
@@ -594,8 +595,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | TightApZE1(_, zfunc, _) =>
-    //Try to understand this more! <--------------------------------------------------------------
-    syn_cursor_info(~steps=steps @ [0], ctx, zfunc)
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc)
   | TightApZE2(_, _, zarg) => syn_cursor_info(~steps=steps @ [1], ctx, zarg)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
@@ -963,7 +963,7 @@ and ana_cursor_info_zoperand =
       )
     }
   | TightApZE1(NotInHole, zfunc, _) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zfunc, ty)
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty)
   | TightApZE2(NotInHole, _, zarg) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty)
   | ApPaletteZ(NotInHole, _, _, _) =>

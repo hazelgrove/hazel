@@ -182,7 +182,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | TightAp(NotInHole, func, arg) =>
-    let* ty_func = syn(ctx, func);
+    let* ty_func = syn_operand(ctx, func);
     let* (ma_ty_1, ma_ty_2) = HTyp.matched_arrow(ty_func);
     //if the ana works, the rest is guaranteed to be fine. Use map and output the second type of func's MA type
     let+ _ = ana(ctx, arg, ma_ty_1);
@@ -342,11 +342,11 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
-  | TightAp(NotInHole, func, arg) =>
-    //go under subsumption
-    let* ty' = syn(ctx, operand)
+  | TightAp(NotInHole, _, _) =>
+    //go under subsumption; would need to syn on func and compare to arg for result. same as syn
+    let* ty' = syn_operand(ctx, operand);
     //if the result is consistent with what is desired, return some; else none
-    HType.consistent(ty', ty) ? Some() : None;
+    HTyp.consistent(ty', ty) ? Some() : None;
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
@@ -862,19 +862,40 @@ and syn_fix_holes_operand =
       )
     };
   | TightAp(_, func, arg) =>
-    //may need to call other ana; also, may have wrong error status! <---------------
-    let (func, ty_func, u_gen) = 
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, func);
-    let (arg, ty_arg, u_gen) = 
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg);
-    let* (ma_ty1_func, ma_ty2_func) = HTyp.matched_arrow(func);
+    //synthesize type of function (and fix so that it does so)
+    let (func, ty_func, u_gen) =
+      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, func);
 
-    if (HTyp.consistent(ty_arg, ma_ty2_func)) {
-      (TightAp(NotInHole, func, arg), ma_ty2_func, u_gen);
-    }
-    else {
-      (TightAp(InHole(TypeInconsistent), func, arg), HTyp.Hole, u_gen);
-    }
+    //need to make it so that func ALWAYS has a MA (and that may be by making it in a hole); based on MA, adjust thusly
+    let (func, u_gen, ma_ty1_func, ma_ty2_func) =
+      switch (HTyp.matched_arrow(ty_func)) {
+      | None =>
+        //the type must not be arrow or hole. make it in a hole
+        let (func, u_gen) = UHExp.mk_inconsistent_operand(u_gen, func);
+        /*
+         POTENTIALLY FINE BUT REDUNDANT IMPLEMENTATION
+         //extract current err status
+         let func_err = UHExp.get_err_status(func);
+         //make a new 'inhole' error status using the old error status and u_gen
+         let (func_err, u_gen) =
+           ErrStatus.make_recycled_InHole(func_err, TypeInconsistent, u_gen);
+         //set the new error status for func
+         let func = UHExp.set_err_status(func_err, func);
+         */
+        //return the new func, its matched arrow type, the updated u_gen, and the two componenets
+        (func, u_gen, HTyp.Hole, HTyp.Hole);
+
+      | Some((ty1, ty2)) =>
+        //already has ma_arrow; return type and its ma_arrow
+        (func, u_gen, ty1, ty2)
+      };
+
+    //fix arg so that it analyzes against the required argument type
+    let (arg, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ma_ty1_func);
+
+    //return the adjusted tightap which will synthesize the output of the arrow type
+    (TightAp(NotInHole, func, arg), ma_ty2_func, u_gen);
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1311,6 +1332,19 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+  | TightAp(_, _, _) =>
+    //go under subsumption?
+    let (e', ty', u_gen) =
+      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+    if (HTyp.consistent(ty, ty')) {
+      (e', u_gen);
+    } else {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
+    };
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
