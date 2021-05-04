@@ -20,7 +20,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
   | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
-  | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
+  | InjZT(_, ztag, _) => cons'(0, CursorPath_Tag.of_z(ztag))
+  | InjZE(_, _, zbody) => cons'(1, of_z(zbody))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
   | CaseZR(_, _, zrules) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
@@ -131,12 +132,16 @@ and follow_operand =
         |> Option.map(zbody => ZExp.LamZE(err, p, zbody))
       | _ => None
       }
-    | Inj(err, side, body) =>
+    | Inj(err, tag, body) =>
       switch (x) {
       | 0 =>
+        tag
+        |> CursorPath_Tag.follow((xs, cursor))
+        |> Option.map(ztag => ZExp.InjZT(err, ztag, body))
+      | 1 =>
         body
         |> follow((xs, cursor))
-        |> Option.map(zbody => ZExp.InjZ(err, side, zbody))
+        |> Option.map(zbody => ZExp.InjZE(err, tag, zbody))
       | _ => None
       }
     | Case(err, scrut, rules) =>
@@ -361,6 +366,21 @@ and of_steps_rule =
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_inj_err =
+    (
+      err: InjErrStatus.t,
+      rev_steps: CursorPath.rev_steps,
+      hs: CursorPath.hole_list,
+    )
+    : CursorPath.hole_list =>
+  switch (err) {
+  | NotInHole => hs
+  | InHole(_, u) => [
+      {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  };
+
 let holes_case_err =
   CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
@@ -432,8 +452,11 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-  | Inj(err, _, body) =>
-    hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
+  | Inj(err, tag, body) =>
+    hs
+    |> holes(body, [1, ...rev_steps])
+    |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
+    |> holes_inj_err(err, rev_steps)
   | Lam(err, p, body) =>
     hs
     |> holes(body, [1, ...rev_steps])

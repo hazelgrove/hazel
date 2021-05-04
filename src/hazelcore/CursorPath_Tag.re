@@ -1,0 +1,26 @@
+let of_z = (ztag: ZTag.t): CursorPath.t =>
+  switch (ztag) {
+  | ZTag.CursorTag(pos, _) => ([], pos)
+  };
+
+let follow = (path: CursorPath.t, tag: Tag.t): option(ZTag.t) =>
+  switch (path) {
+  | ([], pos) => Some(CursorTag(pos, tag))
+  | (_, _) => None
+  };
+
+let holes =
+    (tag: Tag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
+    : CursorPath.hole_list =>
+  switch (tag) {
+  | Tag(_) => hs
+  | TagHole(u) => [{sort: TagHole(u), steps: List.rev(rev_steps)}, ...hs]
+  };
+
+/* If follow(_, tag) = Some(ztag) then ZTag.erase(ztag) = tag. */
+/* If UHExp.follow(_, e) = Some(ze) then ZExp.erase(ze) = e. */
+
+/*
+   1. If of_z(ztag) = path then follow(path, ZTag.erase(ztag)) = Some(ztag)
+   2. If follow(path, tag) = Some(ztag) then of_z(ztag) = path.
+ */

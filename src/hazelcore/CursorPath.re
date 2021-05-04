@@ -22,7 +22,8 @@ type hole_shape =
 type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | ExpHole(MetaVar.t, hole_shape)
+  | TagHole(MetaVar.t);
 
 [@deriving sexp]
 type hole_info = {
