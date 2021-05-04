@@ -120,7 +120,8 @@ type cursor_term =
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule);
+  | Rule(CursorPosition.t, UHExp.rule)
+  | Tag(CursorPosition.t, Tag.t);
 
 // TODO refactor into variants
 // based on term sort and shape

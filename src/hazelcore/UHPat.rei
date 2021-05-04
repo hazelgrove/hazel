@@ -17,7 +17,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(ErrStatus.t, InjSide.t, t);
+  | Inj(InjErrStatus.t, Tag.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

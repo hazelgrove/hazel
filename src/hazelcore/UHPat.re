@@ -19,7 +19,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(ErrStatus.t, InjSide.t, t);
+  | Inj(InjErrStatus.t, Tag.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -75,6 +75,7 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
+/* get type inconsistency status */
 let rec get_err_status = (p: t) => get_err_status_opseq(p)
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
@@ -82,14 +83,14 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | InvalidText(_, _) => NotInHole
+  | Inj(_) => NotInHole
   | Wild(err)
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
-  | TypeAnn(err, _, _)
-  | Inj(err, _, _) => err
+  | TypeAnn(err, _, _) => err
   | Parenthesized(p) => get_err_status(p);
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
@@ -100,13 +101,13 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | InvalidText(_, _) => operand
+  | Inj(_) => operand
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
   | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
@@ -126,16 +127,17 @@ and mk_inconsistent_opseq =
 and mk_inconsistent_operand =
     (u_gen: MetaVarGen.t, operand: operand): (operand, MetaVarGen.t) =>
   switch (operand) {
-  // already in hole
+  // cannot be inconsistent
   | EmptyHole(_)
-  | InvalidText(_, _)
+  | InvalidText(_)
+  | Inj(_) => (operand, u_gen)
+  // already in hole
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
@@ -144,7 +146,6 @@ and mk_inconsistent_operand =
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =

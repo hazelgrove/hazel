@@ -16,7 +16,6 @@ type join =
 
 let precedence_Prod: int;
 let precedence_Arrow: int;
-let precedence_Sum: int;
 let precedence: t => int;
 
 /* type equality */

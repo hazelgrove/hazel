@@ -396,9 +396,10 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
     List.find_opt(
       ({sort, _}) =>
         switch (sort) {
-        | ExpHole(u', _)
-        | PatHole(u', _) => MetaVar.eq(u, u')
         | TypHole => false
+        | PatHole(u', _)
+        | ExpHole(u', _)
+        | TagHole(u') => MetaVar.eq(u, u')
         },
       hole_list,
     )

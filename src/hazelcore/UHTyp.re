@@ -2,6 +2,9 @@
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
+type sumtyp_operator = Operators_SumTyp.t;
+
+[@deriving sexp]
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -10,8 +13,16 @@ and operand =
   | Int
   | Float
   | Bool
+  | Sum(sumtyp)
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+and sumtyp = sumtyp_opseq
+and sumtyp_opseq = OpSeq.t(sumtyp_operand, sumtyp_operator)
+and sumtyp_operand =
+  | ConstTag(Tag.t)
+  | ArgTag(Tag.t, t);
+
+/* sum { C + ?(?) } */
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -31,6 +42,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
+  | Sum(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
@@ -79,6 +91,7 @@ let contract = (ty: HTyp.t): t => {
                head,
              ),
            )
+      | Sum(tymap) => 
       | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))

@@ -19,7 +19,6 @@ type join =
 
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
-let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_const = Operators_Typ.precedence_const;
 let precedence = (ty: t): int =>
   switch (ty) {
@@ -28,9 +27,9 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
+  | Sum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  | Sum(_) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
@@ -160,7 +159,7 @@ let rec complete =
           | None => true
           }
         ),
-      TagMap.bindings(tys),
+      tys,
     )
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
@@ -191,7 +190,7 @@ let rec join = (j, ty1, ty2) =>
   | (Arrow(_), _) => None
   | (Sum(tys), Sum(tys')) =>
     Option.map(
-      joined_tys => Sum(joined_tys |> List.to_seq |> TagMap.of_seq),
+      joined_tys => Sum(joined_tys),
       switch (
         List.fold_left2(
           (acc_opt, (tag, ty_opt), (tag', ty_opt')) =>
@@ -208,8 +207,8 @@ let rec join = (j, ty1, ty2) =>
               }
             ),
           Some([]),
-          TagMap.bindings(tys),
-          TagMap.bindings(tys'),
+          tys,
+          tys',
         )
       ) {
       | opt => opt
