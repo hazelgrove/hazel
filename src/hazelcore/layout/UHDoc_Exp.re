@@ -53,25 +53,25 @@ let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
 
+module UHDoc_Pat = UHDoc_Pat.Make(Memo.DummyMemo);
 module Make = (Memo: Memo.S) => {
   let rec mk =
     lazy(
-      UHDoc_common.memoize(
-        (~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
+      Memo.memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
         (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc.t)
       )
     )
   // Two versions of `mk_block` so we can memoize them
   and mk_block_0 =
     lazy(
-      UHDoc_common.memoize(
+      Memo.memoize(
         (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
         (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc.t)
       )
     )
   and mk_block_1 =
     lazy(
-      UHDoc_common.memoize(
+      Memo.memoize(
         (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
         (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc.t)
       )
@@ -114,8 +114,7 @@ module Make = (Memo: Memo.S) => {
     }
   and mk_line =
     lazy(
-      UHDoc_common.memoize(
-        (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
+      Memo.memoize((~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
         (
           switch (line) {
           | EmptyLine =>
@@ -150,7 +149,7 @@ module Make = (Memo: Memo.S) => {
     )
   and mk_opseq =
     lazy(
-      UHDoc_common.memoize(
+      Memo.memoize(
         (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
         (
           mk_NTuple(
@@ -168,7 +167,7 @@ module Make = (Memo: Memo.S) => {
       : UHDoc_common.mk_op(Operators_Exp.to_string(op))
   and mk_operand =
     lazy(
-      UHDoc_common.memoize(
+      Memo.memoize(
         (~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
         (
           switch (operand) {
@@ -219,7 +218,7 @@ module Make = (Memo: Memo.S) => {
     )
   and mk_rule =
     lazy(
-      UHDoc_common.memoize(
+      Memo.memoize(
         (
           ~memoize: bool,
           ~enforce_inline as _: bool,
