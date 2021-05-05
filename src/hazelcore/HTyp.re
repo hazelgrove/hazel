@@ -189,6 +189,10 @@ let rec join = (j, ty1, ty2) =>
     }
   | (Arrow(_), _) => None
   | (Sum(tys), Sum(tys')) =>
+    /* if tys != tys', then sort them first */
+    let (tys, tys') =
+      TagMap.equal_tags(tys, tys')
+        ? (tys, tys') : (TagMap.sort(tys), TagMap.sort(tys'));
     Option.map(
       joined_tys => Sum(joined_tys),
       switch (
@@ -214,7 +218,7 @@ let rec join = (j, ty1, ty2) =>
       | opt => opt
       | exception (Invalid_argument(_)) => None
       },
-    )
+    );
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.map2_opt(join(j), tys1, tys2)

@@ -3,8 +3,17 @@ open Sexplib.Std;
 [@deriving sexp]
 type t('a) = list((Tag.t, 'a));
 
-let compare_tags = ((tag1, _): (Tag.t, 'a), (tag2, _): (Tag.t, 'a)): int =>
+/* compares tags only */
+let compare_bindings =
+    ((tag1, _): (Tag.t, 'a), (tag2, _): (Tag.t, 'a)): int =>
   Tag.compare(tag1, tag2);
+
+let equal_tags = (map1: t('a), map2: t('a)): bool => {
+  let tags1 = map1 |> List.map(fst);
+  let tags2 = map2 |> List.map(fst);
+  tags1 === tags2
+  || List.fast_sort(Tag.compare, tags1) == List.fast_sort(Tag.compare, tags2);
+};
 
 let equal_bindings =
     (
@@ -18,10 +27,15 @@ let equal_bindings =
 let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   map1 === map2
   || {
-    let map1 = List.fast_sort(compare_tags, map1);
-    let map2 = List.fast_sort(compare_tags, map2);
+    let map1 = List.fast_sort(compare_bindings, map1);
+    let map2 = List.fast_sort(compare_bindings, map2);
     ListUtil.equal(equal_bindings(val_equal), map1, map2);
   };
+};
+
+/* sorts on tags only */
+let sort = (map: t('a)): t('a) => {
+  List.fast_sort(compare_bindings, map);
 };
 
 // module Sexp = Sexplib.Sexp;
