@@ -232,6 +232,8 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
+  SynExpands({kw: TyAlias, u_gen, prefix, suffix, subject: def});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -607,6 +609,17 @@ let rec syn_perform =
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  | Succeeded(SynExpands({kw: TyAlias, prefix, subject, suffix, u_gen})) =>
+    // TODO: Use subject properly
+    let _ = subject;
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let zalias =
+      ZExp.TyAliasLineP(
+        ZTPat.place_before(EmptyHole),
+        OpSeq.wrap(UHTyp.Hole(u)),
+      );
+    let new_ze = (prefix, zalias, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }

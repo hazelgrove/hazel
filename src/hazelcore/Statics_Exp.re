@@ -69,10 +69,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     Statics_Pat.ana(ctx, p, ty_def);
   | TyAliasLine(p, ty) =>
     let+ (hty, kind, _) = Elaborator_Typ.syn(ctx, Delta.empty, ty);
-    let _ctx2 = Statics_TPat.matches(ctx, p, hty, kind);
-    failwith(
-      "TODO: What do we do here? How do we use the extended ctx on the rest",
-    );
+    Statics_TPat.matches(ctx, p, hty, kind);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -578,8 +575,11 @@ and syn_fix_holes_line =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
-  | TyAliasLine(_) // TODO: I think there is nothing to fix here because we don't label the holes
   | CommentLine(_) => (line, ctx, u_gen)
+  | TyAliasLine(p, ty) =>
+    let (ty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ty);
+    let (body_ctx, p) = Statics_TPat.fix_holes(ctx, p, kind);
+    (TyAliasLine(p, ty), body_ctx, u_gen);
   | LetLine(p, def) =>
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);

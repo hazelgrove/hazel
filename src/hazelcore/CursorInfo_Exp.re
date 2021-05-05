@@ -314,6 +314,7 @@ and syn_cursor_info_line =
       switch (Statics_Exp.recursive_let_id(ctx, ZPat.erase(zp), def)) {
       | None => deferrable
       | Some(_) =>
+        // TODO: Color find_uses with the variable sort
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
@@ -327,7 +328,7 @@ and syn_cursor_info_line =
   | TyAliasLineP(zp, _) =>
     switch (CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, zp)) {
     | None => None
-    // TODO: Are we actually on a deferred var pattern because it's a type variable?
+    // TODO: Get this to work with UsageAnalysis but with tyvars too
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | TyAliasLineT(_, zty) =>
