@@ -41,11 +41,11 @@ let line_can_be_swapped = (line: zline): bool =>
   | CursorL(_)
   | LetLineZP(_)
   | TyAliasLineP(_)
-  | TyAliasLineT(_)
   | ExpLineZ(ZOpSeq(_, ZOperator(_)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _))) => true
   | LetLineZE(_)
+  | TyAliasLineT(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
