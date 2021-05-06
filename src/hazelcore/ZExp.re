@@ -36,6 +36,35 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let rec is_opseq =
+        (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  ze |> is_opseq_zblock
+and is_opseq_zblock =
+    ((_, zline, _): zblock)
+    : option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  zline |> is_opseq_zline
+and is_opseq_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
+  | LetLineZP(_) => None
+  | LetLineZE(_, zdef) => zdef |> is_opseq
+and is_opseq_zopseq =
+  fun
+  /*
+   | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq)
+    =>
+    //STRINGS3 VERSION: SEEMS TO ONLY RETURN IF THE OPERATOR ROOT OF THE OPSEQ IS A SPACE;
+    //due to precedence concerns of subscript? for tightap, all binary operators bind less tightly and would consequently need
+    //to trigger that the base zoperand before the two affixes be bound to it as a function
+    switch (prefix) {
+    | Seq.A(Space, _) => Some(zseq)
+    | _ => None
+    }
+    */
+  | ZOpSeq(_, ZOperand(_, _) as zseq)
+  | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
+
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)

@@ -1878,8 +1878,10 @@ and syn_perform_operand =
     switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zfunc))) {
     | None => Failed
     | Some(ty_func) =>
-      //continue syn perform by zipper pattern
-      switch (syn_perform_operand(ctx, a, (zfunc, ty_func, u_gen))) {
+      //continue syn perform by zipper pattern (calling non-operand to ensure expanding keywords handled)
+      switch (
+        syn_perform(ctx, a, (ZExp.ZBlock.wrap(zfunc), ty_func, u_gen))
+      ) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
@@ -1887,37 +1889,41 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded(SynDone((_zfunc', _ty_func', u_gen))) =>
-        //using zfunc, make a new zoperand of the zfunc?
-        //NEED FIXING; ADJUSTED SO IT COMPILES BUT VERY WRONG
-        let zfunc_op = zfunc;
-        /*switch (zfunc') {
-            | [] => //zexp gone
-            | _ => //
-              let (pref, zl, suff) = ZList.prj(zfunc);
-              if (List.length(pref) == 0 && List.length(suff) == 0) {
-                //only a zline
-                switch (zl) {
-                  | CursorL(cur_pos, uline) =>
-                  | ExpLineZ(zopseq) =>
-                  | LetLineZP(zpat, uhexp) =>
-                  | LetLineZE(upat, zexp) =>
-                }
-              }
-              else {
-                //multiple lines, where not all are zlines
-              }
-          }*/
-        //construct a new zexp and syn_fix_holes_z on it
-        let (new_ze, ztyp, u_gen) =
-          Statics_Exp.syn_fix_holes_z(
-            ctx,
-            u_gen,
-            ZExp.ZBlock.wrap(TightApZE1(NotInHole, zfunc_op, arg)),
+      | Succeeded((zfunc', _ty_func', u_gen)) =>
+        switch (ZExp.is_opseq(zfunc')) {
+        | Some(ZOperator(zoperator, (prefix, suffix))) =>
+          switch (suffix) {
+          | S(operand, affix) =>
+            //take out the operand and associate with tightap
+            let e = UHExp.TightAp(NotInHole, operand, arg);
+            //create a new zopseq with the same zoperator and prefix leading to the new tightap seq'd with the affix
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            Succeeded(
+              SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          }
+        | Some(ZOperand(zoperand, (prefix, suffix))) =>
+          //operand already present; no need to extract. associate with tightap
+          //(note all operators are of lower precedence; assumption embedded)
+          let e = ZExp.TightApZE1(NotInHole, zoperand, arg);
+          //create new zopseq (new bound operand with old prefix and suffix)
+          let new_zopseq = ZExp.mk_ZOpSeq(ZOperand(e, (prefix, suffix)));
+          let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+          Succeeded(
+            SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
           );
-
-        Succeeded(SynDone((new_ze, ztyp, u_gen)));
-      | _ => Failed
+        | _ =>
+          //None case; returned if: cursorL, non body letline
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              TightApZE1(NotInHole, ZExp.ParenthesizedZ(zfunc'), arg),
+            );
+          Succeeded(
+            SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+          );
+        }
       }
     }
   | (_, TightApZE2(_, func, zarg)) =>
