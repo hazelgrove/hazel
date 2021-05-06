@@ -872,16 +872,6 @@ and syn_fix_holes_operand =
       | None =>
         //the type must not be arrow or hole. make it in a hole
         let (func, u_gen) = UHExp.mk_inconsistent_operand(u_gen, func);
-        /*
-         POTENTIALLY FINE BUT REDUNDANT IMPLEMENTATION
-         //extract current err status
-         let func_err = UHExp.get_err_status(func);
-         //make a new 'inhole' error status using the old error status and u_gen
-         let (func_err, u_gen) =
-           ErrStatus.make_recycled_InHole(func_err, TypeInconsistent, u_gen);
-         //set the new error status for func
-         let func = UHExp.set_err_status(func_err, func);
-         */
         //return the new func, its matched arrow type, the updated u_gen, and the two componenets
         (func, u_gen, HTyp.Hole, HTyp.Hole);
 
@@ -1333,7 +1323,7 @@ and ana_fix_holes_operand =
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
   | TightAp(_, _, _) =>
-    //go under subsumption?
+    //go under subsumption
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {

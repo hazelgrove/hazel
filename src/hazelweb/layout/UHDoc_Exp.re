@@ -202,6 +202,16 @@ and mk_operand =
                  );
             UHDoc_common.mk_Case(scrut, rules);
           }
+        | TightAp(_, func, arg) =>
+          let func =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=0,
+              UHExp.Block.wrap(func),
+            );
+          let arg = mk_child(~memoize, ~enforce_inline, ~child_step=1, arg);
+          UHDoc_common.mk_TightAp(func, arg);
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
       )

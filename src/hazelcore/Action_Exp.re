@@ -1485,10 +1485,7 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (
-          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
-          TightAp(_, _, e)
-        ) as operand,
+        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
       ),
     ) =>
     let place_cursor =
@@ -1507,6 +1504,61 @@ and syn_perform_operand =
       };
     let new_ze = e |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+  | (Backspace, CursorE(OnDelim(k, After), TightAp(_, func, arg))) =>
+    //If there is an operand, see if it consistutes the entire zexp; if so, extract it.
+    //If not, the uhexp is multiline; parenthesize any multiline uhexps for containment into a single operand
+    let option_arg =
+      switch (UHExp.find_operand(u_gen, arg)) {
+      | Some(op1) =>
+        UHExp.Block.wrap(op1) == arg ? Some(op1) : Some(Parenthesized(arg))
+      | None => None
+      };
+
+    //(note that the subexpressions must be well typed as they are unacted upon- if not, fail)
+    switch (func, option_arg) {
+    | (EmptyHole(_), Some(EmptyHole(_)) | None) =>
+      //both were emptyholes. prune both away
+      let (hole_exp, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.place_after_operand(hole_exp));
+      Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+    | (_, Some(EmptyHole(_)) | None) =>
+      //only the function operand is nonempty/valid. prune argument operand
+      switch (Statics_Exp.syn_operand(ctx, func)) {
+      | Some(ty_func) =>
+        let new_ze = ZExp.ZBlock.wrap(ZExp.place_after_operand(func));
+        Succeeded(SynDone((new_ze, ty_func, u_gen)));
+      | None => Failed //function did not synthesize a type. invariant not preserved.
+      }
+    | (EmptyHole(_), Some(oper_arg)) =>
+      //only the argument operand is nonempty. prune the function operand
+      switch (Statics_Exp.syn_operand(ctx, oper_arg)) {
+      | Some(ty_arg) =>
+        let new_ze = ZExp.ZBlock.wrap(ZExp.place_after_operand(oper_arg));
+        Succeeded(SynDone((new_ze, ty_arg, u_gen)));
+      | None => Failed //argument did not synthesize a type. invariant not preserved.
+      }
+    | (_, Some(oper_arg)) =>
+      //both nonempty. return both separated by a space
+      //to determine where to put the cursor, switch on which delimindex the cursor was after
+      switch (k) {
+      | 0 =>
+        //place cursor after func
+        let zop = ZExp.place_after_operand(func);
+        //construct space separated zopseq of the two
+        let new_zopseq =
+          ZExp.mk_ZOpSeq(ZOperand(zop, (E, A(Space, S(oper_arg, E)))));
+        let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+        Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+      | _one =>
+        //place cursor after arg
+        let zop = ZExp.place_after_operand(oper_arg);
+        //construct space separated zopseq with
+        let new_zopseq =
+          ZExp.mk_ZOpSeq(ZOperand(zop, (A(Space, S(func, E)), E)));
+        let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+        Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+      }
+    };
 
   /* TODO consider deletion of type ascription on case */
 
@@ -1835,34 +1887,37 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded(SynDone((zfunc, ty_func', u_gen))) =>
+      | Succeeded(SynDone((_zfunc', _ty_func', u_gen))) =>
         //using zfunc, make a new zoperand of the zfunc?
-        let zfunc_op = switch (zfunc) {
-          | [] => //zexp gone
-          | _ => //
-            let (pref, zl, suff) = ZList.prj(zfunc);
-            if (List.length(pref) == 0 && List.length(suff) == 0) {
-              //only a zline
-              switch (zl) {
-                | CursorL(cur_pos, uline) =>
-                | ExpLineZ(zopseq) =>
-                | LetLineZP(zpat, uhexp) =>
-                | LetLineZE(upat, zexp) =>
+        //NEED FIXING; ADJUSTED SO IT COMPILES BUT VERY WRONG
+        let zfunc_op = zfunc;
+        /*switch (zfunc') {
+            | [] => //zexp gone
+            | _ => //
+              let (pref, zl, suff) = ZList.prj(zfunc);
+              if (List.length(pref) == 0 && List.length(suff) == 0) {
+                //only a zline
+                switch (zl) {
+                  | CursorL(cur_pos, uline) =>
+                  | ExpLineZ(zopseq) =>
+                  | LetLineZP(zpat, uhexp) =>
+                  | LetLineZE(upat, zexp) =>
+                }
               }
-            }
-            else {
-              //multiple lines, where not all are zlines
-            }
-        }
+              else {
+                //multiple lines, where not all are zlines
+              }
+          }*/
         //construct a new zexp and syn_fix_holes_z on it
-        let (new_ze, ztyp, u_gen) = 
+        let (new_ze, ztyp, u_gen) =
           Statics_Exp.syn_fix_holes_z(
-            ctx, 
-            u_gen, 
+            ctx,
+            u_gen,
             ZExp.ZBlock.wrap(TightApZE1(NotInHole, zfunc_op, arg)),
           );
 
-          Succeeded(SynDone((new_ze, ztyp, u_gen)));
+        Succeeded(SynDone((new_ze, ztyp, u_gen)));
+      | _ => Failed
       }
     }
   | (_, TightApZE2(_, func, zarg)) =>
@@ -1881,14 +1936,14 @@ and syn_perform_operand =
         )
       | Succeeded((zarg, ty_arg', u_gen)) =>
         //try to generate matched arrow to assess argument
-        switch (Statics_Exp.syn(ctx, func)) {
+        switch (Statics_Exp.syn_operand(ctx, func)) {
         | None => Failed
         | Some(ty_func) =>
           //extract matched arrow type to compare with synthesized argument type
           switch (HTyp.matched_arrow(ty_func)) {
-          | None => Failed
+          | None => Failed //since previous scope must have been valid, the function argument must have a matched arrow type (currently unacted)?
           | Some((ma_ty1, ma_ty2)) =>
-            //if they existent, see if it is consistent with the argument type
+            //see if it is consistent with the argument type
             if (HTyp.consistent(ty_arg', ma_ty1)) {
               let new_ze =
                 ZExp.ZBlock.wrap(TightApZE2(NotInHole, func, zarg));
@@ -2965,10 +3020,7 @@ and ana_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (
-          Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e) |
-          TightAp(_, _, e)
-        ) as operand,
+        (Lam(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
       ),
     ) =>
     let place_cursor =
@@ -2987,6 +3039,23 @@ and ana_perform_operand =
       };
     let new_ze = e |> place_cursor;
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
+  | (Backspace, CursorE(OnDelim(_, After), TightAp(_, _, _))) =>
+    //call syn case and run ana fix holes to make it match up with the needed
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+    | Some(ty_operand) =>
+      switch (syn_perform_operand(ctx, a, (zoperand, ty_operand, u_gen))) {
+      | Failed => Failed
+      | Succeeded(SynDone((new_ze, ty_syn, u_gen))) =>
+        if (HTyp.consistent(ty_syn, ty)) {
+          Succeeded(AnaDone((new_ze, u_gen)));
+        } else {
+          Failed;
+        }
+      //syn_expands returned after syn on a tightap; should never happen
+      | _ => Failed
+      }
+    | None => Failed
+    }
 
   /* TODO consider deletion of type ascription on case */
 
@@ -3297,9 +3366,10 @@ and ana_perform_operand =
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
-
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
+  | (_, TightApZE1(_, _, _))
+  | (_, TightApZE2(_, _, _))
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")

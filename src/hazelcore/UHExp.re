@@ -173,6 +173,30 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
+//helper function copied from strings3 branch; useful for backspace case in Action_Exp
+let rec find_operand = (u_gen: MetaVarGen.t, e: t): option(operand) =>
+  e |> find_operand_block(u_gen)
+and find_operand_block = (u_gen, block) =>
+  List.nth(block, List.length(block) - 1) |> find_operand_line(u_gen)
+and find_operand_line = (u_gen, line) =>
+  switch (line) {
+  | EmptyLine =>
+    let (hole, _) = new_EmptyHole(u_gen);
+    Some(hole);
+  | CommentLine(_) => None
+  | LetLine(_, def) => def |> find_operand(u_gen)
+  | ExpLine(opseq) => opseq |> find_operand_opseq
+  }
+and find_operand_opseq =
+  fun
+  | OpSeq(_, S(operand, _)) => Some(operand)
+and find_operand_operator =
+  fun
+  | _ => None
+and find_operand_operand =
+  fun
+  | e => Some(e);
+
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
   let (_, conclusion) = block |> Block.force_split_conclusion;

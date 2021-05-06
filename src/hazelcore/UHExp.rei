@@ -89,6 +89,20 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
 
+//helper fn from strings3
+let find_operand: (MetaVarGen.t, t) => option(operand);
+
+let find_operand_block: (MetaVarGen.t, block) => option(operand);
+
+let find_operand_line: (MetaVarGen.t, line) => option(operand);
+
+let find_operand_opseq: opseq => option(operand);
+
+let find_operand_operator: operator => option(operand);
+
+let find_operand_operand: operand => option(operand);
+//end helper set
+
 let get_err_status: t => ErrStatus.t;
 
 let get_err_status_block: t => ErrStatus.t;
@@ -96,10 +110,6 @@ let get_err_status_block: t => ErrStatus.t;
 let get_err_status_opseq: opseq => ErrStatus.t;
 
 let get_err_status_operand: operand => ErrStatus.t;
-
-//let set_err_status: (ErrStatus.t, t) => t;
-
-//let set_err_status_block: (ErrStatus.t, block) => block;
 
 let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 

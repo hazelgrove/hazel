@@ -25,7 +25,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some((m: memoization_value('v))) =>
+      | Some(m: memoization_value('v)) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
@@ -90,6 +90,9 @@ module Delim = {
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
+
+  let open_TightAp = (): t => mk(~index=0, "(");
+  let close_TightAp = (): t => mk(~index=1, ")");
 
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
@@ -364,6 +367,18 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
     )
   )
   |> annot_Case;
+};
+
+let mk_TightAp = (func: formatted_child, arg: formatted_child): t => {
+  let open_tightap = Delim.open_TightAp() |> annot_Tessera;
+  let close_tightap = Delim.close_TightAp() |> annot_Tessera;
+  Doc.hcats([
+    func |> pad_bidelimited_open_child,
+    open_tightap,
+    arg |> pad_bidelimited_open_child,
+    close_tightap,
+  ])
+  |> annot_Operand(~sort=Exp);
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {

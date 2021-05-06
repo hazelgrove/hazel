@@ -124,6 +124,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
+    | TightAp(_, _, _) => indicate_words_view("tightap")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
