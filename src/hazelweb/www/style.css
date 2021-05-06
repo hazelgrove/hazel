@@ -22,6 +22,7 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
+  --step-hole-color: green;
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
@@ -1020,6 +1021,12 @@ h1 {
   50% {
     background-color: transparent;
   }
+}
+
+.Steppable {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(231, 255, 186);
+  margin: -1px;
 }
 
 .InHole {

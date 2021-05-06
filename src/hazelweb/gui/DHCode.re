@@ -61,7 +61,7 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
-             | Steppable => ([with_cls("InVarHole", txt)], ds) //TODO
+             | Steppable => ([with_cls("Steppable", txt)], ds) //TODO
              };
            },
        );
