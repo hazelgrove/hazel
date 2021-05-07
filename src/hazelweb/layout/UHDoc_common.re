@@ -73,34 +73,36 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
-  let open_List = (): t => mk(~index=0, "[");
-  let close_List = (): t => mk(~index=1, "]");
+  let open_List = (): t => mk(~index=0, Doc_common.open_List);
+  let close_List = (): t => mk(~index=1, Doc_common.close_List);
 
-  let open_Parenthesized = (): t => mk(~index=0, "(");
-  let close_Parenthesized = (): t => mk(~index=1, ")");
+  let open_Parenthesized = (): t =>
+    mk(~index=0, Doc_common.open_Parenthesized);
+  let close_Parenthesized = (): t =>
+    mk(~index=1, Doc_common.close_Parenthesized);
 
   let open_Inj = (inj_side: InjSide.t): t =>
-    mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
-  let close_Inj = (): t => mk(~index=1, ")");
+    mk(~index=0, Doc_common.open_Inj(inj_side));
+  let close_Inj = (): t => mk(~index=1, Doc_common.close_Inj);
 
-  let sym_Lam = (): t => mk(~index=0, Doc_common.Delim.sym_Lam);
-  let open_Lam = (): t => mk(~index=1, Doc_common.Delim.open_Lam);
-  let close_Lam = (): t => mk(~index=2, Doc_common.Delim.close_Lam);
+  let sym_Lam = (): t => mk(~index=0, Doc_common.sym_Lam);
+  let open_Lam = (): t => mk(~index=1, Doc_common.open_Lam);
+  let close_Lam = (): t => mk(~index=2, Doc_common.close_Lam);
 
-  let open_Case = (): t => mk(~index=0, "case");
-  let close_Case = (): t => mk(~index=1, "end");
-  let close_Case_ann = (): t => mk(~index=1, "end :");
+  let open_Case = (): t => mk(~index=0, Doc_common.open_Case);
+  let close_Case = (): t => mk(~index=1, Doc_common.close_Case);
+  let close_Case_ann = (): t => mk(~index=1, Doc_common.close_Case_ann);
 
-  let bar_Rule = (): t => mk(~index=0, "|");
-  let arrow_Rule = (): t => mk(~index=1, "=>");
+  let bar_Rule = (): t => mk(~index=0, Doc_common.bar_Rule);
+  let arrow_Rule = (): t => mk(~index=1, Doc_common.arrow_Rule);
 
-  let let_LetLine = (): t => mk(~index=0, "let");
-  let eq_LetLine = (): t => mk(~index=1, "=");
-  let in_LetLine = (): t => mk(~index=2, "in");
+  let let_LetLine = (): t => mk(~index=0, Doc_common.let_LetLine);
+  let eq_LetLine = (): t => mk(~index=1, Doc_common.eq_LetLine);
+  let in_LetLine = (): t => mk(~index=2, Doc_common.in_LetLine);
 
-  let open_CommentLine = (): t => mk(~index=0, "#");
+  let open_CommentLine = (): t => mk(~index=0, Doc_common.open_CommentLine);
 
-  let colon_Ann = (): t => mk(~index=0, ":");
+  let colon_Ann = (): t => mk(~index=0, Doc_common.colon_Ann);
 };
 
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
@@ -275,26 +277,40 @@ let pad_left_delimited_closed_child =
   );
 
 let mk_Unit = (): t =>
-  Delim.mk(~index=0, "()") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, Doc_common.ty_Unit)
+  |> annot_Tessera
+  |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
-  Delim.mk(~index=0, "Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, Doc_common.ty_Bool)
+  |> annot_Tessera
+  |> annot_Operand(~sort=Typ);
 
 let mk_Int = (): t =>
-  Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, Doc_common.ty_Int)
+  |> annot_Tessera
+  |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
-  Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, Doc_common.ty_Float)
+  |> annot_Tessera
+  |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
-  StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
+  StringUtil.cat([
+    string_of_int(u),
+    Doc_common.colon_Ann,
+    string_of_int(i),
+  ]);
 
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Wild = (): t =>
-  Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
+  Delim.mk(~index=0, Doc_common.exp_Wild)
+  |> annot_Tessera
+  |> annot_Operand(~sort=Pat);
 
 let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
   mk_text(t) |> annot_Tessera |> annot_Operand(~sort);
@@ -312,7 +328,9 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
+  Delim.mk(~index=0, Doc_common.exp_ListNil)
+  |> annot_Tessera
+  |> annot_Operand(~sort);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;

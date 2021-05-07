@@ -54,6 +54,10 @@ module Delim: {
   let bar_Rule: DHDoc.t;
   let arrow_Rule: DHDoc.t;
 
+  let let_LetLine: DHDoc.t;
+  let eq_LetLine: DHDoc.t;
+  let in_LetLine: DHDoc.t;
+
   let open_Cast: DHDoc.t;
   let arrow_Cast: DHDoc.t;
   let close_Cast: DHDoc.t;

@@ -43,42 +43,52 @@ module Delim = {
 
   let empty_hole = ((u, i): HoleInstance.t): t => {
     let lbl =
-      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+      StringUtil.cat([
+        string_of_int(u + 1),
+        Doc_common.colon_Ann,
+        string_of_int(i + 1),
+      ]);
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
   };
 
-  let list_nil = mk("[]");
-  let triv = mk("()");
-  let wild = mk("_");
+  let list_nil = mk(Doc_common.exp_ListNil);
+  let triv = mk(Doc_common.exp_Triv);
+  let wild = mk(Doc_common.exp_Wild);
 
-  let open_Parenthesized = mk("(");
-  let close_Parenthesized = mk(")");
+  let open_Parenthesized = mk(Doc_common.open_Parenthesized);
+  let close_Parenthesized = mk(Doc_common.close_Parenthesized);
 
-  let sym_Lam = mk(Doc_common.Delim.sym_Lam);
-  let colon_Lam = mk(Doc_common.Delim.colon_Lam);
-  let open_Lam = mk(Doc_common.Delim.open_Lam);
-  let close_Lam = mk(Doc_common.Delim.close_Lam);
+  let sym_Lam = mk(Doc_common.sym_Lam);
+  let colon_Lam = mk(Doc_common.colon_Lam);
+  let open_Lam = mk(Doc_common.open_Lam);
+  let close_Lam = mk(Doc_common.close_Lam);
 
-  let fix_FixF = mk("fix");
-  let colon_FixF = mk(":");
-  let open_FixF = mk(".{");
-  let close_FixF = mk("}");
+  let fix_FixF = mk(Doc_common.fix_FixF);
+  let colon_FixF = mk(Doc_common.colon_FixF);
+  let open_FixF = mk(Doc_common.open_FixF);
+  let close_FixF = mk(Doc_common.close_FixF);
 
   let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
-  let close_Inj = mk(")");
+    mk(
+      StringUtil.cat([InjSide.to_string(inj_side), Doc_common.open_InjAlt]),
+    );
+  let close_Inj = mk(Doc_common.close_Inj);
 
-  let open_Case = mk("case");
-  let close_Case = mk("end");
+  let open_Case = mk(Doc_common.open_Case);
+  let close_Case = mk(Doc_common.close_Case);
 
-  let bar_Rule = mk("|");
-  let arrow_Rule = mk("=>");
+  let bar_Rule = mk(Doc_common.bar_Rule);
+  let arrow_Rule = mk(Doc_common.arrow_Rule);
 
-  let open_Cast = mk("<");
-  let arrow_Cast = mk(Unicode.castArrowSym);
-  let close_Cast = mk(">");
+  let let_LetLine = mk(Doc_common.let_LetLine);
+  let eq_LetLine = mk(Doc_common.eq_LetLine);
+  let in_LetLine = mk(Doc_common.in_LetLine);
+
+  let open_Cast = mk(Doc_common.open_Cast);
+  let arrow_Cast = mk(Doc_common.arrow_Cast);
+  let close_Cast = mk(Doc_common.close_Cast);
 
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
   let arrow_FailedCast =
@@ -113,8 +123,9 @@ let mk_BoolLit = b => Doc.text(string_of_bool(b));
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 
-let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
+let mk_Cons = (hd, tl) => Doc.(hcats([hd, text(Doc_common.op_Cons), tl]));
 
-let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
+let mk_Pair = (doc1, doc2) =>
+  Doc.(hcats([doc1, text(Doc_common.op_Pair), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);

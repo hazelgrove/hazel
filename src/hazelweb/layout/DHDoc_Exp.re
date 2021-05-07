@@ -219,19 +219,19 @@ let rec mk =
           mk_cast(go(~enforce_inline, ddef));
         vseps([
           hcats([
-            DHDoc_common.Delim.mk("let"),
+            DHDoc_common.Delim.let_LetLine,
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
                  ~enforce_inline,
                ),
-            DHDoc_common.Delim.mk("="),
+            DHDoc_common.Delim.eq_LetLine,
             def_doc
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
                  ~enforce_inline=false,
                ),
-            DHDoc_common.Delim.mk("in"),
+            DHDoc_common.Delim.in_LetLine,
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
@@ -299,7 +299,7 @@ let rec mk =
             DHDoc_common.Delim.close_Lam,
           ]);
         } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
+          annot(DHAnnot.Collapsed, text(Doc_common.collapsed_Lam));
         }
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
@@ -316,7 +316,7 @@ let rec mk =
             DHDoc_common.Delim.close_FixF,
           ]);
         } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
+          annot(DHAnnot.Collapsed, text(Doc_common.collapsed_Lam));
         }
       };
     let doc =
