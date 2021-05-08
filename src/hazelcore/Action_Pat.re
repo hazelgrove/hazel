@@ -790,6 +790,20 @@ and syn_perform_operand =
       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
     )
 
+  | (Construct(SLeftParenthesis), zpat) =>
+    //if after operand, tightap
+    //else, parenthesis
+    //if ever a tightap case, fail
+    if (ZPat.is_after_zoperand(zpat)) {
+      Failed;
+    } else {
+      mk_syn_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
+      );
+    }
+
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
     switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
@@ -1348,6 +1362,18 @@ and ana_perform_operand =
       let zp =
         ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded((zp, ctx, u_gen));
+    }
+
+  | (Construct(SLeftParenthesis), CursorP(_)) =>
+    switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded((zp, ty', ctx, u_gen)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      }
     }
 
   | (Construct(SOp(os)), CursorP(_)) =>

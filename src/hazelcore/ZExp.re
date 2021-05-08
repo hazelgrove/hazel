@@ -65,6 +65,27 @@ and is_opseq_zopseq =
   | ZOpSeq(_, ZOperand(_, _) as zseq)
   | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
 
+let rec find_zoperand = (ze: t): option(zoperand) =>
+  ze |> find_zoperand_zblock
+and find_zoperand_zblock = ((_, zline, _): zblock): option(zoperand) =>
+  zline |> find_zoperand_zline
+and find_zoperand_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> find_zoperand_zopseq
+  | LetLineZP(_) => None
+  | LetLineZE(_, zdef) => zdef |> find_zoperand
+and find_zoperand_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> find_zoperand_zoperand
+  | ZOpSeq(_, ZOperator(_)) => None
+and find_zoperand_zoperator =
+  fun
+  | _ => None
+and find_zoperand_zoperand =
+  fun
+  | zoperand => Some(zoperand);
+
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)

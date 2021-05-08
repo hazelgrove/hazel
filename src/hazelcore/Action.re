@@ -22,6 +22,7 @@ type shape =
   | SCommentLine
   | SList
   | SParenthesized
+  | SLeftParenthesis //TO DO!!!! MERGE WITH SPARENTHESIZED CASES!
   | SChar(string)
   | SAnn
   | SLam

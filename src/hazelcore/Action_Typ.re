@@ -302,6 +302,13 @@ and perform_operand =
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
 
+  | (Construct(SLeftParenthesis), zpat) =>
+    if (ZTyp.is_after_zoperand(zpat)) {
+      Failed;
+    } else {
+      Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))));
+    }
+
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
