@@ -7,7 +7,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, t)
+  | LetLine(LetlineKeyword.t,UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -37,7 +37,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline: (UHPat.t, t) => line;
+let letline: (LetlineKeyword.t, UHPat.t, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
