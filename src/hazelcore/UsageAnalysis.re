@@ -50,7 +50,7 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
   | CommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_uses_opseq(~steps, x, opseq), false)
   | EmptyLine => ([], false)
-  | LetLine(p, def) => (
+  | LetLine(_, p, def) => (
       find_uses(~steps=steps @ [2], x, def),
       binds_var(x, p),
     )

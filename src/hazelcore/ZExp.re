@@ -415,8 +415,8 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | LetLineZP(zp, def) => LetLine(ZPat.erase(zp), def)
-  | LetLineZE(p, zdef) => LetLine(p, erase(zdef))
+  | LetLineZP(zp, def) => LetLine(Let, ZPat.erase(zp), def)
+  | LetLineZE(p, zdef) => LetLine(Let, p, erase(zdef))
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -597,7 +597,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
-  | CursorL(OnDelim(k, Before), LetLine(p, def)) =>
+  | CursorL(OnDelim(k, Before), LetLine(_, p, def)) =>
     switch (k) {
     | 1 => Some(LetLineZP(ZPat.place_after(p), def))
     | _ => Some(LetLineZE(p, place_after(def)))
@@ -611,12 +611,13 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     switch (ZPat.move_cursor_left(zp)) {
     | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), def)))
+      Some(CursorL(OnDelim(0, After), LetLine(Let, ZPat.erase(zp), def)))
     }
   | LetLineZE(p, zdef) =>
     switch (move_cursor_left(zdef)) {
     | Some(zdef) => Some(LetLineZE(p, zdef))
-    | None => Some(CursorL(OnDelim(1, After), LetLine(p, erase(zdef))))
+    | None =>
+      Some(CursorL(OnDelim(1, After), LetLine(Let, p, erase(zdef))))
     }
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -778,7 +779,7 @@ and move_cursor_right_zline =
     Some(CursorL(OnText(0), line))
 
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
-  | CursorL(OnDelim(k, After), LetLine(p, def)) =>
+  | CursorL(OnDelim(k, After), LetLine(_, p, def)) =>
     switch (k) {
     | 0 => Some(LetLineZP(ZPat.place_before(p), def))
     | 1 => Some(LetLineZE(p, place_before(def)))
@@ -793,12 +794,13 @@ and move_cursor_right_zline =
     switch (ZPat.move_cursor_right(zp)) {
     | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(CursorL(OnDelim(1, Before), LetLine(ZPat.erase(zp), def)))
+      Some(CursorL(OnDelim(1, Before), LetLine(Let, ZPat.erase(zp), def)))
     }
   | LetLineZE(p, zdef) =>
     switch (move_cursor_right(zdef)) {
     | Some(zdef) => Some(LetLineZE(p, zdef))
-    | None => Some(CursorL(OnDelim(2, Before), LetLine(p, erase(zdef))))
+    | None =>
+      Some(CursorL(OnDelim(2, Before), LetLine(Let, p, erase(zdef))))
     }
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(

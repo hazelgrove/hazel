@@ -11,7 +11,7 @@ let is_Case = String.equal("case");
 let mk = (text: string): option(t) =>
   if (text |> is_Let) {
     Some(Let);
-  } else if (text |> is_And){
+  } else if (text |> is_And) {
     Some(And);
   } else if (text |> is_Case) {
     Some(Case);
