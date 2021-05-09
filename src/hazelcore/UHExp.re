@@ -9,8 +9,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, t)
-  | AndLine(UHPat.t, t)
+  | LetLine(LetlineKeyword.t, UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -39,8 +38,8 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
-let andline = (p: UHPat.t, def: t): line => AndLine(p, def);
+let letline = (p: UHPat.t, def: t): line => LetLine(Let, p, def);
+let andline = (p: UHPat.t, def: t): line => AndLine(And, p, def);
 
 let var =
     (
