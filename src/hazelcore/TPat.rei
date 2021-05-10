@@ -10,3 +10,5 @@ type t =
   | TyVar(option(VarPatErrStatus.t), TyId.t);
 
 let is_complete: t => bool;
+
+let tyvar_of_tyid: TyId.t => t;

@@ -16,3 +16,11 @@ let is_complete =
   | EmptyHole
   | TyVar(Some(_), _) => false
   | TyVar(None, _) => true;
+
+let tyvar_of_tyid = tyid =>
+  TyVar(
+    tyid
+      |> TyId.to_string
+      |> ExpandingKeyword.mk
+      |> Option.map(kw => VarPatErrStatus.Keyword(kw)),
+    tyid)

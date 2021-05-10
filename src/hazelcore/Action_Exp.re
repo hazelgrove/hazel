@@ -1079,9 +1079,8 @@ and syn_perform_line =
       }
     }
 
-  | (_, TyAliasLineP(zp, _ty)) =>
-    // Type pattern actions don't depend on the type (or its kind) being matched
-    switch (Action_TPat.perform(ctx, a, zp)) {
+  | (_, TyAliasLineP(zp, ty)) =>
+    switch (Action_TPat.perform(a, zp)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(new_zp) =>

@@ -272,3 +272,17 @@ and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
     };
   };
 };
+
+let syn_fix_holes_z = (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t) => {
+  let path = CursorPath_Typ.of_z(zty);
+  let (ty, k, u_gen) = syn_fix_holes(ctx, u_gen, ZTyp.erase(zty));
+  let zty =
+    CursorPath_Typ.follow(path, ty)
+    |> OptUtil.get(() =>
+         failwith(
+           "fix_holes did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zty, k, u_gen);
+}
