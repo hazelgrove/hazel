@@ -18,3 +18,18 @@ let fix_holes = (ctx: Contexts.t, t: TPat.t, k: Kind.t): (Contexts.t, TPat.t) =>
     }
   };
 };
+
+let fix_holes_z = (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t): (Contexts.t, ZTPat.t) => {
+  let path = CursorPath_TPat.of_z(zp);
+  let (ctx, new_p) = fix_holes(ctx, ZTPat.erase(zp), k);
+  let zp =
+    CursorPath_TPat.follow(path, new_p)
+    |> OptUtil.get(() =>
+         failwith(
+           "fix_holes did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (ctx, zp);
+}
+
