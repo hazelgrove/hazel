@@ -6,6 +6,7 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 type tag_typ =
   | Exp
   | Pat
+  | TPat
   | Typ;
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
@@ -256,11 +257,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let tpat_view = (tp: TPat.t) => {
+    switch (tp) {
+    | EmptyHole =>
+      indicate_words_view("hole")
+    | TyVar(_, id) =>
+      Vdom.(Node.span([], [indicate_words_view("var: "), code_view(TyId.to_string(id))]))
+    };
+  };
+
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
+    | TPat(_, tpat) => tpat_view(tpat)
     | Typ(_, typ) => typ_view(typ)
     | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
     | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
@@ -286,7 +297,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             [code_keywords_view("let"), indicate_words_view(" binding")],
           )
         )
-
+      | TyAliasLine(_) =>
+        Vdom.(
+          Node.span(
+            [],
+            [code_keywords_view("type"), indicate_words_view(" binding")],
+          )
+        )
       | ExpLine(_) => indicate_words_view("expression line")
       }
     | Rule(_, _) =>
@@ -312,6 +329,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [code_keywords_view("let"), indicate_words_view(" binding")],
+        )
+      )
+    | STyAlias =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("type"), indicate_words_view(" binding")],
         )
       )
     | SCase =>
@@ -438,6 +462,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Exp(_, _) => Exp
     | Pat(_, _) => Pat
     | Typ(_, _) => Typ
+    | TPat(_, _) => TPat
     | ExpOp(_, _) => Exp
     | PatOp(_, _) => Pat
     | TypOp(_, _) => Typ
@@ -599,6 +624,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
             [Node.text("TYP")],
+          )
+        )
+      | TPat =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-tpat"])],
+            [Node.text("TPAT")],
           )
         )
       }
