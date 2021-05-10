@@ -333,6 +333,11 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | OnTPat
+    | OnTPatHole =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_a_type_indicator;
+      (ind1, ind2, OK);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
