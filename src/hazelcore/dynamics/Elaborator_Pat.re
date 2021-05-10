@@ -78,12 +78,17 @@ and syn_elab_skel =
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp1, _, ctx, delta) =>
+    | Elaborates(Label(l), _, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
       | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp2, ty2, ctx, delta) =>
+        Elaborates(Label_Elt(l, dp2), Label_Elt(l, ty2), ctx, delta)
+      }
+    | Elaborates(dp1, _, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel2, seq)) {
       | Elaborates(dp2, _, ctx, delta) =>
-        let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Hole, ctx, delta);
+        Elaborates(DHPat.Ap(dp1, dp2), Hole, ctx, delta)
+      | DoesNotElaborate => DoesNotElaborate
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -138,6 +143,14 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
+  | Label(_, l) =>
+    if (Label.is_valid(l)) {
+      let d = DHPat.Label(l);
+      let ty = HTyp.Hole;
+      Elaborates(d, ty, ctx, delta);
+    } else {
+      DoesNotElaborate;
+    } // ECD TODO: May need to change
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
@@ -360,6 +373,7 @@ and ana_elab_operand =
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
+  | Label(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
@@ -399,7 +413,8 @@ let rec renumber_result_only =
   | InvalidText(_)
   | BoolLit(_)
   | ListNil
-  | Triv => (dp, hii)
+  | Triv
+  | Label(_) => (dp, hii)
   | EmptyHole(u, _) =>
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
@@ -430,4 +445,7 @@ let rec renumber_result_only =
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
     (Pair(dp1, dp2), hii);
+  | Label_Elt(l, dp) =>
+    let (dp, hii) = renumber_result_only(path, hii, dp);
+    (Label_Elt(l, dp), hii);
   };

@@ -158,17 +158,21 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
+  | Label(Label.t)
+  | Label_Elt(Label.t, t)
+  /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+
 and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t);
 
-let constructor_string = (d: t): string =>
+let rec constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
@@ -196,6 +200,8 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | Label(label) => label
+  | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
   };
 
 let rec mk_tuple: list(t) => t =
@@ -203,6 +209,18 @@ let rec mk_tuple: list(t) => t =
   | [] => failwith("mk_tuple: expected at least 1 element")
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
+
+let rec get_projected = (d: t, l: Label.t): option(t) => {
+  switch (d) {
+  | Label_Elt(l', d') => l == l' ? Some(d') : None
+  | Pair(d1, d2) =>
+    switch (get_projected(d1, l)) {
+    | None => get_projected(d2, l)
+    | Some(d') => Some(d')
+    }
+  | _ => None
+  };
+};
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {

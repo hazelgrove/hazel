@@ -92,6 +92,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       ),
     );
 
+  let expected_label =
+    expected_indicator("Expecting ", special_msg_bar("a label "));
+
   let got_indicator = (title_text, type_div) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
@@ -118,6 +121,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
 
   let got_invalid_indicator =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
+
+  let got_label_indicator =
+    got_indicator("Got a label ", typebar(HTyp.Hole));
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
@@ -180,6 +186,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | AnaLabel(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_label_indicator;
+      (ind1, ind2, BindingError);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -188,6 +198,36 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
       (ind1, ind2, BindingError);
+    | SynLabel(err, l) =>
+      switch (err) {
+      | NotInLabelHole =>
+        let ind1 = expected_label;
+        let ind2 = got_label_indicator;
+        (ind1, ind2, OK);
+      | InLabelHole(Standalone, _) =>
+        let ind1 =
+          expected_indicator("Expecting ", special_msg_bar("a type"));
+        let ind2 =
+          got_indicator("Got a standalone label", typebar(HTyp.Hole));
+        (ind1, ind2, BindingError);
+      | InLabelHole(Duplicate, _) =>
+        let ind1 =
+          expected_indicator(
+            "Expecting ",
+            special_msg_bar("a unique label"),
+          );
+        let ind2 =
+          got_indicator("Got a duplicate label, " ++ l, typebar(HTyp.Hole));
+        (ind1, ind2, BindingError);
+      | InLabelHole(Empty, _) =>
+        let ind1 = expected_any_indicator;
+        let ind2 = got_indicator("Got Empty Label", typebar(HTyp.Hole));
+        (ind1, ind2, BindingError);
+      // | InLabelHole(NotValid, _) =>
+      //   let ind1 = expected_any_indicator;
+      //   let ind2 = got_indicator("Got Invalid Label", typebar(HTyp.Hole));
+      //   (ind1, ind2, BindingError);
+      }
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -322,6 +362,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | PatAnaLabel(expected_ty) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
+      let ind2 = got_label_indicator;
       (ind1, ind2, BindingError);
     | OnLine =>
       /* TODO */

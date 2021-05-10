@@ -125,6 +125,22 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    | Label(_, label) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Label"),
+              indicate_words_view(" literal "),
+              code_view(label),
+            ],
+          )
+        );
+      } else {
+        code_view(label);
+      }
+    | Prj(_) => failwith("unimplemented Label Projection")
     };
   };
 
@@ -200,7 +216,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
-    | TypeAnn(_, _, _) => indicate_words_view("type annotation")
+    | Label(_, l) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Label"),
+              indicate_words_view(l),
+              code_view(l),
+            ],
+          )
+        );
+      } else {
+        code_view(l);
+      }
     };
   };
 
@@ -244,6 +274,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
+    | Label(_, label) =>
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("type: "), code_keywords_view(label)],
+        )
+      )
     };
   };
 

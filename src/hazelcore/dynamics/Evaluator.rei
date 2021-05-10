@@ -7,7 +7,8 @@
      5 = bad pattern match
      6 = Cast BV Hole Ground
      7 = boxed value not a float literal 1
-     8 = boxed value not a float literal 2 */
+     8 = boxed value not a float literal 2
+     9 = first boxed value not a label in labeled element */
 
 [@deriving sexp]
 type result =

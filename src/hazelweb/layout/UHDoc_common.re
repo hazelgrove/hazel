@@ -314,6 +314,9 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
+let mk_Label = (~sort: TermSort.t, l: Label.t): t =>
+  mk_text(l) |> annot_Tessera |> annot_Operand(~sort);
+
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
   let close_group = Delim.close_Parenthesized() |> annot_Tessera;

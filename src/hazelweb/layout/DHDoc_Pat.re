@@ -14,7 +14,9 @@ let precedence = (dp: DHPat.t) =>
   | Inj(_)
   | Triv
   | ListNil
-  | Pair(_) => DHDoc_common.precedence_const
+  | Pair(_)
+  | Label(_)
+  | Label_Elt(_, _) => DHDoc_common.precedence_const // ECD TODO: check if the label_elt should have precedence label
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   };
@@ -58,6 +60,8 @@ let rec mk =
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);
       DHDoc_common.mk_Ap(doc1, doc2);
+    | Label(l) => DHDoc_common.mk_Label(l)
+    | Label_Elt(l, dp) => DHDoc_common.mk_Label_Elt(l, mk'(dp))
     };
   parenthesize
     ? Doc.hcats([

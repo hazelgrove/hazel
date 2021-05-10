@@ -17,6 +17,7 @@ let precedence_And = Operators_Exp.precedence(And);
 let precedence_Or = Operators_Exp.precedence(Or);
 let precedence_Comma = Operators_Exp.precedence(Comma);
 let precedence_max = Operators_Exp.precedence_max;
+let precedence_Label = Operators_Exp.precedence_Label;
 
 let pad_child =
     (
@@ -118,3 +119,8 @@ let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
+
+let mk_Label = label => Doc.text(label);
+
+let mk_Label_Elt = (label, doc2) =>
+  Doc.(hcats([text(label), text(" "), doc2]));

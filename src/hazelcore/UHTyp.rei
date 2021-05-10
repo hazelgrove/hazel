@@ -11,7 +11,8 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -31,3 +32,4 @@ let contract: HTyp.t => t;
 let expand: t => HTyp.t;
 
 let is_complete: t => bool;
+let is_label: operand => bool;

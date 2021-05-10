@@ -9,6 +9,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | InvalidText(_) => d2
+  | Label(_) => d2
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -91,6 +92,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
+  | Label_Elt(l, d) =>
+    let d' = subst_var(d1, x, d);
+    Label_Elt(l, d');
   }
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -252,6 +256,21 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
+  | (Label(_), _) => Indet
+  | (_, Label(_)) => Indet
+  | (Label_Elt(lp, dp2), Label_Elt(l, d2)) =>
+    if (lp == l) {
+      matches(dp2, d2);
+    } else {
+      DoesNotMatch;
+    }
+  | (Label_Elt(lp, dp), Cast(d, ty, Label_Elt(l, ty'))) =>
+    if (lp == l && HTyp.consistent(ty, ty')) {
+      matches(dp, d);
+    } else {
+      DoesNotMatch;
+    } // ECD TOD: How do casts work?
+  | (Label_Elt(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
     (
@@ -309,6 +328,8 @@ and matches_cast_Inj =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Label(_) => Indet
+  | Label_Elt(_, _) => DoesNotMatch
   }
 and matches_cast_Pair =
     (
@@ -374,6 +395,8 @@ and matches_cast_Pair =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Label(_) => Indet
+  | Label_Elt(_, _) => DoesNotMatch // ECD TODO: Check this once doing label pattern matching
   }
 and matches_cast_Cons =
     (
@@ -445,6 +468,8 @@ and matches_cast_Cons =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Label(_) => Indet
+  | Label_Elt(_, _) => DoesNotMatch
   };
 
 type elab_result_lines =
@@ -582,27 +607,61 @@ and syn_elab_skel =
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
-    | None => DoesNotElaborate
-    | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
+    let arrow_case = (): ElaborationResult.t => {
+      switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
       | None => DoesNotElaborate
-      | Some((ty2, ty)) =>
-        let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
-        switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty1', delta) =>
-          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+      | Some(ty1) =>
+        switch (HTyp.matched_arrow(ty1)) {
+        | None => DoesNotElaborate
+        | Some((ty2, ty)) =>
+          let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
+          switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
           | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
-            let d = DHExp.Ap(dc1, dc2);
-            Elaborates(d, ty, delta);
-          }
-        };
-      }
-    }
+          | Elaborates(d1, ty1', delta) =>
+            switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+            | DoesNotElaborate => DoesNotElaborate
+            | Elaborates(d2, ty2', delta) =>
+              let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
+              let dc2 = DHExp.cast(d2, ty2', ty2);
+              let d = DHExp.Ap(dc1, dc2);
+              Elaborates(d, ty, delta);
+            }
+          };
+        }
+      };
+    };
+    switch (skel1) {
+    | Placeholder(n) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      | Label(NotInLabelHole, l)
+      | Label(InLabelHole(Standalone, _), l) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | ElaborationResult.DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d2, ty2', delta) =>
+          let d = DHExp.Label_Elt(l, d2);
+          Elaborates(d, Label_Elt(l, ty2'), delta);
+        }
+      // all other labels in a hole should be in a hole
+      | Label(InLabelHole(_, u_gen), l) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | ElaborationResult.DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d2, _, delta) =>
+          let gamma = Contexts.gamma(ctx);
+          let delta =
+            MetaVarMap.add(
+              u_gen,
+              (Delta.ExpressionHole, HTyp.Hole, gamma),
+              delta,
+            );
+          let d = DHExp.Label_Elt(l, d2);
+          Elaborates(d, Hole, delta);
+        }
+      // skel1 is not a label, so evaluate for arrow case
+      | _ => arrow_case()
+      };
+    | _ => arrow_case()
+    };
   | BinOp(NotInHole, Comma, _, _) =>
     switch (UHExp.get_tuple_elements(skel)) {
     | [skel1, skel2, ...tail] =>
@@ -697,6 +756,7 @@ and syn_elab_skel =
       }
     }
   }
+
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
@@ -710,7 +770,8 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -729,7 +790,8 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | ApPalette(InHole(WrongLength, _), _, _, _)
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -776,6 +838,25 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | Label(err, l) =>
+    if (Label.is_valid(l)) {
+      switch (err) {
+      | NotInLabelHole =>
+        let d = DHExp.Label(l);
+        let ty = HTyp.Hole;
+        Elaborates(d, ty, delta);
+      | InLabelHole(_, u) =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let d = DHExp.EmptyHole(u, 0, sigma);
+        let ty = HTyp.Hole;
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        Elaborates(d, ty, delta);
+      };
+    } else {
+      DoesNotElaborate;
+    }
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -872,6 +953,17 @@ and syn_elab_operand =
        ana_elab_exp ctx bound_expansion expansion_ty
      | None -> DoesNotElaborate
      end */ /* TODO fix me */
+
+  | Prj(NotInHole, body, l) =>
+    switch (syn_elab_operand(ctx, delta, body)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d, e_ty, delta) =>
+      switch (DHExp.get_projected(d, l), HTyp.get_projected_type(e_ty, l)) {
+      | (None, _)
+      | (_, None) => DoesNotElaborate
+      | (Some(d'), Some(ty')) => Elaborates(d', ty', delta)
+      }
+    }
   }
 and syn_elab_rules =
     (
@@ -1129,7 +1221,8 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1157,7 +1250,8 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _)
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1243,9 +1337,18 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | ApPalette(NotInHole, _, _, _)
+  | Prj(NotInHole, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
+
+  | Label(_, l) =>
+    if (Label.is_valid(l)) {
+      let d = DHExp.Label(l);
+      Elaborates(d, ty, delta);
+    } else {
+      DoesNotElaborate;
+    }
   }
 and ana_elab_rules =
     (
@@ -1302,7 +1405,8 @@ let rec renumber_result_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (d, hii)
+  | Triv
+  | Label(_) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1371,6 +1475,9 @@ let rec renumber_result_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (InvalidOperation(d, err), hii);
+  | Label_Elt(l, d) =>
+    let (d, hii) = renumber_result_only(path, hii, d);
+    (Label_Elt(l, d), hii);
   }
 and renumber_result_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
@@ -1400,7 +1507,8 @@ let rec renumber_sigmas_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (d, hii)
+  | Triv
+  | Label(_) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1474,6 +1582,9 @@ let rec renumber_sigmas_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (InvalidOperation(d, err), hii);
+  | Label_Elt(l, d) =>
+    let (d, hii) = renumber_sigmas_only(path, hii, d);
+    (Label_Elt(l, d), hii);
   }
 and renumber_sigmas_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))

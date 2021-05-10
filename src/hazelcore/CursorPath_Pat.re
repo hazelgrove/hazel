@@ -37,7 +37,8 @@ and follow_operand =
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Label(_, _) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -110,7 +111,8 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Label(_, _) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -162,6 +164,8 @@ let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   PatHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+let holes_lerr =
+  CursorPath_common.holes_lerr(~hole_sort=hole_sort(LabelErr));
 
 let rec holes =
         (
@@ -190,6 +194,7 @@ and holes_operand =
       {sort: PatHole(u, Empty), steps: List.rev(rev_steps)},
       ...hs,
     ]
+  | Label(lerr, _) => hs |> holes_lerr(lerr, rev_steps)
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | Wild(err)
@@ -246,6 +251,16 @@ and holes_zoperand =
         Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
+  | CursorP(_, Label(lerr, _)) =>
+    switch (lerr) {
+    | NotInLabelHole => CursorPath_common.no_holes
+    | InLabelHole(_, u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: PatHole(u, LabelErr), steps: List.rev(rev_steps)}),
+        (),
+      )
+    }
   | CursorP(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes

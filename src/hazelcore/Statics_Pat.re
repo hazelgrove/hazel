@@ -30,9 +30,23 @@ and syn_skel =
        )
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    let* ctx = ana_skel(ctx, skel1, seq, HTyp.Hole);
-    let+ ctx = ana_skel(ctx, skel2, seq, HTyp.Hole);
-    (HTyp.Hole, ctx);
+    switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
+    | None => None
+    | Some(ctx) =>
+      switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
+      | None => None
+      | Some(ctx) =>
+        switch (skel1) {
+        | Placeholder(n) =>
+          let pn = seq |> Seq.nth_operand(n);
+          switch (pn) {
+          | Label(_, l) => Some((Label_Elt(l, HTyp.Hole), ctx))
+          | _ => Some((Hole, ctx))
+          };
+        | _ => Some((Hole, ctx))
+        }
+      }
+    }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     let* (ty1, ctx) = syn_skel(ctx, skel1, seq);
     let ty = HTyp.List(ty1);
@@ -45,6 +59,7 @@ and syn_operand =
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
   | InvalidText(_) => Some((Hole, ctx))
+  | Label(_) => Some((Hole, ctx))
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -63,7 +78,6 @@ and syn_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _)
-  | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -144,6 +158,7 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some(ctx)
   | InvalidText(_) => Some(ctx)
+  | Label(_) => Some(ctx)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -212,8 +227,18 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          let* (ty2, _) = HTyp.matched_arrow(ty1);
-          ana_go(skel2, ty2);
+          switch (HTyp.matched_arrow(ty1)) {
+          | None =>
+            switch (skel1) {
+            | Placeholder(n) =>
+              switch (Seq.nth_operand(n, seq)) {
+              | Label(_, _) => go(skel2)
+              | _ => None
+              }
+            | _ => None
+            }
+          | Some((ty2, _)) => ana_go(skel2, ty2)
+          };
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -328,42 +353,73 @@ and syn_fix_holes_skel =
     let (skels, tys) = List.split(pairs);
     (UHPat.mk_tuple(skels), seq, Prod(tys), ctx, u_gen);
   | BinOp(_, Space, skel1, skel2) =>
-    let (skel1, seq, ctx, u_gen) = {
-      let (skel1, seq, ty, ctx, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      let (skel1, seq, u_gen) =
-        switch (HTyp.matched_arrow(ty)) {
-        | Some(_) => (skel1, seq, u_gen)
-        | None =>
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          let OpSeq(skel1, seq) =
-            UHPat.set_err_status_opseq(
-              InHole(TypeInconsistent, u),
-              OpSeq(skel1, seq),
-            );
-          (skel1, seq, u_gen);
-        };
-      (skel1, seq, ctx, u_gen);
+    let arrow_case =
+        (): (UHPat.skel, UHPat.seq, HTyp.t, Contexts.t, MetaVarGen.t) => {
+      let (skel1, seq, ctx, u_gen) = {
+        let (skel1, seq, ty, ctx, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+        let (skel1, seq, u_gen) =
+          switch (HTyp.matched_arrow(ty)) {
+          | Some(_) => (skel1, seq, u_gen)
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let OpSeq(skel1, seq) =
+              UHPat.set_err_status_opseq(
+                InHole(TypeInconsistent, u),
+                OpSeq(skel1, seq),
+              );
+            (skel1, seq, u_gen);
+          };
+        (skel1, seq, ctx, u_gen);
+      };
+      let (skel2, seq, ctx, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          HTyp.Hole,
+        );
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let skel =
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators_Pat.Space,
+          skel1,
+          skel2,
+        );
+      let ty = HTyp.Hole;
+      (skel, seq, ty, ctx, u_gen);
     };
-    let (skel2, seq, ctx, u_gen) =
-      ana_fix_holes_skel(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        skel2,
-        seq,
-        HTyp.Hole,
-      );
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let skel =
-      Skel.BinOp(
-        InHole(TypeInconsistent, u),
-        Operators_Pat.Space,
-        skel1,
-        skel2,
-      );
-    let ty = HTyp.Hole;
-    (skel, seq, ty, ctx, u_gen);
+    switch (skel1) {
+    | Placeholder(n) =>
+      let pn = Seq.nth_operand(n, seq);
+      switch (pn) {
+      | Label(NotInLabelHole, l) =>
+        let (skel2, seq, ty, ctx, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
+        let ty = HTyp.Label_Elt(l, ty);
+        (skel, seq, ty, ctx, u_gen);
+      | Label(InLabelHole(Standalone, _), l) =>
+        let seq =
+          seq |> Seq.update_nth_operand(n, UHPat.Label(NotInLabelHole, l));
+        let (skel2, seq, ty, ctx, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
+        let ty = HTyp.Label_Elt(l, ty);
+        (skel, seq, ty, ctx, u_gen);
+      | Label(InLabelHole(_, _), _) =>
+        let (skel2, seq, _, ctx, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
+        let ty = HTyp.Hole;
+        (skel, seq, ty, ctx, u_gen);
+      | _ => arrow_case()
+      };
+    | _ => arrow_case()
+    };
   | BinOp(_, Cons, skel1, skel2) =>
     let (skel1, seq, ty_elt, ctx, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -415,11 +471,13 @@ and syn_fix_holes_operand =
       | R => HTyp.Sum(Hole, ty1)
       };
     (p, ty, ctx, u_gen);
-  | TypeAnn(_, op, ann) =>
-    let ty = UHTyp.expand(ann);
-    let (op, ctx, u_gen) =
-      ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
-    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
+  | Label(NotInLabelHole, l) => (
+      Label(InLabelHole(Standalone, u_gen), l),
+      Hole,
+      ctx,
+      u_gen,
+    )
+  | Label(_, _) => (operand_nih, Hole, ctx, u_gen)
   };
 }
 and ana_fix_holes =
@@ -550,6 +608,7 @@ and ana_fix_holes_skel =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, pn, ty);
     let seq = seq |> Seq.update_nth_operand(n, pn);
     (skel, seq, ctx, u_gen);
+  // ECD TODO: Add support for labels here
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ctx, u_gen) = {
       let (skel1, seq, ty, ctx, u_gen) =
@@ -654,6 +713,7 @@ and ana_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, ctx, u_gen)
   | InvalidText(_) => (operand_nih, ctx, u_gen)
+  | Label(_, _) => (operand_nih, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>

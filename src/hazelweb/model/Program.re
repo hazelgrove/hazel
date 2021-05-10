@@ -73,7 +73,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr
+           | LabelErr => Some((shape, steps))
            }
          }
        )
@@ -164,6 +165,7 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    print_endline("In succed state :)");
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {

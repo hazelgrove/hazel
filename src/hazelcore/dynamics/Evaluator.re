@@ -17,16 +17,19 @@ let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
 let grounded_List = NotGroundOrHole(List(Hole));
+let grounded_Label_Elt = NotGroundOrHole(Label_Elt(".", Hole));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
   | Hole => Hole
+  | Label(_) => Hole
   | Bool
   | Int
   | Float
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
-  | List(Hole) => Ground
+  | List(Hole)
+  | Label_Elt(".", Hole) => Ground
   | Prod(tys) =>
     if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
       Ground;
@@ -36,6 +39,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
+  | Label_Elt(_, _) => grounded_Label_Elt
   };
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
@@ -225,6 +229,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | FreeVar(_) => Indet(d)
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
+  | Label(_) => Indet(d)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -316,7 +321,19 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
-  | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
+  | InvalidOperation(d, err) =>
+    switch (evaluate(d)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(d')
+    | Indet(d') => Indet(InvalidOperation(d', err))
+    }
+  | Label_Elt(label, d) =>
+    // ECD: need to see if this works
+    switch (evaluate(d)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(d) => BoxedValue(Label_Elt(label, d))
+    | Indet(d) => Indet(Label_Elt(label, d))
+    }
   }
 and evaluate_case =
     (

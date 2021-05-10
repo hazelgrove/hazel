@@ -30,6 +30,8 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on a label
+  | AnaLabel(HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -61,6 +63,8 @@ type typed =
   | SynInvalidArrow(HTyp.t)
   // cursor is on invalid text
   | SynInvalid
+  // cursor is on label
+  | SynLabel(LabelErrStatus.t, Label.t)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword
@@ -97,6 +101,8 @@ type typed =
   | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on label
+  | PatAnaLabel(HTyp.t)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
