@@ -95,6 +95,14 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | Label_Elt(l, d) =>
     let d' = subst_var(d1, x, d);
     Label_Elt(l, d');
+  | Struct(dp, d3, d4) =>
+    let d4 =
+      if (DHPat.binds_var(x, dp)) {
+        d4;
+      } else {
+        subst_var(d1, x, d4);
+      };
+    Struct(dp, d3, d4);
   }
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -330,6 +338,7 @@ and matches_cast_Inj =
   | InvalidOperation(_) => Indet
   | Label(_) => Indet
   | Label_Elt(_, _) => DoesNotMatch
+  | Struct(_) => Indet
   }
 and matches_cast_Pair =
     (
@@ -397,6 +406,7 @@ and matches_cast_Pair =
   | InvalidOperation(_) => Indet
   | Label(_) => Indet
   | Label_Elt(_, _) => DoesNotMatch // ECD TODO: Check this once doing label pattern matching
+  | Struct(_) => Indet
   }
 and matches_cast_Cons =
     (
@@ -470,6 +480,7 @@ and matches_cast_Cons =
   | InvalidOperation(_) => Indet
   | Label(_) => Indet
   | Label_Elt(_, _) => DoesNotMatch
+  | Struct(_) => Indet
   };
 
 type elab_result_lines =
@@ -580,6 +591,19 @@ and syn_elab_line =
           LinesExpand(prelude, ctx, delta);
         };
       };
+    }
+  | StructLine(p, _, def) =>
+    // TODO (hejohns): this is where we inject the record (I think...)
+    // see Program.re:111 -> 99
+    switch (syn_elab(ctx, delta, def)) {
+    | DoesNotElaborate => LinesDoNotExpand
+    | Elaborates(_, ty1, delta) =>
+      switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+      | DoesNotElaborate => LinesDoNotExpand
+      | Elaborates(dp, _, ctx, delta) =>
+        let prelude = d2 => DHExp.Struct(dp, (), d2);
+        LinesExpand(prelude, ctx, delta);
+      }
     }
   }
 and syn_elab_opseq =
@@ -1478,6 +1502,9 @@ let rec renumber_result_only =
   | Label_Elt(l, d) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (Label_Elt(l, d), hii);
+  | Struct(dp, d1, d2) =>
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (Struct(dp, d1, d2), hii);
   }
 and renumber_result_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
@@ -1585,6 +1612,9 @@ let rec renumber_sigmas_only =
   | Label_Elt(l, d) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (Label_Elt(l, d), hii);
+  | Struct(dp, d1, d2) =>
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (Struct(dp, d1, d2), hii);
   }
 and renumber_sigmas_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))

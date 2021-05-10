@@ -403,17 +403,28 @@ let mk_LetLine = (p: formatted_child, def: formatted_child): t => {
   ]);
 };
 
-let mk_TypeAnn =
-    (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
+let mk_StructLine =
+    (p: formatted_child, ann: option(formatted_child), def: formatted_child)
+    : t => {
+  let open_group = {
+    let doc =
+      switch (ann) {
+      | None =>
+        Doc.hcats([
+          Delim.mk(~index=0, "module"),
+          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+          Delim.mk(~index=1, "= {"),
+        ])
+      | _ => failwith("not implemented")
+      };
+    doc |> annot_Tessera;
+  };
+  let close_group = Delim.mk(~index=2, "} in") |> annot_Tessera;
   Doc.hcats([
-    op |> pad_right_delimited_open_child,
-    Doc.hcats([
-      Delim.colon_Ann(),
-      ann |> pad_left_delimited_closed_child(~sort=Typ),
-    ])
-    |> annot_Tessera,
-  ])
-  |> annot_Operand(~sort);
+    open_group,
+    def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+    close_group,
+  ]);
 };
 
 let pad_operator =

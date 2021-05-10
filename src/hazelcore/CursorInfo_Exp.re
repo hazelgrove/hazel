@@ -9,8 +9,11 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | LetLineZE(_, zexp) => extract_cursor_term(zexp)
+  | LetLineZP(zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
+  | LetLineZE(_, _, zexp) => extract_cursor_term(zexp)
+  | StructLineZP(zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | StructLineZE(_, _, ze) => extract_cursor_term(ze)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -61,8 +64,11 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  | LetLineZP(zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
+  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  | StructLineZP(zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | StructLineZE(_, _, ze) => get_zoperand_from_zexp(ze)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -112,8 +118,11 @@ and get_outer_zrules_from_zline =
   | CursorL(_, _) => outer_zrules
   | ExpLineZ(zopseq) =>
     get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
-  | LetLineZP(_) => outer_zrules
-  | LetLineZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => outer_zrules
+  | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | StructLineZP(_, _, _) => outer_zrules
+  | StructLineZE(_, _, ze) => get_outer_zrules_from_zexp(ze, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -219,8 +228,11 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_)
-      | LetLineZE(_) => true
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => true
+      | StructLineZP(_, _, _)
+      | StructLineZE(_, _, _) => failwith("TODO")
       }
     | Some((_, _)) => false
     };
@@ -233,8 +245,11 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_)
-      | LetLineZE(_) => false
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => false
+      | StructLineZP(_, _, _)
+      | StructLineZE(_, _, _) => failwith("TODO")
       }
     | _ => false
     };
@@ -311,12 +326,30 @@ and syn_cursor_info_line =
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
     };
-  | LetLineZE(p, zdef) =>
-    let def = ZExp.erase(zdef);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
-    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+  | LetLineZA(_, zann, _) =>
+    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+  | LetLineZE(p, ann, zdef) =>
+    switch (ann) {
+    | None =>
+      syn_cursor_info(~steps=steps @ [2], ctx, zdef)
+      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+    | Some(ann) =>
+      let ty = UHTyp.expand(ann);
+      let (ctx_def, _) =
+        Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
+      ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
+      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    }
+  | StructLineZP(zp, _, def) =>
+    let pat_ci = CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp);
+    switch (Statics_Exp.syn(ctx, def)) {
+    | None => None
+    | Some(ty1) => pat_ci(ty1)
+    };
+  | StructLineZE(_, _, zdef) =>
+    syn_cursor_info(~steps=steps @ [1], ctx, zdef)
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
   }
 and syn_cursor_info_zopseq =
     (
@@ -639,6 +672,7 @@ and ana_cursor_info_zblock =
           zopseq,
           ty,
         )
+      | _ => failwith("TODO: 672 idea what's going on")
       }
     | [_, ..._] =>
       switch (

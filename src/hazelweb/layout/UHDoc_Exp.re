@@ -106,6 +106,14 @@ and mk_block =
               Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
             ),
           )
+        | StructLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
+            ),
+          )
         },
       leading,
       last_doc,
@@ -141,8 +149,23 @@ and mk_line =
         | LetLine(p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
+          let ann =
+            ann
+            |> Option.map(ann =>
+                 UHDoc_Typ.mk_child(
+                   ~memoize,
+                   ~enforce_inline,
+                   ~child_step=1,
+                   ann,
+                 )
+               );
+          let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
+          UHDoc_common.mk_LetLine(p, ann, def);
+        | StructLine(p, _, def) =>
+          let p =
+            UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
-          UHDoc_common.mk_LetLine(p, def);
+          UHDoc_common.mk_StructLine(p, None, def);
         }: UHDoc.t
       )
     )

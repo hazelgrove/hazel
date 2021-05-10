@@ -166,6 +166,7 @@ type t =
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+  | Struct(DHPat.t, unit, t)
 
 and case =
   | Case(t, list(rule), int)
@@ -202,6 +203,7 @@ let rec constructor_string = (d: t): string =>
   | InvalidOperation(_) => "InvalidOperation"
   | Label(label) => label
   | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
+  | Struct(_) => "Struct"
   };
 
 let rec mk_tuple: list(t) => t =

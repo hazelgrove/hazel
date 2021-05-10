@@ -334,6 +334,7 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d) => BoxedValue(Label_Elt(label, d))
     | Indet(d) => Indet(Label_Elt(label, d))
     }
+  | Struct(p, ann, def) => BoxedValue(Struct(p, ann, def)) // TODO: is this where we inject the record?
   }
 and evaluate_case =
     (

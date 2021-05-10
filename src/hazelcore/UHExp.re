@@ -103,7 +103,9 @@ module Line = {
     | EmptyLine
     | CommentLine(_)
     | LetLine(_) => None
-    | ExpLine(opseq) => Some(opseq);
+    | ExpLine(opseq) => Some(opseq)
+    | StructLine(_) => None;
+
   let force_get_opseq = line =>
     line
     |> get_opseq

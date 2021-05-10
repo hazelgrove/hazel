@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open OptUtil.Syntax;
 
 let tuple_zip =
@@ -63,10 +64,20 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | ExpLine(opseq) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
-  | LetLine(p, def) =>
-    let def_ctx = extend_let_def_ctx(ctx, p, def);
-    let* ty_def = syn(def_ctx, def);
-    Statics_Pat.ana(ctx, p, ty_def);
+  | LetLine(p, None, def) =>
+    let* ty = syn(ctx, def);
+    Statics_Pat.ana(ctx, p, ty);
+  | LetLine(p, Some(uty), def) =>
+    let ty = UHTyp.expand(uty);
+    let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
+    let* _ = ana(ctx_def, def, ty);
+    Statics_Pat.ana(ctx, p, ty);
+  | StructLine(_) =>
+    print_endline("context: ");
+    ctx |> Contexts.sexp_of_t |> string_of_sexp |> print_endline;
+    None; // TODO: this is quite tricky for structs
+  // we don't want to ana def against ctx directly
+  // we need to inject a prod in def (in elaborator?)
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -644,14 +655,30 @@ and syn_fix_holes_line =
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
-  | LetLine(p, def) =>
-    let (p, ty_p, _, u_gen) =
-      Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-    let def_ctx = extend_let_def_ctx(ctx, p, def);
-    let (def, u_gen) =
-      ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
-    let body_ctx = extend_let_body_ctx(ctx, p, def);
-    (LetLine(p, def), body_ctx, u_gen);
+  | LetLine(p, ann, def) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty1, def);
+      let (def, u_gen) =
+        ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
+      let (p, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
+      (LetLine(p, ann, def), ctx, u_gen);
+    | None =>
+      let (def, ty1, u_gen) =
+        syn_fix_holes(~renumber_empty_holes, ctx, u_gen, def);
+      let (p, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
+      (LetLine(p, ann, def), ctx, u_gen);
+    }
+  | StructLine(p, ann, def) =>
+    // TODO: 666 idea what this is supposed to do
+    let (def, ty1, u_gen) =
+      syn_fix_holes(~renumber_empty_holes, ctx, u_gen, def);
+    let (p, ctx, u_gen) =
+      Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
+    (StructLine(p, ann, def), ctx, u_gen);
   }
 and syn_fix_holes_opseq =
     (
