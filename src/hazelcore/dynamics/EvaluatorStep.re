@@ -831,10 +831,10 @@ let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t =>
   if (is_final(d, opt)) {
     d;
   } else {
-    //let ld = decompose(d, opt);
-    //let ctx = List.nth(ld, 0).ctx;
-    //let d0 = List.nth(ld, 0).exp;
-    let (ctx, d0) = decompose(d, opt);
+    let ld = decompose_all(d, opt);
+    let ctx = List.nth(ld, 0).ctx;
+    let d0 = List.nth(ld, 0).exp;
+    //let (ctx, d0) = decompose(d, opt);
     switch (step(d0, opt)) {
     | Pause(d0')
     | BoxedValue(d0')
