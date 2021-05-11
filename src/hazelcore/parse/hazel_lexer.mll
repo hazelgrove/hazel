@@ -13,7 +13,7 @@ let _ =
       "false", FALSE]
 }
 
-let white = [' ']
+let white = [' ' '\160' '\194']
 let newline = ['\n']
 let digit = ['0'-'9']
 let numlit = digit+
@@ -61,6 +61,7 @@ rule read =
   | "[" { LBRACK }
   | "]" { RBRACK }
   | "\\" { LAMBDA }
+  | "λ" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
   | "->" { TARROW }
