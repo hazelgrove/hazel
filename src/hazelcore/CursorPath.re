@@ -41,3 +41,9 @@ type zhole_list = {
   hole_selected: option(hole_info),
   holes_after: hole_list,
 };
+
+let empty_zhole_list = {
+  holes_before: [],
+  hole_selected: None,
+  holes_after: [],
+};

@@ -5,6 +5,7 @@ type zoperand =
   | ZTyp(ZTyp.zoperand)
   | ZPat(ZPat.zoperand);
 
+/* TODO: are these the things that, when you press a key, you edit them as text? */
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
@@ -39,6 +40,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | ExpLine(_) => false
     }
   | Rule(_, _) => false
+  | Tag(_) => true
   };
 };
 
@@ -54,7 +56,8 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | PatOp(_, _)
   | TypOp(_, _)
   | Line(_, _)
-  | Rule(_, _) => false
+  | Rule(_, _)
+  | Tag(_, _) => false
   };
 };
 
@@ -68,7 +71,8 @@ let is_empty_line = (cursor_term): bool => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
-  | Rule(_, _) => false
+  | Rule(_, _)
+  | Tag(_, _) => false
   };
 };
 

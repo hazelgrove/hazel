@@ -153,6 +153,21 @@ let holes_case_err =
     ]
   };
 
+let holes_inj_err =
+    (
+      err: InjErrStatus.t,
+      rev_steps: CursorPath.rev_steps,
+      hs: CursorPath.hole_list,
+    )
+    : CursorPath.hole_list =>
+  switch (err) {
+  | NotInHole => hs
+  | InHole(_, u) => [
+      {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  };
+
 let holes_skel_ =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,

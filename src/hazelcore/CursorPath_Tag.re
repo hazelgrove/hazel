@@ -17,6 +17,17 @@ let holes =
   | TagHole(u) => [{sort: TagHole(u), steps: List.rev(rev_steps)}, ...hs]
   };
 
+let holes_z =
+    (CursorTag(_, tag): ZTag.t, rev_steps: CursorPath.rev_steps)
+    : CursorPath.zhole_list =>
+  switch (tag) {
+  | Tag(_) => CursorPath.empty_zhole_list
+  | TagHole(u) => {
+      ...CursorPath.empty_zhole_list,
+      hole_selected: Some({sort: TagHole(u), steps: List.rev(rev_steps)}),
+    }
+  };
+
 /* If follow(_, tag) = Some(ztag) then ZTag.erase(ztag) = tag. */
 /* If UHExp.follow(_, e) = Some(ze) then ZExp.erase(ze) = e. */
 

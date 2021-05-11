@@ -366,20 +366,6 @@ and of_steps_rule =
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
-let holes_inj_err =
-    (
-      err: InjErrStatus.t,
-      rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hole_list,
-    )
-    : CursorPath.hole_list =>
-  switch (err) {
-  | NotInHole => hs
-  | InHole(_, u) => [
-      {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
-      ...hs,
-    ]
-  };
 
 let holes_case_err =
   CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
@@ -456,7 +442,7 @@ and holes_operand =
     hs
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
-    |> holes_inj_err(err, rev_steps)
+    |> CursorPath_common.holes_inj_err(err, rev_steps)
   | Lam(err, p, body) =>
     hs
     |> holes(body, [1, ...rev_steps])
