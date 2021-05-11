@@ -1,15 +1,10 @@
-(include_subdirs unqualified)
+(include_subdirs no)
 
 (library
- (name menhirtest)
- (libraries hazelcore re sexplib camomile pretty menhirLib)
- (wrapped false)
- (inline_tests)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (name parser)
+ (libraries pretty hazelcore menhirLib)
  (preprocess
-  (pps ppx_let ppx_sexp_conv ppx_inline_test)))
+  (pps ppx_let)))
 
 (ocamllex
  (modules hazel_lexer))
@@ -17,9 +12,3 @@
 (menhir
  (flags --table)
  (modules hazel_parser))
-
-(rule
- (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))
