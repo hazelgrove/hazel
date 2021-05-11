@@ -209,7 +209,7 @@ let rec evaluate = (d: DHExp.t): result =>
           | Indet(dn) => Indet(Tuple([(label, dn), ...tuple_elts]))
           }
         | Indet(_) => failwith("Impossible")
-        | BoxedVal(Tuple(tuple_elts)) =>
+        | BoxedValue(Tuple(tuple_elts)) =>
           switch (evaluate(dn)) {
           | InvalidInput(msg) as invalid => invalid
           | BoxedValue(dn) =>
@@ -221,8 +221,19 @@ let rec evaluate = (d: DHExp.t): result =>
       BoxedValue(Tuple([])),
       List.rev(tuple_elts),
     )
-  | Prj
-  | ErrPrj => failwith("Unimplemented")
+  | Prj(body, label, n) =>
+    switch (evaluate(body)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(Tuple(tuple_elts)) =>
+      switch (List.nth_opt(tupl_elts, n)) {
+      | Some((label, dn)) => evaluate(dn)
+      | None => failwith("impossible")
+      }
+    // ECD TODO: Unsure if we need a cast case
+    | BoxedValue(_) => InvalidInput(2)
+    | Indet(body') => Indet(Prj(body', label, n))
+    }
+  | ErrPrj(_) => Indet(d)
   | Cons(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {
     | (InvalidInput(msg), _)
