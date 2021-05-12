@@ -682,12 +682,12 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
     // k == 1 || k == 2 || k == 3
-    switch (k == 1, k == 2, ann) {
-    | (true, _, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, Some(ann)) =>
-      Some(LetLineZA(p, ZTyp.place_after(ann), def))
-    | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
+    switch (k, ann) {
+    | (1, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (2, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (2, Some(ann)) => Some(LetLineZA(p, ZTyp.place_after(ann), def))
+    | (_, _) => Some(LetLineZE(p, ann, place_after(def)))
+    }
   | CursorL(OnDelim(k, Before), StructLine(p, ann, def)) =>
     switch (k) {
     | 1 => Some(StructLineZP(ZPat.place_after(p), ann, def))
