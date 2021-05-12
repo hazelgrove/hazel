@@ -15,17 +15,10 @@ type t =
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)
-  | Pair(t, t)
+  | Tuple(list((option(Label.t), t)))
   | Triv /* unit intro */
   | Ap(t, t)
-  | Label(Label.t)
-  | Label_Elt(Label.t, t);
-
-let rec mk_tuple: list(t) => t =
-  fun
-  | [] => failwith("mk_tuple: expected at least 1 element")
-  | [dp] => dp
-  | [dp, ...dps] => Pair(dp, mk_tuple(dps));
+  | ErrLabel(Label.t);
 
 /**
  * Whether dp contains the variable x outside of a hole.

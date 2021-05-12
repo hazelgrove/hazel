@@ -161,6 +161,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
+  | (_, ErrLabel(_))
+  | (_, ErrPrj(_, _)) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
       Matches(Environment.empty);
@@ -199,7 +201,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
   | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Pair(d1, d2)) =>
+  | (Pair(dp1, dp2), Tuple(tuple_elts)) =>
+    // ECD: You are here, did not have enough brainpower to add in a tuple pattern refactor rn
+    // It will be easiest if you just pull of the bandaid and do it now rather than finishing the exp stuff
+    // Need to change pairs in DHPat to Tuple
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
     | Indet =>
@@ -655,8 +660,10 @@ and syn_elab_skel =
         switch (syn_elab_skel(ctx, delta, skel2, seq)) {
         | ElaborationResult.DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2', delta) =>
+          let d = DHExp.Tuple([(Some(l), d2)]);
+          // ECD: Bookmark
           let d = DHExp.Label_Elt(l, d2);
-          Elaborates(d, Label_Elt(l, ty2'), delta);
+          Elaborates(d, Tuple([(Some(l), ty2')]), delta);
         }
       // all other labels in a hole should be in a hole
       | Label(InLabelHole(_, u_gen), l) =>
@@ -670,7 +677,7 @@ and syn_elab_skel =
               (Delta.ExpressionHole, HTyp.Hole, gamma),
               delta,
             );
-          let d = DHExp.Label_Elt(l, d2);
+          let d = DHExp.Tuple([(Some(l), d2)]);
           Elaborates(d, Hole, delta);
         }
       // skel1 is not a label, so evaluate for arrow case
@@ -679,32 +686,51 @@ and syn_elab_skel =
     | _ => arrow_case()
     };
   | BinOp(NotInHole, Comma, _, _) =>
-    switch (UHExp.get_tuple_elements(skel)) {
-    | [skel1, skel2, ...tail] =>
-      let%bind (dp1, ty1, delta) = syn_elab_skel(ctx, delta, skel1, seq);
-      let%bind (dp2, ty2, delta) = syn_elab_skel(ctx, delta, skel2, seq);
-      tail
-      |> ListUtil.map_with_accumulator_opt(
-           ((dp_acc, delta), skel) => {
-             syn_elab_skel(ctx, delta, skel, seq)
-             |> ElaborationResult.to_option
-             |> Option.map(((dp, ty, delta)) =>
-                  ((DHExp.Pair(dp_acc, dp), delta), ty)
-                )
-           },
-           (DHExp.Pair(dp1, dp2), delta),
-         )
-      |> Option.map((((dp_acc, delta), tys)) =>
-           (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), delta)
-         )
-      |> ElaborationResult.from_option;
-    | _ =>
-      raise(
-        Invalid_argument(
-          "Encountered tuple pattern type with less than 2 elements!",
-        ),
-      )
-    }
+    // ECD TODO: Check that i fixed the tuple flattening bug
+    // Check if list of tuple is greater than 2 before flattening
+    // (1, 2, (3, 4)) => (1, 2, (3, 4))
+    // (1, 2, .a 2) => (1, 2, .a 2)
+    // (1, 2, (.a 2, .b 3)) => (1, 2, (.a 2, .b 3))
+    List.fold_left(
+      (acc, skel) => {
+        switch (acc) {
+        | Elaborates(Tuple(d_list), Tuple(ty_list), delta) =>
+          switch (syn_elab_skel(ctx, delta, skel, seq)) {
+          | Elaborates(Tuple(tuple_elts), Tuple(tuple_tys), delta)
+              when List.length(tuple_elts) < 2 =>
+            Elaborates(
+              Tuple(tuple_elts @ d_list),
+              Tuple(tuple_tys @ ty_list),
+              delta,
+            )
+          | Elaborates(Tuple(tuple_elts), ty, delta)
+              when List.length(tuple_elts) < 2 =>
+            Elaborates(
+              Tuple(tuple_elts @ d_list),
+              Tuple([(None, ty), ...ty_list]),
+              delta,
+            )
+          | Elaborates(d, Tuple(tuple_tys), delta)
+              when List.length(tuple_tys) < 2 =>
+            Elaborates(
+              Tuple([(None, d), ...d_list]),
+              Tuple(tuple_tys @ ty_list),
+              delta,
+            )
+          | Elaborates(d, ty, delta) =>
+            Elaborates(
+              Tuple([(None, d), ...d_list]),
+              Tuple([(None, ty), ...ty_list]),
+              delta,
+            )
+          | DoesNotElaborate => DoesNotElaborate
+          }
+        | DoesNotElaborate => DoesNotElaborate
+        }
+      },
+      Elaborates(Tuple([]), Tuple([]), delta),
+      List.rev(UHExp.get_tuple_elements(skel)),
+    )
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate

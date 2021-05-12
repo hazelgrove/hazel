@@ -9,10 +9,9 @@ type t =
   | Bool
   | Arrow(t, t)
   | Sum(t, t)
-  | Prod(list(t))
+  | Prod(list((option(Label.t), t)))
   | List(t)
-  | Label(Label.t)
-  | Label_Elt(Label.t, t);
+  | Label(Label.t);
 [@deriving sexp]
 type join =
   | GLB
