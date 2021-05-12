@@ -11,6 +11,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
+  | StructLine(UHPat.t, unit, t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -95,15 +96,19 @@ module Line = {
     | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
-    | LetLine(_) => line
+    | LetLine(_)
+    | StructLine(_) => line
     };
 
   let get_opseq =
     fun
     | EmptyLine
     | CommentLine(_)
-    | LetLine(_) => None
-    | ExpLine(opseq) => Some(opseq);
+    | LetLine(_)
+    | StructLine(_) => None
+    | ExpLine(opseq) => Some(opseq)
+    ;
+
   let force_get_opseq = line =>
     line
     |> get_opseq
@@ -176,6 +181,56 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [] => failwith("mk_tuple: expected at least 1 element")
   | [skel] => skel
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
+  };
+
+let desugar_struct = (strct: line): option(line) =>
+  switch (strct) {
+  | StructLine(p, _, [_, ..._] as def) =>
+    let rec bindings_of_let_lines =
+            (~acc: list(Var.t)=[], l: block): option(list(Var.t)) =>
+      switch (l) {
+      | [ExpLine(_)] => acc == [] ? None : Some(acc)
+      | [LetLine(p, _, _), ...tl] =>
+        switch (p) {
+        // TODO (hejohns): check error conditions?
+        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
+          bindings_of_let_lines(~acc=acc @ [name], tl)
+        | _ => None
+        }
+      | _ => None
+      };
+    switch (bindings_of_let_lines(def)) {
+    | Some(bindings) =>
+      let mk_struct_record = (l: list(Var.t)): line =>
+        switch (l) {
+        | [] => failwith("expected at least one element")
+        | [hd, ..._] =>
+          open Operators_Exp;
+          let rec mk_tl_seq =
+                  (op: operator, bindings: list(Var.t))
+                  : list((operator, operand)) =>
+            switch (bindings) {
+            | [] => []
+            | [hd, ...tl] =>
+              switch (op) {
+              | Space =>
+                [(Space, Var(NotInHole, NotInVarHole, hd))]
+                @ mk_tl_seq(Comma, tl)
+              | Comma =>
+                [(Comma, Label(NotInLabelHole, hd))]
+                @ mk_tl_seq(Space, bindings)
+              | _ => failwith("are you really trying to build a record?")
+              }
+            };
+          let seq = Seq.mk(Label(NotInLabelHole, hd), mk_tl_seq(Space, l));
+          let skel = Skel.mk(precedence, associativity, seq);
+          ExpLine(OpSeq(skel, seq));
+        };
+      let trimmed_def = def |> List.rev |> List.tl |> List.rev;
+      Some(LetLine(p, None, trimmed_def @ [mk_struct_record(bindings)]));
+    | None => None
+    };
+  | _ => None
   };
 
 let rec set_duplicate_tuple_labels =

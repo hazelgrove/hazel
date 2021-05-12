@@ -9,6 +9,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
+  | StructLine(UHPat.t, unit, t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -78,6 +79,8 @@ module Block: {
 
   let split_conclusion: block => option((list(line), opseq));
 };
+
+let desugar_struct: line => option(line);
 
 let get_tuple_elements: skel => list(skel);
 
