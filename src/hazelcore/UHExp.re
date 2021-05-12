@@ -557,6 +557,8 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  | StructLine(p, _, def) =>
+    UHPat.is_complete(p) && is_complete(def, check_type_holes)
   };
 }
 and is_complete_block = (b: block, check_type_holes: bool): bool => {

@@ -592,6 +592,7 @@ and syn_elab_line =
           LinesExpand(prelude, ctx, delta);
         }
       }
+    }
   | StructLine(_) as strct =>
     // TODO (hejohns): this is where we inject the record
     // see Program.re:111 -> 99
