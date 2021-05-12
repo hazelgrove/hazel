@@ -201,9 +201,9 @@ let desugar_struct = (strct: line): option(line) =>
       };
     switch (bindings_of_let_lines(def)) {
     | Some(bindings) =>
-      let mk_struct_record = (l: list(Var.t)): line =>
+      let mk_struct_record = (l: list(Var.t)): option(line) =>
         switch (l) {
-        | [] => failwith("expected at least one element")
+        | [] => None
         | [hd, ..._] =>
           open Operators_Exp;
           let rec mk_tl_seq =
@@ -224,10 +224,11 @@ let desugar_struct = (strct: line): option(line) =>
             };
           let seq = Seq.mk(Label(NotInLabelHole, hd), mk_tl_seq(Space, l));
           let skel = Skel.mk(precedence, associativity, seq);
-          ExpLine(OpSeq(skel, seq));
+          Some(ExpLine(OpSeq(skel, seq)))
         };
       let trimmed_def = def |> List.rev |> List.tl |> List.rev;
-      Some(LetLine(p, None, trimmed_def @ [mk_struct_record(bindings)]));
+      mk_struct_record(bindings)
+      |> Option.map(r => LetLine(p, None, trimmed_def @ [r]))
     | None => None
     };
   | _ => None
