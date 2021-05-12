@@ -9,6 +9,8 @@ and zline =
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
   | LetLineZE(UHPat.t, option(UHTyp.t), t)
+  | StructLineZP(ZPat.t, unit, UHExp.t)
+  | StructLineZE(UHPat.t, unit, t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
@@ -51,11 +53,13 @@ let line_can_be_swapped = (line: zline): bool =>
   | CursorL(_)
   | LetLineZP(_)
   | LetLineZA(_)
+  | StructLineZP(_)
   | ExpLineZ(ZOpSeq(_, ZOperator(_)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _))) => true
   | LetLineZE(_)
+  | StructLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
@@ -84,6 +88,7 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
     @ ann_cursors
     @ CursorPosition.delim_cursors_k(2)
     @ CursorPosition.delim_cursors_k(3);
+  | StructLine(_) => CursorPosition.delim_cursors(3) // TODO (hejohns): check
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
@@ -137,7 +142,9 @@ module ZLine = {
     | CursorL(_)
     | LetLineZP(_)
     | LetLineZA(_)
-    | LetLineZE(_) => failwith("force_get_zopseq: expected ExpLineZ")
+    | LetLineZE(_)
+    | StructLineZP(_)
+    | StructLineZE(_) => failwith("force_get_zopseq: expected ExpLineZ")
     | ExpLineZ(zopseq) => zopseq;
 };
 
@@ -159,10 +166,13 @@ and is_before_zline = (zline: zline): bool =>
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
+  | CursorL(cursor, StructLine(_, _, _)) => cursor == OnDelim(0, Before)
   | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZA(_)
-  | LetLineZE(_) => false
+  | LetLineZE(_)
+  | StructLineZP(_)
+  | StructLineZE(_) => false
   }
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
@@ -244,10 +254,13 @@ and is_after_zline =
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
+  | CursorL(cursor, StructLine(_, _, _)) => cursor == OnDelim(2, After)
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
-  | LetLineZE(_, _, _) => false
+  | LetLineZE(_, _, _)
+  | StructLineZP(_, _, _)
+  | StructLineZE(_, _, _) => false
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -296,12 +309,15 @@ and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
   | CursorL(_, CommentLine(_))
-  | CursorL(_, LetLine(_, _, _)) => true
+  | CursorL(_, LetLine(_, _, _))
+  | CursorL(_, StructLine(_, _, _)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZA(_)
-  | LetLineZE(_) => false
+  | LetLineZE(_)
+  | StructLineZP(_)
+  | StructLineZE(_) => false
   }
 and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
 and is_outer_zoperand =
@@ -346,6 +362,7 @@ and place_before_line =
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
+  | StructLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
@@ -386,6 +403,7 @@ and place_after_line =
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(3, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
+  | StructLine(_) as line => CursorL(OnDelim(2, After), line)
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand = operand =>
@@ -431,7 +449,8 @@ let place_cursor_line =
     None
   | EmptyLine
   | CommentLine(_)
-  | LetLine(_, _, _) =>
+  | LetLine(_, _, _)
+  | StructLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
 let place_cursor_rule =
@@ -446,6 +465,8 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | LetLineZP(_)
   | LetLineZA(_)
   | LetLineZE(_)
+  | StructLineZP(_)
+  | StructLineZE(_)
   | CursorL(_) => zli
   };
 let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
@@ -468,6 +489,8 @@ and erase_zline =
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
+  | StructLineZP(zp, ann, def) => StructLine(ZPat.erase(zp), ann, def) // ann == (), placeholder
+  | StructLineZE(p, ann, zdef) => StructLine(p, ann, erase(zdef)) // ann == (), placeholder
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -652,7 +675,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     Some(CursorL(OnDelim(0, After), line))
   | CursorL(OnText(k), CommentLine(_) as line) =>
     Some(CursorL(OnText(k - 1), line))
-  | CursorL(OnText(_), ExpLine(_) | LetLine(_)) => None
+  | CursorL(OnText(_), ExpLine(_) | LetLine(_) | StructLine(_)) => None
 
   | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
@@ -665,6 +688,10 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | (_, true, Some(ann)) =>
       Some(LetLineZA(p, ZTyp.place_after(ann), def))
     | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
+  | CursorL(OnDelim(k, Before), StructLine(p, ann, def)) =>
+    switch (k) {
+    | 1 => Some(StructLineZP(ZPat.place_after(p), ann, def))
+    | _ => Some(StructLineZE(p, ann, place_after(def))) // TODO (hejohns): why?
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
@@ -693,6 +720,20 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | Some(zdef) => Some(LetLineZE(p, ann, zdef))
     | None =>
       Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
+    }
+  | StructLineZP(zp, ann, def) =>
+    switch (ZPat.move_cursor_left(zp)) {
+    | Some(zp) => Some(StructLineZP(zp, ann, def))
+    | None =>
+      Some(
+        CursorL(OnDelim(0, After), StructLine(ZPat.erase(zp), ann, def)),
+      )
+    }
+  | StructLineZE(p, ann, zdef) =>
+    switch (move_cursor_left(zdef)) {
+    | Some(zdef) => Some(StructLineZE(p, ann, zdef))
+    | None =>
+      Some(CursorL(OnDelim(1, After), StructLine(p, ann, erase(zdef))))
     }
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -878,7 +919,8 @@ and move_cursor_right_zline =
   | CursorL(OnOp(_), _) => None
   | CursorL(OnText(k), CommentLine(_) as line) =>
     Some(CursorL(OnText(k + 1), line))
-  | CursorL(OnText(_), EmptyLine | ExpLine(_) | LetLine(_)) => None
+  | CursorL(OnText(_), EmptyLine | ExpLine(_) | LetLine(_) | StructLine(_)) =>
+    None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
 
@@ -894,7 +936,12 @@ and move_cursor_right_zline =
       None
     | (1, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
     | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
-    | (_three, _) => None
+    | (_, _) => None
+    }
+  | CursorL(OnDelim(k, After), StructLine(p, ann, def)) =>
+    switch (k) {
+    | 0 => Some(StructLineZP(ZPat.place_before(p), ann, def))
+    | _ => Some(StructLineZE(p, ann, place_before(def))) // TODO (hejohns): why?
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
@@ -934,6 +981,20 @@ and move_cursor_right_zline =
     | Some(zdef) => Some(LetLineZE(p, ann, zdef))
     | None =>
       Some(CursorL(OnDelim(3, Before), LetLine(p, ann, erase(zdef))))
+    }
+  | StructLineZP(zp, ann, def) =>
+    switch (ZPat.move_cursor_right(zp)) {
+    | Some(zp) => Some(StructLineZP(zp, ann, def))
+    | None =>
+      Some(
+        CursorL(OnDelim(1, Before), StructLine(ZPat.erase(zp), ann, def)),
+      )
+    }
+  | StructLineZE(p, ann, zdef) =>
+    switch (move_cursor_right(zdef)) {
+    | Some(zdef) => Some(StructLineZE(p, ann, zdef))
+    | None =>
+      Some(CursorL(OnDelim(2, Before), StructLine(p, ann, erase(zdef))))
     }
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
@@ -1118,6 +1179,8 @@ and cursor_on_EmptyHole_zline =
   | LetLineZP(_)
   | LetLineZA(_) => None
   | LetLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
+  | StructLineZP(_) => None
+  | StructLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
 and cursor_on_EmptyHole_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => None
