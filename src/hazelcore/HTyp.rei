@@ -5,6 +5,8 @@ module Index: {
   let of_int: int => t;
 
   let lookup: (list('a), t) => 'a;
+
+  let eq: (t, t) => bool;
 };
 
 /* types with holes */
