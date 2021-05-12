@@ -593,7 +593,7 @@ and syn_cursor_info_zoperand =
           switch (clause_types) {
           | None => None
           | Some(types) =>
-            switch (HTyp.join_all(LUB, types)) {
+            switch (Construction.HTyp.join_all(ctx, LUB, types)) {
             | None => Some(InconsistentBranchTys(List.rev(types), steps))
             | Some(lub) => Some(JoinTy(lub))
             }
