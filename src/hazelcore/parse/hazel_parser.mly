@@ -22,6 +22,39 @@
       )
     in
     mk_app e args
+
+  let mk_let_line pat expr =
+    let pat = UHPat.mk_OpSeq pat in
+    UHExp.letline pat expr
+
+  let mk_typ_paren typ =
+    let opseq = UHTyp.mk_OpSeq typ in
+    UHTyp.Parenthesized opseq
+
+  let mk_typ_list typ =
+    let opseq = UHTyp.mk_OpSeq typ in
+    UHTyp.List opseq
+
+  let mk_inj_l expr =
+    UHExp.Inj(ErrStatus.NotInHole, InjSide.L, expr)
+
+  let mk_inj_r expr =
+    UHExp.Inj(ErrStatus.NotInHole, InjSide.R, expr)
+
+  let mk_fn pat expr =
+    let pat = UHPat.mk_OpSeq pat in
+    UHExp.lam pat expr
+
+  let mk_rule pat expr =
+    let pat = UHPat.mk_OpSeq pat in
+    UHExp.Rule(pat, expr)
+
+  let mk_case expr rules =
+    let e = UHExp.case expr rules in
+    mk_seq e
+
+  let mk_empty_list =
+    mk_seq (UHExp.listnil ())
 %}
 
 %token LET
@@ -74,33 +107,19 @@ main:
 ;
 
 let_binding:
-  LET pat EQUAL expr IN {
-    let pat = UHPat.mk_OpSeq $2 in
-    UHExp.letline pat $4 }
-  | LET pat COLON typ EQUAL expr IN {
-    let pat = UHPat.mk_OpSeq $2 in
-    let typ = UHTyp.mk_OpSeq $4 in
-    UHExp.letline pat ~ann:typ $6
-  }
+  LET pat EQUAL expr IN { mk_let_line $2 $4 }
+  | LET pat COLON typ EQUAL expr IN { mk_let_line $2 $6 }
 ;
 
 typ:
-  l = typ typ_op r = typ {
-    mk_binop l $2 r
-  }
+  typ typ_op typ { mk_binop $1 $2 $3 }
   | typ_ { mk_seq $1 }
 ;
 
 typ_:
   atomic_type { $1 }
-  | LPAREN typ RPAREN {
-    let opseq = UHTyp.mk_OpSeq $2 in
-    UHTyp.Parenthesized opseq
-  }
-  | LBRACK typ RBRACK {
-    let opseq = UHTyp.mk_OpSeq $2 in
-    UHTyp.List opseq
-  }
+  | LPAREN typ RPAREN { mk_typ_paren $2 }
+  | LBRACK typ RBRACK { mk_typ_list $2 }
 ;
 
 atomic_type:
@@ -120,12 +139,8 @@ atomic_type:
 ;
 
 pat:
-  pat COLONCOLON pat {
-    mk_binop $1 Operators_Pat.Cons $3
-  }
-  | pat COMMA pat {
-    mk_binop $1 Operators_Pat.Comma $3
-  }
+  pat COLONCOLON pat { mk_binop $1 Operators_Pat.Cons $3 }
+  | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
   | pat_ { mk_seq $1 }
 ;
 
@@ -152,18 +167,11 @@ expr:
 
 expr_:
   simple_expr { mk_seq $1 }
-  | CASE expr rule+ END {
-    let e = UHExp.case $2 $3 in
-    mk_seq e
-  }
+  | CASE expr rule+ END { mk_case $2 $3 }
   | simple_expr simple_expr+ { mk_application $1 $2 }
   | expr_ op expr_ { mk_binop $1 $2 $3 }
-  | expr_ COLONCOLON expr_ {
-    mk_binop $1 Operators_Exp.Cons $3
-  }
-  | LBRACK RBRACK {
-    mk_seq (UHExp.listnil ())
-  }
+  | expr_ COLONCOLON expr_ { mk_binop $1 Operators_Exp.Cons $3 }
+  | LBRACK RBRACK { mk_empty_list }
 ;
 
 simple_expr:
@@ -171,31 +179,17 @@ simple_expr:
   | constant { $1 }
   | IDENT { UHExp.var $1 }
   | fn { $1 }
-  | INJL LPAREN expr RPAREN {
-    UHExp.Inj(ErrStatus.NotInHole, InjSide.L, $3)
-  }
-  | INJR LPAREN expr RPAREN {
-    UHExp.Inj(ErrStatus.NotInHole, InjSide.R, $3)
-  }
+  | INJL LPAREN expr RPAREN { mk_inj_l $3 }
+  | INJR LPAREN expr RPAREN { mk_inj_r $3 }
 ;
 
 fn:
-  LAMBDA pat PERIOD LBRACE expr RBRACE {
-    let pat = UHPat.mk_OpSeq $2 in
-    UHExp.lam pat $5
-  }
-  | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE {
-    let pat = UHPat.mk_OpSeq $2 in
-    let typ = UHTyp.mk_OpSeq $4 in
-    UHExp.lam pat ~ann:typ $7
-  }
+  LAMBDA pat PERIOD LBRACE expr RBRACE { mk_fn $2 $5 }
+  | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE { mk_fn $2 $7 }
 ;
 
 rule:
-  BAR pat ARROW expr {
-    let pat = UHPat.mk_OpSeq $2 in
-    UHExp.Rule(pat, $4)
-  }
+  BAR pat ARROW expr { mk_rule $2 $4 }
 ;
 
 %inline op:
