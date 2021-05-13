@@ -97,6 +97,7 @@ and mk_block =
         | EmptyLine
         | CommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+        | TyAliasLine(_)
         | LetLine(_) =>
           annot_SubBlock(
             ~hd_index=offset + i,
@@ -142,7 +143,13 @@ and mk_line =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
           UHDoc_common.mk_LetLine(p, def);
+        | TyAliasLine(p, ty) =>
+          let p =
+            UHDoc_TPat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
+          let ty = UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
+          UHDoc_common.mk_LetLine(p, ty);
         }: UHDoc.t
+
       )
     )
   )
