@@ -316,6 +316,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
 
       | ExpLine(_) => indicate_words_view("expression line")
+      | StructLine(_) => failwith("TODO (hejohns): 319")
       }
     | Rule(_, _) =>
       Vdom.(
@@ -363,6 +364,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | _ => code_view(Action_common.shape_to_string(shape))
       }
     | SApPalette(_) => failwith("ApPalette not implemented")
+    | SStruct => failwith("TODO (hejohns): 367")
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
