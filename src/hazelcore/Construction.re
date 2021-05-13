@@ -137,8 +137,6 @@ module HTyp = {
       }
     };
 
-
-
   let rec join = (ctx: Contexts.t, j, ty1, ty2) =>
     switch (ty1, ty2) {
     | (TyVarHole(_, _), TyVarHole(_, _)) => Some(Hole)
