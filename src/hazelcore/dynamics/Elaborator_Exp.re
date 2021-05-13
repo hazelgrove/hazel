@@ -201,25 +201,59 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
   | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Tuple(tuple_elts)) =>
-    // ECD: You are here, did not have enough brainpower to add in a tuple pattern refactor rn
-    // It will be easiest if you just pull of the bandaid and do it now rather than finishing the exp stuff
-    // Need to change pairs in DHPat to Tuple
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
+  | (Tuple(tuple_elts_p), Tuple(tuple_elts)) =>
+    List.fold_left2 (
+      fun (acc, (lp, dp), (l, d)) =>
+      {
+        let label_matches = 
+          switch((lp, l)) {
+            | (Some(label_p), Some(label)) => label_p == label
+            | (Some(_), None) => false
+            | (None, Some(_)) => true
+          };
+        switch(acc) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet =>
+            switch(matches(dp, d)) {
+              | DoesNotMatch => DoesNotMatch
+              | Indet
+              | Matches(_) => 
+              switch((lp, l)) {
+                // Both have matching labels
+                | (Some(label_p), Some(label))
+                  when label_p == label => Indet
+                // Pattern is not labeled, ignore expression label
+                | (None, Some(_)) => Indet
+                // Pattern has label, expression does not have
+                | (Some(_), None)
+                // Both have non matching labels
+                | (Some(_), Some(_)) => DoesNotMatch          
+              }
+          | Matches(env_old) =>
+            switch(matches(dp, d)) {
+              | DoesNotMatch => DoesNotMatch
+              | Indet => Indet
+              | Matches(env_new) =>
+                switch((lp, l)) {
+                // Both have matching labels
+                  | (Some(label_p), Some(label))
+                    when label_p == label => Matches(Enviorment.union(env_old, env_new))
+                  // Pattern is not labeled, ignore expression label
+                  | (None, Some(_)) => Matches(Enviorment.union(env_old, env_new))
+                  // Pattern has label, expression does not have
+                  | (Some(_), None)
+                  // Both have non matching labels
+                  | (Some(_), Some(_)) => DoesNotMatch
+              }
+            }
+
+        }
+      },
+      tuple_elts_p,
+      tuple_elts,
+      Matches(Enviroment.empty)
+    )
+  // ECD: You are here, finished base case of prod refactor, need to continue with rest of prod refactor for the matching logic
   | (
       Pair(dp1, dp2),
       Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
@@ -1507,10 +1541,17 @@ let rec renumber_result_only =
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
-  | Pair(d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (Pair(d1, d2), hii);
+  | Tuple(tuple_elts) =>
+    let (hii, tuple_elts) = ListUtil.map_with_accumulator(
+      fun (hii, (label, dn)) => {
+        let (dn, hii) = renumber_result_only(path, hii, dn);
+        (hii, (label, dn))
+      },
+      hii,
+      tuple_elts
+    );
+    (Tuple(tuple_elts), hii);
+    // ECD: You are here, working through tuple refactor in elaborator exp. Finished the tuple for renumber, move onto next reference to Pair
   | Cons(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);

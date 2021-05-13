@@ -4,14 +4,16 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Hole
+  // Don't want to remove label, still treat the same as hole type
+  | Label(Label.t)
   | Int
   | Float
   | Bool
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list((option(Label.t), t)))
-  | List(t)
-  | Label(Label.t);
+  | List(t);
+  
 [@deriving sexp]
 type join =
   | GLB
