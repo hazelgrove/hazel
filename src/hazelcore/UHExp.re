@@ -186,51 +186,55 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 let desugar_struct = (strct: line): option(line) =>
   switch (strct) {
   | StructLine(p, _, [_, ..._] as def) =>
+    open OptUtil.Syntax;
     let rec bindings_of_let_lines =
-            (~acc: list(Var.t)=[], l: block): option(list(Var.t)) =>
+            (l: block): option(list(Var.t)) =>
       switch (l) {
-      | [ExpLine(_)] => acc == [] ? None : Some(acc)
+      | [LetLine(p, _, _), ExpLine(_), ..._] =>
+        switch (p) {
+        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
+          Some([name])
+        | _ => None
+        }
       | [LetLine(p, _, _), ...tl] =>
         switch (p) {
         // TODO (hejohns): check error conditions?
         | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
-          bindings_of_let_lines(~acc=acc @ [name], tl)
+          let+ xs = bindings_of_let_lines(tl);
+          [name] @ xs
         | _ => None
         }
       | _ => None
       };
-    switch (bindings_of_let_lines(def)) {
-    | Some(bindings) =>
-      let mk_struct_record = (l: list(Var.t)): option(line) =>
-        switch (l) {
-        | [] => None
-        | [hd, ..._] =>
-          open Operators_Exp;
-          let rec mk_tl_seq =
-                  (op: operator, bindings: list(Var.t))
-                  : list((operator, operand)) =>
-            switch (bindings) {
-            | [] => []
-            | [hd, ...tl] =>
-              switch (op) {
-              | Space =>
-                [(Space, Var(NotInHole, NotInVarHole, hd))]
-                @ mk_tl_seq(Comma, tl)
-              | Comma =>
-                [(Comma, Label(NotInLabelHole, hd))]
-                @ mk_tl_seq(Space, bindings)
-              | _ => failwith("are you really trying to build a record?")
-              }
-            };
-          let seq = Seq.mk(Label(NotInLabelHole, hd), mk_tl_seq(Space, l));
-          let skel = Skel.mk(precedence, associativity, seq);
-          Some(ExpLine(OpSeq(skel, seq)))
-        };
-      let trimmed_def = def |> List.rev |> List.tl |> List.rev;
-      mk_struct_record(bindings)
-      |> Option.map(r => LetLine(p, None, trimmed_def @ [r]))
-    | None => None
-    };
+    let mk_struct_record = (l: list(Var.t)): option(line) =>
+      switch (l) {
+      | [] => None
+      | [hd, ..._] =>
+        open Operators_Exp;
+        let rec mk_tl_seq =
+                (op: operator, bindings: list(Var.t))
+                : list((operator, operand)) =>
+          switch (bindings) {
+          | [] => []
+          | [hd, ...tl] =>
+            switch (op) {
+            | Space =>
+              [(Space, Var(NotInHole, NotInVarHole, hd))]
+              @ mk_tl_seq(Comma, tl)
+            | Comma =>
+              [(Comma, Label(NotInLabelHole, hd))]
+              @ mk_tl_seq(Space, bindings)
+            | _ => failwith("are you really trying to build a record?")
+            }
+          };
+        let seq = Seq.mk(Label(NotInLabelHole, hd), mk_tl_seq(Space, l));
+        let skel = Skel.mk(precedence, associativity, seq);
+        Some(ExpLine(OpSeq(skel, seq)))
+      };
+    let* bindings = bindings_of_let_lines(def);
+    let+ r = mk_struct_record(bindings);
+    let trimmed_def = def |> List.rev |> List.tl |> List.rev;
+    LetLine(p, None, trimmed_def @ [r])
   | _ => None
   };
 
