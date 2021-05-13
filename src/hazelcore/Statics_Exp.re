@@ -56,10 +56,10 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     ctx |> Contexts.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
     print_endline("^^");
     let* desugared = UHExp.desugar_struct(strct);
-    syn_line(ctx, desugared)
-    // TODO (hejohns): this is quite tricky for structs
-    // we don't want to ana def against ctx directly
-    // we need to inject a prod in def (in elaborator?)
+    syn_line(ctx, desugared);
+  // TODO (hejohns): this is quite tricky for structs
+  // we don't want to ana def against ctx directly
+  // we need to inject a prod in def (in elaborator?)
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>

@@ -106,8 +106,7 @@ module Line = {
     | CommentLine(_)
     | LetLine(_)
     | StructLine(_) => None
-    | ExpLine(opseq) => Some(opseq)
-    ;
+    | ExpLine(opseq) => Some(opseq);
 
   let force_get_opseq = line =>
     line
@@ -187,13 +186,11 @@ let desugar_struct = (strct: line): option(line) =>
   switch (strct) {
   | StructLine(p, _, [_, ..._] as def) =>
     open OptUtil.Syntax;
-    let rec bindings_of_let_lines =
-            (l: block): option(list(Var.t)) =>
+    let rec bindings_of_let_lines = (l: block): option(list(Var.t)) =>
       switch (l) {
       | [LetLine(p, _, _), ExpLine(_), ..._] =>
         switch (p) {
-        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
-          Some([name])
+        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) => Some([name])
         | _ => None
         }
       | [LetLine(p, _, _), ...tl] =>
@@ -201,7 +198,7 @@ let desugar_struct = (strct: line): option(line) =>
         // TODO (hejohns): check error conditions?
         | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
           let+ xs = bindings_of_let_lines(tl);
-          [name] @ xs
+          [name] @ xs;
         | _ => None
         }
       | _ => None
@@ -229,12 +226,12 @@ let desugar_struct = (strct: line): option(line) =>
           };
         let seq = Seq.mk(Label(NotInLabelHole, hd), mk_tl_seq(Space, l));
         let skel = Skel.mk(precedence, associativity, seq);
-        Some(ExpLine(OpSeq(skel, seq)))
+        Some(ExpLine(OpSeq(skel, seq)));
       };
     let* bindings = bindings_of_let_lines(def);
     let+ r = mk_struct_record(bindings);
     let trimmed_def = def |> List.rev |> List.tl |> List.rev;
-    LetLine(p, None, trimmed_def @ [r])
+    LetLine(p, None, trimmed_def @ [r]);
   | _ => None
   };
 
