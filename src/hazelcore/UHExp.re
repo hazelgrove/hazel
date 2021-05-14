@@ -186,23 +186,25 @@ let desugar_struct = (strct: line): option(line) =>
   switch (strct) {
   | StructLine(p, _, [_, ..._] as def) =>
     open OptUtil.Syntax;
-    let rec bindings_of_let_lines = (l: block): option(list(Var.t)) =>
-      switch (l) {
-      | [LetLine(p, _, _), ExpLine(_), ..._] =>
+    let let2var: line => option(Var.t) = (
+      fun
+      | LetLine(p, _, _) =>
         switch (p) {
-        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) => Some([name])
-        | _ => None
-        }
-      | [LetLine(p, _, _), ...tl] =>
-        switch (p) {
-        // TODO (hejohns): check error conditions?
-        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) =>
-          let+ xs = bindings_of_let_lines(tl);
-          [name] @ xs;
+        | OpSeq(_, S(Var(_, NotInVarHole, name), E)) => Some(name)
         | _ => None
         }
       | _ => None
-      };
+    );
+    let bindings_of_let_lines: block => option(list(Var.t)) = (
+      x =>
+        x
+        |> List.filter_map(let2var)
+        |> (
+          fun
+          | [] => None
+          | [_, ..._] as l => Some(l)
+        )
+    );
     let mk_struct_record = (l: list(Var.t)): option(line) =>
       switch (l) {
       | [] => None
