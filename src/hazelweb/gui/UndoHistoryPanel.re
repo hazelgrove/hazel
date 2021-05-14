@@ -316,7 +316,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
 
       | ExpLine(_) => indicate_words_view("expression line")
-      | StructLine(_) => failwith("TODO (hejohns): 319")
+      | StructLine(_) =>
+        // TODO (hejohns): 319
+        Vdom.(
+          Node.span(
+            [],
+            [code_keywords_view("module"), indicate_words_view(" binding")],
+          )
+        )
       }
     | Rule(_, _) =>
       Vdom.(

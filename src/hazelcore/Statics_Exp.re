@@ -55,7 +55,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     print_endline("context vv");
     ctx |> Contexts.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
     print_endline("^^");
-    let* desugared = UHExp.desugar_struct(strct);
+    let* desugared = UHExp.desugar_struct'(strct);
     syn_line(ctx, desugared);
   // TODO (hejohns): this is quite tricky for structs
   // we don't want to ana def against ctx directly

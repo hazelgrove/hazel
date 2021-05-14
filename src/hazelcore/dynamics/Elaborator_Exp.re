@@ -596,7 +596,7 @@ and syn_elab_line =
   | StructLine(_) as strct =>
     // TODO (hejohns): this is where we inject the record
     // see Program.re:111 -> 99
-    switch (UHExp.desugar_struct(strct)) {
+    switch (UHExp.desugar_struct'(strct)) {
     | None => LinesExpand(d => d, ctx, delta)
     | Some(strct_as_let) => syn_elab_line(ctx, delta, strct_as_let)
     }

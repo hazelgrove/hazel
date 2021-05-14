@@ -235,6 +235,17 @@ let desugar_struct = (strct: line): option(line) =>
   | _ => None
   };
 
+let desugar_struct' = (strct: line): option(line) =>
+  switch (strct) {
+  | StructLine(p, _, _) as strct =>
+    switch (desugar_struct(strct)) {
+    | Some(s) => Some(s)
+    | None =>
+      Some(LetLine(p, None, [ExpLine(OpSeq.wrap(EmptyHole(-1)))]))
+    }
+  | _ => None
+  };
+
 let rec set_duplicate_tuple_labels =
         (
           elements: list(skel),
