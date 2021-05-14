@@ -42,6 +42,8 @@ and syn_skel =
 and syn_operand =
     (ctx: Contexts.t, operand: UHPat.operand): option((HTyp.t, Contexts.t)) =>
   switch (operand) {
+  /* not possible */
+  | Inj(_, _, _) => None
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
   | InvalidText(_) => Some((Hole, ctx))
@@ -51,7 +53,6 @@ and syn_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, gamma) = syn_operand(ctx, operand');
@@ -62,7 +63,6 @@ and syn_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
@@ -77,14 +77,6 @@ and syn_operand =
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
-  | Inj(NotInHole, inj_side, p1) =>
-    let+ (ty1, ctx) = syn(ctx, p1);
-    let ty =
-      switch (inj_side) {
-      | L => HTyp.Sum(ty1, Hole)
-      | R => HTyp.Sum(Hole, ty1)
-      };
-    (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
@@ -151,10 +143,10 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | TypeAnn(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
-    let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-    let+ (_, ctx) = syn_operand(ctx, operand');
-    ctx;
+  // | Inj(InHole(TypeInconsistent, _), _, _) =>
+  //   let operand' = UHPat.set_err_status_operand(NotInHole, operand);
+  //   let+ (_, ctx) = syn_operand(ctx, operand');
+  //   ctx;
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -162,8 +154,8 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
+  // | Inj(InHole(WrongLength, _), _, _) =>
+  //   ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
@@ -405,16 +397,16 @@ and syn_fix_holes_operand =
     let (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     (Parenthesized(p), ty, ctx, u_gen);
-  | Inj(_, side, p1) =>
-    let (p1, ty1, ctx, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
-    let p = UHPat.Inj(NotInHole, side, p1);
-    let ty =
-      switch (side) {
-      | L => HTyp.Sum(ty1, Hole)
-      | R => HTyp.Sum(Hole, ty1)
-      };
-    (p, ty, ctx, u_gen);
+  // | Inj(_, side, p1) =>
+  //   let (p1, ty1, ctx, u_gen) =
+  //     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
+  //   let p = UHPat.Inj(NotInHole, side, p1);
+  //   let ty =
+  //     switch (side) {
+  //     | L => HTyp.Sum(ty1, Hole)
+  //     | R => HTyp.Sum(Hole, ty1)
+  //     };
+  //   (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
     let ty = UHTyp.expand(ann);
     let (op, ctx, u_gen) =
@@ -685,19 +677,19 @@ and ana_fix_holes_operand =
     let (p1, ctx, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
     (Parenthesized(p1), ctx, u_gen);
-  | Inj(_, side, p1) =>
-    switch (HTyp.matched_sum(ty)) {
-    | Some((tyL, tyR)) =>
-      let ty1 = InjSide.pick(side, tyL, tyR);
-      let (p1, ctx, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
-      (Inj(NotInHole, side, p1), ctx, u_gen);
-    | None =>
-      let (p1, _, ctx, u_gen) =
-        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
-    }
+  // | Inj(_, side, p1) =>
+  //   switch (HTyp.matched_sum(ty)) {
+  //   | Some((tyL, tyR)) =>
+  //     let ty1 = InjSide.pick(side, tyL, tyR);
+  //     let (p1, ctx, u_gen) =
+  //       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
+  //     (Inj(NotInHole, side, p1), ctx, u_gen);
+  //   | None =>
+  //     let (p1, _, ctx, u_gen) =
+  //       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
+  //     let (u, u_gen) = MetaVarGen.next(u_gen);
+  //     (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
+  //   }
   | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     if (HTyp.consistent(ty, ty_ann)) {
