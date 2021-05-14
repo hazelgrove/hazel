@@ -2,6 +2,9 @@
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
+type sumtyp_operator = Operators_SumTyp.t;
+
+[@deriving sexp]
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -10,8 +13,13 @@ and operand =
   | Int
   | Float
   | Bool
+  | Sum(sumtyp)
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+and sumtyp = OpSeq.t(sumtyp_operand, sumtyp_operator)
+and sumtyp_operand =
+  | ConstTag(Tag.t)
+  | ArgTag(Tag.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

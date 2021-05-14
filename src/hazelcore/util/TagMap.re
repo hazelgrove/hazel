@@ -3,6 +3,12 @@ open Sexplib.Std;
 [@deriving sexp]
 type t('a) = list((Tag.t, 'a));
 
+let empty: t('a) = [];
+
+let bindings = (map: t('a)): list((Tag.t, 'a)) => map;
+
+let of_list = (bindings: list((Tag.t, 'a))): t('a) => bindings;
+
 /* compares tags only */
 let compare_bindings =
     ((tag1, _): (Tag.t, 'a), (tag2, _): (Tag.t, 'a)): int =>
