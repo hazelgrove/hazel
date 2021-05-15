@@ -31,7 +31,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | Typ(_, _)
   | ExpOp(_, _)
   | PatOp(_, _)
-  | TypOp(_, _) => false
+  | TypOp(_, _)
+  | SumTypOp(_) => false
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
@@ -55,6 +56,7 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
+  | SumTypOp(_)
   | Line(_, _)
   | Rule(_, _)
   | Tag(_, _) => false
@@ -71,6 +73,7 @@ let is_empty_line = (cursor_term): bool => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
+  | SumTypOp(_)
   | Rule(_, _)
   | Tag(_, _) => false
   };
