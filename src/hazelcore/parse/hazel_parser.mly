@@ -102,13 +102,13 @@
 %%
 
 main:
-  expr EOF { $1 }
-  | expr SEMICOLON main EOF { List.concat [$1; $3] }
+  line EOF { $1 }
+  | line SEMICOLON main EOF { List.concat [$1; $3] }
 ;
 
 let_binding:
-  LET pat EQUAL expr IN { mk_let_line $2 $4 }
-  | LET pat COLON typ EQUAL expr IN { mk_let_line $2 $6 }
+  LET pat EQUAL line IN { mk_let_line $2 $4 }
+  | LET pat COLON typ EQUAL line IN { mk_let_line $2 $6 }
 ;
 
 typ:
@@ -158,38 +158,38 @@ pat_constant:
   | FALSE { UHPat.boollit false }
 ;
 
-expr:
-  expr_ { [UHExp.ExpLine (UHExp.mk_OpSeq $1)] }
-  | COMMENT expr { List.concat [[UHExp.CommentLine $1]; $2] }
-  | EMPTY expr { List.concat [[UHExp.EmptyLine]; $2] }
-  | let_binding expr { List.concat [[$1]; $2] }
+line:
+  expr { [UHExp.ExpLine (UHExp.mk_OpSeq $1)] }
+  | COMMENT line { List.concat [[UHExp.CommentLine $1]; $2] }
+  | EMPTY line { List.concat [[UHExp.EmptyLine]; $2] }
+  | let_binding line { List.concat [[$1]; $2] }
 ;
 
-expr_:
+expr:
   simple_expr { mk_seq $1 }
-  | CASE expr rule+ END { mk_case $2 $3 }
+  | CASE line rule+ END { mk_case $2 $3 }
   | simple_expr simple_expr+ { mk_application $1 $2 }
-  | expr_ op expr_ { mk_binop $1 $2 $3 }
-  | expr_ COLONCOLON expr_ { mk_binop $1 Operators_Exp.Cons $3 }
+  | expr op expr { mk_binop $1 $2 $3 }
+  | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
   | LBRACK RBRACK { mk_empty_list }
 ;
 
 simple_expr:
-  LPAREN expr RPAREN { UHExp.Parenthesized($2) }
+  LPAREN line RPAREN { UHExp.Parenthesized($2) }
   | constant { $1 }
   | IDENT { UHExp.var $1 }
   | fn { $1 }
-  | INJL LPAREN expr RPAREN { mk_inj_l $3 }
-  | INJR LPAREN expr RPAREN { mk_inj_r $3 }
+  | INJL LPAREN line RPAREN { mk_inj_l $3 }
+  | INJR LPAREN line RPAREN { mk_inj_r $3 }
 ;
 
 fn:
-  LAMBDA pat PERIOD LBRACE expr RBRACE { mk_fn $2 $5 }
-  | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE { mk_fn $2 $7 }
+  LAMBDA pat PERIOD LBRACE line RBRACE { mk_fn $2 $5 }
+  | LAMBDA pat COLON typ PERIOD LBRACE line RBRACE { mk_fn $2 $7 }
 ;
 
 rule:
-  BAR pat ARROW expr { mk_rule $2 $4 }
+  BAR pat ARROW line { mk_rule $2 $4 }
 ;
 
 %inline op:
