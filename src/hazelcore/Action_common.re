@@ -14,6 +14,7 @@ let shape_to_string = (shape: shape): string => {
     | R => "right injection"
     }
   | SLet => "let binding"
+  | SAnd => "and binding"
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"

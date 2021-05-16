@@ -69,7 +69,7 @@ and follow_line =
   | ([], EmptyLine | LetLine(_) | CommentLine(_)) =>
     line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
-  | ([x, ...xs], LetLine(p, def)) =>
+  | ([x, ...xs], LetLine(_, p, def)) =>
     switch (x) {
     | 0 =>
       p
@@ -235,7 +235,7 @@ and of_steps_line =
       };
     Some(of_zline(place_cursor(line)));
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
-  | ([x, ...xs], LetLine(p, def)) =>
+  | ([x, ...xs], LetLine(_, p, def)) =>
     switch (x) {
     | 0 =>
       p
@@ -395,7 +395,7 @@ and holes_line =
   switch (line) {
   | EmptyLine
   | CommentLine(_) => hs
-  | LetLine(p, def) =>
+  | LetLine(_, p, def) =>
     hs
     |> holes(def, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
@@ -509,7 +509,7 @@ and holes_zline =
   | CursorL(_, EmptyLine) => CursorPath_common.no_holes
   | CursorL(_, CommentLine(_)) => CursorPath_common.no_holes
   | CursorL(_, ExpLine(_)) => CursorPath_common.no_holes /* invalid cursor position */
-  | CursorL(cursor, LetLine(p, def)) =>
+  | CursorL(cursor, LetLine(_, p, def)) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_def = holes(def, [1, ...rev_steps], []);
     switch (cursor) {

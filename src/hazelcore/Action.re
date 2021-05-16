@@ -28,6 +28,7 @@ type shape =
   | SListNil
   | SInj(InjSide.t)
   | SLet
+  | SAnd
   | SLine
   | SCase
   | SOp(operator_shape)
