@@ -29,6 +29,18 @@ type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
 type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
+type sumtyp_operand_surround =
+  Seq.operand_surround(UHTyp.sumtyp_operand, UHTyp.sumtyp_operator);
+type sumtyp_operator_surround =
+  Seq.operator_surround(UHTyp.sumtyp_operand, UHTyp.sumtyp_operator);
+type zseq_sumtyp =
+  ZSeq.t(
+    UHTyp.sumtyp_operand,
+    UHTyp.sumtyp_operator,
+    zsumtyp_operand,
+    zsumtyp_operator,
+  );
+
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
@@ -101,6 +113,13 @@ and erase_zsumtyp_operand =
 
 let mk_ZOpSeq: zseq => zopseq =
   ZOpSeq.mk(~associate=UHTyp.associate, ~erase_zoperand, ~erase_zoperator);
+
+let mk_ZOpSeq_sumtyp: zseq_sumtyp => zsumtyp =
+  ZOpSeq.mk(
+    ~associate=UHTyp.associate_sumtyp,
+    ~erase_zoperand=erase_zsumtyp_operand,
+    ~erase_zoperator=erase_zsumtyp_operator,
+  );
 
 let erase_zseq = zseq =>
   zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator);

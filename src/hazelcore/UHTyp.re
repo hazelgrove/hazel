@@ -28,6 +28,11 @@ type skel = OpSeq.skel(operator);
 [@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
+[@deriving sexp]
+type skel_sumtyp = OpSeq.skel(sumtyp_operator);
+[@deriving sexp]
+type seq_sumtyp = OpSeq.seq(sumtyp_operand, sumtyp_operator);
+
 let rec get_prod_elements: skel => list(skel) =
   fun
   | BinOp(_, Prod, skel1, skel2) =>
@@ -55,10 +60,12 @@ let unwrap_parentheses = (operand: operand): t =>
 let associate =
   Skel.mk(Operators_Typ.precedence, Operators_Typ.associativity);
 
-let associate_sum =
+let associate_sumtyp =
   Skel.mk(Operators_SumTyp.precedence, Operators_SumTyp.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
+
+// let mk_OpSeq_sumtyp = OpSeq.mk(~associate=associate_sumtyp);
 
 let contract = (ty: HTyp.t): t => {
   let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
@@ -117,7 +124,7 @@ let contract = (ty: HTyp.t): t => {
                    Seq.seq_op_seq(seq1, Operators_SumTyp.Plus, seq2),
                  binding_to_seq(head),
                );
-          Seq.wrap(Sum(OpSeq.mk(~associate=associate_sum, sumtyp)));
+          Seq.wrap(Sum(OpSeq.mk(~associate=associate_sumtyp, sumtyp)));
         }
       // | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>

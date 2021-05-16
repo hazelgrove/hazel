@@ -28,19 +28,13 @@ and extract_from_zsumtyp = (ZOpSeq(_, zseq): ZTyp.zsumtyp): cursor_term =>
 and extract_from_zsumtyp_operand =
     (zsumty_operand: ZTyp.zsumtyp_operand): cursor_term =>
   switch (zsumty_operand) {
-  | ZTyp.ConstTagZ(ztag) => extract_cursor_tag(ztag)
-  | ZTyp.ArgTagZT(ztag, _) => extract_cursor_tag(ztag)
-  | ZTyp.ArgTagZA(_, zty) => extract_cursor_term(zty)
+  | CursorTS(cursor_pos, sumty_operand) => SumTyp(cursor_pos, sumty_operand)
+  | ConstTagZ(ztag) => extract_cursor_tag(ztag)
+  | ArgTagZT(ztag, _) => extract_cursor_tag(ztag)
+  | ArgTagZA(_, zty) => extract_cursor_term(zty)
   }
 and extract_cursor_tag = (CursorTag(cursor_pos, tag): ZTag.t): cursor_term =>
   Tag(cursor_pos, tag);
-
-// let get_zsumtyp_operand_from_zsumtyp =
-//     (ZOpSeq(_, zseq): ZTyp.zsumtyp): option(zsumtyp_operand) =>
-//   switch (zseq) {
-//   | ZOperand(zsumty_operand, _) => Some(ZSumTyp(zsumty_operand))
-//   | ZOperator(_, _) => None
-//   };
 
 let rec get_zoperand_from_ztyp = (ztyp: ZTyp.t): option(zoperand) => {
   get_zoperand_from_ztyp_opseq(ztyp);

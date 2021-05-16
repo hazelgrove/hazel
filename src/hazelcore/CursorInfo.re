@@ -119,6 +119,7 @@ type cursor_term =
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
+  | SumTyp(CursorPosition.t, UHTyp.sumtyp_operand)
   | SumTypOp(CursorPosition.t, UHTyp.sumtyp_operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule)
