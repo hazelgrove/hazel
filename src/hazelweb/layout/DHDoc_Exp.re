@@ -118,7 +118,12 @@ let rec mk =
     | _ => doc
     };
   let rec go =
-          (~parenthesize=false, ~check_step=false, ~enforce_inline, d: DHExp.t)
+          (
+            ~parenthesize=false,
+            ~check_step=false,
+            ~enforce_inline,
+            d: DHExp.t,
+          )
           : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~check_step, ~enforce_inline);
@@ -128,10 +133,15 @@ let rec mk =
       } else {
         let scrut_doc =
           choices([
-            hcats([space(), mk_cast(go(~check_step, ~enforce_inline=true, dscrut))]),
+            hcats([
+              space(),
+              mk_cast(go(~check_step, ~enforce_inline=true, dscrut)),
+            ]),
             hcats([
               linebreak(),
-              indent_and_align(mk_cast(go(~check_step, ~enforce_inline=false, dscrut))),
+              indent_and_align(
+                mk_cast(go(~check_step, ~enforce_inline=false, dscrut)),
+              ),
             ]),
           ]);
         vseps(
@@ -165,7 +175,10 @@ let rec mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, _sigma, d) =>
-        d |> go(~check_step=false, ~enforce_inline) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+        d
+        |> go(~check_step=false, ~enforce_inline)
+        |> mk_cast
+        |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
@@ -328,7 +341,7 @@ let rec mk =
             EvaluatorStep.decompose_all(d, settings.step_evaluator_option);
           if (eva_obj == [{ctx: Mark, exp: d}]) {
             annot(
-              DHAnnot.Steppable,
+              DHAnnot.Steppable(-1),
               fdoc(~check_step=false, ~enforce_inline),
             );
           } else {

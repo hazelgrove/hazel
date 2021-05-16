@@ -14,4 +14,4 @@ type t =
   | FailedCastDecoration
   | CastDecoration
   | DivideByZero
-  | Steppable;
+  | Steppable(int);

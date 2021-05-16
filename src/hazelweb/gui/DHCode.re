@@ -61,7 +61,7 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
-             | Steppable => ([with_cls("Steppable", txt)], ds) //TODO
+             | Steppable(_) => ([with_cls("Steppable", txt)], ds) //TODO
              };
            },
        );
@@ -69,6 +69,28 @@ let view_of_layout =
     [Attr.classes(["DHCode"])],
     [with_cls("code", text), ...decorations],
   );
+};
+
+let set_step_num = (layout): Layout.t(DHAnnot.t) => {
+  let rec set_num = (num: int, l: Layout.t(DHAnnot.t)) =>
+    switch (l) {
+    | Text(_)
+    | Linebreak => (num, l)
+    | Cat(l1, l2) =>
+      let (n1, l1') = set_num(num, l1);
+      let (n2, l2') = set_num(n1, l2);
+      (n2, Cat(l1', l2'));
+    | Align(l1) =>
+      let (n1, l1') = set_num(num, l1);
+      (n1, Align(l1'));
+    | Annot(ann, l1) =>
+      switch (ann) {
+      | Steppable(_) => (num + 1, Annot(Steppable(num), l1))
+      | _ => (num, l)
+      }
+    };
+  let (_, layout') = set_num(0, layout);
+  layout';
 };
 
 let view =
@@ -88,6 +110,7 @@ let view =
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
+  |> set_step_num
   |> view_of_layout(~inject, ~font_metrics);
 };
 
