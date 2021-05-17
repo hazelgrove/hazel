@@ -11,8 +11,8 @@ module HTyp: {
 
   type join = HTyp.join;
 
-  /// ty1 is equivalent to ty2 and its kind is k
-  let equiv: (Contexts.t, t, t, Kind.t) => bool;
+  /// ty1 is equivalent to ty2
+  let equiv: (Contexts.t, t, t) => bool;
 
   /// ty1 is consistent with ty2 under a ctx
   let consistent: (Contexts.t, t, t) => bool;

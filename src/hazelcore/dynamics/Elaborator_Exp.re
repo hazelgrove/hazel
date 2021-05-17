@@ -85,12 +85,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3' = subst_var(d1, x, d3);
     let sigma' = subst_var_env(d1, x, sigma);
     NonEmptyHole(reason, u, i, sigma', d3');
-  | Cast(d, ty1, ty2) =>
+  | Cast(ctx, d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
-  | FailedCast(d, ty1, ty2) =>
+    Cast(ctx, d', ty1, ty2);
+  | FailedCast(ctx, d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
+    FailedCast(ctx, d', ty1, ty2);
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
@@ -144,7 +144,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     Matches(env);
   | (_, EmptyHole(_, _, _)) => Indet
   | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-  | (_, FailedCast(_, _, _)) => Indet
+  | (_, FailedCast(_, _, _, _)) => Indet
   | (_, InvalidOperation(_)) => Indet
   | (_, FreeVar(_, _, _, _)) => Indet
   | (_, InvalidText(_)) => Indet
@@ -162,8 +162,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (BoolLit(_), Cast(d, Bool, Hole)) => matches(dp, d)
-  | (BoolLit(_), Cast(d, Hole, Bool)) => matches(dp, d)
+  | (BoolLit(_), Cast(_, d, Bool, Hole)) => matches(dp, d)
+  | (BoolLit(_), Cast(_, d, Hole, Bool)) => matches(dp, d)
   | (BoolLit(_), _) => DoesNotMatch
   | (IntLit(n1), IntLit(n2)) =>
     if (n1 == n2) {
@@ -171,8 +171,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (IntLit(_), Cast(d, Int, Hole)) => matches(dp, d)
-  | (IntLit(_), Cast(d, Hole, Int)) => matches(dp, d)
+  | (IntLit(_), Cast(_, d, Int, Hole)) => matches(dp, d)
+  | (IntLit(_), Cast(_, d, Hole, Int)) => matches(dp, d)
   | (IntLit(_), _) => DoesNotMatch
   | (FloatLit(n1), FloatLit(n2)) =>
     if (n1 == n2) {
@@ -180,8 +180,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
-  | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
+  | (FloatLit(_), Cast(_, d, Float, Hole)) => matches(dp, d)
+  | (FloatLit(_), Cast(_, d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
@@ -189,10 +189,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | (R, R) => matches(dp, d)
     | _ => DoesNotMatch
     }
-  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
-    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
+  | (Inj(side, dp), Cast(ctx, d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
+    matches_cast_Inj(side, dp, d, [(ctx, tyL1, tyR1, tyL2, tyR2)])
+  | (Inj(_, _), Cast(_, d, Sum(_, _), Hole)) => matches(dp, d)
+  | (Inj(_, _), Cast(_, d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -212,26 +212,26 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
   | (
       Pair(dp1, dp2),
-      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
+      Cast(ctx, d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
     ) =>
     matches_cast_Pair(
       dp1,
       dp2,
       d,
-      [(head1, head2)],
-      List.combine(tail1, tail2),
+      [(ctx, head1, head2)],
+      List.combine(tail1, tail2) |> List.map(((x, y)) => (ctx, x, y)),
     )
-  | (Pair(_, _), Cast(d, Hole, Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
+  | (Pair(_, _), Cast(_, d, Hole, Prod(_)))
+  | (Pair(_, _), Cast(_, d, Prod(_), Hole)) => matches(dp, d)
   | (Pair(_, _), _) => DoesNotMatch
   | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
+  | (Triv, Cast(_, d, Hole, Prod([]))) => matches(dp, d)
+  | (Triv, Cast(_, d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
+  | (ListNil, Cast(_, d, Hole, List(_))) => matches(dp, d)
+  | (ListNil, Cast(_, d, List(_), Hole)) => matches(dp, d)
+  | (ListNil, Cast(_, d, List(_), List(_))) => matches(dp, d)
   | (ListNil, _) => DoesNotMatch
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -249,10 +249,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(dp1, dp2), Cast(ctx, d, List(ty1), List(ty2))) =>
+    matches_cast_Cons(dp1, dp2, d, [(ctx, ty1, ty2)])
+  | (Cons(_, _), Cast(_, d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_, _), Cast(_, d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
@@ -261,7 +261,7 @@ and matches_cast_Inj =
       side: InjSide.t,
       dp: DHPat.t,
       d: DHExp.t,
-      casts: list((HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
+      casts: list((Contexts.t, HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
     )
     : match_result =>
   switch (d) {
@@ -271,11 +271,11 @@ and matches_cast_Inj =
     | (R, R) =>
       let side_casts =
         List.map(
-          (c: (HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
-            let (tyL1, tyR1, tyL2, tyR2) = c;
+          (c: (Contexts.t, HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
+            let (ctx, tyL1, tyR1, tyL2, tyR2) = c;
             switch (side) {
-            | L => (tyL1, tyL2)
-            | R => (tyR1, tyR2)
+            | L => (ctx, tyL1, tyL2)
+            | R => (ctx, tyR1, tyR2)
             };
           },
           casts,
@@ -283,11 +283,11 @@ and matches_cast_Inj =
       matches(dp, DHExp.apply_casts(d', side_casts));
     | _ => DoesNotMatch
     }
-  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole)
-  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(ctx, d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(side, dp, d', [(ctx, tyL1, tyR1, tyL2, tyR2), ...casts])
+  | Cast(_, d', Sum(_, _), Hole)
+  | Cast(_, d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -311,7 +311,7 @@ and matches_cast_Inj =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
 and matches_cast_Pair =
@@ -319,8 +319,8 @@ and matches_cast_Pair =
       dp1: DHPat.t,
       dp2: DHPat.t,
       d: DHExp.t,
-      left_casts: list((HTyp.t, HTyp.t)),
-      right_casts: list((HTyp.t, HTyp.t)),
+      left_casts: list((Contexts.t, HTyp.t, HTyp.t)),
+      right_casts: list((Contexts.t, HTyp.t, HTyp.t)),
     )
     : match_result =>
   switch (d) {
@@ -340,20 +340,20 @@ and matches_cast_Pair =
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | Cast(d', Prod([]), Prod([])) =>
+  | Cast(_, d', Prod([]), Prod([])) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
+  | Cast(ctx, d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
     matches_cast_Pair(
       dp1,
       dp2,
       d',
-      [(head1, head2), ...left_casts],
-      List.combine(tail1, tail2) @ right_casts,
+      [(ctx, head1, head2), ...left_casts],
+      (List.combine(tail1, tail2) |> List.map(((x, y)) => (ctx, x, y))) @ right_casts,
     )
-  | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) =>
+  | Cast(_, d', Prod(_), Hole)
+  | Cast(_, d', Hole, Prod(_)) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -377,7 +377,7 @@ and matches_cast_Pair =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
 and matches_cast_Cons =
@@ -385,7 +385,7 @@ and matches_cast_Cons =
       dp1: DHPat.t,
       dp2: DHPat.t,
       d: DHExp.t,
-      elt_casts: list((HTyp.t, HTyp.t)),
+      elt_casts: list((Contexts.t, HTyp.t, HTyp.t)),
     )
     : match_result =>
   switch (d) {
@@ -395,9 +395,9 @@ and matches_cast_Cons =
     | Indet =>
       let list_casts =
         List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
+          (c: (Contexts.t, HTyp.t, HTyp.t)) => {
+            let (ctx, ty1, ty2) = c;
+            (ctx, HTyp.List(ty1), HTyp.List(ty2));
           },
           elt_casts,
         );
@@ -409,9 +409,9 @@ and matches_cast_Cons =
     | Matches(env1) =>
       let list_casts =
         List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
+          (c: (Contexts.t, HTyp.t, HTyp.t)) => {
+            let (ctx, ty1, ty2) = c;
+            (ctx, HTyp.List(ty1), HTyp.List(ty2));
           },
           elt_casts,
         );
@@ -421,11 +421,11 @@ and matches_cast_Cons =
       | Matches(env2) => Matches(Environment.union(env1, env2))
       };
     }
-  | Cast(d', List(ty1), List(ty2)) =>
-    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(ctx, d', List(ty1), List(ty2)) =>
+    matches_cast_Cons(dp1, dp2, d', [(ctx, ty1, ty2), ...elt_casts])
+  | Cast(_, d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(_, d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -449,7 +449,7 @@ and matches_cast_Cons =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   };
 
@@ -550,10 +550,10 @@ and syn_elab_line =
             FixF(
               x,
               ty1',
-              subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
+              subst_var(DHExp.cast(ctx, BoundVar(x), ty1', ty1), x, d1),
             )
           };
-        let d1 = DHExp.cast(d1, ty1', ty1);
+        let d1 = DHExp.cast(ctx, d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotExpand
         | Elaborates(dp, _, ctx, delta) =>
@@ -609,8 +609,8 @@ and syn_elab_skel =
           switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
+            let dc1 = DHExp.cast(ctx, d1, ty1', ty2_arrow_ty);
+            let dc2 = DHExp.cast(ctx, d2, ty2', ty2);
             let d = DHExp.Ap(dc1, dc2);
             Elaborates(d, ty, delta);
           }
@@ -652,7 +652,7 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let d2c = DHExp.cast(d2, ty2, ty);
+        let d2c = DHExp.cast(ctx, d2, ty2, ty);
         let d = DHExp.Cons(d1, d2c);
         Elaborates(d, ty, delta);
       };
@@ -665,8 +665,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, Int)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Int);
-        let dc2 = DHExp.cast(d2, ty2, Int);
+        let dc1 = DHExp.cast(ctx, d1, ty1, Int);
+        let dc2 = DHExp.cast(ctx, d2, ty2, Int);
         switch (DHExp.BinIntOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -683,8 +683,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, Float)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Float);
-        let dc2 = DHExp.cast(d2, ty2, Float);
+        let dc1 = DHExp.cast(ctx, d1, ty1, Float);
+        let dc2 = DHExp.cast(ctx, d2, ty2, Float);
         switch (DHExp.BinFloatOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -700,8 +700,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, Bool)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Bool);
-        let dc2 = DHExp.cast(d2, ty2, Bool);
+        let dc1 = DHExp.cast(ctx, d1, ty1, Bool);
+        let dc2 = DHExp.cast(ctx, d2, ty2, Bool);
         switch (DHExp.BinBoolOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some(op) =>
@@ -935,7 +935,7 @@ and syn_elab_rule =
     switch (syn_elab(ctx, delta, clause)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, delta) =>
-      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
+      Some((Rule(dp, DHExp.cast(ctx, d1, ty1, clause_ty)), delta))
     }
   };
 }
@@ -1093,12 +1093,12 @@ and ana_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty_elt', delta) =>
-        let d1c = DHExp.cast(d1, ty_elt', ty_elt);
+        let d1c = DHExp.cast(ctx, d1, ty_elt', ty_elt);
         let ty_list = HTyp.List(ty_elt);
         switch (ana_elab_skel(ctx, delta, skel2, seq, ty_list)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, delta) =>
-          let d2c = DHExp.cast(d2, ty2, ty_list);
+          let d2c = DHExp.cast(ctx, d2, ty2, ty_list);
           let d = DHExp.Cons(d1c, d2c);
           Elaborates(d, ty_list, delta);
         };
@@ -1298,7 +1298,7 @@ and ana_elab_rule =
     switch (ana_elab(ctx, delta, clause, clause_ty)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, delta) =>
-      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
+      Some((Rule(dp, DHExp.cast(ctx, d1, ty1, clause_ty)), delta))
     }
   };
 };
@@ -1376,12 +1376,12 @@ let rec renumber_result_only =
   | Keyword(u, _, sigma, k) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
+  | Cast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
+    (Cast(ctx, d1, ty1, ty2), hii);
+  | FailedCast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
+    (FailedCast(ctx, d1, ty1, ty2), hii);
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (InvalidOperation(d, err), hii);
@@ -1482,12 +1482,12 @@ let rec renumber_sigmas_only =
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
+  | Cast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
+    (Cast(ctx, d1, ty1, ty2), hii);
+  | FailedCast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
+    (FailedCast(ctx, d1, ty1, ty2), hii);
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (InvalidOperation(d, err), hii);

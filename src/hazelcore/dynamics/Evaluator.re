@@ -18,7 +18,7 @@ let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
 let grounded_List = NotGroundOrHole(List(Hole));
 
-let ground_cases_of = (ty: HTyp.t): ground_cases =>
+let ground_cases_of = (ctx: Contexts.t, ty: HTyp.t): ground_cases =>
   switch (ty) {
   | TyVarHole(_, _)
   | Hole => Hole
@@ -28,9 +28,10 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground
-  | TyVar(_) => failwith("TODO: Add context here so we can lookup")
+  | TyVar(_) => /* TODO: Is this Ground or do we lookup in the context? */
+    Ground
   | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
+    if (List.for_all(Construction.HTyp.equiv(ctx, HTyp.Hole), tys)) {
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;
@@ -104,14 +105,14 @@ let rec evaluate = (d: DHExp.t): result =>
           evaluate(Elaborator_Exp.subst(env, d3))
         }
       }
-    | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
-    | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
+    | BoxedValue(Cast(ctx, d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
+    | Indet(Cast(ctx, d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
-        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        evaluate(Cast(ctx, Ap(d1', Cast(ctx, d2', ty1', ty1)), ty2, ty2'))
       }
     | BoxedValue(_) => InvalidInput(2)
     | Indet(d1') =>
@@ -228,26 +229,26 @@ let rec evaluate = (d: DHExp.t): result =>
   | FreeVar(_) => Indet(d)
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
-  | Cast(d1, ty, ty') =>
+  | Cast(ctx, d1, ty, ty') =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
+      switch (ground_cases_of(ctx, ty), ground_cases_of(ctx, ty')) {
       | (Hole, Hole) => result
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
         result
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
-        BoxedValue(Cast(d1', ty, ty'))
+        BoxedValue(Cast(ctx, d1', ty, ty'))
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
-        | Cast(d1'', ty'', Hole | TyVarHole(_)) =>
-          if (HTyp.eq(ty'', ty')) {
+        | Cast(ctx, d1'', ty'', Hole | TyVarHole(_)) =>
+          if (Construction.HTyp.equiv(ctx, ty'', ty')) {
             BoxedValue(d1'');
           } else {
-            Indet(FailedCast(d1', ty, ty'));
+            Indet(FailedCast(ctx, d1', ty, ty'));
           }
         | _ =>
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
@@ -255,69 +256,69 @@ let rec evaluate = (d: DHExp.t): result =>
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
+        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty'_grounded), ty'_grounded, ty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
+        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
-        BoxedValue(Cast(d1', ty, ty'))
+        BoxedValue(Cast(ctx, d1', ty, ty'))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
-        if (HTyp.eq(ty, ty')) {
+        if (Construction.HTyp.equiv(ctx, ty, ty')) {
           result;
         } else {
-          BoxedValue(Cast(d1', ty, ty'));
+          BoxedValue(Cast(ctx, d1', ty, ty'));
         }
       }
     | Indet(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
+      switch (ground_cases_of(ctx, ty), ground_cases_of(ctx, ty')) {
       | (Hole, Hole) => result
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
         result
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
-        Indet(Cast(d1', ty, ty'))
+        Indet(Cast(ctx, d1', ty, ty'))
       | (Hole, Ground) =>
         switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
-          if (HTyp.eq(ty'', ty')) {
+        | Cast(ctx, d1'', ty'', Hole) =>
+          if (Construction.HTyp.equiv(ctx, ty'', ty')) {
             Indet(d1'');
           } else {
-            Indet(FailedCast(d1', ty, ty'));
+            Indet(FailedCast(ctx, d1', ty, ty'));
           }
-        | _ => Indet(Cast(d1', ty, ty'))
+        | _ => Indet(Cast(ctx, d1', ty, ty'))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
+        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty'_grounded), ty'_grounded, ty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
+        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
-        Indet(Cast(d1', ty, ty'))
+        Indet(Cast(ctx, d1', ty, ty'))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* it might be eq in this case, so remove cast if so */
-        if (HTyp.eq(ty, ty')) {
+        if (Construction.HTyp.equiv(ctx, ty, ty')) {
           result;
         } else {
-          Indet(Cast(d1', ty, ty'));
+          Indet(Cast(ctx, d1', ty, ty'));
         }
       }
     }
-  | FailedCast(d1, ty, ty') =>
+  | FailedCast(ctx, d1, ty, ty') =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1')
-    | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
+    | Indet(d1') => Indet(FailedCast(ctx, d1', ty, ty'))
     }
   | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
   }
