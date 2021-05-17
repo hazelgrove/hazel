@@ -305,6 +305,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("let"), indicate_words_view(" binding")],
         )
       )
+    | SAnd =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("and"), indicate_words_view(" binding")],
+        )
+      )
     | SCase =>
       Vdom.(
         Node.span(
