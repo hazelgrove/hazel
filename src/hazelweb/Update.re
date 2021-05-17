@@ -64,7 +64,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | Step(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -203,6 +204,10 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
+      | Step(index) => {
+          ...model,
+          
+      }
       };
     },
   );

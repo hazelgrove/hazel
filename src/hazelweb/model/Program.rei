@@ -11,6 +11,7 @@ type t =
     width: int,
     start_col_of_vertical_movement: option(int),
     is_focused: bool,
+    result_state: option(DHExp.t),
   };
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
@@ -49,6 +50,8 @@ exception InvalidInput;
 let get_result: t => Result.t;
 let get_result_step: (t, EvaluatorStep.evaluator_option) => Result.t;
 let get_evaluate_steps: (t, EvaluatorStep.evaluator_option) => list(DHExp.t);
+let get_result_state: t => DHExp.t;
+let evaluate_step: (t, EvaluatorStep.evaluator_option, int) => t;
 /**
  * Raised when an attempted edit action does not succeed
  */

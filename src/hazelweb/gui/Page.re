@@ -182,6 +182,19 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
               ),
+              Node.div(
+                [Attr.classes(["result-view"])],
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~selected_instance,
+                    ~settings=settings.evaluation,
+                    ~width=80,
+                    ~font_metrics=model.font_metrics,
+                    Program.get_result_state(program),
+                  ),
+                ],
+              ),
             ]
             @ (
               if (settings.evaluation.show_evaluate_steps) {

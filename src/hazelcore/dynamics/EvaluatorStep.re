@@ -888,3 +888,18 @@ let rec step_evaluate_record =
     [d', ...step_evaluate_record(d', opt)];
   };
 };
+
+let ctx_step_index = (d: DHExp.t, opt: evaluator_option, index: int): DHExp.t =>
+  if (is_final(d, opt)) {
+    d;
+  } else {
+    let ld = decompose_all(d, opt);
+    let ctx = List.nth(ld, index).ctx;
+    let d0 = List.nth(ld, index).exp;
+    switch (step(d0, opt)) {
+    | Pause(d0')
+    | BoxedValue(d0')
+    | Indet(d0')
+    | Step(d0') => compose((ctx, d0'))
+    };
+  };

@@ -11,6 +11,7 @@ type t = {
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
+  result_state: option(DHExp.t),
 };
 
 let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
@@ -18,6 +19,7 @@ let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => 
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
+  result_state: None,
 };
 
 let put_start_col = (start_col, program) => {
@@ -142,6 +144,23 @@ let get_result_step =
 let get_evaluate_steps =
     (program: t, opt: EvaluatorStep.evaluator_option): list(DHExp.t) =>
   program |> get_expansion |> EvaluatorStep.step_evaluate_record(_, opt);
+
+let get_result_state = (program: t) => {
+  switch (program.result_state) {
+  | None => program |> get_expansion
+  | Some(r) => r
+  };
+};
+
+let evaluate_step =
+    (program: t, opt: EvaluatorStep.evaluator_option, index: int): t => {
+  ...program,
+  result_state:
+    Some(
+      get_result_state(program)
+      |> EvaluatorStep.ctx_step_index(_, opt, index),
+    ),
+};
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
