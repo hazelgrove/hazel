@@ -161,8 +161,8 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
-  | FailedCast(t, HTyp.t, HTyp.t)
+  | Cast(Contexts.t, t, HTyp.t, HTyp.t)
+  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -195,8 +195,8 @@ let constructor_string = (d: t): string =>
   | Triv => "Triv"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
-  | Cast(_, _, _) => "Cast"
-  | FailedCast(_, _, _) => "FailedCast"
+  | Cast(_, _, _, _) => "Cast"
+  | FailedCast(_, _, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   };
 
@@ -206,18 +206,18 @@ let rec mk_tuple: list(t) => t =
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-  if (HTyp.eq(t1, t2)) {
+let cast = (ctx: Contexts.t, d: t, t1: HTyp.t, t2: HTyp.t): t =>
+  if (Construction.HTyp.equiv(ctx, t1, t2)) {
     d;
   } else {
-    Cast(d, t1, t2);
+    Cast(ctx, d, t1, t2);
   };
 
-let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+let apply_casts = (d: t, casts: list((Contexts.t, HTyp.t, HTyp.t))): t =>
   List.fold_left(
-    (d, c: (HTyp.t, HTyp.t)) => {
-      let (ty1, ty2) = c;
-      cast(d, ty1, ty2);
+    (d, c: (Contexts.t, HTyp.t, HTyp.t)) => {
+      let (ctx, ty1, ty2) = c;
+      cast(ctx, d, ty1, ty2);
     },
     d,
     casts,
