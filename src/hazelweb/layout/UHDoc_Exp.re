@@ -146,10 +146,10 @@ and mk_line =
         | TyAliasLine(p, ty) =>
           let p =
             UHDoc_TPat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let ty = UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
+          let ty =
+            UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
           UHDoc_common.mk_LetLine(p, ty);
         }: UHDoc.t
-
       )
     )
   )

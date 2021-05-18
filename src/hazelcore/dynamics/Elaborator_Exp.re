@@ -284,7 +284,12 @@ and matches_cast_Inj =
     | _ => DoesNotMatch
     }
   | Cast(ctx, d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(ctx, tyL1, tyR1, tyL2, tyR2), ...casts])
+    matches_cast_Inj(
+      side,
+      dp,
+      d',
+      [(ctx, tyL1, tyR1, tyL2, tyR2), ...casts],
+    )
   | Cast(_, d', Sum(_, _), Hole)
   | Cast(_, d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _, _) => DoesNotMatch
@@ -348,7 +353,8 @@ and matches_cast_Pair =
       dp2,
       d',
       [(ctx, head1, head2), ...left_casts],
-      (List.combine(tail1, tail2) |> List.map(((x, y)) => (ctx, x, y))) @ right_casts,
+      (List.combine(tail1, tail2) |> List.map(((x, y)) => (ctx, x, y)))
+      @ right_casts,
     )
   | Cast(_, d', Prod(_), Hole)
   | Cast(_, d', Hole, Prod(_)) =>

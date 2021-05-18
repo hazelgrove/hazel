@@ -141,7 +141,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -174,7 +174,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -254,7 +254,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let (ind2, err_state_b) =
         switch (join, typed) {
         | (JoinTy(ty), Synthesized(got_ty)) =>
-          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+          switch (
+            Construction.HTyp.consistent(ci.ctx, ty, got_ty),
+            Construction.HTyp.equiv(ci.ctx, ty, got_ty),
+          ) {
           | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
           | (true, false) => (got_consistent_indicator(got_ty), OK)
           | (false, _) => (
@@ -317,7 +320,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
