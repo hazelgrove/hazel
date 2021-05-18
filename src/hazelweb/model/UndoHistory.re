@@ -494,7 +494,8 @@ let get_new_action_group =
           }
         }
       | SCommentLine
-      | SParenthesized
+      | SLeftParenthesis
+      //| SParenthesized
       | SList
       | SAnn
       | SLam

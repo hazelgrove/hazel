@@ -161,7 +161,14 @@ exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-  | Failed => raise(FailedAction)
+  | Failed =>
+    switch (a) {
+    | MoveTo(_) => print_endline("did fail on moveto")
+    | MoveToNextHole => print_endline("did fail on movetonexthole")
+    | MoveToPrevHole => print_endline("did fail on movetoprevhole")
+    | _ => print_endline("other")
+    };
+    raise(FailedAction);
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;

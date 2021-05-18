@@ -783,12 +783,14 @@ and syn_perform_operand =
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
-  | (Construct(SParenthesized), CursorP(_)) =>
-    mk_syn_result(
-      ctx,
-      u_gen,
-      ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
-    )
+  /*
+   | (Construct(SParenthesized), CursorP(_)) =>
+     mk_syn_result(
+       ctx,
+       u_gen,
+       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
+     )
+   */
 
   | (Construct(SLeftParenthesis), zpat) =>
     //if after operand, tightap
@@ -1333,14 +1335,43 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
-  | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
-    let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
-    mk_ana_result(ctx, u_gen, new_zp, ty);
-  | (Construct(SParenthesized), CursorP(_)) =>
-    let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
-    mk_ana_result(ctx, u_gen, new_zp, ty);
+  /*
+   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
+       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+     let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+     mk_ana_result(ctx, u_gen, new_zp, ty);
+   | (Construct(SParenthesized), CursorP(_)) =>
+     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
+     mk_ana_result(ctx, u_gen, new_zp, ty);
+   */
+  | (Construct(SLeftParenthesis), zpat) =>
+    //if in tightap positioning
+    if (ZPat.is_after_zoperand(zpat)) {
+      //subsume
+      switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zp, ty', ctx, u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((zp, ctx, u_gen));
+        } else {
+          let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+          Succeeded((zp, ctx, u_gen));
+        }
+      };
+    } else {
+      switch (zpat) {
+      | CursorP(_, EmptyHole(_) as hole)
+          when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+        let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+        let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+        mk_ana_result(ctx, u_gen, new_zp, ty);
+      | _ =>
+        let new_zp =
+          ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
+        mk_ana_result(ctx, u_gen, new_zp, ty);
+      };
+    }
 
   | (Construct(SInj(side)), CursorP(_)) =>
     switch (HTyp.matched_sum(ty)) {
@@ -1362,18 +1393,6 @@ and ana_perform_operand =
       let zp =
         ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded((zp, ctx, u_gen));
-    }
-
-  | (Construct(SLeftParenthesis), CursorP(_)) =>
-    switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((zp, ctx, u_gen));
-      }
     }
 
   | (Construct(SOp(os)), CursorP(_)) =>

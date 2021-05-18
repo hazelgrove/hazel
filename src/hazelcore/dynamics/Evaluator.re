@@ -84,13 +84,19 @@ let rec evaluate = (d: DHExp.t): result =>
       }
     }
   | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
-  | Lam(_, _, _) => BoxedValue(d)
+  | Lam(_, _, _) =>
+    print_endline(DHExp.constructor_string(d));
+    BoxedValue(d);
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
+    | InvalidInput(msg) =>
+      print_endline("inval func");
+      InvalidInput(msg);
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
+      | InvalidInput(msg) =>
+        print_endline("box lam func, inval arg");
+        InvalidInput(msg);
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (Elaborator_Exp.matches(dp, d2)) {
@@ -104,13 +110,17 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
+      | InvalidInput(msg) =>
+        print_endline("box cast or indet cast func inval arg");
+        InvalidInput(msg);
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
-    | BoxedValue(_) => InvalidInput(2)
+    | BoxedValue(_) =>
+      print_endline("other box func invalid");
+      InvalidInput(2);
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)

@@ -789,7 +789,6 @@ and move_cursor_left_zoperand =
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
-  //MAY NEED FIXING
   | TightApZE1(err, zfunc, arg) =>
     switch (move_cursor_left_zoperand(zfunc)) {
     | Some(zfunc) => Some(TightApZE1(err, zfunc, arg))

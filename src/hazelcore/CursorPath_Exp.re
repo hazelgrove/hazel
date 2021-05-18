@@ -103,7 +103,8 @@ and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHExp.operand)
     : option(ZExp.zoperand) =>
   switch (steps) {
-  | [] => operand |> ZExp.place_cursor_operand(cursor)
+  | [] =>
+    operand |> ZExp.place_cursor_operand(cursor);
   | [x, ...xs] =>
     switch (operand) {
     | EmptyHole(_)
@@ -180,7 +181,7 @@ and follow_operand =
       | None => None
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
-      }
+      };
     }
   }
 and follow_rules =
@@ -738,7 +739,7 @@ and holes_zoperand =
       )
     | 1 =>
       CursorPath_common.mk_zholes(
-        ~holes_before=holes_arg,
+        ~holes_before=holes_func @ holes_arg,
         ~hole_selected,
         ~holes_after=[],
         (),
@@ -864,8 +865,6 @@ and holes_zoperand =
       holes_after: holes_after @ holes_suffix,
     };
   | TightApZE1(err, zfunc, arg) =>
-    //insert case here
-    //*********************************************************************************************
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
@@ -873,9 +872,9 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let holes_arg = holes(arg, [1, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_zoperand(zfunc, [0, ...rev_steps]);
+    let holes_arg = holes(arg, [1, ...rev_steps], []);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
       ~hole_selected,
@@ -883,9 +882,6 @@ and holes_zoperand =
       (),
     );
   | TightApZE2(err, func, zarg) =>
-    //insert case here
-    //*********************************************************************************************
-    //double check this
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []

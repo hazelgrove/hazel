@@ -299,8 +299,8 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
 
-  | (Construct(SParenthesized), CursorT(_)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
+  //| (Construct(SParenthesized), CursorT(_)) =>
+  //Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
 
   | (Construct(SLeftParenthesis), zpat) =>
     if (ZTyp.is_after_zoperand(zpat)) {

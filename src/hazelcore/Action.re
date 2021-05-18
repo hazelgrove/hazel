@@ -21,7 +21,7 @@ type operator_shape =
 type shape =
   | SCommentLine
   | SList
-  | SParenthesized
+  //| SParenthesized
   | SLeftParenthesis //TO DO!!!! MERGE WITH SPARENTHESIZED CASES!
   | SChar(string)
   | SAnn

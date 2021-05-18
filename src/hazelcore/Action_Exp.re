@@ -1662,12 +1662,15 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
   | (Construct(SListNil), CursorE(_)) => Failed
 
-  | (Construct(SParenthesized), CursorE(_)) =>
-    let new_ze =
-      ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
-    Succeeded(SynDone((new_ze, ty, u_gen)));
+  /*
+   | (Construct(SParenthesized), CursorE(_)) =>
+     let new_ze =
+       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
+     Succeeded(SynDone((new_ze, ty, u_gen)));
+   */
 
   | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
+    print_endline("ctr slp, operand syn");
     if (ZExp.is_after_zoperand(zoperand)) {
       //when after an operand, trigger tightapz construction
       switch (operand) {
@@ -1689,6 +1692,7 @@ and syn_perform_operand =
             ),
           );
         //return success
+        print_endline("reached pre success on empty hole construct case");
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       | _ =>
         //make a tightap with the cursor on the arg position given nonempty function operand
@@ -1709,7 +1713,7 @@ and syn_perform_operand =
       let new_ze =
         ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
       Succeeded(SynDone((new_ze, ty, u_gen)));
-    }
+    };
 
   | (Construct(SInj(side)), CursorE(_)) =>
     let new_ze =
@@ -2006,12 +2010,14 @@ and syn_perform_operand =
           //extract matched arrow type to compare with synthesized argument type
           switch (HTyp.matched_arrow(ty_func)) {
           | None => Failed //since previous scope must have been valid, the function argument must have a matched arrow type (currently unacted)?
-          | Some((ma_ty1, ma_ty2)) =>
+          | Some((ma_ty1, _ma_ty2)) =>
             //see if it is consistent with the argument type
             if (HTyp.consistent(ty_arg', ma_ty1)) {
               let new_ze =
                 ZExp.ZBlock.wrap(TightApZE2(NotInHole, func, zarg));
-              Succeeded(SynDone((new_ze, ma_ty2, u_gen)));
+              Succeeded(
+                SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+              );
             } else {
               Failed;
             }
@@ -2528,22 +2534,6 @@ and ana_perform_block =
       );
     }
   /* Zipper */
-  | (Construct(SLeftParenthesis), ZOperand(zoperand, (prefix, suffix))) =>
-    switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
-    | Succeeded(AnaDone((ze, u_gen))) =>
-      switch (ZExp.find_zoperand(ze)) {
-      | Some(zoperand') =>
-        let new_ze =
-          ZExp.ZBlock.wrap'(
-            ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
-          );
-        Succeeded(
-          AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-        );
-      | _ => Failed
-      }
-    | _ => Failed
-    }
   | _ =>
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
     | None => Failed
@@ -2867,7 +2857,22 @@ and ana_perform_opseq =
     |> wrap_in_AnaDone;
 
   /* Zipper */
-
+  | (Construct(SLeftParenthesis), ZOperand(zoperand, (prefix, suffix))) =>
+    switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
+    | Succeeded(AnaDone((ze, u_gen))) =>
+      switch (ZExp.find_zoperand(ze)) {
+      | Some(zoperand') =>
+        let new_ze =
+          ZExp.ZBlock.wrap'(
+            ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
+          );
+        Succeeded(
+          AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+        );
+      | _ => Failed
+      }
+    | _ => Failed
+    }
   | (_, ZOperand(zoperand, (E, E))) =>
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
 
@@ -3211,16 +3216,72 @@ and ana_perform_operand =
 
   | (Construct(SAnn), CursorE(_)) => Failed
 
-  | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
-    let new_ze =
-      ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
-    Succeeded(AnaDone((new_ze, u_gen)));
-  | (Construct(SParenthesized), CursorE(_)) =>
-    let new_ze =
-      ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
-    Succeeded(AnaDone((new_ze, u_gen)));
+  /*
+   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
+       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+     let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+     let new_ze =
+       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+     Succeeded(AnaDone((new_ze, u_gen)));
+   | (Construct(SParenthesized), CursorE(_)) =>
+     let new_ze =
+       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
+     Succeeded(AnaDone((new_ze, u_gen)));
+   */
+
+  | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
+    print_endline("ctr slp, operand ana");
+    if (ZExp.is_after_zoperand(zoperand)) {
+      //when cursor is after an operand, trigger tightapz construction
+      switch (operand) {
+      | EmptyHole(_) =>
+        //make a tightap with the cursor on the emptyhole's start (consuming it as a part of the tightap)
+        //Create a hole for the argument
+        let (arg_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        //create a cursor for the operand
+        let delimCursor = CursorPosition.OnDelim(0, Before);
+        //make a zoperand out of the new cursor position and the old hole
+        let zhole_operand = ZExp.CursorE(delimCursor, operand);
+        //make a tightapze1 zoperand
+        let ze =
+          ZExp.ZBlock.wrap(
+            ZExp.TightApZE1(
+              NotInHole,
+              zhole_operand,
+              UHExp.Block.wrap(arg_hole),
+            ),
+          );
+        //return success
+        Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
+      | _ =>
+        //make a tightap with the cursor on the arg position given nonempty function operand
+        //Create a hole for the argument
+        let (arg_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        //create a cursor for the operand
+        let delimCursor = CursorPosition.OnDelim(0, Before);
+        //make a zoperand out of the new cursor position and the new arg hole
+        let zhole_exp = ZExp.ZBlock.wrap(CursorE(delimCursor, arg_hole));
+        //make a tightapze2 zoperand
+        let ze =
+          ZExp.ZBlock.wrap(ZExp.TightApZE2(NotInHole, operand, zhole_exp));
+        //return success
+        Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
+      };
+    } else {
+      //otherwise, continue with parenthesizedz construction
+      switch (operand) {
+      | EmptyHole(_) as hole
+          when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+        let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+        let new_ze =
+          ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+        Succeeded(AnaDone((new_ze, u_gen)));
+      | _ =>
+        let new_ze =
+          ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
+        Succeeded(AnaDone((new_ze, u_gen)));
+      };
+    };
 
   | (Construct(SInj(side)), CursorE(_)) =>
     switch (HTyp.matched_sum(ty)) {

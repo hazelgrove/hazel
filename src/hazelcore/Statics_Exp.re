@@ -862,6 +862,7 @@ and syn_fix_holes_operand =
       )
     };
   | TightAp(_, func, arg) =>
+    print_endline("reached synfixholes tightap");
     //synthesize type of function (and fix so that it does so)
     let (func, ty_func, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, func);
@@ -876,8 +877,9 @@ and syn_fix_holes_operand =
         (func, u_gen, HTyp.Hole, HTyp.Hole);
 
       | Some((ty1, ty2)) =>
+        print_endline("had ma arrow");
         //already has ma_arrow; return type and its ma_arrow
-        (func, u_gen, ty1, ty2)
+        (func, u_gen, ty1, ty2);
       };
 
     //fix arg so that it analyzes against the required argument type
@@ -885,6 +887,7 @@ and syn_fix_holes_operand =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ma_ty1_func);
 
     //return the adjusted tightap which will synthesize the output of the arrow type
+    print_endline("reached final return");
     (TightAp(NotInHole, func, arg), ma_ty2_func, u_gen);
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1324,6 +1327,7 @@ and ana_fix_holes_operand =
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
   | TightAp(_, _, _) =>
     //go under subsumption
+    print_endline("ana fix holes");
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
@@ -1361,6 +1365,7 @@ and extend_let_body_ctx =
 let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
+  print_endline("reached in syn fix and follow");
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
   let ze =
