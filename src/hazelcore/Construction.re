@@ -15,8 +15,7 @@ and kequiv = (ctx, k1, k2) =>
   switch (k1, k2) {
   | (KHole, KHole)
   | (Type, Type) => true
-  | (Singleton(ty1), Singleton(ty2)) when kcequiv(ctx, ty1, ty2) =>
-    true
+  | (Singleton(ty1), Singleton(ty2)) when kcequiv(ctx, ty1, ty2) => true
   | (KHole | Type | Singleton(_), _) => false
   }
 // ty1 is equivalent to ty2 and its kind is k
@@ -44,11 +43,9 @@ and kcequiv = (ctx, ty1, ty2): bool => {
 
   | (Arrow(ty1, ty3), Arrow(ty2, ty4))
   | (Sum(ty1, ty3), Sum(ty2, ty4)) =>
-    kcequiv(ctx, ty1, ty3)
-    && kcequiv(ctx, ty2, ty4)
+    kcequiv(ctx, ty1, ty3) && kcequiv(ctx, ty2, ty4)
   | (Prod(ts), Prod(ts')) when List.length(ts) == List.length(ts') =>
-    List.combine(ts, ts')
-    |> List.for_all(((x, y)) => kcequiv(ctx, x, y))
+    List.combine(ts, ts') |> List.for_all(((x, y)) => kcequiv(ctx, x, y))
   | (List(ty1), List(ty2)) => kcequiv(ctx, ty1, ty2)
   | (
       Hole | Int | Bool | Float | Arrow(_, _) | Sum(_, _) | Prod(_) | List(_),
@@ -75,28 +72,22 @@ module HTyp = {
     | (_, Hole) => true
     | (TyVarHole(_), _)
     | (_, TyVarHole(_)) => true
-    | (TyVar(i, _), _) => {
-      let (_, k) = TyVarCtx.tyvar_with_idx(
-        Contexts.tyvars(ctx),
-        i
-      );
+    | (TyVar(i, _), _) =>
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
-      | Kind.Singleton(ty) => consistent(ctx, ty, y);
-      | KHole | Type => failwith("impossible for bounded type variables (currently)")
-      }
-    }
-    | (_, TyVar(i, _)) => {
-      let (_, k) = TyVarCtx.tyvar_with_idx(
-        Contexts.tyvars(ctx),
-        i
-      );
+      | Kind.Singleton(ty) => consistent(ctx, ty, y)
+      | KHole
+      | Type => failwith("impossible for bounded type variables (currently)")
+      };
+    | (_, TyVar(i, _)) =>
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
-      | Kind.Singleton(ty) => consistent(ctx, x, ty);
-      | KHole | Type => failwith("impossible for bounded type variables (currently)")
-      }
-    }
+      | Kind.Singleton(ty) => consistent(ctx, x, ty)
+      | KHole
+      | Type => failwith("impossible for bounded type variables (currently)")
+      };
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true
@@ -144,28 +135,22 @@ module HTyp = {
       | GLB => Some(Hole)
       | LUB => Some(ty2)
       }
-    | (TyVar(i, _), _) => {
-      let (_, k) = TyVarCtx.tyvar_with_idx(
-        Contexts.tyvars(ctx),
-        i
-      );
+    | (TyVar(i, _), _) =>
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
-      | Kind.Singleton(ty) => join(ctx, j, ty, ty2);
-      | KHole | Type => failwith("impossible for bounded type variables (currently)")
-      }
-    }
-    | (_, TyVar(i, _)) => {
-      let (_, k) = TyVarCtx.tyvar_with_idx(
-        Contexts.tyvars(ctx),
-        i
-      );
+      | Kind.Singleton(ty) => join(ctx, j, ty, ty2)
+      | KHole
+      | Type => failwith("impossible for bounded type variables (currently)")
+      };
+    | (_, TyVar(i, _)) =>
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
-      | Kind.Singleton(ty) => join(ctx, j, ty1, ty);
-      | KHole | Type => failwith("impossible for bounded type variables (currently)")
-      }
-    }
+      | Kind.Singleton(ty) => join(ctx, j, ty1, ty)
+      | KHole
+      | Type => failwith("impossible for bounded type variables (currently)")
+      };
     | (Int, Int) => Some(ty1)
     | (Int, _) => None
     | (Float, Float) => Some(ty1)
@@ -218,5 +203,4 @@ module HTyp = {
       }
     };
   };
-
 };

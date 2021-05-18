@@ -28,7 +28,8 @@ let ground_cases_of = (ctx: Contexts.t, ty: HTyp.t): ground_cases =>
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground
-  | TyVar(_) => /* TODO: Is this Ground or do we lookup in the context? */
+  | TyVar(_) =>
+    /* TODO: Is this Ground or do we lookup in the context? */
     Ground
   | Prod(tys) =>
     if (List.for_all(Construction.HTyp.equiv(ctx, HTyp.Hole), tys)) {
@@ -256,11 +257,18 @@ let rec evaluate = (d: DHExp.t): result =>
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty'_grounded), ty'_grounded, ty');
+        let d' =
+          DHExp.Cast(
+            ctx,
+            Cast(ctx, d1', ty, ty'_grounded),
+            ty'_grounded,
+            ty',
+          );
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
+        let d' =
+          DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
@@ -295,11 +303,18 @@ let rec evaluate = (d: DHExp.t): result =>
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty'_grounded), ty'_grounded, ty');
+        let d' =
+          DHExp.Cast(
+            ctx,
+            Cast(ctx, d1', ty, ty'_grounded),
+            ty'_grounded,
+            ty',
+          );
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let d' = DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
+        let d' =
+          DHExp.Cast(ctx, Cast(ctx, d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>

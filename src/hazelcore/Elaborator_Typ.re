@@ -285,4 +285,4 @@ let syn_fix_holes_z = (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t) => {
          )
        );
   (zty, k, u_gen);
-}
+};

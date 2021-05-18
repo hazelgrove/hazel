@@ -1,1 +1,1 @@
-let mk: (TPat.t, ~enforce_inline: bool) => DHDoc.t
+let mk: (TPat.t, ~enforce_inline: bool) => DHDoc.t;

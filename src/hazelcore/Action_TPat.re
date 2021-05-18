@@ -1,13 +1,14 @@
 module TyIdUtil = {
-  let insert = (k, s, x) => StringUtil.insert(k, s, TyId.to_string(x)) |> TyId.of_string;
-  let delete = (k, x) => StringUtil.delete(k, TyId.to_string(x)) |> TyId.of_string;
-  let backspace = (k, x) => StringUtil.backspace(k, TyId.to_string(x)) |> TyId.of_string;
+  let insert = (k, s, x) =>
+    StringUtil.insert(k, s, TyId.to_string(x)) |> TyId.of_string;
+  let delete = (k, x) =>
+    StringUtil.delete(k, TyId.to_string(x)) |> TyId.of_string;
+  let backspace = (k, x) =>
+    StringUtil.backspace(k, TyId.to_string(x)) |> TyId.of_string;
   let is_empty = x => TyId.to_string(x) |> StringUtil.is_empty;
 };
 
-let rec move =
-        (a: Action.t, zp: ZTPat.t)
-        : ActionOutcome.t(ZTPat.t) =>
+let rec move = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_TPat.follow(path, ZTPat.erase(zp))) {
@@ -62,14 +63,13 @@ let rec move =
     )
   };
 
-let rec perform =
-        (a: Action.t, zp: ZTPat.t)
-        : ActionOutcome.t(ZTPat.t) =>
+let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
   switch (a, zp) {
   | (
       UpdateApPalette(_) |
       Construct(
-        SCommentLine | SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | STyAlias |
+        SCommentLine | SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+        STyAlias |
         SApPalette(_) |
         SList |
         SParenthesized,
@@ -83,8 +83,7 @@ let rec perform =
     Failed
 
   | (_, CursorP(OnOp(_), _)) => Failed
-  | (_, CursorP(cursor, zp))
-      when !ZTPat.is_valid_cursor(cursor, zp) =>
+  | (_, CursorP(cursor, zp)) when !ZTPat.is_valid_cursor(cursor, zp) =>
     Failed
 
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -95,7 +94,7 @@ let rec perform =
   | (Delete, CursorP(OnDelim(_, After), _)) => CursorEscaped(After)
 
   | (Backspace, CursorP(OnDelim(k, After), EmptyHole)) =>
-    Succeeded((CursorP(OnDelim(k, Before), EmptyHole)))
+    Succeeded(CursorP(OnDelim(k, Before), EmptyHole))
 
   | (Backspace, CursorP(OnDelim(_, After), _)) => Failed
 
@@ -146,4 +145,3 @@ let rec perform =
   | (Construct(SChar(_)), _) => Failed
   | (Init, _) => failwith("Init action should not be performed")
   };
-

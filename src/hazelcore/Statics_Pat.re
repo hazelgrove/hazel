@@ -185,7 +185,8 @@ and ana_operand =
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
     let* (hty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
-    Construction.HTyp.consistent(ctx, ty, hty) ? ana_operand(ctx, op, hty) : None;
+    Construction.HTyp.consistent(ctx, ty, hty)
+      ? ana_operand(ctx, op, hty) : None;
   };
 
 let rec syn_nth_type_mode =

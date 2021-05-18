@@ -20,7 +20,8 @@ let is_complete =
 let tyvar_of_tyid = tyid =>
   TyVar(
     tyid
-      |> TyId.to_string
-      |> ExpandingKeyword.mk
-      |> Option.map(kw => VarPatErrStatus.Keyword(kw)),
-    tyid)
+    |> TyId.to_string
+    |> ExpandingKeyword.mk
+    |> Option.map(kw => VarPatErrStatus.Keyword(kw)),
+    tyid,
+  );

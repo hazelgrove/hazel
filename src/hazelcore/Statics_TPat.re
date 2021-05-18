@@ -19,7 +19,8 @@ let fix_holes = (ctx: Contexts.t, t: TPat.t, k: Kind.t): (Contexts.t, TPat.t) =>
   };
 };
 
-let fix_holes_z = (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t): (Contexts.t, ZTPat.t) => {
+let fix_holes_z =
+    (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t): (Contexts.t, ZTPat.t) => {
   let path = CursorPath_TPat.of_z(zp);
   let (ctx, new_p) = fix_holes(ctx, ZTPat.erase(zp), k);
   let zp =
@@ -31,5 +32,4 @@ let fix_holes_z = (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t): (Contexts.t, ZTPat.
          )
        );
   (ctx, zp);
-}
-
+};

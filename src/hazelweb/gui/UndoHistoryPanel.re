@@ -259,10 +259,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
   let tpat_view = (tp: TPat.t) => {
     switch (tp) {
-    | EmptyHole =>
-      indicate_words_view("hole")
+    | EmptyHole => indicate_words_view("hole")
     | TyVar(_, id) =>
-      Vdom.(Node.span([], [indicate_words_view("var: "), code_view(TyId.to_string(id))]))
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("var: "), code_view(TyId.to_string(id))],
+        )
+      )
     };
   };
 

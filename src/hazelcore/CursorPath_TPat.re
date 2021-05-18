@@ -1,3 +1,4 @@
+let mk_hole_sort = CursorPath.mk_hole_sort;
 let of_z =
   fun
   | ZTPat.CursorP(cursor, _) => ([], cursor);
@@ -28,7 +29,7 @@ let holes =
   switch (tp) {
   | EmptyHole
   | TyVar(Some(_), _) => [
-      {sort: TPatHole, steps: List.rev(rev_steps)},
+      mk_hole_sort(TPatHole, List.rev(rev_steps)),
       ...hs,
     ]
   | TyVar(None, _) => hs
@@ -39,7 +40,7 @@ let holes_z =
   switch (ztp) {
   | CursorP(_, EmptyHole | TyVar(Some(_), _)) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some({sort: TPatHole, steps: List.rev(rev_steps)}),
+      ~hole_selected=Some(mk_hole_sort(TPatHole, List.rev(rev_steps))),
       (),
     )
   | CursorP(_, TyVar(None, _)) => CursorPath_common.no_holes

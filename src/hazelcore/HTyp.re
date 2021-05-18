@@ -99,5 +99,3 @@ let rec complete =
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
-
-

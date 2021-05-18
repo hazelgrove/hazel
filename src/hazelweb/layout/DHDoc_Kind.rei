@@ -1,2 +1,1 @@
-
-let mk: (Kind.t, ~enforce_inline: bool) => DHDoc.t
+let mk: (Kind.t, ~enforce_inline: bool) => DHDoc.t;
