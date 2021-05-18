@@ -889,7 +889,11 @@ and syn_elab_operand =
       MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
     let d =
       switch (reason) {
-      | Free => DHExp.FreeVar(u, 0, sigma, x)
+      | Free =>
+        switch (VarMap.lookup(gamma, x)) {
+        | Some(_) => DHExp.BoundVar(x)
+        | None => DHExp.FreeVar(u, 0, sigma, x)
+        }
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
