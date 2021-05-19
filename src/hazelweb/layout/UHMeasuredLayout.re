@@ -11,20 +11,14 @@ let caret_position_of_path =
   let rec go = (steps, indent: int, start: MeasuredPosition.t, m: t) =>
     switch (m.layout) {
     | Linebreak
-    | Text(_) =>
-      Core_kernel.printf("Linebreak|Text(_)\n");
-      None;
+    | Text(_) => None
     | Align(m) => go(steps, start.col, start, m)
     | Annot(annot, m) =>
       switch (steps, annot) {
-      | ([], Step(_)) =>
-        Core_kernel.printf("[] Step\n");
-        None;
+      | ([], Step(_)) => None
       | ([step, ...steps], Step(step')) =>
-        Core_kernel.printf("step ...steps\n");
-        step == step' ? go(steps, indent, start, m) : None;
+        step == step' ? go(steps, indent, start, m) : None
       | ([], Token({shape, len, _})) =>
-        Core_kernel.printf("Token shape\n");
         switch (cursor, shape) {
         | (OnText(j), Text | Keyword) => Some({...start, col: start.col + j})
         | (OnOp(Before), Op) => Some(start)
@@ -37,7 +31,7 @@ let caret_position_of_path =
             },
           )
         | _ => None
-        };
+        }
       | _ => go(steps, indent, start, m)
       }
     | Cat(m1, m2) =>

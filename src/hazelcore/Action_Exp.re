@@ -262,7 +262,7 @@ let mk_AnaExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ()) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
   // TODO: Do subject properly
   AnaExpands({
-    kw: Let,
+    kw: TyAlias,
     u_gen,
     prefix,
     suffix,
