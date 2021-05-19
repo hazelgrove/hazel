@@ -142,13 +142,13 @@ and mk_line =
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
-          UHDoc_common.mk_LetLine(p, def);
+          UHDoc_common.mk_BindingLine(p, def, UHDoc_common.BindingForm.Let);
         | TyAliasLine(p, ty) =>
           let p =
             UHDoc_TPat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ty =
             UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
-          UHDoc_common.mk_LetLine(p, ty);
+          UHDoc_common.mk_BindingLine(p, ty, UHDoc_common.BindingForm.Type);
         }: UHDoc.t
       )
     )

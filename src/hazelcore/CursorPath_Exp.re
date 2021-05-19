@@ -12,7 +12,7 @@ and of_zline = (zline: ZExp.zline): CursorPath.t =>
   | LetLineZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LetLineZE(_, zdef) => cons'(1, of_z(zdef))
   | TyAliasLineP(zp, _) => cons'(0, CursorPath_TPat.of_z(zp))
-  | TyAliasLineT(_, zty) => cons'(0, CursorPath_Typ.of_z(zty))
+  | TyAliasLineT(_, zty) => cons'(1, CursorPath_Typ.of_z(zty))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   }
 and of_zopseq = (zopseq: ZExp.zopseq): CursorPath.t =>
