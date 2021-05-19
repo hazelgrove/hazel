@@ -13,7 +13,7 @@ type t =
   | Sum(t, t)
   | Prod(list((option(Label.t), t)))
   | List(t);
-  
+
 [@deriving sexp]
 type join =
   | GLB
@@ -33,8 +33,7 @@ let precedence = (ty: t): int =>
   | Hole
   | Prod([])
   | List(_)
-  | Label(_)
-  | Label_Elt(_, _) => precedence_const
+  | Label(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow

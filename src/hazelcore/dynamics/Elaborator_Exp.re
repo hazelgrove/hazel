@@ -202,76 +202,61 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
   | (Tuple(tuple_elts_p), Tuple(tuple_elts)) =>
-    List.fold_left2 (
-      fun (acc, (lp, dp), (l, d)) =>
-      {
-        let label_matches = 
-          switch((lp, l)) {
-            | (Some(label_p), Some(label)) => label_p == label
-            | (Some(_), None) => false
-            | (None, Some(_)) => true
-          };
-        switch(acc) {
+    List.fold_left2(
+      (acc, (lp, dp), (l, d)) => {
+        switch (acc) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet =>
+          switch (matches(dp, d)) {
           | DoesNotMatch => DoesNotMatch
-          | Indet =>
-            switch(matches(dp, d)) {
-              | DoesNotMatch => DoesNotMatch
-              | Indet
-              | Matches(_) => 
-              switch((lp, l)) {
-                // Both have matching labels
-                | (Some(label_p), Some(label))
-                  when label_p == label => Indet
-                // Pattern is not labeled, ignore expression label
-                | (None, Some(_)) => Indet
-                // Pattern has label, expression does not have
-                | (Some(_), None)
-                // Both have non matching labels
-                | (Some(_), Some(_)) => DoesNotMatch          
-              }
-          | Matches(env_old) =>
-            switch(matches(dp, d)) {
-              | DoesNotMatch => DoesNotMatch
-              | Indet => Indet
-              | Matches(env_new) =>
-                switch((lp, l)) {
-                // Both have matching labels
-                  | (Some(label_p), Some(label))
-                    when label_p == label => Matches(Enviorment.union(env_old, env_new))
-                  // Pattern is not labeled, ignore expression label
-                  | (None, Some(_)) => Matches(Enviorment.union(env_old, env_new))
-                  // Pattern has label, expression does not have
-                  | (Some(_), None)
-                  // Both have non matching labels
-                  | (Some(_), Some(_)) => DoesNotMatch
-              }
+          | Indet
+          | Matches(_) =>
+            switch (lp, l) {
+            // Both have matching labels
+            | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Pattern is not labeled, ignore expression label
+            | (None, Some(_)) => Indet
+            // Pattern has label, expression does not have
+            | (Some(_), None)
+            // Both have non matching labels
+            | (Some(_), Some(_)) => DoesNotMatch
             }
-
+          }
+        | Matches(env_old) =>
+          switch (matches(dp, d)) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet => Indet
+          | Matches(env_new) =>
+            switch (lp, l) {
+            // Both have matching labels
+            | (Some(label_p), Some(label)) when label_p == label =>
+              Matches(Enviorment.union(env_old, env_new))
+            // Pattern is not labeled, ignore expression label
+            | (None, Some(_)) => Matches(Enviorment.union(env_old, env_new))
+            // Pattern has label, expression does not have
+            | (Some(_), None)
+            // Both have non matching labels
+            | (Some(_), Some(_)) => DoesNotMatch
+            }
+          }
         }
       },
       tuple_elts_p,
       tuple_elts,
-      Matches(Enviroment.empty)
+      Matches(Enviroment.empty),
     )
   // ECD: You are here, finished base case of prod refactor, need to continue with rest of prod refactor for the matching logic
-  | (
-      Pair(dp1, dp2),
-      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
-    ) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
+  // Need to figure out how to apply casts to a list of elements
+
+  | (Tuple(tuple_elts_p), Cast(d, Prod(tys1), Prod(tys2))) =>
+    matches_cast_Tuple(
+      tuple_elts_p,
       d,
-      [(head1, head2)],
-      List.combine(tail1, tail2),
+      List.map2(((_, ty1), (_, ty2)) => {(ty1, ty2)}, tys1, tys2),
     )
-  | (Pair(_, _), Cast(d, Hole, Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
-  | (Pair(_, _), _) => DoesNotMatch
-  | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
-  | (Triv, _) => DoesNotMatch
+  | (Tuple(_), Cast(d, Hole, Prod(_)))
+  | (Tuple(_), Cast(d, Prod(_), Hole)) => matches(dp, d)
+  | (Tuple(_), _) => DoesNotMatch
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
   | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
   | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
@@ -301,19 +286,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Ap(_, _), _) => DoesNotMatch
   | (Label(_), _) => Indet
   | (_, Label(_)) => Indet
-  | (Label_Elt(lp, dp2), Label_Elt(l, d2)) =>
-    if (lp == l) {
-      matches(dp2, d2);
-    } else {
-      DoesNotMatch;
-    }
-  | (Label_Elt(lp, dp), Cast(d, ty, Label_Elt(l, ty'))) =>
-    if (lp == l && HTyp.consistent(ty, ty')) {
-      matches(dp, d);
-    } else {
-      DoesNotMatch;
-    } // ECD TOD: How do casts work?
-  | (Label_Elt(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
     (
@@ -374,45 +346,82 @@ and matches_cast_Inj =
   | Label(_) => Indet
   | Label_Elt(_, _) => DoesNotMatch
   }
-and matches_cast_Pair =
+and matches_cast_Tuple =
     (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
+      tuple_elts_p: list((option(Label.t), DHPat.t)),
       d: DHExp.t,
-      left_casts: list((HTyp.t, HTyp.t)),
-      right_casts: list((HTyp.t, HTyp.t)),
+      casts: list((HTyp.t, HTyp.t)),
     )
     : match_result =>
   switch (d) {
-  | Pair(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet =>
-      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
+  | Tuple(tuple_elts) =>
+    let tuple_elts_cast =
+      List.map2(
+        ((label, d), cast) => {(label, DHExp.apply_casts(d, cast))},
+        tuple_elts,
+        casts,
+      );
+    List.fold_left2(
+      (acc, (lp, dp), (l, d)) => {
+        switch (acc) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet =>
+          switch (matches(dp, d)) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet
+          | Matches(_) =>
+            switch (lp, l) {
+            // Both have matching labels
+            | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Pattern is not labeled, ignore expression label
+            | (None, Some(_)) => Indet
+            // Pattern has label, expression does not have
+            | (Some(_), None)
+            // Both have non matching labels
+            | (Some(_), Some(_)) => DoesNotMatch
+            }
+          }
+        | Matches(env_old) =>
+          switch (matches(dp, d)) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet =>
+            switch (lp, l) {
+            // Both have matching labels
+            | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Pattern is not labeled, ignore expression label
+            | (None, Some(_)) => Indet
+            // Pattern has label, expression does not have
+            | (Some(_), None)
+            // Both have non matching labels
+            | (Some(_), Some(_)) => DoesNotMatch
+            }
+          | Matches(env_new) =>
+            switch (lp, l) {
+            // Both have matching labels
+            | (Some(label_p), Some(label)) when label_p == label =>
+              Matches(Environment.union(env_old, env_new))
+            // Pattern is not labeled, ignore expression label
+            | (None, Some(_)) =>
+              Matches(Environment.union(env_old, env_new))
+            // Pattern has label, expression does not have
+            | (Some(_), None)
+            // Both have non matching labels
+            | (Some(_), Some(_)) => DoesNotMatch
+            }
+          }
+        }
+      },
+      Matches(Enviroment.empty),
+      tuple_elts_p,
+      tuple_elts_cast,
+    );
   | Cast(d', Prod([]), Prod([])) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
-      d',
-      [(head1, head2), ...left_casts],
-      List.combine(tail1, tail2) @ right_casts,
-    )
+    matches_cast_Tuple(tuple_elts_p, d', casts)
+  | Cast(d', Prod([tys1]), Prod([tys2])) =>
+    let new_casts = List.map2(((_, ty1), (_, ty2)) => {(ty1, ty2)});
+    matches_cast_Tuple(dp, d', new_casts @ casts);
   | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Cast(d', Hole, Prod(_)) => matches_cast_Tuple(dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -438,8 +447,7 @@ and matches_cast_Pair =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
-  | Label(_) => Indet
-  | Label_Elt(_, _) => DoesNotMatch // ECD TODO: Check this once doing label pattern matching
+  | ErrLabel(_) => Indet
   }
 and matches_cast_Cons =
     (
@@ -695,8 +703,6 @@ and syn_elab_skel =
         | ElaborationResult.DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2', delta) =>
           let d = DHExp.Tuple([(Some(l), d2)]);
-          // ECD: Bookmark
-          let d = DHExp.Label_Elt(l, d2);
           Elaborates(d, Tuple([(Some(l), ty2')]), delta);
         }
       // all other labels in a hole should be in a hole
@@ -901,7 +907,7 @@ and syn_elab_operand =
       };
     }
   | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
-    // ECD YOU ARE HERE: Figuring out what prj of a does prj hole elaborates to
+    // ECD TODO: Figuring out what prj of a does prj hole elaborates to
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty, delta) =>
@@ -1542,16 +1548,16 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
   | Tuple(tuple_elts) =>
-    let (hii, tuple_elts) = ListUtil.map_with_accumulator(
-      fun (hii, (label, dn)) => {
-        let (dn, hii) = renumber_result_only(path, hii, dn);
-        (hii, (label, dn))
-      },
-      hii,
-      tuple_elts
-    );
+    let (hii, tuple_elts) =
+      ListUtil.map_with_accumulator(
+        (hii, (label, dn)) => {
+          let (dn, hii) = renumber_result_only(path, hii, dn);
+          (hii, (label, dn));
+        },
+        hii,
+        tuple_elts,
+      );
     (Tuple(tuple_elts), hii);
-    // ECD: You are here, working through tuple refactor in elaborator exp. Finished the tuple for renumber, move onto next reference to Pair
   | Cons(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1587,9 +1593,6 @@ let rec renumber_result_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (InvalidOperation(d, err), hii);
-  | Label_Elt(l, d) =>
-    let (d, hii) = renumber_result_only(path, hii, d);
-    (Label_Elt(l, d), hii);
   }
 and renumber_result_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))

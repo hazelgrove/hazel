@@ -16,7 +16,6 @@ type t =
   | ListNil
   | Cons(t, t)
   | Tuple(list((option(Label.t), t)))
-  | Triv /* unit intro */
   | Ap(t, t)
   | ErrLabel(Label.t);
 
@@ -35,11 +34,16 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Triv
   | ListNil
   | Keyword(_, _, _)
-  | Label(_) => false
+  | ErrLabel(_) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)
-  | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
+  | Tuple(tuple_elts) =>
+    List.fold_left(
+      (acc, (label, dp)) => {acc || binds_var(x, dp)},
+      false,
+      tuple_elts,
+    )
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
-  | Label_Elt(_, dp) => binds_var(x, dp)
+
   | Ap(_, _) => false
   };

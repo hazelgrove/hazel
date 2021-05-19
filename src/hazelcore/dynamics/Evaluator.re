@@ -225,19 +225,20 @@ let rec evaluate = (d: DHExp.t): result =>
     switch (evaluate(body)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(Tuple(tuple_elts)) =>
-      switch (List.nth_opt(tupl_elts, n)) {
+      switch (List.nth_opt(tuple_elts, n)) {
       | Some((_, dn)) => evaluate(dn)
       | None => failwith("impossible")
       }
     // All product types would have the same number of elts
     // Figure out which element from the prod you want, then distribute to prod
-    // Ref: http://www.cs.uml.edu/~mcimini/gradualizerDynamicSemantics/ 
-    | BoxedValue(Cast(d', Prod(prod_elts)), Prod(prod_elts')))
-    | Indet(Cast(d', Prod(prod_elts), Prod(prod_elts'))) => 
-      switch ((List.nth_opt(prod_elts, n), List.nth_opt(prod_elts'))) {
-        | (_, None)
-        | (None, _) => failwith("impossible")
-        | (Some(ty), Some(ty')) => evaluate(Cast(Prj(body, label, n), ty, ty'))
+    // Ref: http://www.cs.uml.edu/~mcimini/gradualizerDynamicSemantics/
+    | BoxedValue(Cast(d', Prod(prod_elts), Prod(prod_elts')))
+    | Indet(Cast(d', Prod(prod_elts), Prod(prod_elts'))) =>
+      switch (List.nth_opt(prod_elts, n), List.nth_opt(prod_elts')) {
+      | (_, None)
+      | (None, _) => failwith("impossible")
+      | (Some((_, ty)), Some((_, ty'))) =>
+        evaluate(Cast(Prj(body, label, n), ty, ty'))
       }
     | BoxedValue(_) => InvalidInput(2)
     | Indet(body') => Indet(Prj(body', label, n))
