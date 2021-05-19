@@ -99,3 +99,19 @@ let rec complete =
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
+
+let rec tyvar_debruijn_increment = t =>
+  switch (t) {
+  | TyVar(idx, id) => TyVar(idx + 1, id)
+  | TyVarHole(_)
+  | Hole
+  | Int
+  | Float
+  | Bool => t
+  | Arrow(t1, t2) =>
+    Arrow(tyvar_debruijn_increment(t1), tyvar_debruijn_increment(t2))
+  | Sum(t1, t2) =>
+    Sum(tyvar_debruijn_increment(t1), tyvar_debruijn_increment(t2))
+  | List(t) => List(tyvar_debruijn_increment(t))
+  | Prod(lst) => Prod(List.map(tyvar_debruijn_increment, lst))
+  };
