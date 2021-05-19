@@ -9,9 +9,20 @@ let to_list = x => x;
 
 let empty = [];
 
-// TODO: Handle singeltons properly
 let extend = (ctx: t, binding: (TyId.t, Kind.t)): t => {
-  [binding, ...ctx];
+  let rest: list((TyId.t, Kind.t)) =
+    ctx
+    |> List.map(((id, k)) =>
+         switch (k) {
+         | Kind.Singleton(hty) => (
+             id,
+             Kind.Singleton(HTyp.tyvar_debruijn_increment(hty)),
+           )
+         | _ => (id, k)
+         }
+       );
+
+  [binding, ...rest];
 };
 
 let index_of = (ctx: t, x: TyId.t): option(HTyp.Index.t) => {
