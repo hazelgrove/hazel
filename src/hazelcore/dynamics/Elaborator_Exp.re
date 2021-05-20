@@ -256,9 +256,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Tuple(_), Cast(d, Prod(_), Hole)) => matches(dp, d)
   | (Tuple(_), _) => DoesNotMatch
   | Prj(dbody, _, idx) =>
-    switch(DHExp.get_prj(dbody, idx)) {
-      | Some(d') => matches(dp, d')
-      | None => Indet
+    switch (DHExp.get_prj(dbody, idx)) {
+    | Some(d') => matches(dp, d')
+    | None => Indet
     }
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
   | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
@@ -342,9 +342,9 @@ and matches_cast_Inj =
   | Tuple(_) => DoesNotMatch
   | ErrLabel(_) => Indet
   | Prj(dbody, _, idx) =>
-    switch(DHExp.get_prj(dbody, idx)) {
-      | None => Indet
-      | Some(d') => matches_cast_Inj(side, dp, d', casts)
+    switch (DHExp.get_prj(dbody, idx)) {
+    | None => Indet
+    | Some(d') => matches_cast_Inj(side, dp, d', casts)
     }
   | ErrPrj(_, _) => Indet
   | ConsistentCase(_)
@@ -455,9 +455,10 @@ and matches_cast_Tuple =
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
   | ErrLabel(_) => Indet
-  | Prj(dbody, _, idx) => switch(DHExp.get_prj(dbody, idx)) {
-      | None => Indet
-      | Some(d') => matches_cast_Tuple(tuple_elts_p, d', casts)
+  | Prj(dbody, _, idx) =>
+    switch (DHExp.get_prj(dbody, idx)) {
+    | None => Indet
+    | Some(d') => matches_cast_Tuple(tuple_elts_p, d', casts)
     }
   | ErrPrj(_, _) => Indet
   }
@@ -526,9 +527,9 @@ and matches_cast_Cons =
   | Tuple(_) => DoesNotMatch
   | ErrLabel(_, _) => Indet
   | Prj(dbody, _, idx) =>
-    switch(DHExp.get_prj(dbody, idx)) {
-      | None => Indet
-      | Some(d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
+    switch (DHExp.get_prj(dbody, idx)) {
+    | None => Indet
+    | Some(d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
     }
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
@@ -741,8 +742,9 @@ and syn_elab_skel =
     | _ => arrow_case()
     };
   | BinOp(NotInHole, Comma, _, _) =>
-    // ECD TODO: Check that i fixed the tuple flattening bug
+    // ECD TODO: Check that fixed the tuple flattening bug (where (1, 2, (3, 4) would buggy elaborate to (1, 2, 3, 4)))
     // Check if list of tuple is greater than 2 before flattening
+    // Good examples to test on
     // (1, 2, (3, 4)) => (1, 2, (3, 4))
     // (1, 2, .a 2) => (1, 2, .a 2)
     // (1, 2, (.a 2, .b 3)) => (1, 2, (.a 2, .b 3))
@@ -922,13 +924,12 @@ and syn_elab_operand =
       };
     }
   | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
-    // ECD TODO: Figuring out what prj of a does prj hole elaborates to
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty, delta) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
-      let d = DHExp.Prj(d, label);
+      let d = DHExp.ErrPrj(d, label);
       let ty = HTyp.Hole;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
@@ -951,24 +952,20 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Label(err, l) =>
-    if (Label.is_valid(l)) {
       switch (err) {
       | NotInLabelHole =>
-        let d = DHExp.Label(l);
+        let d = DHExp.ErrLabel(l);
         let ty = HTyp.Hole;
         Elaborates(d, ty, delta);
       | InLabelHole(_, u) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
-        // ECD: Changed label code here, change back if failing later
-        let d = DHExp.Label(l);
+        let d = DHExp.ErrLabel(l);
         let ty = HTyp.Hole;
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
         Elaborates(d, ty, delta);
       };
-    } else {
-      DoesNotElaborate;
     }
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
@@ -1072,10 +1069,10 @@ and syn_elab_operand =
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
-      switch (DHExp.get_projected(d, l), HTyp.get_projected_type(e_ty, l)) {
+      switch (DHExp.get_prj(d, l), HTyp.get_projected_type(e_ty, l)) {
       | (None, _)
       | (_, None) => DoesNotElaborate
-      // ECD: You are here, Need to figure out how prj not in hole elaborates to a dexpression of prj
+      // ECD: You are here, need to figure out how to find index of a projection
       | (Some(d'), Some(ty')) => Elaborates(d', ty', delta)
       }
     }
@@ -1469,12 +1466,8 @@ and ana_elab_operand =
     syn_elab_operand(ctx, delta, operand)
 
   | Label(_, l) =>
-    if (Label.is_valid(l)) {
-      let d = DHExp.Label(l);
-      Elaborates(d, ty, delta);
-    } else {
-      DoesNotElaborate;
-    }
+    let d = DHExp.ErrLabel(l);
+    Elaborates(d, Hole, delta);
   }
 and ana_elab_rules =
     (
@@ -1673,14 +1666,14 @@ let rec renumber_sigmas_only =
     (Inj(ty, side, d1), hii);
   | Tuple(tuple_elts) =>
     let (hii, tuple_elts) =
-        ListUtil.map_with_accumulator(
-          (hii, (label, dn)) => {
-            let (dn, hii) = renumber_sigmas_only(path, hii, dn);
-            (hii, (label, dn));
-          },
-          hii,
-          tuple_elts,
-        );
+      ListUtil.map_with_accumulator(
+        (hii, (label, dn)) => {
+          let (dn, hii) = renumber_sigmas_only(path, hii, dn);
+          (hii, (label, dn));
+        },
+        hii,
+        tuple_elts,
+      );
     (Tuple(tuple_elts), hii);
   | Prj(dbody, label, idx) =>
     let (dbody, hii) = renumber_sigmas_only(path, hii, dbody);
