@@ -10,19 +10,17 @@ let to_list = x => x;
 let empty = [];
 
 let extend = (ctx: t, binding: (TyId.t, Kind.t)): t => {
-  let rest: list((TyId.t, Kind.t)) =
-    ctx
-    |> List.map(((id, k)) =>
-         switch (k) {
-         | Kind.Singleton(hty) => (
-             id,
-             Kind.Singleton(HTyp.tyvar_debruijn_increment(hty)),
-           )
-         | _ => (id, k)
-         }
-       );
+  let incr_if_singleton = ((id, k)) =>
+    switch (k) {
+    | Kind.Singleton(hty) => (
+        id,
+        Kind.Singleton(HTyp.tyvar_debruijn_increment(hty)),
+      )
+    | _ => (id, k)
+    };
+  let rest: list((TyId.t, Kind.t)) = ctx |> List.map(incr_if_singleton);
 
-  [binding, ...rest];
+  [incr_if_singleton(binding), ...rest];
 };
 
 let index_of = (ctx: t, x: TyId.t): option(HTyp.Index.t) => {
