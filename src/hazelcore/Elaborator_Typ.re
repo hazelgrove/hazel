@@ -71,8 +71,8 @@ and syn_operand = (ctx, delta, operand) => {
   | TyVar(NotInVarHole, t) =>
     /* TElabSVar */
     let+ idx = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
-    let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-    (HTyp.TyVar(idx, t), k, delta);
+    let tau = HTyp.TyVar(idx, t);
+    (tau, Kind.Singleton(tau), delta);
   | TyVar(InVarHole(_, u), t) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
