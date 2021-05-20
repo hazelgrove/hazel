@@ -65,6 +65,7 @@ rule read =
   | "|" { BAR }
   | "=>" { ARROW }
   | "->" { TARROW }
+  | "→" { TARROW }
   | "inj[L]" { INJL }
   | "inj[R]" { INJR }
   | "#" white* ( [^'\n']* as t) { COMMENT t }

@@ -3,6 +3,9 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
+module Parse = Parser.Parse;
+module Hazel_parser = Parser.Hazel_parser;
+module Print = Parser.Print;
 
 [@deriving sexp]
 type timestamp = {
@@ -34,6 +37,24 @@ let get_current_timestamp = (): timestamp => {
   };
 };
 
+let get_ast = l =>
+  try(Some(Parse.parse(l, Hazel_parser.Incremental.main(l.lex_curr_p)))) {
+  | Parse.SyntaxError((pos, tok)) =>
+    switch (pos) {
+    | Some((line, col)) =>
+      JSUtil.log(
+        Printf.sprintf(
+          "ERROR on line %d, column %d. Token: %s",
+          line,
+          col,
+          tok,
+        ),
+      );
+      None;
+    | None => None
+    }
+  };
+
 let mk_timestamped_action = (a: ModelAction.t) => (
   get_current_timestamp(),
   a,
@@ -54,6 +75,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
+  | Import(_)
   | FocusCell
   | BlurCell
   | Undo
@@ -126,6 +148,15 @@ let apply_action =
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
+      | Import(program_string) =>
+        let l = Lexing.from_string(program_string);
+        switch (get_ast(l)) {
+        | Some(ast) =>
+          let (ast, _, _) =
+            Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
+          Model.load_example(model, ast);
+        | None => model
+        };
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>

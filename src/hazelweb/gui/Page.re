@@ -1,5 +1,10 @@
 open Virtual_dom.Vdom;
 open Node;
+module Js = Js_of_ocaml.Js;
+module Vdom = Virtual_dom.Vdom;
+module Parse = Parser.Parse;
+module Hazel_parser = Parser.Hazel_parser;
+module Print = Parser.Print;
 let logo_panel =
   a(
     [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
@@ -100,16 +105,23 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
 
 let get_ast = l =>
   try(Some(Parse.parse(l, Hazel_parser.Incremental.main(l.lex_curr_p)))) {
-  | Parse.SyntaxError((pos, _)) =>
+  | Parse.SyntaxError((pos, tok)) =>
     switch (pos) {
     | Some((line, col)) =>
-      JSUtil.log(Printf.sprintf("ERROR on line %d, column %d.", line, col));
+      JSUtil.log(
+        Printf.sprintf(
+          "ERROR on line %d, column %d. Token: %s",
+          line,
+          col,
+          tok,
+        ),
+      );
       None;
     | None => None
     }
   };
 
-let parse_test =
+let parse_test = (~inject: ModelAction.t => Vdom.Event.t) =>
   Vdom.(
     Node.div(
       [],
@@ -139,13 +151,30 @@ let parse_test =
               let l = Lexing.from_string(s);
               switch (get_ast(l)) {
               | Some(ast) =>
+                let (ast, _, _) =
+                  Statics_Exp.syn_fix_holes(
+                    Contexts.empty,
+                    MetaVarGen.init,
+                    ast,
+                  );
                 JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
                 Event.Ignore;
               | None => Event.Ignore
               };
             }),
           ],
-          [Node.text("Parse")],
+          [Node.text("Parse to Console")],
+        ),
+        Node.button(
+          [
+            Attr.on_click(_ => {
+              let e = JSUtil.force_get_elem_by_id("parse_test");
+              let s = JSUtil.force_get_attr("value", e);
+
+              inject(ModelAction.Import(s));
+            }),
+          ],
+          [Node.text("Import")],
         ),
       ],
     )
@@ -187,6 +216,38 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                         ],
                       ),
                       parse_test,
+                      Node.button(
+                        [
+                          Attr.on_click(_ => {
+                            let e = program |> Program.get_uhexp;
+                            JSUtil.log(
+                              Js.string(Serialization.string_of_exp(e)),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [Node.text("Serialize to console")],
+                      ),
+                      Node.button(
+                        [
+                          Attr.on_click(_ => {
+                            let p = program;
+                            let l =
+                              Program.get_layout(~settings=Settings.init, p);
+                            // Place the text into the text area
+                            let s = Print.string_of_layout(l);
+                            let e = JSUtil.force_get_elem_by_id("parse_test");
+                            e##.innerHTML := JSUtil.Js.string(s);
+                            e##setAttribute(
+                              Js_of_ocaml.Js.string("value"),
+                              JSUtil.Js.string(s),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [Node.text("Print")],
+                      ),
+                      parse_test(~inject),
                       div(
                         [
                           Attr.style(
