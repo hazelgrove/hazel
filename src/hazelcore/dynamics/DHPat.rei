@@ -13,13 +13,9 @@ type t =
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)
-  | Pair(t, t)
-  | Triv
+  | Tuple(list((option(Label.t), t)))
   | Ap(t, t)
-  | Label(Label.t)
-  | Label_Elt(Label.t, t);
-
-let mk_tuple: list(t) => t;
+  | ErrLabel(Label.t);
 
 /**
  * Whether dp contains the variable x outside of a hole.

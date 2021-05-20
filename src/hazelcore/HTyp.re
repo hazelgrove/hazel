@@ -48,7 +48,9 @@ let eq = (==);
 let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
-  | (_, Hole) => true
+  | (_, Hole)
+  | (Label(_), _)
+  | (_, Label(_)) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -61,16 +63,22 @@ let rec consistent = (x, y) =>
   | (Arrow(_, _), _) => false
   | (Sum(_, _), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.for_all2_opt(consistent, tys1, tys2)
+    ListUtil.for_all2_opt(
+      ((label1, ty1), (label2, ty2)) => {
+        switch (label1, label2) {
+        | (Some(l1), Some(l2)) => l1 == l2 && consistent(ty1, ty2)
+        | (None, None) => consistent(ty1, ty2)
+        | (Some(_), None)
+        | (None, Some(_)) => false
+        }
+      },
+      tys1,
+      tys2,
+    )
     |> Option.value(~default=false)
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
-    label == label' && consistent(ty, ty')
-  | (Label_Elt(_), _) => false
-  | (Label(id), Label(id')) => id == id'
-  | (Label(_), _) => true // Labels are holes
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -93,9 +101,11 @@ let matched_arrow =
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
+// ECD TODO: Figure out if the label needs to be sent along in the get prod elements
+// or if it can be ignored
 let get_prod_elements: t => list(t) =
   fun
-  | Prod(tys) => tys
+  | Prod(tys) => List.map(((label, ty)) => {ty}, tys)
   | _ as ty => [ty];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
@@ -103,22 +113,17 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 let rec get_projected_type = (ty: t, l: Label.t): option(t) => {
   switch (ty) {
   | Prod([]) => None
-  | Prod([ty, ...tys]) =>
-    switch (ty) {
-    | Label_Elt(l', ty') =>
-      if (l == l') {
-        Some(ty');
-      } else {
-        get_projected_type(Prod(tys), l);
-      }
-    | _ => get_projected_type(Prod(tys), l)
-    }
-  | Label_Elt(l', ty') =>
-    if (l == l') {
-      Some(ty');
-    } else {
-      None;
-    }
+  | Prod(tys) =>
+    List.find_opt(
+      ((label, ty)) => {
+        switch (label) {
+        | Some(l') => l' == l
+        | None => false
+        }
+      },
+      tys,
+    )
+    |> Option.map(((label, ty)) => ty)
   | Hole => Some(Hole)
   | _ => None
   };
@@ -145,12 +150,11 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
-  | Label(_) => false // ECD TODO: Unsure of if this should be true or false, as labels act as holes now
+  | Label(_) => false
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty)
-  | Label_Elt(_, ty) => complete(ty);
+  | Prod(tys) => tys |> List.for_all(((label, ty)) => complete(ty))
+  | List(ty) => complete(ty);
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
@@ -183,7 +187,19 @@ let rec join = (j, ty1, ty2) =>
     }
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.map2_opt(join(j), tys1, tys2)
+    ListUtil.map2_opt(
+      ((label1, ty1), (label2, ty2)) => {
+        switch (label1, label2) {
+        | (Some(l1), Some(l2)) when l1 == l2 =>
+          Some((label1, Option.get(join(j, ty1, ty2))))
+        | (None, None) => Some((None, Option.get(join(j, ty1, ty2))))
+        | (Some(_), None)
+        | (None, Some(_)) => None
+        }
+      },
+      tys1,
+      tys2,
+    )
     |> Option.map(OptUtil.sequence)
     |> Option.join
     |> Option.map(joined_types => Prod(joined_types))
@@ -194,23 +210,6 @@ let rec join = (j, ty1, ty2) =>
     | None => None
     }
   | (List(_), _) => None
-  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
-    if (label == label') {
-      switch (join(j, ty, ty')) {
-      | Some(ty) => Some(Label_Elt(label, ty))
-      | None => None
-      };
-    } else {
-      None;
-    }
-  | (Label_Elt(_, _), _) => None
-  // | (Label(id), Label(id')) =>
-  //   if (id == id') {
-  //     Some(Label(id));
-  //   } else {
-  //     None;
-  //   }
-  // | (Label(_), _) => None ECD TODO: May not need b/c labels by themselves are treated as holes
   };
 
 let join_all = (j: join, types: list(t)): option(t) => {

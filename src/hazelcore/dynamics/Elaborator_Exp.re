@@ -245,8 +245,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       tuple_elts,
       Matches(Enviroment.empty),
     )
-  // ECD: You are here, finished base case of prod refactor, need to continue with rest of prod refactor for the matching logic
-  // Need to figure out how to apply casts to a list of elements
 
   | (Tuple(tuple_elts_p), Cast(d, Prod(tys1), Prod(tys2))) =>
     matches_cast_Tuple(
@@ -284,8 +282,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
-  | (Label(_), _) => Indet
-  | (_, Label(_)) => Indet
+  | (ErrLabel(_), _) => Indet
+  | (_, ErrLabel(_)) => Indet
   }
 and matches_cast_Inj =
     (
