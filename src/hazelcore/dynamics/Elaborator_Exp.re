@@ -216,7 +216,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
             | (Some(label_p), Some(label)) when label_p == label => Indet
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) => Indet
-            // Pattern has label, expression does not have
+            // Pattern has label, expression does not have label
             | (Some(_), None)
             // Both have non matching labels
             | (Some(_), Some(_)) => DoesNotMatch
@@ -233,7 +233,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
               Matches(Enviorment.union(env_old, env_new))
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) => Matches(Enviorment.union(env_old, env_new))
-            // Pattern has label, expression does not have
+            // Pattern has label, expression does not have label
             | (Some(_), None)
             // Both have non matching labels
             | (Some(_), Some(_)) => DoesNotMatch
@@ -255,6 +255,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Tuple(_), Cast(d, Hole, Prod(_)))
   | (Tuple(_), Cast(d, Prod(_), Hole)) => matches(dp, d)
   | (Tuple(_), _) => DoesNotMatch
+  | Prj(dbody, _, idx) =>
+    switch(DHExp.get_prj(dbody, idx)) {
+      | Some(d') => matches(dp, d')
+      | None => Indet
+    }
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
   | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
   | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
@@ -284,6 +289,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Ap(_, _), _) => DoesNotMatch
   | (ErrLabel(_), _) => Indet
   | (_, ErrLabel(_)) => Indet
+  | (_, ErrPrj(_)) => Indet
   }
 and matches_cast_Inj =
     (
@@ -333,16 +339,20 @@ and matches_cast_Inj =
   | FloatLit(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
+  | Tuple(_) => DoesNotMatch
+  | ErrLabel(_) => Indet
+  | Prj(dbody, _, idx) =>
+    switch(DHExp.get_prj(dbody, idx)) {
+      | None => Indet
+      | Some(d') => matches_cast_Inj(side, dp, d', casts)
+    }
+  | ErrPrj(_, _) => Indet
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
-  | Label(_) => Indet
-  | Label_Elt(_, _) => DoesNotMatch
   }
 and matches_cast_Tuple =
     (
@@ -438,7 +448,6 @@ and matches_cast_Tuple =
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
@@ -446,6 +455,11 @@ and matches_cast_Tuple =
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
   | ErrLabel(_) => Indet
+  | Prj(dbody, _, idx) => switch(DHExp.get_prj(dbody, idx)) {
+      | None => Indet
+      | Some(d') => matches_cast_Tuple(tuple_elts_p, d', casts)
+    }
+  | ErrPrj(_, _) => Indet
   }
 and matches_cast_Cons =
     (
@@ -509,16 +523,19 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
+  | Tuple(_) => DoesNotMatch
+  | ErrLabel(_, _) => Indet
+  | Prj(dbody, _, idx) =>
+    switch(DHExp.get_prj(dbody, idx)) {
+      | None => Indet
+      | Some(d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
+    }
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
-  | Label(_) => Indet
-  | Label_Elt(_, _) => DoesNotMatch
   };
 
 type elab_result_lines =
@@ -1514,8 +1531,8 @@ let rec renumber_result_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv
-  | Label(_) => (d, hii)
+  | ErrLabel(_)
+  | ErrPrj(_, _) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1556,6 +1573,9 @@ let rec renumber_result_only =
         tuple_elts,
       );
     (Tuple(tuple_elts), hii);
+  | Prj(dbody, label, idx) =>
+    let (dbody, hii) = renumber_result_only(path, hii, dbody);
+    (Prj(dbody, label, idx), hii);
   | Cons(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1620,8 +1640,8 @@ let rec renumber_sigmas_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv
-  | Label(_) => (d, hii)
+  | ErrLabel(_)
+  | ErrPrj(_, _) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1651,10 +1671,20 @@ let rec renumber_sigmas_only =
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
-  | Pair(d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (Pair(d1, d2), hii);
+  | Tuple(tuple_elts) =>
+    let (hii, tuple_elts) =
+        ListUtil.map_with_accumulator(
+          (hii, (label, dn)) => {
+            let (dn, hii) = renumber_sigmas_only(path, hii, dn);
+            (hii, (label, dn));
+          },
+          hii,
+          tuple_elts,
+        );
+    (Tuple(tuple_elts), hii);
+  | Prj(dbody, label, idx) =>
+    let (dbody, hii) = renumber_sigmas_only(path, hii, dbody);
+    (Prj(dbody, label, idx), hii);
   | Cons(d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1695,9 +1725,6 @@ let rec renumber_sigmas_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (InvalidOperation(d, err), hii);
-  | Label_Elt(l, d) =>
-    let (d, hii) = renumber_sigmas_only(path, hii, d);
-    (Label_Elt(l, d), hii);
   }
 and renumber_sigmas_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))

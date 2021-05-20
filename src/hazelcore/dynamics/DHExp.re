@@ -220,3 +220,15 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
     d,
     casts,
   );
+
+let rec get_prj = (dbody:t, idx:int) : option(t) {
+  switch(dbody) {
+    | Tuple(tuple_elts) => 
+      switch(List.nth_opt(tuple_elts, idx)) {
+        | Some((_, d)) => Some(d)
+        | None => None
+      }
+    | Cast(d, Prod(_), Prod(_)) => get_prj(d, idx)
+    | _ => None
+  }
+};

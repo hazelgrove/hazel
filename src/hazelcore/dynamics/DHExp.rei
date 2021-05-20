@@ -88,3 +88,5 @@ let constructor_string: t => string;
 let cast: (t, HTyp.t, HTyp.t) => t;
 
 let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+
+let get_prj: (dbody:t, idx:int) => option(t);

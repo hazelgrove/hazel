@@ -194,7 +194,8 @@ let rec join = (j, ty1, ty2) =>
           Some((label1, Option.get(join(j, ty1, ty2))))
         | (None, None) => Some((None, Option.get(join(j, ty1, ty2))))
         | (Some(_), None)
-        | (None, Some(_)) => None
+        | (None, Some(_))
+        | (Some(_), Some(_)) => None
         }
       },
       tys1,
