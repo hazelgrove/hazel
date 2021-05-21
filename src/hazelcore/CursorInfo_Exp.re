@@ -595,8 +595,11 @@ and syn_cursor_info_zoperand =
       };
     }
   | TightApZE1(_, zfunc, _) =>
-    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc)
-  | TightApZE2(_, _, zarg) => syn_cursor_info(~steps=steps @ [1], ctx, zarg)
+    print_endline("syn cursor info ze1");
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc);
+  | TightApZE2(_, _, zarg) =>
+    print_endline("syn cursor info ze2");
+    syn_cursor_info(~steps=steps @ [1], ctx, zarg);
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
@@ -963,9 +966,11 @@ and ana_cursor_info_zoperand =
       )
     }
   | TightApZE1(NotInHole, zfunc, _) =>
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty)
+    print_endline("ana cursor info ze1");
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty);
   | TightApZE2(NotInHole, _, zarg) =>
-    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty)
+    print_endline("ana cursor info ze2");
+    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty);
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

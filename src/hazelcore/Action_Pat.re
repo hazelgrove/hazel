@@ -793,6 +793,7 @@ and syn_perform_operand =
    */
 
   | (Construct(SLeftParenthesis), zpat) =>
+    print_endline("ctr zpat slp");
     //if after operand, tightap
     //else, parenthesis
     //if ever a tightap case, fail
@@ -804,7 +805,7 @@ and syn_perform_operand =
         u_gen,
         ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
       );
-    }
+    };
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));

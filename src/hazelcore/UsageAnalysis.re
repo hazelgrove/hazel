@@ -95,6 +95,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | TightAp(NotInHole, func, arg) =>
+    print_endline("find uses");
     let func_uses = find_uses_operand(~steps=steps @ [0], x, func);
     let arg_uses = find_uses(~steps=steps @ [1], x, arg);
     func_uses @ arg_uses;

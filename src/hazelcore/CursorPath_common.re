@@ -31,6 +31,45 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
+let rec print_steps = (steps: CursorPath.steps) => {
+  switch (steps) {
+  | [] => print_endline("end path print------")
+  | [hd, ...tl] =>
+    print_endline(string_of_int(hd));
+    print_steps(tl);
+  };
+};
+
+let print_path = (path: CursorPath.t) => {
+  print_endline("Begin cursor info print:------");
+  let (steps, cursor) = path;
+  let output =
+    switch (cursor) {
+    | OnText(ind) => String.concat(" ", ["On text", string_of_int(ind)])
+    | OnDelim(ind, side) =>
+      let side_str =
+        switch (side) {
+        | Before => "before"
+        | After => "after"
+        };
+      String.concat(
+        " ",
+        ["On delim index", string_of_int(ind), "on side", side_str],
+      );
+    | OnOp(side) =>
+      let side_str =
+        switch (side) {
+        | Before => "before"
+        | After => "after"
+        };
+      String.concat(" ", ["On op", side_str]);
+    };
+
+  print_endline(output);
+  print_endline("Begin path print");
+  print_steps(steps);
+};
+
 let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (
     List.rev(zhole_list.holes_before),
@@ -59,25 +98,41 @@ let follow_opseq_ =
     )
     : option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
   switch (steps) {
-  | [] => None
+  | [] =>
+    print_endline("no steps in cp common steps");
+    None;
   | [x, ...xs] =>
     switch (
       Seq.opt_split_nth_operand(x, seq),
       Seq.opt_split_nth_operator(x - Seq.length(seq), seq),
     ) {
-    | (None, None) => None
+    | (None, None) =>
+      print_endline("split led to double non in cp common steps");
+      None;
     | (Some((operand, surround)), _) =>
-      operand
-      |> follow_operand((xs, cursor))
-      |> Option.map(zoperand =>
-           ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
-         )
+      let res =
+        operand
+        |> follow_operand((xs, cursor))
+        |> Option.map(zoperand =>
+             ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
+           );
+      switch (res) {
+      | Some(_) => print_endline("follow operand some")
+      | None => print_endline("follow operand none")
+      };
+      res;
     | (_, Some((operator, surround))) =>
-      operator
-      |> follow_operator((xs, cursor))
-      |> Option.map(zoperator =>
-           ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
-         )
+      let res =
+        operator
+        |> follow_operator((xs, cursor))
+        |> Option.map(zoperator =>
+             ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
+           );
+      switch (res) {
+      | Some(_) => print_endline("follow operator none")
+      | None => print_endline("follow operator none")
+      };
+      res;
     }
   };
 

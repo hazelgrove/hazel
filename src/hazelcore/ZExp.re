@@ -201,16 +201,16 @@ and is_before_zoperand =
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
-  | CursorE(cursor, TightAp(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, ApPalette(_)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
+  | CursorE(_, TightAp(_)) => false
+  | TightApZE1(_, e, _) => is_before_zoperand(e)
   | ParenthesizedZ(_)
   | LamZP(_)
   | LamZE(_)
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | TightApZE1(_)
   | TightApZE2(_)
   | ApPaletteZ(_) => false;
 
@@ -434,8 +434,15 @@ let place_after_operator = (op: UHExp.operator): option(zoperator) =>
 
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHExp.operator): option(zoperator) =>
-  is_valid_cursor_operator(cursor, operator)
-    ? Some((cursor, operator)) : None;
+  //let res = is_valid_cursor_operator(cursor, operator)
+  //? Some((cursor, operator)) : None;
+  if (is_valid_cursor_operator(cursor, operator)) {
+    Some((cursor, operator));
+  } else {
+    print_endline("place_cursor_none");
+    None;
+  };
+
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)
@@ -796,9 +803,12 @@ and move_cursor_left_zoperand =
     }
   | TightApZE2(err, func, zarg) =>
     switch (move_cursor_left(zarg)) {
-    | Some(zarg) => Some(TightApZE2(err, func, zarg))
+    | Some(zarg) =>
+      print_endline("ze2 move left");
+      Some(TightApZE2(err, func, zarg));
     | None =>
-      Some(CursorE(OnDelim(0, After), TightAp(err, func, erase(zarg))))
+      print_endline("ze2 move left");
+      Some(CursorE(OnDelim(0, After), TightAp(err, func, erase(zarg))));
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_left_zrules =

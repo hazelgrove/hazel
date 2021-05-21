@@ -849,6 +849,7 @@ and syn_elab_operand =
       }
     }
   | TightAp(NotInHole, func, arg) =>
+    print_endline("ta elab syn");
     //attempt to synthesize a type for the func operand
     switch (Statics_Exp.syn_operand(ctx, func)) {
     | None => DoesNotElaborate
@@ -876,7 +877,7 @@ and syn_elab_operand =
           }
         };
       }
-    }
+    };
 
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
     DoesNotElaborate /* let (_, palette_ctx) = ctx in

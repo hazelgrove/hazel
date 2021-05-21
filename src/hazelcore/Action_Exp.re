@@ -481,7 +481,9 @@ let rec syn_move =
   /* Movement */
   | MoveTo(path) =>
     switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
-    | None => Failed
+    | None =>
+      print_endline("syn move fail");
+      Failed;
     | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
     }
   | MoveToPrevHole =>
@@ -540,7 +542,9 @@ let rec ana_move =
   /* Movement */
   | MoveTo(path) =>
     switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
-    | None => Failed
+    | None =>
+      print_endline("ana move fail");
+      Failed;
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
     }
   | MoveToPrevHole =>
@@ -842,12 +846,13 @@ and syn_perform_line =
 
   /* Movement */
   | (MoveTo(path), _) =>
+    print_endline("syn line move fail");
     zline
     |> ZExp.erase_zline
     |> CursorPath_Exp.follow_line(path)
     |> Option.fold(~none=ActionOutcome.Failed, ~some=zline =>
          mk_result(u_gen, ([], zline, []))
-       )
+       );
   | (MoveToPrevHole, _) =>
     switch (CursorPath_Exp.prev_hole_steps_zline(zline)) {
     | None => Failed
@@ -1670,7 +1675,6 @@ and syn_perform_operand =
    */
 
   | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
-    print_endline("ctr slp, operand syn");
     if (ZExp.is_after_zoperand(zoperand)) {
       //when after an operand, trigger tightapz construction
       switch (operand) {
@@ -1692,7 +1696,6 @@ and syn_perform_operand =
             ),
           );
         //return success
-        print_endline("reached pre success on empty hole construct case");
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       | _ =>
         //make a tightap with the cursor on the arg position given nonempty function operand
@@ -1713,7 +1716,7 @@ and syn_perform_operand =
       let new_ze =
         ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
       Succeeded(SynDone((new_ze, ty, u_gen)));
-    };
+    }
 
   | (Construct(SInj(side)), CursorE(_)) =>
     let new_ze =
@@ -3230,7 +3233,6 @@ and ana_perform_operand =
    */
 
   | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
-    print_endline("ctr slp, operand ana");
     if (ZExp.is_after_zoperand(zoperand)) {
       //when cursor is after an operand, trigger tightapz construction
       switch (operand) {
@@ -3281,7 +3283,7 @@ and ana_perform_operand =
           ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
         Succeeded(AnaDone((new_ze, u_gen)));
       };
-    };
+    }
 
   | (Construct(SInj(side)), CursorE(_)) =>
     switch (HTyp.matched_sum(ty)) {

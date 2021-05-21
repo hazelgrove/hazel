@@ -51,6 +51,7 @@ let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
+  //error further stems here; that means that the cursor is not on a valid position????
   valid_cursors_operand(operand) |> List.mem(cursor);
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
@@ -219,12 +220,27 @@ let place_after_operator = (op: UHPat.operator): option(zoperator) =>
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
-  is_valid_cursor_operand(cursor, operand)
-    ? Some(CursorP(cursor, operand)) : None;
+  if (is_valid_cursor_operand(cursor, operand)) {
+    print_endline("some in place cursor operand pat");
+    Some(CursorP(cursor, operand));
+  } else {
+    //<------------------------------------------------------------------------------\x.x() error stems here
+    print_endline("none in place sursor operand pat");
+    None;
+  };
+//is_valid_cursor_operand(cursor, operand)
+//? Some(CursorP(cursor, operand)) : None;
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
-  is_valid_cursor_operator(cursor, operator)
-    ? Some((cursor, operator)) : None;
+  if (is_valid_cursor_operator(cursor, operator)) {
+    print_endline("some in place cursor operator pat");
+    Some((cursor, operator));
+  } else {
+    print_endline("none in place sursor operator pat");
+    None;
+  };
+//is_valid_cursor_operator(cursor, operator)
+//? Some((cursor, operator)) : None;
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
