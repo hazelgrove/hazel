@@ -1348,6 +1348,37 @@ and syn_perform_opseq =
         };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
+  // synthesize operator's type from opposing zoperand when cursor on hole
+  | (
+      Construct(SOp(os)),
+      ZOperand(
+        CursorE(_, EmptyHole(_)) as zoperand,
+        (prefix, suffix) as surround,
+      ),
+    )
+      when
+        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let opp_operand = ZExp.is_before_zoperand(zoperand) ? prefix : suffix;
+      let (zseq, u_gen) =
+        switch (opp_operand) {
+        | Seq.A(_, Seq.S(FloatLit(_), _)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    }
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
@@ -2752,6 +2783,7 @@ and ana_perform_opseq =
         };
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
