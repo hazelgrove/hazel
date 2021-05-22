@@ -6,6 +6,11 @@
     let seq = Seq.seq_op_seq l op r in
     seq
 
+  let mk_typ_ann pat typ =
+    let typ = UHTyp.mk_OpSeq typ in
+    let pat = Seq.nth_operand 0 pat in
+    mk_seq (UHPat.TypeAnn(ErrStatus.NotInHole, pat, typ))
+
   let mk_pat_parenthesized e =
     let e = UHPat.mk_OpSeq e in
     UHPat.Parenthesized(e)
@@ -108,7 +113,7 @@ main:
 
 let_binding:
   LET pat EQUAL line IN { mk_let_line $2 $4 }
-  | LET pat COLON typ EQUAL line IN { mk_let_line $2 $6 }
+  | LET pat COLON typ EQUAL line IN { mk_let_line (mk_typ_ann $2 $4) $6 }
 ;
 
 typ:
