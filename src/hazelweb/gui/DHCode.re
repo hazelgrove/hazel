@@ -61,7 +61,18 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
-             | Steppable(_) => ([with_cls("Steppable", txt)], ds) //TODO
+             | Steppable(ind) => (
+                 [
+                   Node.span(
+                     [
+                       Attr.classes(["Steppable"]),
+                       Attr.on_click(_ => inject(ModelAction.Step(ind))),
+                     ],
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              };
            },
        );

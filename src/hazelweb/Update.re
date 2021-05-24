@@ -204,10 +204,12 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
-      | Step(index) => {
-          ...model,
-          
-      }
+      | Step(index) =>
+        Model.evaluate_step(
+          model,
+          model.settings.evaluation.step_evaluator_option,
+          index,
+        )
       };
     },
   );

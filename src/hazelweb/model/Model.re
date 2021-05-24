@@ -9,6 +9,7 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  result_state: option(DHExp.t),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -79,6 +80,7 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    result_state: None,
   };
 };
 
@@ -96,6 +98,7 @@ let get_cursor_info = (model: t): CursorInfo.t =>
 let put_program = (program: Program.t, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> ZCardstacks.put_program(program),
+  result_state: None,
 };
 let map_program = (f: Program.t => Program.t, model: t): t => {
   let new_program = f(model |> get_program);
@@ -109,7 +112,11 @@ let put_undo_history = (history: UndoHistory.t, model: t): t => {
 };
 
 let get_cardstacks = model => model.cardstacks;
-let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
+let put_cardstacks = (cardstacks, model) => {
+  ...model,
+  cardstacks,
+  result_state: None,
+};
 let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
   let new_cardstacks = f(model |> get_cardstacks);
   model |> put_cardstacks(new_cardstacks);
@@ -282,4 +289,20 @@ let load_undo_history =
   |> put_undo_history(undo_history)
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances);
+};
+
+let get_result_state = (model: t) => {
+  switch (model.result_state) {
+  | None => get_program(model) |> Program.get_expansion
+  | Some(r) => r
+  };
+};
+
+let evaluate_step =
+    (model: t, opt: EvaluatorStep.evaluator_option, index: int): t => {
+  ...model,
+  result_state:
+    Some(
+      get_result_state(model) |> EvaluatorStep.ctx_step_index(_, opt, index),
+    ),
 };

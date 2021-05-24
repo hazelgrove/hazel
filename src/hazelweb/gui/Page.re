@@ -191,7 +191,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~settings=settings.evaluation,
                     ~width=80,
                     ~font_metrics=model.font_metrics,
-                    Program.get_result_state(program),
+                    Model.get_result_state(model),
                   ),
                 ],
               ),
