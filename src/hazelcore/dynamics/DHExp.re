@@ -154,6 +154,7 @@ type t =
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
   | ListNil(HTyp.t)
+  | Deferral(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
@@ -187,6 +188,7 @@ let constructor_string = (d: t): string =>
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
   | ListNil(_) => "ListNil"
+  | Deferral(_) => "Deferral"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"

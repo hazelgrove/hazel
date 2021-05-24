@@ -29,6 +29,7 @@ module Delim: {
   let empty_hole: HoleInstance.t => DHDoc.t;
 
   let list_nil: DHDoc.t;
+  let deferral: DHDoc.t;
   let triv: DHDoc.t;
   let wild: DHDoc.t;
 

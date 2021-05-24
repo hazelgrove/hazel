@@ -37,6 +37,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
+  | Deferral(_)
   | Inj(_)
   | EmptyHole(_)
   | Triv
@@ -178,6 +179,7 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
+      | Deferral(_) => DHDoc_common.Delim.deferral
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
         DHDoc_common.mk_Inj(

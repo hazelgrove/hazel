@@ -72,6 +72,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   /* outer nodes - delimiter */
   | EmptyHole(_)
   | ListNil(_) => CursorPosition.delim_cursors(1)
+  | Deferral(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
@@ -138,6 +139,7 @@ and is_before_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, Deferral(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, InvalidText(_, _))
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
@@ -218,6 +220,7 @@ and is_after_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
+  | CursorE(cursor, Deferral(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
@@ -268,6 +271,7 @@ and is_outer_zoperand =
   | CursorE(_, EmptyHole(_))
   | CursorE(_, InvalidText(_, _))
   | CursorE(_, ListNil(_))
+  | CursorE(_, Deferral(_))
   | CursorE(_, Var(_))
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
@@ -307,6 +311,7 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
+  | Deferral(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
@@ -345,6 +350,7 @@ and place_after_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
+  | Deferral(_) => CursorE(OnDelim(0, After), operand)
   | InvalidText(_, t) => CursorE(OnText(String.length(t)), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
@@ -640,7 +646,8 @@ and move_cursor_left_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
-  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_) | Deferral(_)) =>
+    None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
@@ -821,7 +828,8 @@ and move_cursor_right_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
-  | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_) | Deferral(_)) =>
+    None
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))

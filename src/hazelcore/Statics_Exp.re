@@ -128,6 +128,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | Deferral(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -140,6 +141,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | Deferral(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -166,6 +168,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
+  | Deferral(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
@@ -293,6 +296,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | Deferral(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -305,6 +309,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | Deferral(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -313,6 +318,9 @@ and ana_operand =
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
+    let+ _ = HTyp.matched_list(ty);
+    ();
+  | Deferral(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
     ();
   | Var(NotInHole, _, _)
@@ -808,6 +816,7 @@ and syn_fix_holes_operand =
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
+  | Deferral(_) => (e_nih, List(Hole), u_gen)
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1216,6 +1225,13 @@ and ana_fix_holes_operand =
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (ListNil(InHole(TypeInconsistent, u)), u_gen);
+    }
+  | Deferral(_) =>
+    switch (HTyp.matched_list(ty)) {
+    | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (Deferral(InHole(TypeInconsistent, u)), u_gen);
     }
   | Parenthesized(body) =>
     let (body, u_gen) =

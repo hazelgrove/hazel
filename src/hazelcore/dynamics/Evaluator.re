@@ -119,6 +119,7 @@ let rec evaluate = (d: DHExp.t): result =>
       }
     }
   | ListNil(_)
+  | Deferral(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
