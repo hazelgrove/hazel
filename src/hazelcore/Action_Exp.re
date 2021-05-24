@@ -1324,30 +1324,6 @@ and syn_perform_opseq =
         };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
-  // synthesize operator's type from zoperand
-  // e.g. 1.| 2 => 1. +.| 2
-  // e.g. 1. |2 => 1. +| 2
-  | (
-      Construct(SOp(os)),
-      ZOperand(CursorE(_, FloatLit(_)) as zoperand, surround),
-    )
-      when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        switch (int_to_float_operator(operator)) {
-        | None => construct_operator(u_gen, operator, zoperand, surround)
-        | Some(float_op) =>
-          construct_operator(u_gen, float_op, zoperand, surround)
-        };
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    }
   // synthesize operator's type from opposing zoperand when cursor on hole
   | (
       Construct(SOp(os)),
@@ -1390,7 +1366,18 @@ and syn_perform_opseq =
           ? construct_operator_before_zoperand
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, surround);
+        switch (zoperand) {
+        // synthesize operator's type from zoperand
+        // e.g. 1.| 2 => 1. +.| 2
+        // e.g. 1. |2 => 1. +| 2
+        | CursorE(_, FloatLit(_)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
   /* Swap actions */
