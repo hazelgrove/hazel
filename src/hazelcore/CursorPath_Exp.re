@@ -54,21 +54,12 @@ let rec follow = (path: CursorPath.t, e: UHExp.t): option(ZExp.t) =>
 and follow_block =
     ((steps, cursor): CursorPath.t, block: UHExp.block): option(ZExp.zblock) =>
   switch (steps) {
-  | [] =>
-    print_endline("empty steps none");
-    None; // no block level cursor
+  | [] => None // no block level cursor
   | [x, ...xs] =>
     switch (ZList.split_at(x, block)) {
-    | None =>
-      print_endline("block split none");
-      None;
+    | None => None
     | Some(split_lines) =>
-      let res = split_lines |> ZList.optmap_z(follow_line((xs, cursor)));
-      switch (res) {
-      | Some(_) => ()
-      | _ => print_endline("split none")
-      };
-      res;
+      split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
     }
   }
 and follow_line =
@@ -76,19 +67,10 @@ and follow_line =
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
-    let res =
-      follow_opseq(path, opseq)
-      |> Option.map(zopseq => ZExp.ExpLineZ(zopseq));
-    switch (res) {
-    | Some(_) => ()
-    | _ => print_endline("opseq from line none")
-    };
-    res;
+    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
   | ([], EmptyLine | LetLine(_) | CommentLine(_)) =>
     line |> ZExp.place_cursor_line(cursor)
-  | ([_, ..._], EmptyLine | CommentLine(_)) =>
-    print_endline("emptyline/commentline none");
-    None;
+  | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, def)) =>
     switch (x) {
     | 0 =>
@@ -99,9 +81,7 @@ and follow_line =
       def
       |> follow((xs, cursor))
       |> Option.map(zdef => ZExp.LetLineZE(p, zdef))
-    | _ =>
-      print_endline("other none let line");
-      None;
+    | _ => None
     }
   }
 and follow_opseq =
@@ -117,21 +97,13 @@ and follow_operator =
     : option(ZExp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZExp.place_cursor_operator(cursor)
-  | [_, ..._] =>
-    print_endline("non empty list none");
-    None;
+  | [_, ..._] => None
   }
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHExp.operand)
     : option(ZExp.zoperand) =>
   switch (steps) {
-  | [] =>
-    let res = operand |> ZExp.place_cursor_operand(cursor);
-    switch (res) {
-    | Some(_) => print_endline("some in empty steps case")
-    | _ => print_endline("non in empty steps case")
-    };
-    res;
+  | [] => operand |> ZExp.place_cursor_operand(cursor)
   | [x, ...xs] =>
     CursorPath_common.print_path((steps, cursor));
     switch (operand) {
@@ -141,63 +113,36 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) =>
-      print_endline("operand lit none");
-      None;
+    | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
-        let res =
-          body
-          |> follow((xs, cursor))
-          |> Option.map(zbody => ZExp.ParenthesizedZ(zbody));
-        switch (res) {
-        | Some(_) => print_endline("delim 0 some paren")
-        | _ => print_endline("delim 0 none paren")
-        };
-        res;
-      | _ =>
-        print_endline("paren none");
-        None;
+        body
+        |> follow((xs, cursor))
+        |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
+      | _ => None
       }
     | Lam(err, p, body) =>
       switch (x) {
       | 0 =>
-        print_endline("enter child 0 lam");
-        let res =
-          p
-          |> CursorPath_Pat.follow((xs, cursor))
-          |> Option.map(zp => ZExp.LamZP(err, zp, body));
-        switch (res) {
-        | Some(_) => print_endline("child 0 some lam")
-        | _ => print_endline("child 0 none lam")
-        };
-        res;
+        p
+        |> CursorPath_Pat.follow((xs, cursor))
+        |> Option.map(zp => ZExp.LamZP(err, zp, body))
       | 1 =>
-        let res =
-          body
-          |> follow((xs, cursor))
-          |> Option.map(zbody => ZExp.LamZE(err, p, zbody));
-        switch (res) {
-        | Some(_) => print_endline("child 1 some lam")
-        | _ => print_endline("child 1 none lam")
-        };
-        res;
-      | _ =>
-        print_endline("lam none");
-        None;
+        body
+        |> follow((xs, cursor))
+        |> Option.map(zbody => ZExp.LamZE(err, p, zbody))
+      | _ => None
       }
     | Inj(err, side, body) =>
-      print_endline("inj enter");
       switch (x) {
       | 0 =>
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.InjZ(err, side, zbody))
       | _ => None
-      };
+      }
     | Case(err, scrut, rules) =>
-      print_endline("case enter");
       switch (x) {
       | 0 =>
         scrut
@@ -211,39 +156,26 @@ and follow_operand =
           |> ZList.optmap_z(follow_rule((xs, cursor)))
           |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
         }
-      };
+      }
     | TightAp(err, func, arg) =>
       print_endline("follow ta");
       CursorPath_common.print_path((steps, cursor));
       switch (x) {
       | 0 =>
-        print_endline("enter child 0 ta");
-        let res =
-          UHExp.Block.wrap(func)
-          |> follow((xs, cursor))
-          |> Option.map(zfunc => ZExp.TightApZE1(err, zfunc, arg));
-        switch (res) {
-        | Some(_) => print_endline("child 0 some ta")
-        | _ => print_endline("child 0 none ta")
-        };
-        res;
+        switch (func |> UHExp.Block.wrap |> follow((xs, cursor))) {
+        | Some(ze') =>
+          ze'
+          |> ZExp.find_zoperand
+          |> Option.map(zfunc => ZExp.TightApZE1(err, zfunc, arg))
+        | _ => None
+        }
       | 1 =>
-        print_endline("enter child 1 ta");
-        let res =
-          arg
-          |> follow((xs, cursor))
-          |> Option.map(zarg => ZExp.TightApZE2(err, func, zarg));
-        switch (res) {
-        | Some(_) => print_endline("child 1 some ta")
-        | _ => print_endline("child 1 none ta")
-        };
-        res;
-      | _ =>
-        print_endline("ta none");
-        None;
+        arg
+        |> follow((xs, cursor))
+        |> Option.map(zarg => ZExp.TightApZE2(err, func, zarg))
+      | _ => None
       };
     | ApPalette(err, name, serialized_model, splice_info) =>
-      print_endline("appalette");
       switch (
         ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
           switch (follow((xs, cursor), e)) {
@@ -255,7 +187,7 @@ and follow_operand =
       | None => None
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
-      };
+      }
     };
   }
 and follow_rules =
@@ -264,9 +196,7 @@ and follow_rules =
   | [] => None
   | [x, ...xs] =>
     switch (ZList.split_at(x, rules)) {
-    | None =>
-      print_endline("rule none");
-      None;
+    | None => None
     | Some(split_rules) =>
       split_rules |> ZList.optmap_z(follow_rule((xs, cursor)))
     }
