@@ -26,7 +26,9 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | TightApZE1(_, zfunc, _) => cons'(0, of_zoperand(zfunc))
+  | TightApZE1(_, zfunc, _) =>
+    //have to pass the zfunc operand through previous logic to ensure a proper path is generated.
+    cons'(0, of_z(ZExp.ZBlock.wrap(zfunc)))
   | TightApZE2(_, _, zarg) => cons'(1, of_z(zarg))
   | ApPaletteZ(_, _, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
@@ -479,6 +481,8 @@ and holes_operand =
     |> holes(scrut, [0, ...rev_steps])
     |> holes_case_err(err, rev_steps)
   | TightAp(err, func, arg) =>
+    //FIX: may need to pass func into regular version
+    //holes(UHExp.Block.wrap(func), [0, ...rev_steps])
     print_endline("holes ta");
     hs
     |> holes(arg, [1, ...rev_steps])

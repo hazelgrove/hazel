@@ -598,6 +598,8 @@ and syn_cursor_info_zoperand =
       };
     }
   | TightApZE1(_, zfunc, _) =>
+    //may need to make this call into zexp version to pass through all logic
+    //zfunc |> ZExp.ZBlock.wrap |> syn_cursor_info(~steps=steps @ [0], ctx);
     print_endline("syn cursor info ze1");
     syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc);
   | TightApZE2(_, _, zarg) =>
