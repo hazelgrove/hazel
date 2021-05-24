@@ -494,7 +494,6 @@ let get_new_action_group =
           }
         }
       | SCommentLine
-      | SLeftParenthesis
       //| SParenthesized
       | SList
       | SAnn
@@ -503,6 +502,12 @@ let get_new_action_group =
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SLeftParenthesis =>
+        switch (new_cursor_term_info.cursor_term_before) {
+        | Exp(OnDelim(_, After), _)
+        | Pat(OnDelim(_, After), _) => Some(TightAp)
+        | _ => Some(ConstructEdit(shape))
+        }
       | SChar(_) =>
         if (group_entry(
               ~prev_group,

@@ -750,8 +750,10 @@ and move_cursor_left_zoperand =
     }
   | CursorE(OnDelim(k, Before), TightAp(err, func, arg)) =>
     if (k == 0) {
+      print_endline("move left cursore ta");
       Some(TightApZE1(err, place_after_operand(func), arg));
     } else {
+      print_endline("move left cursore ta");
       Some(TightApZE2(err, func, place_after(arg)));
     }
   | CursorE(_, ApPalette(_)) => None
@@ -798,8 +800,12 @@ and move_cursor_left_zoperand =
     }
   | TightApZE1(err, zfunc, arg) =>
     switch (move_cursor_left_zoperand(zfunc)) {
-    | Some(zfunc) => Some(TightApZE1(err, zfunc, arg))
-    | None => None
+    | Some(zfunc) =>
+      print_endline("ze1 move left");
+      Some(TightApZE1(err, zfunc, arg));
+    | None =>
+      print_endline("ze1 move left");
+      None;
     }
   | TightApZE2(err, func, zarg) =>
     switch (move_cursor_left(zarg)) {
@@ -997,20 +1003,26 @@ and move_cursor_right_zoperand =
     }
   | TightApZE1(err, zfunc, arg) =>
     switch (move_cursor_right_zoperand(zfunc)) {
-    | Some(zfunc) => Some(TightApZE1(err, zfunc, arg))
+    | Some(zfunc) =>
+      print_endline("move right ze1 ta");
+      Some(TightApZE1(err, zfunc, arg));
     | None =>
+      print_endline("move right ze1 ta");
       Some(
         CursorE(
           OnDelim(0, Before),
           TightAp(err, erase_zoperand(zfunc), arg),
         ),
-      )
+      );
     }
   | TightApZE2(err, func, zarg) =>
     switch (move_cursor_right(zarg)) {
-    | Some(zarg) => Some(TightApZE2(err, func, zarg))
+    | Some(zarg) =>
+      print_endline("move right ze2 ta");
+      Some(TightApZE2(err, func, zarg));
     | None =>
-      Some(CursorE(OnDelim(1, Before), TightAp(err, func, erase(zarg))))
+      print_endline("move right ze2 ta");
+      Some(CursorE(OnDelim(1, Before), TightAp(err, func, erase(zarg))));
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_right_zrules =

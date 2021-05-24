@@ -133,6 +133,7 @@ and follow_operand =
     };
     res;
   | [x, ...xs] =>
+    CursorPath_common.print_path((steps, cursor));
     switch (operand) {
     | EmptyHole(_)
     | InvalidText(_)
@@ -162,14 +163,14 @@ and follow_operand =
     | Lam(err, p, body) =>
       switch (x) {
       | 0 =>
-        print_endline("enter dlim 0 lam");
+        print_endline("enter child 0 lam");
         let res =
           p
           |> CursorPath_Pat.follow((xs, cursor))
           |> Option.map(zp => ZExp.LamZP(err, zp, body));
         switch (res) {
-        | Some(_) => ()
-        | _ => print_endline("delim 0 none lam")
+        | Some(_) => print_endline("child 0 some lam")
+        | _ => print_endline("child 0 none lam")
         };
         res;
       | 1 =>
@@ -178,8 +179,8 @@ and follow_operand =
           |> follow((xs, cursor))
           |> Option.map(zbody => ZExp.LamZE(err, p, zbody));
         switch (res) {
-        | Some(_) => ()
-        | _ => print_endline("delim 1 none lam")
+        | Some(_) => print_endline("child 1 some lam")
+        | _ => print_endline("child 1 none lam")
         };
         res;
       | _ =>
@@ -216,24 +217,32 @@ and follow_operand =
       CursorPath_common.print_path((steps, cursor));
       switch (x) {
       | 0 =>
-        print_endline("enter delim 0 ta");
+        print_endline("enter child 0 ta");
+        switch (xs) {
+        | [] => print_endline("should not continue to child 0 lam")
+        | _ =>
+          print_endline(
+            "will continue to 0 lam incorrectly; an extra step was generated when it shouldn't have been",
+          )
+        };
         let res =
           func
           |> follow_operand((xs, cursor))
           |> Option.map(zfunc => ZExp.TightApZE1(err, zfunc, arg));
         switch (res) {
-        | Some(_) => ()
-        | _ => print_endline("delim 0 none ta")
+        | Some(_) => print_endline("child 0 some ta")
+        | _ => print_endline("child 0 none ta")
         };
         res;
       | 1 =>
+        print_endline("enter child 1 ta");
         let res =
           arg
           |> follow((xs, cursor))
           |> Option.map(zarg => ZExp.TightApZE2(err, func, zarg));
         switch (res) {
-        | Some(_) => ()
-        | _ => print_endline("delim 0 none ta")
+        | Some(_) => print_endline("child 1 some ta")
+        | _ => print_endline("child 1 none ta")
         };
         res;
       | _ =>
@@ -254,7 +263,7 @@ and follow_operand =
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       };
-    }
+    };
   }
 and follow_rules =
     ((steps, cursor): CursorPath.t, rules: UHExp.rules): option(ZExp.zrules) =>
@@ -827,8 +836,9 @@ and holes_zoperand =
       OnText(_),
       Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | TightAp(_),
     ) =>
+    print_endline("no holes ta ontext");
     /* invalid cursor position */
-    CursorPath_common.no_holes
+    CursorPath_common.no_holes;
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
@@ -1041,6 +1051,7 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   };
 
 let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
+  print_endline("prev hole steps z");
   let holes = holes_z(ze, []);
   CursorPath_common.prev_hole_steps(holes);
 };
@@ -1050,6 +1061,7 @@ let prev_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
 };
 
 let next_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
+  print_endline("next hole steps z");
   let holes = holes_z(ze, []);
   CursorPath_common.next_hole_steps(holes);
 };

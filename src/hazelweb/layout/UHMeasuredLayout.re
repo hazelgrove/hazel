@@ -322,6 +322,21 @@ let nearest_path_within_row =
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = target.col - start.col;
            let is_left = from_start + from_start <= len;
+           /*
+            let out =
+              String.concat(
+                " ",
+                [
+                  "nearest path within row data; target.col:",
+                  string_of_int(target.col),
+                  "start.col:",
+                  string_of_int(start.col),
+                  "len:",
+                  string_of_int(len),
+                ],
+              );
+            print_endline(out);
+            */
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
              | Text =>

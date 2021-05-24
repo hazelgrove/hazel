@@ -37,6 +37,7 @@ type action_group =
   /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | TightAp
   | SwapEdit(swap_group)
   | Init;
 
@@ -94,6 +95,8 @@ let group_action_group =
   switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
+  | (TightAp, TightAp) => true
+  | (TightAp, _) => false
   | (VarGroup(_), VarGroup(_)) => true
   | (VarGroup(_), DeleteEdit(delete_group)) =>
     switch (delete_group) {

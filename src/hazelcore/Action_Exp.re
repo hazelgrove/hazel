@@ -1524,6 +1524,7 @@ and syn_perform_operand =
     let new_ze = e |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
   | (Backspace, CursorE(OnDelim(k, After), TightAp(_, func, arg))) =>
+    print_endline("backspace cursore ta");
     //If there is an operand, see if it consistutes the entire zexp; if so, extract it.
     //If not, the uhexp is multiline; parenthesize any multiline uhexps for containment into a single operand
     let option_arg =
@@ -1676,6 +1677,7 @@ and syn_perform_operand =
 
   | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
     if (ZExp.is_after_zoperand(zoperand)) {
+      print_endline("construct ta");
       //when after an operand, trigger tightapz construction
       switch (operand) {
       | EmptyHole(_) =>
@@ -1712,6 +1714,7 @@ and syn_perform_operand =
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       };
     } else {
+      print_endline("construct parenZ");
       //otherwise, continue with parenthesizedz construction
       let new_ze =
         ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
@@ -1939,6 +1942,7 @@ and syn_perform_operand =
     | _ => Failed /* should never happen */
     }
   | (_, TightApZE1(_, zfunc, arg)) =>
+    print_endline("syn perf ta ze1");
     //synthesize the type of the function
     switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zfunc))) {
     | None => Failed
@@ -1990,8 +1994,9 @@ and syn_perform_operand =
           );
         }
       }
-    }
+    };
   | (_, TightApZE2(_, func, zarg)) =>
+    print_endline("syn perf ta ze2");
     //synthesize the type of the argument
     switch (Statics_Exp.syn(ctx, ZExp.erase(zarg))) {
     | None => Failed
@@ -2027,7 +2032,7 @@ and syn_perform_operand =
           }
         }
       }
-    }
+    };
   | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
   /* TODO let (next_lbl, z_nat_map) = z_hole_data;
      let (rest_map, z_data) = z_nat_map;
@@ -3128,6 +3133,7 @@ and ana_perform_operand =
     let new_ze = e |> place_cursor;
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
   | (Backspace, CursorE(OnDelim(_, After), TightAp(_, _, _))) =>
+    print_endline("backspace ana perf ta");
     //call syn case and run ana fix holes to make it match up with the needed
     switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
     | Some(ty_operand) =>
@@ -3143,7 +3149,7 @@ and ana_perform_operand =
       | _ => Failed
       }
     | None => Failed
-    }
+    };
 
   /* TODO consider deletion of type ascription on case */
 
@@ -3234,6 +3240,7 @@ and ana_perform_operand =
 
   | (Construct(SLeftParenthesis), CursorE(_, operand)) =>
     if (ZExp.is_after_zoperand(zoperand)) {
+      print_endline("ctr slp ta ana perf");
       //when cursor is after an operand, trigger tightapz construction
       switch (operand) {
       | EmptyHole(_) =>
@@ -3270,6 +3277,7 @@ and ana_perform_operand =
         Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
       };
     } else {
+      print_endline("ctr slp parenZ ana perf");
       //otherwise, continue with parenthesizedz construction
       switch (operand) {
       | EmptyHole(_) as hole

@@ -1265,6 +1265,7 @@ and ana_elab_operand =
     }
   | TightAp(NotInHole, _, _) =>
     //go under subsumption
+    print_endline("ana elab ta");
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty_syn, delta) =>
@@ -1273,7 +1274,7 @@ and ana_elab_operand =
       } else {
         DoesNotElaborate;
       }
-    }
+    };
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate

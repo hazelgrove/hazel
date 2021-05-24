@@ -416,6 +416,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | TightAp =>
+      Vdom.(Node.span([], [indicate_words_view("insert tightap")]))
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up => indicate_words_view("swap line up")
@@ -474,6 +476,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | TightAp =>
+      Some(
+        get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up

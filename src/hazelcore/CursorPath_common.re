@@ -34,9 +34,13 @@ let no_holes = mk_zholes();
 let rec print_steps = (steps: CursorPath.steps) => {
   switch (steps) {
   | [] => print_endline("end path print------")
-  | [hd, ...tl] =>
-    print_endline(string_of_int(hd));
-    print_steps(tl);
+  | [x, ...xs] =>
+    let steps_len_str = steps |> List.length |> string_of_int;
+    let out_len = String.concat(" ", ["Number of steps:", steps_len_str]);
+
+    print_endline(out_len);
+    print_endline(string_of_int(x));
+    print_steps(xs);
   };
 };
 
@@ -67,6 +71,11 @@ let print_path = (path: CursorPath.t) => {
 
   print_endline(output);
   print_endline("Begin path print");
+
+  let steps_len_str = steps |> List.length |> string_of_int;
+  let out_len = String.concat(" ", ["Number of steps:", steps_len_str]);
+
+  print_endline(out_len);
   print_steps(steps);
 };
 

@@ -1348,6 +1348,7 @@ and ana_perform_operand =
    */
   | (Construct(SLeftParenthesis), zpat) =>
     //if in tightap positioning
+    print_endline("ana pat");
     if (ZPat.is_after_zoperand(zpat)) {
       //subsume
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
@@ -1372,7 +1373,7 @@ and ana_perform_operand =
           ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
         mk_ana_result(ctx, u_gen, new_zp, ty);
       };
-    }
+    };
 
   | (Construct(SInj(side)), CursorP(_)) =>
     switch (HTyp.matched_sum(ty)) {
