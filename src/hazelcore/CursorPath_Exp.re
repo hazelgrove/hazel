@@ -218,13 +218,6 @@ and follow_operand =
       switch (x) {
       | 0 =>
         print_endline("enter child 0 ta");
-        switch (xs) {
-        | [] => print_endline("should not continue to child 0 lam")
-        | _ =>
-          print_endline(
-            "will continue to 0 lam incorrectly; an extra step was generated when it shouldn't have been",
-          )
-        };
         let res =
           func
           |> follow_operand((xs, cursor))

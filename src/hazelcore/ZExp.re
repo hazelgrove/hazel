@@ -36,6 +36,9 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let print_z = (ze: t) =>
+  print_endline(Sexplib.Sexp.to_string(sexp_of_zblock(ze)));
+
 let rec is_opseq =
         (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
   ze |> is_opseq_zblock

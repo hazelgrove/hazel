@@ -256,8 +256,11 @@ and syn_cursor_info_zblock =
     )
     : option(CursorInfo.t) =>
   switch (Statics_Exp.syn_lines(ctx, prefix)) {
-  | None => None
+  | None =>
+    ZExp.print_z((prefix, zline, suffix));
+    None;
   | Some(ctx) =>
+    ZExp.print_z((prefix, zline, suffix));
     switch (
       syn_cursor_info_line(~steps=steps @ [List.length(prefix)], ctx, zline)
     ) {
@@ -272,7 +275,7 @@ and syn_cursor_info_zblock =
           suffix,
         );
       Some(uses |> deferred_ci);
-    }
+    };
   }
 and syn_cursor_info_line =
     (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
