@@ -219,8 +219,8 @@ and follow_operand =
       | 0 =>
         print_endline("enter child 0 ta");
         let res =
-          func
-          |> follow_operand((xs, cursor))
+          UHExp.Block.wrap(func)
+          |> follow((xs, cursor))
           |> Option.map(zfunc => ZExp.TightApZE1(err, zfunc, arg));
         switch (res) {
         | Some(_) => print_endline("child 0 some ta")
