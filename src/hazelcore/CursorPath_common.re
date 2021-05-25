@@ -31,17 +31,12 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
-let rec print_steps = (steps: CursorPath.steps) => {
-  switch (steps) {
-  | [] => print_endline("end path print------")
-  | [x, ...xs] =>
-    let steps_len_str = steps |> List.length |> string_of_int;
-    let out_len = String.concat(" ", ["Number of steps:", steps_len_str]);
-
-    print_endline(out_len);
-    print_endline(string_of_int(x));
-    print_steps(xs);
-  };
+let print_steps = (steps: CursorPath.steps) => {
+  steps
+  |> List.iter(x => {
+       print_endline("Step:");
+       print_endline(string_of_int(x));
+     });
 };
 
 let print_path = (path: CursorPath.t) => {
