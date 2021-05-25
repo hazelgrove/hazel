@@ -3,7 +3,6 @@ open Action;
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
-  //| SParenthesized => "parentheses"
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"

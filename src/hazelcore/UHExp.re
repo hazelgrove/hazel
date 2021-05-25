@@ -24,8 +24,6 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  //TightAp is an operand which works on a function and its applied argument(s); args must be of tuple type (or a single one)
-  //The function position is an operand and the argument is a regular UHExp.
   | TightAp(ErrStatus.t, operand, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
@@ -242,7 +240,6 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  //make the error status of a matched TightAp the err; keep the deconstucted internal vals the same
   | TightAp(_, func, arg) => TightAp(err, func, arg)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))

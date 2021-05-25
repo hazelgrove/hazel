@@ -598,8 +598,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | TightApZE1(_, zfunc, _) =>
-    //may need to make this call into zexp version to pass through all logic
-    //zfunc |> ZExp.ZBlock.wrap |> syn_cursor_info(~steps=steps @ [0], ctx);
+    //may need to run through syn_cursor_info to hit all logic as with other path code- no issues found at present
     syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc)
   | TightApZE2(_, _, zarg) => syn_cursor_info(~steps=steps @ [1], ctx, zarg)
   | ApPaletteZ(_, _, _, zpsi) =>

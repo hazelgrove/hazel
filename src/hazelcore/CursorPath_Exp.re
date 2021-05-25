@@ -107,7 +107,6 @@ and follow_operand =
   switch (steps) {
   | [] => operand |> ZExp.place_cursor_operand(cursor)
   | [x, ...xs] =>
-    CursorPath_common.print_path((steps, cursor));
     switch (operand) {
     | EmptyHole(_)
     | InvalidText(_)
@@ -160,7 +159,6 @@ and follow_operand =
         }
       }
     | TightAp(err, func, arg) =>
-      CursorPath_common.print_path((steps, cursor));
       switch (x) {
       | 0 =>
         switch (func |> UHExp.Block.wrap |> follow((xs, cursor))) {
@@ -175,7 +173,7 @@ and follow_operand =
         |> follow((xs, cursor))
         |> Option.map(zarg => ZExp.TightApZE2(err, func, zarg))
       | _ => None
-      };
+      }
     | ApPalette(err, name, serialized_model, splice_info) =>
       switch (
         ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
@@ -189,7 +187,7 @@ and follow_operand =
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
-    };
+    }
   }
 and follow_rules =
     ((steps, cursor): CursorPath.t, rules: UHExp.rules): option(ZExp.zrules) =>
@@ -479,8 +477,6 @@ and holes_operand =
     |> holes(scrut, [0, ...rev_steps])
     |> holes_case_err(err, rev_steps)
   | TightAp(err, func, arg) =>
-    //FIX: may need to pass func into regular version
-    //holes(UHExp.Block.wrap(func), [0, ...rev_steps])
     hs
     |> holes(arg, [1, ...rev_steps])
     |> holes_operand(func, [0, ...rev_steps])

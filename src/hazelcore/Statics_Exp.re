@@ -184,7 +184,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | TightAp(NotInHole, func, arg) =>
     let* ty_func = syn_operand(ctx, func);
     let* (ma_ty_1, ma_ty_2) = HTyp.matched_arrow(ty_func);
-    //if the ana works, the rest is guaranteed to be fine. Use map and output the second type of func's MA type
     let+ _ = ana(ctx, arg, ma_ty_1);
     ma_ty_2;
   | ApPalette(NotInHole, name, serialized_model, psi) =>
@@ -342,11 +341,7 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
-  | TightAp(NotInHole, _, _) =>
-    //go under subsumption; would need to syn on func and compare to arg for result. same as syn
-    let* ty' = syn_operand(ctx, operand);
-    //if the result is consistent with what is desired, return some; else none
-    HTyp.consistent(ty', ty) ? Some() : None;
+  | TightAp(NotInHole, _, _) //subsume
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
@@ -1322,19 +1317,7 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-  | TightAp(_, _, _) =>
-    //go under subsumption
-    let (e', ty', u_gen) =
-      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(ty, ty')) {
-      (e', u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-        u_gen,
-      );
-    };
+  | TightAp(_, _, _) //subsume
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

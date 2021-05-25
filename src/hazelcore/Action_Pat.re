@@ -782,21 +782,8 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
-
-  /*
-   | (Construct(SParenthesized), CursorP(_)) =>
-     mk_syn_result(
-       ctx,
-       u_gen,
-       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
-     )
-   */
-
-  | (Construct(SLeftParenthesis), zpat) =>
-    print_endline("syn ctr zpat slp");
-    //if after operand, tightap
-    //else, parenthesis
-    //if ever a tightap case, fail
+  | (Construct(SLeftParenthesis), CursorP(_) as zpat) =>
+    //if after operand, tightap condition met (fail); else, paren
     if (ZPat.is_after_zoperand(zpat)) {
       Failed;
     } else {
@@ -805,7 +792,7 @@ and syn_perform_operand =
         u_gen,
         ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
       );
-    };
+    }
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
@@ -1335,20 +1322,8 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
-
-  /*
-   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
-       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-     let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
-     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
-     mk_ana_result(ctx, u_gen, new_zp, ty);
-   | (Construct(SParenthesized), CursorP(_)) =>
-     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
-     mk_ana_result(ctx, u_gen, new_zp, ty);
-   */
-  | (Construct(SLeftParenthesis), zpat) =>
+  | (Construct(SLeftParenthesis), CursorP(_) as zpat) =>
     //if in tightap positioning
-    print_endline("ana pat slp");
     if (ZPat.is_after_zoperand(zpat)) {
       //subsume
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
@@ -1362,6 +1337,7 @@ and ana_perform_operand =
         }
       };
     } else {
+      //otherwise perform paren cases
       switch (zpat) {
       | CursorP(_, EmptyHole(_) as hole)
           when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
@@ -1373,7 +1349,7 @@ and ana_perform_operand =
           ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
         mk_ana_result(ctx, u_gen, new_zp, ty);
       };
-    };
+    }
 
   | (Construct(SInj(side)), CursorP(_)) =>
     switch (HTyp.matched_sum(ty)) {

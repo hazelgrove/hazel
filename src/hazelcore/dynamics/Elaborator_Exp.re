@@ -857,8 +857,7 @@ and syn_elab_operand =
       switch (HTyp.matched_arrow(ty_f)) {
       | None => DoesNotElaborate
       | Some((ma_ty1, ma_ty2)) =>
-        //assess if the ana elab judgement suceeds on func's internal d structure
-        //in reaching to ma arrow of the external structure e
+        //assess if the ana elab judgement suceeds on func for ma arrow of the external structure e
         let ma_arr_ty_f = HTyp.Arrow(ma_ty1, ma_ty2);
         switch (ana_elab_operand(ctx, delta, func, ma_arr_ty_f)) {
         | DoesNotElaborate => DoesNotElaborate
@@ -1263,7 +1262,7 @@ and ana_elab_operand =
       }
     }
   | TightAp(NotInHole, _, _) =>
-    //go under subsumption
+    //subsume
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty_syn, delta) =>
