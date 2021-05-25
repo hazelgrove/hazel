@@ -2010,27 +2010,11 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded((zarg, ty_arg', u_gen)) =>
+      | Succeeded((zarg, _ty_arg', u_gen)) =>
         //try to generate matched arrow to assess argument
-        switch (Statics_Exp.syn_operand(ctx, func)) {
-        | None => Failed
-        | Some(ty_func) =>
-          //extract matched arrow type to compare with synthesized argument type
-          switch (HTyp.matched_arrow(ty_func)) {
-          | None => Failed //since previous scope must have been valid, the function argument must have a matched arrow type (currently unacted)?
-          | Some((ma_ty1, _ma_ty2)) =>
-            //see if it is consistent with the argument type
-            if (HTyp.consistent(ty_arg', ma_ty1)) {
-              let new_ze =
-                ZExp.ZBlock.wrap(TightApZE2(NotInHole, func, zarg));
-              Succeeded(
-                SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-              );
-            } else {
-              Failed;
-            }
-          }
-        }
+        //to be asked: do we leave err out as prev rec calls will adjust this?
+        let new_ze = ZExp.ZBlock.wrap(TightApZE2(NotInHole, func, zarg));
+        Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       }
     };
   | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
