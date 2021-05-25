@@ -133,7 +133,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | TightAp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
-    print_endline("in hole ti syn operand");
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -146,9 +145,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | TightAp(InHole(WrongLength, _), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) =>
-    print_endline("in hole wl syn operand");
-    None;
+  | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
@@ -185,7 +182,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | TightAp(NotInHole, func, arg) =>
-    print_endline("ta syn operand");
     let* ty_func = syn_operand(ctx, func);
     let* (ma_ty_1, ma_ty_2) = HTyp.matched_arrow(ty_func);
     //if the ana works, the rest is guaranteed to be fine. Use map and output the second type of func's MA type
@@ -866,7 +862,6 @@ and syn_fix_holes_operand =
       )
     };
   | TightAp(_, func, arg) =>
-    print_endline("synfix ta");
     //synthesize type of function (and fix so that it does so)
     let (func, ty_func, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, func);

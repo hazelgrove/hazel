@@ -27,11 +27,8 @@ and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHPat.operand)
     : option(ZPat.zoperand) =>
   switch (steps) {
-  | [] =>
-    print_endline("follow op pat entered no steps");
-    operand |> ZPat.place_cursor_operand(cursor);
+  | [] => operand |> ZPat.place_cursor_operand(cursor)
   | [x, ...xs] =>
-    print_endline("follow op pat entered hdtl");
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
@@ -69,7 +66,7 @@ and follow_operand =
         |> Option.map(zann => ZPat.TypeAnnZA(err, op, zann))
       | _ => None
       }
-    };
+    }
   }
 and follow_operator =
     ((steps, cursor): CursorPath.t, operator: UHPat.operator)

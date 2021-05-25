@@ -600,11 +600,8 @@ and syn_cursor_info_zoperand =
   | TightApZE1(_, zfunc, _) =>
     //may need to make this call into zexp version to pass through all logic
     //zfunc |> ZExp.ZBlock.wrap |> syn_cursor_info(~steps=steps @ [0], ctx);
-    print_endline("syn cursor info ze1");
-    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc);
-  | TightApZE2(_, _, zarg) =>
-    print_endline("syn cursor info ze2");
-    syn_cursor_info(~steps=steps @ [1], ctx, zarg);
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc)
+  | TightApZE2(_, _, zarg) => syn_cursor_info(~steps=steps @ [1], ctx, zarg)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
@@ -971,11 +968,9 @@ and ana_cursor_info_zoperand =
       )
     }
   | TightApZE1(NotInHole, zfunc, _) =>
-    print_endline("ana cursor info ze1");
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty)
   | TightApZE2(NotInHole, _, zarg) =>
-    print_endline("ana cursor info ze2");
-    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty);
+    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

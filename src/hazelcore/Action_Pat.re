@@ -793,7 +793,7 @@ and syn_perform_operand =
    */
 
   | (Construct(SLeftParenthesis), zpat) =>
-    print_endline("ctr zpat slp");
+    print_endline("syn ctr zpat slp");
     //if after operand, tightap
     //else, parenthesis
     //if ever a tightap case, fail
@@ -1348,7 +1348,7 @@ and ana_perform_operand =
    */
   | (Construct(SLeftParenthesis), zpat) =>
     //if in tightap positioning
-    print_endline("ana pat");
+    print_endline("ana pat slp");
     if (ZPat.is_after_zoperand(zpat)) {
       //subsume
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {

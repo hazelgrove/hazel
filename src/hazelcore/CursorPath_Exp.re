@@ -160,7 +160,6 @@ and follow_operand =
         }
       }
     | TightAp(err, func, arg) =>
-      print_endline("follow ta");
       CursorPath_common.print_path((steps, cursor));
       switch (x) {
       | 0 =>
@@ -349,7 +348,6 @@ and of_steps_operand =
         }
       }
     | TightAp(_, func, arg) =>
-      print_endline("of steps ta");
       switch (x) {
       | 0 =>
         func
@@ -357,7 +355,7 @@ and of_steps_operand =
         |> Option.map(path => cons'(0, path))
       | 1 => arg |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
       | _ => None
-      };
+      }
     | ApPalette(_, _, _, splice_info) =>
       let splice_map = splice_info.splice_map;
       switch (IntMap.find_opt(x, splice_map)) {
@@ -483,11 +481,10 @@ and holes_operand =
   | TightAp(err, func, arg) =>
     //FIX: may need to pass func into regular version
     //holes(UHExp.Block.wrap(func), [0, ...rev_steps])
-    print_endline("holes ta");
     hs
     |> holes(arg, [1, ...rev_steps])
     |> holes_operand(func, [0, ...rev_steps])
-    |> holes_err(err, rev_steps);
+    |> holes_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
@@ -733,7 +730,6 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), TightAp(err, func, arg)) =>
-    print_endline("holes_z cursore ta");
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => None
@@ -763,9 +759,8 @@ and holes_zoperand =
       OnText(_),
       Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | TightAp(_),
     ) =>
-    print_endline("no holes ta ontext");
     /* invalid cursor position */
-    CursorPath_common.no_holes;
+    CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
@@ -879,7 +874,6 @@ and holes_zoperand =
       holes_after: holes_after @ holes_suffix,
     };
   | TightApZE1(err, zfunc, arg) =>
-    print_endline("holes_z ze1");
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
@@ -897,7 +891,6 @@ and holes_zoperand =
       (),
     );
   | TightApZE2(err, func, zarg) =>
-    print_endline("holes_z ze2");
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
@@ -978,7 +971,6 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   };
 
 let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
-  print_endline("prev hole steps z");
   let holes = holes_z(ze, []);
   CursorPath_common.prev_hole_steps(holes);
 };
@@ -988,7 +980,6 @@ let prev_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
 };
 
 let next_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
-  print_endline("next hole steps z");
   let holes = holes_z(ze, []);
   CursorPath_common.next_hole_steps(holes);
 };

@@ -849,7 +849,6 @@ and syn_elab_operand =
       }
     }
   | TightAp(NotInHole, func, arg) =>
-    print_endline("ta elab syn");
     //attempt to synthesize a type for the func operand
     switch (Statics_Exp.syn_operand(ctx, func)) {
     | None => DoesNotElaborate
@@ -877,7 +876,7 @@ and syn_elab_operand =
           }
         };
       }
-    };
+    }
 
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
     DoesNotElaborate /* let (_, palette_ctx) = ctx in
@@ -1265,7 +1264,6 @@ and ana_elab_operand =
     }
   | TightAp(NotInHole, _, _) =>
     //go under subsumption
-    print_endline("ana elab ta");
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty_syn, delta) =>
@@ -1274,7 +1272,7 @@ and ana_elab_operand =
       } else {
         DoesNotElaborate;
       }
-    };
+    }
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
