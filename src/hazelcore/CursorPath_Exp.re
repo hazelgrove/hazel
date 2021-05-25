@@ -738,7 +738,7 @@ and holes_zoperand =
       ~holes_after,
       (),
     );
-  | InjZ(err, _, zbody) =>
+  | InjZT(err, ztag, body) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
@@ -747,9 +747,27 @@ and holes_zoperand =
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_z(zbody, [0, ...rev_steps]);
+      CursorPath_common.holes_ztag(ztag, [0, ...rev_steps]);
+    let body_holes = holes(body, [1, ...rev_steps], []);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ body_holes,
+      (),
+    );
+  | InjZE(err, tag, zbody) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    let tag_holes = CursorPath_common.holes_tag(tag, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ tag_holes @ holes_before,
       ~hole_selected,
       ~holes_after,
       (),

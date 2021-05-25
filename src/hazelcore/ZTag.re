@@ -1,5 +1,6 @@
 [@deriving sexp]
-type t =
+type t = zoperand
+and zoperand =
   | CursorTag(CursorPosition.t, Tag.t);
 
 let erase = (CursorTag(_, tag): t): Tag.t => tag;

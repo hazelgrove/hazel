@@ -406,6 +406,34 @@ let holes_zopseq_ =
   };
 };
 
+// TODO: compare with CursorPath_Tag.re
+let hole_tag =
+    (tag: Tag.t, rev_steps: CursorPath.rev_steps)
+    : option(CursorPath.hole_info) =>
+  switch (tag) {
+  | Tag(_) => None
+  | TagHole(u) => Some({sort: TagHole(u), steps: List.rev(rev_steps)})
+  };
+let holes_tag =
+    (tag: Tag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
+    : CursorPath.hole_list =>
+  switch (hole_tag(tag, rev_steps)) {
+  | None => hs
+  | Some(h) => [h, ...hs]
+  };
+let holes_ztag =
+    (ztag: ZTag.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
+  switch (ztag) {
+  | CursorTag(OnDelim(0, _), tag) =>
+    switch (hole_tag(tag, [0, ...rev_steps])) {
+    | None => no_holes
+    | Some(_) as hole => mk_zholes(~hole_selected=hole, ())
+    }
+  | CursorTag(OnDelim(_, _) | OnOp(_) | OnText(_), _) =>
+    /* invalid cursor position */
+    no_holes
+  };
+
 let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(

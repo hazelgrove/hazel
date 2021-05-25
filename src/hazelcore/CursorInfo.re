@@ -107,6 +107,8 @@ type typed =
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | OnType
+  /* cursor in tag position */
+  | OnTag
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;

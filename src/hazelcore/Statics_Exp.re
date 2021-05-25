@@ -120,8 +120,6 @@ and syn_skel =
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
-  /* not possible */
-  | Inj(_, _, _) => None
   /* in hole */
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
@@ -136,6 +134,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
+  | Inj(InHole(InjectionInSyntheticPosition, _), _, body) =>
+    let+ _ = ana(ctx, body, HTyp.Hole);
+    HTyp.Hole;
+  | Inj(InHole(_, _), _, _) => None
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -182,6 +184,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let expansion = expand(serialized_model);
     let+ _ = ana(splice_ctx, expansion, expansion_ty);
     expansion_ty;
+  | Inj(NotInHole, _, _) => None
   | Parenthesized(body) => syn(ctx, body)
   }
 and syn_rules =
@@ -815,15 +818,17 @@ and syn_fix_holes_operand =
     let (body, ty_body, u_gen) =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
     (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
-  // | Inj(_, side, body) =>
-  //   let (body, ty1, u_gen) =
-  //     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
-  //   let ty =
-  //     switch (side) {
-  //     | L => HTyp.Sum(ty1, Hole)
-  //     | R => HTyp.Sum(Hole, ty1)
-  //     };
-  //   (Inj(NotInHole, side, body), ty, u_gen);
+  | Inj(_, tag, body) =>
+    let (tag, u_gen) =
+      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+    let (body, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (
+      Inj(InHole(InjectionInSyntheticPosition, u), tag, body),
+      HTyp.Hole,
+      u_gen,
+    );
   | Case(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);

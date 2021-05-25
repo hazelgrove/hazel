@@ -1,5 +1,10 @@
+open OptUtil.Syntax;
+
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
+
+let extract_cursor_ztag = (CursorTag(cursor_pos, tag): ZTag.t): cursor_term =>
+  Tag(cursor_pos, tag);
 
 let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
   switch (zpat) {
@@ -18,7 +23,8 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
-  | InjZ(_, _, zpat) => extract_cursor_term(zpat)
+  | InjZP(_, _, zpat) => extract_cursor_term(zpat)
+  | InjZT(_, ztag, _) => extract_cursor_ztag(ztag)
   | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.extract_cursor_term(zann)
   };
@@ -42,11 +48,13 @@ and get_zoperand_from_zpat_operand =
   switch (zoperand) {
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
-  | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | InjZP(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | InjZT(_, ztag, _) => Some(ZTag(ztag))
   | TypeAnnZP(_, zop, _) => get_zoperand_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.get_zoperand_from_ztyp(zann)
   };
 };
+
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
@@ -217,8 +225,9 @@ and syn_cursor_info_zoperand =
            ),
          )
        })
-  | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | InjZT(_, ztag, _) => syn_cursor_info_ztag(~steps=steps @ [0], ctx, ztag)
+  | InjZP(_, _, zpat) => syn_cursor_info(~steps=steps @ [1], ctx, zpat)
   | TypeAnnZP(_, zop, ty) =>
     ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
   | TypeAnnZA(_, _, zann) =>
@@ -226,6 +235,13 @@ and syn_cursor_info_zoperand =
     |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
     |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
   }
+and syn_cursor_info_ztag =
+    (~steps: CursorPath.steps, ctx: Contexts.t, ztag: ZTag.zoperand)
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
+  let+ x = ztag |> CursorInfo_Typ.cursor_info_ztag(~steps=steps @ [0], ctx);
+  CursorInfo_common.CursorNotOnDeferredVarPat(x);
+}
+
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
