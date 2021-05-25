@@ -1367,7 +1367,9 @@ and syn_perform_opseq =
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed => Failed
+      | Failed =>
+        zoperand |> ZExp.ZBlock.wrap |> ZExp.print_z;
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
@@ -3097,7 +3099,8 @@ and ana_perform_operand =
     let new_ze = e |> place_cursor;
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
   | (Backspace, CursorE(OnDelim(_, After), TightAp(_, _, _))) =>
-    //call syn case and run ana fix holes to make it match up with the needed
+    //call syn case and run ana fix holes to make it match up with the needed type
+    //(doing so just avoids redundancy since the same things must be done, just with the addition of consistency checks)
     switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
     | Some(ty_operand) =>
       switch (syn_perform_operand(ctx, a, (zoperand, ty_operand, u_gen))) {
@@ -3106,7 +3109,9 @@ and ana_perform_operand =
         if (HTyp.consistent(ty_syn, ty)) {
           Succeeded(AnaDone((new_ze, u_gen)));
         } else {
-          Failed;
+          Succeeded(
+            AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+          );
         }
       //syn_expands returned after syn on a tightap; should never happen
       | _ => Failed
