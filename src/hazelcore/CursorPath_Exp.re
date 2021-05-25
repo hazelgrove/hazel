@@ -747,7 +747,7 @@ and holes_zoperand =
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
-      CursorPath_common.holes_ztag(ztag, [0, ...rev_steps]);
+      CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     let body_holes = holes(body, [1, ...rev_steps], []);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
@@ -763,7 +763,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let tag_holes = CursorPath_common.holes_tag(tag, [0, ...rev_steps], []);
+    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zbody, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(

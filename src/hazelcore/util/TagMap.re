@@ -1,34 +1,35 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t('a) = list((Tag.t, 'a));
+type t('a) = list((UHTag.t, 'a));
 
 let empty: t('a) = [];
 
-let bindings = (map: t('a)): list((Tag.t, 'a)) => map;
+let bindings = (map: t('a)): list((UHTag.t, 'a)) => map;
 
-let of_list = (bindings: list((Tag.t, 'a))): t('a) => bindings;
+let of_list = (bindings: list((UHTag.t, 'a))): t('a) => bindings;
 
 /* compares tags only */
 let compare_bindings =
-    ((tag1, _): (Tag.t, 'a), (tag2, _): (Tag.t, 'a)): int =>
-  Tag.compare(tag1, tag2);
+    ((tag1, _): (UHTag.t, 'a), (tag2, _): (UHTag.t, 'a)): int =>
+  UHTag.compare(tag1, tag2);
 
 let equal_tags = (map1: t('a), map2: t('a)): bool => {
   let tags1 = map1 |> List.map(fst);
   let tags2 = map2 |> List.map(fst);
   tags1 === tags2
-  || List.fast_sort(Tag.compare, tags1) == List.fast_sort(Tag.compare, tags2);
+  || List.fast_sort(UHTag.compare, tags1)
+  == List.fast_sort(UHTag.compare, tags2);
 };
 
 let equal_bindings =
     (
       val_equal: ('a, 'a) => bool,
-      (tag1: Tag.t, val1: 'a),
-      (tag2: Tag.t, val2: 'a),
+      (tag1: UHTag.t, val1: 'a),
+      (tag2: UHTag.t, val2: 'a),
     )
     : bool =>
-  Tag.eq(tag1, tag2) && val_equal(val1, val2);
+  UHTag.eq(tag1, tag2) && val_equal(val1, val2);
 
 let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   map1 === map2
@@ -47,7 +48,7 @@ let sort = (map: t('a)): t('a) => {
 // module Sexp = Sexplib.Sexp;
 
 // [@deriving sexp]
-// type binding('v) = (Tag.t, 'v);
+// type binding('v) = (UHTag.t, 'v);
 
 // let sexp_of_t = (sexp_of_v: 'v => Sexp.t, map: t('v)): Sexp.t =>
 //   map |> bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));

@@ -18,8 +18,8 @@ and operand =
   | List(t)
 and sumtyp = OpSeq.t(sumtyp_operand, sumtyp_operator)
 and sumtyp_operand =
-  | ConstTag(Tag.t)
-  | ArgTag(Tag.t, t);
+  | ConstTag(UHTag.t)
+  | ArgTag(UHTag.t, t);
 
 /* sum { C + ?(?) } */
 

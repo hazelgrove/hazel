@@ -9,7 +9,7 @@ and zoperand =
   | TypeAnnZP(ErrStatus.t, zoperand, UHTyp.t)
   | TypeAnnZA(ErrStatus.t, UHPat.operand, ZTyp.t)
   | InjZT(InjErrStatus.t, ZTag.t, UHPat.t)
-  | InjZP(InjErrStatus.t, Tag.t, t)
+  | InjZP(InjErrStatus.t, UHTag.t, t)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);

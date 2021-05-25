@@ -147,7 +147,7 @@ let rec complete =
   | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
   | Sum(tys) =>
     List.for_all(
-      ((tag: Tag.t, ty_opt)) =>
+      ((tag: UHTag.t, ty_opt)) =>
         (
           switch (tag) {
           | Tag(_) => true
@@ -200,7 +200,7 @@ let rec join = (j, ty1, ty2) =>
         List.fold_left2(
           (acc_opt, (tag, ty_opt), (tag', ty_opt')) =>
             Option.bind(acc_opt, acc =>
-              switch (Tag.eq(tag, tag'), ty_opt, ty_opt') {
+              switch (UHTag.eq(tag, tag'), ty_opt, ty_opt') {
               | (false, _, _)
               | (true, None, None) => Some([(tag, None), ...acc])
               | (true, Some(ty), Some(ty')) =>

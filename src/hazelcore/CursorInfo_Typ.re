@@ -29,12 +29,10 @@ and extract_from_zsumtyp_operand =
     (zsumty_operand: ZTyp.zsumtyp_operand): cursor_term =>
   switch (zsumty_operand) {
   | CursorTS(cursor_pos, sumty_operand) => SumTyp(cursor_pos, sumty_operand)
-  | ConstTagZ(ztag) => extract_cursor_tag(ztag)
-  | ArgTagZT(ztag, _) => extract_cursor_tag(ztag)
+  | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
+  | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
-  }
-and extract_cursor_tag = (CursorTag(cursor_pos, tag): ZTag.t): cursor_term =>
-  Tag(cursor_pos, tag);
+  };
 
 let rec get_zoperand_from_ztyp = (ztyp: ZTyp.t): option(zoperand) => {
   get_zoperand_from_ztyp_opseq(ztyp);
@@ -62,7 +60,3 @@ and get_zoperand_from_ztyp_operand =
 let cursor_info =
     (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
   Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));
-
-let cursor_info_ztag =
-    (~steps as _, ctx: Contexts.t, tag: ZTag.t): option(CursorInfo.t) =>
-  Some(CursorInfo_common.mk(OnTag, ctx, extract_cursor_tag(tag)));

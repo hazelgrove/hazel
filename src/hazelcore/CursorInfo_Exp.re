@@ -190,6 +190,7 @@ let caret_is_after_zoperand = (zexp: ZExp.t): bool => {
     | ZExp(zoperand) => ZExp.is_after_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_after_zoperand(zoperand)
     | ZTyp(zoperand) => ZTyp.is_after_zoperand(zoperand)
+    | ZTag(zoperand) => ZTag.is_after_zoperand(zoperand)
     }
   };
 };
@@ -201,6 +202,7 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
     | ZExp(zoperand) => ZExp.is_before_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_before_zoperand(zoperand)
     | ZTyp(zoperand) => ZTyp.is_before_zoperand(zoperand)
+    | ZTag(zoperand) => ZTag.is_after_zoperand(zoperand)
     }
   };
 };

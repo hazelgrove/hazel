@@ -125,7 +125,7 @@ type cursor_term =
   | SumTypOp(CursorPosition.t, UHTyp.sumtyp_operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule)
-  | Tag(CursorPosition.t, Tag.t);
+  | Tag(CursorPosition.t, UHTag.t);
 
 // TODO refactor into variants
 // based on term sort and shape

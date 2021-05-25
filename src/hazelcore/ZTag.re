@@ -1,9 +1,9 @@
 [@deriving sexp]
 type t = zoperand
 and zoperand =
-  | CursorTag(CursorPosition.t, Tag.t);
+  | CursorTag(CursorPosition.t, UHTag.t);
 
-let erase = (CursorTag(_, tag): t): Tag.t => tag;
+let erase = (CursorTag(_, tag): t): UHTag.t => tag;
 
 let move_cursor_left = (CursorTag(pos, tag): t): option(t) =>
   switch (pos) {
@@ -34,13 +34,13 @@ let move_cursor_right = (CursorTag(pos, tag): t): option(t) =>
   | (OnOp(_), _) => None
   };
 
-let place_before = (tag: Tag.t): t =>
+let place_before = (tag: UHTag.t): t =>
   switch (tag) {
   | TagHole(_) => CursorTag(OnDelim(0, Before), tag)
   | Tag(_) => CursorTag(OnText(0), tag)
   };
 
-let place_after = (tag: Tag.t): t =>
+let place_after = (tag: UHTag.t): t =>
   switch (tag) {
   | TagHole(_) => CursorTag(OnDelim(0, After), tag)
   | Tag(id) => CursorTag(OnText(String.length(id) - 1), tag)

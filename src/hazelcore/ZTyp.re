@@ -23,7 +23,7 @@ and zsumtyp_operand =
   | CursorTS(CursorPosition.t, UHTyp.sumtyp_operand)
   | ConstTagZ(ZTag.t)
   | ArgTagZT(ZTag.t, UHTyp.t)
-  | ArgTagZA(Tag.t, t);
+  | ArgTagZA(UHTag.t, t);
 
 type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);

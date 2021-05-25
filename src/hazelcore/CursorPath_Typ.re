@@ -298,9 +298,9 @@ and holes_sumtyp_operand =
     )
     : CursorPath.hole_list =>
   switch (sumty_operand) {
-  | ConstTag(tag) => CursorPath_common.holes_tag(tag, [0, ...rev_steps], hs)
+  | ConstTag(tag) => CursorPath_Tag.holes(tag, [0, ...rev_steps], hs)
   | ArgTag(tag, ty) =>
-    let hs = CursorPath_common.holes_tag(tag, [0, ...rev_steps], hs);
+    let hs = CursorPath_Tag.holes(tag, [0, ...rev_steps], hs);
     holes(ty, [1, ...rev_steps], hs);
   };
 
@@ -367,13 +367,13 @@ and holes_zsumtyp_operand =
     : CursorPath.zhole_list =>
   switch (zsumty_operand) {
   | CursorTS(OnDelim(k, _), ConstTag(tag)) =>
-    let holes = CursorPath_common.holes_tag(tag, [0, ...rev_steps], []);
+    let holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
   | CursorTS(OnDelim(k, _), ArgTag(tag, ty)) =>
-    let tag_holes = CursorPath_common.holes_tag(tag, [0, ...rev_steps], []);
+    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let ty_holes = holes(ty, [1, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_after=tag_holes @ ty_holes, ())
@@ -388,13 +388,13 @@ and holes_zsumtyp_operand =
   | CursorTS(OnOp(_) | OnText(_), _) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | ConstTagZ(ztag) => CursorPath_common.holes_ztag(ztag, [0, ...rev_steps])
+  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, [0, ...rev_steps])
   | ArgTagZT(ztag, ty) =>
     let ty_holes = holes(ty, [1, ...rev_steps], []);
-    let holes = CursorPath_common.holes_ztag(ztag, [0, ...rev_steps]);
+    let holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     {...holes, holes_after: ty_holes @ holes.holes_after};
   | ArgTagZA(tag, zty) =>
-    let tag_holes = CursorPath_common.holes_tag(tag, [0, ...rev_steps], []);
+    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let holes = holes_z(zty, [1, ...rev_steps]);
     {...holes, holes_before: tag_holes @ holes.holes_before};
   };

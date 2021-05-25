@@ -3,14 +3,14 @@ let of_z = (ztag: ZTag.t): CursorPath.t =>
   | ZTag.CursorTag(pos, _) => ([], pos)
   };
 
-let follow = (path: CursorPath.t, tag: Tag.t): option(ZTag.t) =>
+let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) =>
   switch (path) {
   | ([], pos) => Some(CursorTag(pos, tag))
   | (_, _) => None
   };
 
 let holes =
-    (tag: Tag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
+    (tag: UHTag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
     : CursorPath.hole_list =>
   switch (tag) {
   | Tag(_) => hs

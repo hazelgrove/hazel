@@ -15,7 +15,7 @@ and zoperand =
   | LamZP(ErrStatus.t, ZPat.t, UHExp.t)
   | LamZE(ErrStatus.t, UHPat.t, t)
   | InjZT(InjErrStatus.t, ZTag.t, UHExp.t)
-  | InjZE(InjErrStatus.t, Tag.t, t)
+  | InjZE(InjErrStatus.t, UHTag.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
   | ApPaletteZ(

@@ -3,9 +3,6 @@ open OptUtil.Syntax;
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let extract_cursor_ztag = (CursorTag(cursor_pos, tag): ZTag.t): cursor_term =>
-  Tag(cursor_pos, tag);
-
 let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
   switch (zpat) {
   | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
@@ -24,7 +21,7 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZP(_, _, zpat) => extract_cursor_term(zpat)
-  | InjZT(_, ztag, _) => extract_cursor_ztag(ztag)
+  | InjZT(_, ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.extract_cursor_term(zann)
   };
@@ -238,7 +235,7 @@ and syn_cursor_info_zoperand =
 and syn_cursor_info_ztag =
     (~steps: CursorPath.steps, ctx: Contexts.t, ztag: ZTag.zoperand)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
-  let+ x = ztag |> CursorInfo_Typ.cursor_info_ztag(~steps=steps @ [0], ctx);
+  let+ x = ztag |> CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx);
   CursorInfo_common.CursorNotOnDeferredVarPat(x);
 }
 
