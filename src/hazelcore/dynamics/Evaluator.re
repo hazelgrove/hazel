@@ -28,9 +28,11 @@ let ground_cases_of = (ctx: Contexts.t, ty: HTyp.t): ground_cases =>
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground
-  | TyVar(_) =>
-    /* TODO: Is this Ground or do we lookup in the context? */
-    Ground
+  | TyVar(idx, _) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx, idx)) {
+    | (_, Singleton(ty2)) => ground_cases_of(ctx, ty2)
+    | (_, KHole | Type) => failwith("impossible for bound type variables")
+    }
   | Prod(tys) =>
     if (List.for_all(Construction.HTyp.equiv(ctx, HTyp.Hole), tys)) {
       Ground;
