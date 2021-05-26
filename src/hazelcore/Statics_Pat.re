@@ -143,19 +143,19 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | TypeAnn(InHole(TypeInconsistent, _), _, _)
-  // | Inj(InHole(TypeInconsistent, _), _, _) =>
-  //   let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-  //   let+ (_, ctx) = syn_operand(ctx, operand');
-  //   ctx;
+  | Inj(InHole(_, _), _, _)
+  | Inj(NotInHole, TagHole(_), _) =>
+    let operand' = UHPat.set_err_status_operand(NotInHole, operand);
+    let+ (_, ctx) = syn_operand(ctx, operand');
+    ctx;
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | TypeAnn(InHole(WrongLength, _), _, _)
-  // | Inj(InHole(WrongLength, _), _, _) =>
-  //   ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
+  | TypeAnn(InHole(WrongLength, _), _, _) =>
+    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
@@ -170,10 +170,14 @@ and ana_operand =
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
     ctx;
-  | Inj(NotInHole, side, p1) =>
-    let* (tyL, tyR) = HTyp.matched_sum(ty);
-    let ty1 = InjSide.pick(side, tyL, tyR);
-    ana(ctx, p1, ty1);
+  | Inj(NotInHole, Tag(_) as tag, p1) =>
+    switch (ty) {
+    | Hole => ana(ctx, p1, Hole)
+    | Sum(tymap) =>
+      let* ty_pat = tymap |> TagMap.find_opt(tag) |> Option.join;
+      ana(ctx, p1, ty_pat);
+    | _ => None
+    }
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
@@ -397,6 +401,14 @@ and syn_fix_holes_operand =
     let (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     (Parenthesized(p), ty, ctx, u_gen);
+  | Inj(_, tag, p1) =>
+    let (tag, u_gen) =
+      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+    let (p1, ty1, ctx, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
+    let p = UHPat.Inj(NotInHole, tag, p1);
+    (p, ty1, ctx, u_gen);
+
   // | Inj(_, side, p1) =>
   //   let (p1, ty1, ctx, u_gen) =
   //     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);

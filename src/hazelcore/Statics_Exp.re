@@ -501,6 +501,7 @@ and ana_nth_type_mode' =
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
  */
+/* NOTE: These functions fix error statuses. They do not fill in holes. */
 let rec syn_fix_holes =
         (
           ctx: Contexts.t,
@@ -1246,31 +1247,36 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
-  // | Inj(_, side, body) =>
-  //   switch (HTyp.matched_sum(ty)) {
-  //   | Some((ty1, ty2)) =>
-  //     let (e1, u_gen) =
-  //       ana_fix_holes(
-  //         ctx,
-  //         u_gen,
-  //         ~renumber_empty_holes,
-  //         body,
-  //         InjSide.pick(side, ty1, ty2),
-  //       );
-  //     (Inj(NotInHole, side, e1), u_gen);
-  //   | None =>
-  //     let (e', ty', u_gen) =
-  //       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-  //     if (HTyp.consistent(ty, ty')) {
-  //       (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
-  //     } else {
-  //       let (u, u_gen) = MetaVarGen.next(u_gen);
-  //       (
-  //         UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-  //         u_gen,
-  //       );
-  //     };
-  //   }
+  | Inj(_, tag, body) =>
+    let (tag, u_gen) =
+      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+    switch (ty) {
+    | Hole =>
+      /* Expected Type is Hole */
+      let (body, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+      (Inj(NotInHole, tag, body), u_gen);
+    | Sum(tymap) =>
+      switch (tymap |> TagMap.find_opt(tag)) {
+      | Some(Some(ty_body)) =>
+        /* TAInj */
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty_body);
+        (Inj(NotInHole, tag, body), u_gen);
+      | None =>
+        /* Bad Tag */
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (Inj(InHole(BadTag, u), tag, body), u_gen);
+      }
+    | _ =>
+      /* Injection Analyzed Against Non-Sum */
+      let (body, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (Inj(InHole(InjectionInSyntheticPosition, u), tag, body), u_gen);
+    };
   | Case(_, scrut, rules) =>
     let (scrut, scrut_ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);

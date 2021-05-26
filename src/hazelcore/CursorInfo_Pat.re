@@ -450,7 +450,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | TypeAnn(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Inj(InHole(_, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -471,8 +471,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | TypeAnn(InHole(WrongLength, _), _, _)
-    | Inj(InHole(WrongLength, _), _, _) => None
+    | TypeAnn(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
@@ -540,15 +539,23 @@ and ana_cursor_info_zoperand =
            )
          )
     }
-  | InjZ(InHole(WrongLength, _), _, _) => None
-  | InjZ(InHole(TypeInconsistent, _), _, _) =>
-    syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => None
-    | Some((tyL, tyR)) =>
-      let ty_body = InjSide.pick(position, tyL, tyR);
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
+  | InjZT(err, ztag, _) =>
+    switch (err) {
+    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | NotInHole =>
+      let+ x = ztag |> CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx);
+      CursorInfo_common.CursorNotOnDeferredVarPat(x);
+    }
+  | InjZP(err, tag, zpat) =>
+    switch (err) {
+    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | NotInHole =>
+      let* ty_pat =
+        switch (ty) {
+        | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
+        | _ => None
+        };
+      ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_pat);
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
