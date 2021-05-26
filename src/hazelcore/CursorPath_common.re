@@ -102,41 +102,25 @@ let follow_opseq_ =
     )
     : option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
   switch (steps) {
-  | [] =>
-    print_endline("no steps in cp common steps");
-    None;
+  | [] => None
   | [x, ...xs] =>
     switch (
       Seq.opt_split_nth_operand(x, seq),
       Seq.opt_split_nth_operator(x - Seq.length(seq), seq),
     ) {
-    | (None, None) =>
-      print_endline("split led to double non in cp common steps");
-      None;
+    | (None, None) => None
     | (Some((operand, surround)), _) =>
-      let res =
-        operand
-        |> follow_operand((xs, cursor))
-        |> Option.map(zoperand =>
-             ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
-           );
-      switch (res) {
-      | Some(_) => print_endline("follow operand some")
-      | None => print_endline("follow operand none")
-      };
-      res;
+      operand
+      |> follow_operand((xs, cursor))
+      |> Option.map(zoperand =>
+           ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
+         )
     | (_, Some((operator, surround))) =>
-      let res =
-        operator
-        |> follow_operator((xs, cursor))
-        |> Option.map(zoperator =>
-             ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
-           );
-      switch (res) {
-      | Some(_) => print_endline("follow operator none")
-      | None => print_endline("follow operator none")
-      };
-      res;
+      operator
+      |> follow_operator((xs, cursor))
+      |> Option.map(zoperator =>
+           ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
+         )
     }
   };
 
