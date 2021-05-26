@@ -211,6 +211,10 @@ body {
   cursor: pointer;
 }
 
+.sidebar.right-sidebar {
+  grid-template-columns: 30px auto; /* TODO Hannah fix up this layout stuff later*/
+}
+
 .sidebar-tab {
   height: 20px;
   flex-shrink: 0;

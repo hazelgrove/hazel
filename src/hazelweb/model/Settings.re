@@ -121,6 +121,8 @@ module Performance = {
 module RightPanel = {
   type t = {
     panel_open: bool,
+    code_summary: bool,
+    code_explanation: bool,
     cursor_inspector: bool,
     context_inspector: bool,
     undo_history_panel: bool,
@@ -128,6 +130,8 @@ module RightPanel = {
   };
   let init = {
     panel_open: true,
+    code_summary: true,
+    code_explanation: true,
     cursor_inspector: true,
     context_inspector: true,
     undo_history_panel: true,
@@ -137,6 +141,8 @@ module RightPanel = {
   [@deriving sexp]
   type update =
     | Toggle_open
+    | Toggle_code_summary
+    | Toggle_code_explanation
     | Toggle_cursor_inspector
     | Toggle_context_inspector
     | Toggle_undo_history_panel
@@ -145,6 +151,14 @@ module RightPanel = {
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_open => {...settings, panel_open: !settings.panel_open}
+    | Toggle_code_summary => {
+        ...settings,
+        code_summary: !settings.code_summary,
+      }
+    | Toggle_code_explanation => {
+        ...settings,
+        code_explanation: !settings.code_explanation,
+      }
     | Toggle_cursor_inspector => {
         ...settings,
         cursor_inspector: !settings.cursor_inspector,

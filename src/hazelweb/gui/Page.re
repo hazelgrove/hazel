@@ -247,6 +247,26 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ~is_open=model.settings.right_panel.panel_open,
                 [
                   (
+                    model.settings.right_panel.code_summary,
+                    Node.text("SU"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_code_summary),
+                      ),
+                    ),
+                    () => CodeSummary.view(),
+                  ),
+                  (
+                    model.settings.right_panel.code_explanation,
+                    Node.text("EX"),
+                    inject(
+                      ModelAction.UpdateSettings(
+                        RightPanel(Toggle_code_explanation),
+                      ),
+                    ),
+                    () => CodeExplanation.view(),
+                  ),
+                  (
                     model.settings.right_panel.cursor_inspector,
                     Node.text("CI"),
                     inject(
@@ -285,7 +305,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ),
                   (
                     model.settings.right_panel.settings_panel,
-                    Node.text("S"),
+                    Node.text("SE"),
                     inject(
                       ModelAction.UpdateSettings(
                         RightPanel(Toggle_settings_panel),

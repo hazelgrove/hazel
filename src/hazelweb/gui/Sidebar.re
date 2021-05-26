@@ -117,8 +117,21 @@ let mk_tabbed_sidebar =
       ],
       [
         Node.div(
-          [Attr.classes(["sidebar"]), Attr.on_click(on_toggle)],
           [
+            Attr.classes(["sidebar", "right-sidebar"]),
+            Attr.on_click(on_toggle),
+          ],
+          [
+            Node.div(
+              [],
+              icons
+              @ [
+                Node.div(
+                  [Attr.id(tab_id), Attr.classes(["sidebar-tab"])],
+                  [sidebar_open ? tab_opened_icon : tab_closed_icon],
+                ),
+              ],
+            ),
             Node.div(
               [
                 Attr.id(slidable_body_id),
@@ -145,13 +158,6 @@ let mk_tabbed_sidebar =
                   panels,
                 ),
               ],
-            ),
-          ]
-          @ icons
-          @ [
-            Node.div(
-              [Attr.id(tab_id), Attr.classes(["sidebar-tab"])],
-              [sidebar_open ? tab_opened_icon : tab_closed_icon],
             ),
           ],
         ),
