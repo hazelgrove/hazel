@@ -1,4 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
+open Vdom;
 
 /**
  * Extract from the context the variables that are consistent with the type that
@@ -86,82 +87,69 @@ let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
 };
 
 let code_node = text =>
-  Vdom.Node.div(
-    [Vdom.Attr.classes(["code-font"])],
-    [Vdom.Node.text(text)],
-  );
+  Node.div([Attr.classes(["code-font"])], [Node.text(text)]);
 
 let shortcut_node = text =>
-  Vdom.Node.div(
-    [Vdom.Attr.classes(["code-font", "shortcut"])],
-    [Vdom.Node.text(text)],
-  );
+  Node.div([Attr.classes(["code-font", "shortcut"])], [Node.text(text)]);
 
 let example_lit_node = text =>
-  Vdom.Node.div(
-    [Vdom.Attr.classes(["code-font", "example"])],
-    [Vdom.Node.text(text)],
-  );
+  Node.div([Attr.classes(["code-font", "example"])], [Node.text(text)]);
 
 let keyword_node = text =>
-  Vdom.Node.div(
-    [Vdom.Attr.classes(["code-font", "keyword"])],
-    [Vdom.Node.text(text)],
-  );
+  Node.div([Attr.classes(["code-font", "keyword"])], [Node.text(text)]);
 
-let option = nodes => Vdom.(Node.div([Attr.classes(["option"])], nodes));
-let mini_option = nodes =>
-  Vdom.(Node.div([Attr.classes(["mini-option"])], nodes));
-let fill_space = Vdom.(Node.span([Attr.classes(["filler"])], []));
+let option = nodes => Node.div([Attr.classes(["option"])], nodes);
+let mini_option = nodes => Node.div([Attr.classes(["mini-option"])], nodes);
+let fill_space = Node.span([Attr.classes(["filler"])], []);
 
 let int_lit =
   option([
-    Vdom.Node.text("Enter an Integer Literal"),
+    Node.text("Enter an Integer Literal"),
     fill_space,
-    Vdom.Node.text("(e.g. "),
+    Node.text("(e.g. "),
     example_lit_node("1"),
-    Vdom.Node.text(")"),
+    Node.text(")"),
   ]);
 let float_lit =
   option([
-    Vdom.Node.text("Enter a Floating Point Literal"),
+    Node.text("Enter a Floating Point Literal"),
     fill_space,
-    Vdom.Node.text("(e.g. "),
+    Node.text("(e.g. "),
     example_lit_node("1.0"),
-    Vdom.Node.text(")"),
+    Node.text(")"),
   ]);
 let bool_lit =
   option([
-    Vdom.Node.text("Enter a Boolean Literal"),
+    Node.text("Enter a Boolean Literal"),
     fill_space,
-    Vdom.Node.text("(e.g. "),
+    Node.text("(e.g. "),
     example_lit_node("true"),
-    Vdom.Node.text(")"),
+    Node.text(")"),
   ]);
 let lit_msg_exp = (ty: HTyp.t) => {
   let fun_lit =
     option([
-      Vdom.Node.text("Enter a Function Literal"),
+      Node.text("Enter a Function Literal"),
       fill_space,
       shortcut_node("\\"),
     ]);
   let sum_lit =
     option([
-      Vdom.Node.text("Enter an Injection Literal"),
+      Node.text("Enter an Injection Literal"),
       fill_space,
       shortcut_node("Alt+l"),
-      Vdom.Node.text("or"),
+      Node.text("or"),
       shortcut_node("Alt+r"),
     ]);
   let prod_lit =
     option([
-      Vdom.Node.text("Enter a Tuple Literal"),
+      Node.text("Enter a Tuple Literal"),
       fill_space,
       shortcut_node("("),
     ]);
   let list_lit =
     option([
-      Vdom.Node.text("Enter an Empty List Literal"),
+      Node.text("Enter an Empty List Literal"),
       fill_space,
       shortcut_node("["),
     ]);
@@ -194,43 +182,39 @@ let val_msg_pat = (ty: HTyp.t) => {
   | Arrow(_, _)
   | Sum(_, _)
   | Prod(_)
-  | List(_) => [option([Vdom.Node.text("No suggestions.")])]
+  | List(_) => [option([Node.text("No suggestions.")])]
   };
 };
 
 let structure_msg = (ty: HTyp.t) => {
   let prod_pat =
     option([
-      Vdom.Node.text("Enter a Tuple pattern"),
+      Node.text("Enter a Tuple pattern"),
       fill_space,
       shortcut_node("("),
     ]);
   let sum_pat =
     option([
-      Vdom.Node.text("Enter an Injection"),
+      Node.text("Enter an Injection"),
       fill_space,
       shortcut_node("Alt + l"),
-      Vdom.Node.text("or"),
+      Node.text("or"),
       shortcut_node("Alt + r"),
     ]);
   let list_pat =
     option([
-      Vdom.Node.text("Enter a Non-empty List pattern"),
+      Node.text("Enter a Non-empty List pattern"),
       fill_space,
       shortcut_node(";"),
     ]);
   let list_lit_pat =
-    option([
-      Vdom.Node.text("Enter a List"),
-      fill_space,
-      shortcut_node("["),
-    ]);
+    option([Node.text("Enter a List"), fill_space, shortcut_node("[")]);
   switch (ty) {
   | Hole => [sum_pat, prod_pat, list_pat, list_lit_pat]
   | Prod(_) => [prod_pat]
   | List(_) => [list_pat, list_lit_pat]
   | Sum(_) => [sum_pat]
-  | _ => [option([Vdom.Node.text("No suggestions.")])]
+  | _ => [option([Node.text("No suggestions.")])]
   };
 };
 
@@ -242,11 +226,9 @@ let list_vars_view = (vars: VarCtx.t) => {
   let b =
     VarMap.map(
       ((var, ty)) => {
-        Vdom.(
-          Node.div(
-            [Attr.classes(["option"])],
-            [code_node(var), Node.text(" : "), HTypCode.view(ty)],
-          )
+        Node.div(
+          [Attr.classes(["option"])],
+          [code_node(var), Node.text(" : "), HTypCode.view(ty)],
         )
       },
       vars,
@@ -269,7 +251,7 @@ let list_any_view = (ty: HTyp.t) => {
     };
   List.map(
     binding => {
-      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
+      Node.div([Attr.classes(["option"])], [code_node(binding)])
     },
     suggestions,
   );
@@ -283,7 +265,7 @@ let list_ignore_view = () => {
   let suggestions = ["_"];
   List.map(
     binding => {
-      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
+      Node.div([Attr.classes(["option"])], [code_node(binding)])
     },
     suggestions,
   );
@@ -294,7 +276,6 @@ let list_ignore_view = () => {
  * Return a Node.t
  */
 let operator_options = cursor_info => {
-  open Vdom;
   let int_options = [
     shortcut_node("+"),
     shortcut_node("-"),
@@ -319,15 +300,11 @@ let operator_options = cursor_info => {
   ];
 
   let int_operators_wrapper = options =>
-    mini_option([
-      Vdom.Node.text("Integer Operation"),
-      fill_space,
-      ...options,
-    ]);
+    mini_option([Node.text("Integer Operation"), fill_space, ...options]);
 
   let float_operators_wrapper = options =>
     mini_option([
-      Vdom.Node.text("Floating Point Operation"),
+      Node.text("Floating Point Operation"),
       fill_space,
       ...options,
     ]);
@@ -387,12 +364,11 @@ let operator_options = cursor_info => {
   };
 };
 
-let type_driven = body =>
-  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+let type_driven = body => Node.div([Attr.classes(["type-driven"])], body);
 
 let exp_hole_view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Event.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
@@ -419,36 +395,32 @@ let exp_hole_view =
       } else {
         Icons.left_arrow(["fill-arrow"]);
       };
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ => {
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
-            ])
-          }),
-        ],
-        [Node.text(text), subsection_arrow],
-      )
+    Node.div(
+      [
+        Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+        Attr.on_click(_ => {
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+          ])
+        }),
+      ],
+      [Node.text(text), subsection_arrow],
     );
   };
 
   let var_ctx = extract_vars(ctx, typ);
 
   let fill_hole_msg =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
-        [
-          Node.div(
-            [Attr.classes(["words"])],
-            [Node.text("Here are the options at this position")],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+      [
+        Node.div(
+          [Attr.classes(["words"])],
+          [Node.text("Here are the options at this position")],
+        ),
+      ],
     );
 
   let lit =
@@ -461,25 +433,19 @@ let exp_hole_view =
       lit_open,
     );
   let lit_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], lit_msg_exp(typ))],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [Node.div([Attr.classes(["options"])], lit_msg_exp(typ))],
     );
 
   let vars_view =
     if (VarMap.is_empty(var_ctx)) {
-      Vdom.(
-        Node.div(
-          [Attr.classes(["option"])],
-          [Node.text("No variables of expected type in context")],
-        )
+      Node.div(
+        [Attr.classes(["option"])],
+        [Node.text("No variables of expected type in context")],
       );
     } else {
-      Vdom.(
-        Node.div([Attr.classes(["options"])], list_vars_view(var_ctx))
-      );
+      Node.div([Attr.classes(["options"])], list_vars_view(var_ctx));
     };
   let var =
     subsection_header(
@@ -488,12 +454,7 @@ let exp_hole_view =
       var_open,
     );
   let var_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [vars_view],
-      )
-    );
+    Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [vars_view]);
 
   let fun_h =
     subsection_header(
@@ -504,22 +465,18 @@ let exp_hole_view =
   let fun_ctx = fun_vars(ctx, typ);
   let fun_ap_opt =
     option([
-      Vdom.Node.text("Apply a Function"),
+      Node.text("Apply a Function"),
       fill_space,
       shortcut_node("Space"),
     ]);
   let fun_view =
     if (VarMap.is_empty(fun_ctx)) {
       [
-        Vdom.(
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text(
-                "No functions with expected resulting type in context",
-              ),
-            ],
-          )
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("No functions with expected resulting type in context"),
+          ],
         ),
         fun_ap_opt,
       ];
@@ -527,16 +484,14 @@ let exp_hole_view =
       [fun_ap_opt, ...list_vars_view(fun_vars(ctx, typ))];
     };
   let fun_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["options"])],
-            fun_view @ operator_options(cursor_info),
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [
+        Node.div(
+          [Attr.classes(["options"])],
+          fun_view @ operator_options(cursor_info),
+        ),
+      ],
     );
 
   let branch =
@@ -546,23 +501,21 @@ let exp_hole_view =
       branch_open,
     );
   let branch_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Consider by "),
-              keyword_node("case"),
-              fill_space,
-              example_lit_node("\"case \""),
-              Node.text(" or "),
-              shortcut_node("Alt+c"),
-            ],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Consider by "),
+            keyword_node("case"),
+            fill_space,
+            example_lit_node("\"case \""),
+            Node.text(" or "),
+            shortcut_node("Alt+c"),
+          ],
+        ),
+      ],
     );
 
   let new_var =
@@ -572,64 +525,60 @@ let exp_hole_view =
       new_var_open,
     );
   let new_var_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create "),
-              keyword_node("let"),
-              Node.text(" binding"),
-              fill_space,
-              example_lit_node("\"let \""),
-            ],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Create "),
+            keyword_node("let"),
+            Node.text(" binding"),
+            fill_space,
+            example_lit_node("\"let \""),
+          ],
+        ),
+      ],
     );
 
   let other =
     subsection_header(Toggle_type_assist_other, "Other Actions", other_open);
   let other_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [Node.text("Parenthesize"), fill_space, shortcut_node("(")],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Move to next/previous hole"),
-              fill_space,
-              shortcut_node("Tab"),
-              shortcut_node("Shift+Tab"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Swap line up/down"),
-              fill_space,
-              shortcut_node("Ctrl+Alt+i"),
-              shortcut_node("Ctrl+Alt+k"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Swap operand left/right"),
-              fill_space,
-              shortcut_node("Ctrl+Alt+j"),
-              shortcut_node("Ctrl+Alt+l"),
-            ],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [
+        Node.div(
+          [Attr.classes(["option"])],
+          [Node.text("Parenthesize"), fill_space, shortcut_node("(")],
+        ),
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Move to next/previous hole"),
+            fill_space,
+            shortcut_node("Tab"),
+            shortcut_node("Shift+Tab"),
+          ],
+        ),
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Swap line up/down"),
+            fill_space,
+            shortcut_node("Ctrl+Alt+i"),
+            shortcut_node("Ctrl+Alt+k"),
+          ],
+        ),
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Swap operand left/right"),
+            fill_space,
+            shortcut_node("Ctrl+Alt+j"),
+            shortcut_node("Ctrl+Alt+l"),
+          ],
+        ),
+      ],
     );
   let body =
     if (lit_open) {
@@ -677,40 +626,36 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   | Exp(OnDelim(1, Before), Case(_)) =>
     Some(
       type_driven([
-        Vdom.(
-          Node.div(
-            [Attr.classes(["panel-title-bar", "body-bar"])],
-            [
-              Node.div(
-                [Attr.classes(["option"])],
-                [
-                  Node.text("Add rule before"),
-                  fill_space,
-                  shortcut_node("Enter"),
-                ],
-              ),
-            ],
-          )
+        Node.div(
+          [Attr.classes(["panel-title-bar", "body-bar"])],
+          [
+            Node.div(
+              [Attr.classes(["option"])],
+              [
+                Node.text("Add rule before"),
+                fill_space,
+                shortcut_node("Enter"),
+              ],
+            ),
+          ],
         ),
       ]),
     )
   | Rule(OnDelim(1, Before), _) =>
     Some(
       type_driven([
-        Vdom.(
-          Node.div(
-            [Attr.classes(["panel-title-bar", "body-bar"])],
-            [
-              Node.div(
-                [Attr.classes(["option"])],
-                [
-                  Node.text("Add rule after"),
-                  fill_space,
-                  shortcut_node("Enter"),
-                ],
-              ),
-            ],
-          )
+        Node.div(
+          [Attr.classes(["panel-title-bar", "body-bar"])],
+          [
+            Node.div(
+              [Attr.classes(["option"])],
+              [
+                Node.text("Add rule after"),
+                fill_space,
+                shortcut_node("Enter"),
+              ],
+            ),
+          ],
         ),
       ]),
     )
@@ -720,36 +665,34 @@ let rules_view = (cursor_info: CursorInfo.t) => {
 
 let lines_view = () => {
   type_driven([
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create new line"),
-              fill_space,
-              shortcut_node("Enter"),
-            ],
-          ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Create new comment line"),
-              fill_space,
-              shortcut_node("#"),
-              shortcut_node("Shift+Enter"),
-            ],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Create new line"),
+            fill_space,
+            shortcut_node("Enter"),
+          ],
+        ),
+        Node.div(
+          [Attr.classes(["option"])],
+          [
+            Node.text("Create new comment line"),
+            fill_space,
+            shortcut_node("#"),
+            shortcut_node("Shift+Enter"),
+          ],
+        ),
+      ],
     ),
   ]);
 };
 
 let pat_hole_view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Event.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
@@ -773,34 +716,30 @@ let pat_hole_view =
       } else {
         Icons.left_arrow(["fill-arrow"]);
       };
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ => {
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
-            ])
-          }),
-        ],
-        [Node.text(text), subsection_arrow],
-      )
+    Node.div(
+      [
+        Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+        Attr.on_click(_ => {
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+          ])
+        }),
+      ],
+      [Node.text(text), subsection_arrow],
     );
   };
 
   let fill_hole_msg =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
-        [
-          Node.div(
-            [Attr.classes(["words"])],
-            [Node.text("Which strategy do you want to try?")],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+      [
+        Node.div(
+          [Attr.classes(["words"])],
+          [Node.text("Which strategy do you want to try?")],
+        ),
+      ],
     );
 
   let value =
@@ -810,11 +749,9 @@ let pat_hole_view =
       val_open,
     );
   let val_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], val_msg_pat(typ))],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [Node.div([Attr.classes(["options"])], val_msg_pat(typ))],
     );
 
   let structure =
@@ -824,15 +761,12 @@ let pat_hole_view =
       structure_open,
     );
   let structure_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [Node.div([Attr.classes(["options"])], structure_msg(typ))],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [Node.div([Attr.classes(["options"])], structure_msg(typ))],
     );
 
-  let any_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_any_view(typ)));
+  let any_view = Node.div([Attr.classes(["options"])], list_any_view(typ));
   let any =
     subsection_header(
       Toggle_type_assist_any,
@@ -840,20 +774,16 @@ let pat_hole_view =
       any_open,
     );
   let any_body =
-    Vdom.(
-      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view])
-    );
+    Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view]);
 
   let ignore_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_ignore_view()));
+    Node.div([Attr.classes(["options"])], list_ignore_view());
   let ignore =
     subsection_header(Toggle_type_assist_ignore, "Ignore?", ignore_open);
   let ignore_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [ignore_view],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [ignore_view],
     );
 
   let body = [];
@@ -887,7 +817,7 @@ let pat_hole_view =
 
 let var_hole_view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Event.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     ) => {
@@ -909,50 +839,43 @@ let var_hole_view =
       } else {
         Icons.left_arrow(["fill-arrow"]);
       };
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ => {
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.UpdateSettings(CursorInspector(setting))),
-            ])
-          }),
-        ],
-        [Node.text(text), subsection_arrow],
-      )
+    Node.div(
+      [
+        Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+        Attr.on_click(_ => {
+          Event.Many([
+            Event.Prevent_default,
+            Event.Stop_propagation,
+            inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+          ])
+        }),
+      ],
+      [Node.text(text), subsection_arrow],
     );
   };
 
   let fill_hole_msg =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
-        [
-          Node.div(
-            [Attr.classes(["words"])],
-            [Node.text("Which strategy do you want to try?")],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+      [
+        Node.div(
+          [Attr.classes(["words"])],
+          [Node.text("Which strategy do you want to try?")],
+        ),
+      ],
     );
 
   let ignore_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_ignore_view()));
+    Node.div([Attr.classes(["options"])], list_ignore_view());
   let ignore =
     subsection_header(Toggle_type_assist_ignore, "Ignore?", ignore_open);
   let ignore_body =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [ignore_view],
-      )
+    Node.div(
+      [Attr.classes(["panel-title-bar", "body-bar"])],
+      [ignore_view],
     );
 
-  let any_view =
-    Vdom.(Node.div([Attr.classes(["options"])], list_any_view(typ)));
+  let any_view = Node.div([Attr.classes(["options"])], list_any_view(typ));
   let any =
     subsection_header(
       Toggle_type_assist_any,
@@ -960,9 +883,7 @@ let var_hole_view =
       any_open,
     );
   let any_body =
-    Vdom.(
-      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view])
-    );
+    Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view]);
 
   let body = [];
   let body =
