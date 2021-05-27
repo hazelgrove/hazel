@@ -302,6 +302,7 @@ and perform_operand =
   | (Construct(SLeftParenthesis), CursorT(_) as zpat) =>
     if (ZTyp.is_after_zoperand(zpat)) {
       Failed;
+            //NOTE: currently Failed; will need to change to support type functions like List(int) once introduced!
     } else {
       Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))));
     }

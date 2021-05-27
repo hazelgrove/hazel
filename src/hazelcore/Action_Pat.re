@@ -786,6 +786,7 @@ and syn_perform_operand =
     //if after operand, tightap condition met (fail); else, paren
     if (ZPat.is_after_zoperand(zpat)) {
       Failed;
+            //NOTE: currently Failed; will need to change to support datatype constructs like Some(x) once introduced!
     } else {
       mk_syn_result(
         ctx,

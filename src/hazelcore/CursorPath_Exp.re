@@ -348,6 +348,7 @@ and of_steps_operand =
     | TightAp(_, func, arg) =>
       switch (x) {
       | 0 =>
+        //CHANGED TO wrapped ver;
         func
         |> of_steps_operand(xs, ~side)
         |> Option.map(path => cons'(0, path))

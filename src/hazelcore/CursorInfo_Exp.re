@@ -256,11 +256,8 @@ and syn_cursor_info_zblock =
     )
     : option(CursorInfo.t) =>
   switch (Statics_Exp.syn_lines(ctx, prefix)) {
-  | None =>
-    //ZExp.print_z((prefix, zline, suffix));
-    None
+  | None => None
   | Some(ctx) =>
-    //ZExp.print_z((prefix, zline, suffix));
     switch (
       syn_cursor_info_line(~steps=steps @ [List.length(prefix)], ctx, zline)
     ) {
@@ -967,9 +964,11 @@ and ana_cursor_info_zoperand =
       )
     }
   | TightApZE1(NotInHole, zfunc, _) =>
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc, ty)
+    //subsume
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zfunc)
   | TightApZE2(NotInHole, _, zarg) =>
-    ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty)
+    //subsume
+    syn_cursor_info(~steps=steps @ [1], ctx, zarg)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

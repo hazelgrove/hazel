@@ -495,11 +495,22 @@ let rec syn_move =
     }
   | MoveToNextHole =>
     switch (CursorPath_Exp.next_hole_steps_z(ze)) {
-    | None => Failed
+    | None =>
+      print_endline("failed on next hole steps z");
+      Failed;
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+      | None =>
+        print_endline("failed on of_steps");
+        Failed;
+      | Some(path) =>
+        CursorPath_common.print_path(path);
+        let res = syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
+        switch (res) {
+        | Failed => print_endline("failed on syn_move")
+        | _ => print_endline("succeeded on syn_move")
+        };
+        res;
       }
     }
   | MoveLeft =>
