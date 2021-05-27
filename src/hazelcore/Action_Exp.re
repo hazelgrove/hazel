@@ -495,22 +495,11 @@ let rec syn_move =
     }
   | MoveToNextHole =>
     switch (CursorPath_Exp.next_hole_steps_z(ze)) {
-    | None =>
-      print_endline("failed on next hole steps z");
-      Failed;
+    | None => Failed
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
-      | None =>
-        print_endline("failed on of_steps");
-        Failed;
-      | Some(path) =>
-        CursorPath_common.print_path(path);
-        let res = syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
-        switch (res) {
-        | Failed => print_endline("failed on syn_move")
-        | _ => print_endline("succeeded on syn_move")
-        };
-        res;
+      | None => Failed
+      | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
       }
     }
   | MoveLeft =>
@@ -1378,9 +1367,7 @@ and syn_perform_opseq =
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed =>
-        zoperand |> ZExp.ZBlock.wrap |> ZExp.print_z;
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,

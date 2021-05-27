@@ -348,9 +348,9 @@ and of_steps_operand =
     | TightAp(_, func, arg) =>
       switch (x) {
       | 0 =>
-        //CHANGED TO wrapped ver;
         func
-        |> of_steps_operand(xs, ~side)
+        |> UHExp.Block.wrap
+        |> of_steps(xs, ~side)
         |> Option.map(path => cons'(0, path))
       | 1 => arg |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
       | _ => None
@@ -480,7 +480,7 @@ and holes_operand =
   | TightAp(err, func, arg) =>
     hs
     |> holes(arg, [1, ...rev_steps])
-    |> holes_operand(func, [0, ...rev_steps])
+    |> holes(UHExp.Block.wrap(func), [0, ...rev_steps])
     |> holes_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
@@ -733,7 +733,7 @@ and holes_zoperand =
       | InHole(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
-    let holes_func = holes_operand(func, [0, ...rev_steps], []);
+    let holes_func = holes(UHExp.Block.wrap(func), [0, ...rev_steps], []);
     let holes_arg = holes(arg, [1, ...rev_steps], []);
     switch (k) {
     | 0 =>
@@ -879,7 +879,7 @@ and holes_zoperand =
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_zoperand(zfunc, [0, ...rev_steps]);
+      holes_z(ZExp.ZBlock.wrap(zfunc), [0, ...rev_steps]);
     let holes_arg = holes(arg, [1, ...rev_steps], []);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_before,
@@ -895,7 +895,7 @@ and holes_zoperand =
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
-    let holes_func = holes_operand(func, [0, ...rev_steps], []);
+    let holes_func = holes(UHExp.Block.wrap(func), [0, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zarg, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(
