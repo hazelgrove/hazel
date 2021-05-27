@@ -733,7 +733,9 @@ and syn_elab_skel =
               (Delta.ExpressionHole, HTyp.Hole, gamma),
               delta,
             );
-          let d = DHExp.Tuple([(Some(l), d2)]);
+          // If a label is in a hole, it is not a valid label
+          // And that tuple element does not have a label hole
+          let d = DHExp.Tuple([(None, d2)]);
           Elaborates(d, Hole, delta);
         }
       // skel1 is not a label, so evaluate for arrow case
@@ -952,20 +954,19 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Label(err, l) =>
-      switch (err) {
-      | NotInLabelHole =>
-        let d = DHExp.ErrLabel(l);
-        let ty = HTyp.Hole;
-        Elaborates(d, ty, delta);
-      | InLabelHole(_, u) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let d = DHExp.ErrLabel(l);
-        let ty = HTyp.Hole;
-        let delta =
-          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-        Elaborates(d, ty, delta);
-      };
+    switch (err) {
+    | NotInLabelHole =>
+      let d = DHExp.ErrLabel(l);
+      let ty = HTyp.Hole;
+      Elaborates(d, ty, delta);
+    | InLabelHole(_, u) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let d = DHExp.ErrLabel(l);
+      let ty = HTyp.Hole;
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+      Elaborates(d, ty, delta);
     }
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
@@ -1069,11 +1070,17 @@ and syn_elab_operand =
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
-      switch (DHExp.get_prj(d, l), HTyp.get_projected_type(e_ty, l)) {
+      switch (DHExp.get_prj_idx(d, l), HTyp.get_prj_type(e_ty, l)) {
       | (None, _)
-      | (_, None) => DoesNotElaborate
-      // ECD: You are here, need to figure out how to find index of a projection
-      | (Some(d'), Some(ty')) => Elaborates(d', ty', delta)
+      | (_, None) =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let ty = HTyp.Hole;
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        Elaborates(DHExp.ErrPrj(d, l), ty, delta);
+      | (Some(idx), Some(ty')) =>
+        Elaborates(DHExp.Prj(d, l, idx), ty', delta)
       }
     }
   }

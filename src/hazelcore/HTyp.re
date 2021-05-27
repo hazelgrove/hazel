@@ -105,17 +105,17 @@ let matched_arrow =
 // or if it can be ignored
 let get_prod_elements: t => list(t) =
   fun
-  | Prod(tys) => List.map(((label, ty)) => {ty}, tys)
+  | Prod(tys) => List.map(((_, ty)) => {ty}, tys)
   | _ as ty => [ty];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
-let rec get_projected_type = (ty: t, l: Label.t): option(t) => {
+let get_prj_type = (ty: t, l: Label.t): option(t) => {
   switch (ty) {
   | Prod([]) => None
   | Prod(tys) =>
     List.find_opt(
-      ((label, ty)) => {
+      ((label, _)) => {
         switch (label) {
         | Some(l') => l' == l
         | None => false
@@ -123,7 +123,7 @@ let rec get_projected_type = (ty: t, l: Label.t): option(t) => {
       },
       tys,
     )
-    |> Option.map(((label, ty)) => ty)
+    |> Option.map(((_, ty)) => ty)
   | Hole => Some(Hole)
   | _ => None
   };
@@ -153,7 +153,7 @@ let rec complete =
   | Label(_) => false
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Prod(tys) => tys |> List.for_all(((label, ty)) => complete(ty))
+  | Prod(tys) => tys |> List.for_all(((_, ty)) => complete(ty))
   | List(ty) => complete(ty);
 
 let rec join = (j, ty1, ty2) =>

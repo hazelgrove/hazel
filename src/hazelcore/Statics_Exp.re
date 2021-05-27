@@ -212,7 +212,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Prj(StandardErrStatus(NotInHole), body, label) =>
     switch (syn_operand(ctx, body)) {
     | None => None
-    | Some(ty) => HTyp.get_projected_type(ty, label)
+    | Some(ty) => HTyp.get_prj_type(ty, label)
     }
   }
 and syn_rules =
@@ -1006,7 +1006,7 @@ and syn_fix_holes_operand =
   | Prj(_, body, l) =>
     let (block, ty, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, body);
-    switch (HTyp.get_projected_type(ty, l)) {
+    switch (HTyp.get_prj_type(ty, l)) {
     | None => (Prj(InPrjHole(DoesNotAppear, u_gen), block, l), Hole, u_gen)
     | Some(proj_ty) => (
         Prj(StandardErrStatus(NotInHole), block, l),

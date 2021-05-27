@@ -232,3 +232,29 @@ let rec get_prj = (dbody: t, idx: int): option(t) => {
   | _ => None
   };
 };
+
+let rec find_prj_idx = (dbody: t, label: Label.t): option(int) => {
+  switch (dbody) {
+  | Tuple(tuple_elts) =>
+    let idxs =
+      List.mapi(
+        (i: int, (label_i: option(Label.t), elt: t)) => {
+          switch (label) {
+          | Some(l_i) when l_i == label => Some(i)
+          | Some(_)
+          | None => None
+          }
+        },
+        tuple_elts,
+      )
+      |> List.filter(Option.is_some);
+    // if there is not only one matching element, return none
+    if (List.length(idxs) != 1) {
+      None;
+    } else {
+      List.hd(idx);
+    };
+  | Cast(d, Prod(_), Prod(_)) => find_prj_idx(d, label)
+  | _ => None
+  };
+};

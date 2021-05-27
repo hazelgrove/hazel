@@ -65,28 +65,50 @@ let contract = (ty: HTyp.t): t => {
       | Arrow(ty1, ty2) =>
         mk_seq_operand(HTyp.precedence_Arrow, Operators_Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
-      | Prod([head, ...tail]) =>
+      | Prod([(label, ty), ...tail]) =>
+        let head_seq =
+          switch (label) {
+          | None =>
+            contract_to_seq(
+              ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+              ty,
+            )
+          | Some(l) =>
+            let seq =
+              mk_seq_operand(HTyp.precedence_Space, Space, Label(l), ty);
+            if (HTyp.precedence_Space > HTyp.precedence_Prod) {
+              Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
+            } else {
+              seq;
+            };
+          };
         tail
-        |> List.map(elementType =>
-             contract_to_seq(
-               ~parenthesize=
-                 HTyp.precedence(elementType) > HTyp.precedence_Prod,
-               elementType,
-             )
-           )
+        |> List.map(((elementLabel, elementType)) => {
+             switch (elementLabel) {
+             | None =>
+               contract_to_seq(
+                 ~parenthesize=
+                   HTyp.precedence(elementType) > HTyp.precedence_Prod,
+                 elementType,
+               )
+             | Some(l) =>
+               let seq =
+                 mk_seq_operand(HTyp.precedence_Space, Space, Label(l), ty);
+               if (HTyp.precedence_Space > HTyp.precedence_Prod) {
+                 Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
+               } else {
+                 seq;
+               };
+             }
+           })
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
-             contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) > HTyp.precedence_Prod,
-               head,
-             ),
-           )
+             head_seq,
+           );
       | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       | Label(label) => Seq.wrap(Label(NotInLabelHole, label))
-      | Label_Elt(label, ty) =>
-        mk_seq_operand(HTyp.precedence_Space, Space, Label(label), ty)
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -109,6 +131,10 @@ and expand_skel = (skel, seq) =>
     let ty2 = expand_skel(skel2, seq);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
+    // ECD: You are here, working on expand with new definition of prod
+    // Need to find a way to go thru prod elements and find which elements are labeled elements
+    // and modify prod as needed
+    // May need to tackle the space operator first 
     Prod(
       skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
     )
@@ -133,7 +159,7 @@ and expand_skel = (skel, seq) =>
       };
     };
     switch (make_new_prod(prod_list, ty2)) {
-    | [] => Hole
+    | [] => Seq.wrap(Unit)
     | [hd] => hd
     | [hd, ...tl] => Prod([hd, ...tl])
     };
