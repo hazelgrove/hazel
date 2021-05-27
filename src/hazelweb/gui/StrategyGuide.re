@@ -909,6 +909,7 @@ let var_hole_view =
       cursor_info: CursorInfo.t,
     ) => {
   let any_open = cursor_inspector.type_assist_any;
+  let ignore_open = cursor_inspector.type_assist_ignore;
 
   let ty = get_type(cursor_info);
 
@@ -955,12 +956,24 @@ let var_hole_view =
       )
     );
 
+  let ignore_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_ignore_view()));
+  let ignore =
+    subsection_header(Toggle_type_assist_ignore, "Ignore?", ignore_open);
+  let ignore_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [ignore_view],
+      )
+    );
+
   let any_view =
     Vdom.(Node.div([Attr.classes(["options"])], list_any_view(typ)));
   let any =
     subsection_header(
       Toggle_type_assist_any,
-      "Match with anything",
+      "Bind to a variable?",
       any_open,
     );
   let any_body =
@@ -974,6 +987,12 @@ let var_hole_view =
       body @ [fill_hole_msg, any, any_body];
     } else {
       body @ [fill_hole_msg, any];
+    };
+  let body =
+    if (ignore_open) {
+      body @ [ignore, ignore_body];
+    } else {
+      body @ [ignore];
     };
 
   type_driven(body);

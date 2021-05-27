@@ -114,8 +114,8 @@ type typed =
 
 [@deriving sexp]
 type pat_tag =
-  | Case
-  | Var;
+  | Refutable
+  | Irrefutable;
 
 [@deriving sexp]
 type cursor_term =

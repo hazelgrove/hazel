@@ -12,10 +12,10 @@ let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): t => {
   | ExpOp(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
-  | Pat(_, _, Case)
-  | PatOp(_, _, Case) => Pat
-  | Pat(_, _, Var)
-  | PatOp(_, _, Var) => Var
+  | Pat(_, _, Refutable)
+  | PatOp(_, _, Refutable) => Pat
+  | Pat(_, _, Irrefutable)
+  | PatOp(_, _, Irrefutable) => Var
   | Typ(_, _)
   | TypOp(_, _) => Typ
   };

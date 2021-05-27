@@ -726,7 +726,7 @@ let view =
             ),
           ],
         )
-      | Pat(_, EmptyHole(_), Case) =>
+      | Pat(_, EmptyHole(_), Refutable) =>
         List.append(
           content,
           [
@@ -737,7 +737,7 @@ let view =
             ),
           ],
         )
-      | Pat(_, EmptyHole(_), Var) =>
+      | Pat(_, EmptyHole(_), Irrefutable) =>
         List.append(
           content,
           [

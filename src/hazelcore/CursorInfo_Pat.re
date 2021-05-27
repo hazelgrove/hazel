@@ -2,13 +2,13 @@ type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
 let rec extract_cursor_term =
-        (~pat_tag=CursorInfo.Case, zpat: ZPat.t): cursor_term => {
+        (~pat_tag=CursorInfo.Refutable, zpat: ZPat.t): cursor_term => {
   switch (zpat) {
   | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq, ~pat_tag)
   };
 }
 and extract_cursor_pat_zseq =
-    (~pat_tag=CursorInfo.Case, zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+    (~pat_tag=CursorInfo.Refutable, zseq: ZSeq.t(_, _, _, _)): cursor_term => {
   switch (zseq) {
   | ZOperand(zpat_operand, _) =>
     extract_from_zpat_operand(zpat_operand, ~pat_tag)
@@ -18,7 +18,7 @@ and extract_cursor_pat_zseq =
   };
 }
 and extract_from_zpat_operand =
-    (~pat_tag=CursorInfo.Case, zpat_operand: ZPat.zoperand): cursor_term => {
+    (~pat_tag=CursorInfo.Refutable, zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) =>
     Pat(cursor_pos, upat_operand, pat_tag)
@@ -30,11 +30,11 @@ and extract_from_zpat_operand =
 };
 
 let rec get_zoperand_from_zpat =
-        (~pat_tag=CursorInfo.Case, zpat: ZPat.t): option(zoperand) => {
+        (~pat_tag=CursorInfo.Refutable, zpat: ZPat.t): option(zoperand) => {
   get_zoperand_from_zpat_opseq(~pat_tag, zpat);
 }
 and get_zoperand_from_zpat_opseq =
-    (~pat_tag=CursorInfo.Case, zopseq: ZPat.zopseq): option(zoperand) => {
+    (~pat_tag=CursorInfo.Refutable, zopseq: ZPat.zopseq): option(zoperand) => {
   switch (zopseq) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
@@ -45,7 +45,8 @@ and get_zoperand_from_zpat_opseq =
   };
 }
 and get_zoperand_from_zpat_operand =
-    (~pat_tag=CursorInfo.Case, zoperand: ZPat.zoperand): option(zoperand) => {
+    (~pat_tag=CursorInfo.Refutable, zoperand: ZPat.zoperand)
+    : option(zoperand) => {
   switch (zoperand) {
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
@@ -55,13 +56,18 @@ and get_zoperand_from_zpat_operand =
   };
 };
 let rec syn_cursor_info =
-        (~steps=[], ~pat_tag=CursorInfo.Case, ctx: Contexts.t, zp: ZPat.t)
+        (
+          ~steps=[],
+          ~pat_tag=CursorInfo.Refutable,
+          ctx: Contexts.t,
+          zp: ZPat.t,
+        )
         : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   syn_cursor_info_zopseq(~steps, ctx, zp, ~pat_tag)
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq): ZPat.zopseq,
     )
@@ -128,7 +134,7 @@ and syn_cursor_info_zopseq =
 and syn_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
@@ -201,7 +207,7 @@ and syn_cursor_info_skel =
 and syn_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       zoperand: ZPat.zoperand,
     )
@@ -261,7 +267,7 @@ and syn_cursor_info_zoperand =
 and ana_cursor_info =
     (
       ~steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       zp: ZPat.t,
       ty: HTyp.t,
@@ -272,7 +278,7 @@ and ana_cursor_info =
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
@@ -364,7 +370,7 @@ and ana_cursor_info_zopseq =
 and ana_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
@@ -465,7 +471,7 @@ and ana_cursor_info_skel =
 and ana_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
-      ~pat_tag=CursorInfo.Case,
+      ~pat_tag=CursorInfo.Refutable,
       ctx: Contexts.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
