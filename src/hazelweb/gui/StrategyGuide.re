@@ -113,31 +113,32 @@ let option = nodes => Vdom.(Node.div([Attr.classes(["option"])], nodes));
 let mini_option = nodes =>
   Vdom.(Node.div([Attr.classes(["mini-option"])], nodes));
 let fill_space = Vdom.(Node.span([Attr.classes(["filler"])], []));
+
+let int_lit =
+  option([
+    Vdom.Node.text("Enter an Integer Literal"),
+    fill_space,
+    Vdom.Node.text("(e.g. "),
+    example_lit_node("1"),
+    Vdom.Node.text(")"),
+  ]);
+let float_lit =
+  option([
+    Vdom.Node.text("Enter a Floating Point Literal"),
+    fill_space,
+    Vdom.Node.text("(e.g. "),
+    example_lit_node("1.0"),
+    Vdom.Node.text(")"),
+  ]);
+let bool_lit =
+  option([
+    Vdom.Node.text("Enter a Boolean Literal"),
+    fill_space,
+    Vdom.Node.text("(e.g. "),
+    example_lit_node("true"),
+    Vdom.Node.text(")"),
+  ]);
 let lit_msg_exp = (ty: HTyp.t) => {
-  let int_lit =
-    option([
-      Vdom.Node.text("Enter an Integer Literal"),
-      fill_space,
-      Vdom.Node.text("(e.g. "),
-      example_lit_node("1"),
-      Vdom.Node.text(")"),
-    ]);
-  let float_lit =
-    option([
-      Vdom.Node.text("Enter a Floating Point Literal"),
-      fill_space,
-      Vdom.Node.text("(e.g. "),
-      example_lit_node("1.0"),
-      Vdom.Node.text(")"),
-    ]);
-  let bool_lit =
-    option([
-      Vdom.Node.text("Enter a Boolean Literal"),
-      fill_space,
-      Vdom.Node.text("(e.g. "),
-      example_lit_node("true"),
-      Vdom.Node.text(")"),
-    ]);
   let fun_lit =
     option([
       Vdom.Node.text("Enter a Function Literal"),
@@ -185,24 +186,6 @@ let lit_msg_exp = (ty: HTyp.t) => {
 };
 
 let val_msg_pat = (ty: HTyp.t) => {
-  let int_lit =
-    option([
-      Vdom.Node.text("Enter an Integer (e.g. "),
-      code_node("1"),
-      Vdom.Node.text(")"),
-    ]);
-  let float_lit =
-    option([
-      Vdom.Node.text("Enter a Float (e.g. "),
-      code_node("1.0"),
-      Vdom.Node.text(")"),
-    ]);
-  let bool_lit =
-    option([
-      Vdom.Node.text("Enter a Boolean (e.g. "),
-      code_node("true"),
-      Vdom.Node.text(")"),
-    ]);
   switch (ty) {
   | Hole => [int_lit, float_lit, bool_lit]
   | Int => [int_lit]
@@ -218,29 +201,29 @@ let val_msg_pat = (ty: HTyp.t) => {
 let structure_msg = (ty: HTyp.t) => {
   let prod_pat =
     option([
-      Vdom.Node.text("Enter a Tuple pattern (enter "),
+      Vdom.Node.text("Enter a Tuple pattern"),
+      fill_space,
       shortcut_node("("),
-      Vdom.Node.text(")"),
     ]);
   let sum_pat =
     option([
-      Vdom.Node.text("Enter an Injection (enter "),
+      Vdom.Node.text("Enter an Injection"),
+      fill_space,
       shortcut_node("Alt + l"),
       Vdom.Node.text("or"),
       shortcut_node("Alt + r"),
-      Vdom.Node.text(")"),
     ]);
   let list_pat =
     option([
-      Vdom.Node.text("Enter a nonempty List pattern (enter "),
+      Vdom.Node.text("Enter a Non-empty List pattern"),
+      fill_space,
       shortcut_node(";"),
-      Vdom.Node.text(")"),
     ]);
   let list_lit_pat =
     option([
-      Vdom.Node.text("Enter a List (enter "),
+      Vdom.Node.text("Enter a List"),
+      fill_space,
       shortcut_node("["),
-      Vdom.Node.text(")"),
     ]);
   switch (ty) {
   | Hole => [sum_pat, prod_pat, list_pat, list_lit_pat]
