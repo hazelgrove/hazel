@@ -11,7 +11,8 @@ let action_abbreviation =
   | InsertApp => "app"
   | InsertLit => "lit"
   | InsertConstructor => "con"
-  | ReplaceOperator => "opr";
+  | ReplaceOperator => "opr"
+  | Wrap => "wrp";
 
 let action_view =
     (

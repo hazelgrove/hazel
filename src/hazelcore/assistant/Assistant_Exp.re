@@ -6,6 +6,7 @@ type assistant_action_categories =
   | InsertVar
   | InsertApp
   | InsertConstructor
+  | Wrap
   | ReplaceOperator;
 
 type assistant_action = {
@@ -186,34 +187,42 @@ let compute_app_actions =
   };
 };
 
-type zseq_exp =
-  ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator);
-let mk_fancy_action = (_zseq: zseq_exp, _cursor_info_pro): assistant_action => {
-  let new_seq =
-    mk_bin_seq(
-      UHExp.intlit("666"),
-      Operators_Exp.Plus,
-      UHExp.intlit("666"),
-    );
-  let ZOpSeq(_, new_zseq) =
-    new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
-  let uhexp =
-    new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+let mk_basic_wrap_action = (cursor, name, _f_ty) => {
+  let operand =
+    switch (cursor.term) {
+    | Exp(_, operand) =>
+      wrap_space(UHExp.var(name), S(operand, E))
+      |> UHExp.mk_OpSeq
+      |> UHExp.Block.wrap'
+      |> (x => UHExp.Parenthesized(x))
+    | _ => failwith("mk_basic_wrap_action unimplemented TODO(andrew)")
+    };
   {
-    category: InsertConstructor, // TODO(andrew): new category
-    text: "",
-    action: ReplaceOpSeqAroundCursor(new_zseq),
-    res_ty: HTyp.Int,
-    result: uhexp,
+    category: Wrap,
+    text: name,
+    action: ReplaceAtCursor(operand),
+    res_ty: cursor.expected_ty,
+    result: wrap(operand),
   };
 };
-let compute_fancy_actions =
-    (
-      {/*ctx, expected_ty, mode,*/ syntactic_context, _} as cursor: cursor_info_pro,
-    ) => {
-  switch (syntactic_context) {
-  | ExpSeq(_synctx_ty, zseq) => [mk_fancy_action(zseq, cursor)]
-  | _ => []
+
+let compute_basic_wrap_actions =
+    ({ctx, expected_ty, actual_ty, mode, _} as cursor: cursor_info_pro) => {
+  switch (mode) {
+  | Synthetic
+  | UnknownMode => []
+  | Analytic =>
+    switch (actual_ty) {
+    | None => []
+    | Some(actual_ty) =>
+      fun_vars(ctx, expected_ty)
+      |> List.filter(((_, f_ty)) =>
+           HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
+         )
+      |> List.map(((name, f_ty)) =>
+           mk_basic_wrap_action(cursor, name, f_ty)
+         )
+    }
   };
 };
 
@@ -223,6 +232,7 @@ let compute_operand_actions = ({term, _} as cursor) =>
     List.map(
       f => f(cursor),
       [
+        compute_basic_wrap_actions,
         compute_var_actions,
         compute_app_actions,
         compute_ctor_actions,
@@ -231,6 +241,39 @@ let compute_operand_actions = ({term, _} as cursor) =>
     )
   | _ => []
   };
+
+/*
+ type zseq_exp =
+   ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator);
+ let mk_fancy_action = (_zseq: zseq_exp, _cursor_info_pro): assistant_action => {
+   let new_seq =
+     mk_bin_seq(
+       UHExp.intlit("666"),
+       Operators_Exp.Plus,
+       UHExp.intlit("666"),
+     );
+   let ZOpSeq(_, new_zseq) =
+     new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
+   let uhexp =
+     new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+   {
+     category: InsertConstructor, // TODO(andrew): new category
+     text: "",
+     action: ReplaceOpSeqAroundCursor(new_zseq),
+     res_ty: HTyp.Int,
+     result: uhexp,
+   };
+ };
+ let compute_fancy_actions =
+     (
+       {/*ctx, expected_ty, mode,*/ syntactic_context, _} as cursor: cursor_info_pro,
+     ) => {
+   switch (syntactic_context) {
+   | ExpSeq(_synctx_ty, zseq) => [mk_fancy_action(zseq, cursor)]
+   | _ => []
+   };
+ };
+ */
 
 let exp_operator_of_ty =
     (inl: HTyp.t, inr: HTyp.t, out: HTyp.t): list(Operators_Exp.t) => {
