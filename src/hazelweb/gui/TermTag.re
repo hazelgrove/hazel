@@ -45,7 +45,7 @@ let term_tag_view =
     let attrs =
       show_tooltip
         ? [Vdom.Attr.create("title", "Variable(s)"), classes] : [classes];
-    Vdom.(Node.div(attrs, [Node.text("VAR")]));
+    Vdom.(Node.div(attrs, [Node.text("VAR(s)")]));
   | Typ =>
     let classes =
       Vdom.Attr.classes(["term-tag", "term-tag-typ", ...add_classes]);

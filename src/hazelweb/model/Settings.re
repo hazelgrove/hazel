@@ -130,11 +130,12 @@ module CursorInspector = {
     type_assist_var: bool,
     type_assist_fun: bool,
     type_assist_branch: bool,
+    type_assist_new_var: bool,
     /* pat */
     type_assist_val: bool,
     type_assist_structure: bool,
     type_assist_any: bool,
-    type_assist_new_var: bool,
+    type_assist_ignore: bool,
   };
 
   let init = {
@@ -148,11 +149,12 @@ module CursorInspector = {
     type_assist_var: false,
     type_assist_fun: false,
     type_assist_branch: false,
+    type_assist_new_var: false,
     /* pat */
     type_assist_val: false,
     type_assist_structure: false,
     type_assist_any: false,
-    type_assist_new_var: false,
+    type_assist_ignore: false,
   };
 
   [@deriving sexp]
@@ -167,11 +169,12 @@ module CursorInspector = {
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
+    | Toggle_type_assist_new_var
     // pat
     | Toggle_type_assist_val
     | Toggle_type_assist_structure
     | Toggle_type_assist_any
-    | Toggle_type_assist_new_var;
+    | Toggle_type_assist_ignore;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -217,6 +220,10 @@ module CursorInspector = {
     | Toggle_type_assist_any => {
         ...settings,
         type_assist_any: !settings.type_assist_any,
+      }
+    | Toggle_type_assist_ignore => {
+        ...settings,
+        type_assist_ignore: !settings.type_assist_ignore,
       }
     };
 };

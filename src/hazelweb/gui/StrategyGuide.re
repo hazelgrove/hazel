@@ -203,18 +203,12 @@ let val_msg_pat = (ty: HTyp.t) => {
       code_node("true"),
       Vdom.Node.text(")"),
     ]);
-  let fun_lit =
-    option([
-      Vdom.Node.text("Enter a Function (enter "),
-      shortcut_node("\\"),
-      Vdom.Node.text(")"),
-    ]);
   switch (ty) {
-  | Hole => [int_lit, float_lit, bool_lit, fun_lit]
+  | Hole => [int_lit, float_lit, bool_lit]
   | Int => [int_lit]
   | Float => [float_lit]
   | Bool => [bool_lit]
-  | Arrow(_, _) => [fun_lit]
+  | Arrow(_, _)
   | Sum(_, _)
   | Prod(_)
   | List(_) => [option([Vdom.Node.text("No suggestions.")])]
@@ -290,7 +284,20 @@ let list_any_view = (ty: HTyp.t) => {
     | List(_) => ["xs"]
     | _ => ["x", "y", "z"]
     };
-  let suggestions = suggestions @ ["_"];
+  List.map(
+    binding => {
+      Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
+    },
+    suggestions,
+  );
+};
+
+/**
+ * Create a list of divs for the var options that will be shown.
+ * Return list of Node.t
+ */
+let list_ignore_view = () => {
+  let suggestions = ["_"];
   List.map(
     binding => {
       Vdom.(Node.div([Attr.classes(["option"])], [code_node(binding)]))
@@ -766,6 +773,7 @@ let pat_hole_view =
   let val_open = cursor_inspector.type_assist_val;
   let structure_open = cursor_inspector.type_assist_structure;
   let any_open = cursor_inspector.type_assist_any;
+  let ignore_open = cursor_inspector.type_assist_ignore;
 
   let ty = get_type(cursor_info);
 
@@ -815,7 +823,7 @@ let pat_hole_view =
   let value =
     subsection_header(
       Toggle_type_assist_val,
-      "Match with " ++ type_to_str(ty) ++ " value",
+      "Match with a primitive value?",
       val_open,
     );
   let val_body =
@@ -829,7 +837,7 @@ let pat_hole_view =
   let structure =
     subsection_header(
       Toggle_type_assist_structure,
-      "Match with " ++ type_to_str(ty) ++ " structure",
+      "Match with a structure?",
       structure_open,
     );
   let structure_body =
@@ -845,12 +853,24 @@ let pat_hole_view =
   let any =
     subsection_header(
       Toggle_type_assist_any,
-      "Match with anything",
+      "Bind to a variable?",
       any_open,
     );
   let any_body =
     Vdom.(
       Node.div([Attr.classes(["panel-title-bar", "body-bar"])], [any_view])
+    );
+
+  let ignore_view =
+    Vdom.(Node.div([Attr.classes(["options"])], list_ignore_view()));
+  let ignore =
+    subsection_header(Toggle_type_assist_ignore, "Ignore?", ignore_open);
+  let ignore_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [ignore_view],
+      )
     );
 
   let body = [];
@@ -871,6 +891,12 @@ let pat_hole_view =
       body @ [any, any_body];
     } else {
       body @ [any];
+    };
+  let body =
+    if (ignore_open) {
+      body @ [ignore, ignore_body];
+    } else {
+      body @ [ignore];
     };
 
   type_driven(body);
