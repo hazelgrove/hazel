@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Sexplib;
 
 module Memo = Core_kernel.Memo;
 
@@ -63,6 +64,17 @@ let get_cursor_info = (program: t) => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
+  switch (current_term) {
+  | None => print_endline("Program not focused")
+  | Some((steps, _)) =>
+    print_endline(
+      "Current ZExp: " ++ Sexp.to_string(ZExp.sexp_of_t(get_zexp(program))),
+    );
+    print_endline(
+      "Current term path: "
+      ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+    );
+  };
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps}) =>
@@ -88,7 +100,18 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let explanation_elems =
+    ExplanationInfo.explanation_paths(get_zexp(program));
+  let _ =
+    List.mapi(
+      (index, elem) => {
+        print_endline("Child: " ++ string_of_int(index));
+        print_endline(Sexp.to_string(CursorPath.sexp_of_steps(elem)));
+      },
+      explanation_elems,
+    );
+
+  {current_term, err_holes, var_uses, var_err_holes, explanation_elems};
 };
 
 exception DoesNotElaborate;

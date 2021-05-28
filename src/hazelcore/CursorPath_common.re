@@ -23,6 +23,25 @@ let of_zopseq_ =
     ([length + Seq.length(prefix) - 1], cursor);
   };
 
+/* TODO Hannah don't copy function and move this somewhere better*/
+let cons_all =
+    (step: int, steps: list(CursorPath.steps)): list(CursorPath.steps) => {
+  List.map(steps => [step, ...steps], steps);
+};
+let explanation_pathsopseq =
+    (
+      ~of_zoperand: 'zoperand => list(CursorPath.steps),
+      ZOpSeq(_, zseq): ZOpSeq.t(_, _, 'zoperand, _),
+    )
+    : list(CursorPath.steps) =>
+  switch (zseq) {
+  | ZOperand(zoperand, (prefix, _)) =>
+    cons_all(Seq.length_of_affix(prefix), of_zoperand(zoperand))
+  | ZOperator((_, _), (prefix, suffix)) =>
+    let length = Seq.length(prefix) + Seq.length(suffix);
+    [[length + Seq.length(prefix) - 2], [length + Seq.length(prefix)]];
+  };
+
 let mk_zholes =
     (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
   holes_before,

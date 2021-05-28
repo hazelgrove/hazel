@@ -11,6 +11,7 @@ let decoration_cls: UHDecorationShape.t => string =
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
+  | ExplanationElems => "explanation-elems"
   | CurrentTerm => "current-term";
 
 let decoration_view =
@@ -26,6 +27,8 @@ let decoration_view =
     | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
     | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
     | VarUse => VarUse.view(~corner_radii)
+    | ExplanationElems =>
+      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     }

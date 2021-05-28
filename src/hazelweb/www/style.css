@@ -1055,6 +1055,11 @@ h1 {
   stroke-width: 0;
 }
 
+.explanation-elems {
+  background: rgb(23, 87, 148);
+  stroke-width: 0;
+}
+
 #cell {
   position: relative;
   width: auto;
