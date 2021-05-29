@@ -719,7 +719,7 @@ let view =
         List.append(
           content,
           [
-            StrategyGuide.exp_hole_view(
+            StrategyGuide_Exp.exp_hole_view(
               ~inject,
               cursor_inspector,
               cursor_info,
@@ -730,7 +730,7 @@ let view =
         List.append(
           content,
           [
-            StrategyGuide.pat_hole_view(
+            StrategyGuide_Pat.pat_hole_view(
               ~inject,
               cursor_inspector,
               cursor_info,
@@ -741,7 +741,7 @@ let view =
         List.append(
           content,
           [
-            StrategyGuide.var_hole_view(
+            StrategyGuide_Pat.var_hole_view(
               ~inject,
               cursor_inspector,
               cursor_info,
@@ -750,13 +750,13 @@ let view =
         )
       | Rule(_)
       | Exp(_, Case(_)) =>
-        switch (StrategyGuide.rules_view(cursor_info)) {
+        switch (StrategyGuide_Exp.rules_view(cursor_info)) {
         | None => content
         | Some(sg_rules) => List.append(content, [sg_rules])
         }
       | Line(_) =>
         /* TODO: Make work in general? */
-        List.append(content, [StrategyGuide.lines_view()])
+        List.append(content, [StrategyGuide_Exp.lines_view()])
       | _ => content
       };
     } else {
