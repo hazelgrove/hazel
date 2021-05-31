@@ -9,7 +9,9 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat) // TODO ANAND HERE
+  | LetLineZP(zpat, _) =>
+    CursorInfo_Pat.extract_cursor_term(zpat)
+    |> CursorInfo_Pat.irrefutable_of_term
   | LetLineZE(_, zexp) => extract_cursor_term(zexp)
   };
 }
@@ -17,7 +19,9 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
-  | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat) // TODO ANAND HERE
+  | LamZP(_, zpat, _) =>
+    CursorInfo_Pat.extract_cursor_term(zpat)
+    |> CursorInfo_Pat.irrefutable_of_term
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
@@ -60,7 +64,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat) // TODO ANAND HERE
+  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+
   | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
   };
 }
@@ -78,7 +83,8 @@ and get_zoperand_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => Some(ZExp(zoperand))
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
-  | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat) // TODO ANAND HERE
+  | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+
   | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
@@ -314,17 +320,38 @@ and syn_cursor_info_line =
         ~steps=steps @ [0],
         ctx,
         zp,
-        ty_def // TODO ANAND HERE
+        ty_def,
       )
     ) {
     | None => None
-    | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
-    | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+    | Some(CursorNotOnDeferredVarPat(not_deferred)) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          not_deferred |> CursorInfo_Pat.irrefutable_of_cursor_info,
+        ),
+      )
+    | Some(CursorOnDeferredVarPat(deferred, x)) =>
       switch (Statics_Exp.recursive_let_id(ctx, ZPat.erase(zp), def)) {
-      | None => deferrable
+      | None =>
+        Some(
+          CursorOnDeferredVarPat(
+            uses =>
+              uses |> deferred |> CursorInfo_Pat.irrefutable_of_cursor_info,
+            x,
+          ),
+        )
       | Some(_) =>
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
-        Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
+        Some(
+          CursorOnDeferredVarPat(
+            uses =>
+              rec_uses
+              @ uses
+              |> deferred
+              |> CursorInfo_Pat.irrefutable_of_cursor_info,
+            x,
+          ),
+        );
       }
     };
   | LetLineZE(p, zdef) =>
@@ -541,12 +568,13 @@ and syn_cursor_info_zoperand =
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty); // TODO ANAND HERE
+      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty);
     switch (defferrable) {
-    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorNotOnDeferredVarPat(ci) =>
+      ci |> CursorInfo_Pat.irrefutable_of_cursor_info
     | CursorOnDeferredVarPat(deferred_ci, x) =>
       let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
-      uses |> deferred_ci;
+      uses |> deferred_ci |> CursorInfo_Pat.irrefutable_of_cursor_info;
     };
   | LamZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
@@ -927,12 +955,13 @@ and ana_cursor_info_zoperand =
         ctx,
         zp,
         ty_p_given,
-      ); // TODO ANAND HERE
+      );
     switch (defferrable) {
-    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorNotOnDeferredVarPat(ci) =>
+      ci |> CursorInfo_Pat.irrefutable_of_cursor_info
     | CursorOnDeferredVarPat(deferred_ci, x) =>
       let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
-      uses |> deferred_ci;
+      uses |> deferred_ci |> CursorInfo_Pat.irrefutable_of_cursor_info;
     };
 
   | LamZE(NotInHole, p, zbody) =>

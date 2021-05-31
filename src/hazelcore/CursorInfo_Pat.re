@@ -1,6 +1,17 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
+let irrefutable_of_term = (cursor_term: cursor_term): cursor_term => {
+  switch (cursor_term) {
+  | Pat(position, operand, _) => Pat(position, operand, Irrefutable)
+  | _ => cursor_term
+  };
+};
+
+let irrefutable_of_cursor_info = (ci: CursorInfo.t): CursorInfo.t => {
+  {...ci, cursor_term: ci.cursor_term |> irrefutable_of_term};
+};
+
 let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
   switch (zpat) {
   | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
