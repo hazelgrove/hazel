@@ -391,6 +391,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         combo(Backslash, simple("Insert lambda function")),
         combo(Space, simple("Apply function")),
+        combo(Tilde, simple("Apply deferral")),
         combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),

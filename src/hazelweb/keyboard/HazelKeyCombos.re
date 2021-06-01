@@ -25,6 +25,7 @@ type t =
   | Space
   | Comma
   | LeftBracket
+  | Tilde
   | Semicolon
   | Alt_L
   | Alt_R
@@ -64,6 +65,7 @@ let get_details =
   | Space => KeyCombo.space
   | Comma => KeyCombo.comma
   | LeftBracket => KeyCombo.left_bracket
+  | Tilde => KeyCombo.tilde
   | Semicolon => KeyCombo.semicolon
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R

@@ -25,6 +25,7 @@ type t =
   | Space
   | Comma
   | LeftBracket
+  | Tilde
   | Semicolon
   | Alt_L
   | Alt_R

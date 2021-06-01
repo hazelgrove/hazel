@@ -23,6 +23,7 @@ let colon: t;
 let backslash: t;
 let left_parens: t;
 let left_bracket: t;
+let tilde: t;
 let equals: t;
 let pound: t;
 let plus: t;
