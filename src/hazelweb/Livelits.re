@@ -931,6 +931,7 @@ module ColorLivelitView = {
           Node.div(
             [
               Attr.classes(["sat-val-box"]),
+              Attr.create("tabindex", "0"),
               attr_style(
                 StringUtil.cat([
                   prop_val("height", height |> px),
