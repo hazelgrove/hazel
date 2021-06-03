@@ -959,20 +959,24 @@ h1 {
   fill: white;
 }
 
-#code-root {
+#code-root,
+.DHCode {
   position: relative;
 }
 #code-root:focus {
   outline: none;
 }
 
-#code-root .code {
+#code-root .code,
+.DHCode .code {
   z-index: var(--code-text-z);
 }
-#code-root .decoration-container {
+#code-root .decoration-container,
+.DHCode .decoration-container {
   position: absolute;
 }
-#code-root .err-hole-container {
+#code-root .err-hole-container,
+.DHCode .err-hole-container {
   z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
@@ -1773,6 +1777,10 @@ input.slider::-moz-range-track {
   }
 }
 
+.InHole {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;

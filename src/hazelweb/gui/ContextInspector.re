@@ -8,6 +8,7 @@ let view =
       ~settings: Settings.Evaluation.t,
       ~livelit_ctx_open,
       ~typing_ctx_open,
+      ~font_metrics: FontMetrics.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -86,6 +87,7 @@ let view =
                   ~settings,
                   ~selected_instance,
                   ~width=40,
+                  ~font_metrics,
                   d,
                 ),
               ],
@@ -246,6 +248,7 @@ let view =
               ~width=40,
               ~selected_instance,
               ~settings,
+              ~font_metrics,
               inst,
             ),
           ],
@@ -297,6 +300,7 @@ let view =
                     ~width=40,
                     ~selected_instance,
                     ~settings,
+                    ~font_metrics,
                     inst,
                   ),
                 ],

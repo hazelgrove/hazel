@@ -1233,8 +1233,8 @@ and ana_perform_operand =
 
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>
+    let err = ZPat.get_err_status_zoperand(zoperand);
     let zp = ZOpSeq.wrap(zoperand);
-    let err = zp |> ZPat.erase |> UHPat.get_err_status;
     let zp' = zp |> ZPat.set_err_status(NotInHole);
     let p' = zp' |> ZPat.erase;
     switch (Statics_Pat.syn(ctx, p')) {
@@ -1247,10 +1247,17 @@ and ana_perform_operand =
           Succeeded((zp, ctx, u_gen));
         } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
                    && HTyp.get_prod_arity(ty) > 1) {
-          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-          let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
+          let (err, u_gen) =
+            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
+          let new_zp = zp |> ZPat.set_err_status(err);
           Succeeded((new_zp, ctx, u_gen));
         } else {
+          let (err, u_gen) =
+            ErrStatus.make_recycled_InHole(
+              err,
+              TypeInconsistent(None),
+              u_gen,
+            );
           let new_zp = zp |> ZPat.set_err_status(err);
           Succeeded((new_zp, ctx, u_gen));
         }

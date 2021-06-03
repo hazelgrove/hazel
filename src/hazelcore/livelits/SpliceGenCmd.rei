@@ -1,5 +1,8 @@
 include Monads.MONAD;
 
+let t_of_sexp: ((Sexplib.Sexp.t as 's) => 'a, 's) => t('a);
+let sexp_of_t: ('a => (Sexplib.Sexp.t as 's), t('a)) => 's;
+
 let new_splice:
   (~init_uhexp_gen: MetaVarGen.t => (UHExp.t, MetaVarGen.t)=?, HTyp.t) =>
   t(SpliceName.t);
