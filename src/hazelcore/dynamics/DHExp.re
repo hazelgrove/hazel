@@ -233,7 +233,7 @@ let rec get_prj = (dbody: t, idx: int): option(t) => {
   };
 };
 
-let rec find_prj_idx = (dbody: t, label: Label.t): option(int) => {
+let rec get_prj_idx = (dbody: t, label: Label.t): option(int) => {
   switch (dbody) {
   | Tuple(tuple_elts) =>
     let idxs =
@@ -254,7 +254,7 @@ let rec find_prj_idx = (dbody: t, label: Label.t): option(int) => {
     } else {
       List.hd(idxs);
     };
-  | Cast(d, Prod(_), Prod(_)) => find_prj_idx(d, label)
+  | Cast(d, Prod(_), Prod(_)) => get_prj_idx(d, label)
   | _ => None
   };
 };

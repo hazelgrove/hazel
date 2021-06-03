@@ -255,7 +255,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Tuple(_), Cast(d, Hole, Prod(_)))
   | (Tuple(_), Cast(d, Prod(_), Hole)) => matches(dp, d)
   | (Tuple(_), _) => DoesNotMatch
-  | Prj(dbody, _, idx) =>
+  | (_, Prj(dbody, _, idx)) =>
     switch (DHExp.get_prj(dbody, idx)) {
     | Some(d') => matches(dp, d')
     | None => Indet
@@ -1255,6 +1255,15 @@ and ana_elab_opseq =
     }
   };
 }
+// ECD YOU ARE HERE:
+// Consider this case: 
+// let y : (.x Int, .y Int) = (3, 4)
+// case y 
+// | (.x a, .y b) => 
+// When analyzing an unlabeled tuple element against a labeled type
+// The type should be added during the ana_elab process
+// ie if ana_elab ( ctx, delta, (3, 4), seq, (.a num, .b num))
+// it should output (.a 3, .b 4)
 and ana_elab_skel =
     (
       ctx: Contexts.t,

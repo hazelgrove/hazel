@@ -47,34 +47,46 @@ and syn_elab_skel =
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
-    switch (UHPat.get_tuple_elements(skel)) {
-    | [skel1, skel2, ...tail] =>
-      let%bind (dp1, ty1, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel1, seq);
-      let%bind (dp2, ty2, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel2, seq);
-      tail
-      |> ListUtil.map_with_accumulator_opt(
-           ((dp_acc, ctx, delta), skel) => {
-             syn_elab_skel(ctx, delta, skel, seq)
-             |> ElaborationResult.to_option
-             |> Option.map(((dp, ty, ctx, delta)) =>
-                  ((DHPat.Pair(dp_acc, dp), ctx, delta), ty)
-                )
-           },
-           (DHPat.Pair(dp1, dp2), ctx, delta),
-         )
-      |> Option.map((((dp_acc, ctx, delta), tys)) =>
-           (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), ctx, delta)
-         )
-      |> ElaborationResult.from_option;
-    | _ =>
-      raise(
-        Invalid_argument(
-          "Encountered tuple pattern type with less than 2 elements!",
-        ),
-      )
-    }
+    List.fold_left(
+      (acc: ElaborationResult.t, skel: UHPat.skel) => {
+        switch (acc) {
+        | Elaborates(Tuple(d_list), Tuple(ty_list), delta) =>
+          switch (syn_elab_skel(ctx, delta, skel, seq)) {
+          | Elaborates(Tuple(tuple_elts), Tuple(tuple_tys), delta)
+              when List.length(tuple_elts) < 2 =>
+            Elaborates(
+              Tuple(tuple_elts @ d_list),
+              Tuple(tuple_tys @ ty_list),
+              delta,
+            )
+          | Elaborates(Tuple(tuple_elts), ty, delta)
+              when List.length(tuple_elts) < 2 =>
+            Elaborates(
+              Tuple(tuple_elts @ d_list),
+              Tuple([(None, ty), ...ty_list]),
+              delta,
+            )
+          | Elaborates(d, Tuple(tuple_tys), delta)
+              when List.length(tuple_tys) < 2 =>
+            Elaborates(
+              Tuple([(None, d), ...d_list]),
+              Tuple(tuple_tys @ ty_list),
+              delta,
+            )
+          | Elaborates(d, ty, delta) =>
+            Elaborates(
+              Tuple([(None, d), ...d_list]),
+              Tuple([(None, ty), ...ty_list]),
+              delta,
+            )
+          | DoesNotElaborate => DoesNotElaborate
+          }
+        | DoesNotElaborate => DoesNotElaborate
+        }
+      },
+      Elaborates(Tuple([]), Tuple([]), delta),
+      List.rev(UHPat.get_tuple_elements(skel)),
+    )
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -82,7 +94,8 @@ and syn_elab_skel =
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, ty2, ctx, delta) =>
-        Elaborates(Label_Elt(l, dp2), Label_Elt(l, ty2), ctx, delta)
+        let dp = DHExp.Tuple([(Some(l), d2)]);
+        Elaborates(dp, Prod([Some(l), ty2]), ctx, delta)
       }
     | Elaborates(dp1, _, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
@@ -409,7 +422,6 @@ let rec renumber_result_only =
   | InvalidText(_)
   | BoolLit(_)
   | ListNil
-  | Triv
   | Label(_) => (dp, hii)
   | EmptyHole(u, _) =>
     let sigma = Environment.empty;
@@ -429,10 +441,17 @@ let rec renumber_result_only =
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);
-  | Pair(dp1, dp2) =>
-    let (dp1, hii) = renumber_result_only(path, hii, dp1);
-    let (dp2, hii) = renumber_result_only(path, hii, dp2);
-    (Pair(dp1, dp2), hii);
+  | Tuple(tuple_elts) =>
+    let (hii, tuple_elts) =
+      ListUtil.map_with_accumulator(
+        (hii, (label, dn)) => {
+          let (dpn, hii) = renumber_result_only(path, hii, dpn);
+          (hii, (label, dpn));
+        },
+        hii,
+        tuple_elts,
+      );
+    (Tuple(tuple_elts), hii);
   | Cons(dp1, dp2) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
@@ -440,8 +459,5 @@ let rec renumber_result_only =
   | Ap(dp1, dp2) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
-    (Pair(dp1, dp2), hii);
-  | Label_Elt(l, dp) =>
-    let (dp, hii) = renumber_result_only(path, hii, dp);
-    (Label_Elt(l, dp), hii);
+    (Label([(None, dp1), (None, dp2)]), hii);
   };

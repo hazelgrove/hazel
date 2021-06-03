@@ -16,7 +16,7 @@ type t =
   | ListNil
   | Cons(t, t)
   | Tuple(list((option(Label.t), t)))
-  | Ap(t, t)
+  | Ap(t, t) // Just the space operation in patterns, error form for spaces, needed for backspace to do something that makes sense
   | ErrLabel(Label.t);
 
 /**
