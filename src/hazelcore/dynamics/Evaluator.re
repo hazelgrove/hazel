@@ -883,12 +883,7 @@ module M = (S: Statics_Exp_Sig.S) : SEval => {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-    | InvalidOperation(d, err) =>
-      switch (evaluate'(d)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d')
-      | Indet(d') => Indet(InvalidOperation(d', err))
-      }
+    | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
     };
   }
   and evaluate_case =

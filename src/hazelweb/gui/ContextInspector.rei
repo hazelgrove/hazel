@@ -16,6 +16,7 @@ let view:
     ~settings: Settings.Evaluation.t,
     ~livelit_ctx_open: bool,
     ~typing_ctx_open: bool,
+    ~font_metrics: FontMetrics.t,
     Program.t
   ) =>
   Vdom.Node.t;
