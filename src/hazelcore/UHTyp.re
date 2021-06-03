@@ -131,13 +131,19 @@ and expand_skel = (skel, seq) =>
     let ty2 = expand_skel(skel2, seq);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
-    // ECD: You are here, working on expand with new definition of prod
-    // Need to find a way to go thru prod elements and find which elements are labeled elements
-    // and modify prod as needed
-    // May need to tackle the space operator first 
+    let prod_list =
+      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq));
     Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
-    )
+      List.map(
+        prod_elt => {
+          switch (prod_elt) {
+          | HTyp.Prod([singleton_elt]) => singleton_elt
+          | _ => (None, prod_elt)
+          }
+        },
+        prod_list,
+      ),
+    );
   | BinOp(_, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
@@ -147,21 +153,26 @@ and expand_skel = (skel, seq) =>
       skel1 |> get_prod_elements |> List.map(skel => expand_skel(skel, seq));
     let ty2 = expand_skel(skel2, seq);
     let rec make_new_prod =
-            (prod_list: list(HTyp.t), ty: HTyp.t): list(HTyp.t) => {
+            (prod_list: list(HTyp.t), ty: HTyp.t)
+            : list((option(Label.t), HTyp.t)) => {
       switch (prod_list) {
       | [] => []
-      | [hd] =>
-        switch (hd) {
-        | Label(l) => [Label_Elt(l, ty2)]
-        | _ => [hd]
-        }
-      | [hd, ...tl] => [hd, ...make_new_prod(tl, ty)]
+      | [Label(l)] => [(Some(l), ty2)]
+      | [hd] => [(None, hd)]
+      // If a prod has only one element, then it must be a singleton labeled element
+      | [HTyp.Prod([labeled_elt]), ...tl] => [
+          labeled_elt,
+          ...make_new_prod(tl, ty),
+        ]
+      // If it is not a singleton prod, then the current head type does not have a label
+      | [hd, ...tl] => [(None, hd), ...make_new_prod(tl, ty)]
       };
     };
+    // TODO: Condense singleton prod elements in the prod_list
     switch (make_new_prod(prod_list, ty2)) {
-    | [] => Seq.wrap(Unit)
-    | [hd] => hd
-    | [hd, ...tl] => Prod([hd, ...tl])
+    | [] => Hole
+    | [(None, hd)] => hd
+    | other_list => Prod(other_list)
     };
   }
 and expand_operand =

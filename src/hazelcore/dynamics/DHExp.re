@@ -238,8 +238,8 @@ let rec find_prj_idx = (dbody: t, label: Label.t): option(int) => {
   | Tuple(tuple_elts) =>
     let idxs =
       List.mapi(
-        (i: int, (label_i: option(Label.t), elt: t)) => {
-          switch (label) {
+        (i: int, (label_i: option(Label.t), _)) => {
+          switch (label_i) {
           | Some(l_i) when l_i == label => Some(i)
           | Some(_)
           | None => None
@@ -252,7 +252,7 @@ let rec find_prj_idx = (dbody: t, label: Label.t): option(int) => {
     if (List.length(idxs) != 1) {
       None;
     } else {
-      List.hd(idx);
+      List.hd(idxs);
     };
   | Cast(d, Prod(_), Prod(_)) => find_prj_idx(d, label)
   | _ => None
