@@ -65,7 +65,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
-  | Step(_) =>
+  | StepEvaluate(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -204,7 +204,7 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
-      | Step(index) =>
+      | StepEvaluate(index) =>
         Model.evaluate_step(
           model,
           model.settings.evaluation.step_evaluator_option,

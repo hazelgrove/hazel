@@ -175,8 +175,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             ? Program.get_result
                             : Program.get_result_step(
                                 _,
-                                //TODO:settings.evaluation.step_evaluator_option,
-                                EvaluatorStep.default_option,
+                                settings.evaluation.step_evaluator_option,
                               )
                         )
                         |> Result.get_dhexp,
@@ -217,8 +216,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   program
                   |> Program.get_evaluate_steps(
                        _,
-                       //TODO:settings.evaluation.step_evaluator_option,
-                       EvaluatorStep.default_option,
+                       settings.evaluation.step_evaluator_option,
                      ),
                 );
               } else {

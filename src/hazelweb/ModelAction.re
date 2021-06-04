@@ -43,4 +43,4 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | UpdateIsMac(bool)
-  | Step(int);
+  | StepEvaluate(int);
