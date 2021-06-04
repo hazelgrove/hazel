@@ -15,10 +15,4 @@ type result =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
-
 let evaluate: DHExp.t => result;
