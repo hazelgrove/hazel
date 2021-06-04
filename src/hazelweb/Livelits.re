@@ -959,11 +959,12 @@ module ColorLivelitView = {
             let v = (height -. offset_y) /. height;
             let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
             Event.Many([
-              trigger(StartSelectingSatVal: action),
-              trigger(SelectRGB(rgb)),
+              //trigger(StartSelectingSatVal: action),
+              trigger(SelectRGB(rgb): action),
             ]);
           };
           let on_drag = evt => {
+            print_endline("dragging");
             let sat_val_rect =
               JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
             let (offset_x, offset_y) = offset_x_y(evt);
@@ -972,7 +973,7 @@ module ColorLivelitView = {
             let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
             trigger(SelectRGB(rgb));
           };
-          let overlay =
+          let _overlay =
             Node.div(
               Attr.[
                 classes(["dragging-overlay"]),
@@ -988,17 +989,20 @@ module ColorLivelitView = {
               Node.div(
                 [
                   Attr.classes(["sat-val-selector"]),
+                  Attr.create("draggable", "true"),
                   attr_style(
                     StringUtil.cat([
                       prop_val("left", s *. width |> px),
                       prop_val("top", height -. v *. height |> px),
                     ]),
                   ),
-                  Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
+                  Attr.on("dragstart", on_drag),
+                  //Attr.on_dragstart(_ => trigger(StartSelectingSatVal)),
+                  //Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
                 ],
                 [],
               ),
-              ...selecting_sat_val ? [overlay] : [],
+              ...selecting_sat_val ? [] /*overlay*/ : [],
             ],
           );
         };
