@@ -26,6 +26,7 @@ type shape =
   | SAnn
   | SLam
   | SListNil
+  | SDeferral
   | SInj(InjSide.t)
   | SLet
   | SLine

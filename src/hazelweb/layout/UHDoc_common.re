@@ -315,7 +315,7 @@ let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Deferral = (~sort: TermSort.t, ()): t =>
-  Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort);
+  Delim.mk(~index=0, "~") |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;

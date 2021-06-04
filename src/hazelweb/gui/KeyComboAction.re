@@ -36,6 +36,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
       | {CursorInfo.typed: OnType, _} => Construct(SList)
       | _ => Construct(SListNil),
     ),
+    (Tilde, _ => Construct(SDeferral)),
     (Semicolon, _ => Construct(SOp(SCons))),
     (Alt_L, _ => Construct(SInj(L))),
     (Alt_R, _ => Construct(SInj(R))),

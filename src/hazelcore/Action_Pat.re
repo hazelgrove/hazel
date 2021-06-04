@@ -783,6 +783,11 @@ and syn_perform_operand =
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
+  | (Construct(SDeferral), CursorP(_, EmptyHole(_))) =>
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
+    Succeeded((zp, List(Hole), ctx, u_gen));
+  | (Construct(SDeferral), CursorP(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorP(_)) =>
     mk_syn_result(
       ctx,
@@ -1447,6 +1452,17 @@ and ana_perform_operand =
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>
+    switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded((zp, ty', ctx, u_gen)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      }
+    }
+  | (Construct(SDeferral), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>

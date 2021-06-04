@@ -315,6 +315,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | SList
     | SListNil
+    | SDeferral
     | SLine
     | SCommentLine
     | SAnn

@@ -8,6 +8,7 @@ let shape_to_string = (shape: shape): string => {
   | SAnn => "type annotation"
   | SLam => "function"
   | SListNil => "empty list"
+  | SDeferral => "deferral"
   | SInj(side) =>
     switch (side) {
     | L => "left injection"
