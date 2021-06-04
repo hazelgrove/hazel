@@ -4,7 +4,9 @@ module HoleReason = {
   type t =
     | InjectionInSyntheticPosition
     | ExpectedTypeNotConsistentWithSums
-    | BadTag;
+    | BadTag
+    | ExpectedBody
+    | UnexpectedBody;
 
   let eq = (x, y) => x == y;
 };

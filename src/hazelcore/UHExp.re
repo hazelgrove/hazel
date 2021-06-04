@@ -21,7 +21,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
-  | Inj(InjErrStatus.t, UHTag.t, t)
+  | Inj(InjErrStatus.t, UHTag.t, option(t))
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
@@ -331,7 +331,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Lam(InHole(_), _, _) => false
   | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
-  | Inj(NotInHole, _, body) => is_complete(body)
+  | Inj(NotInHole, _, None) => true
+  | Inj(NotInHole, _, Some(body)) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>

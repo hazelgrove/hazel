@@ -19,7 +19,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(InjErrStatus.t, UHTag.t, t);
+  | Inj(InjErrStatus.t, UHTag.t, option(t));
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -211,6 +211,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Parenthesized(body) => is_complete(body)
   | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
-  | Inj(NotInHole, _, body) => is_complete(body)
+  | Inj(NotInHole, _, None) => true
+  | Inj(NotInHole, _, Some(body)) => is_complete(body)
   };
 };

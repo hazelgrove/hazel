@@ -14,7 +14,7 @@ and zoperand =
   | ParenthesizedZ(t)
   | LamZP(ErrStatus.t, ZPat.t, UHExp.t)
   | LamZE(ErrStatus.t, UHPat.t, t)
-  | InjZT(InjErrStatus.t, ZTag.t, UHExp.t)
+  | InjZT(InjErrStatus.t, ZTag.t, option(UHExp.t))
   | InjZE(InjErrStatus.t, UHTag.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
@@ -85,7 +85,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(1)
       @ CursorPosition.delim_cursors_k(2);
     }
-  | Inj(_) => CursorPosition.delim_cursors(2)
+  | Inj(_, _, None) => CursorPosition.delim_cursors(1)
+  | Inj(_, _, Some(_)) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
@@ -229,7 +230,8 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
-  | CursorE(cursor, Inj(_)) => cursor == OnDelim(2, After) // inj[T](e)
+  | CursorE(cursor, Inj(_, _, None)) => cursor == OnDelim(1, After) // inj[T]
+  | CursorE(cursor, Inj(_, _, Some(_))) => cursor == OnDelim(2, After) // inj[T](e)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorE(_, ApPalette(_)) => false /* TODO[livelits] */
   | ParenthesizedZ(_) => false
@@ -433,7 +435,7 @@ and erase_zoperand =
   | LamZP(err, zp, body) => Lam(err, ZPat.erase(zp), body)
   | LamZE(err, p, zbody) => Lam(err, p, erase(zbody))
   | InjZT(err, ztag, body) => Inj(err, ZTag.erase(ztag), body)
-  | InjZE(err, tag, zbody) => Inj(err, tag, erase(zbody))
+  | InjZE(err, tag, zbody) => Inj(err, tag, Some(erase(zbody)))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
@@ -651,9 +653,14 @@ and move_cursor_left_zoperand =
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
-  | CursorE(OnDelim(k, Before), Inj(err, tag, body)) =>
+  | CursorE(OnDelim(k, Before), Inj(err, tag, None)) =>
     switch (k) {
-    | 1 => Some(InjZT(err, ZTag.place_after(tag), body))
+    | 1 => Some(InjZT(err, ZTag.place_after(tag), None))
+    | _ => None
+    }
+  | CursorE(OnDelim(k, Before), Inj(err, tag, Some(body))) =>
+    switch (k) {
+    | 1 => Some(InjZT(err, ZTag.place_after(tag), Some(body)))
     | 2 => Some(InjZE(err, tag, place_after(body)))
     | _ => None
     }
@@ -699,7 +706,7 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zbody)) {
     | Some(zbody) => Some(InjZE(err, tag, zbody))
     | None =>
-      Some(CursorE(OnDelim(1, After), Inj(err, tag, erase(zbody))))
+      Some(CursorE(OnDelim(1, After), Inj(err, tag, Some(erase(zbody)))))
     }
   | LamZP(err, zarg, body) =>
     switch (ZPat.move_cursor_left(zarg)) {
@@ -841,9 +848,14 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
-  | CursorE(OnDelim(k, After), Inj(err, tag, body)) =>
+  | CursorE(OnDelim(k, After), Inj(err, tag, None)) =>
     switch (k) {
-    | 0 => Some(InjZT(err, ZTag.place_before(tag), body))
+    | 0 => Some(InjZT(err, ZTag.place_before(tag), None))
+    | _ => None
+    }
+  | CursorE(OnDelim(k, After), Inj(err, tag, Some(body))) =>
+    switch (k) {
+    | 0 => Some(InjZT(err, ZTag.place_before(tag), Some(body)))
     | 1 => Some(InjZE(err, tag, place_before(body)))
     | _ => None
     }
@@ -869,17 +881,21 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorE(OnDelim(1, Before), Parenthesized(erase(zbody))))
     }
-  | InjZT(err, ztag, body) =>
+  | InjZT(err, ztag, body_opt) =>
     switch (ZTag.move_cursor_right(ztag)) {
-    | Some(ztag) => Some(InjZT(err, ztag, body))
+    | Some(ztag) => Some(InjZT(err, ztag, body_opt))
     | None =>
-      Some(CursorE(OnDelim(1, Before), Inj(err, ZTag.erase(ztag), body)))
+      Some(
+        CursorE(OnDelim(1, Before), Inj(err, ZTag.erase(ztag), body_opt)),
+      )
     }
   | InjZE(err, tag, zbody) =>
     switch (move_cursor_right(zbody)) {
     | Some(zbody) => Some(InjZE(err, tag, zbody))
     | None =>
-      Some(CursorE(OnDelim(2, Before), Inj(err, tag, erase(zbody))))
+      Some(
+        CursorE(OnDelim(2, Before), Inj(err, tag, Some(erase(zbody)))),
+      )
     }
   | LamZP(err, zarg, body) =>
     switch (ZPat.move_cursor_right(zarg)) {

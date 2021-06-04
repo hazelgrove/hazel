@@ -19,7 +19,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
-  | Inj(InjErrStatus.t, UHTag.t, t)
+  | Inj(InjErrStatus.t, UHTag.t, option(t))
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)

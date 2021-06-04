@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 let rec of_z = (zp: ZPat.t): CursorPath.t => of_zopseq(zp)
 and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
@@ -48,16 +50,21 @@ and follow_operand =
         |> Option.map(zbody => ZPat.ParenthesizedZ(zbody))
       | _ => None
       }
-    | Inj(err, tag, body) =>
+    | Inj(err, tag, None) =>
       switch (x) {
       | 0 =>
-        tag
-        |> CursorPath_Tag.follow((xs, cursor))
-        |> Option.map(ztag => ZPat.InjZT(err, ztag, body))
+        let+ ztag = tag |> CursorPath_Tag.follow((xs, cursor));
+        ZPat.InjZT(err, ztag, None);
+      | _ => None
+      }
+    | Inj(err, tag, Some(body)) =>
+      switch (x) {
+      | 0 =>
+        let+ ztag = tag |> CursorPath_Tag.follow((xs, cursor));
+        ZPat.InjZT(err, ztag, Some(body));
       | 1 =>
-        body
-        |> follow((xs, cursor))
-        |> Option.map(zbody => ZPat.InjZP(err, tag, zbody))
+        let+ zbody = body |> follow((xs, cursor));
+        ZPat.InjZP(err, tag, zbody);
       | _ => None
       }
     | TypeAnn(err, op, ann) =>
@@ -125,12 +132,21 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
-    | Inj(_, _, body) =>
+    | Inj(_, tag, None) =>
       switch (x) {
       | 0 =>
-        body
-        |> of_steps(xs, ~side)
-        |> Option.map(path => CursorPath_common.cons'(0, path))
+        let+ path = tag |> CursorPath_Tag.of_steps(xs, ~side);
+        CursorPath_common.cons'(0, path);
+      | _ => None
+      }
+    | Inj(_, tag, Some(body)) =>
+      switch (x) {
+      | 0 =>
+        let+ path = tag |> CursorPath_Tag.of_steps(xs, ~side);
+        CursorPath_common.cons'(0, path);
+      | 1 =>
+        let+ path = body |> of_steps(xs, ~side);
+        CursorPath_common.cons'(1, path);
       | _ => None
       }
     | TypeAnn(_, op, ann) =>
@@ -207,7 +223,12 @@ and holes_operand =
       {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
     ]
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-  | Inj(err, tag, body) =>
+  | Inj(err, tag, None) =>
+    /* TODO: make sure tab order for holes is not reversed */
+    hs
+    |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
+    |> CursorPath_common.holes_inj_err(err, rev_steps)
+  | Inj(err, tag, Some(body)) =>
     /* TODO: make sure tab order for holes is not reversed */
     hs
     |> holes(body, [1, ...rev_steps])
@@ -303,8 +324,24 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     }
-  | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
-    let body_holes = holes(body, [0, ...rev_steps], []);
+  | CursorP(OnDelim(k, _), Inj(err, tag, None)) =>
+    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, u) =>
+        Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)})
+      };
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(~hole_selected, ~holes_after=tag_holes, ())
+    | 1 =>
+      CursorPath_common.mk_zholes(~holes_before=tag_holes, ~hole_selected, ())
+    | _ => CursorPath_common.no_holes
+    };
+  | CursorP(OnDelim(k, _), Inj(err, tag, Some(body))) =>
+    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
+    let body_holes = holes(body, [1, ...rev_steps], []);
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => None
@@ -314,24 +351,47 @@ and holes_zoperand =
     switch (k) {
     | 0 =>
       CursorPath_common.mk_zholes(
-        ~holes_before=body_holes,
         ~hole_selected,
+        ~holes_after=tag_holes @ body_holes,
         (),
       )
     | 1 =>
-      CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
+      CursorPath_common.mk_zholes(
+        ~holes_before=tag_holes,
+        ~hole_selected,
+        ~holes_after=body_holes,
+        (),
+      )
+    | 2 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=tag_holes @ body_holes,
+        ~hole_selected,
+        (),
+      )
     | _ => CursorPath_common.no_holes
     };
   | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | TypeAnn(_)) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | InjZT(err, ztag, body) =>
+  | InjZT(err, ztag, None) =>
+    let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
+    switch (err) {
+    | NotInHole => tag_holes
+    | InHole(_, u) => {
+        ...tag_holes,
+        holes_before: [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ...tag_holes.holes_before,
+        ],
+      }
+    };
+  | InjZT(err, ztag, Some(body)) =>
+    let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     let body_holes = holes(body, [1, ...rev_steps], []);
-    let ztag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     let all_holes = {
-      ...ztag_holes,
-      holes_after: ztag_holes.holes_after @ body_holes,
+      ...tag_holes,
+      holes_after: tag_holes.holes_after @ body_holes,
     };
     switch (err) {
     | NotInHole => all_holes
