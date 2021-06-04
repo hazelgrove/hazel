@@ -529,7 +529,7 @@ and syn_elab_line =
     }
   | EmptyLine
   | CommentLine(_) => LinesExpand(d => d, ctx, delta)
-  | LetLine(p, def) =>
+  | LetLine(key, p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotExpand
     | Some((ty1, _)) =>

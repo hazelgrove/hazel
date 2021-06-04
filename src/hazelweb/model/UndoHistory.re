@@ -501,6 +501,7 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
+      | SAnd
       | SCase => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
@@ -577,7 +578,8 @@ let get_new_action_group =
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
-              | Let =>
+              | Let
+              | And =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
                     new_cursor_term_info.cursor_term_before,

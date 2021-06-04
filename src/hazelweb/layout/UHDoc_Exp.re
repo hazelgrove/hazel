@@ -137,11 +137,11 @@ and mk_line =
           |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
-        | LetLine(p, def) =>
+        | LetLine(key, p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
-          UHDoc_common.mk_LetLine(p, def);
+          UHDoc_common.mk_LetLine(p, def); /* TODO: pass the key in to decide let/and? Need to change the function if so. */
         }: UHDoc.t
       )
     )

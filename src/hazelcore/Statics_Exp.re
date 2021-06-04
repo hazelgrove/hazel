@@ -63,7 +63,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | ExpLine(opseq) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
-  | LetLine(p, def) =>
+  | LetLine(key, p, def) =>
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let* ty_def = syn(def_ctx, def);
     Statics_Pat.ana(ctx, p, ty_def);
@@ -573,14 +573,14 @@ and syn_fix_holes_line =
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
-  | LetLine(p, def) =>
+  | LetLine(key, p, def) =>
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, u_gen) =
       ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
     let body_ctx = extend_let_body_ctx(ctx, p, def);
-    (LetLine(p, def), body_ctx, u_gen);
+    (LetLine(key, p, def), body_ctx, u_gen);
   }
 and syn_fix_holes_opseq =
     (
