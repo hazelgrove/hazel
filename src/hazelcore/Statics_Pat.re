@@ -146,10 +146,6 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | TypeAnn(InHole(TypeInconsistent, _), _, _)
-  // | Inj(InHole(_, _), _, _) =>
-  //   let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-  //   let+ (_, ctx) = syn_operand(ctx, operand');
-  //   ctx;
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -187,8 +183,8 @@ and ana_operand =
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
-      | Some(_) => None
       | None => inj_body_valid(ctx, body_opt)
+      | Some(_) => None
       }
     | _ => None
     }
@@ -453,6 +449,8 @@ and syn_fix_holes_operand =
     (Parenthesized(p), ty, ctx, u_gen);
   | Inj(_, tag, body_opt) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
+    let (tag, u_gen) =
+      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
     let (body_opt, ctx, u_gen) =
       switch (body_opt) {
       | None => (body_opt, ctx, u_gen)
@@ -753,30 +751,40 @@ and ana_fix_holes_operand =
       switch (body_opt, TagMap.find_opt(tag, tymap)) {
       /* TAInj (unary) */
       | (Some(body), Some(Some(ty_body))) =>
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         let (body, ctx, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty_body);
         (Inj(NotInHole, tag, Some(body)), ctx, u_gen);
       /* TAInjUnexpectedBody */
       | (Some(body), Some(None)) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         let (body, ctx, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
         (Inj(InHole(UnexpectedBody, u), tag, Some(body)), ctx, u_gen);
       /* TAInjBadTag */
       | (Some(body), None) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         let (body, ctx, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
         (Inj(InHole(BadTag, u), tag, Some(body)), ctx, u_gen);
       /* TAInjBadTag */
       | (None, None) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         (Inj(InHole(BadTag, u), tag, None), ctx, u_gen);
       /* TAInj (nullary) */
       | (None, Some(None)) => (operand, ctx, u_gen)
       /* TAInjExpectedBody */
       | (None, Some(Some(_))) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         (Inj(InHole(ExpectedBody, u), tag, None), ctx, u_gen);
       }
     | _ =>
