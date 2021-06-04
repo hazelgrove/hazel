@@ -66,7 +66,9 @@ let view_of_layout =
                    Node.span(
                      [
                        Attr.classes(["Steppable"]),
-                       Attr.on_click(_ => inject(ModelAction.Step(ind))),
+                       Attr.on_click(_ =>
+                         inject(ModelAction.StepEvaluate(ind))
+                       ),
                      ],
                      txt,
                    ),
