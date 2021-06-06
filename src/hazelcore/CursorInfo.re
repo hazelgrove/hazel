@@ -137,4 +137,5 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  tyuses: option(UsageAnalysis.uses_list),
 };

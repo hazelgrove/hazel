@@ -12,3 +12,5 @@ type t =
 let is_complete: t => bool;
 
 let tyvar_of_tyid: TyId.t => t;
+
+let binds_tyvar: (TyId.t, t) => bool;
