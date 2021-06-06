@@ -90,10 +90,11 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let mk = (~uses=?, typed, ctx, cursor_term) => {
+let mk = (~tyuses=?, ~uses=?, typed, ctx, cursor_term) => {
   typed,
   ctx,
   uses,
+  tyuses,
   cursor_term,
 };
 
@@ -108,4 +109,5 @@ let get_ctx = ci => ci.ctx;
 
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
-  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
+  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t)
+  | CursorOnDeferredTyVarPat(UsageAnalysis.uses_list => 't, TyId.t);

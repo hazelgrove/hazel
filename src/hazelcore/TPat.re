@@ -25,3 +25,9 @@ let tyvar_of_tyid = tyid =>
     |> Option.map(kw => VarPatErrStatus.Keyword(kw)),
     tyid,
   );
+
+let binds_tyvar = tyid =>
+  fun
+  | EmptyHole
+  | TyVar(Some(_), _) => false
+  | TyVar(None, id') => TyId.eq(tyid, id');

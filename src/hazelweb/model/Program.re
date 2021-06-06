@@ -91,7 +91,20 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let tyvar_uses =
+    switch (get_cursor_info(program)) {
+    | {tyuses: Some(tyuses), _} => tyuses
+    | _ => []
+    };
+  Core_kernel.printf(
+    "tyvar_uses %s\n",
+    Core_kernel.List.sexp_of_t(
+      a => Core_kernel.List.sexp_of_t(Core_kernel.Int.sexp_of_t, a),
+      tyvar_uses,
+    )
+    |> Sexplib.Sexp.to_string_hum,
+  );
+  {current_term, err_holes, var_uses, tyvar_uses, var_err_holes};
 };
 
 exception DoesNotElaborate;
