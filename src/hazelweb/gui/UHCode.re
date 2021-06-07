@@ -116,35 +116,37 @@ let key_handlers =
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
         | Some(kc) =>
           switch (KeyComboAction.get(cursor_info, kc)) {
-          | Some(action) =>
-            prevent_stop_inject(ModelAction.EditAction(action))
-          | None => Event.Ignore
+          | Some(kca) => prevent_stop_inject(ModelAction.EditAction(kca))
+          | None =>
+            switch (kc) {
+            | Ctrl_Z =>
+              if (is_mac) {
+                Event.Ignore;
+              } else {
+                prevent_stop_inject(ModelAction.Undo);
+              }
+            | Meta_Z =>
+              if (is_mac) {
+                prevent_stop_inject(ModelAction.Undo);
+              } else {
+                Event.Ignore;
+              }
+            | Ctrl_Shift_Z =>
+              if (is_mac) {
+                Event.Ignore;
+              } else {
+                prevent_stop_inject(ModelAction.Redo);
+              }
+            | Meta_Shift_Z =>
+              if (is_mac) {
+                prevent_stop_inject(ModelAction.Redo);
+              } else {
+                Event.Ignore;
+              }
+            | _ => Event.Ignore
+            }
           }
         | None =>
           switch (JSUtil.is_single_key(evt)) {
