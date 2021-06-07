@@ -141,9 +141,11 @@ let key_handlers =
             Event.Ignore;
           }
         | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-          )
+          switch (KeyComboAction.get(cursor_info, kc)) {
+          | Some(action) =>
+            prevent_stop_inject(ModelAction.EditAction(action))
+          | None => Event.Ignore
+          }
         | None =>
           switch (JSUtil.is_single_key(evt)) {
           | None => Event.Ignore
