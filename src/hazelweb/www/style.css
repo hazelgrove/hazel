@@ -759,9 +759,9 @@ h1 {
 }
 
 .step-view {
-  margin: 25px;
-  padding: 25px;
-  background-color: #FEFEEA;
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #eff1e1;
 }
 
 .type-indicator {
