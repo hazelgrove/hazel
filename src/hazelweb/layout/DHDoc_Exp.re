@@ -340,7 +340,7 @@ let rec mk =
         ? {
           let eva_obj =
             EvaluatorStep.decompose_all(d, settings.step_evaluator_option);
-          if (eva_obj == [{ctx: Mark, exp: d}]) {
+          if (eva_obj == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
             annot(
               DHAnnot.Steppable(-1),
               fdoc(~check_step=false, ~enforce_inline),
