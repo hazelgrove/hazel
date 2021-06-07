@@ -4,7 +4,13 @@ open Pretty;
 let with_cls = cls => Node.span([Attr.classes([cls])]);
 
 let view_of_layout =
-    (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      ~show_steppable: bool,
+      l: DHLayout.t,
+    )
+    : Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -61,20 +67,23 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
-             | Steppable(ind) => (
-                 [
-                   Node.span(
-                     [
-                       Attr.classes(["Steppable"]),
-                       Attr.on_click(_ =>
-                         inject(ModelAction.StepEvaluate(ind))
-                       ),
-                     ],
-                     txt,
-                   ),
-                 ],
-                 ds,
-               )
+             | Steppable(ind) =>
+               show_steppable
+                 ? (
+                   [
+                     Node.span(
+                       [
+                         Attr.classes(["Steppable"]),
+                         Attr.on_click(_ =>
+                           inject(ModelAction.StepEvaluate(ind))
+                         ),
+                       ],
+                       txt,
+                     ),
+                   ],
+                   ds,
+                 )
+                 : (txt, ds)
              };
            },
        );
@@ -111,6 +120,7 @@ let view =
       ~inject,
       ~settings: Settings.Evaluation.t,
       ~selected_instance: option(HoleInstance.t),
+      ~show_steppable=false,
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -118,13 +128,18 @@ let view =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(
+       ~settings,
+       ~enforce_inline=false,
+       ~check_step=show_steppable,
+       ~selected_instance,
+     )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
   |> set_step_num
-  |> view_of_layout(~inject, ~font_metrics);
+  |> view_of_layout(~inject, ~font_metrics, ~show_steppable);
 };
 
 let view_of_hole_instance =

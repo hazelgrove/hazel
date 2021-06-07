@@ -13,6 +13,7 @@ module Evaluation = {
     evaluate: bool,
     evaluator_type: Evaluator.t,
     step_evaluator_option: EvaluatorStep.evaluator_option,
+    stepper_mode: bool,
     show_evaluate_steps: bool,
     show_case_clauses: bool,
     show_fn_bodies: bool,
@@ -24,6 +25,7 @@ module Evaluation = {
     evaluate: true,
     evaluator_type: Evaluator,
     step_evaluator_option: EvaluatorStep.default_option,
+    stepper_mode: false,
     show_evaluate_steps: false,
     show_case_clauses: false,
     show_fn_bodies: false,
@@ -36,6 +38,7 @@ module Evaluation = {
     | Toggle_evaluate
     | Toggle_use_step_evaluator
     | Toggle_pause_subexpression
+    | Toggle_stepper_mode
     | Toggle_show_evaluate_steps
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
@@ -61,6 +64,10 @@ module Evaluation = {
             pause_subexpression:
               !settings.step_evaluator_option.pause_subexpression,
           },
+      }
+    | Toggle_stepper_mode => {
+        ...settings,
+        stepper_mode: !settings.stepper_mode,
       }
     | Toggle_show_evaluate_steps => {
         ...settings,

@@ -98,6 +98,15 @@ let view =
             evaluation.step_evaluator_option.pause_subexpression,
           ),
           labeled_checkbox(
+            ~id="stepper_mode",
+            ~classes=["twice-indented-option"],
+            ~label="Stepper mode",
+            ~on_change=
+              () => inject(UpdateSettings(Evaluation(Toggle_stepper_mode))),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.stepper_mode,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",

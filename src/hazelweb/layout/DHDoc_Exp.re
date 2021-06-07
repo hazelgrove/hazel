@@ -97,6 +97,7 @@ let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
+          ~check_step=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
           d: DHExp.t,
@@ -165,7 +166,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let fdoc = (~check_step=true, ~enforce_inline) =>
+    let fdoc = (~check_step, ~enforce_inline) =>
       switch (d) {
       | EmptyHole(u, i, _sigma) =>
         let selected =
@@ -310,7 +311,7 @@ let rec mk =
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
+            go(~check_step=false, ~enforce_inline, dbody) |> mk_cast;
           hcats([
             DHDoc_common.Delim.fix_FixF,
             space(),
@@ -352,12 +353,12 @@ let rec mk =
 
     (doc, cast);
   };
-  mk_cast(go(~parenthesize, ~check_step=true, ~enforce_inline, d));
+  mk_cast(go(~parenthesize, ~check_step, ~enforce_inline, d));
 }
 and mk_rule =
     (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance);
+  let mk' = mk(~settings, ~check_step=false, ~selected_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses
