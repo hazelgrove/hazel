@@ -120,31 +120,11 @@ let key_handlers =
           switch (KeyComboAction.get(cursor_info, kc)) {
           | Some(kca) => prevent_stop_inject(ModelAction.EditAction(kca))
           | None =>
-            switch (kc) {
-            | Ctrl_Z =>
-              if (is_mac) {
-                Event.Ignore;
-              } else {
-                prevent_stop_inject(ModelAction.Undo);
-              }
-            | Meta_Z =>
-              if (is_mac) {
-                prevent_stop_inject(ModelAction.Undo);
-              } else {
-                Event.Ignore;
-              }
-            | Ctrl_Shift_Z =>
-              if (is_mac) {
-                Event.Ignore;
-              } else {
-                prevent_stop_inject(ModelAction.Redo);
-              }
-            | Meta_Shift_Z =>
-              if (is_mac) {
-                prevent_stop_inject(ModelAction.Redo);
-              } else {
-                Event.Ignore;
-              }
+            switch (kc, is_mac) {
+            | (Ctrl_Z, false)
+            | (Meta_Z, true) => prevent_stop_inject(ModelAction.Undo)
+            | (Ctrl_Shift_Z, false)
+            | (Meta_Shift_Z, true) => prevent_stop_inject(ModelAction.Redo)
             | _ => Event.Ignore
             }
           }
