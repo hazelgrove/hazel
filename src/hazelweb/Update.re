@@ -208,9 +208,16 @@ let apply_action =
         //TODO(andrew): betterize this garbagio
         // right now this loses cursor position
         // might want to turn off assistant? or not?
-        let new_program =
-          model |> Model.get_program |> Program.perform_edit_action(action);
-        model |> Model.update_program(action, new_program);
+        let new_edit_state =
+          model
+          |> Model.get_program
+          |> Program.get_edit_state
+          |> Program.EditState_Exp.perform_edit_action(action);
+        model
+        |> Model.update_program(
+             action,
+             {...Model.get_program(model), edit_state: new_edit_state},
+           );
       };
     },
   );

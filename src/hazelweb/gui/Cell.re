@@ -44,7 +44,7 @@ let code_view =
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
-      program: Program.t,
+      program: Program.exp,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -53,20 +53,20 @@ let code_view =
     () => {
       open Vdom;
 
-      let l = Program.get_layout(~settings, program);
+      let l = Program.Exp.get_layout(~settings, program);
 
       let (code_text, decorations) =
         UHCode.view(~font_metrics, ~settings, program);
       let caret = {
-        let caret_pos = Program.get_caret_position(~settings, program);
+        let caret_pos = Program.Exp.get_caret_position(~settings, program);
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
         // TODO(andrew): uncomment below (commented for testing purposes)
         if (/*program.is_focused &&*/ settings.cursor_inspector.visible) {
-          let path = Program.get_path(program);
-          let ci = Program.get_cursor_info(program);
+          let path = Program.EditState_Exp.get_path(program.edit_state);
+          let ci = Program.EditState_Exp.get_cursor_info(program.edit_state);
           [
             view_of_cursor_inspector(
               ~inject,
@@ -75,7 +75,7 @@ let code_view =
               settings.cursor_inspector,
               ci,
               l,
-              Program.get_ugen(program),
+              Program.EditState_Exp.get_ugen(program.edit_state),
             ),
           ];
         } else {
@@ -86,15 +86,17 @@ let code_view =
         program.is_focused
           ? UHCode.key_handlers(
               ~settings,
-              ~u_gen=Program.get_ugen(program),
+              ~u_gen=Program.EditState_Exp.get_ugen(program.edit_state),
               ~inject,
               ~is_mac,
-              ~cursor_info=Program.get_cursor_info(program),
+              ~cursor_info=
+                Program.EditState_Exp.get_cursor_info(program.edit_state),
               //TODO(andrew): clean up below
               ~assistant_active=
                 settings.cursor_inspector.assistant
                 && Assistant_common.valid_assistant_term(
-                     Program.get_cursor_info(program).cursor_term,
+                     Program.EditState_Exp.get_cursor_info(program.edit_state).
+                       cursor_term,
                    ),
             )
           : [];

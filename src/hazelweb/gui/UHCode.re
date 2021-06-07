@@ -279,12 +279,16 @@ let focus = () => {
 };
 
 let view =
-    (~font_metrics: FontMetrics.t, ~settings: Settings.t, program: Program.t)
+    (
+      ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
+      program: Program.exp,
+    )
     : (Base.list(Vdom.Node.t), list(Vdom.Node.t)) => {
-  let l = Program.get_layout(~settings, program);
+  let l = Program.Exp.get_layout(~settings, program);
   let code_text = view_of_box(UHBox.mk(l));
   let decorations = {
-    let dpaths = Program.get_decoration_paths(program);
+    let dpaths = Program.Exp.get_decoration_paths(program);
     decoration_views(~font_metrics, dpaths, l);
   };
   (code_text, decorations);
@@ -302,7 +306,7 @@ let codebox_view = (~font_metrics: FontMetrics.t, width: int, e: UHExp.t) => {
   let l = get_codebox_layout(e, width);
   let code_text = view_of_box(UHBox.mk(l));
   let (err_holes, var_err_holes) =
-    e |> Program.get_err_holes_decoration_paths;
+    e |> Program.EditState_Exp.get_err_holes_decoration_paths;
   let dpaths: UHDecorationPaths.t = {
     current_term: None,
     err_holes,

@@ -26,7 +26,7 @@ let cardstack_info: list(CardstackInfo.t);
 let cutoff: (t, t) => bool;
 let init: unit => t;
 
-let get_program: t => Program.t;
+let get_program: t => Program.exp;
 
 let get_edit_state: t => Statics.edit_state;
 
@@ -94,4 +94,4 @@ let load_cardstack: (t, int) => t;
  */
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
-let update_program: (Action.t, Program.t, t) => t;
+let update_program: (Action.t, Program.exp, t) => t;

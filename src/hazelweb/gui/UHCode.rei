@@ -7,7 +7,7 @@ let focus: unit => unit;
  * Code representation of UHExp.
  */
 let view:
-  (~font_metrics: FontMetrics.t, ~settings: Settings.t, Program.t) =>
+  (~font_metrics: FontMetrics.t, ~settings: Settings.t, Program.exp) =>
   (Base.list(Vdom.Node.t), list(Vdom.Node.t));
 
 let view_of_box: UHBox.t => Base.list(Vdom.Node.t);

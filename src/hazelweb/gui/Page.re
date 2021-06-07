@@ -171,8 +171,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~width=80,
                     ~font_metrics=model.font_metrics,
                     settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
-                      : program |> Program.get_result |> Result.get_dhexp,
+                      ? program
+                        |> Program.get_edit_state
+                        |> Program.EditState_Exp.get_expansion
+                      : program
+                        |> Program.get_edit_state
+                        |> Program.EditState_Exp.get_result
+                        |> Result.get_dhexp,
                   ),
                 ],
               ),
@@ -223,7 +228,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       Node.button(
                         [
                           Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
+                            let e =
+                              program
+                              |> Program.get_edit_state
+                              |> Program.EditState_Exp.get_uhexp;
                             JSUtil.log(
                               Js.string(Serialization.string_of_exp(e)),
                             );

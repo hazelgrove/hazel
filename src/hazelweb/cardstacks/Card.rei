@@ -4,7 +4,7 @@
 [@deriving sexp]
 type t = {
   info: CardInfo.t,
-  edit_state: Statics.edit_state,
+  edit_state: Program.EditState_Exp.t,
 };
 
 let mk: CardInfo.t => t;

@@ -165,6 +165,16 @@ let compute_ctor_actions =
 
 let compute_var_actions =
     ({ctx, expected_ty, mode, _} as cursor: cursor_info_pro) => {
+  print_endline("computer var actions");
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(expected_ty)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(Assistant_common.sexp_of_mode(mode)),
+  );
+  // TODO(andrew): this looks a bit weird for replacing
+  // fn names in applications, since that's synthetic pos
+  // for these, prob good to uprank things that have types consistant
+  // with the current actual type (and show that things that will result
+  // in type errors, will)
   switch (mode) {
   | Synthetic =>
     extract_vars(ctx, Hole)

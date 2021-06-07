@@ -57,7 +57,10 @@ let init = (): t => {
     let si = UserSelectedInstances.init;
     switch (
       settings.evaluation.evaluate,
-      cardstacks |> ZCardstacks.get_program |> Program.cursor_on_exp_hole,
+      cardstacks
+      |> ZCardstacks.get_program
+      |> Program.get_edit_state
+      |> Program.EditState_Exp.cursor_on_exp_hole,
     ) {
     | (false, _)
     | (_, None) => si
@@ -83,22 +86,25 @@ let init = (): t => {
   };
 };
 
-let get_program = (model: t): Program.t =>
+let get_program = (model: t): Program.exp =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics.edit_state => {
+let get_edit_state = (model: t): Program.EditState_Exp.t => {
   let program = get_program(model);
   program.edit_state;
 };
 
 let get_cursor_info = (model: t): CursorInfo.t =>
-  model |> get_program |> Program.get_cursor_info;
+  model
+  |> get_program
+  |> Program.get_edit_state
+  |> Program.EditState_Exp.get_cursor_info;
 
-let put_program = (program: Program.t, model: t): t => {
+let put_program = (program: Program.exp, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> ZCardstacks.put_program(program),
 };
-let map_program = (f: Program.t => Program.t, model: t): t => {
+let map_program = (f: Program.exp => Program.exp, model: t): t => {
   let new_program = f(model |> get_program);
   model |> put_program(new_program);
 };
@@ -125,8 +131,8 @@ let map_selected_instances =
   selected_instances: f(model.selected_instances),
 };
 
-let focus_cell = map_program(Program.focus);
-let blur_cell = map_program(Program.blur);
+let focus_cell = map_program(Program.Exp.focus);
+let blur_cell = map_program(Program.Exp.blur);
 
 let is_cell_focused = model => {
   let program = get_program(model);
@@ -134,7 +140,12 @@ let is_cell_focused = model => {
 };
 
 let get_selected_hole_instance = model =>
-  switch (model |> get_program |> Program.cursor_on_exp_hole) {
+  switch (
+    model
+    |> get_program
+    |> Program.get_edit_state
+    |> Program.EditState_Exp.cursor_on_exp_hole
+  ) {
   | None => None
   | Some(u) =>
     let i =
@@ -147,21 +158,28 @@ let get_selected_hole_instance = model =>
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
-       let action = Program.move_to_hole(u, program);
-       Program.perform_edit_action(action, program);
+       let action = Program.EditState_Exp.move_to_hole(u, program.edit_state);
+       let edit_state =
+         Program.EditState_Exp.perform_edit_action(
+           action,
+           program.edit_state,
+         );
+       {...program, edit_state};
      })
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
 let update_program = (a: Action.t, new_program, model) => {
+  let edit_state = Program.get_edit_state(new_program);
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
+      Program.EditState_Exp.get_result(old_program.edit_state)
+      == Program.EditState_Exp.get_result(edit_state)
         ? si : UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,
-      new_program |> Program.cursor_on_exp_hole,
+      edit_state |> Program.EditState_Exp.cursor_on_exp_hole,
     ) {
     | (false, _)
     | (_, None) => si
@@ -208,9 +226,12 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     model.settings.performance.measure
     && model.settings.performance.model_perform_edit_action,
     () => {
-      let new_program =
-        model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(a, new_program);
+      let edit_state =
+        model
+        |> get_program
+        |> Program.get_edit_state
+        |> Program.EditState_Exp.perform_edit_action(a);
+      model |> update_program(a, {...get_program(model), edit_state});
     },
   );
 };
@@ -219,7 +240,7 @@ let move_via_key = (move_key, model) => {
   let (new_program, action) =
     model
     |> get_program
-    |> Program.move_via_key(~settings=model.settings, move_key);
+    |> Program.Exp.move_via_key(~settings=model.settings, move_key);
   model |> update_program(action, new_program);
 };
 
@@ -227,15 +248,19 @@ let move_via_click = (row_col, model) => {
   let (new_program, action) =
     model
     |> get_program
-    |> Program.move_via_click(~settings=model.settings, row_col);
+    |> Program.Exp.move_via_click(~settings=model.settings, row_col);
   model |> update_program(action, new_program);
 };
 
 let select_case_branch =
     (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
-  let action = Program.move_to_case_branch(path_to_case, branch_index);
-  let new_program = Program.perform_edit_action(action, program);
+  let edit_state = Program.get_edit_state(program);
+  let action =
+    Program.EditState_Exp.move_to_case_branch(path_to_case, branch_index);
+  let new_edit_state =
+    Program.EditState_Exp.perform_edit_action(action, edit_state);
+  let new_program = {...program, edit_state: new_edit_state};
   model
   |> put_program(new_program)
   |> update_program(action, new_program)
@@ -254,7 +279,7 @@ let toggle_right_sidebar = (model: t): t => {
 let load_example = (model: t, e: UHExp.t): t =>
   model
   |> put_program(
-       Program.mk(
+       Program.Exp.mk(
          ~width=model.cell_width,
          Statics_Exp.fix_and_renumber_holes_z(
            Contexts.empty,
@@ -272,9 +297,10 @@ let load_undo_history =
   let new_cardstacks =
     UndoHistory.get_cardstacks(undo_history, ~is_after_move);
   let new_program = ZCardstacks.get_program(new_cardstacks);
+  let edit_state = Program.get_edit_state(new_program);
   let update_selected_instances = _ => {
     let si = UserSelectedInstances.init;
-    switch (Program.cursor_on_exp_hole(new_program)) {
+    switch (Program.EditState_Exp.cursor_on_exp_hole(edit_state)) {
     | None => si
     | Some(u) => si |> UserSelectedInstances.add(u, 0)
     };

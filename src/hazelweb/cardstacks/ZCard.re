@@ -1,12 +1,12 @@
 [@deriving sexp]
 type t = {
   info: CardInfo.t,
-  program: Program.t,
+  program: Program.exp,
 };
 
 let mk = (~width, card: Card.t) => {
   info: card.info,
-  program: Program.mk(~width, ~is_focused=true, card.edit_state),
+  program: Program.Exp.mk(~width, ~is_focused=true, card.edit_state),
 };
 
 let erase = (zcard: t): Card.t => {
@@ -16,4 +16,4 @@ let erase = (zcard: t): Card.t => {
 
 let get_program = card => card.program;
 
-let put_program = (program: Program.t, zcard: t): t => {...zcard, program};
+let put_program = (program: Program.exp, zcard: t): t => {...zcard, program};
