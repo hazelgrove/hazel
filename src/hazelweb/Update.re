@@ -134,7 +134,7 @@ let apply_action =
 
       | LivelitAction(llu, serialized_action) =>
         let program = Model.get_program(model);
-        let performed =
+        (
           try(
             model
             |> Model.perform_action(
@@ -153,12 +153,9 @@ let apply_action =
               "ERROR: Livelit action exception: possibly action from js has wrong type",
             );
             model;
-          };
-        switch (Program.get_path(program)) {
-        | None => Model.map_program(Program.blur, performed)
-        | Some(path) =>
-          Model.perform_action(~livelit_move=true, MoveTo(path), performed)
-        };
+          }
+        )
+        |> Model.map_program(Program.blur);
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
