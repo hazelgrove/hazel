@@ -899,7 +899,7 @@ module ColorLivelitView = {
 
   let view =
       (
-        {rgb: (r, g, b), a, _}: model,
+        {rgb: (r, g, b), a, selecting_sat_val}: model,
         trigger,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -926,6 +926,20 @@ module ColorLivelitView = {
       let height = 135.0;
       let width = 135.0;
       let px = Printf.sprintf("%fpx");
+      let bounded = f => max(0., min(1., f));
+      let evt_to_rgb = (h, evt) => {
+        let (client_x, client_y) =
+          Js.Unsafe.(get(evt, "clientX"), get(evt, "clientY"))
+          |> TupleUtil.map2(Float.of_int);
+        let sat_val_rect =
+          JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+        let (rect_x, rect_y) = (sat_val_rect##.left, sat_val_rect##.top);
+        let (norm_x, norm_y) = (
+          (client_x -. rect_x) /. width,
+          (height -. (client_y -. rect_y)) /. height,
+        );
+        rgb_of_hsv((h, bounded(norm_x), bounded(norm_y)));
+      };
       let sat_val_box = {
         let box = (bg_color, attrs, children) => {
           Node.div(
@@ -949,70 +963,31 @@ module ColorLivelitView = {
         | Some((rval, gval, bval, _)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
-          let bounded = f => max(0., min(1., f));
-          let offset_x_y = evt =>
-            Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
-            |> TupleUtil.map2(Float.of_int);
-          let on_first_click = evt => {
-            let (offset_x, offset_y) = offset_x_y(evt);
-            let s = offset_x /. width;
-            let v = (height -. offset_y) /. height;
-            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
-            trigger(SelectRGB(rgb): action);
-          };
-          let on_drag = evt => {
-            let _sat_val_rect =
-              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
-            //let (offset_x, offset_y) = offset_x_y(evt);
-
-            let (client_x, client_y) =
-              Js.Unsafe.(get(evt, "clientX"), get(evt, "clientY"))
-              |> TupleUtil.map2(Float.of_int);
-            let sat_val_rect =
-              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
-            let (rect_x, rect_y) = (sat_val_rect##.left, sat_val_rect##.top);
-            let (rel_x, rel_y) = (
-              (client_x -. rect_x) /. width,
-              (client_y -. rect_y) /. height,
-            );
-            //print_endline(string_of_float(rel_x));
-            //print_endline(string_of_float(rel_y));
-            let s = rel_x;
-            let v = rel_y;
-            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
-            //let (r, g, b) = rgb;
-            //print_endline("rgb:");
-            //print_endline(string_of_int(r));
-            //print_endline(string_of_int(g));
-            //print_endline(string_of_int(b));
-            trigger(SelectRGB(rgb));
-          };
-          let _overlay =
-            Node.div(
-              Attr.[
-                classes(["dragging-overlay"]),
-                on_mouseup(_ => trigger(StopSelectingSatVal)),
-                on_mousemove(on_drag),
-              ],
-              [],
-            );
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-            [Attr.on_mousedown(on_first_click)],
+            [
+              Attr.on_mousedown(evt =>
+                Event.Many([
+                  trigger(StartSelectingSatVal: action),
+                  trigger(SelectRGB(evt_to_rgb(h, evt)): action),
+                ])
+              ),
+              Attr.on_mousemove(evt =>
+                selecting_sat_val
+                  ? trigger(SelectRGB(evt_to_rgb(h, evt))) : Event.Ignore
+              ),
+              Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
+            ],
             [
               Node.div(
                 [
                   Attr.classes(["sat-val-selector"]),
-                  Attr.create("draggable", "true"),
                   attr_style(
                     StringUtil.cat([
                       prop_val("left", s *. width |> px),
                       prop_val("top", height -. v *. height |> px),
                     ]),
                   ),
-                  //Attr.on("dragstart", on_drag),
-                  Attr.on("drag", on_drag),
-                  //Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
                 ],
                 [],
               ),
