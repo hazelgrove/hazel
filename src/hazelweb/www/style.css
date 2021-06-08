@@ -1705,6 +1705,8 @@ input.slider::-moz-range-track {
 
 .splice {
   display: inline-block;
+  width: 100%;
+  height: 100%;
 }
 
 .DHCode .Align {
