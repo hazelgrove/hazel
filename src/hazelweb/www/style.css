@@ -1029,6 +1029,12 @@ h1 {
   margin: -1px;
 }
 
+.Paused {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(255, 254, 186);
+  margin: -1px;
+}
+
 .InHole {
   border: 1px dashed var(--err-hole-color);
   margin: -1px;

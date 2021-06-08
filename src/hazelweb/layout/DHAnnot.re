@@ -14,4 +14,4 @@ type t =
   | FailedCastDecoration
   | CastDecoration
   | DivideByZero
-  | Steppable(int);
+  | Steppable(int, EvaluatorStep.EvalType.t);

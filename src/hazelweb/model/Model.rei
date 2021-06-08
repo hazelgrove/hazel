@@ -99,4 +99,4 @@ let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
 let get_result_state: t => DHExp.t;
 
-let evaluate_step: (t, EvaluatorStep.evaluator_option, int) => t;
+let evaluate_step: (t, int) => t;

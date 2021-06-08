@@ -13,6 +13,7 @@ exception InvalidInput(int);
 type evaluator_option = {pause_subexpression: bool};
 
 let default_option = {pause_subexpression: true};
+let evaluate_all_option = {pause_subexpression: false};
 
 let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   switch (d) {

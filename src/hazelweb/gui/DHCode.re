@@ -67,13 +67,15 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
-             | Steppable(ind) =>
+             | Steppable(ind, typ) =>
                show_steppable
                  ? (
                    [
                      Node.span(
                        [
-                         Attr.classes(["Steppable"]),
+                         Attr.classes(
+                           typ == Step ? ["Steppable"] : ["Paused"],
+                         ),
                          Attr.on_click(_ =>
                            inject(ModelAction.StepEvaluate(ind))
                          ),
@@ -107,7 +109,7 @@ let set_step_num = (layout): Layout.t(DHAnnot.t) => {
       (n1, Align(l1'));
     | Annot(ann, l1) =>
       switch (ann) {
-      | Steppable(_) => (num + 1, Annot(Steppable(num), l1))
+      | Steppable(_, typ) => (num + 1, Annot(Steppable(num, typ), l1))
       | _ => (num, l)
       }
     };

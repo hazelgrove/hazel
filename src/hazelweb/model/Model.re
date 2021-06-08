@@ -293,16 +293,28 @@ let load_undo_history =
 
 let get_result_state = (model: t) => {
   switch (model.result_state) {
-  | None => get_program(model) |> Program.get_expansion
+  | None =>
+    model.settings.evaluation.stepper_mode
+      ? get_program(model) |> Program.get_expansion
+      : get_program(model)
+        |> Program.get_result_step(
+             _,
+             model.settings.evaluation.step_evaluator_option,
+           )
+        |> Result.get_dhexp
   | Some(r) => r
   };
 };
 
-let evaluate_step =
-    (model: t, opt: EvaluatorStep.evaluator_option, index: int): t => {
+let evaluate_step = (model: t, index: int): t => {
   ...model,
   result_state:
     Some(
-      get_result_state(model) |> EvaluatorStep.ctx_step_index(_, opt, index),
+      get_result_state(model)
+      |> EvaluatorStep.ctx_step_index(
+           _,
+           EvaluatorStep.evaluate_all_option,
+           index,
+         ),
     ),
 };

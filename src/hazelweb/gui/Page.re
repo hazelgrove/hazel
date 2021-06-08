@@ -172,14 +172,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ? program |> Program.get_expansion
                       : settings.evaluation.evaluator_type == Evaluator
                           ? program |> Program.get_result |> Result.get_dhexp
-                          : settings.evaluation.stepper_mode
-                              ? Model.get_result_state(model)
-                              : program
-                                |> Program.get_result_step(
-                                     _,
-                                     settings.evaluation.step_evaluator_option,
-                                   )
-                                |> Result.get_dhexp,
+                          : Model.get_result_state(model),
                   ),
                 ],
               ),

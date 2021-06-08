@@ -338,11 +338,12 @@ let rec mk =
       check_step
         //open EvaluatorStep;
         ? {
-          let eva_obj =
-            EvaluatorStep.decompose_all(d, settings.step_evaluator_option);
-          if (eva_obj == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
+          let eva_objs =
+            EvaluatorStep.decompose_all(d, EvaluatorStep.evaluate_all_option);
+          if (eva_objs == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
+            let obj = EvaluatorStep.EvalObj.mk(Mark, d);
             annot(
-              DHAnnot.Steppable(-1),
+              DHAnnot.Steppable(-1, obj.typ),
               fdoc(~check_step=false, ~enforce_inline),
             );
           } else {
