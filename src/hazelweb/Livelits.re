@@ -899,7 +899,7 @@ module ColorLivelitView = {
 
   let view =
       (
-        {rgb: (r, g, b), a, selecting_sat_val}: model,
+        {rgb: (r, g, b), a, _}: model,
         trigger,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -958,19 +958,33 @@ module ColorLivelitView = {
             let s = offset_x /. width;
             let v = (height -. offset_y) /. height;
             let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
-            Event.Many([
-              //trigger(StartSelectingSatVal: action),
-              trigger(SelectRGB(rgb): action),
-            ]);
+            trigger(SelectRGB(rgb): action);
           };
           let on_drag = evt => {
-            print_endline("dragging");
+            let _sat_val_rect =
+              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+            //let (offset_x, offset_y) = offset_x_y(evt);
+
+            let (client_x, client_y) =
+              Js.Unsafe.(get(evt, "clientX"), get(evt, "clientY"))
+              |> TupleUtil.map2(Float.of_int);
             let sat_val_rect =
               JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
-            let (offset_x, offset_y) = offset_x_y(evt);
-            let s = (offset_x -. sat_val_rect##.left) /. width;
-            let v = (height -. (offset_y -. sat_val_rect##.top)) /. height;
+            let (rect_x, rect_y) = (sat_val_rect##.left, sat_val_rect##.top);
+            let (rel_x, rel_y) = (
+              (client_x -. rect_x) /. width,
+              (client_y -. rect_y) /. height,
+            );
+            //print_endline(string_of_float(rel_x));
+            //print_endline(string_of_float(rel_y));
+            let s = rel_x;
+            let v = rel_y;
             let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
+            //let (r, g, b) = rgb;
+            //print_endline("rgb:");
+            //print_endline(string_of_int(r));
+            //print_endline(string_of_int(g));
+            //print_endline(string_of_int(b));
             trigger(SelectRGB(rgb));
           };
           let _overlay =
@@ -996,13 +1010,12 @@ module ColorLivelitView = {
                       prop_val("top", height -. v *. height |> px),
                     ]),
                   ),
-                  Attr.on("dragstart", on_drag),
-                  //Attr.on_dragstart(_ => trigger(StartSelectingSatVal)),
+                  //Attr.on("dragstart", on_drag),
+                  Attr.on("drag", on_drag),
                   //Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
                 ],
                 [],
               ),
-              ...selecting_sat_val ? [] /*overlay*/ : [],
             ],
           );
         };
