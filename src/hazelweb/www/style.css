@@ -1525,6 +1525,7 @@ input.slider::-moz-range-track {
 
 .color-livelit {
   display: inline-block;
+  user-select: none;
 }
 .color-livelit:focus {
   outline: none;
@@ -1548,6 +1549,7 @@ input.slider::-moz-range-track {
 
 .color-livelit .color-picker .color-swatch {
   grid-area: swatch;
+  user-select: text;
   height: 20px;
   width: 100%;
   display: grid;
@@ -1577,6 +1579,7 @@ input.slider::-moz-range-track {
   padding: 0 4px;
 }
 .color-livelit .color-picker .rgb-picker .splice-content {
+  user-select: text;
   border: 1px solid lightgray;
   position: relative;
   padding: 2px 4px;
