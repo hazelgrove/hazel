@@ -134,7 +134,7 @@ let apply_action =
 
       | LivelitAction(llu, serialized_action) =>
         let program = Model.get_program(model);
-        (
+        let performed =
           try(
             model
             |> Model.perform_action(
@@ -153,9 +153,25 @@ let apply_action =
               "ERROR: Livelit action exception: possibly action from js has wrong type",
             );
             model;
+          };
+        switch (Program.get_path(program)) {
+        | None => Model.map_program(Program.blur, performed)
+        | Some(path) =>
+          try(
+            /* NOTE(andrew): This may fail as the change made may have resulted
+             * in the previous cursor position being invalid, for example if
+             * a splice's content is replaced. We try to retain the cursor
+             * position if possible; otherwise we reset it.
+             */
+            Model.perform_action(
+              ~livelit_move=true,
+              MoveTo(path),
+              performed,
+            )
+          ) {
+          | _ => Model.map_program(Program.blur, performed)
           }
-        )
-        |> Model.map_program(Program.blur);
+        };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
