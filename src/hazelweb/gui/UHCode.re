@@ -110,37 +110,16 @@ let key_handlers =
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
-    Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(kc) =>
-          switch (KeyComboAction.get(cursor_info, kc)) {
-          | Some(kca) => prevent_stop_inject(ModelAction.EditAction(kca))
-          | None =>
-            switch (kc, is_mac) {
-            | (Ctrl_Z, false)
-            | (Meta_Z, true) => prevent_stop_inject(ModelAction.Undo)
-            | (Ctrl_Shift_Z, false)
-            | (Meta_Shift_Z, true) => prevent_stop_inject(ModelAction.Redo)
-            | _ => Event.Ignore
-            }
-          }
-        | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | None => Event.Ignore
-          | Some(single_key) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
-              ),
-            )
-          }
+    Attr.on_keydown(evt =>
+      switch (HazelKeyCombos.of_evt(evt)) {
+      | Some(kc) =>
+        switch (KeyComboAction.get(cursor_info, kc, is_mac)) {
+        | Some(model_action) => prevent_stop_inject(model_action)
+        | None => Event.Ignore
         }
+      | None => Event.Ignore
       }
-    }),
+    ),
   ];
 };
 
