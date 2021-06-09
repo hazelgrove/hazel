@@ -233,15 +233,14 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
-let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ()) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) => {
   // TODO: Do subject properly
   SynExpands({
     kw: TyAlias,
     u_gen,
     prefix,
     suffix,
-    subject: [UHExp.ExpLine(UHExp.EmptyHole(u) |> OpSeq.wrap)],
+    subject: nextLine,
   });
 };
 let wrap_in_SynDone:
@@ -258,16 +257,8 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
-let mk_AnaExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ()) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  // TODO: Do subject properly
-  AnaExpands({
-    kw: TyAlias,
-    u_gen,
-    prefix,
-    suffix,
-    subject: [UHExp.ExpLine(UHExp.EmptyHole(u) |> OpSeq.wrap)],
-  });
+let mk_AnaExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) => {
+  AnaExpands({kw: TyAlias, u_gen, prefix, suffix, subject: nextLine});
 };
 
 let wrap_in_AnaDone:
@@ -435,11 +426,14 @@ let syn_split_text =
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
     };
+    // TODO*: Read popl19 for ground
+    // TODO*: Lookup the goto definition action and make it work for type variables
+    // TODO*: (for synExpands) Take the stuff to the right and stick on the next line (if it's there)
     Succeeded(
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
-      | TyAlias => mk_SynExpandsToTyAlias(~u_gen, ())
+      | TyAlias => mk_SynExpandsToTyAlias(~u_gen, ~nextLine=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -480,7 +474,7 @@ let ana_split_text =
       switch (kw) {
       | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
-      | TyAlias => mk_AnaExpandsToTyAlias(~u_gen, ())
+      | TyAlias => mk_AnaExpandsToTyAlias(~u_gen, ~nextLine=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -635,15 +629,14 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: TyAlias, prefix, subject, suffix, u_gen})) =>
-    // TODO: Use subject properly
-    let _ = subject;
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let zalias =
       ZExp.TyAliasLineP(
         ZTPat.place_before(EmptyHole),
         OpSeq.wrap(UHTyp.Hole(u)),
       );
-    let new_ze = (prefix, zalias, suffix) |> ZExp.prune_empty_hole_lines;
+    let new_ze =
+      (prefix, zalias, subject @ suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
@@ -1672,9 +1665,15 @@ and syn_perform_operand =
         (),
       ),
     )
-  | (Construct(STyAlias), CursorE(_, EmptyHole(_))) =>
-    Succeeded(mk_SynExpandsToTyAlias(~u_gen, ()))
-  | (Construct(STyAlias), CursorE(_)) => Failed
+  // TODO: move the current expression to the next line
+  | (Construct(STyAlias), CursorE(_, operand)) =>
+    Succeeded(
+      mk_SynExpandsToTyAlias(
+        ~u_gen,
+        ~nextLine=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        (),
+      ),
+    )
   | (Construct(SAnn), CursorE(_)) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
@@ -2322,16 +2321,15 @@ and ana_perform =
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
   | Succeeded(AnaExpands({kw: TyAlias, prefix, subject, suffix, u_gen})) =>
-    // TODO: Use subject properly
-    let _ = subject;
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let zalias =
       ZExp.TyAliasLineP(
         ZTPat.place_before(EmptyHole),
         OpSeq.wrap(UHTyp.Hole(u)),
       );
-    let new_ze = (prefix, zalias, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
+    let new_zblock =
+      (prefix, zalias, subject @ suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
   }
 and ana_perform_block =
     (
@@ -3075,9 +3073,14 @@ and ana_perform_operand =
     Succeeded(
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
     )
-  | (Construct(STyAlias), CursorE(_, EmptyHole(_))) =>
-    Succeeded(mk_AnaExpandsToTyAlias(~u_gen, ()))
-  | (Construct(STyAlias), CursorE(_)) => Failed
+  | (Construct(STyAlias), CursorE(_, operand)) =>
+    Succeeded(
+      mk_AnaExpandsToTyAlias(
+        ~u_gen,
+        ~nextLine=UHExp.Block.wrap(operand),
+        (),
+      ),
+    )
   // TODO consider relaxing guards and
   // merging with regular op construction
   | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
