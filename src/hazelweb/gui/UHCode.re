@@ -113,7 +113,7 @@ let key_handlers =
     Attr.on_keydown(evt =>
       switch (HazelKeyCombos.of_evt(evt)) {
       | Some(kc) =>
-        switch (KeyComboAction.get(cursor_info, kc, is_mac)) {
+        switch (KeyComboAction.get_model_action(cursor_info, kc, is_mac)) {
         | Some(model_action) => prevent_stop_inject(model_action)
         | None => Event.Ignore
         }

@@ -1,4 +1,4 @@
-let get =
+let get_model_action =
     (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
     : option(ModelAction.t) =>
   switch (kc, cursor_info, is_mac) {
@@ -47,4 +47,12 @@ let get =
   | (Meta_Z, _, false) => None
   | (Meta_Shift_Z, _, true) => Some(Redo)
   | (Meta_Shift_Z, _, false) => None
+  };
+
+let get_action =
+    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(Action.t) =>
+  // is_mac shouldn't matter here, so we'll just have it be false
+  switch (get_model_action(cursor_info, kc, false)) {
+  | Some(EditAction(action)) => Some(action)
+  | _ => None
   };
