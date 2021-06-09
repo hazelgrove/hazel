@@ -117,7 +117,16 @@ let key_handlers =
         | Some(model_action) => prevent_stop_inject(model_action)
         | None => Event.Ignore
         }
-      | None => Event.Ignore
+      | None =>
+        switch (JSUtil.is_single_key(evt)) {
+        | None => Event.Ignore
+        | Some(single_key) =>
+          prevent_stop_inject(
+            ModelAction.EditAction(
+              Construct(SChar(JSUtil.single_key_string(single_key))),
+            ),
+          )
+        }
       }
     ),
   ];
