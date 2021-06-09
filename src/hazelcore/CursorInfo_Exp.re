@@ -19,9 +19,10 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
-  | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | InjZT(_, ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
+  | InjZE(_, _, zexp) => extract_cursor_term(zexp)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
@@ -80,9 +81,10 @@ and get_zoperand_from_zexp_operand =
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LamZE(_, _, zexp)
-  | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | InjZT(_, ztag, _) => CursorInfo_Tag.get_zoperand(ztag)
+  | InjZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -134,9 +136,10 @@ and get_outer_zrules_from_zexp_operand =
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | LamZP(_) => outer_zrules
   | LamZE(_, _, zexp)
-  | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | InjZT(_, ztag, _) => CursorInfo_Tag.get_outer_zrules(ztag, outer_zrules)
+  | InjZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -532,7 +535,13 @@ and syn_cursor_info_zoperand =
   | LamZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
-  | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | InjZT(InHole(InjectionInSyntheticPosition, _), _, body_opt) =>
+    let+ _ = inj_body_valid(ctx, body_opt: option(UHExp.t));
+    CursorInfo_common.mk(Synthesized(HTyp.Hole), ctx, cursor_term);
+  | InjZT(InHole(_, _) | NotInHole, _, _) => None
+  | InjZE(InHole(InjectionInSyntheticPosition, _), _, zbody) =>
+    syn_cursor_info(~steps=steps @ [1], ctx, zbody)
+  | InjZE(InHole(_, _) | NotInHole, _, _) => None
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
@@ -813,7 +822,6 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' =
@@ -837,7 +845,24 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
-    | Inj(InHole(WrongLength, _), _, _)
+    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
+    | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
+      switch (ty) {
+      | Hole
+      | Sum(_) => None
+      | _ => Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+      }
+    | Inj(InHole(BadTag, _), tag, _) =>
+      switch (ty) {
+      | Sum(tymap) =>
+        switch (TagMap.find_opt(tag, tymap)) {
+        | None => Some(CursorInfo_common.mk(AnaInjBadTag, ctx, cursor_term))
+        | Some(_) => None
+        }
+      | _ => None
+      }
+    | Inj(InHole(ExpectedBody, _), _, _) => (??)
+    | Inj(InHole(UnexpectedBody, _), _, _) => (??)
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
         _,
@@ -857,7 +882,6 @@ and ana_cursor_info_zoperand =
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
     | ListNil(NotInHole)
-    | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
@@ -865,7 +889,7 @@ and ana_cursor_info_zoperand =
       |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
-
+    | Inj(NotInHole, _, _) => (??)
     | Lam(NotInHole, p, body) =>
       let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
       let+ ty_body = Statics_Exp.syn(body_ctx, body);
@@ -880,7 +904,7 @@ and ana_cursor_info_zoperand =
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _)
   | LamZE(InHole(WrongLength, _), _, _)
-  | InjZ(InHole(WrongLength, _), _, _)
+  // | InjZ(InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
@@ -894,7 +918,7 @@ and ana_cursor_info_zoperand =
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
-  | InjZ(InHole(TypeInconsistent, _), _, _)
+  // | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
@@ -922,17 +946,21 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
-  | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => None
-    | Some((ty1, ty2)) =>
-      ana_cursor_info(
-        ~steps=steps @ [0],
-        ctx,
-        zbody,
-        InjSide.pick(position, ty1, ty2),
-      )
-    }
+  | InjZT(InHole(_), _, _) => (??)
+  | InjZT(NotInHole, _, _) => (??)
+  | InjZE(InHole(_), _, _) => (??)
+  | InjZE(NotInHole, _, _) => (??)
+  // | InjZ(NotInHole, position, zbody) =>
+  //   switch (HTyp.matched_sum(ty)) {
+  //   | None => None
+  //   | Some((ty1, ty2)) =>
+  //     ana_cursor_info(
+  //       ~steps=steps @ [0],
+  //       ctx,
+  //       zbody,
+  //       InjSide.pick(position, ty1, ty2),
+  //     )
+  //   }
   | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
     syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
   | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
@@ -1020,4 +1048,10 @@ and ana_cursor_info_rule =
     | Some(ctx) =>
       ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty)
     }
+  }
+and inj_body_valid =
+    (ctx: Contexts.t, body_opt: option(UHExp.t)): option(unit) =>
+  switch (body_opt) {
+  | None => Some()
+  | Some(body) => Statics_Exp.ana(ctx, body, HTyp.Hole)
   };

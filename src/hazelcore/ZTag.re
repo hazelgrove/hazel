@@ -45,3 +45,6 @@ let place_after = (tag: UHTag.t): t =>
   | TagHole(_) => CursorTag(OnDelim(0, After), tag)
   | Tag(id) => CursorTag(OnText(String.length(id) - 1), tag)
   };
+
+let is_after_zoperand = (CursorTag(cursor, _): zoperand): bool =>
+  cursor == OnDelim(0, After);

@@ -155,7 +155,9 @@ type t =
   | BinFloatOp(BinFloatOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
-  | Inj(HTyp.t, InjSide.t, t)
+  | Inj(TagMap.t, Tag.t, t)
+  // | InjError(??)
+  // | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)

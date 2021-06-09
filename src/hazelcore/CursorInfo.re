@@ -30,6 +30,8 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on an injection with a bad tag
+  | AnaInjBadTag
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
