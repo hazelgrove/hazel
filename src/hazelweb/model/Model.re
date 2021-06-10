@@ -95,10 +95,7 @@ let get_edit_state = (model: t): Program.EditState_Exp.t => {
 };
 
 let get_cursor_info = (model: t): CursorInfo.t =>
-  model
-  |> get_program
-  |> Program.get_edit_state
-  |> Program.EditState_Exp.get_cursor_info;
+  model |> get_program |> Program.Exp.get_cursor_info;
 
 let put_program = (program: Program.exp, model: t): t => {
   ...model,
@@ -158,7 +155,7 @@ let get_selected_hole_instance = model =>
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
-       let action = Program.EditState_Exp.move_to_hole(u, program.edit_state);
+       let action = Program.Exp.move_to_hole(u, program);
        let edit_state =
          Program.EditState_Exp.perform_edit_action(
            action,

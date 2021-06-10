@@ -26,4 +26,4 @@ let key_handlers:
   list(Vdom.Attr.t);
 
 let codebox_view:
-  (~font_metrics: FontMetrics.t, int, UHExp.t) => list(Vdom.Node.t);
+  (~font_metrics: FontMetrics.t, Program.Exp.t) => list(Vdom.Node.t);

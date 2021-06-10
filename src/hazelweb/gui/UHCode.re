@@ -294,19 +294,21 @@ let view =
   (code_text, decorations);
 };
 
-let get_codebox_layout = (e: UHExp.t, width: int) => {
-  e
+let get_codebox_layout = program => {
+  program
+  |> Program.get_edit_state
+  |> Program.EditState_Exp.get_uhstx
   |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
-  |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
+  |> Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0)
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
-let codebox_view = (~font_metrics: FontMetrics.t, width: int, e: UHExp.t) => {
+let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
   open Vdom;
-  let l = get_codebox_layout(e, width);
+  let l = get_codebox_layout(program);
   let code_text = view_of_box(UHBox.mk(l));
   let (err_holes, var_err_holes) =
-    e |> Program.EditState_Exp.get_err_holes_decoration_paths;
+    program |> Program.Exp.get_err_holes_decoration_paths;
   let dpaths: UHDecorationPaths.t = {
     current_term: None,
     err_holes,

@@ -65,8 +65,8 @@ let code_view =
       let cursor_inspector =
         // TODO(andrew): uncomment below (commented for testing purposes)
         if (/*program.is_focused &&*/ settings.cursor_inspector.visible) {
-          let path = Program.EditState_Exp.get_path(program.edit_state);
-          let ci = Program.EditState_Exp.get_cursor_info(program.edit_state);
+          let path = Program.Exp.get_path(program);
+          let ci = Program.Exp.get_cursor_info(program);
           [
             view_of_cursor_inspector(
               ~inject,
@@ -89,14 +89,12 @@ let code_view =
               ~u_gen=Program.EditState_Exp.get_ugen(program.edit_state),
               ~inject,
               ~is_mac,
-              ~cursor_info=
-                Program.EditState_Exp.get_cursor_info(program.edit_state),
+              ~cursor_info=Program.Exp.get_cursor_info(program),
               //TODO(andrew): clean up below
               ~assistant_active=
                 settings.cursor_inspector.assistant
                 && Assistant_common.valid_assistant_term(
-                     Program.EditState_Exp.get_cursor_info(program.edit_state).
-                       cursor_term,
+                     Program.Exp.get_cursor_info(program).cursor_term,
                    ),
             )
           : [];

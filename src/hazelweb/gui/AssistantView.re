@@ -22,7 +22,6 @@ let action_view =
       is_selected: bool,
       search_string: string,
     ) => {
-  let width = 80; //TODO: unhardcode?
   let abbr = action_abbreviation(category);
   let search_string =
     StringUtil.match_prefix(search_string, act_str) ? search_string : "";
@@ -33,6 +32,10 @@ let action_view =
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
   };
+  //TODO: unhardcode width?
+  //TODO: refactor to take uhexp instead of zexp?
+  let edit_state = (ZExp.place_before(result), HTyp.Hole, MetaVarGen.init);
+  let program = Program.Exp.mk(~width=80, edit_state); //width, result
   div(
     [
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
@@ -40,7 +43,7 @@ let action_view =
     ],
     [div([classes(["category", abbr])], [text(abbr)])]
     @ [div([classes(["overlay"])], [text(search_string)])]
-    @ UHCode.codebox_view(~font_metrics, width, result)
+    @ UHCode.codebox_view(~font_metrics, program)
     @ [
       span([classes(["type-ann"])], [text(" : ")]),
       span([classes(["type"])], [HTypCode.view(res_ty)]),

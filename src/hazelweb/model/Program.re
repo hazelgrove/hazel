@@ -47,96 +47,65 @@ let get_edit_state = (p: t('e)): 'e => p.edit_state;
 module type EDIT_STATE = {
   [@deriving sexp]
   type t;
-  [@deriving sexp]
-  type decoration_paths;
+  type sort;
+  type z_sort;
 
-  let get_path: t => CursorPath.t;
+  let get_zstx: t => z_sort;
+  let get_uhstx: t => sort;
 
-  let get_doc: (~settings: Settings.t, t) => Pretty.Doc.t(UHAnnot.t);
-  let get_decoration_paths: (t, bool) => UHDecorationPaths.t;
+  let mk_doc:
+    lazy_t((~memoize: bool, ~enforce_inline: bool, sort) => UHDoc.t);
   let perform_edit_action: (Action.t, t) => t;
-  let get_cursor_info: t => CursorInfo.t;
+  let cursor_info: (Contexts.t, z_sort) => option(CursorInfo.t);
+  let holes:
+    (sort, CursorPath.rev_steps, CursorPath.hole_list) => CursorPath.hole_list;
+  let of_steps: (CursorPath.steps, sort) => option(CursorPath.t);
+  let of_z: z_sort => CursorPath.t;
+};
+
+module EditState_Typ = {
+  [@deriving sexp]
+  type t = ZTyp.t;
+  type sort = UHTyp.t;
+  type z_sort = ZTyp.t;
+
+  let get_zstx = edit_state => edit_state;
+  let erase = Memo.general(~cache_size_bound=1000, ZTyp.erase);
+  let get_uhstx = edit_state => edit_state |> get_zstx |> erase;
+  let of_z = CursorPath_Typ.of_z;
+  let mk_doc = UHDoc_Typ.mk;
+  let holes = CursorPath_Typ.holes;
+  let cursor_info = CursorInfo_Typ.cursor_info(~steps=[]);
+  let of_steps = CursorPath_Typ.of_steps(~side=Before);
+
+  let perform_edit_action = (a, edit_state: t): t => {
+    switch (Action_Typ.perform(a, edit_state)) {
+    | Failed => raise(FailedAction)
+    | CursorEscaped(_) => raise(CursorEscaped)
+    | Succeeded(new_edit_state) => new_edit_state
+    };
+  };
 };
 
 module EditState_Exp = {
   [@deriving sexp]
   type t = Statics.edit_state;
-  [@deriving sexp]
-  type decoration_paths = UHDecorationPaths.t;
+  type sort = UHExp.t;
+  type z_sort = ZExp.t;
 
-  let get_zexp = edit_state => {
-    let (ze, _, _) = edit_state;
-    ze;
-  };
-
+  let get_zstx = ((ze, _, _)) => ze;
   let get_ugen = ((_, _, u)) => u;
-
   let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-  let get_uhexp = edit_state => edit_state |> get_zexp |> erase;
-
-  let get_path = edit_state => edit_state |> get_zexp |> CursorPath_Exp.of_z;
-
-  let get_doc = (~settings: Settings.t, edit_state: t) => {
-    TimeUtil.measure_time(
-      "Program.get_doc",
-      settings.performance.measure && settings.performance.program_get_doc,
-      () => {
-      Lazy.force(
-        UHDoc_Exp.mk,
-        ~memoize=settings.memoize_doc,
-        ~enforce_inline=false,
-        get_uhexp(edit_state),
-      )
-    });
-  };
-
+  let get_uhstx = edit_state => edit_state |> get_zstx |> erase;
+  let of_z = CursorPath_Exp.of_z;
+  let mk_doc = UHDoc_Exp.mk;
+  let holes = CursorPath_Exp.holes;
   let cursor_info =
-    Memo.general(
-      ~cache_size_bound=1000,
-      CursorInfo_Exp.syn_cursor_info(Contexts.empty),
+    CursorInfo_Exp.syn_cursor_info(
+      ~steps=[],
+      ~syntactic_context=CursorInfo.NoSeq,
     );
-  let get_cursor_info = edit_state => {
-    edit_state
-    |> get_zexp
-    |> cursor_info
-    |> OptUtil.get(() => raise(MissingCursorInfo));
-  };
-
-  let get_err_holes_decoration_paths =
-      (e: UHExp.t): (list(CursorPath.steps), list(CursorPath.steps)) => {
-    CursorPath_Exp.holes(e, [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
-         switch (sort) {
-         | TypHole => None
-         | PatHole(_, shape)
-         | ExpHole(_, shape) =>
-           switch (shape) {
-           | Empty => None
-           | VarErr
-           | TypeErr => Some((shape, steps))
-           }
-         }
-       )
-    |> List.partition(
-         fun
-         | (CursorPath.TypeErr, _) => true
-         | (_var_err, _) => false,
-       )
-    |> TupleUtil.map2(List.map(snd));
-  };
-
-  let get_decoration_paths =
-      (edit_state: t, is_focused: bool): UHDecorationPaths.t => {
-    let current_term = is_focused ? Some(get_path(edit_state)) : None;
-    let (err_holes, var_err_holes) =
-      edit_state |> get_uhexp |> get_err_holes_decoration_paths;
-    let var_uses =
-      switch (get_cursor_info(edit_state)) {
-      | {uses: Some(uses), _} => uses
-      | _ => []
-      };
-    {current_term, err_holes, var_uses, var_err_holes};
-  };
+  let of_steps = CursorPath_Exp.of_steps(~side=Before);
 
   let expand =
     Memo.general(
@@ -144,7 +113,7 @@ module EditState_Exp = {
       Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
     );
   let get_expansion = (edit_state: t): DHExp.t =>
-    switch (edit_state |> get_uhexp |> expand) {
+    switch (edit_state |> get_uhstx |> expand) {
     | DoesNotElaborate => raise(DoesNotElaborate)
     | Elaborates(d, _, _) => d
     };
@@ -177,23 +146,10 @@ module EditState_Exp = {
     };
   };
 
-  let move_to_hole = (u, (ze, _, _): t) => {
-    let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-    switch (CursorPath_common.steps_to_hole(holes, u)) {
-    | None => raise(HoleNotFound)
-    | Some(hole_steps) =>
-      let e = ZExp.erase(ze);
-      switch (CursorPath_Exp.of_steps(hole_steps, e)) {
-      | None => raise(HoleNotFound)
-      | Some(hole_path) => Action.MoveTo(hole_path)
-      };
-    };
-  };
-
   let cursor_on_exp_hole_ =
     Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
   let cursor_on_exp_hole = edit_state =>
-    edit_state |> get_zexp |> cursor_on_exp_hole_;
+    edit_state |> get_zstx |> cursor_on_exp_hole_;
 
   /**
  * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
@@ -214,8 +170,11 @@ module type S = {
   let mk: (~width: int, ~is_focused: bool=?, edit_state) => t;
   let focus: t => t;
   let blur: t => t;
+
+  let get_path: t => CursorPath.t;
   let get_steps: t => CursorPath.steps;
 
+  let get_cursor_info: t => CursorInfo.t;
   let get_layout: (~settings: Settings.t, t) => UHLayout.t;
   let get_measured_layout: (~settings: Settings.t, t) => UHMeasuredLayout.t;
 
@@ -223,6 +182,9 @@ module type S = {
     (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
 
   let get_decoration_paths: t => UHDecorationPaths.t;
+  let get_err_holes_decoration_paths:
+    t => (list(CursorPath.steps), list(CursorPath.steps));
+  let move_to_hole: (int, t) => Action.t;
   let move_via_click:
     (~settings: Settings.t, MeasuredPosition.t, t) => (t, Action.t);
   let move_via_key: (~settings: Settings.t, MoveKey.t, t) => (t, Action.t);
@@ -244,13 +206,26 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
 
   let put_edit_state = (edit_state, program) => {...program, edit_state};
 
-  let get_steps = (program: t) => {
-    let (steps, _) = program.edit_state |> EditState.get_path;
-    steps;
+  let get_path = (program: t) =>
+    program |> get_edit_state |> EditState.get_zstx |> EditState.of_z;
+  let get_steps = (program: t) => program |> get_path |> fst;
+
+  let get_doc = (~settings: Settings.t, program: t) => {
+    TimeUtil.measure_time(
+      "Program.get_doc",
+      settings.performance.measure && settings.performance.program_get_doc,
+      () => {
+      Lazy.force(
+        EditState.mk_doc,
+        ~memoize=settings.memoize_doc,
+        ~enforce_inline=false,
+        program |> get_edit_state |> EditState.get_uhstx,
+      )
+    });
   };
 
   let get_layout = (~settings: Settings.t, program: t) => {
-    let doc = EditState.get_doc(~settings, program.edit_state);
+    let doc = get_doc(~settings, program);
     TimeUtil.measure_time(
       "LayoutOfDoc.layout_of_doc",
       settings.performance.measure
@@ -268,7 +243,7 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
   let get_caret_position =
       (~settings: Settings.t, program): MeasuredPosition.t => {
     let m = get_measured_layout(~settings, program);
-    let path = EditState.get_path(program.edit_state);
+    let path = get_path(program);
     UHMeasuredLayout.caret_position_of_path(path, m)
     |> OptUtil.get(() => failwith("could not find caret"));
   };
@@ -282,13 +257,69 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
     start_col_of_vertical_movement: None,
   };
 
+  let cursor_info =
+    Memo.general(
+      ~cache_size_bound=1000,
+      EditState.cursor_info(Contexts.empty),
+    );
+  let get_cursor_info = program => {
+    program
+    |> get_edit_state
+    |> EditState.get_zstx
+    |> cursor_info
+    |> OptUtil.get(() => raise(MissingCursorInfo));
+  };
+
+  let get_err_holes_decoration_paths =
+      (program: t): (list(CursorPath.steps), list(CursorPath.steps)) => {
+    EditState.holes(program |> get_edit_state |> EditState.get_uhstx, [], [])
+    |> List.filter_map((CursorPath.{sort, steps}) =>
+         switch (sort) {
+         | TypHole => None
+         | PatHole(_, shape)
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition(
+         fun
+         | (CursorPath.TypeErr, _) => true
+         | (_var_err, _) => false,
+       )
+    |> TupleUtil.map2(List.map(snd));
+  };
+
   let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-    EditState.get_decoration_paths(program.edit_state, program.is_focused);
+    let current_term = program.is_focused ? Some(get_path(program)) : None;
+    let (err_holes, var_err_holes) = get_err_holes_decoration_paths(program);
+    let var_uses =
+      switch (get_cursor_info(program)) {
+      | {uses: Some(uses), _} => uses
+      | _ => []
+      };
+    {current_term, err_holes, var_uses, var_err_holes};
   };
 
   let perform_edit_action = (a, program: t): t => {
     let new_edit_state = EditState.perform_edit_action(a, program.edit_state);
     program |> put_edit_state(new_edit_state);
+  };
+
+  let move_to_hole = (u, program: t) => {
+    let s = program |> get_edit_state |> EditState.get_uhstx;
+    let holes = EditState.holes(s, [], []);
+    switch (CursorPath_common.steps_to_hole(holes, u)) {
+    | None => raise(HoleNotFound)
+    | Some(hole_steps) =>
+      switch (EditState.of_steps(hole_steps, s)) {
+      | None => raise(HoleNotFound)
+      | Some(hole_path) => Action.MoveTo(hole_path)
+      }
+    };
   };
 
   let move_via_click =
@@ -379,3 +410,5 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
 [@deriving sexp]
 type exp = t(EditState_Exp.t);
 module Exp = Make(EditState_Exp);
+type typ = t(EditState_Typ.t);
+module Typ = Make(EditState_Typ);

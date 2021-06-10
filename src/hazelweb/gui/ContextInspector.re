@@ -279,8 +279,7 @@ let view =
   let context_view = {
     let ctx =
       program
-      |> Program.get_edit_state
-      |> Program.EditState_Exp.get_cursor_info
+      |> Program.Exp.get_cursor_info
       |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
@@ -327,8 +326,7 @@ let view =
     if (settings.evaluate) {
       let ctx =
         program
-        |> Program.get_edit_state
-        |> Program.EditState_Exp.get_cursor_info
+        |> Program.Exp.get_cursor_info
         |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) =
@@ -340,8 +338,7 @@ let view =
           switch (
             program
             |> Program.get_edit_state
-            |> Program.EditState_Exp.get_zexp
-            |> ZExp.cursor_on_EmptyHole
+            |> Program.EditState_Exp.cursor_on_exp_hole
           ) {
           | None => [
               instructional_msg(

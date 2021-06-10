@@ -231,7 +231,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             let e =
                               program
                               |> Program.get_edit_state
-                              |> Program.EditState_Exp.get_uhexp;
+                              |> Program.EditState_Exp.get_uhstx;
                             JSUtil.log(
                               Js.string(Serialization.string_of_exp(e)),
                             );
