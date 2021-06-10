@@ -31,15 +31,20 @@ let cons_all =
 let explanation_pathsopseq =
     (
       ~of_zoperand: 'zoperand => list(CursorPath.steps),
-      ZOpSeq(_, zseq): ZOpSeq.t(_, _, 'zoperand, _),
+      ZOpSeq(skel, zseq): ZOpSeq.t(_, _, 'zoperand, _),
     )
     : list(CursorPath.steps) =>
   switch (zseq) {
   | ZOperand(zoperand, (prefix, _)) =>
     cons_all(Seq.length_of_affix(prefix), of_zoperand(zoperand))
   | ZOperator((_, _), (prefix, suffix)) =>
-    let length = Seq.length(prefix) + Seq.length(suffix);
-    [[length + Seq.length(prefix) - 2], [length + Seq.length(prefix)]];
+    print_endline(
+      "Skel rooted: "
+      ++ string_of_bool(ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)),
+    );
+    print_endline("Prefix length: " ++ string_of_int(Seq.length(prefix)));
+    print_endline("Suffix length: " ++ string_of_int(Seq.length(suffix)));
+    [[Seq.length(prefix) - 1], [Seq.length(prefix)]];
   };
 
 let mk_zholes =
