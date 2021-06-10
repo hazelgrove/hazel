@@ -105,7 +105,16 @@ let matched_arrow =
 // or if it can be ignored
 let get_prod_elements: t => list(t) =
   fun
-  | Prod(tys) => List.map(((_, ty)) => {ty}, tys)
+  | Prod(tys) =>
+    List.map(
+      ((label, ty)) => {
+        switch (label) {
+        | Some(_) => Prod([(label, ty)])
+        | None => ty
+        }
+      },
+      tys,
+    )
   | _ as ty => [ty];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;

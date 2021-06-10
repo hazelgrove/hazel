@@ -95,7 +95,7 @@ and syn_elab_skel =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, ty2, ctx, delta) =>
         let dp = DHExp.Tuple([(Some(l), d2)]);
-        Elaborates(dp, Prod([Some(l), ty2]), ctx, delta)
+        Elaborates(dp, Prod([Some(l), ty2]), ctx, delta);
       }
     | Elaborates(dp1, _, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {

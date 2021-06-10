@@ -214,6 +214,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
             switch (lp, l) {
             // Both have matching labels
             | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Neither has a label
+            | (None, None) => Indet
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) => Indet
             // Pattern has label, expression does not have label
@@ -230,9 +232,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
             switch (lp, l) {
             // Both have matching labels
             | (Some(label_p), Some(label)) when label_p == label =>
-              Matches(Enviorment.union(env_old, env_new))
+              Matches(Environment.union(env_old, env_new))
+            // Neither has a label
+            | (None, None) => Matches(Environment.union(env_old, env_new))
             // Pattern is not labeled, ignore expression label
-            | (None, Some(_)) => Matches(Enviorment.union(env_old, env_new))
+            | (None, Some(_)) => Matches(Environment.union(env_old, env_new))
             // Pattern has label, expression does not have label
             | (Some(_), None)
             // Both have non matching labels
@@ -1187,12 +1191,41 @@ and ana_elab_opseq =
       fun
       | None => ElaborationResult.DoesNotElaborate
       | Some((rev_ds, rev_tys, delta)) => {
-          let d = rev_ds |> List.rev |> DHExp.mk_tuple;
+          let d =
+            switch (rev_ds) {
+            | [] => failwith("expected at least one element")
+            | [d1] => d1
+            | _ =>
+              DHExp.Tuple(
+                List.map(
+                  dn => {
+                    switch (dn) {
+                    | Tuple([(label, dn')]) => (label, dn')
+                    | _ => (None, dn)
+                    }
+                  },
+                  rev_ds |> List.rev,
+                ),
+              )
+            };
+          // rev_ds |> List.rev;
           let ty =
             switch (rev_tys) {
             | [] => failwith("expected at least 1 element")
             | [ty] => ty
-            | _ => HTyp.Prod(rev_tys |> List.rev)
+            // flatten singleton labeled prods into the prod type
+            | _ =>
+              HTyp.Prod(
+                List.map(
+                  tyn => {
+                    switch (tyn) {
+                    | Prod([(label, tyn')]) => (label, tyn')
+                    | _ => (None, tyn)
+                    }
+                  },
+                  rev_tys |> List.rev,
+                ),
+              )
             };
           Elaborates(d, ty, delta);
         }
@@ -1255,11 +1288,11 @@ and ana_elab_opseq =
     }
   };
 }
-// ECD YOU ARE HERE:
-// Consider this case: 
+// ECD TODO:
+// Consider this case:
 // let y : (.x Int, .y Int) = (3, 4)
-// case y 
-// | (.x a, .y b) => 
+// case y
+// | (.x a, .y b) =>
 // When analyzing an unlabeled tuple element against a labeled type
 // The type should be added during the ana_elab process
 // ie if ana_elab ( ctx, delta, (3, 4), seq, (.a num, .b num))

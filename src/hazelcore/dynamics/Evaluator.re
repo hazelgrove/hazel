@@ -15,9 +15,8 @@ type ground_cases =
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
+  NotGroundOrHole(Prod(ListUtil.replicate(length, (None, HTyp.Hole))));
 let grounded_List = NotGroundOrHole(List(Hole));
-let grounded_Label_Elt = NotGroundOrHole(Label_Elt(".", Hole));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
@@ -28,10 +27,9 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Float
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
-  | List(Hole)
-  | Label_Elt(".", Hole) => Ground
+  | List(Hole) => Ground
   | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
+    if (List.for_all(fun (_, ty) => { ty |> HTyp.eq(HTyp.Hole) }, tys)) {
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;
@@ -39,7 +37,6 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
-  | Label_Elt(_, _) => grounded_Label_Elt
   };
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
