@@ -470,6 +470,70 @@ let exp_hole_view =
   type_driven(body);
 };
 
+/**
+ * Gets the type of the expression at the cursor.
+ * Return HTyp.t
+ */
+let get_type = (cursor_info: CursorInfo.t) => {
+  let rec my_type = (typed: CursorInfo.typed) =>
+    switch (typed) {
+    | Analyzed(ty) => Some(ty)
+    | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
+    | AnaSubsumed(expected_ty, _) => Some(expected_ty)
+    | Synthesized(ty) => Some(ty)
+    | SynMatchingArrow(syn_ty, _) => Some(syn_ty)
+    | SynBranchClause(join, typed, _) =>
+      switch (join, typed) {
+      | (JoinTy(ty), Synthesized(got_ty)) =>
+        switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+        | (true, true) => Some(ty)
+        | (true, false) => Some(ty)
+        | _ => None
+        }
+      | (NoBranches, _) => my_type(typed)
+      | _ => None
+      }
+    | _ => None
+    };
+  my_type(cursor_info.typed);
+};
+
+let is_complex_type = (cursor_info: CursorInfo.t) => {
+  switch (cursor_info.typed) {
+  | OnType(b) => b
+  | _ => false
+  };
+};
+
+/**
+ * Gets the type in string format.
+ * Return string
+ */
+let type_to_str = (~empty_hole=false, ty: option(HTyp.t)) => {
+  switch (ty) {
+  | Some(Hole) => empty_hole ? "" : "a"
+  | Some(Int) => "Integer"
+  | Some(Float) => "Float"
+  | Some(Bool) => "Boolean"
+  | Some(Arrow(_, _)) => "Function"
+  | Some(Sum(_, _)) => "Sum"
+  | Some(Prod(_)) => "Product"
+  | Some(List(_)) => "List"
+  | _ => raise(Invalid_argument("No Literal"))
+  };
+};
+
+let shortcut_node = text =>
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["code-font", "shortcut"])],
+    [Vdom.Node.text(text)],
+  );
+
+let fill_space = Vdom.(Node.span([Attr.classes(["filler"])], []));
+
+let type_driven = body =>
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+
 let rules_view = (cursor_info: CursorInfo.t) => {
   /* TOOD: Make work for if on outermost part of rule exp? */
   switch (cursor_info.cursor_term) {
@@ -477,36 +541,40 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   | Exp(OnDelim(1, Before), Case(_)) =>
     Some(
       type_driven([
-        Node.div(
-          [Attr.classes(["panel-title-bar", "body-bar"])],
-          [
-            Node.div(
-              [Attr.classes(["option"])],
-              [
-                Node.text("Add rule before"),
-                fill_space,
-                shortcut_node("Enter"),
-              ],
-            ),
-          ],
+        Vdom.(
+          Node.div(
+            [Attr.classes(["panel-title-bar", "body-bar"])],
+            [
+              Node.div(
+                [Attr.classes(["option"])],
+                [
+                  Node.text("Add rule before"),
+                  fill_space,
+                  shortcut_node("Enter"),
+                ],
+              ),
+            ],
+          )
         ),
       ]),
     )
   | Rule(OnDelim(1, Before), _) =>
     Some(
       type_driven([
-        Node.div(
-          [Attr.classes(["panel-title-bar", "body-bar"])],
-          [
-            Node.div(
-              [Attr.classes(["option"])],
-              [
-                Node.text("Add rule after"),
-                fill_space,
-                shortcut_node("Enter"),
-              ],
-            ),
-          ],
+        Vdom.(
+          Node.div(
+            [Attr.classes(["panel-title-bar", "body-bar"])],
+            [
+              Node.div(
+                [Attr.classes(["option"])],
+                [
+                  Node.text("Add rule after"),
+                  fill_space,
+                  shortcut_node("Enter"),
+                ],
+              ),
+            ],
+          )
         ),
       ]),
     )
@@ -516,27 +584,578 @@ let rules_view = (cursor_info: CursorInfo.t) => {
 
 let lines_view = () => {
   type_driven([
-    Node.div(
-      [Attr.classes(["panel-title-bar", "body-bar"])],
-      [
-        Node.div(
-          [Attr.classes(["option"])],
-          [
-            Node.text("Create new line"),
-            fill_space,
-            shortcut_node("Enter"),
-          ],
-        ),
-        Node.div(
-          [Attr.classes(["option"])],
-          [
-            Node.text("Create new comment line"),
-            fill_space,
-            shortcut_node("#"),
-            shortcut_node("Shift+Enter"),
-          ],
-        ),
-      ],
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new line"),
+              fill_space,
+              shortcut_node("Enter"),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new comment line"),
+              fill_space,
+              shortcut_node("#"),
+              shortcut_node("Shift+Enter"),
+            ],
+          ),
+        ],
+      )
     ),
   ]);
+};
+
+/**************************   TYPES    ****************************/
+
+let get_shortcut = (typ: HTyp.t) => {
+  switch (typ) {
+  | HTyp.Int => "I"
+  | HTyp.Float => "F"
+  | HTyp.Bool => "B"
+  | HTyp.List(_) => "["
+  | HTyp.Sum(_, _) => "|"
+  | HTyp.Prod(_) => "("
+  | HTyp.Arrow(_, _) => ">"
+  | _ => raise(Invalid_argument("Invalid HTyp"))
+  };
+};
+
+let list_primitives_view = () => {
+  open Vdom;
+  let primitive_options =
+    [HTyp.Int, HTyp.Float, HTyp.Bool]
+    |> List.map(s => {
+         let enter_msg = s == HTyp.Int ? "Enter an " : "Enter a ";
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text(enter_msg),
+             Node.text(type_to_str(Some(s))),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         );
+       });
+  primitive_options;
+};
+
+let list_compounds_view = () => {
+  open Vdom;
+  let compound_options =
+    [
+      HTyp.Sum(HTyp.Hole, HTyp.Hole),
+      HTyp.Prod([HTyp.Hole, HTyp.Hole]),
+      HTyp.List(HTyp.Hole),
+    ]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text("Enter a "),
+             Node.text(type_to_str(Some(s))),
+             Node.text(": "),
+             HTypCode.view(~strategy_guide=true, s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         )
+       });
+  compound_options;
+};
+
+let list_function_view = () => {
+  open Vdom;
+  let function_options =
+    [HTyp.Arrow(HTyp.Hole, HTyp.Hole)]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text("Enter a "),
+             Node.text(type_to_str(Some(s))),
+             Node.text(": "),
+             HTypCode.view(s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         )
+       });
+  function_options;
+};
+
+let list_compounds_filled_view = () => {
+  open Vdom;
+  let compound_filled_options =
+    [HTyp.Prod([HTyp.Hole, HTyp.Hole]), HTyp.List(HTyp.Hole)]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text("Create a "),
+             Node.text(type_to_str(Some(s))),
+             Node.text(": "),
+             HTypCode.view(~strategy_guide=true, s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         )
+       });
+  compound_filled_options;
+};
+
+let list_pat_filled_view = () => {
+  open Vdom;
+  let function_options =
+    Node.div(
+      [Attr.classes(["option"])],
+      [Node.text("Create a PAT tuple "), fill_space, shortcut_node(",")],
+    );
+  [function_options];
+};
+
+let list_function_filled_view = () => {
+  open Vdom;
+  let function_options =
+    [HTyp.Arrow(HTyp.Hole, HTyp.Hole)]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["option"])],
+           [
+             Node.text("Create a "),
+             Node.text(type_to_str(Some(s))),
+             Node.text(": "),
+             HTypCode.view(s),
+             fill_space,
+             shortcut_node(get_shortcut(s)),
+           ],
+         )
+       });
+  function_options;
+};
+
+let filled_type_view =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+    ) => {
+  let ty = get_type(cursor_info);
+  let is_complex = is_complex_type(cursor_info);
+  let ctx = cursor_info.ctx;
+
+  let _ = ty;
+  let _ = ctx;
+
+  switch (ty) {
+  | Some(Hole) => print_endline("Hole")
+  | Some(Int) => print_endline("Int")
+  | Some(Float) => print_endline("Float")
+  | Some(Bool) => print_endline("Bool")
+  | Some(List(_)) => print_endline("List")
+  | _ => print_endline("else")
+  };
+
+  let fill_hole_msg =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+        [
+          Node.div(
+            [Attr.classes(["words"])],
+            [Node.text("Which strategy do you want to try?")],
+          ),
+        ],
+      )
+    );
+
+  let compound_filled_t = cursor_inspector.type_assist_comp_filled_ty;
+  let function_filled_t = cursor_inspector.type_assist_func_filled_ty;
+  let pat_filled_t = cursor_inspector.type_assist_pat_filled_ty;
+  let new_type_filled_t = cursor_inspector.type_assist_new_type_filled_ty;
+
+  let compound_filled_arrow =
+    if (compound_filled_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let compound_filled =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_comp_filled_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [
+          Node.text("Is converting to a compound type what you need?"),
+          compound_filled_arrow,
+        ],
+      )
+    );
+
+  let compound_filled_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div(
+              [Attr.classes(["options"])],
+              list_compounds_filled_view(),
+            )
+          ),
+        ],
+      )
+    );
+  let _ = compound_filled_body;
+
+  let func_filled_arrow =
+    if (function_filled_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let func_filled =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_func_filled_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [
+          Node.text("Is converting to a function type what you need?"),
+          func_filled_arrow,
+        ],
+      )
+    );
+  let func_filled_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div(
+              [Attr.classes(["options"])],
+              list_function_filled_view(),
+            )
+          ),
+        ],
+      )
+    );
+  let _ = func_filled_body;
+
+  let pat_filled_arrow =
+    if (pat_filled_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let pat_filled =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_pat_filled_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [Node.text("Do you want to create a pattern?"), pat_filled_arrow],
+      )
+    );
+  let pat_filled_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div([Attr.classes(["options"])], list_pat_filled_view())
+          ),
+        ],
+      )
+    );
+  let _ = pat_filled_body;
+
+  let new_type_filled_arrow =
+    if (new_type_filled_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+
+  let new_type_filled =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_new_type_filled_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [
+          Node.text("Do you want to add another type?"),
+          new_type_filled_arrow,
+        ],
+      )
+    );
+
+  let new_type_filled_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div(
+              [Attr.classes(["options"])],
+              [
+                Node.div(
+                  [Attr.classes(["option"])],
+                  [
+                    Node.text("Add another type"),
+                    fill_space,
+                    shortcut_node(","),
+                  ],
+                ),
+              ],
+            )
+          ),
+        ],
+      )
+    );
+  let _ = new_type_filled_body;
+
+  let body =
+    if (compound_filled_t) {
+      List.append([fill_hole_msg], [compound_filled, compound_filled_body]);
+    } else {
+      List.append([fill_hole_msg], [compound_filled]);
+    };
+  let body =
+    if (function_filled_t) {
+      List.append(body, [func_filled, func_filled_body]);
+    } else {
+      List.append(body, [func_filled]);
+    };
+  let body =
+    is_complex
+      ? if (new_type_filled_t) {
+          List.append(body, [new_type_filled, new_type_filled_body]);
+        } else {
+          List.append(body, [new_type_filled]);
+        }
+      : (
+        if (pat_filled_t) {
+          List.append(body, [pat_filled, pat_filled_body]);
+        } else {
+          List.append(body, [pat_filled]);
+        }
+      );
+
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+};
+
+let type_view =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+    ) => {
+  let ty = get_type(cursor_info);
+  let ctx = cursor_info.ctx;
+
+  let _ = ty;
+  let _ = ctx;
+
+  let primitive_t = cursor_inspector.type_assist_prim_ty;
+  let compound_t = cursor_inspector.type_assist_comp_ty;
+  let function_t = cursor_inspector.type_assist_func_ty;
+
+  let fill_hole_msg =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+        [
+          Node.div(
+            [Attr.classes(["words"])],
+            [Node.text("Which strategy do you want to try?")],
+          ),
+        ],
+      )
+    );
+  let primitive_arrow =
+    if (primitive_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let primitive =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_prim_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [Node.text("Is a Primitive type what you need?"), primitive_arrow],
+      )
+    );
+  let primitive_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div([Attr.classes(["options"])], list_primitives_view())
+          ),
+        ],
+      )
+    );
+  let _ = primitive_body;
+
+  let compound_arrow =
+    if (compound_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let compound =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_comp_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [Node.text("Is a Compound type what you need?"), compound_arrow],
+      )
+    );
+  let compound_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(
+            Node.div([Attr.classes(["options"])], list_compounds_view())
+          ),
+        ],
+      )
+    );
+  let _ = compound_body;
+
+  let func_arrow =
+    if (function_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let func =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(
+                ModelAction.UpdateSettings(
+                  CursorInspector(Toggle_type_assist_func_ty),
+                ),
+              ),
+            ])
+          ),
+        ],
+        [Node.text("Is a Function type what you need?"), func_arrow],
+      )
+    );
+  let func_body =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Vdom.(Node.div([Attr.classes(["options"])], list_function_view())),
+        ],
+      )
+    );
+  let _ = func_body;
+
+  let body =
+    if (primitive_t) {
+      List.append([fill_hole_msg], [primitive, primitive_body]);
+    } else {
+      List.append([fill_hole_msg], [primitive]);
+    };
+  let body =
+    if (compound_t) {
+      List.append(body, [compound, compound_body]);
+    } else {
+      List.append(body, [compound]);
+    };
+  let body =
+    if (function_t) {
+      List.append(body, [func, func_body]);
+    } else {
+      List.append(body, [func]);
+    };
+
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
 };

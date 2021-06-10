@@ -696,12 +696,12 @@ let view =
     switch (cursor_info.cursor_term) {
     | Exp(_, EmptyHole(_)) => false
     | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => false
-    | Pat(_, _) => false
+    | Pat(_, EmptyHole(_), _) => false
+    | Pat(_, _, _) => false
     | Typ(_, Hole) => true
     | Typ(_, _) => false
     | ExpOp(_, _)
-    | PatOp(_, _)
+    | PatOp(_, _, _)
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => false
@@ -710,12 +710,12 @@ let view =
     switch (cursor_info.cursor_term) {
     | Exp(_, EmptyHole(_)) => false
     | Exp(_, _) => false
-    | Pat(_, EmptyHole(_)) => false
-    | Pat(_, _) => false
+    | Pat(_, EmptyHole(_), _) => false
+    | Pat(_, _, _) => false
     | Typ(_, Hole) => false
     | Typ(_, _) => true
     | ExpOp(_, _)
-    | PatOp(_, _)
+    | PatOp(_, _, _)
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => false
@@ -785,13 +785,19 @@ let view =
       | Typ(_, Hole) =>
         List.append(
           content,
-          [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
+          [
+            StrategyGuide_Exp.type_view(
+              ~inject,
+              cursor_inspector,
+              cursor_info,
+            ),
+          ],
         )
       | Typ(_, _) =>
         List.append(
           content,
           [
-            StrategyGuide.filled_type_view(
+            StrategyGuide_Exp.filled_type_view(
               ~inject,
               cursor_inspector,
               cursor_info,
