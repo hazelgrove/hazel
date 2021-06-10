@@ -201,7 +201,7 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
+    | OnType(_) => []
     | OnLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
@@ -408,7 +408,7 @@ let novice_summary =
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
+    | OnType(_) => [Node.text("Got " ++ article), term_tag]
     | OnLine => /* TODO */ [
         Node.text("Got " ++ article),
         term_tag,
@@ -642,7 +642,7 @@ let view =
       }
     | SynInconsistentBranches(_) => TypeInconsistency
     | SynInconsistentBranchesArrow(_) => TypeInconsistency
-    | OnType => OK
+    | OnType(_) => OK
     | PatAnalyzed(_) => OK
     | PatAnaTypeInconsistent(_) => TypeInconsistency
     | PatAnaWrongLength(_) => TypeInconsistency
@@ -692,6 +692,34 @@ let view =
     | Line(_, _)
     | Rule(_, _) => false
     };
+  let on_type_hole =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => false
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => true
+    | Typ(_, _) => false
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
+  let on_type =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => false
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => false
+    | Typ(_, _) => true
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -704,7 +732,7 @@ let view =
       show,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
-      on_empty_hole,
+      on_empty_hole || on_type_hole || on_type,
     );
   let content =
     switch (cursor_inspector.show_expanded, expanded) {
@@ -754,6 +782,22 @@ let view =
         | None => content
         | Some(sg_rules) => List.append(content, [sg_rules])
         }
+      | Typ(_, Hole) =>
+        List.append(
+          content,
+          [StrategyGuide.type_view(~inject, cursor_inspector, cursor_info)],
+        )
+      | Typ(_, _) =>
+        List.append(
+          content,
+          [
+            StrategyGuide.filled_type_view(
+              ~inject,
+              cursor_inspector,
+              cursor_info,
+            ),
+          ],
+        )
       | Line(_) =>
         /* TODO: Make work in general? */
         List.append(content, [StrategyGuide_Exp.lines_view()])

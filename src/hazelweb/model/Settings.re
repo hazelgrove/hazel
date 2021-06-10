@@ -126,6 +126,13 @@ module CursorInspector = {
     type_assist: bool,
     type_assist_lit: bool,
     type_assist_other: bool,
+    type_assist_prim_ty: bool,
+    type_assist_comp_ty: bool,
+    type_assist_func_ty: bool,
+    type_assist_comp_filled_ty: bool,
+    type_assist_func_filled_ty: bool,
+    type_assist_pat_filled_ty: bool,
+    type_assist_new_type_filled_ty: bool,
     /* exp */
     type_assist_var: bool,
     type_assist_fun: bool,
@@ -145,6 +152,13 @@ module CursorInspector = {
     type_assist: false,
     type_assist_lit: false,
     type_assist_other: false,
+    type_assist_prim_ty: false,
+    type_assist_comp_ty: false,
+    type_assist_func_ty: false,
+    type_assist_comp_filled_ty: false,
+    type_assist_func_filled_ty: false,
+    type_assist_pat_filled_ty: false,
+    type_assist_new_type_filled_ty: false,
     /* exp */
     type_assist_var: false,
     type_assist_fun: false,
@@ -165,6 +179,13 @@ module CursorInspector = {
     | Toggle_type_assist
     | Toggle_type_assist_lit
     | Toggle_type_assist_other
+    | Toggle_type_assist_prim_ty
+    | Toggle_type_assist_comp_ty
+    | Toggle_type_assist_func_ty
+    | Toggle_type_assist_comp_filled_ty
+    | Toggle_type_assist_func_filled_ty
+    | Toggle_type_assist_pat_filled_ty
+    | Toggle_type_assist_new_type_filled_ty
     // exp
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
@@ -224,6 +245,35 @@ module CursorInspector = {
     | Toggle_type_assist_ignore => {
         ...settings,
         type_assist_ignore: !settings.type_assist_ignore,
+      }
+    | Toggle_type_assist_prim_ty => {
+        ...settings,
+        type_assist_prim_ty: !settings.type_assist_prim_ty,
+      }
+    | Toggle_type_assist_comp_ty => {
+        ...settings,
+        type_assist_comp_ty: !settings.type_assist_comp_ty,
+      }
+    | Toggle_type_assist_func_ty => {
+        ...settings,
+        type_assist_func_ty: !settings.type_assist_func_ty,
+      }
+    | Toggle_type_assist_comp_filled_ty => {
+        ...settings,
+        type_assist_comp_filled_ty: !settings.type_assist_comp_filled_ty,
+      }
+    | Toggle_type_assist_func_filled_ty => {
+        ...settings,
+        type_assist_func_filled_ty: !settings.type_assist_func_filled_ty,
+      }
+    | Toggle_type_assist_pat_filled_ty => {
+        ...settings,
+        type_assist_pat_filled_ty: !settings.type_assist_pat_filled_ty,
+      }
+    | Toggle_type_assist_new_type_filled_ty => {
+        ...settings,
+        type_assist_new_type_filled_ty:
+          !settings.type_assist_new_type_filled_ty,
       }
     };
 };

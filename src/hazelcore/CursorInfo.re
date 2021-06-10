@@ -106,7 +106,8 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
-  | OnType
+  // indicates that when a type or pattern operator could be applied, perform the type action
+  | OnType(bool)
   /* (we will have a richer structure here later)*/
   | OnLetLine(HTyp.t)
   | OnLine

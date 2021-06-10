@@ -51,11 +51,17 @@ let view_of_layout =
 };
 
 let view =
-    (~width=30, ~pos=0, ~diff_steps: list(CursorPath.steps)=[], ty: HTyp.t)
+    (
+      ~width=30,
+      ~pos=0,
+      ~strategy_guide=false,
+      ~diff_steps: list(CursorPath.steps)=[],
+      ty: HTyp.t,
+    )
     : Node.t => {
   let l =
     ty
-    |> HTypDoc.mk(~enforce_inline=false)
+    |> HTypDoc.mk(~strategy_guide, ~enforce_inline=false)
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_htyp on layout failure")
