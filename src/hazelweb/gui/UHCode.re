@@ -110,30 +110,27 @@ let key_handlers =
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
-    Attr.on_keydown(evt =>
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(kc) =>
-          switch (KeyComboAction.get_model_action(cursor_info, kc, is_mac)) {
-          | Some(model_action) => prevent_stop_inject(model_action)
-          | None => Event.Ignore
-          }
+    Attr.on_keydown(evt => {
+      let model_action: option(ModelAction.t) =
+        switch (MoveKey.of_key(Key.get_key(evt))) {
+        | Some(move_key) => Some(MoveAction(Key(move_key)))
         | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | Some(single_key) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
-              ),
-            )
-          | None => Event.Ignore
+          switch (HazelKeyCombos.of_evt(evt)) {
+          | Some(kc) =>
+            KeyComboAction.get_model_action(cursor_info, kc, is_mac)
+          | None =>
+            open OptUtil.Syntax;
+            let+ single_key = JSUtil.is_single_key(evt);
+            ModelAction.EditAction(
+              Construct(SChar(JSUtil.single_key_string(single_key))),
+            );
           }
-        }
-      }
-    ),
+        };
+      switch (model_action) {
+      | Some(model_action) => prevent_stop_inject(model_action)
+      | None => Event.Ignore
+      };
+    }),
   ];
 };
 
