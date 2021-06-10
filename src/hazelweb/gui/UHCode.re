@@ -111,21 +111,23 @@ let key_handlers =
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      let model_action: option(ModelAction.t) =
-        switch (MoveKey.of_key(Key.get_key(evt))) {
-        | Some(move_key) => Some(MoveAction(Key(move_key)))
-        | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(kc) =>
-            KeyComboAction.get_model_action(cursor_info, kc, is_mac)
-          | None =>
-            open OptUtil.Syntax;
-            let+ single_key = JSUtil.is_single_key(evt);
-            ModelAction.EditAction(
+      let model_action: option(ModelAction.t) = {
+        let move_key = MoveKey.of_key(Key.get_key(evt));
+        let key_combo = HazelKeyCombos.of_evt(evt);
+        let single_key = JSUtil.is_single_key(evt);
+        switch (move_key, key_combo, single_key) {
+        | (Some(move_key), _, _) => Some(MoveAction(Key(move_key)))
+        | (_, Some(key_combo), _) =>
+          KeyComboAction.get_model_action(cursor_info, key_combo, is_mac)
+        | (_, _, Some(single_key)) =>
+          Some(
+            EditAction(
               Construct(SChar(JSUtil.single_key_string(single_key))),
-            );
-          }
+            ),
+          )
+        | (None, None, None) => None
         };
+      };
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
       | None => Event.Ignore
