@@ -27,3 +27,5 @@ let key_handlers:
 
 let codebox_view:
   (~font_metrics: FontMetrics.t, Program.Exp.t) => list(Vdom.Node.t);
+let typebox_view:
+  (~font_metrics: FontMetrics.t, Program.Typ.t) => list(Vdom.Node.t);

@@ -35,7 +35,7 @@ let action_view =
   //TODO: unhardcode width?
   //TODO: refactor to take uhexp instead of zexp?
   let edit_state = (ZExp.place_before(result), HTyp.Hole, MetaVarGen.init);
-  let program = Program.Exp.mk(~width=80, edit_state); //width, result
+  let program = Program.Exp.mk(~width=80, edit_state);
   div(
     [
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
@@ -49,6 +49,12 @@ let action_view =
       span([classes(["type"])], [HTypCode.view(res_ty)]),
     ],
   );
+};
+
+let guy = (font_metrics): list(Vdom.Node.t) => {
+  let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
+  let program = Program.Typ.mk(~width=80, edit_state);
+  UHCode.typebox_view(~font_metrics, program);
 };
 
 let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
@@ -87,6 +93,6 @@ let view =
           action_view(inject, font_metrics, a, i == 0, search_string),
         actions_visible,
       );
-    div([id("assistant")], action_views);
+    div([id("assistant")], guy(font_metrics) @ action_views);
   };
 };

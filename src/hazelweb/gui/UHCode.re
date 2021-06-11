@@ -318,3 +318,29 @@ let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
   let decorations = decoration_views(~font_metrics, dpaths, l);
   [Node.span([Attr.classes(["code"])], code_text), ...decorations];
 };
+
+// TODO(andrew): below two fns are copied-pasted from above two
+let get_typebox_layout = program => {
+  program
+  |> Program.get_edit_state
+  |> Program.EditState_Typ.get_uhstx
+  |> Lazy.force(UHDoc_Typ.mk, ~memoize=false, ~enforce_inline=false)
+  |> Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0)
+  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+};
+
+let typebox_view = (~font_metrics: FontMetrics.t, program: Program.typ) => {
+  open Vdom;
+  let l = get_typebox_layout(program);
+  let code_text = view_of_box(UHBox.mk(l));
+  let (err_holes, var_err_holes) =
+    program |> Program.Typ.get_err_holes_decoration_paths;
+  let dpaths: UHDecorationPaths.t = {
+    current_term: None,
+    err_holes,
+    var_uses: [],
+    var_err_holes,
+  };
+  let decorations = decoration_views(~font_metrics, dpaths, l);
+  [Node.span([Attr.classes(["code"])], code_text), ...decorations];
+};

@@ -20,8 +20,8 @@ type shift_history_info = {
 type group_id = int;
 [@deriving sexp]
 type t =
-  | EditAction(EditAction.t)
-  | MoveAction(move_input)
+  | EditAction(EditAction.t) // needs edtior id
+  | MoveAction(move_input) // needs editor id
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)
