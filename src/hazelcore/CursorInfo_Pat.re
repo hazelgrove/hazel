@@ -223,7 +223,9 @@ and syn_cursor_info_zoperand =
          )
        })
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | InjZT(_, ztag, _) => syn_cursor_info_ztag(~steps=steps @ [0], ctx, ztag)
+  | InjZT(_, ztag, _) =>
+    let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
+    CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
   | InjZP(_, _, zpat) => syn_cursor_info(~steps=steps @ [1], ctx, zpat)
   | TypeAnnZP(_, zop, ty) =>
     ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
@@ -232,12 +234,6 @@ and syn_cursor_info_zoperand =
     |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
     |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
   }
-and syn_cursor_info_ztag =
-    (~steps: CursorPath.steps, ctx: Contexts.t, ztag: ZTag.zoperand)
-    : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
-  let+ x = ztag |> CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx);
-  CursorInfo_common.CursorNotOnDeferredVarPat(x);
-}
 
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
@@ -543,7 +539,7 @@ and ana_cursor_info_zoperand =
     switch (err) {
     | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | NotInHole =>
-      let+ x = ztag |> CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx);
+      let+ x = CursorInfo_Tag.cursor_info(ctx, ztag);
       CursorInfo_common.CursorNotOnDeferredVarPat(x);
     }
   | InjZP(err, tag, zpat) =>

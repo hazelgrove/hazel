@@ -30,8 +30,18 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on an injection and expected type is hole
+  | AnaInjHole
+  // cursor is on an injection, but expected type is not a sum
+  | AnaInjExpectedTypeNotConsistenWithSums(HTyp.t)
   // cursor is on an injection with a bad tag
   | AnaInjBadTag
+  // cursor is on a unary injection with no body
+  | AnaInjExpectedBody(HTyp.t)
+  // cursor is on a nullary injection with body
+  | AnaInjUnexpectedBody
+  // none of the above and didn't go through subsumption
+  | AnalyzedInjBody(option(HTyp.t))
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
