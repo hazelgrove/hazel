@@ -9,6 +9,8 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  focal_editor: option(ModelAction.editor_id),
+  editors: array(Program.typ),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -83,9 +85,25 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    focal_editor: Some(ModelAction.main_editor_id),
+    //TODO(andrew): unfuck this
+    editors: {
+      let editor = {
+        let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
+        Program.Typ.mk(~width=80, edit_state);
+      };
+      Array.make(2, editor);
+    },
   };
 };
 
+// TODO(andrew): unfuck this
+let get_editor = (model, editor_id) => model.editors[editor_id];
+let put_editor = (model, editor_id, editor) => {
+  let new_editors = model.editors;
+  new_editors[editor_id] = editor;
+  {...model, editors: new_editors};
+};
 let get_program = (model: t): Program.exp =>
   model.cardstacks |> ZCardstacks.get_program;
 
@@ -128,8 +146,23 @@ let map_selected_instances =
   selected_instances: f(model.selected_instances),
 };
 
-let focus_cell = map_program(Program.Exp.focus);
-let blur_cell = map_program(Program.Exp.blur);
+let get_focal_editor = model => model.focal_editor;
+let put_focal_editor = (id, model) => {...model, focal_editor: id};
+let focus_cell = (editor_id, model) =>
+  //TODO(andrew): unfuck this
+  if (editor_id == ModelAction.main_editor_id) {
+    model
+    |> map_program(Program.Exp.focus)
+    |> put_focal_editor(Some(editor_id));
+  } else {
+    model
+    |> map_program(Program.Exp.blur)
+    |> put_focal_editor(Some(editor_id));
+  };
+
+let focus_main_editor = focus_cell(ModelAction.main_editor_id);
+let blur_cell = model =>
+  model |> map_program(Program.Exp.blur) |> put_focal_editor(None);
 
 let is_cell_focused = model => {
   let program = get_program(model);
@@ -164,7 +197,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
        {...program, edit_state};
      })
   |> map_selected_instances(UserSelectedInstances.add(u, i))
-  |> focus_cell;
+  |> focus_main_editor;
 
 let update_program = (a: Action.t, new_program, model) => {
   let edit_state = Program.get_edit_state(new_program);
@@ -209,12 +242,12 @@ let update_program = (a: Action.t, new_program, model) => {
 let prev_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.prev_card))
-  |> focus_cell;
+  |> focus_main_editor;
 };
 let next_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.next_card))
-  |> focus_cell;
+  |> focus_main_editor;
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
@@ -223,14 +256,27 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     model.settings.performance.measure
     && model.settings.performance.model_perform_edit_action,
     () => {
+    // TODO(andrew): unfuck indexing scheme
+    switch (get_focal_editor(model)) {
+    | Some(1 as editor_id) =>
+      let editor = get_editor(model, editor_id);
+      let edit_state =
+        editor
+        |> Program.get_edit_state
+        |> Program.EditState_Typ.perform_edit_action(a);
+      let new_editor = {...editor, edit_state};
+      put_editor(model, editor_id, new_editor);
+    | None
+    | Some(0)
+    | Some(_) =>
       let edit_state =
         model
         |> get_program
         |> Program.get_edit_state
         |> Program.EditState_Exp.perform_edit_action(a);
       model |> update_program(a, {...get_program(model), edit_state});
-    },
-  );
+    }
+  });
 };
 
 let move_via_key = (move_key, model) => {
@@ -261,7 +307,7 @@ let select_case_branch =
   model
   |> put_program(new_program)
   |> update_program(action, new_program)
-  |> focus_cell;
+  |> focus_main_editor;
 };
 
 let toggle_left_sidebar = (model: t): t => {
@@ -286,7 +332,9 @@ let load_example = (model: t, e: UHExp.t): t =>
      );
 
 let load_cardstack = (model, idx) => {
-  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
+  model
+  |> map_cardstacks(ZCardstacks.load_cardstack(idx))
+  |> focus_main_editor;
 };
 
 let load_undo_history =

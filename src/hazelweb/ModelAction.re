@@ -19,9 +19,13 @@ type shift_history_info = {
 [@deriving sexp]
 type group_id = int;
 [@deriving sexp]
+type editor_id = int;
+let main_editor_id: editor_id = 0;
+let assistant_editor_id: editor_id = 1;
+[@deriving sexp]
 type t =
-  | EditAction(EditAction.t) // needs edtior id
-  | MoveAction(move_input) // needs editor id
+  | EditAction(EditAction.t) // NOTE(andrew): needs edtior id?
+  | MoveAction(move_input) // NOTE(andrew): needs editor id?
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)
@@ -32,7 +36,7 @@ type t =
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
-  | FocusCell
+  | FocusCell(editor_id)
   | BlurCell
   | Redo
   | Undo

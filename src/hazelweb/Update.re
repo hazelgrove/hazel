@@ -54,7 +54,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | InvalidVar(_)
-  | FocusCell
+  | FocusCell(_)
   | BlurCell
   | Undo
   | Redo
@@ -129,7 +129,7 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell => model |> Model.focus_cell
+      | FocusCell(editor_id) => Model.focus_cell(editor_id, model)
       | BlurCell => model |> Model.blur_cell
       | Undo =>
         let new_history =

@@ -28,4 +28,13 @@ let key_handlers:
 let codebox_view:
   (~font_metrics: FontMetrics.t, Program.Exp.t) => list(Vdom.Node.t);
 let typebox_view:
-  (~font_metrics: FontMetrics.t, Program.Typ.t) => list(Vdom.Node.t);
+  (
+    ~inject: ModelAction.t => Ui_event.t,
+    ~font_metrics: FontMetrics.t,
+    ~settings: Settings.t,
+    ~is_focused: bool=?,
+    Program.Typ.t,
+    CursorInfo.t,
+    MetaVarGen.t
+  ) =>
+  list(Vdom.Node.t);

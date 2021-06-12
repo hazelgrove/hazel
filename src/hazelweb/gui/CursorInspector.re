@@ -554,6 +554,8 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
+      editors,
       loc: (float, float),
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -752,6 +754,8 @@ let view =
           AssistantView.view(
             ~inject,
             ~font_metrics,
+            ~settings,
+            editors,
             cursor_inspector,
             cursor_info,
             u_gen,

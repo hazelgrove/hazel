@@ -10,6 +10,8 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
+      editors,
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -31,6 +33,8 @@ let view_of_cursor_inspector =
   CursorInspector.view(
     ~inject,
     ~font_metrics,
+    ~settings,
+    editors,
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
@@ -45,6 +49,7 @@ let code_view =
       ~is_mac: bool,
       ~settings: Settings.t,
       program: Program.exp,
+      editors: array(Program.typ),
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -71,6 +76,8 @@ let code_view =
             view_of_cursor_inspector(
               ~inject,
               ~font_metrics,
+              ~settings,
+              editors,
               path,
               settings.cursor_inspector,
               ci,
@@ -163,7 +170,10 @@ let code_view =
           }),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_focus(_ => {
+            print_endline("CELL taking focus");
+            inject(ModelAction.FocusCell(ModelAction.main_editor_id));
+          }),
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
@@ -198,6 +208,7 @@ let view = (~inject, model: Model.t) => {
                 ~is_mac=model.is_mac,
                 ~settings,
                 program,
+                model.editors,
               ),
             ],
           ),

@@ -51,10 +51,19 @@ let action_view =
   );
 };
 
-let guy = (font_metrics): list(Vdom.Node.t) => {
-  let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
-  let program = Program.Typ.mk(~width=80, edit_state);
-  UHCode.typebox_view(~font_metrics, program);
+let guy =
+    (~inject, ~font_metrics, ~settings, type_editor, cursor_info, u_gen)
+    : list(Vdom.Node.t) => {
+  //let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
+  //let program = Program.Typ.mk(~width=80, edit_state);
+  UHCode.typebox_view(
+    ~inject,
+    ~font_metrics,
+    ~settings,
+    type_editor,
+    cursor_info,
+    u_gen,
+  );
 };
 
 let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
@@ -73,6 +82,8 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
+      editors,
       {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       u_gen: MetaVarGen.t,
@@ -93,6 +104,17 @@ let view =
           action_view(inject, font_metrics, a, i == 0, search_string),
         actions_visible,
       );
-    div([id("assistant")], guy(font_metrics) @ action_views);
+    div(
+      [id("assistant")],
+      guy(
+        ~inject,
+        ~font_metrics,
+        ~settings,
+        editors[ModelAction.assistant_editor_id],
+        cursor_info,
+        u_gen,
+      )
+      @ action_views,
+    );
   };
 };
