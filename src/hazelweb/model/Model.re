@@ -9,7 +9,7 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
-  result_state: option(DHExp.t),
+  result_states: list(DHExp.t),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -80,7 +80,7 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
-    result_state: None,
+    result_states: [],
   };
 };
 
@@ -98,7 +98,7 @@ let get_cursor_info = (model: t): CursorInfo.t =>
 let put_program = (program: Program.t, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> ZCardstacks.put_program(program),
-  result_state: None,
+  result_states: [],
 };
 let map_program = (f: Program.t => Program.t, model: t): t => {
   let new_program = f(model |> get_program);
@@ -115,7 +115,7 @@ let get_cardstacks = model => model.cardstacks;
 let put_cardstacks = (cardstacks, model) => {
   ...model,
   cardstacks,
-  result_state: None,
+  result_states: [],
 };
 let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
   let new_cardstacks = f(model |> get_cardstacks);
@@ -292,8 +292,8 @@ let load_undo_history =
 };
 
 let get_result_state = (model: t) => {
-  switch (model.result_state) {
-  | None =>
+  switch (model.result_states) {
+  | [] =>
     model.settings.evaluation.stepper_mode
       ? get_program(model) |> Program.get_expansion
       : get_program(model)
@@ -302,19 +302,19 @@ let get_result_state = (model: t) => {
              model.settings.evaluation.step_evaluator_option,
            )
         |> Result.get_dhexp
-  | Some(r) => r
+  | [r, ..._] => r
   };
 };
 
 let evaluate_step = (model: t, index: int): t => {
   ...model,
-  result_state:
-    Some(
-      get_result_state(model)
-      |> EvaluatorStep.ctx_step_index(
-           _,
-           EvaluatorStep.evaluate_all_option,
-           index,
-         ),
-    ),
+  result_states: [
+    get_result_state(model)
+    |> EvaluatorStep.ctx_step_index(
+         _,
+         EvaluatorStep.evaluate_all_option,
+         index,
+       ),
+    ...model.result_states,
+  ],
 };

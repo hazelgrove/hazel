@@ -118,6 +118,20 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
+let prev_eva_button = (~inject, model: Model.t) => {
+  let show_button = model.result_states == [] ? [Vdom.Attr.disabled] : [];
+  Vdom.(
+    Node.button(
+      [
+        Attr.id("step-mode-prev-button"),
+        Attr.on_click(_ => inject(ModelAction.PrevEvaluate)),
+        ...show_button,
+      ],
+      [Node.text("Previous Evaluation")],
+    )
+  );
+};
+
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
@@ -175,6 +189,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           : Model.get_result_state(model),
                   ),
                 ],
+              ),
+              Node.div(
+                [Attr.classes(["step-evaluate-control"])],
+                settings.evaluation.evaluator_type != Evaluator
+                && settings.evaluation.stepper_mode
+                  ? [prev_eva_button(~inject, model)] : [],
               ),
             ]
             @ (

@@ -16,7 +16,7 @@ type t = {
    */
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
-  result_state: option(DHExp.t),
+  result_states: list(DHExp.t),
 };
 
 let cardstack_info: list(CardstackInfo.t);

@@ -758,6 +758,13 @@ h1 {
   background-color: #EEE;
 }
 
+.step-evaluate-control {
+  padding-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  background-color: #EEE;
+}
+
 .step-view {
   margin: 15px 0;
   padding: 10px;
@@ -1027,12 +1034,14 @@ h1 {
   border: 1px var(--step-hole-color);
   background-color:rgb(231, 255, 186);
   margin: -1px;
+  cursor: pointer;
 }
 
 .Paused {
   border: 1px var(--step-hole-color);
   background-color:rgb(255, 254, 186);
   margin: -1px;
+  cursor: pointer;
 }
 
 .InHole {
