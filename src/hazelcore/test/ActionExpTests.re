@@ -135,10 +135,13 @@ let%expect_test "basic operation prediction analysis against float test" = {
 
 /* analysis produces float operator even with int zoperand
    let x : Float = 1| in ... => let x : Float = 1 +.| _ in ... */
-let%expect_test "operation prediction analysis against float test with int" = {
+let%expect_test "operation prediction analysis against float with int test" = {
   //  int zoperand case
   let zoperand =
-    ZExp.CursorE(CursorPosition.OnText(2), UHExp.IntLit(NotInHole, "1"));
+    ZExp.CursorE(
+      CursorPosition.OnText(1),
+      UHExp.IntLit(InHole(TypeInconsistent, 2), "1"),
+    );
   let skel = Skel.Placeholder(0);
   let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, (E, E)));
   let zline = ZExp.ExpLineZ(zopseq);
@@ -155,7 +158,7 @@ let%expect_test "operation prediction analysis against float test with int" = {
     Action_Exp.syn_perform(
       Contexts.empty,
       Construct(SOp(SPlus)),
-      (final, HTyp.Float, 7),
+      (final, HTyp.Int, MetaVarGen.init),
     )
   ) {
   | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -163,7 +166,7 @@ let%expect_test "operation prediction analysis against float test with int" = {
   };
 
   %expect
-  {|(()(LetLineZE(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((OpSeq(Placeholder 0)(S Float E)))(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(EmptyHole 4)E)(S(EmptyHole 7)E)))))()))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 6)E)))))|};
+  {|(()(LetLineZE(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((OpSeq(Placeholder 0)(S Float E)))(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(IntLit(InHole TypeInconsistent 1)1)E)(S(EmptyHole 0)E)))))()))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 6)E)))))|};
 };
 
 /* let x : Int = _| in ... => let x : Int = _ + _ in ... */
@@ -343,4 +346,44 @@ let%expect_test "mixed spaced operation prediction test" = {
 
   %expect
   {|(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(FloatLit NotInHole 1.)E)(S(IntLit(InHole TypeInconsistent 3)2)E)))))())|};
+};
+
+/* edge case where LHS float operand analyzes as function type
+   1. |_ => 1. +.| _ */
+let%expect_test "float operand on opposing side of zoperand test" = {
+  let zoperand =
+    ZExp.CursorE(CursorPosition.OnDelim(0, Before), UHExp.EmptyHole(0));
+  let skel =
+    Skel.BinOp(
+      NotInHole,
+      Operators_Exp.Space,
+      Placeholder(0),
+      Placeholder(1),
+    );
+  let zopseq =
+    ZOpSeq.ZOpSeq(
+      skel,
+      ZOperand(
+        zoperand,
+        (
+          A(Space, S(UHExp.FloatLit(InHole(TypeInconsistent, 1), "1."), E)),
+          E,
+        ),
+      ),
+    );
+  let zline = ZExp.ExpLineZ(zopseq);
+  let e = ([], zline, []);
+  switch (
+    Action_Exp.syn_perform(
+      Contexts.empty,
+      Construct(SOp(SPlus)),
+      (e, HTyp.Hole, MetaVarGen.init),
+    )
+  ) {
+  | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
+  | _ => print_endline("nothing")
+  };
+
+  %expect
+  {|(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(FloatLit NotInHole 1.)E)(S(EmptyHole 0)E)))))())|};
 };
