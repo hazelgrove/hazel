@@ -234,7 +234,6 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) => {
-  // TODO: Do subject properly
   SynExpands({
     kw: TyAlias,
     u_gen,
@@ -426,9 +425,6 @@ let syn_split_text =
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
     };
-    // TODO*: Read popl19 for ground
-    // TODO*: Lookup the goto definition action and make it work for type variables
-    // TODO*: (for synExpands) Take the stuff to the right and stick on the next line (if it's there)
     Succeeded(
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
