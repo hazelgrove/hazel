@@ -58,30 +58,12 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> Option.to_list;
   let var_uses =
     dpaths.var_uses
-    |> List.find_opt(steps => {
-         Core_kernel.printf(
-           "shape: %s / steps: %s / isCurrent: %b\n",
-           TermShape.sexp_of_t(shape) |> Sexplib.Sexp.to_string_hum,
-           Core_kernel.List.sexp_of_t(Core_kernel.Int.sexp_of_t, steps)
-           |> Sexplib.Sexp.to_string_hum,
-           is_current(steps),
-         );
-         is_current(steps);
-       })
+    |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
   let tyvar_uses =
     dpaths.tyvar_uses
-    |> List.find_opt(steps => {
-         Core_kernel.printf(
-           "shape: %s / steps: %s / isCurrent: %b\n",
-           TermShape.sexp_of_t(shape) |> Sexplib.Sexp.to_string_hum,
-           Core_kernel.List.sexp_of_t(Core_kernel.Int.sexp_of_t, steps)
-           |> Sexplib.Sexp.to_string_hum,
-           is_current(steps),
-         );
-         is_current(steps);
-       })
+    |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.TyVarUse)
     |> Option.to_list;
   let current_term =
