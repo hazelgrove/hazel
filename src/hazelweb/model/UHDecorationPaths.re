@@ -13,6 +13,7 @@ let is_empty = (dpaths: t): bool =>
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
+  && ListUtil.is_empty(dpaths.tyvar_uses)
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
