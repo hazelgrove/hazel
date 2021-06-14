@@ -29,11 +29,12 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, tyvar_uses, current_term};
+  let r_ = {err_holes, var_err_holes, var_uses, tyvar_uses, current_term};
+  r_;
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
-  let is_current = steps =>
+  let is_current = steps => {
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
@@ -43,6 +44,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | Case
     | Rule => steps == []
     };
+  };
   let err_holes =
     dpaths.err_holes
     |> List.find_opt(is_current)
@@ -55,12 +57,30 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> Option.to_list;
   let var_uses =
     dpaths.var_uses
-    |> List.find_opt(is_current)
+    |> List.find_opt(steps => {
+         Core_kernel.printf(
+           "shape: %s / steps: %s / isCurrent: %b\n",
+           TermShape.sexp_of_t(shape) |> Sexplib.Sexp.to_string_hum,
+           Core_kernel.List.sexp_of_t(Core_kernel.Int.sexp_of_t, steps)
+           |> Sexplib.Sexp.to_string_hum,
+           is_current(steps),
+         );
+         is_current(steps);
+       })
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
   let tyvar_uses =
     dpaths.tyvar_uses
-    |> List.find_opt(is_current)
+    |> List.find_opt(steps => {
+         Core_kernel.printf(
+           "shape: %s / steps: %s / isCurrent: %b\n",
+           TermShape.sexp_of_t(shape) |> Sexplib.Sexp.to_string_hum,
+           Core_kernel.List.sexp_of_t(Core_kernel.Int.sexp_of_t, steps)
+           |> Sexplib.Sexp.to_string_hum,
+           is_current(steps),
+         );
+         is_current(steps);
+       })
     |> Option.map(_ => UHDecorationShape.TyVarUse)
     |> Option.to_list;
   let current_term =
