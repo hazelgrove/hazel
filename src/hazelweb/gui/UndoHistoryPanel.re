@@ -5,11 +5,8 @@ type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
-  let focus_main_editor = {
-    Ui_event.Ignore; //TODO(andrew): commented this out as was stealing editor focus
- //print_endline("undohistory: focussing main editor");
-             //inject(FocusCell(ModelAction.main_editor_id));
-  };
+  let focus_main_editor = inject(FocusCell(Model.MainProgram));
+
   /* a helper function working as an enhanced version of List.map() */
   let rec list_map_helper_func = (func_to_list, base, lst) => {
     switch (lst) {

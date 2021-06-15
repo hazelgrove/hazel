@@ -11,7 +11,8 @@ let view_of_cursor_inspector =
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      editors,
+      focal_editor,
+      assistant_editor,
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -34,7 +35,8 @@ let view_of_cursor_inspector =
     ~inject,
     ~font_metrics,
     ~settings,
-    editors,
+    focal_editor,
+    assistant_editor,
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
@@ -49,7 +51,8 @@ let code_view =
       ~is_mac: bool,
       ~settings: Settings.t,
       program: Program.exp,
-      editors: array(Program.typ),
+      focal_editor: Model.editor,
+      assistant_editor: Program.typ,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -77,7 +80,8 @@ let code_view =
               ~inject,
               ~font_metrics,
               ~settings,
-              editors,
+              focal_editor,
+              assistant_editor,
               path,
               settings.cursor_inspector,
               ci,
@@ -129,6 +133,13 @@ let code_view =
         inject(ModelAction.MoveAction(Click(caret_pos)));
       };
 
+      let ci = Program.Exp.get_cursor_info(program);
+      let ty =
+        switch (Assistant_common.get_types_and_mode(ci.typed)) {
+        | (None, _, _) => HTyp.Hole
+        | (Some(ty), _, _) => ty
+        };
+
       Node.div(
         [
           Attr.id(UHCode.root_id),
@@ -151,6 +162,8 @@ let code_view =
               Event.Prevent_default,
               //Event.Stop_propagation,
               click_handler(evt),
+              //TODO(andrew): put this somewhere more reasonable?
+              inject(SetAssistantTypeEditor(UHTyp.contract(ty))),
               inject(
                 ModelAction.UpdateSettings(
                   CursorInspector(Set_visible(true)),
@@ -172,7 +185,7 @@ let code_view =
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => {
             print_endline("CELL taking focus");
-            inject(ModelAction.FocusCell(ModelAction.main_editor_id));
+            inject(ModelAction.FocusCell(Model.MainProgram));
           }),
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
@@ -208,7 +221,8 @@ let view = (~inject, model: Model.t) => {
                 ~is_mac=model.is_mac,
                 ~settings,
                 program,
-                model.editors,
+                model.focal_editor,
+                model.assistant_editor,
               ),
             ],
           ),

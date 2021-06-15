@@ -52,7 +52,7 @@ let action_view =
 };
 
 let guy =
-    (~inject, ~font_metrics, ~settings, type_editor, cursor_info, u_gen)
+    (~inject, ~font_metrics, ~settings, type_editor, is_focused, u_gen)
     : list(Vdom.Node.t) => {
   //let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
   //let program = Program.Typ.mk(~width=80, edit_state);
@@ -60,8 +60,8 @@ let guy =
     ~inject,
     ~font_metrics,
     ~settings,
+    ~is_focused,
     type_editor,
-    cursor_info,
     u_gen,
   );
 };
@@ -83,7 +83,8 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      editors,
+      focal_editor,
+      assistant_editor,
       {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       u_gen: MetaVarGen.t,
@@ -105,13 +106,18 @@ let view =
         actions_visible,
       );
     div(
-      [id("assistant")],
+      [
+        id("assistant"),
+        //Attr.on_click(_ =>
+        //  inject(SetAssistantTypeEditor(UHTyp.contract(cursor.expected_ty)))
+        //),
+      ],
       guy(
         ~inject,
         ~font_metrics,
         ~settings,
-        editors[ModelAction.assistant_editor_id],
-        cursor_info,
+        assistant_editor,
+        focal_editor == Model.AssistantTypeEditor,
         u_gen,
       )
       @ action_views,

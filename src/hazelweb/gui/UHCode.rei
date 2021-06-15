@@ -34,7 +34,6 @@ let typebox_view:
     ~settings: Settings.t,
     ~is_focused: bool=?,
     Program.Typ.t,
-    CursorInfo.t,
     MetaVarGen.t
   ) =>
   list(Vdom.Node.t);

@@ -79,8 +79,11 @@ module EditState_Typ = {
   let of_steps = CursorPath_Typ.of_steps(~side=Before);
 
   let perform_edit_action = (a, edit_state: t): t => {
+    print_endline("about to perform typ edit action");
     switch (Action_Typ.perform(a, edit_state)) {
-    | Failed => raise(FailedAction)
+    | Failed =>
+      print_endline("TYP edit action failed");
+      raise(FailedAction);
     | CursorEscaped(_) => raise(CursorEscaped)
     | Succeeded(new_edit_state) => new_edit_state
     };

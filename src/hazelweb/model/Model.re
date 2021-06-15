@@ -1,3 +1,8 @@
+[@deriving sexp]
+type editor =
+  | MainProgram
+  | AssistantTypeEditor;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -9,8 +14,8 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
-  focal_editor: option(ModelAction.editor_id),
-  editors: array(Program.typ),
+  focal_editor: editor,
+  assistant_editor: Program.typ,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -85,27 +90,20 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
-    focal_editor: Some(ModelAction.main_editor_id),
-    //TODO(andrew): unfuck this
-    editors: {
-      let editor = {
-        let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
-        Program.Typ.mk(~width=80, edit_state);
-      };
-      Array.make(2, editor);
-    },
+    focal_editor: MainProgram,
+    assistant_editor:
+      Program.Typ.mk(~width=80, ZTyp.place_before(OpSeq.wrap(UHTyp.Hole))),
   };
 };
 
-// TODO(andrew): unfuck this
-let get_editor = (model, editor_id) => model.editors[editor_id];
-let put_editor = (model, editor_id, editor) => {
-  let new_editors = model.editors;
-  new_editors[editor_id] = editor;
-  {...model, editors: new_editors};
-};
 let get_program = (model: t): Program.exp =>
   model.cardstacks |> ZCardstacks.get_program;
+// TODO(andrew): unfuck this
+let get_assistant_editor = model => model.assistant_editor;
+let put_assistant_editor = (model, assistant_editor) => {
+  ...model,
+  assistant_editor,
+};
 
 let get_edit_state = (model: t): Program.EditState_Exp.t => {
   let program = get_program(model);
@@ -148,21 +146,20 @@ let map_selected_instances =
 
 let get_focal_editor = model => model.focal_editor;
 let put_focal_editor = (id, model) => {...model, focal_editor: id};
-let focus_cell = (editor_id, model) =>
-  //TODO(andrew): unfuck this
-  if (editor_id == ModelAction.main_editor_id) {
-    model
-    |> map_program(Program.Exp.focus)
-    |> put_focal_editor(Some(editor_id));
-  } else {
-    model
-    |> map_program(Program.Exp.blur)
-    |> put_focal_editor(Some(editor_id));
-  };
+let focus_cell = (editor_name: editor, model) => {
+  (
+    switch (editor_name) {
+    | MainProgram => map_program(Program.Exp.focus, model)
+    | AssistantTypeEditor => map_program(Program.Exp.blur, model)
+    }
+  )
+  |> put_focal_editor(editor_name);
+};
 
-let focus_main_editor = focus_cell(ModelAction.main_editor_id);
+let focus_main_editor = focus_cell(MainProgram);
 let blur_cell = model =>
-  model |> map_program(Program.Exp.blur) |> put_focal_editor(None);
+  //TODO(andrew): resolve what no focus state means
+  model |> map_program(Program.Exp.blur) |> put_focal_editor(MainProgram);
 
 let is_cell_focused = model => {
   let program = get_program(model);
@@ -250,25 +247,25 @@ let next_card = model => {
   |> focus_main_editor;
 };
 
+let update_assistant_editor = (a: Action.t, new_editor, model: t): t => {
+  let edit_state =
+    new_editor
+    |> Program.get_edit_state
+    |> Program.EditState_Typ.perform_edit_action(a);
+  put_assistant_editor(model, {...new_editor, edit_state});
+};
+
 let perform_edit_action = (a: Action.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
     model.settings.performance.measure
     && model.settings.performance.model_perform_edit_action,
     () => {
-    // TODO(andrew): unfuck indexing scheme
     switch (get_focal_editor(model)) {
-    | Some(1 as editor_id) =>
-      let editor = get_editor(model, editor_id);
-      let edit_state =
-        editor
-        |> Program.get_edit_state
-        |> Program.EditState_Typ.perform_edit_action(a);
-      let new_editor = {...editor, edit_state};
-      put_editor(model, editor_id, new_editor);
-    | None
-    | Some(0)
-    | Some(_) =>
+    | AssistantTypeEditor =>
+      let editor = get_assistant_editor(model);
+      update_assistant_editor(a, editor, model);
+    | MainProgram =>
       let edit_state =
         model
         |> get_program
@@ -280,19 +277,37 @@ let perform_edit_action = (a: Action.t, model: t): t => {
 };
 
 let move_via_key = (move_key, model) => {
-  let (new_program, action) =
-    model
-    |> get_program
-    |> Program.Exp.move_via_key(~settings=model.settings, move_key);
-  model |> update_program(action, new_program);
+  switch (get_focal_editor(model)) {
+  | AssistantTypeEditor =>
+    let (new_editor, action) =
+      model
+      |> get_assistant_editor
+      |> Program.Typ.move_via_key(~settings=model.settings, move_key);
+    update_assistant_editor(action, new_editor, model);
+  | MainProgram =>
+    let (new_program, action) =
+      model
+      |> get_program
+      |> Program.Exp.move_via_key(~settings=model.settings, move_key);
+    model |> update_program(action, new_program);
+  };
 };
 
 let move_via_click = (row_col, model) => {
-  let (new_program, action) =
-    model
-    |> get_program
-    |> Program.Exp.move_via_click(~settings=model.settings, row_col);
-  model |> update_program(action, new_program);
+  switch (get_focal_editor(model)) {
+  | AssistantTypeEditor =>
+    let (new_editor, action) =
+      model
+      |> get_assistant_editor
+      |> Program.Typ.move_via_click(~settings=model.settings, row_col);
+    update_assistant_editor(action, new_editor, model);
+  | MainProgram =>
+    let (new_program, action) =
+      model
+      |> get_program
+      |> Program.Exp.move_via_click(~settings=model.settings, row_col);
+    model |> update_program(action, new_program);
+  };
 };
 
 let select_case_branch =

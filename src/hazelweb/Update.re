@@ -65,6 +65,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
+  | SetAssistantTypeEditor(_)
   | AcceptSuggestion(_) =>
     Logger.append(
       Sexp.to_string(
@@ -129,7 +130,7 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell(editor_id) => Model.focus_cell(editor_id, model)
+      | FocusCell(editor) => Model.focus_cell(editor, model)
       | BlurCell => model |> Model.blur_cell
       | Undo =>
         let new_history =
@@ -218,6 +219,12 @@ let apply_action =
              action,
              {...Model.get_program(model), edit_state: new_edit_state},
            );
+      | SetAssistantTypeEditor(uty) =>
+        print_endline("Setting assistant type editor");
+        Model.put_assistant_editor(
+          model,
+          Program.Typ.mk(~width=80, ZTyp.place_before(uty)),
+        );
       };
     },
   );

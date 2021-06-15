@@ -501,24 +501,6 @@ let summary_bar =
       ],
       [Node.text(symbol)],
     );
-  /*
-   let assistant_icon =
-     Node.div(
-       [
-         Attr.classes(["clickable"]),
-         Attr.on_contextmenu(_ =>
-           Event.Many([
-             Event.Prevent_default,
-             Event.Stop_propagation,
-             inject(
-               ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
-             ),
-           ])
-         ),
-       ],
-       [Node.text(Unicode.robot_arm)],
-     );
-     */
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
     (show ? [summary, fill_space, arrow] : [summary])
@@ -531,7 +513,7 @@ let summary_bar =
           ),
         ]
         : []
-    ) /*@ (assistant_enabled ? [assistant_icon] : [])*/; //TODO(andrew)
+    )
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
@@ -555,7 +537,8 @@ let view =
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      editors,
+      focal_editor,
+      assistant_editor,
       loc: (float, float),
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -755,7 +738,8 @@ let view =
             ~inject,
             ~font_metrics,
             ~settings,
-            editors,
+            focal_editor,
+            assistant_editor,
             cursor_inspector,
             cursor_info,
             u_gen,

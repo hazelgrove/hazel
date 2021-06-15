@@ -134,7 +134,7 @@ type syntactic_context =
 
 // TODO refactor into variants
 // based on term sort and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,

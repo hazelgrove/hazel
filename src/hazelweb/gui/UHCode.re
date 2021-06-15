@@ -335,15 +335,14 @@ let typebox_view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~is_focused=true,
-      program: Program.typ,
-      cursor_info,
+      editor: Program.typ,
       u_gen,
     ) => {
   open Vdom;
-  let l = get_typebox_layout(program);
+  let l = get_typebox_layout(editor);
   let code_text = view_of_box(UHBox.mk(l));
   let (err_holes, var_err_holes) =
-    program |> Program.Typ.get_err_holes_decoration_paths;
+    editor |> Program.Typ.get_err_holes_decoration_paths;
   let dpaths: UHDecorationPaths.t = {
     current_term: None,
     err_holes,
@@ -351,7 +350,7 @@ let typebox_view =
     var_err_holes,
   };
   let caret = {
-    let caret_pos = Program.Typ.get_caret_position(~settings, program);
+    let caret_pos = Program.Typ.get_caret_position(~settings, editor);
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
   };
   let key_handlers =
@@ -361,7 +360,7 @@ let typebox_view =
           ~u_gen,
           ~inject,
           ~is_mac=true, //TODO(andrew): unhack this
-          ~cursor_info,
+          ~cursor_info=Program.Typ.get_cursor_info(editor),
           //TODO(andrew): clean up below
           ~assistant_active=false,
         )
@@ -371,19 +370,16 @@ let typebox_view =
     Node.span(
       [
         Attr.classes(["code"]),
-        Attr.on_mousedown(_ => Event.Many([Event.Stop_propagation])),
-        Attr.on_click(_ => Event.Many([Event.Stop_propagation])),
+        //Attr.on_mousedown(_ => Event.Many([Event.Stop_propagation])),
+        //Attr.on_click(_ => Event.Many([Event.Stop_propagation])),
         // necessary to make cell focusable
         Attr.create("tabindex", "0"),
-        //Attr.on_click(_ =>
-        //  Event.Many([Event.Prevent_default, Event.Stop_propagation])
-        //),
         Attr.on_focus(_ => {
           print_endline("ASSISTANT taking focus");
           Event.Many([
             Event.Stop_propagation,
             Event.Prevent_default,
-            inject(ModelAction.FocusCell(ModelAction.assistant_editor_id)),
+            inject(ModelAction.FocusCell(Model.AssistantTypeEditor)),
           ]);
         }),
         Attr.on_blur(_ => inject(ModelAction.BlurCell)),
