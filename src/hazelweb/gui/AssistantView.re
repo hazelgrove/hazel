@@ -51,20 +51,21 @@ let action_view =
   );
 };
 
-let guy =
-    (~inject, ~font_metrics, ~settings, type_editor, is_focused, u_gen)
-    : list(Vdom.Node.t) => {
-  //let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
-  //let program = Program.Typ.mk(~width=80, edit_state);
-  UHCode.typebox_view(
-    ~inject,
-    ~font_metrics,
-    ~settings,
-    ~is_focused,
-    type_editor,
-    u_gen,
-  );
-};
+/*
+ let guy =
+     (~inject, ~font_metrics, ~settings, type_filter_editor, is_focused, u_gen)
+     : list(Vdom.Node.t) => {
+   //let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
+   //let program = Program.Typ.mk(~width=80, edit_state);
+   UHCode.typebox_view(
+     ~inject,
+     ~font_metrics,
+     ~settings,
+     ~is_focused,
+     type_filter_editor,
+     u_gen,
+   );
+ };*/
 
 let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
 
@@ -82,9 +83,9 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~settings: Settings.t,
-      focal_editor,
-      assistant_editor,
+      //~settings: Settings.t,
+      //focal_editor: Model.editor,
+      type_filter_editor: Program.typ,
       {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       u_gen: MetaVarGen.t,
@@ -93,34 +94,27 @@ let view =
   switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
   | None => text("error")
   | Some(cursor) =>
-    let actions = compute_actions(cursor);
+    let filter_ty =
+      type_filter_editor
+      |> Program.get_edit_state
+      |> Program.EditState_Typ.get_uhstx
+      |> UHTyp.expand;
+    let filter_string = Assistant_common.term_to_str(cursor.term);
+    let actions =
+      cursor
+      |> compute_actions
+      |> List.filter(a => HTyp.consistent(a.res_ty, filter_ty));
     let action_index = get_action_index(assistant_selection, actions);
-    let actions_visible =
-      ListUtil.rotate_n(action_index, actions)
+    let actions =
+      actions
+      |> ListUtil.rotate_n(action_index)
       |> trim(assistant_choices_limit);
-    let search_string = Assistant_common.term_to_str(cursor.term);
     let action_views =
       List.mapi(
         (i, a) =>
-          action_view(inject, font_metrics, a, i == 0, search_string),
-        actions_visible,
+          action_view(inject, font_metrics, a, i == 0, filter_string),
+        actions,
       );
-    div(
-      [
-        id("assistant"),
-        //Attr.on_click(_ =>
-        //  inject(SetAssistantTypeEditor(UHTyp.contract(cursor.expected_ty)))
-        //),
-      ],
-      guy(
-        ~inject,
-        ~font_metrics,
-        ~settings,
-        assistant_editor,
-        focal_editor == Model.AssistantTypeEditor,
-        u_gen,
-      )
-      @ action_views,
-    );
+    div([id("assistant")], action_views);
   };
 };

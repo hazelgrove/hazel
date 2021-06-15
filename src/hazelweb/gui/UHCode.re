@@ -104,6 +104,36 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
+let click_handler =
+    (
+      root_id: string,
+      font_metrics: FontMetrics.t,
+      inject: ModelAction.t => Ui_event.t,
+      evt,
+    )
+    : Ui_event.t => {
+  let container_rect =
+    JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+  let (target_x, target_y) = (
+    float_of_int(evt##.clientX),
+    float_of_int(evt##.clientY),
+  );
+  let caret_pos =
+    Pretty.MeasuredPosition.{
+      row:
+        Float.to_int(
+          (target_y -. container_rect##.top) /. font_metrics.row_height,
+        ),
+      col:
+        Float.to_int(
+          Float.round(
+            (target_x -. container_rect##.left) /. font_metrics.col_width,
+          ),
+        ),
+    };
+  inject(ModelAction.MoveAction(Click(caret_pos)));
+};
+
 let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
   let* cursor = Assistant_common.promote_cursor_info(cursor_info, u_gen);
   let actions = Assistant.compute_actions(cursor);
@@ -133,7 +163,7 @@ let key_handlers =
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   let pre_event = event =>
     Event.Many([
-      prevent_stop_inject(
+      inject(
         ModelAction.UpdateSettings(
           CursorInspector(Reset_assistant_selection),
         ),
@@ -320,7 +350,7 @@ let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
 };
 
 // TODO(andrew): below two fns are copied-pasted from above two
-let get_typebox_layout = program => {
+let get_typebox_layout = (program: Program.typ) => {
   program
   |> Program.get_edit_state
   |> Program.EditState_Typ.get_uhstx
@@ -333,14 +363,16 @@ let typebox_view =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~font_metrics: FontMetrics.t,
+      ~is_mac: bool,
       ~settings: Settings.t,
       ~is_focused=true,
       editor: Program.typ,
       u_gen,
     ) => {
   open Vdom;
-  let l = get_typebox_layout(editor);
-  let code_text = view_of_box(UHBox.mk(l));
+  let cursor_info = Program.Typ.get_cursor_info(editor);
+  let layout = get_typebox_layout(editor);
+  let code_text = layout |> UHBox.mk |> view_of_box;
   let (err_holes, var_err_holes) =
     editor |> Program.Typ.get_err_holes_decoration_paths;
   let dpaths: UHDecorationPaths.t = {
@@ -359,19 +391,26 @@ let typebox_view =
           ~settings,
           ~u_gen,
           ~inject,
-          ~is_mac=true, //TODO(andrew): unhack this
-          ~cursor_info=Program.Typ.get_cursor_info(editor),
-          //TODO(andrew): clean up below
-          ~assistant_active=false,
+          ~is_mac,
+          ~cursor_info,
+          ~assistant_active=false //TODO(andrew): this smells iffy
         )
       : [];
-  let decorations = decoration_views(~font_metrics, dpaths, l);
+  let decorations = decoration_views(~font_metrics, dpaths, layout);
+
+  let typebox_id = "typefilter";
   [
-    Node.span(
+    Node.div(
       [
+        Attr.id(typebox_id),
         Attr.classes(["code"]),
-        //Attr.on_mousedown(_ => Event.Many([Event.Stop_propagation])),
-        //Attr.on_click(_ => Event.Many([Event.Stop_propagation])),
+        Attr.on_mousedown(evt
+          //TODO(andrew): this doesn't work except when you do it on the first hole location
+          =>
+            Event.Many([
+              click_handler(typebox_id, font_metrics, inject, evt),
+            ])
+          ),
         // necessary to make cell focusable
         Attr.create("tabindex", "0"),
         Attr.on_focus(_ => {
@@ -385,8 +424,8 @@ let typebox_view =
         Attr.on_blur(_ => inject(ModelAction.BlurCell)),
         ...key_handlers,
       ],
-      caret @ code_text,
+      caret
+      @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
     ),
-    ...decorations,
   ];
 };

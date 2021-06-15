@@ -1,7 +1,8 @@
 [@deriving sexp]
 type editor =
   | MainProgram
-  | AssistantTypeEditor;
+  | AssistantTypeEditor
+  | NoFocus;
 
 type t = {
   cardstacks: ZCardstacks.t,
@@ -98,7 +99,6 @@ let init = (): t => {
 
 let get_program = (model: t): Program.exp =>
   model.cardstacks |> ZCardstacks.get_program;
-// TODO(andrew): unfuck this
 let get_assistant_editor = model => model.assistant_editor;
 let put_assistant_editor = (model, assistant_editor) => {
   ...model,
@@ -150,7 +150,8 @@ let focus_cell = (editor_name: editor, model) => {
   (
     switch (editor_name) {
     | MainProgram => map_program(Program.Exp.focus, model)
-    | AssistantTypeEditor => map_program(Program.Exp.blur, model)
+    | AssistantTypeEditor
+    | NoFocus => map_program(Program.Exp.blur, model)
     }
   )
   |> put_focal_editor(editor_name);
@@ -159,9 +160,10 @@ let focus_cell = (editor_name: editor, model) => {
 let focus_main_editor = focus_cell(MainProgram);
 let blur_cell = model =>
   //TODO(andrew): resolve what no focus state means
-  model |> map_program(Program.Exp.blur) |> put_focal_editor(MainProgram);
+  model |> map_program(Program.Exp.blur) |> put_focal_editor(NoFocus);
 
 let is_cell_focused = model => {
+  //TODO(andrew): not sure what this should mean anymore
   let program = get_program(model);
   program.is_focused;
 };
@@ -265,7 +267,8 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     | AssistantTypeEditor =>
       let editor = get_assistant_editor(model);
       update_assistant_editor(a, editor, model);
-    | MainProgram =>
+    | MainProgram
+    | NoFocus =>
       let edit_state =
         model
         |> get_program
@@ -284,7 +287,8 @@ let move_via_key = (move_key, model) => {
       |> get_assistant_editor
       |> Program.Typ.move_via_key(~settings=model.settings, move_key);
     update_assistant_editor(action, new_editor, model);
-  | MainProgram =>
+  | MainProgram
+  | NoFocus =>
     let (new_program, action) =
       model
       |> get_program
@@ -301,7 +305,8 @@ let move_via_click = (row_col, model) => {
       |> get_assistant_editor
       |> Program.Typ.move_via_click(~settings=model.settings, row_col);
     update_assistant_editor(action, new_editor, model);
-  | MainProgram =>
+  | MainProgram
+  | NoFocus =>
     let (new_program, action) =
       model
       |> get_program

@@ -220,11 +220,10 @@ let apply_action =
              {...Model.get_program(model), edit_state: new_edit_state},
            );
       | SetAssistantTypeEditor(uty) =>
-        print_endline("Setting assistant type editor");
         Model.put_assistant_editor(
           model,
           Program.Typ.mk(~width=80, ZTyp.place_before(uty)),
-        );
+        )
       };
     },
   );

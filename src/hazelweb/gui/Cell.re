@@ -10,6 +10,7 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
+      ~is_mac: bool,
       ~settings: Settings.t,
       focal_editor,
       assistant_editor,
@@ -34,6 +35,7 @@ let view_of_cursor_inspector =
   CursorInspector.view(
     ~inject,
     ~font_metrics,
+    ~is_mac,
     ~settings,
     focal_editor,
     assistant_editor,
@@ -71,7 +73,8 @@ let code_view =
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        // TODO(andrew): uncomment below (commented for testing purposes)
+        // TODO(andrew): when below uncommented, assistant disappears on
+        // interaction. check focus logic.
         if (/*program.is_focused &&*/ settings.cursor_inspector.visible) {
           let path = Program.Exp.get_path(program);
           let ci = Program.Exp.get_cursor_info(program);
@@ -79,6 +82,7 @@ let code_view =
             view_of_cursor_inspector(
               ~inject,
               ~font_metrics,
+              ~is_mac,
               ~settings,
               focal_editor,
               assistant_editor,
@@ -110,28 +114,8 @@ let code_view =
             )
           : [];
 
-      let click_handler = evt => {
-        let container_rect =
-          JSUtil.force_get_elem_by_id(UHCode.root_id)##getBoundingClientRect;
-        let (target_x, target_y) = (
-          float_of_int(evt##.clientX),
-          float_of_int(evt##.clientY),
-        );
-        let caret_pos =
-          Pretty.MeasuredPosition.{
-            row:
-              Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
-            col:
-              Float.to_int(
-                Float.round(
-                  (target_x -. container_rect##.left) /. font_metrics.col_width,
-                ),
-              ),
-          };
-        inject(ModelAction.MoveAction(Click(caret_pos)));
-      };
+      let click_handler =
+        UHCode.click_handler(UHCode.root_id, font_metrics, inject);
 
       let ci = Program.Exp.get_cursor_info(program);
       let ty =

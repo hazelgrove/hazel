@@ -1,4 +1,5 @@
 open Virtual_dom;
+module Js = Js_of_ocaml.Js;
 
 let root_id: string;
 let focus: unit => unit;
@@ -24,6 +25,18 @@ let key_handlers:
     ~assistant_active: bool
   ) =>
   list(Vdom.Attr.t);
+let click_handler:
+  (
+    string,
+    FontMetrics.t,
+    ModelAction.t => Ui_event.t,
+    {
+      ..
+      "clientX": Js.gen_prop({.. get: int}),
+      "clientY": Js.gen_prop({.. get: int}),
+    }
+  ) =>
+  Ui_event.t;
 
 let codebox_view:
   (~font_metrics: FontMetrics.t, Program.Exp.t) => list(Vdom.Node.t);
@@ -31,6 +44,7 @@ let typebox_view:
   (
     ~inject: ModelAction.t => Ui_event.t,
     ~font_metrics: FontMetrics.t,
+    ~is_mac: bool,
     ~settings: Settings.t,
     ~is_focused: bool=?,
     Program.Typ.t,

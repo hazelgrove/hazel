@@ -1,7 +1,8 @@
 [@deriving sexp]
 type editor =
   | MainProgram
-  | AssistantTypeEditor;
+  | AssistantTypeEditor
+  | NoFocus;
 
 type t = {
   cardstacks: ZCardstacks.t,
