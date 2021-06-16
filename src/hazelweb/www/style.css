@@ -645,9 +645,10 @@ details:focus {
 .the-context {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: fit-content(200px) 1fr;
-  overflow: scroll;
+  grid-template-rows: auto 1fr;
+  overflow: auto;
 }
+
 .context-entry {
   border: 1px outset #ffffff;
   border-left: 0px;
