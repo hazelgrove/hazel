@@ -99,6 +99,27 @@ let rec drop = (n: int, xs: list('a)) =>
     xs;
   };
 
+let rec take = (n: int, xs: list('a)) =>
+  if (n > 0) {
+    switch (xs) {
+    | [] => []
+    | [hd, ...tl] => [hd, ...take(n - 1, tl)]
+    };
+  } else {
+    [];
+  };
+
+let rec drop_first = (x: 'a, xs: list('a)) =>
+  switch (xs) {
+  | [] => []
+  | [x', ...tl] =>
+    if (x == x') {
+      tl;
+    } else {
+      [x', ...drop_first(x, tl)];
+    }
+  };
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []
@@ -146,6 +167,15 @@ let split_first_opt = (xs: list('a)): option(('a, list('a))) =>
 let split_first = (xs: list('a)): ('a, list('a)) =>
   OptUtil.get(() => failwith("empty list"), split_first_opt(xs));
 
+let rec split3 =
+        (xyzs: list(('x, 'y, 'z))): (list('x), list('y), list('z)) =>
+  switch (xyzs) {
+  | [] => ([], [], [])
+  | [(x, y, z), ...xyzs] =>
+    let (xs, ys, zs) = split3(xyzs);
+    ([x, ...xs], [y, ...ys], [z, ...zs]);
+  };
+
 let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
   | []
@@ -159,6 +189,30 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   | [_] => None
   | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
+
+let rec split_nth_opt =
+        (n: int, xs: list('x)): option((list('x), 'x, list('x))) =>
+  switch (n, xs) {
+  | (_, []) => None
+  | (0, [x, ...xs]) =>
+    let prefix = [];
+    let suffix = xs;
+    Some((prefix, x, suffix));
+  | (_, [x, ...xs]) =>
+    let n' = n - 1;
+    switch (split_nth_opt(n', xs)) {
+    | None => None
+    | Some((prefix, z, suffix)) =>
+      let prefix' = [x, ...prefix];
+      Some((prefix', z, suffix));
+    };
+  };
+
+let split_nth = (n, xs) =>
+  OptUtil.get(
+    () => raise(Invalid_argument("ListUtil.split_nth")),
+    split_nth_opt(n, xs),
+  );
 
 let rec split_at = (xs, n) =>
   switch (xs) {

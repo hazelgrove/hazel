@@ -20,24 +20,27 @@ type t =
   | Plus
   | Minus
   | Asterisk
+  | Caret
   | Slash
   | LT
   | Space
   | Comma
+  | Dollar
   | LeftBracket
+  | LeftQuotation
   | Semicolon
   | Alt_L
   | Alt_R
   | Alt_C
   | Pound
-  | Ctrl_Z
-  | Ctrl_Shift_Z
+  // | Ctrl_Z
+  // | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K
   | Ctrl_Alt_J
-  | Ctrl_Alt_L
-  | Meta_Z
-  | Meta_Shift_Z;
+  | Ctrl_Alt_L;
+// | Meta_Z
+// | Meta_Shift_Z;
 
 let get_details =
   fun
@@ -59,36 +62,40 @@ let get_details =
   | Plus => KeyCombo.plus
   | Minus => KeyCombo.minus
   | Asterisk => KeyCombo.asterisk
+  | Caret => KeyCombo.caret
   | Slash => KeyCombo.slash
   | LT => KeyCombo.lt
   | Space => KeyCombo.space
   | Comma => KeyCombo.comma
+  | Dollar => KeyCombo.dollar
   | LeftBracket => KeyCombo.left_bracket
+  | LeftQuotation => KeyCombo.left_quotation
   | Semicolon => KeyCombo.semicolon
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
-  | Ctrl_Z => KeyCombo.ctrl_z
-  | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
+  // | Ctrl_Z => KeyCombo.ctrl_z
+  // | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
   | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
-  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l
-  | Meta_Z => KeyCombo.meta_z
-  | Meta_Shift_Z => KeyCombo.meta_shift_z;
+  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l;
+// | Meta_Z => KeyCombo.meta_z
+// | Meta_Shift_Z => KeyCombo.meta_shift_z;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
   if (evt_matches(KeyCombo.pound)) {
-    Some(Pound);
-  } else if (evt_matches(KeyCombo.ctrl_z)) {
-    Some(Ctrl_Z);
-  } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
-    Some(Ctrl_Shift_Z);
-  } else if (evt_matches(KeyCombo.meta_z)) {
-    Some(Meta_Z);
-  } else if (evt_matches(KeyCombo.meta_shift_z)) {
-    Some(Meta_Shift_Z);
+    Some
+      (Pound);
+      // } else if (evt_matches(KeyCombo.ctrl_z)) {
+      //   Some(Ctrl_Z);
+      // } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
+      //   Some(Ctrl_Shift_Z);
+      // } else if (evt_matches(KeyCombo.meta_z)) {
+      //   Some(Meta_Z);
+      // } else if (evt_matches(KeyCombo.meta_shift_z)) {
+      //   Some(Meta_Shift_Z);
   } else if (evt_matches(KeyCombo.escape)) {
     Some(Escape);
   } else if (evt_matches(KeyCombo.backspace)) {
@@ -131,8 +138,14 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Space);
   } else if (evt_matches(KeyCombo.comma)) {
     Some(Comma);
+  } else if (evt_matches(KeyCombo.dollar)) {
+    Some(Dollar);
   } else if (evt_matches(KeyCombo.left_bracket)) {
     Some(LeftBracket);
+  } else if (evt_matches(KeyCombo.left_quotation)) {
+    Some(LeftQuotation);
+  } else if (evt_matches(KeyCombo.caret)) {
+    Some(Caret);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
   } else if (evt_matches(KeyCombo.alt_L)) {

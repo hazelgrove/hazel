@@ -33,6 +33,11 @@ type t = {
   cur_elt_id: int,
 };
 
+// TODO refactor undo history so that it contains
+// a sequence of `ZExp.t` entries (or whatever is
+// the constructor arg to `Program.Focused`)
+exception EntryWithoutCursor;
+
 let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) => {
   {...history, disable_auto_scrolling};
 };
@@ -90,13 +95,17 @@ let caret_jump =
     (prev_group: undo_history_group, new_cardstacks_before: ZCardstacks.t)
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let prev_step =
+  let (prev_steps, _) =
     prev_entry.cardstacks_after_action
     |> ZCardstacks.get_program
-    |> Program.get_steps;
-  let new_step =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_steps;
-  prev_step != new_step;
+    |> Program.get_path
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
+  let (new_steps, _) =
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_path
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
+  prev_steps != new_steps;
 };
 
 /* return true if new entry can be grouped into the previous group */
@@ -501,7 +510,16 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
+      | SAbbrev
+      | SLivelitDef
       | SCase => Some(ConstructEdit(shape))
+      | SLeftBracket =>
+        switch (new_cursor_term_info.cursor_term_before) {
+        | Exp(OnDelim(_, After), _)
+        | Pat(OnDelim(_, After), _) => Some(Subscript)
+        | _ => Some(ConstructEdit(shape))
+        }
+      | SQuote
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
@@ -570,75 +588,36 @@ let get_new_action_group =
         | SVBar
         | SCons
         | SAnd
-        | SOr => Some(ConstructEdit(shape))
+        | SOr
+        | SCaret => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
-          | Exp(pos, uexp_operand) =>
-            switch (uexp_operand) {
-            | Var(_, InVarHole(Keyword(k), _), _) =>
-              switch (k) {
-              | Let =>
-                switch (
-                  UndoHistoryCore.get_cursor_pos(
-                    new_cursor_term_info.cursor_term_before,
-                  )
-                ) {
-                | OnText(pos) =>
-                  if (pos == 3) {
-                    /* the caret is at the end of "let" */
-                    Some(
-                      ConstructEdit(SLet),
-                    );
-                  } else {
-                    Some(ConstructEdit(SOp(SSpace)));
-                  }
-                | OnDelim(_, _)
-                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-                }
-
-              | Case =>
-                switch (
-                  UndoHistoryCore.get_cursor_pos(
-                    new_cursor_term_info.cursor_term_before,
-                  )
-                ) {
-                | OnText(pos) =>
-                  if (pos == 4) {
-                    /* the caret is at the end of "case" */
-                    Some(
-                      ConstructEdit(SCase),
-                    );
-                  } else {
-                    Some(ConstructEdit(SOp(SSpace)));
-                  }
-                | OnDelim(_, _)
-                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-                }
-              }
-            | Var(_, _, var) =>
-              switch (pos) {
-              | OnText(index) =>
-                let (left_var, _) = Var.split(index, var);
-                if (Var.is_let(left_var)) {
-                  Some(ConstructEdit(SLet));
-                } else if (Var.is_case(left_var)) {
-                  Some(ConstructEdit(SCase));
-                } else {
-                  Some(ConstructEdit(SOp(SSpace)));
-                };
-              | OnDelim(_, _)
-              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-              }
-
-            | ApPalette(_, _, _, _) =>
-              failwith("ApPalette is not implemented")
+          | Exp(_, Var(_, InVarHole(Keyword(k), _), _)) =>
+            let pos_before =
+              UndoHistoryCore.get_cursor_pos(
+                new_cursor_term_info.cursor_term_before,
+              );
+            switch (k, pos_before) {
+            | (Let, OnText(3)) => Some(ConstructEdit(SLet))
+            | (Abbrev, OnText(6)) => Some(ConstructEdit(SAbbrev))
+            | (Case, OnText(4)) => Some(ConstructEdit(SCase))
+            | (LivelitDef, OnText(7)) => Some(ConstructEdit(SLivelitDef))
             | _ => Some(ConstructEdit(SOp(SSpace)))
-            }
+            };
+          | Exp(OnText(index), Var(_, _, var)) =>
+            let (left_var, _) = Var.split(index, var);
+            if (Var.is_let(left_var)) {
+              Some(ConstructEdit(SLet));
+            } else if (Var.is_abbrev(left_var)) {
+              Some(ConstructEdit(SAbbrev));
+            } else if (Var.is_case(left_var)) {
+              Some(ConstructEdit(SCase));
+            } else {
+              Some(ConstructEdit(SOp(SSpace)));
+            };
           | _ => Some(ConstructEdit(SOp(SSpace)))
           }
         }
-
-      | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | SwapUp => Some(SwapEdit(Up))
     | SwapDown => Some(SwapEdit(Down))
@@ -649,9 +628,8 @@ let get_new_action_group =
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
-    | Init => None
-    | UpdateApPalette(_) =>
-      failwith("ApPalette is not implemented in undo_history")
+    | Init
+    | PerformLivelitAction(_) => None
     };
   };
 let get_cursor_term_info =
@@ -661,16 +639,28 @@ let get_cursor_term_info =
     )
     : UndoHistoryCore.cursor_term_info => {
   let zexp_before =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_zexp
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo_Exp.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_cursor_info
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
-    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_after
+    |> ZCardstacks.get_program
+    |> Program.get_zexp
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_info_after =
-    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_after
+    |> ZCardstacks.get_program
+    |> Program.get_cursor_info
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_term_after = cursor_info_after.cursor_term;
 
   {
@@ -684,14 +674,22 @@ let get_cursor_term_info =
 };
 
 let push_edit_state =
-    (
-      undo_history: t,
-      new_cardstacks_before: ZCardstacks.t,
-      new_cardstacks_after: ZCardstacks.t,
-      action: Action.t,
-    )
+    (undo_history: t, new_cardstacks_after: ZCardstacks.t, action: Action.t)
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
+  let new_cardstacks_before =
+    get_cardstacks(
+      undo_history,
+      ~is_after_move=
+        switch (action) {
+        | MoveTo(_)
+        | MoveLeft
+        | MoveRight
+        | MoveToNextHole
+        | MoveToPrevHole => true
+        | _ => false
+        },
+    );
   let new_cursor_term_info =
     get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_action_group =

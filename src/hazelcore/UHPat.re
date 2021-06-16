@@ -17,6 +17,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
@@ -34,6 +35,9 @@ let var =
     )
     : operand =>
   Var(err, var_err, x);
+
+let stringlit = (~err: ErrStatus.t=NotInHole, s: string) =>
+  StringLit(err, s);
 
 let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
@@ -60,13 +64,13 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+  let (u, u_gen) = MetaVarGen.next_hole(u_gen);
   (InvalidText(u, t), u_gen);
 };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+  let (u, u_gen) = MetaVarGen.next_hole(u_gen);
   (EmptyHole(u), u_gen);
 };
 
@@ -86,6 +90,7 @@ and get_err_status_operand =
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
+  | StringLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
   | TypeAnn(err, _, _)
@@ -105,6 +110,7 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
+  | StringLit(_, s) => StringLit(err, s)
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
@@ -113,7 +119,7 @@ and set_err_status_operand = (err, operand) =>
 
 let is_inconsistent = (p: t): bool =>
   switch (get_err_status(p)) {
-  | InHole(TypeInconsistent, _) => true
+  | InHole(TypeInconsistent(None), _) => true
   | _ => false
   };
 
@@ -129,26 +135,28 @@ and mk_inconsistent_operand =
   // already in hole
   | EmptyHole(_)
   | InvalidText(_, _)
-  | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
-  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | Wild(InHole(TypeInconsistent(_), _))
+  | Var(InHole(TypeInconsistent(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent(_), _), _)
+  | FloatLit(InHole(TypeInconsistent(_), _), _)
+  | BoolLit(InHole(TypeInconsistent(_), _), _)
+  | StringLit(InHole(TypeInconsistent(_), _), _)
+  | ListNil(InHole(TypeInconsistent(_), _))
+  | Inj(InHole(TypeInconsistent(_), _), _, _)
+  | TypeAnn(InHole(TypeInconsistent(_), _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | StringLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let set_operand =
-      operand |> set_err_status_operand(InHole(TypeInconsistent, u));
+      operand |> set_err_status_operand(InHole(TypeInconsistent(None), u));
     (set_operand, u_gen);
   | Parenthesized(p) =>
     let (set_p, u_gen) = p |> mk_inconsistent(u_gen);
@@ -163,8 +171,14 @@ let text_operand =
   | FloatLit(n) => (floatlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | LivelitName(lln) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+    (
+      var(~var_err=InVarHole(Free, u), LivelitName.strip_prefix(lln)),
+      u_gen,
+    );
   | ExpandingKeyword(kw) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     (
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
@@ -205,6 +219,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
+  | StringLit(InHole(_), _) => false
+  | StringLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Parenthesized(body) => is_complete(body)

@@ -2,11 +2,13 @@ type formattable_child = (~enforce_inline: bool) => DHDoc.t;
 
 let precedence_const: int;
 let precedence_Ap: int;
+let precedence_Subscript: int;
 let precedence_Times: int;
 let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
 let precedence_Cons: int;
+let precedence_Caret: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
 let precedence_GreaterThan: int;
@@ -26,7 +28,7 @@ let pad_child:
 module Delim: {
   let mk: string => DHDoc.t;
 
-  let empty_hole: HoleInstance.t => DHDoc.t;
+  let empty_hole: NodeInstance.t => DHDoc.t;
 
   let list_nil: DHDoc.t;
   let triv: DHDoc.t;
@@ -69,6 +71,9 @@ let mk_EmptyHole:
 let mk_Keyword:
   (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
+let mk_FreeLivelit:
+  (LivelitName.t, MetaVar.t, MetaVarInst.t) => Pretty.Doc.t(DHAnnot.t);
+
 let mk_InvalidText:
   (string, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
 
@@ -77,6 +82,8 @@ let mk_IntLit: int => Pretty.Doc.t('a);
 let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
+
+let mk_StringLit: string => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Inj: (InjSide.t, Pretty.Doc.t(DHAnnot.t)) => Pretty.Doc.t(DHAnnot.t);
 

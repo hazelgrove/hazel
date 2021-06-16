@@ -1,2 +1,2 @@
 [@deriving sexp]
-type t = list((HoleInstance.t, Var.t));
+type t = list((NodeInstance.t, Var.t));

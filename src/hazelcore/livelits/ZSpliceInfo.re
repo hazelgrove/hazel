@@ -4,9 +4,9 @@ open Sexplib.Std;
 type zsplice_map('exp, 'zexp) = ZIntMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
 [@deriving sexp]
 type t('exp, 'zexp) = {
-  next: SpliceInfo.splice_name,
+  next: SpliceName.t,
   zsplice_map: zsplice_map('exp, 'zexp),
-  splice_order: list(SpliceInfo.splice_name),
+  splice_order: list(SpliceName.t),
 };
 let erase = (zpsi: t('exp, 'zexp), erase_z): SpliceInfo.t('exp) =>
   SpliceInfo.{
@@ -32,4 +32,17 @@ let select_opt =
       Some({next, zsplice_map, splice_order});
     }
   };
+};
+
+let prj_ze = (zsi: t('exp, 'zexp)): 'zexp => {
+  let (_, ze) = ZIntMap.prj_z_v(zsi.zsplice_map);
+  ze;
+};
+
+let prj_z = (zsi: t('exp, 'zexp)): (HTyp.t, 'zexp) =>
+  ZIntMap.prj_z_v(zsi.zsplice_map);
+
+let update_z = (zsi: t('exp, 'zexp), z: (HTyp.t, 'zexp)): t('exp, 'zexp) => {
+  ...zsi,
+  zsplice_map: ZIntMap.update_z(zsi.zsplice_map, z),
 };

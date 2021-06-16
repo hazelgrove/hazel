@@ -1,3 +1,5 @@
+module M: Statics_Exp_Sig.S;
+
 let tuple_zip: (UHExp.skel, HTyp.t) => option(list((UHExp.skel, HTyp.t)));
 
 /**
@@ -18,6 +20,7 @@ let ana_nth_type_mode:
 let syn: (Contexts.t, UHExp.t) => option(HTyp.t);
 let syn_block: (Contexts.t, UHExp.block) => option(HTyp.t);
 let syn_lines: (Contexts.t, list(UHExp.line)) => option(Contexts.t);
+let syn_line: (Contexts.t, UHExp.line) => option(Contexts.t);
 let syn_opseq: (Contexts.t, UHExp.opseq) => option(HTyp.t);
 let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
 let syn_operand: (Contexts.t, UHExp.operand) => option(HTyp.t);
@@ -29,7 +32,9 @@ let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
-let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
+let ana_splice_map_and_params:
+  (Contexts.t, UHExp.splice_map, list((Var.t, HTyp.t))) =>
+  option(Contexts.t);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,
@@ -100,6 +105,14 @@ let ana_fix_holes_rules:
     HTyp.t
   ) =>
   (UHExp.rules, MetaVarGen.t);
+let ana_fix_holes_splice_map:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHExp.splice_map
+  ) =>
+  (UHExp.splice_map, MetaVarGen.t);
 
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
@@ -126,15 +139,16 @@ let joined_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
  * Given a let line with a pattern `p`, and a defining expression `e`,
  * `extend_let_def_ctx(ctx, p, e)` returns the context available to `e`.
  */
-let extend_let_def_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
+let extend_let_def_ctx:
+  (Contexts.t'('a), UHPat.t, UHExp.t) => Contexts.t'('a);
 
 /**
  * Currently we restrict recursive definitions to let lines with
  * type annotations that bind a function to a single variable.
  * Given a let line with a pattern `p`, and a defining expression `e`,
- * `recursive_let_id(ctx, p, e)` returns the name of the recursive reference, if any.
+ * `p, e)` returns the name of the recursive reference, if any.
  */
-let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
+let recursive_let_id: (UHPat.t, UHExp.t) => option((Var.t, HTyp.t));
 
 /**
  * Extends the provided context, joining the type of the pattern
@@ -142,3 +156,16 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
  * Precondition: provided pattern and expression have consistent types
  */
 let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
+
+let ll_init_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_update_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_view_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_shape_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_expand_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+
+let build_ll_view_ctx: UHExp.t => Statics.livelit_web_view_ctx;
+
+let declared_livelit_expansion_type: (Contexts.t, Var.t) => option(HTyp.t);
+let actual_livelit_expansion_type:
+  (Contexts.t, Var.t, SerializedModel.t, UHExp.splice_info) => option(HTyp.t);
+let eval: DHExp.t => DHExp.t;

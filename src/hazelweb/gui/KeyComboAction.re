@@ -1,4 +1,4 @@
-let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
+let table: Hashtbl.t(HazelKeyCombos.t, option(CursorInfo.t) => Action.t) =
   [
     (HazelKeyCombos.Backspace, _ => Action.Backspace),
     (Delete, _ => Delete),
@@ -7,7 +7,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (
       GT,
       fun
-      | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
+      | Some({CursorInfo.typed: OnType, _}) => Construct(SOp(SArrow))
       | _ => Construct(SOp(SGreaterThan)),
     ),
     (Ampersand, _ => Construct(SOp(SAnd))),
@@ -25,15 +25,19 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (
       Space,
       fun
-      | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
+      | Some({CursorInfo.cursor_term: Line(_, CommentLine(_)), _}) =>
         Construct(SChar(" "))
       | _ => Construct(SOp(SSpace)),
     ),
     (Comma, _ => Construct(SOp(SComma))),
+    (Caret, _ => Construct(SOp(SCaret))),
+    (LeftBracket, _ => Construct(SLeftBracket)),
+    (LeftQuotation, _ => Construct(SQuote)),
+    (Dollar, _ => Construct(SChar("$"))),
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType, _} => Construct(SList)
+      | Some({CursorInfo.typed: OnType, _}) => Construct(SList)
       | _ => Construct(SListNil),
     ),
     (Semicolon, _ => Construct(SOp(SCons))),
@@ -50,7 +54,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let get = (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): Action.t => {
+let get = (ci: option(CursorInfo.t), kc: HazelKeyCombos.t): Action.t => {
   let action_of_ci = Hashtbl.find(table, kc);
-  action_of_ci(cursor_info);
+  action_of_ci(ci);
 };

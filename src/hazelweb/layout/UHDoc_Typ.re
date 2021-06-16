@@ -7,18 +7,23 @@ let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
 let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Typ);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Typ);
-let mk_NTuple:
-  (
-    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
-    ~mk_operator: UHTyp.operator => UHDoc.t,
-    ~enforce_inline: bool,
-    OpSeq.t('a, UHTyp.operator)
-  ) =>
-  UHDoc.t =
+let mk_NTuple =
+    (
+      ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+      ~mk_operator: UHTyp.operator => UHDoc.t,
+      ~enforce_inline: bool,
+      opseq: OpSeq.t('a, UHTyp.operator),
+    )
+    : UHDoc.t =>
   UHDoc_common.mk_NTuple(
     ~sort=Typ,
     ~get_tuple_elements=UHTyp.get_prod_elements,
     ~inline_padding_of_operator,
+    ~mk_operand,
+    ~mk_operator,
+    ~enforce_inline,
+    ~llview_ctx=IntMap.empty, // ????? -andrew
+    opseq,
   );
 
 let rec mk =
@@ -28,6 +33,10 @@ let rec mk =
       (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
     )
   )
+and mk_doc = (uty, child_step) => {
+  Lazy.force(mk, ~memoize=false, ~enforce_inline=false, uty)
+  |> UHDoc_common.annot_Step(child_step);
+}
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
@@ -55,6 +64,7 @@ and mk_operand =
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()
         | Bool => UHDoc_common.mk_Bool()
+        | String => UHDoc_common.mk_String()
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);

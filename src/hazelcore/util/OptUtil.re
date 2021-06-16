@@ -23,6 +23,19 @@ let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
   | None => if_absent()
   | Some(a) => a
   };
+let get_or_raise = e => get(() => raise(e));
+
+let and_then = (f: 'a => 'b, opt: option('a)): 'b =>
+  switch (opt) {
+  | None => None
+  | Some(a) => f(a)
+  };
+
+let filter = (pred: 'a => bool, opt: option('a)): option('a) =>
+  switch (opt) {
+  | None => None
+  | Some(a) => pred(a) ? Some(a) : None
+  };
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));

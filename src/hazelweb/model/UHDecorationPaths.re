@@ -6,28 +6,32 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  // TODO rename to livelit_expressions
+  livelits: list(CursorPath.steps),
 };
 
-let is_empty = (dpaths: t): bool =>
-  ListUtil.is_empty(dpaths.err_holes)
-  && ListUtil.is_empty(dpaths.var_err_holes)
-  && ListUtil.is_empty(dpaths.var_uses)
-  && dpaths.current_term == None;
+let is_empty = (ds: t): bool =>
+  ListUtil.is_empty(ds.err_holes)
+  && ListUtil.is_empty(ds.var_err_holes)
+  && ListUtil.is_empty(ds.livelits)
+  && ListUtil.is_empty(ds.var_uses)
+  && ds.current_term == None;
 
-let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+let take_step = (step: int, decorations: t): t => {
+  let {err_holes, var_err_holes, current_term, var_uses, livelits} = decorations;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
     | _ => None;
   let err_holes = err_holes |> List.filter_map(remove_step);
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
+  let livelits = livelits |> List.filter_map(remove_step);
   let var_uses = var_uses |> List.filter_map(remove_step);
   let current_term =
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term};
+  {err_holes, var_err_holes, var_uses, current_term, livelits};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
@@ -39,7 +43,10 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | BinOp({op_index, _}) => steps == [op_index]
     | Operand
     | Case
-    | Rule => steps == []
+    | Rule
+    | FreeLivelit
+    | ApLivelit => steps == []
+    | LivelitExpression(_) => false
     };
   let err_holes =
     dpaths.err_holes
@@ -56,6 +63,27 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
+  let livelits = {
+    let found =
+      dpaths.livelits
+      |> List.find_opt(steps =>
+           switch (shape) {
+           | LivelitExpression({hd_index, _}) => steps == [hd_index]
+           // | ApLivelit => steps == []
+           | _ => false
+           }
+         );
+    switch (found) {
+    | None => []
+    | Some(_) =>
+      switch (shape) {
+      | LivelitExpression({view_shape, _}) => [
+          UHDecorationShape.LivelitExpression(view_shape),
+        ]
+      | _ => []
+      }
+    };
+  };
   let current_term =
     switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
@@ -63,5 +91,5 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
+  List.concat([err_holes, var_err_holes, var_uses, livelits, current_term]);
 };

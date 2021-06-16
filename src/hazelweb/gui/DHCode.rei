@@ -5,10 +5,10 @@ let view_of_hole_instance:
     ~inject: ModelAction.t => Vdom.Event.t,
     ~width: int,
     ~pos: int=?,
-    ~selected_instance: option(HoleInstance.t),
     ~settings: Settings.Evaluation.t,
+    ~selected_instance: option(TaggedNodeInstance.t),
     ~font_metrics: FontMetrics.t,
-    HoleInstance.t
+    NodeInstance.t
   ) =>
   Vdom.Node.t;
 
@@ -18,7 +18,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~settings: Settings.Evaluation.t,
-    ~selected_instance: option(HoleInstance.t),
+    ~selected_instance: option(TaggedNodeInstance.t)=?,
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,

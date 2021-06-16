@@ -1,6 +1,24 @@
 [@deriving sexp]
-type t = MetaVarMap.t(MetaVarInst.t);
+type t = {
+  holes: MetaVarMap.t(MetaVarInst.t),
+  livelits: MetaVarMap.t(MetaVarInst.t),
+};
 
-let init = MetaVarMap.empty;
-let find_opt = MetaVarMap.find_opt;
-let add = MetaVarMap.add;
+let init = {holes: MetaVarMap.empty, livelits: MetaVarMap.empty};
+
+let _get_map = ({holes, livelits}, kind: TaggedNodeInstance.kind) => {
+  switch (kind) {
+  | Hole => holes
+  | Livelit => livelits
+  };
+};
+
+let find_opt = (kind, u, si) => MetaVarMap.find_opt(u, _get_map(si, kind));
+
+let add = ((kind, (u, i)), usi) => {
+  let map_ = MetaVarMap.add(u, i, _get_map(usi, kind));
+  switch (kind) {
+  | Hole => {...usi, holes: map_}
+  | Livelit => {...usi, livelits: map_}
+  };
+};

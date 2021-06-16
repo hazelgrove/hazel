@@ -7,3 +7,4 @@ let erase: (t('a, 'z), 'z => 'a) => IntMap.t('a);
 let prj_map: t('a, 'z) => IntMap.t('a);
 let prj_z_kv: t('a, 'z) => (int, 'z);
 let prj_z_v: t('a, 'z) => 'z;
+let update_z: (t('a, 'z), 'z) => t('a, 'z);

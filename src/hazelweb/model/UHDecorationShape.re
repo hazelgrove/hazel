@@ -3,4 +3,5 @@ type t =
   | ErrHole
   | VarErrHole
   | VarUse
-  | CurrentTerm;
+  | CurrentTerm
+  | LivelitExpression(LivelitShape.t);

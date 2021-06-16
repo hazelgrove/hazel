@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | String
   | Parenthesized(t)
   | List(t);
 

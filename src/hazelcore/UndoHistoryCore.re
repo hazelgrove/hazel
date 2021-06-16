@@ -37,6 +37,7 @@ type action_group =
   /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | Subscript
   | SwapEdit(swap_group)
   | Init;
 
@@ -94,6 +95,8 @@ let group_action_group =
   switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
+  | (Subscript, Subscript) => true
+  | (Subscript, _) => false
   | (VarGroup(_), VarGroup(_)) => true
   | (VarGroup(_), DeleteEdit(delete_group)) =>
     switch (delete_group) {
@@ -105,6 +108,7 @@ let group_action_group =
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
+    | SAbbrev
     | SCase => true
     | _ => false
     }
@@ -143,13 +147,16 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
+    | StringLit(_, str) => Len(String.length(str))
     | BoolLit(_, _)
     | ListNil(_)
     | Lam(_)
     | Inj(_, _, _)
     | Case(_, _, _)
-    | Parenthesized(_) => MaxLen
-    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    | Parenthesized(_)
+    | Subscript(_)
+    | ApLivelit(_) => MaxLen
+    | FreeLivelit(_, name) => Len(LivelitName.length(name))
     }
   | Pat(_, operand) =>
     switch (operand) {
@@ -159,6 +166,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
+    | StringLit(_, str) => Len(String.length(str))
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
@@ -171,6 +179,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Unit
     | Int
     | Float
+    | String
     | Bool
     | Parenthesized(_)
     | List(_) => MaxLen
@@ -184,6 +193,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_)
+    | LivelitDefLine(_)
+    | AbbrevLine(_)
     | ExpLine(_) => MaxLen
     }
   };

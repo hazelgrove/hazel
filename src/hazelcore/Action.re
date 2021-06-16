@@ -15,12 +15,15 @@ type operator_shape =
   | SVBar
   | SCons
   | SAnd
-  | SOr;
+  | SOr
+  | SCaret;
 
 [@deriving sexp]
 type shape =
   | SCommentLine
   | SList
+  | SQuote
+  | SLeftBracket
   | SParenthesized
   | SChar(string)
   | SAnn
@@ -28,10 +31,11 @@ type shape =
   | SListNil
   | SInj(InjSide.t)
   | SLet
+  | SAbbrev
+  | SLivelitDef
   | SLine
   | SCase
-  | SOp(operator_shape)
-  | SApPalette(PaletteName.t);
+  | SOp(operator_shape);
 
 [@deriving sexp]
 type t =
@@ -40,7 +44,7 @@ type t =
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
+  | PerformLivelitAction(SerializedAction.t)
   | Delete
   | Backspace
   | Construct(shape)
@@ -49,3 +53,12 @@ type t =
   | SwapUp
   | SwapDown
   | Init;
+
+let is_movement =
+  fun
+  | MoveTo(_)
+  | MoveLeft
+  | MoveRight
+  | MoveToPrevHole
+  | MoveToNextHole => true
+  | _ => false;

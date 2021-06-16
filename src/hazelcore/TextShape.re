@@ -8,7 +8,19 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
-  | InvalidTextShape(string);
+  | InvalidTextShape(string)
+  | LivelitName(LivelitName.t);
+
+let is_reserved_var = s => {
+  let reserved_prefix = SpliceInfo.splice_var_prefix;
+  let slen = String.length(s);
+  let plen = String.length(reserved_prefix);
+  if (slen >= plen) {
+    String.equal(reserved_prefix, String.sub(s, 0, plen));
+  } else {
+    false;
+  };
+};
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
 /* Ocaml accepts _1 as a float */
@@ -42,7 +54,9 @@ let of_text = (text: string): t =>
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
-    } else if (text |> Var.is_valid) {
+    } else if (LivelitName.is_valid_free_livelit_name(text)) {
+      LivelitName(text);
+    } else if (Var.is_valid(text) && !is_reserved_var(text)) {
       Var(text);
     } else {
       InvalidTextShape(text);

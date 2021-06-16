@@ -5,23 +5,6 @@ type t('z, 'a) = (list('a), 'z, list('a));
 
 let singleton = (z: 'z): t('z, 'a) => ([], z, []);
 
-let rec split_at = (n: int, xs: list('a)): option(t('a, 'a)) =>
-  switch (n, xs) {
-  | (_, []) => None
-  | (0, [x, ...xs]) =>
-    let prefix = [];
-    let suffix = xs;
-    Some((prefix, x, suffix));
-  | (_, [x, ...xs]) =>
-    let n' = n - 1;
-    switch (split_at(n', xs)) {
-    | None => None
-    | Some((prefix, z, suffix)) =>
-      let prefix' = [x, ...prefix];
-      Some((prefix', z, suffix));
-    };
-  };
-
 let join = ((prefix, z, suffix): t('a, 'a)): list('a) =>
   prefix @ [z, ...suffix];
 
@@ -139,5 +122,5 @@ let shift_begin = (zxs: t('a, 'a)): t('a, 'a) => {
 let shift_to = (n: int, xs: t('a, 'a)): option(t('a, 'a)) => {
   let (prefix, z, suffix) = xs;
   let lst = prefix @ [z, ...suffix];
-  split_at(n, lst);
+  ListUtil.split_nth_opt(n, lst);
 };

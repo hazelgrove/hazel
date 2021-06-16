@@ -1,14 +1,4 @@
-module EditAction = {
-  include Action;
-  include Action_common;
-};
-module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-
-[@deriving sexp]
-type move_input =
-  | Key(MoveKey.t)
-  | Click(Pretty.MeasuredPosition.t);
 
 [@deriving sexp]
 type shift_history_info = {
@@ -20,8 +10,9 @@ type shift_history_info = {
 type group_id = int;
 [@deriving sexp]
 type t =
-  | EditAction(EditAction.t)
-  | MoveAction(move_input)
+  | EditAction(Action.t)
+  | MoveAction(MoveInput.t)
+  | LivelitAction(MetaVar.t, SerializedAction.t)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)
@@ -29,11 +20,15 @@ type t =
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
-  | SelectHoleInstance(HoleInstance.t)
+  | SelectInstance(TaggedNodeInstance.kind, NodeInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
+  | ToggleTypingCtx
+  | ToggleLivelitCtx
   | FocusCell
   | BlurCell
+  | FocusWindow
+  | BlurWindow
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)

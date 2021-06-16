@@ -5,11 +5,14 @@ type formattable_child = (~enforce_inline: bool) => t;
 
 let precedence_const = Operators_Exp.precedence_const;
 let precedence_Ap = Operators_Exp.precedence_Ap;
+// TODO make consistent with precedence system
+let precedence_Subscript = 1;
 let precedence_Times = Operators_Exp.precedence(Times);
 let precedence_Divide = Operators_Exp.precedence(Divide);
 let precedence_Plus = Operators_Exp.precedence(Plus);
 let precedence_Minus = Operators_Exp.precedence(Minus);
 let precedence_Cons = Operators_Exp.precedence(Cons);
+let precedence_Caret = Operators_Exp.precedence(Caret);
 let precedence_Equals = Operators_Exp.precedence(Equals);
 let precedence_LessThan = Operators_Exp.precedence(LessThan);
 let precedence_GreaterThan = Operators_Exp.precedence(GreaterThan);
@@ -41,12 +44,24 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
-    let lbl =
-      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+  let inst_label = ((u, i): NodeInstance.t): string => {
+    StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+  };
+
+  let empty_hole = (inst: NodeInstance.t): t => {
+    let lbl = inst_label(inst);
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
+  };
+
+  let free_livelit = (lln: LivelitName.t, inst: NodeInstance.t): t => {
+    let lbl = inst_label(inst);
+    let lbldoc =
+      Doc.text(lbl)
+      |> Doc.annot(DHAnnot.FreeLivelitLabel)
+      |> Doc.annot(DHAnnot.Delim);
+    Doc.(hcats([text(lln), lbldoc]));
   };
 
   let list_nil = mk("[]");
@@ -55,6 +70,9 @@ module Delim = {
 
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
+
+  let open_StringLit = mk("\"");
+  let close_StringLit = mk("\"");
 
   let sym_Lam = mk(Unicode.lamSym);
   let colon_Lam = mk(":");
@@ -94,6 +112,10 @@ let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
+let mk_FreeLivelit = (lln, u, i) =>
+  Delim.free_livelit(lln, (u, i))
+  |> Doc.annot(DHAnnot.FreeLivelit(lln, (u, i)));
+
 let mk_InvalidText = (t, (u, i)) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
 
@@ -110,11 +132,33 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
+let mk_StringLit = s => {
+  let line_docs =
+    s
+    |> String.split_on_char('\n')
+    |> ListUtil.map_with_accumulator(
+         (line_no, line) =>
+           // TODO undo manual align once we have inlined Align rendering properly
+           (
+             line_no + 1,
+             line_no == 0
+               ? Doc.text(line) : Doc.hcat(Doc.space(), Doc.text(line)),
+           ),
+         0,
+       )
+    |> snd
+    |> ListUtil.join(Doc.linebreak());
+
+  Doc.hcats([Delim.open_StringLit, ...line_docs] @ [Delim.close_StringLit])
+  |> Doc.annot(DHAnnot.String);
+};
+
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
-let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
+let mk_Pair = (doc1, doc2) =>
+  Doc.(hcats([doc1, text(", ("), doc2, text(")")]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);

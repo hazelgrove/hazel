@@ -1,8 +1,16 @@
+module SubReason: {
+  [@deriving sexp]
+  type t =
+    | InsufficientParams
+    | DecodingError
+    | IllTypedExpansion;
+};
+
 module HoleReason: {
   /* Variable: `reason` */
   [@deriving sexp]
   type t =
-    | TypeInconsistent
+    | TypeInconsistent(option(SubReason.t))
     | WrongLength;
 
   let eq: (t, t) => bool;

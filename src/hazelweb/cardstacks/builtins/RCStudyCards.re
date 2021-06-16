@@ -137,7 +137,7 @@
              ),
            ],
          ),
-       init_zexp:
+       init_term:
          UHExp.Block(
            [
              UHExp.letline(
@@ -238,7 +238,7 @@
              ),
            ],
          ),
-       init_zexp:
+       init_term:
          UHExp.Block(
            [
              UHExp.letline(
@@ -330,7 +330,7 @@
              ),
            ],
          ),
-       init_zexp:
+       init_term:
          UHExp.Block(
            [
              append_letline,
@@ -504,7 +504,7 @@
              ),
            ],
          ),
-       init_zexp:
+       init_term:
          UHExp.Block(
            [
              append_letline,
@@ -710,7 +710,7 @@
              ),
            ],
          ),
-       init_zexp: {
+       init_term: {
          let num_triple =
            UHTyp.(
              Parenthesized(
@@ -863,7 +863,7 @@
              ),
            ],
          ),
-       init_zexp: {
+       init_term: {
          let num_triple =
            UHTyp.(
              Parenthesized(

@@ -12,6 +12,16 @@ type rev_steps = steps;
 [@deriving sexp]
 type rev_t = (CursorPosition.t, rev_steps);
 
+let rev = ((cursor, rev_steps): rev_t): t => (
+  rev_steps |> List.rev,
+  cursor,
+);
+
+let append = (steps, (appendee_steps, appendee_cursor): t): t => (
+  steps @ appendee_steps,
+  appendee_cursor,
+);
+
 [@deriving sexp]
 type hole_shape =
   | TypeErr
@@ -22,7 +32,9 @@ type hole_shape =
 type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | ExpHole(MetaVar.t, hole_shape)
+  | LivelitHole(MetaVar.t)
+  | ApLivelit(MetaVar.t);
 
 [@deriving sexp]
 type hole_info = {

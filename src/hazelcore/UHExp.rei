@@ -4,11 +4,31 @@ type operator = Operators_Exp.t;
 [@deriving sexp]
 type t = block
 and block = list(line)
+and livelit_record = {
+  // err: ErrStatus.t,
+  name: (VarErrStatus.t, string), // 0
+  expansion_type: UHTyp.t, // 1
+  captures: t, //list((VarErrStatus.t, Var.t)), // 2
+  model_type: UHTyp.t, // 3
+  action_type: UHTyp.t, // 4
+  init: t, // 5
+  update: t, // 6
+  view: t, // 7
+  shape: t, //convert to shape // 8
+  expand: t // 9
+}
 and line =
   | EmptyLine
   | CommentLine(string)
   | LetLine(UHPat.t, t)
+  | AbbrevLine(
+      LivelitName.t,
+      AbbrevErrStatus.t,
+      LivelitName.t,
+      list(operand),
+    )
   | ExpLine(opseq)
+  | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -17,12 +37,22 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+  | Subscript(ErrStatus.t, t, t, t)
+  | ApLivelit(
+      MetaVar.t,
+      ErrStatus.t,
+      LivelitName.t,
+      LivelitName.t,
+      SerializedModel.t,
+      splice_info,
+    )
+  | FreeLivelit(MetaVar.t, LivelitName.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -42,10 +72,14 @@ let letline: (UHPat.t, t) => line;
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
+let intlit': (~err: ErrStatus.t=?, int) => operand;
 
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
+let floatlit': (~err: ErrStatus.t=?, float) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
+
+let stringlit: (~err: ErrStatus.t=?, string) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
@@ -112,3 +146,7 @@ let associate: seq => Skel.t(Operators_Exp.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+
+let find_operand: t => option(operand);
+
+let wrap_lambda: (t, string) => t;

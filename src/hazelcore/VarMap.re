@@ -21,8 +21,10 @@ let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
 let contains = (ctx, x) => List.mem_assoc(x, ctx);
 
-let map = (f, xs) => List.map(((x, _) as xa) => (x, f(xa)), xs);
+let map = (f: ((Var.t, 'a)) => 'b, xas: t_('a)) =>
+  List.map(((x, _) as xa) => (x, f(xa)), xas);
 
 let length = List.length;
 
 let to_list = ctx => ctx;
+let of_list = ctx => ctx;

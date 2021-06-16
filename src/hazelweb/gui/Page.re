@@ -1,4 +1,5 @@
 module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
 let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
@@ -22,26 +23,31 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
         Node.option([Attr.value("map_example")], [Node.text("map")]),
         Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
         Node.option(
-          [Attr.value("qsort_example_3")],
-          [Node.text("qsort (3x)")],
+          [Attr.value("map_img_filter")],
+          [Node.text("map_img_filter")],
+        ),
+        Node.option([Attr.value("color")], [Node.text("color")]),
+        Node.option(
+          [Attr.value("grade_cutoffs")],
+          [Node.text("grade_cutoffs")],
         ),
         Node.option(
-          [Attr.value("qsort_example_10")],
-          [Node.text("qsort (10x)")],
+          [Attr.value("ll_def_slider_basic")],
+          [Node.text("user-defined livelit slider; basic")],
         ),
         Node.option(
-          [Attr.value("qsort_example_30")],
-          [Node.text("qsort (30x)")],
+          [Attr.value("ll_def_slider_ill_typed_expansion")],
+          [Node.text("user-defined livelit slider; ill-typed expansion")],
         ),
         Node.option(
-          [Attr.value("qsort_example_100")],
-          [Node.text("qsort (100x)")],
+          [Attr.value("ll_def_slider_free_var_in_exp")],
+          [Node.text("user-defined livelit slider; free var in expansion")],
         ),
       ],
     )
   );
 
-let cardstacks_select =
+let _cardstacks_select =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
@@ -101,7 +107,7 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cardstack_controls = (~inject, model: Model.t) =>
+let _cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(
       [Attr.id("cardstack-controls")],
@@ -117,7 +123,8 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+let view =
+    (~inject: ModelAction.t => Vdom.Event.t, ~sync_livelit, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
     "Page.view",
@@ -126,13 +133,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
-      let selected_instance = model |> Model.get_selected_hole_instance;
+      let selected_instance = Model.get_selected_instance(model);
       let cell_status =
         if (!settings.evaluation.evaluate) {
-          Node.div([], []);
+          Node.div([Attr.id("result-box")], []);
         } else {
           Node.div(
-            [],
+            [Attr.id("result-box")],
             [
               Node.div(
                 [Attr.classes(["cell-status"])],
@@ -146,12 +153,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                       Node.div(
                         [Attr.classes(["htype-view"])],
-                        [
-                          {
-                            let (_, ty, _) = program.edit_state;
-                            HTypCode.view(ty);
-                          },
-                        ],
+                        [HTypCode.view(program.edit_state.ty)],
                       ),
                     ],
                   ),
@@ -167,7 +169,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~width=80,
                     ~font_metrics=model.font_metrics,
                     settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
+                      ? program |> Program.get_elaboration
                       : program |> Program.get_result |> Result.get_dhexp,
                   ),
                 ],
@@ -188,74 +190,66 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              // TODO(d) commented out for artifact review
+              // cardstacks_select(~inject, Model.cardstack_info),
+            ],
+          ),
+          Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
+            [ActionPanel.view(~inject, model)]
+          ),
+          Node.div(
+            [Attr.id("page-area")],
+            [
+              Node.div(
+                [Attr.classes(["page"])],
+                [
+                  Node.div(
+                    [Attr.classes(["card-caption"])],
+                    [card.info.caption],
+                  ),
+                  Cell.view(~inject, ~sync_livelit, model),
+                  cell_status,
+                  // cardstack_controls(~inject, model),
+                ],
+              ),
+              examples_select(~inject),
+              Node.button(
+                [
+                  Attr.on_click(_ => {
+                    let e = program |> Program.get_uhexp;
+                    JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+                    Event.Ignore;
+                  }),
+                ],
+                [Node.text("Serialize to console")],
+              ),
+              Node.div(
+                [
+                  Attr.style(
+                    Css_gen.(
+                      white_space(`Pre) @> font_family(["monospace"])
+                    ),
+                  ),
+                ],
+                [],
+              ),
             ],
           ),
           Node.div(
-            [Attr.classes(["main-area"])],
+            [Attr.id("right-sidebar")],
             [
-              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-                [ActionPanel.view(~inject, model)]
+              CursorInspector.view(~inject, Program.get_cursor_info(program)),
+              ContextInspector.view(
+                ~inject,
+                ~selected_instance,
+                ~settings=settings.evaluation,
+                ~typing_ctx_open=model.typing_ctx_open,
+                ~livelit_ctx_open=model.livelit_ctx_open,
+                ~font_metrics=model.font_metrics,
+                program,
               ),
-              Node.div(
-                [Attr.classes(["flex-wrapper"])],
-                [
-                  Node.div(
-                    [Attr.id("page-area")],
-                    [
-                      Node.div(
-                        [Attr.classes(["page"])],
-                        [
-                          Node.div(
-                            [Attr.classes(["card-caption"])],
-                            [card.info.caption],
-                          ),
-                          Cell.view(~inject, model),
-                          cell_status,
-                          cardstack_controls(~inject, model),
-                        ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
-                      ),
-                      Node.div(
-                        [
-                          Attr.style(
-                            Css_gen.(
-                              white_space(`Pre) @> font_family(["monospace"])
-                            ),
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
-                [
-                  CursorInspector.view(~inject, model),
-                  ContextInspector.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    ~font_metrics=model.font_metrics,
-                    program,
-                  ),
-                  UndoHistoryPanel.view(~inject, model),
-                  SettingsPanel.view(~inject, settings),
-                ]
-              ),
+              // UndoHistoryPanel.view(~inject, model),
+              SettingsPanel.view(~inject, settings),
             ],
           ),
         ],

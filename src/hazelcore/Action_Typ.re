@@ -13,7 +13,8 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   | SGreaterThan
   | SEquals
   | SSpace
-  | SCons => None
+  | SCons
+  | SCaret => None
   };
 
 let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
@@ -86,7 +87,7 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
+  | PerformLivelitAction(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -107,9 +108,9 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
+      PerformLivelitAction(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
+        SAnn | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
       ) |
       SwapUp |
       SwapDown,
@@ -224,10 +225,12 @@ and perform_operand =
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
+      PerformLivelitAction(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
-        SCommentLine,
+        SAnn | SLet | SAbbrev | SLivelitDef | SLine | SLam | SListNil | SInj(_) |
+        SCase |
+        SCommentLine |
+        SQuote,
       ) |
       SwapUp |
       SwapDown,
@@ -263,7 +266,10 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-  | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
+  | (
+      Backspace,
+      CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String),
+    ) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
   /* ( _ )<|  ==>  _| */
@@ -294,10 +300,14 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+  | (Construct(SChar("S")), CursorT(_)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
+
+  | (Construct(SLeftBracket), CursorT(_)) => Failed
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))

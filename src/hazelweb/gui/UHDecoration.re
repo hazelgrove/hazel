@@ -34,6 +34,10 @@ module CurrentTerm = {
     assert(MeasuredLayout.height(m) == 1);
     // make singleton skinny rect along bottom
     [
+      // TODO relax assumption
+      // andrew commented out the below assertion as it was displeasing
+      //assert(MeasuredLayout.height(m) == 1);
+      // make singleton skinny rect along bottom
       SvgUtil.Rect.{
         min: {
           x: Float.of_int(start.col),
@@ -157,7 +161,10 @@ module CurrentTerm = {
     | BinOp(_) => true
     | Case
     | Rule
-    | Operand => false;
+    | Operand
+    | FreeLivelit
+    | ApLivelit
+    | LivelitExpression(_) => false;
 
   // highlighted tesserae (ignoring closed children)
   let current_term_tessera_rects =
@@ -444,6 +451,49 @@ module Caret = {
           ),
         ),
         Attr.classes(["blink"]),
+      ],
+      [],
+    );
+  };
+};
+
+module LivelitExpression = {
+  let view =
+      (
+        shape: LivelitShape.t,
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Node.t => {
+    Node.create_svg(
+      "rect",
+      [
+        Attr.create(
+          "width",
+          string_of_float(
+            Float.of_int(MeasuredLayout.width(subject)) +. 0.1,
+          ),
+        ),
+        Attr.create(
+          "height",
+          switch (shape) {
+          | InvalidShape
+          | Inline(_) => string_of_int(MeasuredLayout.height(subject))
+          | MultiLine(_) =>
+            string_of_float(
+              Float.of_int(MeasuredLayout.height(subject)) +. 0.1,
+            )
+          },
+        ),
+        Attr.create("x", string_of_float(Float.of_int(offset) -. 0.05)),
+        Attr.create(
+          "y",
+          switch (shape) {
+          | InvalidShape
+          | Inline(_) => "0.05"
+          | MultiLine(_) => "0"
+          },
+        ),
+        Attr.create("style", "fill: var(--livelit-expression-color);"),
       ],
       [],
     );

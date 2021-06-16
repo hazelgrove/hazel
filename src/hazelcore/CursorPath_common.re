@@ -1,10 +1,5 @@
 open CursorPath;
 
-let rev = ((cursor, rev_steps): rev_t): t => (
-  rev_steps |> List.rev,
-  cursor,
-);
-
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
 };
@@ -391,20 +386,74 @@ let holes_zopseq_ =
   };
 };
 
-let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
+let steps_to_hole =
+    (hole_list: hole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)
+    : option(steps) =>
   switch (
     List.find_opt(
       ({sort, _}) =>
-        switch (sort) {
-        | ExpHole(u', _)
-        | PatHole(u', _) => MetaVar.eq(u, u')
-        | TypHole => false
+        switch (kind) {
+        | Hole =>
+          switch (sort) {
+          | ExpHole(u', _)
+          | PatHole(u', _) => MetaVar.eq(u, u')
+          | ApLivelit(_)
+          | TypHole => false
+          | LivelitHole(u') => MetaVar.eq(u, u')
+          }
+        | Livelit =>
+          switch (sort) {
+          | ApLivelit(llu') => MetaVar.eq(u, llu')
+          | _ => false
+          }
         },
       hole_list,
     )
   ) {
   | None => None
   | Some({steps, _}) => Some(steps)
+  };
+
+let steps_to_hole_z =
+    (zhole_list: zhole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)
+    : option(steps) => {
+  let {holes_before, hole_selected, holes_after} = zhole_list;
+  let backup_plan = () => steps_to_hole(holes_after, kind, u);
+  switch (steps_to_hole(holes_before, kind, u)) {
+  | Some(_) as res => res
+  | None =>
+    switch (hole_selected) {
+    | Some({sort: ExpHole(u', _), steps, _})
+    | Some({sort: PatHole(u', _), steps, _})
+    | Some({sort: LivelitHole(u'), steps, _}) =>
+      switch (kind) {
+      | Hole => MetaVar.eq(u, u') ? Some(steps) : backup_plan()
+      | Livelit => backup_plan()
+      }
+    | Some({sort: ApLivelit(llu'), steps, _}) =>
+      switch (kind) {
+      | Hole => backup_plan()
+      | Livelit => MetaVar.eq(u, llu') ? Some(steps) : backup_plan()
+      }
+    | Some({sort: TypHole, _})
+    | None => backup_plan()
+    }
+  };
+};
+
+let opt_steps_to_opt_path =
+    (cursor: CursorPosition.t, opt_steps: option(steps)): option(t) =>
+  switch (opt_steps) {
+  | None => None
+  | Some(steps) => Some((List.rev(steps), cursor))
+  };
+
+let rec is_prefix_of = (steps, prefix) =>
+  switch (prefix, steps) {
+  | ([], _) => true
+  | ([_, ..._], []) => false
+  | ([prefix_first, ...prefix_rest], [steps_first, ...steps_rest]) =>
+    prefix_first == steps_first && prefix_rest |> is_prefix_of(steps_rest)
   };
 
 let rec compare_steps = (steps1, steps2) =>

@@ -40,6 +40,8 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | IntLit(_, n) => text_cursors(String.length(n))
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
+    | StringLit(_, s) =>
+      List.append(delim_cursors(2), text_cursors(String.length(s)))
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
@@ -86,21 +88,21 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CursorP(cursor, operand) =>
     let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
-  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | InjZ(InHole(TypeInconsistent(_), _), _, _) => (zoperand, u_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+    (InjZ(InHole(TypeInconsistent(None), u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
-  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | TypeAnnZP(InHole(TypeInconsistent(_), _), _, _) => (zoperand, u_gen)
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
-  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+    (TypeAnnZP(InHole(TypeInconsistent(None), u), zop, ann), u_gen);
+  | TypeAnnZA(InHole(TypeInconsistent(_), _), _, _) => (zoperand, u_gen)
   | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), u_gen);
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+    (TypeAnnZA(InHole(TypeInconsistent(None), u), op, zann), u_gen);
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
@@ -128,7 +130,8 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorP(cursor, ListNil(_))
+  | CursorP(cursor, StringLit(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, IntLit(_, _))
@@ -160,7 +163,8 @@ and is_after_zoperand =
   | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   | CursorP(cursor, Inj(_, _, _))
-  | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
+  | CursorP(cursor, StringLit(_) | Parenthesized(_)) =>
+    cursor == OnDelim(1, After)
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false
@@ -184,7 +188,8 @@ and place_before_operand = operand =>
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
-  | Inj(_, _, _)
+  | StringLit(_)
+  | Inj(_)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   | TypeAnn(err, op, ann) => TypeAnnZP(err, place_before_operand(op), ann)
   };
@@ -207,7 +212,8 @@ and place_after_operand = operand =>
   | IntLit(_, n) => CursorP(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorP(OnText(String.length(f)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
-  | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
+  | StringLit(_)
+  | Inj(_)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
   };
@@ -256,10 +262,14 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
+  | CursorP(OnText(0), StringLit(_) as operand) =>
+    Some(CursorP(OnDelim(0, After), operand))
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_one, Before), StringLit(_, s) as operand) =>
+    Some(CursorP(OnText(String.length(s)), operand))
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
@@ -318,9 +328,14 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
+  | CursorP(OnText(j), StringLit(_, s) as operand)
+      when j == String.length(s) =>
+    Some(CursorP(OnDelim(1, Before), operand))
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_zero, After), StringLit(_) as operand) =>
+    Some(CursorP(OnText(0), operand))
   | CursorP(OnDelim(_k, After), TypeAnn(err, p, a)) =>
     Some(TypeAnnZA(err, p, ZTyp.place_before(a)))
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>

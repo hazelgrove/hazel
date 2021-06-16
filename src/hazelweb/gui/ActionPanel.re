@@ -187,11 +187,15 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let is_action_allowed_with_on_type_check = (~on_type, action) => {
-    switch (cursor_info.typed) {
-    | OnType when on_type => is_action_allowed(action)
-    | OnType => false
-    | _ when on_type => false
-    | _ => is_action_allowed(action)
+    switch (cursor_info) {
+    | None => false
+    | Some(ci) =>
+      switch (ci.typed) {
+      | OnType when on_type => is_action_allowed(action)
+      | OnType => false
+      | _ when on_type => false
+      | _ => is_action_allowed(action)
+      }
     };
   };
 
@@ -363,6 +367,29 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       ],
     ),
     section(
+      "Strings",
+      [
+        info([
+          text("Enter string literals directly e.g. "),
+          mono_text("\"abc\""),
+        ]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"S\""),
+            text(" to insert a String type"),
+          ],
+          Action.Construct(SChar("S")),
+        ),
+        operator_list(~on_type=false, "String concatenation", [Caret]),
+        combo_and_cursor(
+          ~on_type=false,
+          LeftBracket,
+          [text("Insert "), mono_text("subscript")],
+        ),
+      ],
+    ),
+    section(
       "Lists",
       [
         combo_and_cursor(
@@ -421,14 +448,19 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 };
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
-  let edit_state = Model.get_edit_state(model);
+  let program = Model.get_program(model);
+  let Program.EditState.{ty, u_gen, _} = program.edit_state;
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-    | Failed => false
-    | CursorEscaped(_)
-    | Succeeded(_) => true
+    switch (Program.get_zexp(program)) {
+    | None => false
+    | Some(ze) =>
+      switch (Action_Exp.syn_perform(Contexts.empty, a, (ze, ty, u_gen))) {
+      | Failed => false
+      | CursorEscaped(_)
+      | Succeeded(_) => true
+      }
     };
   };
 
@@ -471,15 +503,19 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(STimes)) => Added
   | Construct(SOp(SDivide)) => Added
   | Construct(SOp(SLessThan)) => Added
+  | Construct(SOp(SCaret)) => Added
   | Construct(SOp(SSpace)) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added
+  | Construct(SQuote) => Added
+  | Construct(SLeftBracket) => Added
   | Construct(SOp(SCons)) => Added
   | Construct(SInj(L)) => Added
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
+  | Construct(SAbbrev) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added
@@ -489,8 +525,8 @@ let _check_actions = (a: Action.t) =>
   | MoveLeft => Added
   | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_)) => failwith("Unimplemented")
-  | UpdateApPalette(_) => failwith("Unimplemented")
+  | PerformLivelitAction(_) => failwith("unimplemented")
+  | Construct(SLivelitDef) => failwith("unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };

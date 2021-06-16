@@ -16,6 +16,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Inj(InHole(_), _, _)
   | TypeAnn(InHole(_), _, _) => false
@@ -54,6 +55,23 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
       find_uses(~steps=steps @ [2], x, def),
       binds_var(x, p),
     )
+  | AbbrevLine(_, _, _, args) => (
+      args
+      |> List.mapi((i, arg) =>
+           find_uses_operand(~steps=steps @ [i], x, arg)
+         )
+      |> List.concat,
+      false,
+    )
+  | LivelitDefLine({captures, init, update, view, shape, expand, _}) => (
+      find_uses(~steps=steps @ [2], x, captures)
+      @ find_uses(~steps=steps @ [5], x, init)
+      @ find_uses(~steps=steps @ [6], x, update)
+      @ find_uses(~steps=steps @ [7], x, view)
+      @ find_uses(~steps=steps @ [8], x, shape)
+      @ find_uses(~steps=steps @ [9], x, expand),
+      false,
+    )
   }
 and find_uses_opseq =
     (~steps, x: Var.t, OpSeq(_, seq): UHExp.opseq): uses_list =>
@@ -71,11 +89,14 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)
-  | ApPalette(_) => []
+  | Subscript(InHole(_), _, _, _)
+  | ApLivelit(_)
+  | FreeLivelit(_) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)
@@ -94,6 +115,11 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
+  | Subscript(NotInHole, target, start_, end_) =>
+    let target_uses = find_uses(~steps=steps @ [0], x, target);
+    let start__uses = find_uses(~steps=steps @ [1], x, start_);
+    let end__uses = find_uses(~steps=steps @ [2], x, end_);
+    target_uses @ start__uses @ end__uses;
   }
 and find_uses_rule =
     (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>

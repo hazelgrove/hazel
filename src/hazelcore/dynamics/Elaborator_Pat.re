@@ -1,6 +1,6 @@
 module ElaborationResult = {
-  type t =
-    | Elaborates(DHPat.t, HTyp.t, Contexts.t, Delta.t)
+  type t('a) =
+    | Elaborates(DHPat.t, HTyp.t, Contexts.t'('a), Delta.t)
     | DoesNotElaborate;
 
   let to_option =
@@ -13,7 +13,12 @@ module ElaborationResult = {
     | None => DoesNotElaborate
     | Some((pat, ty, ctx, delta)) => Elaborates(pat, ty, ctx, delta);
 
-  let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
+  let bind =
+      (
+        x: t('a),
+        ~f: ((DHPat.t, HTyp.t, Contexts.t'('a), Delta.t)) => t('a),
+      )
+      : t('a) =>
     switch (x) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
@@ -23,18 +28,19 @@ module ElaborationResult = {
 module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
-        (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): ElaborationResult.t =>
+        (ctx: Contexts.t'('a), delta: Delta.t, p: UHPat.t)
+        : ElaborationResult.t('a) =>
   syn_elab_opseq(ctx, delta, p)
 and syn_elab_opseq =
-    (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
-    : ElaborationResult.t =>
+    (ctx: Contexts.t'('a), delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
+    : ElaborationResult.t('a) =>
   syn_elab_skel(ctx, delta, skel, seq)
 and syn_elab_skel =
-    (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
-    : ElaborationResult.t =>
+    (ctx: Contexts.t'('a), delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
+    : ElaborationResult.t('a) =>
   switch (skel) {
   | Placeholder(n) => syn_elab_operand(ctx, delta, seq |> Seq.nth_operand(n))
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
+  | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2)
   | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -48,32 +54,31 @@ and syn_elab_skel =
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
     switch (UHPat.get_tuple_elements(skel)) {
-    | [skel1, skel2, ...tail] =>
-      let%bind (dp1, ty1, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel1, seq);
-      let%bind (dp2, ty2, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel2, seq);
-      tail
-      |> ListUtil.map_with_accumulator_opt(
-           ((dp_acc, ctx, delta), skel) => {
-             syn_elab_skel(ctx, delta, skel, seq)
-             |> ElaborationResult.to_option
-             |> Option.map(((dp, ty, ctx, delta)) =>
-                  ((DHPat.Pair(dp_acc, dp), ctx, delta), ty)
-                )
-           },
-           (DHPat.Pair(dp1, dp2), ctx, delta),
-         )
-      |> Option.map((((dp_acc, ctx, delta), tys)) =>
-           (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), ctx, delta)
-         )
-      |> ElaborationResult.from_option;
+    | [_, _, ..._] as skels =>
+      let recurse =
+        List.fold_right(
+          (skel, acc) =>
+            switch (acc) {
+            | None => None
+            | Some((ds, tys, ctx, delta)) =>
+              switch (syn_elab_skel(ctx, delta, skel, seq)) {
+              | DoesNotElaborate => None
+              | Elaborates(d, ty, ctx, delta) =>
+                Some(([d, ...ds], [ty, ...tys], ctx, delta))
+              }
+            },
+          skels,
+          Some(([], [], ctx, delta)),
+        );
+      switch (recurse) {
+      | None => DoesNotElaborate
+      | Some((ds, tys, ctx, delta)) =>
+        let d = DHPat.mk_tuple(ds);
+        let ty = HTyp.Prod(tys);
+        Elaborates(d, ty, ctx, delta);
+      };
     | _ =>
-      raise(
-        Invalid_argument(
-          "Encountered tuple pattern type with less than 2 elements!",
-        ),
-      )
+      raise(Invalid_argument("Encountered tuple with less than 2 elements!"))
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
@@ -100,16 +105,17 @@ and syn_elab_skel =
     }
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand)
-    : ElaborationResult.t =>
+    (ctx: Contexts.t'('a), delta: Delta.t, operand: UHPat.operand)
+    : ElaborationResult.t('a) =>
   switch (operand) {
-  | Wild(InHole(TypeInconsistent as reason, u))
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
-  | IntLit(InHole(TypeInconsistent as reason, u), _)
-  | FloatLit(InHole(TypeInconsistent as reason, u), _)
-  | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Wild(InHole(TypeInconsistent(_) as reason, u))
+  | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+  | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | StringLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | ListNil(InHole(TypeInconsistent(_) as reason, u))
+  | Inj(InHole(TypeInconsistent(_) as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -124,6 +130,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
@@ -156,6 +163,7 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
+  | StringLit(NotInHole, s) => Elaborates(StringLit(s), String, ctx, delta)
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, side, p) =>
@@ -173,24 +181,24 @@ and syn_elab_operand =
   | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
   }
 and ana_elab =
-    (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
-    : ElaborationResult.t =>
+    (ctx: Contexts.t'('a), delta: Delta.t, p: UHPat.t, ty: HTyp.t)
+    : ElaborationResult.t('a) =>
   ana_elab_opseq(ctx, delta, p, ty)
 and ana_elab_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Contexts.t'('a),
       delta: Delta.t,
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t => {
+    : ElaborationResult.t('a) => {
   // handle n-tuples
   switch (Statics_Pat.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
          (
-           acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+           acc: option((list(DHPat.t), Contexts.t'('a), Delta.t)),
            (skel: UHPat.skel, ty: HTyp.t),
          ) =>
            switch (acc) {
@@ -218,7 +226,7 @@ and ana_elab_opseq =
       |> UHPat.get_tuple_elements
       |> List.fold_left(
            (
-             acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+             acc: option((list(DHPat.t), Contexts.t'('a), Delta.t)),
              skel: UHPat.skel,
            ) =>
              switch (acc) {
@@ -243,7 +251,7 @@ and ana_elab_opseq =
     } else {
       switch (opseq |> UHPat.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(TypeInconsistent(_), _) => DoesNotElaborate
       | InHole(WrongLength as reason, u) =>
         switch (
           syn_elab_opseq(
@@ -265,13 +273,13 @@ and ana_elab_opseq =
 }
 and ana_elab_skel =
     (
-      ctx: Contexts.t,
+      ctx: Contexts.t'('a),
       delta: Delta.t,
       skel: UHPat.skel,
       seq: UHPat.seq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t('a) =>
   switch (skel) {
   | BinOp(_, Comma, _, _)
   | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -280,7 +288,7 @@ and ana_elab_skel =
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, pn, ty);
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -319,17 +327,23 @@ and ana_elab_skel =
     }
   }
 and ana_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
-    : ElaborationResult.t =>
+    (
+      ctx: Contexts.t'('a),
+      delta: Delta.t,
+      operand: UHPat.operand,
+      ty: HTyp.t,
+    )
+    : ElaborationResult.t('a) =>
   switch (operand) {
-  | Wild(InHole(TypeInconsistent as reason, u))
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
-  | IntLit(InHole(TypeInconsistent as reason, u), _)
-  | FloatLit(InHole(TypeInconsistent as reason, u), _)
-  | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Wild(InHole(TypeInconsistent(_) as reason, u))
+  | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+  | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | StringLit(InHole(TypeInconsistent(_) as reason, u), _)
+  | ListNil(InHole(TypeInconsistent(_) as reason, u))
+  | Inj(InHole(TypeInconsistent(_) as reason, u), _, _)
+  | TypeAnn(InHole(TypeInconsistent(_) as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -344,6 +358,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
@@ -362,7 +377,8 @@ and ana_elab_operand =
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
+  | BoolLit(NotInHole, _)
+  | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
@@ -398,6 +414,7 @@ let rec renumber_result_only =
   | FloatLit(_)
   | InvalidText(_)
   | BoolLit(_)
+  | StringLit(_)
   | ListNil
   | Triv => (dp, hii)
   | EmptyHole(u, _) =>

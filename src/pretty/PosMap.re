@@ -1,9 +1,9 @@
 // Maps keyed by an end position
 // Invarient: keys are ascending and unique
+type t('a) = list((int, 'a));
 type key = int;
-type t('a) = list((key, 'a));
 let empty: 'a. t('a) = [];
-let singleton: 'a. (key, 'a) => t('a) = (pos, x) => [(pos, x)];
+let singleton: 'a. (int, 'a) => t('a) = (pos, x) => [(pos, x)];
 let rec union: 'a. (('a, 'a) => 'a, t('a), t('a)) => t('a) =
   (f, t1, t2) =>
     switch (t1, t2) {
@@ -23,7 +23,7 @@ let rec map: 'a 'b. ('a => 'b, t('a)) => t('b) =
     fun
     | [] => []
     | [(pos, x), ...rest] => [(pos, f(x)), ...map(f, rest)];
-let rec mapi: 'a 'b. ((key, 'a) => 'b, t('a)) => t('b) =
+let rec mapi: 'a 'b. ((int, 'a) => 'b, t('a)) => t('b) =
   f =>
     fun
     | [] => []
@@ -33,7 +33,7 @@ let rec mapk: 'a 'b. ((key, 'a) => (key, 'b), t('a)) => t('b) =
     fun
     | [] => []
     | [(pos, x), ...rest] => [f(pos, x), ...mapk(f, rest)];
-let rec fold_left: 'a 'b. ((key, 'b, 'a) => 'b, 'b, t('a)) => 'b =
+let rec fold_left: 'a 'b. ((int, 'b, 'a) => 'b, 'b, t('a)) => 'b =
   (f, z) =>
     fun
     | [] => z

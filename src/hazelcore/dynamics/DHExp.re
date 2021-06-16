@@ -26,7 +26,8 @@ module BinBoolOp = {
     | FEquals
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (op: t): UHExp.operator =>
@@ -67,7 +68,8 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -113,7 +115,8 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Caret => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -128,6 +131,41 @@ module BinFloatOp = {
     };
 };
 
+module BinStrOp = {
+  [@deriving sexp]
+  type t =
+    | Caret;
+
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | Caret => Some((Caret, String))
+    | Minus
+    | Plus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    | And
+    | Or
+    | Space
+    | Cons
+    | Comma
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
+    };
+
+  let to_op = (bso: t): UHExp.operator =>
+    switch (bso) {
+    | Caret => Caret
+    };
+};
+
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
@@ -138,9 +176,9 @@ type t =
       VarMap.t_(t),
       t,
     )
-  // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
+  | FreeLivelit(MetaVar.t, MetaVarInst.t, VarMap.t_(t), LivelitName.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
@@ -150,14 +188,28 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | StringLit(string)
+  | ApBuiltin(string, list(t))
+  | FailedAssert(t)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | BinStrOp(BinStrOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
+  | LivelitHole(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t_(t),
+      LivelitName.t,
+      SpliceInfo.t(option(t)),
+      list((Var.t, HTyp.t, option(t))),
+      t,
+    )
   | Triv
+  | Subscript(t, t, t)
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
@@ -174,6 +226,7 @@ let constructor_string = (d: t): string =>
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
   | Keyword(_, _, _, _) => "Keyword"
   | FreeVar(_, _, _, _) => "FreeVar"
+  | FreeLivelit(_, _, _, _) => "FreeLivelit"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
@@ -183,19 +236,25 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
+  | StringLit(_) => "StringLit"
+  | ApBuiltin(_, _) => "ApBuiltin"
+  | Subscript(_, _, _) => "Subscript"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | BinStrOp(_, _, _) => "BinStrOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
+  | LivelitHole(_) => "LivelitHole"
   | Triv => "Triv"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | FailedAssert(_) => "FailedAssert"
   };
 
 let rec mk_tuple: list(t) => t =
@@ -220,3 +279,18 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
     d,
     casts,
   );
+
+let rec strip_casts = (d: t): t =>
+  //TODO: strip casts recursively inside other forms?
+  switch (d) {
+  | Cast(d, _, _) => strip_casts(d)
+  | _ => d
+  };
+
+// deeply strip casts within values
+let rec strip_casts' =
+  fun
+  | Cast(d, _, _) => strip_casts'(d)
+  | Cons(d1, d2) => Cons(strip_casts'(d1), strip_casts'(d2))
+  | Pair(d1, d2) => Pair(strip_casts'(d1), strip_casts'(d2))
+  | d => d;

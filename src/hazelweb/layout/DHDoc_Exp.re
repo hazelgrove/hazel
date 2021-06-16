@@ -26,6 +26,10 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FLessThan => DHDoc_common.precedence_LessThan
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
   };
+let precedence_bin_str_op = (bso: DHExp.BinStrOp.t) =>
+  switch (bso) {
+  | Caret => DHDoc_common.precedence_Caret
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -36,22 +40,29 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | ListNil(_)
   | Inj(_)
   | EmptyHole(_)
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Lam(_) => DHDoc_common.precedence_const
+  | Lam(_)
+  | LivelitHole(_)
+  | FreeLivelit(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
+  | Subscript(_) => DHDoc_common.precedence_Subscript
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinStrOp(op, _, _) => precedence_bin_str_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
@@ -93,12 +104,19 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
+let mk_bin_str_op = (op: DHExp.BinStrOp.t): DHDoc.t =>
+  Doc.text(
+    switch (op) {
+    | Caret => "^"
+    },
+  );
+
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_instance: option(HoleInstance.t),
+          ~selected_instance: option(TaggedNodeInstance.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -157,26 +175,37 @@ let rec mk =
       };
     let fdoc = (~enforce_inline) =>
       switch (d) {
+      | FreeLivelit(u, i, _sigma, lln) =>
+        DHDoc_common.mk_FreeLivelit(lln, u, i)
       | EmptyHole(u, i, _sigma) =>
         let selected =
           switch (selected_instance) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
+          | Some((Hole, (u', i'))) when u' == u && i' == i => true
+          | _ => false
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, _sigma, d) =>
         go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
+      | LivelitHole(_, _, _, lln, _, _, _) =>
+        annot(DHAnnot.Collapsed, text("<" ++ lln ++ " value>"))
       | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, _sigma, t) =>
         DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
+      | ApBuiltin(x, _) => text(x)
+      | FailedAssert(x) =>
+        let (d_doc, _) = go'(x);
+        let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | ListNil(_) => DHDoc_common.Delim.list_nil
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
@@ -198,6 +227,20 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
+      | BinStrOp(op, d1, d2) =>
+        // TODO assumes all bin str ops are left associative
+        let (doc1, doc2) =
+          mk_left_associative_operands(precedence_bin_str_op(op), d1, d2);
+        hseps([mk_cast(doc1), mk_bin_str_op(op), mk_cast(doc2)]);
+      | Subscript(s, n1, n2) =>
+        hcats([
+          mk_cast(go(~enforce_inline=false, s)),
+          Doc.text("["),
+          mk_cast(go(~enforce_inline=false, n1)),
+          Doc.text(":"),
+          mk_cast(go(~enforce_inline=false, n2)),
+          Doc.text("]"),
+        ])
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
@@ -252,14 +295,11 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        switch (err) {
-        | DivideByZero =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.DivideByZero);
-          hcats([d_doc, decoration]);
-        }
+        let (d_doc, _) = go'(d);
+        let decoration =
+          Doc.text(InvalidOperationError.err_msg(err))
+          |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
       /*
        let (d_doc, d_cast) as dcast_doc = go'(d);
        let cast_decoration =

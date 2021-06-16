@@ -3,6 +3,8 @@ open Action;
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
+  | SQuote => "new string"
+  | SLeftBracket => "new list"
   | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAnn => "type annotation"
@@ -14,6 +16,8 @@ let shape_to_string = (shape: shape): string => {
     | R => "right injection"
     }
   | SLet => "let binding"
+  | SAbbrev => "livelit abbreviation"
+  | SLivelitDef => "livelit definition"
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
@@ -33,8 +37,8 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
+    | SCaret => "^"
     }
-  | SApPalette(_) => failwith("ApPalette not implemented")
   };
 };
 

@@ -1,11 +1,15 @@
 open Pretty;
 
+[@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
+type with_splices = (t, SpliceMap.t(t));
 type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 
 let mk: Layout.t(UHAnnot.t) => t;
 
-let caret_position_of_path: (CursorPath.t, t) => option(MeasuredPosition.t);
+let caret_position_of_path:
+  (CursorPath.t, with_splices) =>
+  option((MeasuredPosition.t, option((MetaVar.t, SpliceName.t))));
 
 type path_position = (CursorPath.rev_t, MeasuredPosition.t);
 

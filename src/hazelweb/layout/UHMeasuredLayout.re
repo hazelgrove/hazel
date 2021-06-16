@@ -3,46 +3,65 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
+type with_splices = (t, SpliceMap.t(t));
 type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 include MeasuredLayout.Make(WeakMap);
 
+[@deriving sexp]
 let caret_position_of_path =
-    ((steps, cursor): CursorPath.t, m: t): option(MeasuredPosition.t) => {
-  let rec go = (steps, indent: int, start: MeasuredPosition.t, m: t) =>
+    ((steps, cursor): CursorPath.t, (m, splice_ms): with_splices)
+    : option((MeasuredPosition.t, option((MetaVar.t, SpliceName.t)))) => {
+  let rec go =
+          (
+            ~splice: option((MetaVar.t, SpliceName.t))=?,
+            ~indent: int=0,
+            ~start=MeasuredPosition.zero,
+            steps,
+            m: t,
+          ) => {
     switch (m.layout) {
     | Linebreak
     | Text(_) => None
-    | Align(m) => go(steps, start.col, start, m)
+    | Align(m) => go(~splice?, ~indent=start.col, ~start, steps, m)
     | Annot(annot, m) =>
       switch (steps, annot) {
-      | ([], Step(_)) => None
       | ([step, ...steps], Step(step')) =>
-        step == step' ? go(steps, indent, start, m) : None
+        step == step' ? go(~splice?, ~indent, ~start, steps, m) : None
+      | ([step, splice_name, ...steps], LivelitView({llu, hd_step, _}))
+          when step == hd_step =>
+        let splice_m = SpliceMap.get_splice(llu, splice_name, splice_ms);
+        go(~splice=(llu, splice_name), steps, splice_m);
+      | ([], Step(_) | LivelitView(_)) => None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
-        | (OnText(j), Text) => Some({...start, col: start.col + j})
-        | (OnOp(Before), Op) => Some(start)
-        | (OnOp(After), Op) => Some({...start, col: start.col + len})
+        | (OnText(j), Text({start_index}))
+            when start_index <= j && j <= start_index + len =>
+          Some(({...start, col: start.col + (j - start_index)}, splice))
+        | (OnOp(Before), Op) => Some((start, splice))
+        | (OnOp(After), Op) =>
+          Some(({...start, col: start.col + len}, splice))
         | (OnDelim(k, side), Delim(k')) when k == k' =>
-          Some(
+          Some((
             switch (side) {
             | Before => start
             | After => {...start, col: start.col + len}
             },
-          )
+            splice,
+          ))
         | _ => None
         }
-      | _ => go(steps, indent, start, m)
+      | _ => go(~splice?, ~indent, ~start, steps, m)
       }
     | Cat(m1, m2) =>
-      switch (go(steps, indent, start, m1)) {
+      switch (go(~splice?, ~indent, ~start, steps, m1)) {
       | Some(pos) => Some(pos)
       | None =>
         let mid = MeasuredLayout.next_position(~indent, start, m1);
-        go(steps, indent, mid, m2);
+        go(~splice?, ~indent, ~start=mid, steps, m2);
       }
     };
-  go(steps, 0, MeasuredPosition.zero, m);
+  };
+  go(steps, m);
 };
 
 type path_position = (CursorPath.rev_t, MeasuredPosition.t);
@@ -131,7 +150,7 @@ let first_path_in_row =
              let UHAnnot.{shape, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text => OnText(0)
+               | Text({start_index}) => OnText(start_index)
                | Op => OnOp(Before)
                | Delim(k) => OnDelim(k, Before)
                };
@@ -175,7 +194,7 @@ let last_path_in_row =
              let UHAnnot.{shape, len, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text => OnText(len)
+               | Text({start_index}) => OnText(start_index + len)
                | Op => OnOp(After)
                | Delim(k) => OnDelim(k, After)
                };
@@ -236,7 +255,10 @@ let prev_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text => (OnText(from_start - 1), 1)
+               | Text({start_index}) => (
+                   OnText(start_index + from_start - 1),
+                   1,
+                 )
                | Op => (OnOp(Before), len)
                | Delim(k) => (OnDelim(k, Before), len)
                };
@@ -280,7 +302,10 @@ let next_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text => (OnText(from_start + 1), 1)
+               | Text({start_index}) => (
+                   OnText(start_index + from_start + 1),
+                   1,
+                 )
                | Op => (OnOp(After), len)
                | Delim(k) => (OnDelim(k, After), len)
                };
@@ -324,9 +349,9 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text =>
+             | Text({start_index}) =>
                let offset = min(from_start, len);
-               (OnText(offset), offset);
+               (OnText(start_index + offset), offset);
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>
                is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)

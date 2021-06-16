@@ -1,11 +1,14 @@
 open Virtual_dom.Vdom;
 
 type err_state_b =
+  | InsufficientLivelitArgs
   | TypeInconsistency
   | BindingError
+  | InvalidEscape
   | OK;
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
+let view =
+    (~inject: ModelAction.t => Event.t, ci: option(CursorInfo.t)): Node.t => {
   let typebar = ty =>
     Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
   let matched_ty_bar = (ty1, ty2) =>
@@ -97,6 +100,20 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       [Attr.classes(["indicator", "got-indicator"])],
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
+  let got_invalid_escape = s =>
+    got_indicator(
+      "Got",
+      Node.div(
+        [Attr.classes(["infobar"])],
+        [
+          Node.div(
+            [Attr.classes(["special-msg-bar"])],
+            [Node.text("invalid escape sequence ")],
+          ),
+          Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
+        ],
+      ),
+    );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
@@ -115,6 +132,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
 
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
+  let got_free_livelit_indicator =
+    got_indicator("Got a free livelit name", typebar(HTyp.Hole));
 
   let got_invalid_indicator =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
@@ -129,7 +148,21 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let ci = model |> Model.get_program |> Program.get_cursor_info;
+  let got_insufficient_livelit_args_indicator = got_ty =>
+    got_indicator(
+      "This livelit requires additional arguments",
+      typebar(got_ty),
+    );
+
+  let got_invalid_livelit_expansion_indicator =
+    got_indicator("Got invalid livelit expansion", typebar(HTyp.Hole));
+
+  let got_ill_typed_livelit_expansion_declared_indicator = ty =>
+    got_indicator("Expected livelit proto-expansion type", typebar(ty));
+
+  let got_ill_typed_livelit_expansion_actual_indicator = ty =>
+    got_indicator("Actual livelit proto-expansion type", typebar(ty));
+
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
@@ -143,10 +176,15 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | AnaTypeInconsistent(expected_ty, got_ty) =>
+    | AnaTypeInconsistent(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
+      if (msg == "") {
+        let ind2 = got_inconsistent_indicator(got_ty);
+        (ind1, ind2, TypeInconsistency);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -169,21 +207,52 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | AnaSubsumed(expected_ty, got_ty) =>
+    | AnaFreeLivelit(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 =
-        HTyp.eq(expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      let ind2 = got_free_livelit_indicator;
+      (ind1, ind2, BindingError);
+    | AnaLivelitDecodingError(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_livelit_expansion_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | SynLivelitDecodingError =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_invalid_livelit_expansion_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | LivelitIllTypedExpansion(declared_ty, actual_ty) =>
+      let ind1 =
+        got_ill_typed_livelit_expansion_declared_indicator(declared_ty);
+      let ind2 = got_ill_typed_livelit_expansion_actual_indicator(actual_ty);
+      (ind1, ind2, TypeInconsistency);
+    | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+      (ind1, ind2, InsufficientLivelitArgs);
+    | AnaSubsumed(expected_ty, got_ty, msg) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      if (msg == "") {
+        let ind2 =
+          HTyp.eq(expected_ty, got_ty)
+            ? got_as_expected_ty_indicator(got_ty)
+            : got_consistent_indicator(got_ty);
+        (ind1, ind2, OK);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | Synthesized(ty) =>
+    | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      if (msg == "") {
+        let ind2 = got_ty_indicator(ty);
+        (ind1, ind2, OK);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | SynInvalid =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
@@ -192,14 +261,28 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
+    | SynFreeLivelit =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_free_livelit_indicator;
+      (ind1, ind2, BindingError);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | SynErrorArrow(expected_ty, got_ty) =>
+    | SynErrorArrow(expected_ty, got_ty, msg) =>
       let ind1 = expected_msg_indicator("function type");
-      let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
+      if (msg == "") {
+        let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
+        (ind1, ind2, TypeInconsistency);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
+    | SynErrorInsufficientLivelitArgs(got_ty) =>
+      let ind1 =
+        expected_msg_indicator("livelit name followed by sufficient args");
+      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+      (ind1, ind2, InsufficientLivelitArgs);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -251,14 +334,18 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
         };
       let (ind2, err_state_b) =
         switch (join, typed) {
-        | (JoinTy(ty), Synthesized(got_ty)) =>
-          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
-          | (true, false) => (got_consistent_indicator(got_ty), OK)
-          | (false, _) => (
-              got_inconsistent_indicator(got_ty),
-              TypeInconsistency,
-            )
+        | (JoinTy(ty), Synthesized(got_ty, msg)) =>
+          if (msg == "") {
+            switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+            | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
+            | (true, false) => (got_consistent_indicator(got_ty), OK)
+            | (false, _) => (
+                got_inconsistent_indicator(got_ty),
+                TypeInconsistency,
+              )
+            };
+          } else {
+            (got_invalid_escape(msg), InvalidEscape);
           }
         | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
         | _ => (ind2, err_state_b)
@@ -282,10 +369,15 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+    | PatAnaTypeInconsistent(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
+      if (msg == "") {
+        let ind2 = got_inconsistent_indicator(got_ty);
+        (ind1, ind2, TypeInconsistency);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -304,21 +396,31 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
       (ind1, ind2, BindingError);
-    | PatAnaSubsumed(expected_ty, got_ty) =>
+    | PatAnaSubsumed(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 =
-        HTyp.eq(expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      if (msg == "") {
+        let ind2 =
+          HTyp.eq(expected_ty, got_ty)
+            ? got_as_expected_ty_indicator(got_ty)
+            : got_consistent_indicator(got_ty);
+        (ind1, ind2, OK);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty, msg) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      if (msg == "") {
+        let ind2 = got_ty_indicator(ty);
+        (ind1, ind2, OK);
+      } else {
+        let ind2 = got_invalid_escape(msg);
+        (ind1, ind2, InvalidEscape);
+      };
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
@@ -335,13 +437,30 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       (ind1, ind2, OK);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, err_state_b) =
+    switch (ci) {
+    | Some(ci) => get_indicator_info(ci.typed)
+    | None =>
+      let ind1 =
+        Node.div(
+          [Attr.classes(["indicator", "expected-indicator"])],
+          [Panel.view_of_main_title_bar(""), special_msg_bar("-")],
+        );
+      let ind2 =
+        Node.div(
+          [Attr.classes(["indicator", "got-indicator"])],
+          [Panel.view_of_other_title_bar(""), special_msg_bar("-")],
+        );
+      (ind1, ind2, OK);
+    };
 
   // this determines the color
   let cls_of_err_state_b =
     switch (err_state_b) {
+    | InsufficientLivelitArgs
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
+    | InvalidEscape => "cursor-InvalidEscape"
     | OK => "cursor-OK"
     };
 

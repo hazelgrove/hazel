@@ -64,11 +64,10 @@ let toggle_all_hidden_history: t => t;
 let shift_history: (int, int, bool, t) => t;
 
 /**
- * `push_edit_state(history, before, after, a)` adds a new history
- * entry for performing action `a` starting with cardstacks `before`
- * and resulting in cardstacks `after`.
+ * `push_edit_state(history, after, a)` adds a new history entry for
+ * performing action `a` resulting in cardstacks `after`.
  */
-let push_edit_state: (t, ZCardstacks.t, ZCardstacks.t, Action.t) => t;
+let push_edit_state: (t, ZCardstacks.t, Action.t) => t;
 
 /**
  * Returns the `UndoHistoryCore.cursor_term_info` associated with

@@ -13,7 +13,7 @@ type typed =
   /* cursor in analytic position */
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
-  | AnaTypeInconsistent(HTyp.t, HTyp.t)
+  | AnaTypeInconsistent(HTyp.t, HTyp.t, string)
   // cursor is on a tuple of the wrong length
   | AnaWrongLength
       // expected length
@@ -30,10 +30,16 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  | AnaFreeLivelit(HTyp.t)
+  // user-defined livelit has no expansion
+  | AnaLivelitDecodingError(HTyp.t)
+  | SynLivelitDecodingError
+  | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
+  | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(HTyp.t, HTyp.t, string)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -44,6 +50,7 @@ type typed =
         HTyp.t,
         // got
         HTyp.t,
+        string,
       )
   // cursor is on the function position of an ap,
   // and that expression does synthesize a type
@@ -63,6 +70,8 @@ type typed =
   | SynInvalid
   // none of the above, cursor is on a free variable
   | SynFree
+  | SynFreeLivelit
+  | SynErrorInsufficientLivelitArgs(HTyp.t)
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // cursor is on the clause of a case
@@ -79,10 +88,10 @@ type typed =
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
-  | Synthesized(HTyp.t)
+  | Synthesized(HTyp.t, string)
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
-  | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
+  | PatAnaTypeInconsistent(HTyp.t, HTyp.t, string)
   // cursor is on a tuple pattern of the wrong length
   | PatAnaWrongLength
       // expected length
@@ -100,10 +109,10 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
+  | PatAnaSubsumed(HTyp.t, HTyp.t, string)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
-  | PatSynthesized(HTyp.t)
+  | PatSynthesized(HTyp.t, string)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | OnType
@@ -132,3 +141,16 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
+
+let is_text_cursor = (ci: t) =>
+  switch (ci.cursor_term) {
+  | Exp(OnText(_), _)
+  | Pat(OnText(_), _)
+  | Typ(OnText(_), _)
+  | ExpOp(OnText(_), _)
+  | PatOp(OnText(_), _)
+  | TypOp(OnText(_), _)
+  | Line(OnText(_), _)
+  | Rule(OnText(_), _) => true
+  | _ => false
+  };

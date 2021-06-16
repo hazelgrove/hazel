@@ -22,3 +22,7 @@ let prj_z_v = (zmap: t('a, 'z)): 'z => {
   let (_, (_, z)) = zmap;
   z;
 };
+let update_z = (zmap: t('a, 'z), z: 'z): t('a, 'z) => {
+  let (map, (n, _)) = zmap;
+  (map, (n, z));
+};

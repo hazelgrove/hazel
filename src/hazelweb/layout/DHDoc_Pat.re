@@ -11,6 +11,7 @@ let precedence = (dp: DHPat.t) =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | Inj(_)
   | Triv
   | ListNil
@@ -43,6 +44,7 @@ let rec mk =
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+    | StringLit(s) => DHDoc_common.mk_StringLit(s)
     | Inj(inj_side, dp) =>
       DHDoc_common.mk_Inj(
         inj_side,

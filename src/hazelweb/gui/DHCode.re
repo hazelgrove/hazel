@@ -31,7 +31,7 @@ let view_of_layout =
                          ...selected ? ["selected"] : [],
                        ]),
                        Attr.on_click(_ =>
-                         inject(ModelAction.SelectHoleInstance(inst))
+                         inject(ModelAction.SelectInstance(Hole, inst))
                        ),
                      ],
                      txt,
@@ -47,6 +47,14 @@ let view_of_layout =
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
+             | FreeLivelit(_) => ([with_cls("FreeLivelit", txt)], ds)
+             | FreeLivelitLabel => ([with_cls("FreeLivelitLabel", txt)], ds)
+             | String => ([with_cls("String", txt)], ds)
+             | InvalidOpDecoration => (
+                 [with_cls("InvalidOpDecoration", txt)],
+                 ds,
+               )
+
              | NonEmptyHole(_)
              | InconsistentBranches(_)
              | Invalid(_) =>
@@ -74,7 +82,7 @@ let view =
     (
       ~inject,
       ~settings: Settings.Evaluation.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_instance: option(TaggedNodeInstance.t)=None,
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -95,10 +103,10 @@ let view_of_hole_instance =
       ~inject,
       ~width: int,
       ~pos=0,
-      ~selected_instance,
       ~settings: Settings.Evaluation.t,
+      ~selected_instance,
       ~font_metrics: FontMetrics.t,
-      (u, i): HoleInstance.t,
+      (u, i): NodeInstance.t,
     )
     : Node.t =>
   view(

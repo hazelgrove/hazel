@@ -101,6 +101,7 @@ let length_of_affix: affix('operand, 'operator) => int;
 let nth_operand: (int, t('operand, _)) => 'operand;
 
 let operands: t('operand, _) => list('operand);
+let operands_of_affix: affix('operand, _) => list('operand);
 let operators: t(_, 'operator) => list('operator);
 
 let update_nth_operand:

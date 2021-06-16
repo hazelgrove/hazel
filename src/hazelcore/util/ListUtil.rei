@@ -51,6 +51,8 @@ let first: list('a) => option('a);
 
 let last: list('a) => option('a);
 
+let split3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
+
 let split_first: list('a) => ('a, list('a));
 let split_first_opt: list('a) => option(('a, list('a)));
 
@@ -60,6 +62,9 @@ let split_last_opt: list('a) => option((list('a), 'a));
 let elem_before: ('a, list('a)) => option('a);
 
 let elem_after: ('a, list('a)) => option('a);
+
+let split_nth_opt: (int, list('a)) => option((list('a), 'a, list('a)));
+let split_nth: (int, list('a)) => (list('a), 'a, list('a));
 
 let split_at: (list('a), 'a) => (list('a), list('a));
 
@@ -109,3 +114,7 @@ let map_with_accumulator_opt:
 let disjoint_pairs: list('x) => list(('x, 'x));
 
 let rotate: list('x) => list('x);
+
+let take: (int, list('x)) => list('x);
+
+let drop_first: ('x, list('x)) => list('x);
