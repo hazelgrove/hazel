@@ -153,21 +153,9 @@ let map_selected_instances =
 
 let get_focal_editor = model => model.focal_editor;
 let put_focal_editor = (id, model) => {...model, focal_editor: id};
-let focus_cell = (editor_name: editor, model) => {
-  (
-    switch (editor_name) {
-    | MainProgram => map_program(Program.Exp.focus, model)
-    | AssistantTypeEditor
-    | NoFocus => map_program(Program.Exp.blur, model)
-    }
-  )
-  |> put_focal_editor(editor_name);
-};
 
-let focus_main_editor = focus_cell(MainProgram);
-let blur_cell = model =>
-  //TODO(andrew): resolve what no focus state means
-  model |> map_program(Program.Exp.blur) |> put_focal_editor(NoFocus);
+let focus_main_editor = put_focal_editor(MainProgram);
+let blur_cell = model => model |> put_focal_editor(NoFocus);
 
 let get_selected_hole_instance = model =>
   switch (
@@ -304,6 +292,7 @@ let move_via_click = (row_col, model) => {
     let (new_editor, action) =
       model
       |> get_assistant_editor
+      // TODO(andrew): set focal editor?
       |> Program.Typ.move_via_click(~settings=model.settings, row_col);
     update_assistant_editor(action, new_editor, model);
   | MainProgram
@@ -311,6 +300,7 @@ let move_via_click = (row_col, model) => {
     let (new_program, action) =
       model
       |> get_program
+      // TODO(andrew): set focal editor?
       |> Program.Exp.move_via_click(~settings=model.settings, row_col);
     model |> update_program(action, new_program);
   };

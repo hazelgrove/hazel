@@ -136,7 +136,7 @@ let apply_action =
           Model.sexp_of_editor(model.focal_editor),
         );
         P.p("FOCUSCELL new: %s\n", Model.sexp_of_editor(editor));
-        Model.focus_cell(editor, model);
+        Model.put_focal_editor(editor, model);
       | BlurCell =>
         P.p(
           "BLURCELL current: %s\n",

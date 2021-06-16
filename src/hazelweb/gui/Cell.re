@@ -12,7 +12,7 @@ let view_of_cursor_inspector =
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
-      focal_editor,
+      type_editor_is_focused,
       assistant_editor,
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
@@ -37,7 +37,7 @@ let view_of_cursor_inspector =
     ~font_metrics,
     ~is_mac,
     ~settings,
-    focal_editor,
+    type_editor_is_focused,
     assistant_editor,
     (cursor_x, cursor_y),
     cursor_inspector,
@@ -63,19 +63,28 @@ let code_view =
     () => {
       open Vdom;
 
+      let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
+      let main_editor_is_focused = focal_editor == Model.MainProgram;
+
       let l = Program.Exp.get_layout(~settings, program);
 
       let (code_text, decorations) =
-        UHCode.view(~font_metrics, ~settings, program);
+        UHCode.view(
+          ~font_metrics,
+          ~settings,
+          ~is_focused=main_editor_is_focused,
+          program,
+        );
       let caret = {
         let caret_pos = Program.Exp.get_caret_position(~settings, program);
-        program.is_focused
+        main_editor_is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
+
       let cursor_inspector =
         // TODO(andrew): when below uncommented, assistant disappears on
         // interaction. check focus logic.
-        if (/*program.is_focused &&*/ settings.cursor_inspector.visible) {
+        if (/*main_editor_is_focused &&*/ settings.cursor_inspector.visible) {
           let path = Program.Exp.get_path(program);
           let ci = Program.Exp.get_cursor_info(program);
           [
@@ -84,7 +93,7 @@ let code_view =
               ~font_metrics,
               ~is_mac,
               ~settings,
-              focal_editor,
+              type_editor_is_focused,
               assistant_editor,
               path,
               settings.cursor_inspector,
@@ -98,7 +107,7 @@ let code_view =
         };
 
       let key_handlers =
-        program.is_focused
+        main_editor_is_focused
           ? UHCode.key_handlers(
               ~settings,
               ~u_gen=Program.EditState_Exp.get_ugen(program.edit_state),
@@ -130,7 +139,8 @@ let code_view =
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt =>
+          Attr.on_mousedown(evt => {
+            print_endline("setting cursor inspector invisible");
             Event.Many([
               click_handler(evt),
               inject(
@@ -138,8 +148,8 @@ let code_view =
                   CursorInspector(Set_visible(false)),
                 ),
               ),
-            ])
-          ),
+            ]);
+          }),
           Attr.on_contextmenu(evt => {
             // TODO(andrew): make this sane
             Event.Many([

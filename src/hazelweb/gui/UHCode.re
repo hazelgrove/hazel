@@ -310,6 +310,7 @@ let view =
     (
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
+      ~is_focused: bool,
       program: Program.exp,
     )
     : (Base.list(Vdom.Node.t), list(Vdom.Node.t)) => {
@@ -317,6 +318,10 @@ let view =
   let code_text = view_of_box(UHBox.mk(l));
   let decorations = {
     let dpaths = Program.Exp.get_decoration_paths(program);
+    let dpaths = {
+      ...dpaths,
+      current_term: is_focused ? dpaths.current_term : None,
+    };
     decoration_views(~font_metrics, dpaths, l);
   };
   (code_text, decorations);

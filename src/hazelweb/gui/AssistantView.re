@@ -51,22 +51,6 @@ let action_view =
   );
 };
 
-/*
- let guy =
-     (~inject, ~font_metrics, ~settings, type_filter_editor, is_focused, u_gen)
-     : list(Vdom.Node.t) => {
-   //let edit_state = ZTyp.place_before(OpSeq.wrap(UHTyp.Int));
-   //let program = Program.Typ.mk(~width=80, edit_state);
-   UHCode.typebox_view(
-     ~inject,
-     ~font_metrics,
-     ~settings,
-     ~is_focused,
-     type_filter_editor,
-     u_gen,
-   );
- };*/
-
 let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
 
 let get_action_index = (assistant_selection: option(int), actions): int => {

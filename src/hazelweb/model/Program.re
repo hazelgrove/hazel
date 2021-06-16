@@ -39,7 +39,6 @@ type t('e) = {
   edit_state: 'e,
   width: int,
   start_col_of_vertical_movement: option(int),
-  is_focused: bool,
 };
 
 let get_edit_state = (p: t('e)): 'e => p.edit_state;
@@ -170,9 +169,7 @@ module type S = {
   type edit_state;
   type nonrec t = t(edit_state);
 
-  let mk: (~width: int, ~is_focused: bool=?, edit_state) => t;
-  let focus: t => t;
-  let blur: t => t;
+  let mk: (~width: int, edit_state) => t;
 
   let get_path: t => CursorPath.t;
   let get_steps: t => CursorPath.steps;
@@ -197,15 +194,11 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
   type edit_state = EditState.t;
   type nonrec t = t(edit_state);
 
-  let mk = (~width: int, ~is_focused=false, edit_state: 'e): t => {
+  let mk = (~width: int, edit_state: 'e): t => {
     width,
     edit_state,
     start_col_of_vertical_movement: None,
-    is_focused,
   };
-
-  let focus = program => {...program, is_focused: true};
-  let blur = program => {...program, is_focused: false};
 
   let put_edit_state = (edit_state, program) => {...program, edit_state};
 
@@ -297,7 +290,7 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
   };
 
   let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-    let current_term = program.is_focused ? Some(get_path(program)) : None;
+    let current_term = Some(get_path(program));
     let (err_holes, var_err_holes) = get_err_holes_decoration_paths(program);
     let var_uses =
       switch (get_cursor_info(program)) {
@@ -335,10 +328,7 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
       |> fst
       |> CursorPath_common.rev;
     let new_program =
-      program
-      |> focus
-      |> clear_start_col
-      |> perform_edit_action(MoveTo(path));
+      program |> clear_start_col |> perform_edit_action(MoveTo(path));
     (new_program, MoveTo(path));
   };
 

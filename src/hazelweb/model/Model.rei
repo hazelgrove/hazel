@@ -48,9 +48,9 @@ let get_cursor_info: t => CursorInfo.t;
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
 
-let focus_cell: (editor, t) => t;
 let blur_cell: t => t;
 let get_focal_editor: t => editor;
+let put_focal_editor: (editor, t) => t;
 
 /**
  * Update selected instances when user clicks on a hole
