@@ -1,8 +1,7 @@
 open Virtual_dom;
 module Js = Js_of_ocaml.Js;
 
-let root_id: string;
-let focus: unit => unit;
+let focus: Model.editor => unit;
 
 /**
  * Code representation of UHExp.

@@ -302,10 +302,8 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   );
 };
 
-let root_id = "code-root";
-
-let focus = () => {
-  JSUtil.force_get_elem_by_id(root_id)##focus;
+let focus = (editor: Model.editor) => {
+  JSUtil.force_get_elem_by_id(Model.editor_id(editor))##focus;
 };
 
 let view =
@@ -398,30 +396,30 @@ let typebox_view =
       : [];
   let decorations = decoration_views(~font_metrics, dpaths, layout);
 
-  let typebox_id = "typefilter";
+  let typebox_id = Model.editor_id(AssistantTypeEditor);
   [
     Node.div(
       [
         Attr.id(typebox_id),
         Attr.classes(["code"]),
-        Attr.on_mousedown(evt
-          //TODO(andrew): this doesn't work except when you do it on the first hole location
-          =>
-            Event.Many([
-              click_handler(typebox_id, font_metrics, inject, evt),
-            ])
-          ),
+        //TODO(andrew): this doesn't work except when you do it on the first hole location
+        Attr.on_mousedown(evt =>
+          click_handler(typebox_id, font_metrics, inject, evt)
+        ),
         // necessary to make cell focusable
         Attr.create("tabindex", "0"),
         Attr.on_focus(_ => {
           print_endline("ASSISTANT taking focus");
           Event.Many([
-            Event.Stop_propagation,
-            Event.Prevent_default,
+            //Event.Stop_propagation,
+            //Event.Prevent_default,
             inject(ModelAction.FocusCell(Model.AssistantTypeEditor)),
           ]);
         }),
-        Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+        Attr.on_blur(_ => {
+          print_endline("UHCODE BLURR");
+          inject(ModelAction.BlurCell);
+        }),
         ...key_handlers,
       ],
       caret

@@ -19,6 +19,13 @@ type t = {
   assistant_editor: Program.typ,
 };
 
+let editor_id = (editor: editor): string =>
+  switch (editor) {
+  | MainProgram => "code-root"
+  | AssistantTypeEditor => "typefilter"
+  | NoFocus => ""
+  };
+
 let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
@@ -161,12 +168,6 @@ let focus_main_editor = focus_cell(MainProgram);
 let blur_cell = model =>
   //TODO(andrew): resolve what no focus state means
   model |> map_program(Program.Exp.blur) |> put_focal_editor(NoFocus);
-
-let is_cell_focused = model => {
-  //TODO(andrew): not sure what this should mean anymore
-  let program = get_program(model);
-  program.is_focused;
-};
 
 let get_selected_hole_instance = model =>
   switch (

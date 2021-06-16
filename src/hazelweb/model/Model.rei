@@ -26,6 +26,8 @@ type t = {
   assistant_editor: Program.typ,
 };
 
+let editor_id: editor => string;
+
 let cardstack_info: list(CardstackInfo.t);
 
 /**
@@ -48,7 +50,6 @@ let put_undo_history: (UndoHistory.t, t) => t;
 
 let focus_cell: (editor, t) => t;
 let blur_cell: t => t;
-let is_cell_focused: t => bool;
 let get_focal_editor: t => editor;
 
 /**

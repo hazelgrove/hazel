@@ -114,8 +114,8 @@ let code_view =
             )
           : [];
 
-      let click_handler =
-        UHCode.click_handler(UHCode.root_id, font_metrics, inject);
+      let root_id = Model.editor_id(MainProgram);
+      let click_handler = UHCode.click_handler(root_id, font_metrics, inject);
 
       let ci = Program.Exp.get_cursor_info(program);
       let ty =
@@ -126,7 +126,7 @@ let code_view =
 
       Node.div(
         [
-          Attr.id(UHCode.root_id),
+          Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler

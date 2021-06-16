@@ -130,8 +130,19 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell(editor) => Model.focus_cell(editor, model)
-      | BlurCell => model |> Model.blur_cell
+      | FocusCell(editor) =>
+        P.p(
+          "FOCUSCELL current: %s\n",
+          Model.sexp_of_editor(model.focal_editor),
+        );
+        P.p("FOCUSCELL new: %s\n", Model.sexp_of_editor(editor));
+        Model.focus_cell(editor, model);
+      | BlurCell =>
+        P.p(
+          "BLURCELL current: %s\n",
+          Model.sexp_of_editor(model.focal_editor),
+        );
+        model |> Model.blur_cell;
       | Undo =>
         let new_history =
           model.undo_history

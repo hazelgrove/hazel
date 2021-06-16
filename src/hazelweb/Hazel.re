@@ -53,10 +53,10 @@ let on_startup = (~schedule_action, _) => {
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      UHCode.focus();
+      UHCode.focus(MainProgram);
       Js._true;
     });
-  UHCode.focus();
+  UHCode.focus(MainProgram);
 
   Async_kernel.Deferred.return(State.State);
 };
@@ -127,21 +127,23 @@ let create =
             | None => ()
             };
           };
-          if (Model.is_cell_focused(model)) {
-            // if cell is focused in model, make sure
-            // cell element is focused in DOM
+          // Synchronize model and DOM focus
+          switch (Model.get_focal_editor(model)) {
+          | MainProgram =>
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
+            //TODO(andrew): ask david why this is necessary
             | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
-            | _ => UHCode.focus()
+            | _ => UHCode.focus(MainProgram)
             };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
-
             if (model.settings.cursor_inspector.visible) {
               let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
               move_cursor_inspector_in_view(ci_elem);
             };
+          | AssistantTypeEditor => UHCode.focus(AssistantTypeEditor)
+          | NoFocus => ()
           };
         },
       model,
