@@ -927,18 +927,21 @@ module ColorLivelitView = {
       let width = 135.0;
       let px = Printf.sprintf("%fpx");
       let bounded = f => max(0., min(1., f));
-      let evt_to_rgb = (h, evt) => {
+      let evt_to_sv = evt => {
         let (client_x, client_y) =
           Js.Unsafe.(get(evt, "clientX"), get(evt, "clientY"))
           |> TupleUtil.map2(Float.of_int);
         let sat_val_rect =
           JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
         let (rect_x, rect_y) = (sat_val_rect##.left, sat_val_rect##.top);
-        let (norm_x, norm_y) = (
+        (
           (client_x -. rect_x) /. width,
           (height -. (client_y -. rect_y)) /. height,
         );
-        rgb_of_hsv((h, bounded(norm_x), bounded(norm_y)));
+      };
+      let evt_to_rgb = (h, evt) => {
+        let (x, y) = evt_to_sv(evt);
+        rgb_of_hsv((h, bounded(x), bounded(y)));
       };
       let sat_val_box = {
         let box = (bg_color, attrs, children) => {
@@ -963,6 +966,24 @@ module ColorLivelitView = {
         | Some((rval, gval, bval, _)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          let overlay =
+            /* This overlay appears when dragging starts in order to
+              * continue tracking dragging when the cursor is out of
+              * bounds of the SV square; in particular, to register
+              * mouseup events while outside the square.
+             */
+            Node.div(
+              Attr.[
+                classes(["dragging-overlay"]),
+                on_mouseup(_ => trigger(StopSelectingSatVal: action)),
+                on_mousemove(evt =>
+                  selecting_sat_val
+                    ? trigger(SelectRGB(evt_to_rgb(h, evt)): action)
+                    : Event.Ignore
+                ),
+              ],
+              [],
+            );
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
             [
@@ -972,11 +993,6 @@ module ColorLivelitView = {
                   trigger(SelectRGB(evt_to_rgb(h, evt)): action),
                 ])
               ),
-              Attr.on_mousemove(evt =>
-                selecting_sat_val
-                  ? trigger(SelectRGB(evt_to_rgb(h, evt))) : Event.Ignore
-              ),
-              Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
             ],
             [
               Node.div(
@@ -984,6 +1000,10 @@ module ColorLivelitView = {
                   Attr.classes(["sat-val-selector"]),
                   attr_style(
                     StringUtil.cat([
+                      prop_val(
+                        "background-color",
+                        Printf.sprintf("rgb(%d, %d, %d)", rval, gval, bval),
+                      ),
                       prop_val("left", s *. width |> px),
                       prop_val("top", height -. v *. height |> px),
                     ]),
@@ -991,6 +1011,7 @@ module ColorLivelitView = {
                 ],
                 [],
               ),
+              ...selecting_sat_val ? [overlay] : [],
             ],
           );
         };
