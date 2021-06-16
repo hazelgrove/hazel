@@ -987,6 +987,7 @@ h1 {
   z-index: var(--var-use-z);
 }
 #code-root .current-term-container {
+  line-height: 0;
   z-index: var(--current-term-z);
 }
 #code-root .livelit-exp-container {
