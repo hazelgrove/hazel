@@ -1302,14 +1302,14 @@ and ana_fix_holes_operand =
       );
     }
   | Inj(_, tag, body_opt) =>
-    let (tag, u_gen) =
-      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
     switch (ty) {
     | Hole =>
       let (body_opt, u_gen) =
         switch (body_opt) {
         | None => (None, u_gen)
         | Some(body) =>
+          let (tag, u_gen) =
+            Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
           let (body, u_gen) =
             ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
           (Some(body), u_gen);
@@ -1369,7 +1369,7 @@ and ana_fix_holes_operand =
         Inj(InHole(ExpectedTypeNotConsistentWithSums, u), tag, body_opt),
         u_gen,
       );
-    };
+    }
   | Case(_, scrut, rules) =>
     let (scrut, scrut_ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
