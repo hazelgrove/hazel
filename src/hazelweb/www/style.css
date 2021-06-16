@@ -1128,7 +1128,7 @@ h1 {
   position: relative;
   height: var(--matrix-cells-height);
   width: var(--matrix-cells-width);
-  overflow: overlay;
+  overflow: auto;
   outline: 1px solid var(--matrix-cell-border-color);
   padding: var(--matrix-cells-padding);
   /* necessary for consistent width border, not sure why */
