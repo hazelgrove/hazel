@@ -1,3 +1,4 @@
+//open OptUtil.Syntax;
 module Vdom = Virtual_dom.Vdom;
 open Virtual_dom.Vdom;
 open Node;
@@ -17,6 +18,7 @@ let action_abbreviation =
 let action_view =
     (
       inject,
+      settings,
       font_metrics,
       {action, result, res_ty, category, text: act_str, _}: assistant_action,
       is_selected: bool,
@@ -32,8 +34,8 @@ let action_view =
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
   };
-  //TODO: unhardcode width?
-  //TODO: refactor to take uhexp instead of zexp?
+  //TODO(andrew): unhardcode width?
+  //TODO(andrew): refactor to take uhexp instead of zexp?
   let edit_state = (ZExp.place_before(result), HTyp.Hole, MetaVarGen.init);
   let program = Program.Exp.mk(~width=80, edit_state);
   div(
@@ -43,7 +45,12 @@ let action_view =
     ],
     [div([classes(["category", abbr])], [text(abbr)])]
     @ [div([classes(["overlay"])], [text(search_string)])]
-    @ UHCode.codebox_view(~font_metrics, program)
+    @ UHCode.codebox_view(
+        ~is_focused=false,
+        ~settings,
+        ~font_metrics,
+        program,
+      )
     @ [
       span([classes(["type-ann"])], [text(" : ")]),
       span([classes(["type"])], [HTypCode.view(res_ty)]),
@@ -53,22 +60,11 @@ let action_view =
 
 let trim = (n, xs) => List.length(xs) < n ? xs : ListUtil.sublist(n, xs);
 
-let get_action_index = (assistant_selection: option(int), actions): int => {
-  let num_actions = List.length(actions);
-  switch (assistant_selection) {
-  | None => 0
-  | Some(i) =>
-    let z = num_actions == 0 ? 0 : i mod num_actions;
-    z + (z < 0 ? num_actions : 0);
-  };
-};
-
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      //~settings: Settings.t,
-      //focal_editor: Model.editor,
+      ~settings: Settings.t,
       type_filter_editor: Program.typ,
       {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -88,7 +84,8 @@ let view =
       cursor
       |> compute_actions
       |> List.filter(a => HTyp.consistent(a.res_ty, filter_ty));
-    let action_index = get_action_index(assistant_selection, actions);
+    let action_index =
+      Assistant_common.get_action_index(assistant_selection, actions);
     let actions =
       actions
       |> ListUtil.rotate_n(action_index)
@@ -96,7 +93,14 @@ let view =
     let action_views =
       List.mapi(
         (i, a) =>
-          action_view(inject, font_metrics, a, i == 0, filter_string),
+          action_view(
+            inject,
+            settings,
+            font_metrics,
+            a,
+            i == 0,
+            filter_string,
+          ),
         actions,
       );
     div([id("assistant")], action_views);

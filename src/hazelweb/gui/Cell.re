@@ -17,7 +17,7 @@ let view_of_cursor_inspector =
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
-      l: UHLayout.t,
+      program: Program.exp,
       u_gen: MetaVarGen.t,
     ) => {
   let cursor =
@@ -26,7 +26,7 @@ let view_of_cursor_inspector =
     | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
     | OnOp(_) => CursorPosition.OnOp(Before)
     };
-  let m = UHMeasuredLayout.mk(l);
+  let m = program |> Program.Exp.get_layout(~settings) |> UHMeasuredLayout.mk;
   let cursor_pos =
     UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
     |> OptUtil.get(() => failwith("could not find caret"));
@@ -63,25 +63,19 @@ let code_view =
     () => {
       open Vdom;
 
-      let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
       let main_editor_is_focused = focal_editor == Model.MainProgram;
+      let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
       let u_gen = Program.EditState_Exp.get_ugen(program.edit_state);
 
-      let layout = Program.Exp.get_layout(~settings, program);
-      let code_text = UHCode.view_of_box(UHBox.mk(layout));
-      let dpaths = Program.Exp.get_decoration_paths(program);
-      let dpaths = {
-        ...dpaths,
-        current_term: main_editor_is_focused ? dpaths.current_term : None,
-      };
-      let decorations =
-        UHCode.decoration_views(~font_metrics, dpaths, layout);
-      let caret_pos = Program.Exp.get_caret_position(~settings, program);
-      let caret =
-        main_editor_is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+      let codebox =
+        UHCode.codebox_view(
+          ~settings,
+          ~font_metrics,
+          ~is_focused=main_editor_is_focused,
+          program,
+        );
+
       let cursor_info = Program.Exp.get_cursor_info(program);
-      //TODO(andrew): clean up this logic
       let assistant_active =
         settings.cursor_inspector.assistant
         && Assistant_common.valid_assistant_term(cursor_info.cursor_term);
@@ -96,8 +90,6 @@ let code_view =
               ~assistant_active,
             )
           : [];
-      let this_editor = Model.MainProgram;
-      let editor_id = Model.editor_id(this_editor);
 
       let cursor_inspector =
         if (settings.cursor_inspector.visible) {
@@ -112,13 +104,16 @@ let code_view =
               Program.Exp.get_path(program),
               settings.cursor_inspector,
               cursor_info,
-              layout,
+              program,
               u_gen,
             ),
           ];
         } else {
           [];
         };
+
+      let this_editor = Model.MainProgram;
+      let editor_id = Model.editor_id(this_editor);
 
       let on_click = evt => {
         Event.Many([
@@ -127,37 +122,37 @@ let code_view =
         ]);
       };
 
+      let on_contextmenu = evt => {
+        // TODO(andrew): improve society somewhat
+        let ty =
+          switch (Assistant_common.get_type(cursor_info)) {
+          | None => UHTyp.contract(HTyp.Hole)
+          | Some(ty) => UHTyp.contract(ty)
+          };
+        Event.Many([
+          Event.Prevent_default,
+          inject(SetAssistantTypeEditor(ty)),
+          inject(UpdateSettings(CursorInspector(Set_visible(true)))),
+          inject(UpdateSettings(CursorInspector(Set_assistant(true)))),
+          inject(
+            UpdateSettings(CursorInspector(Reset_assistant_selection)),
+          ),
+          UHCode.click_handler(editor_id, font_metrics, inject, evt),
+        ]);
+      };
+
       Node.div(
         [
           Attr.id(editor_id),
           Attr.classes(["code", "presentation"]),
           Attr.on_click(on_click),
-          Attr.on_contextmenu(evt => {
-            // TODO(andrew): make this sane
-            let ty =
-              switch (Assistant_common.get_type(cursor_info)) {
-              | None => UHTyp.contract(HTyp.Hole)
-              | Some(ty) => UHTyp.contract(ty)
-              };
-            Event.Many([
-              Event.Prevent_default,
-              inject(SetAssistantTypeEditor(ty)),
-              inject(UpdateSettings(CursorInspector(Set_visible(true)))),
-              inject(UpdateSettings(CursorInspector(Set_assistant(true)))),
-              inject(
-                UpdateSettings(CursorInspector(Reset_assistant_selection)),
-              ),
-              UHCode.click_handler(editor_id, font_metrics, inject, evt),
-            ]);
-          }),
+          Attr.on_contextmenu(on_contextmenu),
           Attr.create("tabindex", "0"), // necessary to make cell focusable
           Attr.on_focus(_ => inject(FocusCell(this_editor))),
           Attr.on_blur(_ => inject(BlurCell)),
           ...key_handlers,
         ],
-        caret
-        @ cursor_inspector
-        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        codebox @ cursor_inspector,
       );
     },
   );

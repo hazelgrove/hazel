@@ -140,21 +140,7 @@ let click_handler =
   inject(ModelAction.MoveAction(Click(caret_pos)));
 };
 
-let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
-  let* cursor = Assistant_common.promote_cursor_info(cursor_info, u_gen);
-  let actions = Assistant.compute_actions(cursor);
-  let selected_index =
-    //TODO(andrew): unfuck below duplicated from AssistantView.re code
-    switch (settings.cursor_inspector.assistant_selection) {
-    | None => 0
-    | Some(i) =>
-      let z = List.length(actions) == 0 ? 0 : i mod List.length(actions);
-      z + (z < 0 ? List.length(actions) : 0);
-    };
-  Some(List.nth(actions, selected_index).action);
-};
-
-let get_assistant_key_action =
+let assistant_key_action =
     (
       ~settings: Settings.t,
       ~u_gen: MetaVarGen.t,
@@ -169,13 +155,14 @@ let get_assistant_key_action =
   | "ArrowUp" =>
     Some(UpdateSettings(CursorInspector(Decrement_assistant_selection)))
   | "Tab" =>
-    let+ action = get_selected_action(cursor_info, u_gen, settings);
+    let index = settings.cursor_inspector.assistant_selection;
+    let+ action = Assistant.select_action(index, u_gen, cursor_info);
     ModelAction.AcceptSuggestion(action);
   | _ => None
   };
 };
 
-let get_regular_key_action =
+let main_key_action =
     (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
   switch (MoveKey.of_key(Key.get_key(evt))) {
   | Some(move_key) => Some(MoveAction(Key(move_key)))
@@ -213,24 +200,25 @@ let key_handlers =
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      let assistant_action =
-        get_assistant_key_action(~settings, ~u_gen, ~cursor_info, evt);
-      let regular_action = get_regular_key_action(~is_mac, ~cursor_info, evt);
       let reset_assistant =
         inject(UpdateSettings(CursorInspector(Reset_assistant_selection)));
-      let ev =
-        switch (assistant_action) {
-        | Some(action) when assistant_active => inject(action)
-        | _ =>
-          Event.Many([
-            reset_assistant,
-            switch (regular_action) {
-            | Some(action) => inject(action)
-            | None => Event.Ignore
-            },
-          ])
-        };
-      Event.Many([Event.Prevent_default, Event.Stop_propagation, ev]);
+      let inject_stop_prevent = ev =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(ev),
+        ]);
+      switch (assistant_key_action(~settings, ~u_gen, ~cursor_info, evt)) {
+      | Some(action) when assistant_active => inject_stop_prevent(action)
+      | _ =>
+        Event.Many([
+          reset_assistant,
+          switch (main_key_action(~is_mac, ~cursor_info, evt)) {
+          | Some(action) => inject_stop_prevent(action)
+          | _ => Event.Ignore
+          },
+        ])
+      };
     }),
   ];
 };
@@ -286,40 +274,34 @@ let focus = (editor: Model.editor) =>
     )
   };
 
-//TODO(andrew): deprecate
-let get_codebox_layout = program => {
-  program
-  |> Program.get_edit_state
-  |> Program.EditState_Exp.get_uhstx
-  |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
-  |> Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0)
-  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
-};
-
-let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
-  let l = get_codebox_layout(program);
-  let code_text = view_of_box(UHBox.mk(l));
-  let (err_holes, var_err_holes) =
-    program |> Program.Exp.get_err_holes_decoration_paths;
-  let dpaths: UHDecorationPaths.t = {
-    current_term: None,
-    err_holes,
-    var_uses: [],
-    var_err_holes,
+let codebox_view =
+    (
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~is_focused: bool,
+      program: Program.exp,
+    )
+    : list(Node.t) => {
+  let layout = Program.Exp.get_layout(~settings, program);
+  let code_text = view_of_box(UHBox.mk(layout));
+  let dpaths = Program.Exp.get_decoration_paths(program);
+  let dpaths = {
+    ...dpaths,
+    current_term: is_focused ? dpaths.current_term : None,
   };
-  let decorations = decoration_views(~font_metrics, dpaths, l);
-  [Node.span([Attr.classes(["code"])], code_text), ...decorations];
+  let decorations = decoration_views(~font_metrics, dpaths, layout);
+  let caret_pos = Program.Exp.get_caret_position(~settings, program);
+  let caret =
+    is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+  caret @ [Node.span([Attr.classes(["code"])], code_text), ...decorations];
 };
 
 let typebox_view =
     (
-      ~inject: ModelAction.t => Ui_event.t,
-      ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
       ~is_focused: bool,
       editor: Program.typ,
-      u_gen,
     ) => {
   let layout = Program.Typ.get_layout(~settings, editor);
   let code_text = view_of_box(UHBox.mk(layout));
@@ -332,9 +314,21 @@ let typebox_view =
   let caret_pos = Program.Typ.get_caret_position(~settings, editor);
   let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+  caret @ [Node.span([Attr.classes(["code"])], code_text), ...decorations];
+};
 
-  let cursor_info = Program.Typ.get_cursor_info(editor);
-  let assistant_active = false; // TODO(andrew): factor this out of key_handlers?
+let typebox =
+    (
+      ~inject: ModelAction.t => Ui_event.t,
+      ~font_metrics: FontMetrics.t,
+      ~is_mac: bool,
+      ~settings: Settings.t,
+      ~is_focused: bool,
+      editor: Program.typ,
+      u_gen,
+    ) => {
+  let this_editor = Model.AssistantTypeEditor;
+  let editor_id = Model.editor_id(this_editor);
   let key_handlers =
     is_focused
       ? key_handlers(
@@ -342,15 +336,11 @@ let typebox_view =
           ~u_gen,
           ~inject,
           ~is_mac,
-          ~cursor_info,
-          ~assistant_active,
+          ~cursor_info=Program.Typ.get_cursor_info(editor),
+          ~assistant_active=false // TODO(andrew): factor this out?
         )
       : [];
-  let this_editor = Model.AssistantTypeEditor;
-  let editor_id = Model.editor_id(this_editor);
-
   let on_click = click_handler(editor_id, font_metrics, inject);
-
   [
     Node.div(
       [
@@ -362,8 +352,7 @@ let typebox_view =
         Attr.on_blur(_ => inject(BlurCell)),
         ...key_handlers,
       ],
-      caret
-      @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+      typebox_view(~settings, ~font_metrics, ~is_focused, editor),
     ),
   ];
 };

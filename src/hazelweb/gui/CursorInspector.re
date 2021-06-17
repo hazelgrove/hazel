@@ -236,7 +236,7 @@ let assistant_summary =
         Node.div(
           [Attr.classes(["compressed"])],
           [emphasize_text("Any Type (")]
-          @ UHCode.typebox_view(
+          @ UHCode.typebox(
               ~inject,
               ~font_metrics,
               ~is_mac,
@@ -927,7 +927,7 @@ let view =
           AssistantView.view(
             ~inject,
             ~font_metrics,
-            //~settings,
+            ~settings,
             //focal_editor,
             type_filter_editor,
             cursor_inspector,

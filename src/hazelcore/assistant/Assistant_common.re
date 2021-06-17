@@ -191,3 +191,13 @@ let term_to_str = (term: CursorInfo.cursor_term): string => {
   | _ => ""
   };
 };
+
+let get_action_index = (assistant_selection: option(int), actions): int => {
+  let num_actions = List.length(actions);
+  switch (assistant_selection) {
+  | None => 0
+  | Some(i) =>
+    let z = num_actions == 0 ? 0 : i mod num_actions;
+    z + (z < 0 ? num_actions : 0);
+  };
+};

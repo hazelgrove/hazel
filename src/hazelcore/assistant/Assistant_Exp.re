@@ -236,7 +236,7 @@ let compute_basic_wrap_actions =
   };
 };
 
-let compute_operand_actions = ({term, _} as cursor) =>
+let compute_operand_actions = ({term, _} as cursor): list(assistant_action) =>
   switch (term) {
   | Exp(_) =>
     List.map(
@@ -249,46 +249,14 @@ let compute_operand_actions = ({term, _} as cursor) =>
         compute_gen_actions,
       ],
     )
+    |> List.concat
   | _ => []
   };
-
-/*
- type zseq_exp =
-   ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator);
- let mk_fancy_action = (_zseq: zseq_exp, _cursor_info_pro): assistant_action => {
-   let new_seq =
-     mk_bin_seq(
-       UHExp.intlit("666"),
-       Operators_Exp.Plus,
-       UHExp.intlit("666"),
-     );
-   let ZOpSeq(_, new_zseq) =
-     new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
-   let uhexp =
-     new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
-   {
-     category: InsertConstructor, // TODO(andrew): new category
-     text: "",
-     action: ReplaceOpSeqAroundCursor(new_zseq),
-     res_ty: HTyp.Int,
-     result: uhexp,
-   };
- };
- let compute_fancy_actions =
-     (
-       {/*ctx, expected_ty, mode,*/ syntactic_context, _} as cursor: cursor_info_pro,
-     ) => {
-   switch (syntactic_context) {
-   | ExpSeq(_synctx_ty, zseq) => [mk_fancy_action(zseq, cursor)]
-   | _ => []
-   };
- };
- */
 
 let exp_operator_of_ty =
     (inl: HTyp.t, inr: HTyp.t, out: HTyp.t): list(Operators_Exp.t) => {
   Operators_Exp.
-    // TODO: Add Comma, Cons, Space ops (requires a bit more deconstruction)
+    // TODO(andrew): Add Comma, Cons, Space ops (requires a bit more deconstruction)
     (
       List.concat([
         HTyp.consistent_all([inl, inr, out, HTyp.Bool]) ? [And, Or] : [],
@@ -308,7 +276,7 @@ let exp_operator_of_ty =
 
 let mk_replace_operator_action =
     (seq_ty, zseq, new_operator): assistant_action => {
-  // TODO: this is hardcoded for binops, and resets cursor pos. rewrite!
+  // TODO(andrew): this is hardcoded for binops, and resets cursor pos. rewrite!
   let init_seq = zseq |> ZExp.erase_zseq;
   //let init_skel = init_seq |> UHExp.associate;
   let new_seq =

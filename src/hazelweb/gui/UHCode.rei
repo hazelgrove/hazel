@@ -31,8 +31,14 @@ let click_handler:
   Ui_event.t;
 
 let codebox_view:
-  (~font_metrics: FontMetrics.t, Program.Exp.t) => list(Vdom.Node.t);
-let typebox_view:
+  (
+    ~settings: Settings.t,
+    ~font_metrics: FontMetrics.t,
+    ~is_focused: bool,
+    Program.exp
+  ) =>
+  list(Vdom.Node.t);
+let typebox:
   (
     ~inject: ModelAction.t => Ui_event.t,
     ~font_metrics: FontMetrics.t,

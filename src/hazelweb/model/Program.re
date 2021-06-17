@@ -292,9 +292,14 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
   let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     let current_term = Some(get_path(program));
     let (err_holes, var_err_holes) = get_err_holes_decoration_paths(program);
+    //TODO(andrew): figure out why this is crashing for typ case
     let var_uses =
-      switch (get_cursor_info(program)) {
-      | {uses: Some(uses), _} => uses
+      try(
+        switch (get_cursor_info(program)) {
+        | {uses: Some(uses), _} => uses
+        | _ => []
+        }
+      ) {
       | _ => []
       };
     {current_term, err_holes, var_uses, var_err_holes};
