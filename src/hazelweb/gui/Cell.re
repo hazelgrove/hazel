@@ -152,7 +152,8 @@ let code_view =
           Attr.on_blur(_ => inject(BlurCell)),
           ...key_handlers,
         ],
-        codebox @ cursor_inspector,
+        //TODO(andrew): cursor_inspector has to be before codebox or else decos get misplaced. ask david why?
+        cursor_inspector @ codebox,
       );
     },
   );
