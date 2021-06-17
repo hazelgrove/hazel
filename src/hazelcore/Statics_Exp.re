@@ -63,7 +63,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | ExpLine(opseq) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
-  | LetLine(key, p, def) =>
+  | LetLine(_key, p, def) =>
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let* ty_def = syn(def_ctx, def);
     Statics_Pat.ana(ctx, p, ty_def);
