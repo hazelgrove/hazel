@@ -101,8 +101,6 @@ let matched_arrow =
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
-// ECD TODO: Figure out if the label needs to be sent along in the get prod elements
-// or if it can be ignored
 let get_prod_elements: t => list(t) =
   fun
   | Prod(tys) =>

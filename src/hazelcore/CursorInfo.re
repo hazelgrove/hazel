@@ -8,6 +8,8 @@ type join_of_branches =
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
+// ECD: Note Sub type for all possible messages that could show up in the sidebar
+// As implementing cursor info, decide which typed to report
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */

@@ -29,7 +29,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(Hole, Hole)
   | List(Hole) => Ground
   | Prod(tys) =>
-    if (List.for_all(fun (_, ty) => { ty |> HTyp.eq(HTyp.Hole) }, tys)) {
+    if (List.for_all(((_, ty)) => {ty |> HTyp.eq(HTyp.Hole)}, tys)) {
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;
@@ -201,14 +201,14 @@ let rec evaluate = (d: DHExp.t): result =>
         | InvalidInput(_) => acc
         | Indet(Tuple(tuple_elts)) =>
           switch (evaluate(dn)) {
-          | InvalidInput(msg) as invalid => invalid
+          | InvalidInput(_) as invalid => invalid
           | BoxedValue(dn)
           | Indet(dn) => Indet(Tuple([(label, dn), ...tuple_elts]))
           }
         | Indet(_) => failwith("Impossible")
         | BoxedValue(Tuple(tuple_elts)) =>
           switch (evaluate(dn)) {
-          | InvalidInput(msg) as invalid => invalid
+          | InvalidInput(_) as invalid => invalid
           | BoxedValue(dn) =>
             BoxedValue(Tuple([(label, dn), ...tuple_elts]))
           | Indet(dn) => Indet(Tuple([(label, dn), ...tuple_elts]))
@@ -229,9 +229,9 @@ let rec evaluate = (d: DHExp.t): result =>
     // All product types would have the same number of elts
     // Figure out which element from the prod you want, then distribute to prod
     // Ref: http://www.cs.uml.edu/~mcimini/gradualizerDynamicSemantics/
-    | BoxedValue(Cast(d', Prod(prod_elts), Prod(prod_elts')))
-    | Indet(Cast(d', Prod(prod_elts), Prod(prod_elts'))) =>
-      switch (List.nth_opt(prod_elts, n), List.nth_opt(prod_elts')) {
+    | BoxedValue(Cast(_, Prod(prod_elts), Prod(prod_elts')))
+    | Indet(Cast(_, Prod(prod_elts), Prod(prod_elts'))) =>
+      switch (List.nth_opt(prod_elts, n), List.nth_opt(prod_elts', n)) {
       | (_, None)
       | (None, _) => failwith("impossible")
       | (Some((_, ty)), Some((_, ty'))) =>

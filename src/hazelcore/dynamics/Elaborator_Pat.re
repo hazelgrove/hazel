@@ -50,51 +50,56 @@ and syn_elab_skel =
     List.fold_left(
       (acc: ElaborationResult.t, skel: UHPat.skel) => {
         switch (acc) {
-        | Elaborates(Tuple(d_list), Tuple(ty_list), delta) =>
+        | Elaborates(Tuple(d_list), Prod(ty_list), ctx, delta) =>
           switch (syn_elab_skel(ctx, delta, skel, seq)) {
-          | Elaborates(Tuple(tuple_elts), Tuple(tuple_tys), delta)
+          | Elaborates(Tuple(tuple_elts), Prod(tuple_tys), ctx, delta)
               when List.length(tuple_elts) < 2 =>
             Elaborates(
               Tuple(tuple_elts @ d_list),
-              Tuple(tuple_tys @ ty_list),
+              Prod(tuple_tys @ ty_list),
+              ctx,
               delta,
             )
-          | Elaborates(Tuple(tuple_elts), ty, delta)
+          | Elaborates(Tuple(tuple_elts), ty, ctx, delta)
               when List.length(tuple_elts) < 2 =>
             Elaborates(
               Tuple(tuple_elts @ d_list),
-              Tuple([(None, ty), ...ty_list]),
+              Prod([(None, ty), ...ty_list]),
+              ctx,
               delta,
             )
-          | Elaborates(d, Tuple(tuple_tys), delta)
+          | Elaborates(d, Prod(tuple_tys), ctx, delta)
               when List.length(tuple_tys) < 2 =>
             Elaborates(
               Tuple([(None, d), ...d_list]),
-              Tuple(tuple_tys @ ty_list),
+              Prod(tuple_tys @ ty_list),
+              ctx,
               delta,
             )
-          | Elaborates(d, ty, delta) =>
+          | Elaborates(d, ty, ctx, delta) =>
             Elaborates(
               Tuple([(None, d), ...d_list]),
-              Tuple([(None, ty), ...ty_list]),
+              Prod([(None, ty), ...ty_list]),
+              ctx,
               delta,
             )
           | DoesNotElaborate => DoesNotElaborate
           }
         | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(_, _, _, _) => DoesNotElaborate
         }
       },
-      Elaborates(Tuple([]), Tuple([]), delta),
+      Elaborates(Tuple([]), Prod([]), ctx, delta),
       List.rev(UHPat.get_tuple_elements(skel)),
     )
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(Label(l), _, ctx, delta) =>
+    | Elaborates(ErrLabel(l), _, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, ty2, ctx, delta) =>
-        let dp = DHExp.Tuple([(Some(l), d2)]);
+        let dp = DHPat.Tuple([(Some(l), dp2)]);
         Elaborates(dp, Prod([Some(l), ty2]), ctx, delta);
       }
     | Elaborates(dp1, _, ctx, delta) =>
@@ -158,11 +163,17 @@ and syn_elab_operand =
     Elaborates(dp, ty, ctx, delta);
   | Label(_, l) =>
     if (Label.is_valid(l)) {
-      let d = DHPat.Label(l);
+      let d = DHPat.ErrLabel(l);
       let ty = HTyp.Hole;
       Elaborates(d, ty, ctx, delta);
     } else {
-      DoesNotElaborate;
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let d = DHPat.ErrLabel(l);
+      let ty = HTyp.Hole;
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+      Elaborates(d, ty, delta);
     } // ECD TODO: May need to change
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -210,6 +221,8 @@ and ana_elab_opseq =
     )
     : ElaborationResult.t => {
   // handle n-tuples
+  // ECD: You are here, working through elaborator_pat
+  // Need to apply same changes as in Elaborator_exp
   switch (Statics_Pat.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
     skel_tys
@@ -233,7 +246,24 @@ and ana_elab_opseq =
       fun
       | None => ElaborationResult.DoesNotElaborate
       | Some((rev_dps, ctx, delta)) => {
-          let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
+          let dp =
+            switch (rev_dps) {
+            | [] => failwith("expected at least one element")
+            | [dp1] => dp1
+            | _ =>
+              DHExp.Tuple(
+                List.map(
+                  dpn => {
+                    switch (dpn) {
+                    | Tuple([(label, dpn')]) => (label, dpn')
+                    | _ => (None, dn)
+                    }
+                  },
+                  rev_dps |> List.rev,
+                ),
+              )
+            };
+
           Elaborates(dp, ty, ctx, delta);
         }
     )
@@ -316,14 +346,23 @@ and ana_elab_skel =
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+    switch (syn_elab_skel(ctx, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp1, _ty1, ctx, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp2, _ty2, ctx, delta) =>
-        let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Hole, ctx, delta);
+    | Elaborates(dp, ty', delta) =>
+      if (HTyp.consistent(ty, ty')) {
+        Elaborates(dp, ty, ctx, delta);
+      } else {
+        // ap case
+        switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(dp1, _ty1, ctx, delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(dp2, _ty2, ctx, delta) =>
+            let dp = DHPat.Ap(dp1, dp2);
+            Elaborates(dp, Hole, ctx, delta);
+          }
+        };
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -383,7 +422,7 @@ and ana_elab_operand =
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
-  | Label(_, _)
+  | ErrLabel(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
@@ -422,7 +461,7 @@ let rec renumber_result_only =
   | InvalidText(_)
   | BoolLit(_)
   | ListNil
-  | Label(_) => (dp, hii)
+  | ErrLabel(_) => (dp, hii)
   | EmptyHole(u, _) =>
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);

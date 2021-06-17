@@ -236,7 +236,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
             // Neither has a label
             | (None, None) => Matches(Environment.union(env_old, env_new))
             // Pattern is not labeled, ignore expression label
-            | (None, Some(_)) => Matches(Environment.union(env_old, env_new))
+            | (None, Some(_)) =>
+              Matches(Environment.union(env_old, env_new))
             // Pattern has label, expression does not have label
             | (Some(_), None)
             // Both have non matching labels
@@ -245,16 +246,16 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
           }
         }
       },
+      Matches(Environment.empty),
       tuple_elts_p,
       tuple_elts,
-      Matches(Enviroment.empty),
     )
 
   | (Tuple(tuple_elts_p), Cast(d, Prod(tys1), Prod(tys2))) =>
     matches_cast_Tuple(
       tuple_elts_p,
       d,
-      List.map2(((_, ty1), (_, ty2)) => {(ty1, ty2)}, tys1, tys2),
+      List.map2(((_, ty1), (_, ty2)) => {[(ty1, ty2)]}, tys1, tys2),
     )
   | (Tuple(_), Cast(d, Hole, Prod(_)))
   | (Tuple(_), Cast(d, Prod(_), Hole)) => matches(dp, d)
@@ -292,8 +293,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   | (ErrLabel(_), _) => Indet
-  | (_, ErrLabel(_)) => Indet
-  | (_, ErrPrj(_)) => Indet
   }
 and matches_cast_Inj =
     (
@@ -362,7 +361,7 @@ and matches_cast_Tuple =
     (
       tuple_elts_p: list((option(Label.t), DHPat.t)),
       d: DHExp.t,
-      casts: list((HTyp.t, HTyp.t)),
+      casts: list(list((HTyp.t, HTyp.t))),
     )
     : match_result =>
   switch (d) {
@@ -385,6 +384,8 @@ and matches_cast_Tuple =
             switch (lp, l) {
             // Both have matching labels
             | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Neither has a label
+            | (None, None) => Indet
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) => Indet
             // Pattern has label, expression does not have
@@ -400,6 +401,8 @@ and matches_cast_Tuple =
             switch (lp, l) {
             // Both have matching labels
             | (Some(label_p), Some(label)) when label_p == label => Indet
+            // Neither has a label
+            | (None, None) => Indet
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) => Indet
             // Pattern has label, expression does not have
@@ -412,6 +415,8 @@ and matches_cast_Tuple =
             // Both have matching labels
             | (Some(label_p), Some(label)) when label_p == label =>
               Matches(Environment.union(env_old, env_new))
+            // Neither has a matching label
+            | (None, None) => Matches(Environment.union(env_old, env_new))
             // Pattern is not labeled, ignore expression label
             | (None, Some(_)) =>
               Matches(Environment.union(env_old, env_new))
@@ -423,17 +428,25 @@ and matches_cast_Tuple =
           }
         }
       },
-      Matches(Enviroment.empty),
+      Matches(Environment.empty),
       tuple_elts_p,
       tuple_elts_cast,
     );
-  | Cast(d', Prod([]), Prod([])) =>
-    matches_cast_Tuple(tuple_elts_p, d', casts)
-  | Cast(d', Prod([tys1]), Prod([tys2])) =>
-    let new_casts = List.map2(((_, ty1), (_, ty2)) => {(ty1, ty2)});
-    matches_cast_Tuple(dp, d', new_casts @ casts);
+  | Cast(d', Prod(tys1), Prod(tys2))
+      when
+        List.length(tys1) == List.length(tys2)
+        && List.length(tuple_elts_p) == List.length(tys1) =>
+    let new_casts =
+      List.map2(((_, ty1), (_, ty2)) => {[(ty1, ty2)]}, tys1, tys2);
+    let combined_casts =
+      List.map2(
+        (old_cast, new_cast) => {old_cast @ new_cast},
+        casts,
+        new_casts,
+      );
+    matches_cast_Tuple(tuple_elts_p, d', combined_casts);
   | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) => matches_cast_Tuple(dp, d', casts)
+  | Cast(d', Hole, Prod(_)) => matches_cast_Tuple(tuple_elts_p, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -529,7 +542,8 @@ and matches_cast_Cons =
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
-  | ErrLabel(_, _) => Indet
+  | ErrLabel(_) => Indet
+  | ErrPrj(_, _) => Indet
   | Prj(dbody, _, idx) =>
     switch (DHExp.get_prj(dbody, idx)) {
     | None => Indet
@@ -723,7 +737,7 @@ and syn_elab_skel =
         | ElaborationResult.DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2', delta) =>
           let d = DHExp.Tuple([(Some(l), d2)]);
-          Elaborates(d, Tuple([(Some(l), ty2')]), delta);
+          Elaborates(d, Prod([(Some(l), ty2')]), delta);
         }
       // all other labels in a hole should be in a hole
       | Label(InLabelHole(_, u_gen), l) =>
@@ -755,11 +769,11 @@ and syn_elab_skel =
     // (1, 2, .a 2) => (1, 2, .a 2)
     // (1, 2, (.a 2, .b 3)) => (1, 2, (.a 2, .b 3))
     List.fold_left(
-      (acc, skel) => {
+      (acc: ElaborationResult.t, skel: UHExp.skel) => {
         switch (acc) {
-        | Elaborates(Tuple(d_list), Tuple(ty_list), delta) =>
+        | Elaborates(Tuple(d_list), Prod(ty_list), delta) =>
           switch (syn_elab_skel(ctx, delta, skel, seq)) {
-          | Elaborates(Tuple(tuple_elts), Tuple(tuple_tys), delta)
+          | Elaborates(Tuple(tuple_elts), Prod(tuple_tys), delta)
               when List.length(tuple_elts) < 2 =>
             Elaborates(
               Tuple(tuple_elts @ d_list),
@@ -773,7 +787,7 @@ and syn_elab_skel =
               Tuple([(None, ty), ...ty_list]),
               delta,
             )
-          | Elaborates(d, Tuple(tuple_tys), delta)
+          | Elaborates(d, Prod(tuple_tys), delta)
               when List.length(tuple_tys) < 2 =>
             Elaborates(
               Tuple([(None, d), ...d_list]),
@@ -791,7 +805,7 @@ and syn_elab_skel =
         | DoesNotElaborate => DoesNotElaborate
         }
       },
-      Elaborates(Tuple([]), Tuple([]), delta),
+      Elaborates(Tuple([]), Prod([]), delta),
       List.rev(UHExp.get_tuple_elements(skel)),
     )
   | BinOp(NotInHole, Cons, skel1, skel2) =>

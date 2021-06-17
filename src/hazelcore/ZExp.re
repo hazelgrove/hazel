@@ -25,7 +25,6 @@ and zoperand =
       SerializedModel.t,
       ZSpliceInfo.t(UHExp.t, t),
     )
-  // ECD TODO: Does the label need to be a zexpression to be able to edit it? Probably, changing that now
   | PrjZE(PrjErrStatus.t, zoperand, Label.t)
 and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
