@@ -181,7 +181,7 @@ module type S = {
   let get_caret_position:
     (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
 
-  let get_decoration_paths: t => UHDecorationPaths.t;
+  let get_decoration_paths: (t, bool) => UHDecorationPaths.t;
   let get_err_holes_decoration_paths:
     t => (list(CursorPath.steps), list(CursorPath.steps));
   let move_to_hole: (int, t) => Action.t;
@@ -289,8 +289,9 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
     |> TupleUtil.map2(List.map(snd));
   };
 
-  let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-    let current_term = Some(get_path(program));
+  let get_decoration_paths =
+      (program: t, is_focused: bool): UHDecorationPaths.t => {
+    let current_term = is_focused ? Some(get_path(program)) : None;
     let (err_holes, var_err_holes) = get_err_holes_decoration_paths(program);
     //TODO(andrew): figure out why this is crashing for typ case
     let var_uses =

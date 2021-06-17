@@ -76,6 +76,9 @@ let code_view =
         );
 
       let cursor_info = Program.Exp.get_cursor_info(program);
+      let index = settings.cursor_inspector.assistant_selection;
+      let assistant_action =
+        Assistant.select_action(index, u_gen, cursor_info);
       let assistant_active =
         settings.cursor_inspector.assistant
         && Assistant_common.valid_assistant_term(cursor_info.cursor_term);
@@ -85,7 +88,7 @@ let code_view =
               ~inject,
               ~is_mac,
               ~cursor_info,
-              ~assistant_action=None,
+              ~assistant_action,
               ~assistant_active,
             )
           : [];

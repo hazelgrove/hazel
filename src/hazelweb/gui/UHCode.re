@@ -275,7 +275,7 @@ let focus = (editor: Model.editor) =>
   try(JSUtil.force_get_elem_by_id(Model.editor_id(editor))##focus) {
   | _ =>
     Printf.printf(
-      "ERROR: tried to focus editor not present in the DOM: %s",
+      "WARNING: tried to focus editor not present in the DOM: %s",
       Model.editor_id(editor),
     )
   };
@@ -289,17 +289,13 @@ let codebox_view =
     )
     : list(Node.t) => {
   let layout = Program.Exp.get_layout(~settings, program);
-  let code_text = view_of_box(UHBox.mk(layout));
-  let dpaths = Program.Exp.get_decoration_paths(program);
-  let dpaths = {
-    ...dpaths,
-    current_term: is_focused ? dpaths.current_term : None,
-  };
+  let code_text = layout |> UHBox.mk |> view_of_box;
+  let dpaths = Program.Exp.get_decoration_paths(program, is_focused);
   let decorations = decoration_views(~font_metrics, dpaths, layout);
   let caret_pos = Program.Exp.get_caret_position(~settings, program);
   let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-  caret @ [Node.span([Attr.classes(["code"])], code_text), ...decorations];
+  caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
 let typebox_view =
@@ -310,17 +306,13 @@ let typebox_view =
       editor: Program.typ,
     ) => {
   let layout = Program.Typ.get_layout(~settings, editor);
-  let code_text = view_of_box(UHBox.mk(layout));
-  let dpaths = Program.Typ.get_decoration_paths(editor);
-  let dpaths = {
-    ...dpaths,
-    current_term: is_focused ? dpaths.current_term : None,
-  };
+  let code_text = layout |> UHBox.mk |> view_of_box;
+  let dpaths = Program.Typ.get_decoration_paths(editor, is_focused);
   let decorations = decoration_views(~font_metrics, dpaths, layout);
   let caret_pos = Program.Typ.get_caret_position(~settings, editor);
   let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-  caret @ [Node.span([Attr.classes(["code"])], code_text), ...decorations];
+  caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
 let typebox =
@@ -331,21 +323,20 @@ let typebox =
       ~settings: Settings.t,
       ~is_focused: bool,
       editor: Program.typ,
-      u_gen,
+      _u_gen,
     ) => {
   let this_editor = Model.AssistantTypeEditor;
   let editor_id = Model.editor_id(this_editor);
   let cursor_info = Program.Typ.get_cursor_info(editor);
-  let index = settings.cursor_inspector.assistant_selection;
-  let assistant_action = Assistant.select_action(index, u_gen, cursor_info);
   let key_handlers =
     is_focused
       ? key_handlers(
           ~inject,
           ~is_mac,
           ~cursor_info,
-          ~assistant_active=false, // TODO(andrew): factor this out?
-          ~assistant_action,
+          //TODO(andrew): factor these out?
+          ~assistant_active=false,
+          ~assistant_action=None,
         )
       : [];
   let on_click = click_handler(editor_id, font_metrics, inject);
