@@ -16,9 +16,13 @@ and operand =
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
 [@deriving sexp]
+type annotated_skel = AnnotatedSkel.t(operator);
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let get_prod_elements: skel => list(skel);
+
+let get_annotated_prod_elements: annotated_skel => list(annotated_skel);
 
 let unwrap_parentheses: operand => t;
 

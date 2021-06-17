@@ -23,28 +23,54 @@ let of_zopseq_ =
     ([length + Seq.length(prefix) - 1], cursor);
   };
 
-/* TODO Hannah don't copy function and move this somewhere better*/
+/* TODO Hannah some of this should probably be refactored */
 let cons_all =
     (step: int, steps: list(CursorPath.steps)): list(CursorPath.steps) => {
   List.map(steps => [step, ...steps], steps);
 };
-let explanation_pathsopseq =
-    (
-      ~of_zoperand: 'zoperand => list(CursorPath.steps),
-      ZOpSeq(skel, zseq): ZOpSeq.t(_, _, 'zoperand, _),
-    )
-    : list(CursorPath.steps) =>
-  switch (zseq) {
-  | ZOperand(zoperand, (prefix, _)) =>
-    cons_all(Seq.length_of_affix(prefix), of_zoperand(zoperand))
-  | ZOperator((_, _), (prefix, suffix)) =>
-    print_endline(
-      "Skel rooted: "
-      ++ string_of_bool(ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)),
-    );
-    print_endline("Prefix length: " ++ string_of_int(Seq.length(prefix)));
-    print_endline("Suffix length: " ++ string_of_int(Seq.length(suffix)));
-    [[Seq.length(prefix) - 1], [Seq.length(prefix)]];
+let child_root_node_path = (OpSeq(skel, seq): OpSeq.t(_)): CursorPath.steps => {
+  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+  [AnnotatedSkel.get_root_num(annotated_skel)];
+};
+let rec explanation_paths_skel =
+        (
+          of_zoperand: 'zoperand => list(CursorPath.steps),
+          skel: Skel.t(_),
+          ann_skel: AnnotatedSkel.t(_),
+          zseq: ZSeq.t(_, _, 'zoperand, _),
+        )
+        : list(CursorPath.steps) =>
+  if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+    // found cursor
+    switch (zseq) {
+    | ZOperand(zoperand, (prefix, _)) =>
+      // skel must be Placeholder
+      cons_all(Seq.length_of_affix(prefix), of_zoperand(zoperand))
+    | ZOperator(_, (_, _)) =>
+      switch (ann_skel) {
+      | Placeholder(_) => failwith("Can I reach here?")
+      | BinOp(_, _, skel1, skel2) => [
+          [AnnotatedSkel.get_root_num(skel1)],
+          [AnnotatedSkel.get_root_num(skel2)],
+        ]
+      }
+    };
+  } else {
+    // recurse toward cursor
+    switch (skel) {
+    | Placeholder(_) => []
+    /*| BinOp(_, Comma, _, _) =>
+      failwith(
+        "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
+      )*/
+    | BinOp(_, _, skel1, skel2) =>
+      switch (ann_skel) {
+      | Placeholder(_) => failwith("Error constructing annotated skel")
+      | BinOp(_, _, ann1, ann2) =>
+        explanation_paths_skel(of_zoperand, skel1, ann1, zseq)
+        @ explanation_paths_skel(of_zoperand, skel2, ann2, zseq)
+      }
+    };
   };
 
 let mk_zholes =

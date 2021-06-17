@@ -876,6 +876,9 @@ h1 {
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
+#code-root .explanation-elems-container {
+  z-index: var(--err-hole-z);
+}
 
 #code-root .current-term-drop-shadow.Exp {
   flood-color: var(--exp-shadow-color);
@@ -1052,11 +1055,6 @@ h1 {
 
 .var-use {
   fill: var(--var-use-color);
-  stroke-width: 0;
-}
-
-.explanation-elems {
-  background: rgb(23, 87, 148);
   stroke-width: 0;
 }
 

@@ -23,6 +23,9 @@ and operand =
 type skel = OpSeq.skel(operator);
 
 [@deriving sexp]
+type annotated_skel = AnnotatedSkel.t(operator);
+
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
@@ -38,6 +41,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
 let get_tuple_elements: skel => list(skel);
+
+let get_annotated_tuple_elements: annotated_skel => list(annotated_skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 

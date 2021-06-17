@@ -33,6 +33,9 @@ and splice_map = SpliceInfo.splice_map(t);
 type skel = OpSeq.skel(operator);
 
 [@deriving sexp]
+type annotated_skel = AnnotatedSkel.t(operator);
+
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
@@ -74,6 +77,8 @@ module Block: {
 };
 
 let get_tuple_elements: skel => list(skel);
+
+let get_annotated_tuple_elements: annotated_skel => list(annotated_skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 

@@ -28,7 +28,7 @@ let decoration_view =
     | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
     | VarUse => VarUse.view(~corner_radii)
     | ExplanationElems =>
-      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+      ExplanationTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     }

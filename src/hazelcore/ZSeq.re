@@ -21,6 +21,13 @@ let erase =
     Seq.prefix_seq(prefix_tl, S(prefix_hd, A(operator, suffix)));
   };
 
+let length = (zseq: t(_)): int =>
+  switch (zseq) {
+  | ZOperand(_, (_prefix, _suffix)) => 1
+  | ZOperator((_, _), (prefix, suffix)) =>
+    Seq.length(prefix) + Seq.length(suffix)
+  };
+
 let is_before =
     (~is_before_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
     : bool =>

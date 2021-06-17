@@ -34,6 +34,8 @@ and splice_map = SpliceInfo.splice_map(t);
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
 [@deriving sexp]
+type annotated_skel = AnnotatedSkel.t(operator);
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
@@ -134,6 +136,12 @@ let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+  | skel => [skel];
+
+let rec get_annotated_tuple_elements: annotated_skel => list(annotated_skel) =
+  fun
+  | BinOp(Comma, _, skel1, skel2) =>
+    get_annotated_tuple_elements(skel1) @ get_annotated_tuple_elements(skel2)
   | skel => [skel];
 
 let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
