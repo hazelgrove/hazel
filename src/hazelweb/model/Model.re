@@ -287,8 +287,10 @@ let move_via_key = (move_key, model) => {
 };
 
 let move_via_click = (row_col, model) => {
+  print_endline("move_via_click");
   switch (get_focal_editor(model)) {
   | AssistantTypeEditor =>
+    print_endline("move_via_click: AssistantTypeEditor");
     let (new_editor, action) =
       model
       |> get_assistant_editor
@@ -297,6 +299,7 @@ let move_via_click = (row_col, model) => {
     update_assistant_editor(action, new_editor, model);
   | MainProgram
   | NoFocus =>
+    print_endline("move_via_click: MainProgram or NoFocus");
     let (new_program, action) =
       model
       |> get_program

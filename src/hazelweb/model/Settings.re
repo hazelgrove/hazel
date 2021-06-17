@@ -214,7 +214,9 @@ module CursorInspector = {
         assistant: !settings.assistant,
         type_assist: false,
       }
-    | Set_assistant(b) => {...settings, assistant: b, type_assist: false}
+    | Set_assistant(b) =>
+      Printf.printf("setting assistant to: %b\n", b);
+      {...settings, assistant: b, type_assist: false};
     | Reset_assistant_selection => {
         ...settings,
         assistant_selection: Some(0),

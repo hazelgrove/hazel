@@ -3,18 +3,6 @@ module Js = Js_of_ocaml.Js;
 
 let focus: Model.editor => unit;
 
-/**
- * Code representation of UHExp.
- */
-let view:
-  (
-    ~font_metrics: FontMetrics.t,
-    ~settings: Settings.t,
-    ~is_focused: bool,
-    Program.exp
-  ) =>
-  (Base.list(Vdom.Node.t), list(Vdom.Node.t));
-
 let view_of_box: UHBox.t => Base.list(Vdom.Node.t);
 let decoration_views:
   (~font_metrics: FontMetrics.t, UHDecorationPaths.t, UHLayout.t) =>
@@ -50,7 +38,7 @@ let typebox_view:
     ~font_metrics: FontMetrics.t,
     ~is_mac: bool,
     ~settings: Settings.t,
-    ~is_focused: bool=?,
+    ~is_focused: bool,
     Program.Typ.t,
     MetaVarGen.t
   ) =>

@@ -3,6 +3,9 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
+module Attr = Vdom.Attr;
+module Event = Vdom.Event;
+module Node = Vdom.Node;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
@@ -131,6 +134,9 @@ let click_handler =
           ),
         ),
     };
+  let {row, col}: MeasuredPosition.t = caret_pos;
+  Printf.printf("r: %d, c: %d\n", row, col);
+
   inject(ModelAction.MoveAction(Click(caret_pos)));
 };
 
@@ -148,185 +154,139 @@ let get_selected_action = (cursor_info, u_gen, settings: Settings.t) => {
   Some(List.nth(actions, selected_index).action);
 };
 
+let get_assistant_key_action =
+    (
+      ~settings: Settings.t,
+      ~u_gen: MetaVarGen.t,
+      ~cursor_info: CursorInfo.t,
+      evt,
+    )
+    : option(ModelAction.t) => {
+  switch (Key.get_key(evt)) {
+  | "Escape" => Some(UpdateSettings(CursorInspector(Toggle_assistant)))
+  | "ArrowDown" =>
+    Some(UpdateSettings(CursorInspector(Increment_assistant_selection)))
+  | "ArrowUp" =>
+    Some(UpdateSettings(CursorInspector(Decrement_assistant_selection)))
+  | "Tab" =>
+    let+ action = get_selected_action(cursor_info, u_gen, settings);
+    ModelAction.AcceptSuggestion(action);
+  | _ => None
+  };
+};
+
+let get_regular_key_action =
+    (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
+  switch (MoveKey.of_key(Key.get_key(evt))) {
+  | Some(move_key) => Some(MoveAction(Key(move_key)))
+  | None =>
+    switch (HazelKeyCombos.of_evt(evt)) {
+    | Some(keycombo) =>
+      switch (keycombo) {
+      | Ctrl_Z when !is_mac => Some(Undo)
+      | Meta_Z when is_mac => Some(Undo)
+      | Ctrl_Shift_Z when !is_mac => Some(Redo)
+      | Meta_Shift_Z when is_mac => Some(Redo)
+      | Ctrl_Space =>
+        Some(UpdateSettings(CursorInspector(Toggle_type_assist)))
+      | kc => Some(EditAction(KeyComboAction.get(cursor_info, kc)))
+      }
+    | None =>
+      let+ key = JSUtil.is_single_key(evt);
+      ModelAction.EditAction(
+        Construct(SChar(JSUtil.single_key_string(key))),
+      );
+    }
+  };
+};
+
 let key_handlers =
     (
       ~settings: Settings.t,
-      ~u_gen,
-      ~inject,
+      ~u_gen: MetaVarGen.t,
+      ~inject: ModelAction.t => Ui_event.t,
       ~is_mac: bool,
       ~cursor_info: CursorInfo.t,
       ~assistant_active: bool,
     )
-    : list(Vdom.Attr.t) => {
-  open Vdom;
-  let prevent_stop_inject = a =>
-    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-  let pre_event = event =>
-    Event.Many([
-      inject(
-        ModelAction.UpdateSettings(
-          CursorInspector(Reset_assistant_selection),
-        ),
-      ),
-      event,
-    ]);
+    : list(Attr.t) => {
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      // TODO(andrew): do this mode stuff more better
-      switch (Key.get_key(evt)) {
-      | "Tab" when assistant_active =>
-        switch (get_selected_action(cursor_info, u_gen, settings)) {
-        | None => Event.Ignore
-        | Some(action) =>
-          prevent_stop_inject(ModelAction.AcceptSuggestion(action))
-        }
-      | "Escape" when assistant_active =>
-        prevent_stop_inject(
-          ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
-        )
-      | "ArrowDown" when assistant_active =>
-        prevent_stop_inject(
-          ModelAction.UpdateSettings(
-            CursorInspector(Increment_assistant_selection),
-          ),
-        )
-      | "ArrowUp" when assistant_active =>
-        prevent_stop_inject(
-          ModelAction.UpdateSettings(
-            CursorInspector(Decrement_assistant_selection),
-          ),
-        )
-      | _ =>
-        // TODO(andrew): slightly hacky way to preceed all fallthru
-        // events with resetting the current assistant selection
-        pre_event(
-          switch (MoveKey.of_key(Key.get_key(evt))) {
-          | Some(move_key) =>
-            prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-          | None =>
-            switch (HazelKeyCombos.of_evt(evt)) {
-            | Some(Ctrl_Z) =>
-              if (is_mac) {
-                Event.Ignore;
-              } else {
-                prevent_stop_inject(ModelAction.Undo);
-              }
-            | Some(Meta_Z) =>
-              if (is_mac) {
-                prevent_stop_inject(ModelAction.Undo);
-              } else {
-                Event.Ignore;
-              }
-            | Some(Ctrl_Shift_Z) =>
-              if (is_mac) {
-                Event.Ignore;
-              } else {
-                prevent_stop_inject(ModelAction.Redo);
-              }
-            | Some(Meta_Shift_Z) =>
-              if (is_mac) {
-                prevent_stop_inject(ModelAction.Redo);
-              } else {
-                Event.Ignore;
-              }
-            | Some(Ctrl_Space) =>
-              prevent_stop_inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Toggle_type_assist),
-                ),
-              )
-            | Some(kc) =>
-              prevent_stop_inject(
-                ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-              )
-            | None =>
-              switch (JSUtil.is_single_key(evt)) {
-              | None => Event.Ignore
-              | Some(single_key) =>
-                prevent_stop_inject(
-                  ModelAction.EditAction(
-                    Construct(SChar(JSUtil.single_key_string(single_key))),
-                  ),
-                )
-              }
-            }
-          },
-        )
-      }
+      let assistant_action =
+        get_assistant_key_action(~settings, ~u_gen, ~cursor_info, evt);
+      let regular_action = get_regular_key_action(~is_mac, ~cursor_info, evt);
+      let reset_assistant =
+        inject(UpdateSettings(CursorInspector(Reset_assistant_selection)));
+      let ev =
+        switch (assistant_action) {
+        | Some(action) when assistant_active => inject(action)
+        | _ =>
+          Event.Many([
+            reset_assistant,
+            switch (regular_action) {
+            | Some(action) => inject(action)
+            | None => Event.Ignore
+            },
+          ])
+        };
+      Event.Many([Event.Prevent_default, Event.Stop_propagation, ev]);
     }),
   ];
 };
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
-  Vdom.(
-    switch (WeakMap.get(box_table, box)) {
-    | Some(vs) => vs
-    | None =>
-      switch (box) {
-      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
-      | VBox(boxes) =>
-        let vs =
-          boxes
-          |> List.map(view_of_box)
-          |> ListUtil.join([Node.br([])])
-          |> List.flatten;
-        [Node.div([Attr.classes(["VBox"])], vs)];
-      | Annot(annot, box) =>
-        let vs = view_of_box(box);
-        switch (annot) {
-        | Token({shape, _}) =>
-          let clss =
-            switch (shape) {
-            | Text => ["code-text"]
-            | Op => ["code-op"]
-            | Delim(_) => ["code-delim"]
-            };
-          [Node.span([Attr.classes(clss)], vs)];
-        | HoleLabel({len}) =>
-          let width = Css_gen.width(`Ch(float_of_int(len)));
-          [
-            Node.span(
-              [Attr.style(width), Attr.classes(["HoleLabel"])],
-              [Node.span([Attr.classes(["HoleNumber"])], vs)],
-            ),
-          ];
-        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | _ => vs
-        };
-      }
+  switch (WeakMap.get(box_table, box)) {
+  | Some(vs) => vs
+  | None =>
+    switch (box) {
+    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+    | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+    | VBox(boxes) =>
+      let vs =
+        boxes
+        |> List.map(view_of_box)
+        |> ListUtil.join([Node.br([])])
+        |> List.flatten;
+      [Node.div([Attr.classes(["VBox"])], vs)];
+    | Annot(annot, box) =>
+      let vs = view_of_box(box);
+      switch (annot) {
+      | Token({shape, _}) =>
+        let clss =
+          switch (shape) {
+          | Text => ["code-text"]
+          | Op => ["code-op"]
+          | Delim(_) => ["code-delim"]
+          };
+        [Node.span([Attr.classes(clss)], vs)];
+      | HoleLabel({len}) =>
+        let width = Css_gen.width(`Ch(float_of_int(len)));
+        [
+          Node.span(
+            [Attr.style(width), Attr.classes(["HoleLabel"])],
+            [Node.span([Attr.classes(["HoleNumber"])], vs)],
+          ),
+        ];
+      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+      | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+      | _ => vs
+      };
     }
-  );
-};
-
-let focus = (editor: Model.editor) => {
-  JSUtil.force_get_elem_by_id(Model.editor_id(editor))##focus;
-};
-
-let view =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~settings: Settings.t,
-      ~is_focused: bool,
-      program: Program.exp,
-    )
-    : (Base.list(Vdom.Node.t), list(Vdom.Node.t)) => {
-  let l = Program.Exp.get_layout(~settings, program);
-  let code_text = view_of_box(UHBox.mk(l));
-  let decorations = {
-    let dpaths = Program.Exp.get_decoration_paths(program);
-    let dpaths = {
-      ...dpaths,
-      current_term: is_focused ? dpaths.current_term : None,
-    };
-    decoration_views(~font_metrics, dpaths, l);
   };
-  (code_text, decorations);
 };
 
+let focus = (editor: Model.editor) =>
+  try(JSUtil.force_get_elem_by_id(Model.editor_id(editor))##focus) {
+  | _ =>
+    Printf.printf(
+      "ERROR: tried to focus editor not present in the DOM: %s",
+      Model.editor_id(editor),
+    )
+  };
+
+//TODO(andrew): deprecate
 let get_codebox_layout = program => {
   program
   |> Program.get_edit_state
@@ -337,7 +297,6 @@ let get_codebox_layout = program => {
 };
 
 let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
-  open Vdom;
   let l = get_codebox_layout(program);
   let code_text = view_of_box(UHBox.mk(l));
   let (err_holes, var_err_holes) =
@@ -352,42 +311,30 @@ let codebox_view = (~font_metrics: FontMetrics.t, program: Program.exp) => {
   [Node.span([Attr.classes(["code"])], code_text), ...decorations];
 };
 
-// TODO(andrew): below two fns are copied-pasted from above two
-let get_typebox_layout = (program: Program.typ) => {
-  program
-  |> Program.get_edit_state
-  |> Program.EditState_Typ.get_uhstx
-  |> Lazy.force(UHDoc_Typ.mk, ~memoize=false, ~enforce_inline=false)
-  |> Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0)
-  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
-};
-
 let typebox_view =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
-      ~is_focused=true,
+      ~is_focused: bool,
       editor: Program.typ,
       u_gen,
     ) => {
-  open Vdom;
-  let cursor_info = Program.Typ.get_cursor_info(editor);
-  let layout = get_typebox_layout(editor);
-  let code_text = layout |> UHBox.mk |> view_of_box;
-  let (err_holes, var_err_holes) =
-    editor |> Program.Typ.get_err_holes_decoration_paths;
-  let dpaths: UHDecorationPaths.t = {
-    current_term: None,
-    err_holes,
-    var_uses: [],
-    var_err_holes,
+  let layout = Program.Typ.get_layout(~settings, editor);
+  let code_text = view_of_box(UHBox.mk(layout));
+  let dpaths = Program.Typ.get_decoration_paths(editor);
+  let dpaths = {
+    ...dpaths,
+    current_term: is_focused ? dpaths.current_term : None,
   };
-  let caret = {
-    let caret_pos = Program.Typ.get_caret_position(~settings, editor);
+  let decorations = decoration_views(~font_metrics, dpaths, layout);
+  let caret_pos = Program.Typ.get_caret_position(~settings, editor);
+  let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-  };
+
+  let cursor_info = Program.Typ.get_cursor_info(editor);
+  let assistant_active = false; // TODO(andrew): factor this out of key_handlers?
   let key_handlers =
     is_focused
       ? key_handlers(
@@ -396,35 +343,23 @@ let typebox_view =
           ~inject,
           ~is_mac,
           ~cursor_info,
-          ~assistant_active=false //TODO(andrew): this smells iffy
+          ~assistant_active,
         )
       : [];
-  let decorations = decoration_views(~font_metrics, dpaths, layout);
+  let this_editor = Model.AssistantTypeEditor;
+  let editor_id = Model.editor_id(this_editor);
 
-  let typebox_id = Model.editor_id(AssistantTypeEditor);
+  let on_click = click_handler(editor_id, font_metrics, inject);
+
   [
     Node.div(
       [
-        Attr.id(typebox_id),
+        Attr.id(editor_id),
         Attr.classes(["code"]),
-        //TODO(andrew): this doesn't work except when you do it on the first hole location
-        Attr.on_mousedown(evt =>
-          click_handler(typebox_id, font_metrics, inject, evt)
-        ),
-        // necessary to make cell focusable
-        Attr.create("tabindex", "0"),
-        Attr.on_focus(_ => {
-          print_endline("ASSISTANT taking focus");
-          Event.Many([
-            //Event.Stop_propagation,
-            //Event.Prevent_default,
-            inject(ModelAction.FocusCell(Model.AssistantTypeEditor)),
-          ]);
-        }),
-        Attr.on_blur(_ => {
-          print_endline("UHCODE BLURR");
-          inject(ModelAction.BlurCell);
-        }),
+        Attr.on_click(on_click),
+        Attr.create("tabindex", "0"), // necessary to make cell focusable
+        Attr.on_focus(_ => inject(FocusCell(this_editor))),
+        Attr.on_blur(_ => inject(BlurCell)),
         ...key_handlers,
       ],
       caret

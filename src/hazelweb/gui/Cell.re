@@ -65,28 +65,42 @@ let code_view =
 
       let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
       let main_editor_is_focused = focal_editor == Model.MainProgram;
+      let u_gen = Program.EditState_Exp.get_ugen(program.edit_state);
 
-      let l = Program.Exp.get_layout(~settings, program);
-
-      let (code_text, decorations) =
-        UHCode.view(
-          ~font_metrics,
-          ~settings,
-          ~is_focused=main_editor_is_focused,
-          program,
-        );
-      let caret = {
-        let caret_pos = Program.Exp.get_caret_position(~settings, program);
+      let layout = Program.Exp.get_layout(~settings, program);
+      let code_text = UHCode.view_of_box(UHBox.mk(layout));
+      let dpaths = Program.Exp.get_decoration_paths(program);
+      let dpaths = {
+        ...dpaths,
+        current_term: main_editor_is_focused ? dpaths.current_term : None,
+      };
+      let decorations =
+        UHCode.decoration_views(~font_metrics, dpaths, layout);
+      let caret_pos = Program.Exp.get_caret_position(~settings, program);
+      let caret =
         main_editor_is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
+      let cursor_info = Program.Exp.get_cursor_info(program);
+      //TODO(andrew): clean up this logic
+      let assistant_active =
+        settings.cursor_inspector.assistant
+        && Assistant_common.valid_assistant_term(cursor_info.cursor_term);
+      let key_handlers =
+        main_editor_is_focused
+          ? UHCode.key_handlers(
+              ~settings,
+              ~u_gen,
+              ~inject,
+              ~is_mac,
+              ~cursor_info,
+              ~assistant_active,
+            )
+          : [];
+      let this_editor = Model.MainProgram;
+      let editor_id = Model.editor_id(this_editor);
 
       let cursor_inspector =
-        // TODO(andrew): when below uncommented, assistant disappears on
-        // interaction. check focus logic.
-        if (/*main_editor_is_focused &&*/ settings.cursor_inspector.visible) {
-          let path = Program.Exp.get_path(program);
-          let ci = Program.Exp.get_cursor_info(program);
+        if (settings.cursor_inspector.visible) {
           [
             view_of_cursor_inspector(
               ~inject,
@@ -95,93 +109,50 @@ let code_view =
               ~settings,
               type_editor_is_focused,
               assistant_editor,
-              path,
+              Program.Exp.get_path(program),
               settings.cursor_inspector,
-              ci,
-              l,
-              Program.EditState_Exp.get_ugen(program.edit_state),
+              cursor_info,
+              layout,
+              u_gen,
             ),
           ];
         } else {
           [];
         };
 
-      let key_handlers =
-        main_editor_is_focused
-          ? UHCode.key_handlers(
-              ~settings,
-              ~u_gen=Program.EditState_Exp.get_ugen(program.edit_state),
-              ~inject,
-              ~is_mac,
-              ~cursor_info=Program.Exp.get_cursor_info(program),
-              //TODO(andrew): clean up below
-              ~assistant_active=
-                settings.cursor_inspector.assistant
-                && Assistant_common.valid_assistant_term(
-                     Program.Exp.get_cursor_info(program).cursor_term,
-                   ),
-            )
-          : [];
-
-      let root_id = Model.editor_id(MainProgram);
-      let click_handler = UHCode.click_handler(root_id, font_metrics, inject);
-
-      let ci = Program.Exp.get_cursor_info(program);
-      let ty =
-        switch (Assistant_common.get_types_and_mode(ci.typed)) {
-        | (None, _, _) => HTyp.Hole
-        | (Some(ty), _, _) => ty
-        };
+      let on_click = evt => {
+        Event.Many([
+          UHCode.click_handler(editor_id, font_metrics, inject, evt),
+          inject(UpdateSettings(CursorInspector(Set_assistant(false)))),
+        ]);
+      };
 
       Node.div(
         [
-          Attr.id(root_id),
+          Attr.id(editor_id),
           Attr.classes(["code", "presentation"]),
-          // need to use mousedown instead of click to fire
-          // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt => {
-            print_endline("setting cursor inspector invisible");
-            Event.Many([
-              click_handler(evt),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_visible(false)),
-                ),
-              ),
-            ]);
-          }),
+          Attr.on_click(on_click),
           Attr.on_contextmenu(evt => {
             // TODO(andrew): make this sane
+            let ty =
+              switch (Assistant_common.get_type(cursor_info)) {
+              | None => UHTyp.contract(HTyp.Hole)
+              | Some(ty) => UHTyp.contract(ty)
+              };
             Event.Many([
               Event.Prevent_default,
-              //Event.Stop_propagation,
-              click_handler(evt),
-              //TODO(andrew): put this somewhere more reasonable?
-              inject(SetAssistantTypeEditor(UHTyp.contract(ty))),
+              inject(SetAssistantTypeEditor(ty)),
+              inject(UpdateSettings(CursorInspector(Set_visible(true)))),
+              inject(UpdateSettings(CursorInspector(Set_assistant(true)))),
               inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_visible(true)),
-                ),
+                UpdateSettings(CursorInspector(Reset_assistant_selection)),
               ),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Reset_assistant_selection),
-                ),
-              ),
-              inject(
-                ModelAction.UpdateSettings(
-                  CursorInspector(Set_assistant(true)),
-                ),
-              ),
-            ])
+              UHCode.click_handler(editor_id, font_metrics, inject, evt),
+            ]);
           }),
-          // necessary to make cell focusable
-          Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => {
-            print_endline("CELL taking focus");
-            inject(ModelAction.FocusCell(Model.MainProgram));
-          }),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.create("tabindex", "0"), // necessary to make cell focusable
+          Attr.on_focus(_ => inject(FocusCell(this_editor))),
+          Attr.on_blur(_ => inject(BlurCell)),
           ...key_handlers,
         ],
         caret
