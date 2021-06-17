@@ -82,11 +82,10 @@ let code_view =
       let key_handlers =
         main_editor_is_focused
           ? UHCode.key_handlers(
-              ~settings,
-              ~u_gen,
               ~inject,
               ~is_mac,
               ~cursor_info,
+              ~assistant_action=None,
               ~assistant_active,
             )
           : [];

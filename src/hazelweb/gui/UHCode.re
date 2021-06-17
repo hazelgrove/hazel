@@ -140,23 +140,39 @@ let click_handler =
   inject(ModelAction.MoveAction(Click(caret_pos)));
 };
 
+type norm_key =
+  | Single(JSUtil.single_key)
+  | Combo(HazelKeyCombos.t)
+  | Move(MoveKey.t)
+  | UnknownKey;
+
+let key_of = (evt): norm_key => {
+  switch (evt |> Key.get_key |> MoveKey.of_key) {
+  | Some(move_key) => Move(move_key)
+  | None =>
+    switch (HazelKeyCombos.of_evt(evt)) {
+    | Some(keycombo) => Combo(keycombo)
+    | None =>
+      switch (JSUtil.is_single_key(evt)) {
+      | Some(key) => Single(key)
+      | None => UnknownKey
+      }
+    }
+  };
+};
+
+let update_assistant =
+    (x: Settings.CursorInspector.update): option(ModelAction.t) =>
+  Some(UpdateSettings(CursorInspector(x)));
+
 let assistant_key_action =
-    (
-      ~settings: Settings.t,
-      ~u_gen: MetaVarGen.t,
-      ~cursor_info: CursorInfo.t,
-      evt,
-    )
-    : option(ModelAction.t) => {
-  switch (Key.get_key(evt)) {
-  | "Escape" => Some(UpdateSettings(CursorInspector(Toggle_assistant)))
-  | "ArrowDown" =>
-    Some(UpdateSettings(CursorInspector(Increment_assistant_selection)))
-  | "ArrowUp" =>
-    Some(UpdateSettings(CursorInspector(Decrement_assistant_selection)))
-  | "Tab" =>
-    let index = settings.cursor_inspector.assistant_selection;
-    let+ action = Assistant.select_action(index, u_gen, cursor_info);
+    (~assistant_action: option(Action.t), evt): option(ModelAction.t) => {
+  switch (key_of(evt)) {
+  | Move(ArrowDown) => update_assistant(Increment_assistant_selection)
+  | Move(ArrowUp) => update_assistant(Decrement_assistant_selection)
+  | Combo(Escape) => update_assistant(Toggle_assistant)
+  | Combo(Tab) =>
+    let+ action = assistant_action;
     ModelAction.AcceptSuggestion(action);
   | _ => None
   };
@@ -164,36 +180,26 @@ let assistant_key_action =
 
 let main_key_action =
     (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
-  switch (MoveKey.of_key(Key.get_key(evt))) {
-  | Some(move_key) => Some(MoveAction(Key(move_key)))
-  | None =>
-    switch (HazelKeyCombos.of_evt(evt)) {
-    | Some(keycombo) =>
-      switch (keycombo) {
-      | Ctrl_Z when !is_mac => Some(Undo)
-      | Meta_Z when is_mac => Some(Undo)
-      | Ctrl_Shift_Z when !is_mac => Some(Redo)
-      | Meta_Shift_Z when is_mac => Some(Redo)
-      | Ctrl_Space =>
-        Some(UpdateSettings(CursorInspector(Toggle_type_assist)))
-      | kc => Some(EditAction(KeyComboAction.get(cursor_info, kc)))
-      }
-    | None =>
-      let+ key = JSUtil.is_single_key(evt);
-      ModelAction.EditAction(
-        Construct(SChar(JSUtil.single_key_string(key))),
-      );
-    }
+  switch (key_of(evt)) {
+  | Move(k) => Some(MoveAction(Key(k)))
+  | Combo(Ctrl_Z) when !is_mac => Some(Undo)
+  | Combo(Meta_Z) when is_mac => Some(Undo)
+  | Combo(Ctrl_Shift_Z) when !is_mac => Some(Redo)
+  | Combo(Meta_Shift_Z) when is_mac => Some(Redo)
+  | Combo(Ctrl_Space) => update_assistant(Toggle_type_assist)
+  | Combo(k) => Some(EditAction(KeyComboAction.get(cursor_info, k)))
+  | Single(k) =>
+    Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
+  | _ => None
   };
 };
 
 let key_handlers =
     (
-      ~settings: Settings.t,
-      ~u_gen: MetaVarGen.t,
       ~inject: ModelAction.t => Ui_event.t,
       ~is_mac: bool,
       ~cursor_info: CursorInfo.t,
+      ~assistant_action: option(Action.t)=None,
       ~assistant_active: bool,
     )
     : list(Attr.t) => {
@@ -208,7 +214,7 @@ let key_handlers =
           Event.Stop_propagation,
           inject(ev),
         ]);
-      switch (assistant_key_action(~settings, ~u_gen, ~cursor_info, evt)) {
+      switch (assistant_key_action(~assistant_action, evt)) {
       | Some(action) when assistant_active => inject_stop_prevent(action)
       | _ =>
         Event.Many([
@@ -329,15 +335,17 @@ let typebox =
     ) => {
   let this_editor = Model.AssistantTypeEditor;
   let editor_id = Model.editor_id(this_editor);
+  let cursor_info = Program.Typ.get_cursor_info(editor);
+  let index = settings.cursor_inspector.assistant_selection;
+  let assistant_action = Assistant.select_action(index, u_gen, cursor_info);
   let key_handlers =
     is_focused
       ? key_handlers(
-          ~settings,
-          ~u_gen,
           ~inject,
           ~is_mac,
-          ~cursor_info=Program.Typ.get_cursor_info(editor),
-          ~assistant_active=false // TODO(andrew): factor this out?
+          ~cursor_info,
+          ~assistant_active=false, // TODO(andrew): factor this out?
+          ~assistant_action,
         )
       : [];
   let on_click = click_handler(editor_id, font_metrics, inject);

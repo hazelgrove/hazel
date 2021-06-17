@@ -9,11 +9,10 @@ let decoration_views:
   list(Vdom.Node.t);
 let key_handlers:
   (
-    ~settings: Settings.t,
-    ~u_gen: MetaVarGen.t,
     ~inject: ModelAction.t => Vdom.Event.t,
     ~is_mac: bool,
     ~cursor_info: CursorInfo.t,
+    ~assistant_action: option(Action.t)=?,
     ~assistant_active: bool
   ) =>
   list(Vdom.Attr.t);
