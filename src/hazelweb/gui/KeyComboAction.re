@@ -1,5 +1,5 @@
 let get_model_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: option(bool))
+    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
     : option(ModelAction.t) =>
   switch (kc, cursor_info, is_mac) {
   | (Escape, _, _) => None
@@ -35,27 +35,24 @@ let get_model_action =
   | (Alt_R, _, _) => Some(EditAction(Construct(SInj(R))))
   | (Alt_C, _, _) => Some(EditAction(Construct(SCase)))
   | (Pound, _, _) => Some(EditAction(Construct(SCommentLine)))
-  | (Ctrl_Z, _, Some(true)) => None
-  | (Ctrl_Z, _, Some(false)) => Some(Undo)
-  | (Ctrl_Z, _, None) => None
-  | (Ctrl_Shift_Z, _, Some(true)) => None
-  | (Ctrl_Shift_Z, _, Some(false)) => Some(Redo)
-  | (Ctrl_Shift_Z, _, None) => None
+  | (Ctrl_Z, _, true) => None
+  | (Ctrl_Z, _, false) => Some(Undo)
+  | (Ctrl_Shift_Z, _, true) => None
+  | (Ctrl_Shift_Z, _, false) => Some(Redo)
   | (Ctrl_Alt_I, _, _) => Some(EditAction(SwapUp))
   | (Ctrl_Alt_K, _, _) => Some(EditAction(SwapDown))
   | (Ctrl_Alt_J, _, _) => Some(EditAction(SwapLeft))
   | (Ctrl_Alt_L, _, _) => Some(EditAction(SwapRight))
-  | (Meta_Z, _, Some(true)) => Some(Undo)
-  | (Meta_Z, _, Some(false)) => None
-  | (Meta_Z, _, None) => None
-  | (Meta_Shift_Z, _, Some(true)) => Some(Redo)
-  | (Meta_Shift_Z, _, Some(false)) => None
-  | (Meta_Shift_Z, _, None) => None
+  | (Meta_Z, _, true) => Some(Undo)
+  | (Meta_Z, _, false) => None
+  | (Meta_Shift_Z, _, true) => Some(Redo)
+  | (Meta_Shift_Z, _, false) => None
   };
 
 let get_action =
     (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(Action.t) =>
-  switch (get_model_action(cursor_info, kc, None)) {
+  // is_mac shouldn't matter here, so we'll just have it be false
+  switch (get_model_action(cursor_info, kc, false)) {
   | Some(EditAction(action)) => Some(action)
   | _ => None
   };

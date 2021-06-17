@@ -118,11 +118,7 @@ let key_handlers =
         switch (move_key, key_combo, single_key) {
         | (Some(move_key), _, _) => Some(MoveAction(Key(move_key)))
         | (_, Some(key_combo), _) =>
-          KeyComboAction.get_model_action(
-            cursor_info,
-            key_combo,
-            Some(is_mac),
-          )
+          KeyComboAction.get_model_action(cursor_info, key_combo, is_mac)
         | (_, _, Some(single_key)) =>
           Some(
             EditAction(
