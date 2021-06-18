@@ -656,26 +656,13 @@ body {
   display: flex;
   position: relative;
   align-items: stretch;
+  min-height: 2.25rem;
 }
 
 #assistant > .choice > .type {
   color: #e5e3e3 !important;
   display: flex;
   align-items: center;
-}
-
-#assistant > .choice > .overlay {
-  display: flex;
-  align-items: center;
-  min-height: 2.5em;
-  width: 2.5em;
-  position: absolute;
-  /* TODO(andrew): fix these hack values */
-  top: -0.1rem; 
-  left: 2.93rem;
-  z-index: 9000;
-  color: #24b834;
-  text-decoration: underline;
 }
 
 #assistant > .choice:hover,
@@ -698,7 +685,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.5rem;
   width: 2.5rem;
   background-color: #888;
   font-weight:600;
@@ -727,27 +713,33 @@ body {
   color:#86cbff;
 }
 
-#assistant > .choice > .code {
+#assistant > .choice > .code-container {
+  min-height: 2.25em;
   padding-left: 0.4em;
   display: flex;
   align-items: center;
-  /*height: 2.25em;
-  border-bottom: 1px solid #666;*/
 }
 
-#assistant > .choice > .code .HoleLabel {
+#assistant > .choice > .code-container .overlay {
+  position: absolute;
+  z-index: 9000; /* hack */
+  color: #24b834;
+  text-decoration: underline;
+}
+
+#assistant > .choice .code .HoleLabel {
   background-color: #0d0a051b;
   border-radius: 4px;
   box-shadow: inset -1px -1px 0 rgba(255,255,255,0.4);
 }
 
-#assistant > .choice > .code .code-delim {
+#assistant > .choice .code .code-delim {
   /* HACK: override bold, mostly for completion overlay */
   font-weight: normal;
 }
 
-#assistant > .choice:hover > .code .HoleLabel,
-#assistant > .selected > .code .HoleLabel  {
+#assistant > .choice:hover .code .HoleLabel,
+#assistant > .selected .code .HoleLabel  {
   background-color: #94f893;
   color: rgb(90 182 79);
   border-radius: 4px;
@@ -767,7 +759,19 @@ body {
 }
 
 #assistant > .selected > .type {
+  color: #3ba270;
+}
+
+#assistant > .choice > .type .HoleLabel {
+  background-color: #0000;
+  color: #ccc;
+  box-shadow: none;
+}
+#assistant > .choice:hover > .type  .HoleLabel,
+#assistant > .selected > .type .HoleLabel  {
+  background-color: #0000;
   color: rgb(120 120 120);
+  box-shadow: none;
 }
 
 /* action panel */

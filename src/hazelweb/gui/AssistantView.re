@@ -43,15 +43,24 @@ let action_view =
       classes(["choice"] @ (is_selected ? ["selected"] : [])),
       on_click(perform_action),
     ],
-    [div([classes(["category", abbr])], [text(abbr)])]
-    @ [div([classes(["overlay"])], [text(search_string)])]
-    @ UHCode.codebox_view(
-        ~is_focused=false,
-        ~settings,
-        ~font_metrics,
-        program,
-      )
-    @ [
+    [
+      div([classes(["category", abbr])], [text(abbr)]),
+      div(
+        [Attr.classes(["code-container"])],
+        [
+          div(
+            //NOTE(andrew): extra level of divs seems necessary for decoration formatting
+            [Attr.classes(["code"])],
+            [div([classes(["overlay"])], [text(search_string)])]
+            @ UHCode.codebox_view(
+                ~is_focused=false,
+                ~settings,
+                ~font_metrics,
+                program,
+              ),
+          ),
+        ],
+      ),
       span([classes(["type-ann"])], [text(" : ")]),
       span([classes(["type"])], [HTypCode.view(res_ty)]),
     ],
