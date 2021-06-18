@@ -157,7 +157,7 @@ let action_list =
   );
 };
 
-let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
+let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
   let text = Node.text;
   let simple = desc => [Node.text(desc)];
 
@@ -166,7 +166,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let combo_element = (is_allowed_action, combo, description) => {
-    let action = KeyComboAction.get_action(cursor_info, combo);
+    let action = KeyComboAction.get_action(cursor_info, combo, is_mac);
     action_button(
       is_allowed_action,
       inject,
@@ -204,7 +204,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     let actions =
       List.map(
         combo => {
-          let action = KeyComboAction.get_action(cursor_info, combo);
+          let action = KeyComboAction.get_action(cursor_info, combo, is_mac);
           (HazelKeyCombos.get_details(combo), action);
         },
         combos,
@@ -214,7 +214,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let keyboard_button = combo => {
-    let action = KeyComboAction.get_action(cursor_info, combo);
+    let action = KeyComboAction.get_action(cursor_info, combo, is_mac);
     let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
@@ -432,7 +432,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
     };
   };
 
-  let body = generate_panel_body(is_action_allowed, cursor_info, inject);
+  let body =
+    generate_panel_body(is_action_allowed, cursor_info, inject, model.is_mac);
 
   action_panel(body);
 };
