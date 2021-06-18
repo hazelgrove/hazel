@@ -50,9 +50,9 @@ let get_model_action =
   };
 
 let get_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(Action.t) =>
-  // is_mac shouldn't matter here, so we'll just have it be false
-  switch (get_model_action(cursor_info, kc, false)) {
+    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
+    : option(Action.t) =>
+  switch (get_model_action(cursor_info, kc, is_mac)) {
   | Some(EditAction(action)) => Some(action)
   | _ => None
   };
