@@ -666,10 +666,10 @@ let summary_bar =
             show_strategy_guide
               ? inject(UpdateSettings(CursorInspector(Toggle_type_assist)))
               : inject(
-                  Chain(
+                  Chain([
                     UpdateSettings(CursorInspector(Set_type_assist(false))),
                     UpdateAssistant(Toggle),
-                  ),
+                  ]),
                 ),
           ])
         ),
@@ -678,10 +678,10 @@ let summary_bar =
             Event.Prevent_default,
             Event.Stop_propagation,
             inject(
-              Chain(
+              Chain([
                 UpdateSettings(CursorInspector(Set_type_assist(false))),
                 UpdateAssistant(Toggle),
-              ),
+              ]),
             ),
           ])
         ),

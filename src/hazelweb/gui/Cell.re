@@ -117,15 +117,15 @@ let code_view =
       let this_editor = Model.MainProgram;
       let editor_id = Model.editor_id(this_editor);
 
-      let on_click = evt => {
-        Event.Many([
-          UHCode.click_handler(editor_id, font_metrics, inject, evt),
-          inject(UpdateAssistant(Turn_off)),
-        ]);
-      };
+      let on_click = evt =>
+        inject(
+          Chain([
+            UpdateAssistant(Turn_off),
+            UHCode.click_to_move(editor_id, font_metrics, evt),
+          ]),
+        );
 
       let on_contextmenu = evt => {
-        // TODO(andrew): improve society somewhat
         let ty =
           switch (Assistant_common.get_type(cursor_info)) {
           | None => UHTyp.contract(HTyp.Hole)
@@ -133,11 +133,14 @@ let code_view =
           };
         Event.Many([
           Event.Prevent_default,
-          inject(UpdateAssistant(Set_type_editor(ty))),
-          inject(UpdateAssistant(Reset_selection_index)),
-          inject(UpdateAssistant(Turn_on)),
-          inject(UpdateSettings(CursorInspector(Set_visible(true)))),
-          UHCode.click_handler(editor_id, font_metrics, inject, evt),
+          inject(
+            Chain([
+              UpdateAssistant(Set_type_editor(ty)),
+              UpdateAssistant(Turn_on),
+              UpdateSettings(CursorInspector(Set_visible(true))),
+              UHCode.click_to_move(editor_id, font_metrics, evt),
+            ]),
+          ),
         ]);
       };
 
@@ -152,7 +155,6 @@ let code_view =
           Attr.on_blur(_ => inject(BlurCell)),
           ...key_handlers,
         ],
-        //TODO(andrew): cursor_inspector has to be before codebox or else decos get misplaced. ask david why?
         cursor_inspector @ codebox,
       );
     },

@@ -225,9 +225,10 @@ let rec apply_action =
           ...model,
           assistant: AssistantModel.apply_update(u, model.assistant),
         }
-      | Chain(a1, a2) =>
-        let model' = apply_action(model, a1, state, ~schedule_action);
-        apply_action(model', a2, state, ~schedule_action);
+      | Chain([]) => model
+      | Chain([x, ...xs]) =>
+        let model' = apply_action(model, x, state, ~schedule_action);
+        apply_action(model', Chain(xs), state, ~schedule_action);
       };
     },
   );

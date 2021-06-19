@@ -41,8 +41,13 @@ type update =
 let apply_update = (u: update, model: t) =>
   switch (u) {
   | Toggle => {...model, active: !model.active}
-  | Turn_on => {...model, active: true}
-  | Turn_off => {...model, active: false}
+  | Turn_on => {...model, active: true, selection_index: 0}
+  | Turn_off => {
+      ...model,
+      active: false,
+      selection_index: 0,
+      filter_editor: init.filter_editor,
+    }
   | Reset_selection_index => {...model, selection_index: 0}
   | Increment_selection_index => {
       ...model,

@@ -16,18 +16,17 @@ let key_handlers:
     ~assistant_active: bool
   ) =>
   list(Vdom.Attr.t);
-let click_handler:
+let click_to_move:
   (
     string,
     FontMetrics.t,
-    ModelAction.t => Ui_event.t,
     {
       ..
       "clientX": Js.gen_prop({.. get: int}),
       "clientY": Js.gen_prop({.. get: int}),
     }
   ) =>
-  Ui_event.t;
+  ModelAction.t;
 
 let codebox_view:
   (

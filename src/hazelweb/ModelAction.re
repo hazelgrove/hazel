@@ -46,4 +46,4 @@ type t =
   | UpdateIsMac(bool)
   | AcceptSuggestion(Action.t)
   | UpdateAssistant(AssistantModel.update)
-  | Chain(t, t);
+  | Chain(list(t));

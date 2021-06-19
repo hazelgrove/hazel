@@ -107,14 +107,8 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
-let click_handler =
-    (
-      root_id: string,
-      font_metrics: FontMetrics.t,
-      inject: ModelAction.t => Ui_event.t,
-      evt,
-    )
-    : Ui_event.t => {
+let click_to_move =
+    (root_id: string, font_metrics: FontMetrics.t, evt): ModelAction.t => {
   let container_rect =
     JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
   let (target_x, target_y) = (
@@ -136,8 +130,7 @@ let click_handler =
     };
   let {row, col}: MeasuredPosition.t = caret_pos;
   Printf.printf("r: %d, c: %d\n", row, col);
-
-  inject(ModelAction.MoveAction(Click(caret_pos)));
+  MoveAction(Click(caret_pos));
 };
 
 type norm_key =
@@ -169,14 +162,16 @@ let assistant_key_action =
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
   switch (key_of(evt), assistant_action) {
   | (Combo(Escape), _) =>
-    Some(Chain(UpdateAssistant(Turn_off), update_ci(Set_visible(false))))
+    Some(
+      Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
+    )
   | (Move(ArrowDown), Some(_)) =>
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
     Some(UpdateAssistant(Decrement_selection_index))
   | (Combo(Enter), Some(action)) => Some(AcceptSuggestion(action))
   | (Combo(Tab), Some(action)) =>
-    Some(Chain(AcceptSuggestion(action), EditAction(MoveToNextHole)))
+    Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))
   | _ => None
   };
 };
@@ -192,7 +187,7 @@ let main_key_action =
   | Combo(Escape) => Some(update_ci(Set_visible(false)))
   | Combo(Ctrl_Space) => Some(update_ci(Toggle_visible))
   | Combo(Ctrl_A) =>
-    Some(Chain(update_ci(Set_visible(true)), UpdateAssistant(Turn_on)))
+    Some(Chain([update_ci(Set_visible(true)), UpdateAssistant(Turn_on)]))
   | Combo(k) => Some(EditAction(KeyComboAction.get(cursor_info, k)))
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
@@ -212,7 +207,6 @@ let key_handlers =
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      let reset_assistant = inject(UpdateAssistant(Reset_selection_index));
       let inject_stop_prevent = ev =>
         Event.Many([
           Event.Prevent_default,
@@ -222,13 +216,13 @@ let key_handlers =
       switch (assistant_key_action(~assistant_action, evt)) {
       | Some(action) when assistant_active => inject_stop_prevent(action)
       | _ =>
-        Event.Many([
-          reset_assistant,
-          switch (main_key_action(~is_mac, ~cursor_info, evt)) {
-          | Some(action) => inject_stop_prevent(action)
-          | _ => Event.Ignore
-          },
-        ])
+        switch (main_key_action(~is_mac, ~cursor_info, evt)) {
+        | Some(action) =>
+          inject_stop_prevent(
+            Chain([UpdateAssistant(Reset_selection_index), action]),
+          )
+        | _ => Event.Ignore
+        }
       };
     }),
   ];
@@ -344,13 +338,13 @@ let typebox =
           ~assistant_action=None,
         )
       : [];
-  let on_click = click_handler(editor_id, font_metrics, inject);
+  let move = evt => inject(click_to_move(editor_id, font_metrics, evt));
   [
     Node.div(
       [
         Attr.id(editor_id),
         Attr.classes(["code"]),
-        Attr.on_click(on_click),
+        Attr.on_click(move),
         Attr.create("tabindex", "0"), // necessary to make cell focusable
         Attr.on_focus(_ => inject(FocusCell(this_editor))),
         Attr.on_blur(_ => inject(BlurCell)),
