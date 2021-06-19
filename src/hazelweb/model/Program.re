@@ -109,6 +109,7 @@ module EditState_Exp = {
     );
   let of_steps = CursorPath_Exp.of_steps(~side=Before);
 
+  let mk = (~hty=HTyp.Hole, ~u_gen=MetaVarGen.init, ze) => (ze, hty, u_gen);
   let expand =
     Memo.general(
       ~cache_size_bound=1000,

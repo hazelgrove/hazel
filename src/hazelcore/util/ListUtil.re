@@ -300,3 +300,6 @@ let rotate_n = (n: int, xs: list('x)): list('x) => {
   let after = sublist(~lo=n, length, xs);
   after @ before;
 };
+
+let trim = (n: int, xs: list('a)): list('a) =>
+  List.length(xs) < n ? xs : sublist(n, xs);

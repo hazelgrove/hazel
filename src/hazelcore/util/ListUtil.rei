@@ -111,3 +111,4 @@ let disjoint_pairs: list('x) => list(('x, 'x));
 let rotate: list('x) => list('x);
 let rotate_right: list('x) => list('x);
 let rotate_n: (int, list('x)) => list('x);
+let trim: (int, list('a)) => list('a);
