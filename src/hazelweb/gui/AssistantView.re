@@ -39,9 +39,9 @@ let get_display_actions =
 
 let action_view =
     (
-      inject,
-      settings,
-      font_metrics,
+      ~inject: ModelAction.t => Event.t,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
       {action, result, res_ty, category, text: act_str, _}: assistant_action,
       is_selected: bool,
       search_string: string,
@@ -111,9 +111,9 @@ let view =
       List.mapi(
         (i, a) =>
           action_view(
-            inject,
-            settings,
-            font_metrics,
+            ~inject,
+            ~settings,
+            ~font_metrics,
             a,
             i == 0,
             filter_string,
