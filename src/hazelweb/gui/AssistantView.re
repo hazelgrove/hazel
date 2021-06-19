@@ -2,16 +2,17 @@ open Virtual_dom.Vdom;
 open Node;
 open Assistant_Exp;
 
-let action_abbreviation =
+let action_abbreviation: assistant_action_categories => string =
   fun
   | InsertVar => "var"
   | InsertApp => "app"
   | InsertLit => "lit"
   | InsertConstructor => "con"
+  | InsertElim => "elm"
   | ReplaceOperator => "opr"
   | Wrap => "wrp";
 
-let get_editor = (exp: UHExp.t) =>
+let get_editor = (exp: UHExp.t): Program.exp =>
   exp
   |> ZExp.place_before
   |> Program.EditState_Exp.mk
@@ -28,10 +29,11 @@ let get_display_actions =
       cursor: Assistant_common.cursor_info_pro,
       type_filter_editor: Program.typ,
       {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
-    ) => {
+    )
+    : list(assistant_action) => {
   let filter_ty = get_ty(type_filter_editor);
   let actions = Assistant.get_actions_of_ty(cursor, filter_ty);
-  let action_index = Assistant.get_action_index(assistant_selection, actions);
+  let action_index = Assistant.wrap_index(assistant_selection, actions);
   actions
   |> ListUtil.rotate_n(action_index)
   |> ListUtil.trim(assistant_choices_limit);
@@ -97,7 +99,7 @@ let view =
     )
     : Node.t => {
   switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
-  | None => text("error")
+  | None => text("error") // TODO(andrew)
   | Some(cursor) =>
     let filter_string = Assistant_common.term_to_str(cursor.term);
     let actions =

@@ -23,27 +23,36 @@ let raise_search_matches =
   gooduns @ baduns;
 };
 
-let compute_actions =
-    ({term, _} as cursor: cursor_info_pro): list(assistant_action) => {
-  compute_operand_actions(cursor)
-  @ compute_operator_actions(cursor)
-  |> raise_search_matches(term_to_str(term));
-};
-
-let get_action_index = (assistant_selection: option(int), actions): int => {
-  let num_actions = List.length(actions);
-  switch (assistant_selection) {
+let wrap_index = (index: option(int), xs): int => {
+  let length = List.length(xs);
+  switch (index) {
   | None => 0
   | Some(i) =>
-    let z = num_actions == 0 ? 0 : i mod num_actions;
-    z + (z < 0 ? num_actions : 0);
+    let z = length == 0 ? 0 : i mod length;
+    z + (z < 0 ? length : 0);
   };
 };
 
-let get_actions_of_ty = (cursor, filter_ty) =>
-  cursor
-  |> compute_actions
-  |> List.filter(a => HTyp.consistent(a.res_ty, filter_ty));
+let get_operand_actions = ({term, _} as ci): list(assistant_action) =>
+  switch (term) {
+  | Exp(_) => Assistant_Exp.operand_actions(ci)
+  | _ => []
+  };
+
+let get_operator_actions = ({term, _} as ci: cursor_info_pro) =>
+  switch (term) {
+  | ExpOp(_) => Assistant_Exp.operator_actions(ci)
+  | _ => []
+  };
+
+let get_actions = ({term, _} as ci: cursor_info_pro): list(assistant_action) => {
+  get_operand_actions(ci)
+  @ get_operator_actions(ci)
+  |> raise_search_matches(term_to_str(term));
+};
+
+let get_actions_of_ty = (cursor, ty) =>
+  cursor |> get_actions |> List.filter(a => HTyp.consistent(a.res_ty, ty));
 
 let select_action =
     (
@@ -52,8 +61,9 @@ let select_action =
       cursor_info: CursorInfo.t,
     )
     : option(Action.t) => {
+  //TODO(andrew): properly handle empty actions case
   let+ cursor = promote_cursor_info(cursor_info, u_gen);
-  let actions = compute_actions(cursor);
-  let selected_index = get_action_index(assistant_selection, actions);
+  let actions = get_actions(cursor);
+  let selected_index = wrap_index(assistant_selection, actions);
   List.nth(actions, selected_index).action;
 };

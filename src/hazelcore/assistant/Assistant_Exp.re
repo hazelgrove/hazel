@@ -6,6 +6,7 @@ type assistant_action_categories =
   | InsertVar
   | InsertApp
   | InsertConstructor
+  | InsertElim
   | Wrap
   | ReplaceOperator;
 
@@ -17,316 +18,275 @@ type assistant_action = {
   res_ty: HTyp.t,
 };
 
-let wrap = operand =>
-  Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+type exp_seq = Seq.t(UHExp.operand, Operators_Exp.t);
+type exp_zseq =
+  ZSeq.t(
+    UHExp.operand,
+    Operators_Exp.t,
+    ZExp.zoperand,
+    (CursorPosition.t, Operators_Exp.t),
+  );
 
-let mk_hole = u_gen => fst(UHExp.new_EmptyHole(u_gen));
-
-let mk_var_uhexp = name => wrap(UHExp.var(name));
-
-let mk_bool_lit_uhexp = b => wrap(UHExp.boollit(b));
-
-let mk_list_nil_uhexp = wrap(UHExp.listnil());
-
-let wrap_space = (operator, seq) =>
-  Seq.S(operator, A(Operators_Exp.Space, seq));
-
+let wrap = UHExp.Block.wrap;
+let mk_hole = u_gen => u_gen |> UHExp.new_EmptyHole |> fst;
+let mk_case = u_gen => {
+  let rule =
+    UHExp.Rule(
+      UHPat.new_EmptyHole(u_gen + 1) |> fst |> OpSeq.wrap,
+      wrap(mk_hole(u_gen + 2)),
+    );
+  UHExp.case(wrap(mk_hole(u_gen)), [rule]);
+};
+let wrap_space = (operand: UHExp.operand, seq: exp_seq) =>
+  Seq.S(operand, A(Operators_Exp.Space, seq));
+let mk_ap = (f_name: string, seq: exp_seq): UHExp.t =>
+  wrap_space(UHExp.var(f_name), seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 let mk_bin_seq = (operand1, operator, operand2) =>
   Seq.seq_op_seq(Seq.wrap(operand1), operator, Seq.wrap(operand2));
 
+let fix_holes_local =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, exp: UHExp.t): UHExp.t =>
+  exp
+  |> Statics_Exp.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes=true)
+  |> (((x, _, _)) => x);
+
+let mk_ap_and_fix =
+    (f_name: string, seq: exp_seq, ctx: Contexts.t, u_gen: MetaVarGen.t)
+    : UHExp.t =>
+  mk_ap(f_name, seq) |> fix_holes_local(ctx, u_gen);
+
 let rec mk_ap_seq_holes =
         (f_ty: HTyp.t, hole_ty: HTyp.t)
-        : option(Seq.t(UHExp.operand, UHExp.operator)) => {
+        : option((HTyp.t, Seq.t(UHExp.operand, UHExp.operator))) => {
   switch (f_ty) {
   | Arrow(_, output_ty) =>
     if (HTyp.consistent(output_ty, hole_ty)) {
-      Some(S(EmptyHole(0), E));
+      Some((output_ty, S(EmptyHole(0), E)));
     } else {
-      let+ affix = mk_ap_seq_holes(output_ty, hole_ty);
-      wrap_space(UHExp.EmptyHole(0), affix);
+      let+ (res_ty, affix) = mk_ap_seq_holes(output_ty, hole_ty);
+      (res_ty, wrap_space(UHExp.EmptyHole(0), affix));
     }
   | _ => None
   };
 };
 
-let mk_ap =
+let mk_ap_inner =
     ({expected_ty, ctx, u_gen, _}: cursor_info_pro, f: Var.t, f_ty: HTyp.t)
-    : option(UHExp.t) => {
-  let+ inner_seq = mk_ap_seq_holes(f_ty, expected_ty);
-  wrap_space(UHExp.var(f), inner_seq)
-  |> UHExp.mk_OpSeq
-  |> UHExp.Block.wrap'
-  |> Statics_Exp.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes=true)
-  |> (((x, _, _)) => x);
+    : option((HTyp.t, UHExp.t)) => {
+  let+ (res_ty, inner_seq) = mk_ap_seq_holes(f_ty, expected_ty);
+  let exp = mk_ap_and_fix(f, inner_seq, ctx, u_gen);
+  (res_ty, exp);
 };
 
 let mk_var_action =
-    (_: cursor_info_pro, name: string, ty: HTyp.t): assistant_action => {
-  let e = mk_var_uhexp(name);
+    (_: cursor_info_pro, (name: string, ty: HTyp.t)): assistant_action => {
+  let operand = UHExp.var(name);
   {
     category: InsertVar,
-    action: ReplaceAtCursor(UHExp.var(name)),
+    action: ReplaceAtCursor(operand),
     text: name,
-    result: e,
+    result: wrap(operand),
     res_ty: ty,
   };
 };
 
 let mk_app_action =
-    (cursor: cursor_info_pro, name: string, ty: HTyp.t): assistant_action => {
-  let e =
-    mk_ap(cursor, name, ty) |> OptUtil.get(_ => failwith("mk_app_action"));
+    (ci: cursor_info_pro, (name: string, f_ty: HTyp.t)): assistant_action => {
+  //TODO(andrew): splice maybe?
+  let (res_ty, e) =
+    mk_ap_inner(ci, name, f_ty)
+    |> OptUtil.get(_ => failwith("mk_app_action"));
   {
     category: InsertApp,
     text: name,
     action: ReplaceAtCursor(UHExp.Parenthesized(e)),
-    res_ty: ty,
+    res_ty,
     result: e,
   };
 };
 
 let mk_bool_lit_action = (b: bool): assistant_action => {
+  let operand = UHExp.boollit(b);
   {
     category: InsertLit,
     text: string_of_bool(b),
-    action: ReplaceAtCursor(UHExp.boollit(b)),
+    action: ReplaceAtCursor(operand),
     res_ty: HTyp.Bool,
-    result: mk_bool_lit_uhexp(b),
+    result: wrap(operand),
   };
 };
 
 let mk_nil_list_action: assistant_action = {
+  let operand = UHExp.listnil();
   {
     category: InsertLit,
     text: "[]",
-    action: ReplaceAtCursor(UHExp.listnil()),
+    action: ReplaceAtCursor(operand),
     res_ty: HTyp.List(Hole),
-    result: mk_list_nil_uhexp,
+    result: wrap(operand),
   };
 };
 
 let mk_inj_action =
     ({u_gen, _}: cursor_info_pro, side: InjSide.t): assistant_action => {
   let operand = UHExp.inj(side, wrap(mk_hole(u_gen)));
-  let uhexp = Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  // TODO(andrew): reconcile with visual presentation ie brackets
   {
     category: InsertConstructor,
     text: "inj" ++ InjSide.to_string(side) ++ "",
-    // TODO: reconcile visual presentation ie brackets
     action: ReplaceAtCursor(operand),
     res_ty: HTyp.Sum(Hole, Hole),
-    result: uhexp,
+    result: wrap(operand),
   };
 };
 
 let mk_case_action = ({u_gen, _}: cursor_info_pro): assistant_action => {
-  let rule =
-    UHExp.Rule(
-      UHPat.new_EmptyHole(u_gen + 1)
-      |> (((o, _)) => o |> (op => Seq.mk(op, []) |> UHPat.mk_OpSeq)),
-      wrap(mk_hole(u_gen + 2)),
-    );
-  let operand = UHExp.case(wrap(mk_hole(u_gen)), [rule]);
-  let uhexp = Seq.mk(operand, []) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  let operand = mk_case(u_gen);
   {
-    category: InsertConstructor, // TODO(andrew): new category
+    category: InsertElim,
     text: "case",
     action: ReplaceAtCursor(operand),
     res_ty: HTyp.Hole,
-    result: uhexp,
+    result: wrap(operand),
   };
 };
 
-let compute_gen_actions = (cursor: cursor_info_pro) => {
-  [mk_case_action(cursor)];
-};
+let intro_actions = (ci: cursor_info_pro): list(assistant_action) => [
+  mk_bool_lit_action(true),
+  mk_bool_lit_action(false),
+  mk_nil_list_action,
+  mk_inj_action(ci, L),
+  mk_inj_action(ci, R),
+];
 
-let compute_ctor_actions =
-    ({expected_ty, mode, _} as cursor: cursor_info_pro) => {
-  switch (mode) {
-  // TODO(andrew): factor this more cleanly
-  | Synthetic => [
-      mk_bool_lit_action(true),
-      mk_bool_lit_action(false),
-      mk_nil_list_action,
-      mk_inj_action(cursor, L),
-      mk_inj_action(cursor, R),
-    ]
-  | Analytic =>
-    switch (expected_ty) {
-    | Bool => [mk_bool_lit_action(true), mk_bool_lit_action(false)]
-    | List(_) => [mk_nil_list_action]
-    | Sum(_) => [mk_inj_action(cursor, L), mk_inj_action(cursor, R)]
-    | _ => []
-    }
-  | UnknownMode => []
-  };
-};
+let compute_intro_actions =
+    ({expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
+  ci
+  |> intro_actions
+  |> List.filter(a => HTyp.consistent(a.res_ty, expected_ty));
 
 let compute_var_actions =
-    ({ctx, expected_ty, mode, _} as cursor: cursor_info_pro) => {
-  print_endline("computer var actions");
-  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(expected_ty)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(Assistant_common.sexp_of_mode(mode)),
-  );
-  // TODO(andrew): this looks a bit weird for replacing
-  // fn names in applications, since that's synthetic pos
-  // for these, prob good to uprank things that have types consistant
-  // with the current actual type (and show that things that will result
-  // in type errors, will)
-  switch (mode) {
-  | Synthetic =>
-    extract_vars(ctx, Hole)
-    |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
-  | Analytic =>
-    extract_vars(ctx, expected_ty)
-    |> List.map(((name, var_ty)) => mk_var_action(cursor, name, var_ty))
-  | UnknownMode => []
-  };
-};
+    ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
+  //TODO(andrew): resolve issue with fn position in apps
+  expected_ty |> extract_vars(ctx) |> List.map(mk_var_action(ci));
 
 let compute_app_actions =
-    ({ctx, expected_ty, mode, _} as cursor: cursor_info_pro) => {
-  switch (mode) {
-  | Synthetic
-  | UnknownMode => []
-  | Analytic =>
-    fun_vars(ctx, expected_ty)
-    |> List.map(((name, f_ty)) => mk_app_action(cursor, name, f_ty))
-  };
+    ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) => {
+  //TODO(andrew): Do I want to special-case synthetic here?
+  expected_ty |> fun_vars(ctx) |> List.map(mk_app_action(ci));
 };
 
-let mk_basic_wrap_action = (cursor, name, _f_ty) => {
-  let operand =
-    switch (cursor.term) {
-    | Exp(_, operand) =>
-      wrap_space(UHExp.var(name), S(operand, E))
-      |> UHExp.mk_OpSeq
-      |> UHExp.Block.wrap'
-      |> (x => UHExp.Parenthesized(x))
+let compute_elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
+  compute_var_actions(ci) @ compute_app_actions(ci) @ [mk_case_action(ci)];
+
+let mk_basic_wrap_action =
+    ({expected_ty, term, ctx, u_gen, _}: cursor_info_pro, (name: string, _)) => {
+  //TODO(andrew): considering splicing into opseq context
+  let exp =
+    switch (term) {
+    | Exp(_, operand) => mk_ap_and_fix(name, S(operand, E), ctx, u_gen)
     | _ => failwith("mk_basic_wrap_action unimplemented TODO(andrew)")
     };
   {
     category: Wrap,
     text: name,
-    action: ReplaceAtCursor(operand),
-    res_ty: cursor.expected_ty,
-    result: wrap(operand),
+    action: ReplaceAtCursor(UHExp.Parenthesized(exp)),
+    res_ty: expected_ty,
+    result: exp,
   };
 };
 
-let compute_basic_wrap_actions =
-    ({ctx, expected_ty, actual_ty, mode, _} as cursor: cursor_info_pro) => {
-  switch (mode) {
-  | Synthetic
-  | UnknownMode => []
-  | Analytic =>
-    switch (actual_ty) {
-    | None => []
-    | Some(actual_ty) =>
-      fun_vars(ctx, expected_ty)
-      |> List.filter(((_, f_ty)) =>
-           HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
-         )
-      |> List.map(((name, f_ty)) =>
-           mk_basic_wrap_action(cursor, name, f_ty)
-         )
-    }
+let compute_wrap_actions =
+    ({ctx, expected_ty, actual_ty, _} as ci: cursor_info_pro) => {
+  //TODO(andrew): decide if want to limit options for synthetic mode
+  //TODO(andrew): non-unary wraps
+  switch (actual_ty) {
+  | None => []
+  | Some(actual_ty) =>
+    fun_vars(ctx, expected_ty)
+    |> List.filter(((_, f_ty)) =>
+         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
+       )
+    |> List.map(mk_basic_wrap_action(ci))
   };
 };
 
-let compute_operand_actions = ({term, _} as cursor): list(assistant_action) =>
-  switch (term) {
-  | Exp(_) =>
-    List.map(
-      f => f(cursor),
-      [
-        compute_basic_wrap_actions,
-        compute_var_actions,
-        compute_app_actions,
-        compute_ctor_actions,
-        compute_gen_actions,
-      ],
-    )
-    |> List.concat
-  | _ => []
-  };
+let operand_actions = (ci: cursor_info_pro): list(assistant_action) =>
+  compute_wrap_actions(ci)
+  @ compute_elim_actions(ci)
+  @ compute_intro_actions(ci);
 
 let exp_operator_of_ty =
-    (inl: HTyp.t, inr: HTyp.t, out: HTyp.t): list(Operators_Exp.t) => {
-  Operators_Exp.
-    // TODO(andrew): Add Comma, Cons, Space ops (requires a bit more deconstruction)
-    (
-      List.concat([
-        HTyp.consistent_all([inl, inr, out, HTyp.Bool]) ? [And, Or] : [],
-        HTyp.consistent_all([inl, inr, out, HTyp.Int])
-          ? [Plus, Minus, Times, Divide] : [],
-        HTyp.consistent_all([inl, inr, out, HTyp.Float])
-          ? [FPlus, FMinus, FTimes, FDivide] : [],
-        HTyp.consistent_all([inl, inr, HTyp.Int])
-        && HTyp.consistent(out, HTyp.Bool)
-          ? [LessThan, GreaterThan, Equals] : [],
-        HTyp.consistent_all([inl, inr, HTyp.Float])
-        && HTyp.consistent(out, HTyp.Bool)
-          ? [FLessThan, FGreaterThan, FEquals] : [],
-      ])
-    );
-};
+    (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>
+  //TODO(andrew): Add Comma, Cons, Space ops (requires a bit more deconstruction)
+  List.concat([
+    HTyp.consistent_all([l, r, out, HTyp.Bool])
+      ? Operators_Exp.[And, Or] : [],
+    HTyp.consistent_all([l, r, out, HTyp.Int])
+      ? Operators_Exp.[Plus, Minus, Times, Divide] : [],
+    HTyp.consistent_all([l, r, out, HTyp.Float])
+      ? Operators_Exp.[FPlus, FMinus, FTimes, FDivide] : [],
+    HTyp.consistent_all([l, r, HTyp.Int]) && HTyp.consistent(out, HTyp.Bool)
+      ? Operators_Exp.[LessThan, GreaterThan, Equals] : [],
+    HTyp.consistent_all([l, r, HTyp.Float])
+    && HTyp.consistent(out, HTyp.Bool)
+      ? Operators_Exp.[FLessThan, FGreaterThan, FEquals] : [],
+  ]);
 
 let mk_replace_operator_action =
-    (seq_ty, zseq, new_operator): assistant_action => {
+    (
+      seq_ty: HTyp.t,
+      zseq: exp_zseq,
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      new_operator: Operators_Exp.t,
+    )
+    : assistant_action => {
   // TODO(andrew): this is hardcoded for binops, and resets cursor pos. rewrite!
-  let init_seq = zseq |> ZExp.erase_zseq;
-  //let init_skel = init_seq |> UHExp.associate;
   let new_seq =
-    switch (init_seq) {
+    switch (ZExp.erase_zseq(zseq)) {
     | S(operand1, A(_operator, S(operand2, E))) =>
       Seq.S(operand1, A(new_operator, S(operand2, E)))
-    | _ => failwith("TODO andrew...")
+    | _ => failwith("TODO(andrew) mk_replace_operator_action")
     };
-  let ZOpSeq(_, new_zseq) =
-    new_seq |> UHExp.mk_OpSeq |> ZExp.place_before_opseq;
-  let uhexp =
-    new_zseq |> ZExp.erase_zseq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  let new_opseq = new_seq |> UHExp.mk_OpSeq;
+  let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
   {
     category: ReplaceOperator,
     text: Operators_Exp.to_string(new_operator),
     action: ReplaceOpSeqAroundCursor(new_zseq),
     res_ty: seq_ty,
-    result: uhexp,
+    result: UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx, u_gen),
   };
 };
 
-let compute_replace_operator_actions = ({ctx, _}, seq_ty, zseq) => {
-  print_endline("computing operator replace actions");
-  let init_seq = zseq |> ZExp.erase_zseq;
-  let* (in1_ty, in2_ty) =
-    switch (init_seq) {
+let compute_replace_operator_actions =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, seq_ty: HTyp.t, zseq: exp_zseq) => {
+  let ty_ignoring_err = operand =>
+    Statics_Exp.syn_operand(
+      ctx,
+      UHExp.set_err_status_operand(NotInHole, operand),
+    );
+  let+ (in1_ty, in2_ty) =
+    switch (ZExp.erase_zseq(zseq)) {
     | S(operand1, A(_operator, S(operand2, E))) =>
-      let* in1_ty =
-        Statics_Exp.syn_operand(
-          ctx,
-          UHExp.set_err_status_operand(NotInHole, operand1),
-        );
-      let* in2_ty =
-        Statics_Exp.syn_operand(
-          ctx,
-          UHExp.set_err_status_operand(NotInHole, operand2),
-        );
-      Some((in1_ty, in2_ty));
+      let* in1_ty = ty_ignoring_err(operand1);
+      let+ in2_ty = ty_ignoring_err(operand2);
+      (in1_ty, in2_ty);
     | _ => None
     };
-  let ops = exp_operator_of_ty(in1_ty, in2_ty, seq_ty);
-  Some(List.map(mk_replace_operator_action(seq_ty, zseq), ops));
+  exp_operator_of_ty(in1_ty, in2_ty, seq_ty)
+  |> List.map(mk_replace_operator_action(seq_ty, zseq, ctx, u_gen));
 };
 
-let compute_operator_actions = ({term, syntactic_context, _} as cursor) =>
-  switch (term, syntactic_context) {
-  | (ExpOp(_), ExpSeq(seq_ty, zseq)) =>
+let operator_actions =
+    ({syntactic_context, ctx, u_gen, _}: cursor_info_pro)
+    : list(assistant_action) =>
+  switch (syntactic_context) {
+  | ExpSeq(seq_ty, zseq) =>
     OptUtil.get(
-      _ => failwith("whatever, gawd!!!"),
-      compute_replace_operator_actions(cursor, seq_ty, zseq),
+      _ => failwith("TODO(andrew): whatever, gawd!!!"),
+      compute_replace_operator_actions(ctx, u_gen, seq_ty, zseq),
     )
   | _ => []
   };
