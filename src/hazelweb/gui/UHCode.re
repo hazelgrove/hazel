@@ -179,8 +179,9 @@ let assistant_key_action =
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
     Some(UpdateAssistant(Decrement_selection_index))
+  | (Combo(Enter), Some(action)) => Some(AcceptSuggestion(action))
   | (Combo(Tab), Some(action)) =>
-    Some(ModelAction.AcceptSuggestion(action))
+    Some(Chain(AcceptSuggestion(action), EditAction(MoveToNextHole)))
   | _ => None
   };
 };

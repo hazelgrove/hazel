@@ -601,17 +601,6 @@ let rec syn_perform =
         )
         : ActionOutcome.t(syn_done) => {
   switch (a) {
-  | ReplaceAtCursor(_) =>
-    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-    | Succeeded(SynDone((ze, ty, u_gen) as initial_result)) =>
-      switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
-      | Succeeded((ze, ty, u_gen)) => Succeeded((ze, ty, u_gen))
-      | _ => Succeeded(initial_result)
-      }
-    | Succeeded(SynExpands(_)) => Failed //TODO(andrew): not currently relevant but think about this
-    | Failed => Failed
-    | CursorEscaped(x) => CursorEscaped(x)
-    }
   | FillExpHole(u, fill_e) =>
     let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
     let steps_to_this_hole =
@@ -1474,19 +1463,6 @@ and syn_perform_operand =
     | None => Failed
     | Some(ty) => Succeeded(SynDone((ze, ty, u_gen)))
     };
-
-  // TODO(andrew): remove below code, probably
-  // move to next hole is now at syn_perform top level
-  /*
-   let zoperand = new_operand |> ZExp.place_after_operand;
-   switch (
-     syn_perform_operand(ctx, MoveToNextHole, (zoperand, Hole, u_gen))
-   ) {
-   | Failed =>
-     let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
-     Succeeded(SynDone((ze, Hole, u_gen)));
-   | s => s
-   };*/
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
