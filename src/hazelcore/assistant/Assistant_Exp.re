@@ -263,20 +263,27 @@ let mk_replace_operator_action =
 let compute_replace_operator_actions =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, seq_ty: HTyp.t, zseq: exp_zseq) => {
   let ty_ignoring_err = operand =>
-    Statics_Exp.syn_operand(
-      ctx,
-      UHExp.set_err_status_operand(NotInHole, operand),
-    );
-  let+ (in1_ty, in2_ty) =
-    switch (ZExp.erase_zseq(zseq)) {
-    | S(operand1, A(_operator, S(operand2, E))) =>
-      let* in1_ty = ty_ignoring_err(operand1);
-      let+ in2_ty = ty_ignoring_err(operand2);
-      (in1_ty, in2_ty);
-    | _ => None
+    switch (
+      Statics_Exp.syn_operand(
+        ctx,
+        UHExp.set_err_status_operand(NotInHole, operand),
+      )
+    ) {
+    | None =>
+      print_endline("TODO(andrew): WARNING 1 replace_operator_actions");
+      HTyp.Hole;
+    | Some(ty) => ty
     };
-  exp_operator_of_ty(in1_ty, in2_ty, seq_ty)
-  |> List.map(mk_replace_operator_action(seq_ty, zseq, ctx, u_gen));
+  switch (ZExp.erase_zseq(zseq)) {
+  | S(operand1, A(_operator, S(operand2, E))) =>
+    let in1_ty = ty_ignoring_err(operand1);
+    let in2_ty = ty_ignoring_err(operand2);
+    exp_operator_of_ty(in1_ty, in2_ty, seq_ty)
+    |> List.map(mk_replace_operator_action(seq_ty, zseq, ctx, u_gen));
+  | _ =>
+    print_endline("TODO(andrew): WARNING 2 replace_operator_actions");
+    [];
+  };
 };
 
 let operator_actions =
@@ -284,9 +291,6 @@ let operator_actions =
     : list(assistant_action) =>
   switch (syntactic_context) {
   | ExpSeq(seq_ty, zseq) =>
-    OptUtil.get(
-      _ => failwith("TODO(andrew): whatever, gawd!!!"),
-      compute_replace_operator_actions(ctx, u_gen, seq_ty, zseq),
-    )
+    compute_replace_operator_actions(ctx, u_gen, seq_ty, zseq)
   | _ => []
   };
