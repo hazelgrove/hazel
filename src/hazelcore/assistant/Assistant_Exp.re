@@ -177,21 +177,26 @@ let compute_app_actions =
 };
 
 let compute_elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
-  compute_var_actions(ci) @ compute_app_actions(ci) @ [mk_case_action(ci)];
+  compute_app_actions(ci) @ [mk_case_action(ci)];
 
 let mk_basic_wrap_action =
-    ({expected_ty, term, ctx, u_gen, _}: cursor_info_pro, (name: string, _)) => {
+    ({term, ctx, u_gen, _}: cursor_info_pro, (name: string, _)) => {
   //TODO(andrew): considering splicing into opseq context
   let exp =
     switch (term) {
     | Exp(_, operand) => mk_ap_and_fix(name, S(operand, E), ctx, u_gen)
-    | _ => failwith("mk_basic_wrap_action unimplemented TODO(andrew)")
+    | _ => failwith("mk_basic_wrap_action impossible")
+    };
+  let res_ty =
+    switch (Statics_Exp.syn(ctx, exp)) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
     };
   {
     category: Wrap,
     text: name,
     action: ReplaceAtCursor(UHExp.Parenthesized(exp)),
-    res_ty: expected_ty,
+    res_ty,
     result: exp,
   };
 };
@@ -213,8 +218,9 @@ let compute_wrap_actions =
 
 let operand_actions = (ci: cursor_info_pro): list(assistant_action) =>
   compute_wrap_actions(ci)
-  @ compute_elim_actions(ci)
-  @ compute_intro_actions(ci);
+  @ compute_intro_actions(ci)
+  @ compute_var_actions(ci)
+  @ compute_elim_actions(ci);
 
 let exp_operator_of_ty =
     (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>

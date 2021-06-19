@@ -120,7 +120,7 @@ let code_view =
       let on_click = evt => {
         Event.Many([
           UHCode.click_handler(editor_id, font_metrics, inject, evt),
-          inject(UpdateAssistant(Set_active(false))),
+          inject(UpdateAssistant(Turn_off)),
         ]);
       };
 
@@ -133,10 +133,10 @@ let code_view =
           };
         Event.Many([
           Event.Prevent_default,
-          inject(UpdateSettings(CursorInspector(Set_visible(true)))),
-          inject(UpdateAssistant(Set_active(true))),
           inject(UpdateAssistant(Set_type_editor(ty))),
           inject(UpdateAssistant(Reset_selection_index)),
+          inject(UpdateAssistant(Turn_on)),
+          inject(UpdateSettings(CursorInspector(Set_visible(true)))),
           UHCode.click_handler(editor_id, font_metrics, inject, evt),
         ]);
       };

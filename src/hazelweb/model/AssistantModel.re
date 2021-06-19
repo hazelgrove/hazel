@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 type t = {
   active: bool,
   selection_index: int,
@@ -33,7 +31,8 @@ let update_filter_editor = (a: Action.t, new_editor, assistant_model: t): t => {
 [@deriving sexp]
 type update =
   | Toggle
-  | Set_active(bool)
+  | Turn_on
+  | Turn_off
   | Set_type_editor(UHTyp.t)
   | Reset_selection_index
   | Increment_selection_index
@@ -42,7 +41,8 @@ type update =
 let apply_update = (u: update, model: t) =>
   switch (u) {
   | Toggle => {...model, active: !model.active}
-  | Set_active(b) => {...model, active: b}
+  | Turn_on => {...model, active: true}
+  | Turn_off => {...model, active: false}
   | Reset_selection_index => {...model, selection_index: 0}
   | Increment_selection_index => {
       ...model,

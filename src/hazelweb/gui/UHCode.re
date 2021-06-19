@@ -169,12 +169,7 @@ let assistant_key_action =
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
   switch (key_of(evt), assistant_action) {
   | (Combo(Escape), _) =>
-    Some(
-      Chain(
-        UpdateAssistant(Set_active(false)),
-        update_ci(Set_visible(false)),
-      ),
-    )
+    Some(Chain(UpdateAssistant(Turn_off), update_ci(Set_visible(false))))
   | (Move(ArrowDown), Some(_)) =>
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
@@ -197,7 +192,7 @@ let main_key_action =
   | Combo(Escape) => Some(update_ci(Set_visible(false)))
   | Combo(Ctrl_Space) => Some(update_ci(Toggle_visible))
   | Combo(Ctrl_A) =>
-    Some(Chain(update_ci(Toggle_visible), UpdateAssistant(Toggle)))
+    Some(Chain(update_ci(Set_visible(true)), UpdateAssistant(Turn_on)))
   | Combo(k) => Some(EditAction(KeyComboAction.get(cursor_info, k)))
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
