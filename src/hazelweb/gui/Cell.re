@@ -76,11 +76,14 @@ let code_view =
         );
 
       let cursor_info = Program.Exp.get_cursor_info(program);
-      let index = settings.cursor_inspector.assistant_selection;
+      let ci_settings = settings.cursor_inspector;
       let assistant_action =
-        Assistant.select_action(index, u_gen, cursor_info);
+        switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
+        | None => None
+        | Some(ci) => AssistantView.select_action(ci_settings, ci)
+        };
       let assistant_active =
-        settings.cursor_inspector.assistant
+        ci_settings.assistant
         && Assistant_common.valid_assistant_term(cursor_info.cursor_term);
       let key_handlers =
         main_editor_is_focused
@@ -94,7 +97,7 @@ let code_view =
           : [];
 
       let cursor_inspector =
-        if (settings.cursor_inspector.visible) {
+        if (ci_settings.visible) {
           [
             view_of_cursor_inspector(
               ~inject,
@@ -104,7 +107,7 @@ let code_view =
               type_editor_is_focused,
               assistant_editor,
               Program.Exp.get_path(program),
-              settings.cursor_inspector,
+              ci_settings,
               cursor_info,
               program,
               u_gen,
@@ -136,9 +139,7 @@ let code_view =
           inject(SetAssistantTypeEditor(ty)),
           inject(UpdateSettings(CursorInspector(Set_visible(true)))),
           inject(UpdateSettings(CursorInspector(Set_assistant(true)))),
-          inject(
-            UpdateSettings(CursorInspector(Reset_assistant_selection)),
-          ),
+          inject(UpdateSettings(CursorInspector(Reset_selection_index))),
           UHCode.click_handler(editor_id, font_metrics, inject, evt),
         ]);
       };

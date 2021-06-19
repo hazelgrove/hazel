@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 open Virtual_dom.Vdom;
 open Node;
 open Assistant_Exp;
@@ -24,18 +25,33 @@ let get_ty = (editor: Program.typ): HTyp.t =>
   |> Program.EditState_Typ.get_uhstx
   |> UHTyp.expand;
 
+let normalize_index = (selection_index: int, actions: list('a)): int =>
+  IntUtil.wrap(selection_index, List.length(actions));
+
+let select_action =
+    (
+      {selection_index, _}: Settings.CursorInspector.t,
+      ci: Assistant_common.cursor_info_pro,
+    )
+    : option(Action.t) => {
+  let actions = Assistant.get_actions(ci);
+  let selection_index = normalize_index(selection_index, actions);
+  let+ selection = List.nth_opt(actions, selection_index);
+  selection.action;
+};
+
 let get_display_actions =
     (
-      cursor: Assistant_common.cursor_info_pro,
+      ci: Assistant_common.cursor_info_pro,
       type_filter_editor: Program.typ,
-      {assistant_selection, assistant_choices_limit, _}: Settings.CursorInspector.t,
+      {selection_index, assistant_choices_limit, _}: Settings.CursorInspector.t,
     )
     : list(assistant_action) => {
   let filter_ty = get_ty(type_filter_editor);
-  let actions = Assistant.get_actions_of_ty(cursor, filter_ty);
-  let action_index = Assistant.wrap_index(assistant_selection, actions);
+  let actions = Assistant.get_actions_of_ty(ci, filter_ty);
+  let selection_index = normalize_index(selection_index, actions);
   actions
-  |> ListUtil.rotate_n(action_index)
+  |> ListUtil.rotate_n(selection_index)
   |> ListUtil.trim(assistant_choices_limit);
 };
 

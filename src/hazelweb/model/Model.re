@@ -271,6 +271,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
 let move_via_key = (move_key, model) => {
   switch (get_focal_editor(model)) {
   | AssistantTypeEditor =>
+    print_endline("move via assistant");
     let (new_editor, action) =
       model
       |> get_assistant_editor

@@ -132,7 +132,7 @@ module CursorInspector = {
     type_assist_new_var: bool,
     type_assist_other: bool,
     assistant: bool,
-    assistant_selection: option(int),
+    selection_index: int,
     assistant_choices_limit: int,
   };
 
@@ -148,7 +148,7 @@ module CursorInspector = {
     type_assist_new_var: false,
     type_assist_other: false,
     assistant: false,
-    assistant_selection: Some(0),
+    selection_index: 0,
     assistant_choices_limit: 6,
   };
 
@@ -167,9 +167,9 @@ module CursorInspector = {
     | Toggle_type_assist_other
     | Toggle_assistant
     | Set_assistant(bool)
-    | Reset_assistant_selection
-    | Increment_assistant_selection
-    | Decrement_assistant_selection;
+    | Reset_selection_index
+    | Increment_selection_index
+    | Decrement_selection_index;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -217,19 +217,14 @@ module CursorInspector = {
     | Set_assistant(b) =>
       Printf.printf("setting assistant to: %b\n", b);
       {...settings, assistant: b, type_assist: false};
-    | Reset_assistant_selection => {
+    | Reset_selection_index => {...settings, selection_index: 0}
+    | Increment_selection_index => {
         ...settings,
-        assistant_selection: Some(0),
+        selection_index: settings.selection_index + 1,
       }
-    | Increment_assistant_selection => {
+    | Decrement_selection_index => {
         ...settings,
-        assistant_selection:
-          Option.map(i => i + 1, settings.assistant_selection),
-      }
-    | Decrement_assistant_selection => {
-        ...settings,
-        assistant_selection:
-          Option.map(i => i - 1, settings.assistant_selection),
+        selection_index: settings.selection_index - 1,
       }
     };
 };

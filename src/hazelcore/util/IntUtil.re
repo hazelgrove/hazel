@@ -25,3 +25,8 @@ let max = (ns: list(int)): int =>
   |> OptUtil.get(() =>
        raise(Invalid_argument("IntUtil.max: expected a nonempty list"))
      );
+
+let wrap = (i: int, n: int): int => {
+  let z = n == 0 ? 0 : i mod n;
+  z + (z < 0 ? n : 0);
+};

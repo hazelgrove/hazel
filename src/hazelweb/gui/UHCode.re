@@ -1,4 +1,4 @@
-open OptUtil.Syntax;
+//open OptUtil.Syntax;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -167,13 +167,14 @@ let update_assistant =
 
 let assistant_key_action =
     (~assistant_action: option(Action.t), evt): option(ModelAction.t) => {
-  switch (key_of(evt)) {
-  | Move(ArrowDown) => update_assistant(Increment_assistant_selection)
-  | Move(ArrowUp) => update_assistant(Decrement_assistant_selection)
-  | Combo(Escape) => update_assistant(Toggle_assistant)
-  | Combo(Tab) =>
-    let+ action = assistant_action;
-    ModelAction.AcceptSuggestion(action);
+  // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
+  switch (key_of(evt), assistant_action) {
+  | (Combo(Escape), _) => update_assistant(Toggle_assistant)
+  | (Move(ArrowDown), Some(_)) =>
+    update_assistant(Increment_selection_index)
+  | (Move(ArrowUp), Some(_)) => update_assistant(Decrement_selection_index)
+  | (Combo(Tab), Some(action)) =>
+    Some(ModelAction.AcceptSuggestion(action))
   | _ => None
   };
 };
@@ -207,7 +208,7 @@ let key_handlers =
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
       let reset_assistant =
-        inject(UpdateSettings(CursorInspector(Reset_assistant_selection)));
+        inject(UpdateSettings(CursorInspector(Reset_selection_index)));
       let inject_stop_prevent = ev =>
         Event.Many([
           Event.Prevent_default,
