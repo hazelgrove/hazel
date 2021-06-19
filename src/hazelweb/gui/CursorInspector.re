@@ -216,7 +216,7 @@ let assistant_summary =
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
       type_editor_is_focused: bool,
-      type_filter_editor,
+      assistant_model: AssistantModel.t,
       u_gen,
       ~inject,
       ~font_metrics,
@@ -242,7 +242,7 @@ let assistant_summary =
               ~is_mac,
               ~settings,
               ~is_focused=type_editor_is_focused,
-              type_filter_editor,
+              assistant_model.filter_editor,
               u_gen,
             )
           //HTypCode.view(HTyp.Hole),
@@ -596,7 +596,7 @@ let summary_bar =
       show_strategy_guide: bool,
       assistant_enabled: bool,
       type_editor_is_focused,
-      type_filter_editor,
+      assistant_model,
       u_gen,
       ~font_metrics,
       ~is_mac,
@@ -643,7 +643,7 @@ let summary_bar =
             ci.cursor_term,
             tag_type,
             type_editor_is_focused,
-            type_filter_editor,
+            assistant_model,
             u_gen,
             ~inject,
             ~font_metrics,
@@ -663,13 +663,14 @@ let summary_bar =
           Event.Many([
             Event.Prevent_default,
             Event.Stop_propagation,
-            inject(
-              ModelAction.UpdateSettings(
-                CursorInspector(
-                  show_strategy_guide ? Toggle_type_assist : Toggle_assistant,
+            show_strategy_guide
+              ? inject(UpdateSettings(CursorInspector(Toggle_type_assist)))
+              : inject(
+                  Chain(
+                    UpdateSettings(CursorInspector(Set_type_assist(false))),
+                    UpdateAssistant(Toggle),
+                  ),
                 ),
-              ),
-            ),
           ])
         ),
         Attr.on_contextmenu(_ =>
@@ -677,7 +678,10 @@ let summary_bar =
             Event.Prevent_default,
             Event.Stop_propagation,
             inject(
-              ModelAction.UpdateSettings(CursorInspector(Toggle_assistant)),
+              Chain(
+                UpdateSettings(CursorInspector(Set_type_assist(false))),
+                UpdateAssistant(Toggle),
+              ),
             ),
           ])
         ),
@@ -722,7 +726,7 @@ let view =
       ~is_mac: bool,
       ~settings: Settings.t,
       type_editor_is_focused: bool,
-      type_filter_editor,
+      assistant_model: AssistantModel.t,
       loc: (float, float),
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -889,9 +893,10 @@ let view =
     };
   let on_empty_hole =
     Assistant_common.on_empty_expr_hole(cursor_info.cursor_term);
-  let assistant_enabled =
-    Assistant_common.valid_assistant_term(cursor_info.cursor_term);
-  let assistant_on = assistant_enabled && cursor_inspector.assistant;
+  //TODO(andrew): remove
+  //let assistant_enabled =
+  //  Assistant_common.valid_assistant_term(cursor_info.cursor_term);
+  let assistant_enabled = /*assistant_enabled &&*/ assistant_model.active;
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -907,7 +912,7 @@ let view =
       on_empty_hole,
       assistant_enabled,
       type_editor_is_focused,
-      type_filter_editor,
+      assistant_model,
       u_gen,
       ~font_metrics,
       ~is_mac,
@@ -920,19 +925,21 @@ let view =
     };
   /* TODO need to make sure lightbulb shows up when needs to */
   let content =
-    if (assistant_on) {
+    if (assistant_enabled) {
       List.append(
         content,
-        [
-          AssistantView.view(
-            ~inject,
-            ~font_metrics,
-            ~settings,
-            type_filter_editor,
-            cursor_info,
-            u_gen,
-          ),
-        ],
+        switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
+        | None => []
+        | Some(ci) => [
+            AssistantView.view(
+              ~inject,
+              ~font_metrics,
+              ~settings,
+              assistant_model,
+              ci,
+            ),
+          ]
+        },
       );
     } else if (cursor_inspector.type_assist) {
       switch (cursor_info.cursor_term) {
@@ -966,7 +973,7 @@ let view =
       Attr.id("cursor-inspector"),
       Attr.classes(
         ["cursor-inspector-outer", above_or_below]
-        @ (assistant_on ? ["assistant-active"] : []),
+        @ (assistant_enabled ? ["assistant-active"] : []),
       ),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),

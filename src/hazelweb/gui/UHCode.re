@@ -161,18 +161,24 @@ let key_of = (evt): norm_key => {
   };
 };
 
-let update_assistant =
-    (x: Settings.CursorInspector.update): option(ModelAction.t) =>
-  Some(UpdateSettings(CursorInspector(x)));
+let update_ci = (x: Settings.CursorInspector.update): ModelAction.t =>
+  UpdateSettings(CursorInspector(x));
 
 let assistant_key_action =
     (~assistant_action: option(Action.t), evt): option(ModelAction.t) => {
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
   switch (key_of(evt), assistant_action) {
-  | (Combo(Escape), _) => update_assistant(Toggle_assistant)
+  | (Combo(Escape), _) =>
+    Some(
+      Chain(
+        UpdateAssistant(Set_active(false)),
+        update_ci(Set_visible(false)),
+      ),
+    )
   | (Move(ArrowDown), Some(_)) =>
-    update_assistant(Increment_selection_index)
-  | (Move(ArrowUp), Some(_)) => update_assistant(Decrement_selection_index)
+    Some(UpdateAssistant(Increment_selection_index))
+  | (Move(ArrowUp), Some(_)) =>
+    Some(UpdateAssistant(Decrement_selection_index))
   | (Combo(Tab), Some(action)) =>
     Some(ModelAction.AcceptSuggestion(action))
   | _ => None
@@ -187,7 +193,10 @@ let main_key_action =
   | Combo(Meta_Z) when is_mac => Some(Undo)
   | Combo(Ctrl_Shift_Z) when !is_mac => Some(Redo)
   | Combo(Meta_Shift_Z) when is_mac => Some(Redo)
-  | Combo(Ctrl_Space) => update_assistant(Toggle_type_assist)
+  | Combo(Escape) => Some(update_ci(Set_visible(false)))
+  | Combo(Ctrl_Space) => Some(update_ci(Toggle_visible))
+  | Combo(Ctrl_A) =>
+    Some(Chain(update_ci(Toggle_visible), UpdateAssistant(Toggle)))
   | Combo(k) => Some(EditAction(KeyComboAction.get(cursor_info, k)))
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
@@ -207,8 +216,7 @@ let key_handlers =
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      let reset_assistant =
-        inject(UpdateSettings(CursorInspector(Reset_selection_index)));
+      let reset_assistant = inject(UpdateAssistant(Reset_selection_index));
       let inject_stop_prevent = ev =>
         Event.Many([
           Event.Prevent_default,

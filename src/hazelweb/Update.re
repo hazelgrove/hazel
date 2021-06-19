@@ -65,8 +65,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
-  | SetAssistantTypeEditor(_)
-  | AcceptSuggestion(_) =>
+  | UpdateAssistant(_)
+  | AcceptSuggestion(_)
+  | Chain(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -75,14 +76,14 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   };
 };
 
-let apply_action =
-    (
-      model: Model.t,
-      action: ModelAction.t,
-      state: State.t,
-      ~schedule_action as _,
-    )
-    : Model.t => {
+let rec apply_action =
+        (
+          model: Model.t,
+          action: ModelAction.t,
+          state: State.t,
+          ~schedule_action,
+        )
+        : Model.t => {
   let settings = model.settings;
   if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
@@ -219,22 +220,14 @@ let apply_action =
       | AcceptSuggestion(action) =>
         //TODO(andrew): betterize this garbagio
         // right now this loses cursor position
-        // might want to turn off assistant? or not?
-        let new_edit_state =
-          model
-          |> Model.get_program
-          |> Program.get_edit_state
-          |> Program.EditState_Exp.perform_edit_action(action);
-        model
-        |> Model.update_program(
-             action,
-             {...Model.get_program(model), edit_state: new_edit_state},
-           );
-      | SetAssistantTypeEditor(uty) =>
-        Model.put_assistant_editor(
-          model,
-          Program.Typ.mk(~width=80, ZTyp.place_before(uty)),
-        )
+        Model.perform_edit_action(action, model)
+      | UpdateAssistant(u) => {
+          ...model,
+          assistant: AssistantModel.apply_update(u, model.assistant),
+        }
+      | Chain(a1, a2) =>
+        let model' = apply_action(model, a1, state, ~schedule_action);
+        apply_action(model', a2, state, ~schedule_action);
       };
     },
   );

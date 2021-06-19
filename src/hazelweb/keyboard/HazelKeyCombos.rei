@@ -30,6 +30,7 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
+  | Ctrl_A
   | Ctrl_Z
   | Ctrl_Space
   | Ctrl_Shift_Z

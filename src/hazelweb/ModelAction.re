@@ -45,4 +45,5 @@ type t =
   | UpdateFontMetrics(FontMetrics.t)
   | UpdateIsMac(bool)
   | AcceptSuggestion(Action.t)
-  | SetAssistantTypeEditor(UHTyp.t);
+  | UpdateAssistant(AssistantModel.update)
+  | Chain(t, t);

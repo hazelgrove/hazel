@@ -10,7 +10,7 @@ let view:
     ~is_mac: bool,
     ~settings: Settings.t,
     bool,
-    Program.typ,
+    AssistantModel.t,
     (float, float),
     Settings.CursorInspector.t,
     CursorInfo.t,

@@ -16,7 +16,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   focal_editor: editor,
-  assistant_editor: Program.typ,
+  assistant: AssistantModel.t,
 };
 
 let editor_id = (editor: editor): string =>
@@ -99,18 +99,13 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     focal_editor: MainProgram,
-    assistant_editor:
-      Program.Typ.mk(~width=80, ZTyp.place_before(OpSeq.wrap(UHTyp.Hole))),
+    assistant: AssistantModel.init,
   };
 };
 
 let get_program = (model: t): Program.exp =>
   model.cardstacks |> ZCardstacks.get_program;
-let get_assistant_editor = model => model.assistant_editor;
-let put_assistant_editor = (model, assistant_editor) => {
-  ...model,
-  assistant_editor,
-};
+let put_assistant_model = (model, assistant) => {...model, assistant};
 
 let get_edit_state = (model: t): Program.EditState_Exp.t => {
   let program = get_program(model);
@@ -238,12 +233,9 @@ let next_card = model => {
   |> focus_main_editor;
 };
 
-let update_assistant_editor = (a: Action.t, new_editor, model: t): t => {
-  let edit_state =
-    new_editor
-    |> Program.get_edit_state
-    |> Program.EditState_Typ.perform_edit_action(a);
-  put_assistant_editor(model, {...new_editor, edit_state});
+let update_filter_editor = (a: Action.t, new_editor, model: t): t => {
+  AssistantModel.update_filter_editor(a, new_editor, model.assistant)
+  |> put_assistant_model(model);
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
@@ -254,8 +246,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
     switch (get_focal_editor(model)) {
     | AssistantTypeEditor =>
-      let editor = get_assistant_editor(model);
-      update_assistant_editor(a, editor, model);
+      update_filter_editor(a, model.assistant.filter_editor, model)
     | MainProgram
     | NoFocus =>
       let edit_state =
@@ -271,12 +262,10 @@ let perform_edit_action = (a: Action.t, model: t): t => {
 let move_via_key = (move_key, model) => {
   switch (get_focal_editor(model)) {
   | AssistantTypeEditor =>
-    print_endline("move via assistant");
     let (new_editor, action) =
-      model
-      |> get_assistant_editor
+      model.assistant.filter_editor
       |> Program.Typ.move_via_key(~settings=model.settings, move_key);
-    update_assistant_editor(action, new_editor, model);
+    update_filter_editor(action, new_editor, model);
   | MainProgram
   | NoFocus =>
     let (new_program, action) =
@@ -288,23 +277,17 @@ let move_via_key = (move_key, model) => {
 };
 
 let move_via_click = (row_col, model) => {
-  print_endline("move_via_click");
   switch (get_focal_editor(model)) {
   | AssistantTypeEditor =>
-    print_endline("move_via_click: AssistantTypeEditor");
     let (new_editor, action) =
-      model
-      |> get_assistant_editor
-      // TODO(andrew): set focal editor?
+      model.assistant.filter_editor
       |> Program.Typ.move_via_click(~settings=model.settings, row_col);
-    update_assistant_editor(action, new_editor, model);
+    update_filter_editor(action, new_editor, model);
   | MainProgram
   | NoFocus =>
-    print_endline("move_via_click: MainProgram or NoFocus");
     let (new_program, action) =
       model
       |> get_program
-      // TODO(andrew): set focal editor?
       |> Program.Exp.move_via_click(~settings=model.settings, row_col);
     model |> update_program(action, new_program);
   };

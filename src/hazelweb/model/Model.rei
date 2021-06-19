@@ -23,7 +23,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   focal_editor: editor,
-  assistant_editor: Program.typ,
+  assistant: AssistantModel.t,
 };
 
 let editor_id: editor => string;
@@ -105,4 +105,4 @@ let load_cardstack: (t, int) => t;
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
 let update_program: (Action.t, Program.exp, t) => t;
-let put_assistant_editor: (t, Program.typ) => t;
+let put_assistant_model: (t, AssistantModel.t) => t;

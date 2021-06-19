@@ -30,7 +30,7 @@ let normalize_index = (selection_index: int, actions: list('a)): int =>
 
 let select_action =
     (
-      {selection_index, _}: Settings.CursorInspector.t,
+      {selection_index, _}: AssistantModel.t,
       ci: Assistant_common.cursor_info_pro,
     )
     : option(Action.t) => {
@@ -43,16 +43,15 @@ let select_action =
 let get_display_actions =
     (
       ci: Assistant_common.cursor_info_pro,
-      type_filter_editor: Program.typ,
-      {selection_index, assistant_choices_limit, _}: Settings.CursorInspector.t,
+      {selection_index, choice_display_limit, filter_editor, _}: AssistantModel.t,
     )
     : list(assistant_action) => {
-  let filter_ty = get_ty(type_filter_editor);
+  let filter_ty = get_ty(filter_editor);
   let actions = Assistant.get_actions_of_ty(ci, filter_ty);
   let selection_index = normalize_index(selection_index, actions);
   actions
   |> ListUtil.rotate_n(selection_index)
-  |> ListUtil.trim(assistant_choices_limit);
+  |> ListUtil.trim(choice_display_limit);
 };
 
 let action_view =
@@ -109,35 +108,25 @@ let view =
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      type_filter_editor: Program.typ,
-      cursor_info: CursorInfo.t,
-      u_gen: MetaVarGen.t,
+      assistant_model: AssistantModel.t,
+      ci: Assistant_common.cursor_info_pro,
     )
     : Node.t => {
-  switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
-  | None => text("error") // TODO(andrew)
-  | Some(cursor) =>
-    let filter_string = Assistant_common.term_to_str(cursor.term);
-    let actions =
-      get_display_actions(
-        cursor,
-        type_filter_editor,
-        settings.cursor_inspector,
-      );
-    div(
-      [Attr.id("assistant")],
-      List.mapi(
-        (i, a) =>
-          action_view(
-            ~inject,
-            ~settings,
-            ~font_metrics,
-            a,
-            i == 0,
-            filter_string,
-          ),
-        actions,
-      ),
-    );
-  };
+  let filter_string = Assistant_common.term_to_str(ci.term);
+  let actions = get_display_actions(ci, assistant_model);
+  div(
+    [Attr.id("assistant")],
+    List.mapi(
+      (i, a) =>
+        action_view(
+          ~inject,
+          ~settings,
+          ~font_metrics,
+          a,
+          i == 0,
+          filter_string,
+        ),
+      actions,
+    ),
+  );
 };

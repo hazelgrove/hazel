@@ -131,15 +131,12 @@ module CursorInspector = {
     type_assist_branch: bool,
     type_assist_new_var: bool,
     type_assist_other: bool,
-    assistant: bool,
-    selection_index: int,
-    assistant_choices_limit: int,
   };
 
   let init = {
-    visible: false, //false, TODO(andrew): change this
+    visible: false,
     show_expanded: false,
-    novice_mode: false, //false, TODO(andrew): change this
+    novice_mode: false,
     type_assist: false,
     type_assist_lit: false,
     type_assist_var: false,
@@ -147,9 +144,6 @@ module CursorInspector = {
     type_assist_branch: false,
     type_assist_new_var: false,
     type_assist_other: false,
-    assistant: false,
-    selection_index: 0,
-    assistant_choices_limit: 6,
   };
 
   [@deriving sexp]
@@ -159,17 +153,13 @@ module CursorInspector = {
     | Toggle_show_expanded
     | Toggle_novice_mode
     | Toggle_type_assist
+    | Set_type_assist(bool)
     | Toggle_type_assist_lit
     | Toggle_type_assist_var
     | Toggle_type_assist_fun
     | Toggle_type_assist_branch
     | Toggle_type_assist_new_var
-    | Toggle_type_assist_other
-    | Toggle_assistant
-    | Set_assistant(bool)
-    | Reset_selection_index
-    | Increment_selection_index
-    | Decrement_selection_index;
+    | Toggle_type_assist_other;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -180,11 +170,8 @@ module CursorInspector = {
         show_expanded: !settings.show_expanded,
       }
     | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
-    | Toggle_type_assist => {
-        ...settings,
-        type_assist: !settings.type_assist,
-        assistant: false,
-      }
+    | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
+    | Set_type_assist(b) => {...settings, type_assist: b}
     | Toggle_type_assist_lit => {
         ...settings,
         type_assist_lit: !settings.type_assist_lit,
@@ -208,23 +195,6 @@ module CursorInspector = {
     | Toggle_type_assist_other => {
         ...settings,
         type_assist_other: !settings.type_assist_other,
-      }
-    | Toggle_assistant => {
-        ...settings,
-        assistant: !settings.assistant,
-        type_assist: false,
-      }
-    | Set_assistant(b) =>
-      Printf.printf("setting assistant to: %b\n", b);
-      {...settings, assistant: b, type_assist: false};
-    | Reset_selection_index => {...settings, selection_index: 0}
-    | Increment_selection_index => {
-        ...settings,
-        selection_index: settings.selection_index + 1,
-      }
-    | Decrement_selection_index => {
-        ...settings,
-        selection_index: settings.selection_index - 1,
       }
     };
 };

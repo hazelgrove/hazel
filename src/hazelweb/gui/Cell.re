@@ -13,7 +13,7 @@ let view_of_cursor_inspector =
       ~is_mac: bool,
       ~settings: Settings.t,
       type_editor_is_focused,
-      assistant_editor,
+      assistant_model,
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
@@ -38,7 +38,7 @@ let view_of_cursor_inspector =
     ~is_mac,
     ~settings,
     type_editor_is_focused,
-    assistant_editor,
+    assistant_model,
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
@@ -54,7 +54,7 @@ let code_view =
       ~settings: Settings.t,
       program: Program.exp,
       focal_editor: Model.editor,
-      assistant_editor: Program.typ,
+      assistant_model: AssistantModel.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -80,11 +80,8 @@ let code_view =
       let assistant_action =
         switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
         | None => None
-        | Some(ci) => AssistantView.select_action(ci_settings, ci)
+        | Some(ci) => AssistantView.select_action(assistant_model, ci)
         };
-      let assistant_active =
-        ci_settings.assistant
-        && Assistant_common.valid_assistant_term(cursor_info.cursor_term);
       let key_handlers =
         main_editor_is_focused
           ? UHCode.key_handlers(
@@ -92,7 +89,7 @@ let code_view =
               ~is_mac,
               ~cursor_info,
               ~assistant_action,
-              ~assistant_active,
+              ~assistant_active=assistant_model.active,
             )
           : [];
 
@@ -105,7 +102,7 @@ let code_view =
               ~is_mac,
               ~settings,
               type_editor_is_focused,
-              assistant_editor,
+              assistant_model,
               Program.Exp.get_path(program),
               ci_settings,
               cursor_info,
@@ -123,7 +120,7 @@ let code_view =
       let on_click = evt => {
         Event.Many([
           UHCode.click_handler(editor_id, font_metrics, inject, evt),
-          inject(UpdateSettings(CursorInspector(Set_assistant(false)))),
+          inject(UpdateAssistant(Set_active(false))),
         ]);
       };
 
@@ -136,10 +133,10 @@ let code_view =
           };
         Event.Many([
           Event.Prevent_default,
-          inject(SetAssistantTypeEditor(ty)),
           inject(UpdateSettings(CursorInspector(Set_visible(true)))),
-          inject(UpdateSettings(CursorInspector(Set_assistant(true)))),
-          inject(UpdateSettings(CursorInspector(Reset_selection_index))),
+          inject(UpdateAssistant(Set_active(true))),
+          inject(UpdateAssistant(Set_type_editor(ty))),
+          inject(UpdateAssistant(Reset_selection_index)),
           UHCode.click_handler(editor_id, font_metrics, inject, evt),
         ]);
       };
@@ -186,7 +183,7 @@ let view = (~inject, model: Model.t) => {
                 ~settings,
                 program,
                 model.focal_editor,
-                model.assistant_editor,
+                model.assistant,
               ),
             ],
           ),

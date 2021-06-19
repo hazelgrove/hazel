@@ -481,8 +481,7 @@ let rec syn_move =
   /* Movement */
   | MoveTo(path) =>
     switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
-    | None =>
-      Failed;
+    | None => Failed
     | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
     }
   | MoveToPrevHole =>
