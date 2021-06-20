@@ -45,7 +45,7 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
     )
   );
 
-let cardstacks_select =
+let _cardstacks_select =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
@@ -136,10 +136,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.div([], []);
         } else {
           Node.div(
-            [],
+            [Attr.classes(["cell-status"])],
             [
               Node.div(
-                [Attr.classes(["cell-status"])],
+                [],
                 [
                   Node.div(
                     [Attr.classes(["type-indicator"])],
@@ -197,7 +197,22 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              examples_select(~inject),
+              Node.button(
+                [
+                  Attr.classes(["serialize"]),
+                  Attr.on_click(_ => {
+                    let e =
+                      program
+                      |> Program.get_edit_state
+                      |> Program.EditState_Exp.get_uhstx;
+                    JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+                    Event.Ignore;
+                  }),
+                ],
+                [Node.text("Serialize to console")],
+              ),
+              //cardstacks_select(~inject, Model.cardstack_info),
             ],
           ),
           Node.div(
@@ -223,22 +238,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           cell_status,
                           cardstack_controls(~inject, model),
                         ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e =
-                              program
-                              |> Program.get_edit_state
-                              |> Program.EditState_Exp.get_uhstx;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
                       ),
                       Node.div(
                         [

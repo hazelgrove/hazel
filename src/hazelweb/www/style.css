@@ -55,6 +55,32 @@ div {
   box-sizing: border-box;
 }
 
+select {
+  border-radius: 0.3em;
+  border-width: 0;
+  box-shadow: 0 3px #d6b573;
+  background-color: #fff9eb;
+  font-size: 1rem;
+  padding: 0.3rem;
+}
+
+button {
+  border-radius: 0.3em;
+  border-width: 0;
+  box-shadow: 0 3px #d6b573;
+  background-color: #fff9eb;
+  font-size: 1rem;
+  padding: 0.3rem;
+}
+
+button.serialize {
+  margin-left: 0.5em;
+}
+
+button:hover {
+  background-color: #e3cfa1; 
+}
+
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
     -webkit-user-select: none; /* Safari */
@@ -102,10 +128,11 @@ body {
   padding-bottom: 10px;
   padding-left: var(--page-padding);
   padding-right: var(--page-padding);
-  background-color: var(--title-bar-color);
-  color: white;
-  font-weight: bold;
-  font-size: 14pt;
+  background-color: #f5dfb3;
+    color: white;
+    font-weight: bold;
+    font-size: 1.5rem;
+    text-transform: lowercase;
   width: 100%;
   height: min-content;
   display: flex;
@@ -115,7 +142,7 @@ body {
 
 #cardstack-controls {
   margin-top: 10px;
-  display: flex;
+  display: none; /*flex;*/
   justify-content: flex-end;
 }
 
@@ -140,7 +167,7 @@ body {
 }
 
 .logo-text {
-  color: white;
+  color: #0f894d;
   text-decoration: none;
   margin-right: var(--page-padding);
 }
@@ -204,11 +231,14 @@ body {
   width: auto;
   height: 100%;
   direction: ltr; /* reset text direction */
-  background-color: tan;
   display: grid;
   grid-template-rows: 1fr auto;
   padding-top: 7px;
   cursor: pointer;
+}
+
+.sidebar:hover {
+  background-color: tan;
 }
 
 .sidebar-tab {
@@ -1073,11 +1103,12 @@ body {
 /* page */
 
 .page {
-  background-color: white;
+  background-color: #fff9ec;
   width: 100%;
   padding: 0.25in;
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
-  box-shadow: 3px 3px tan;
+  box-shadow: 0px 3px tan;
+  border-radius: 0.5em;
   min-width: 450px;
   /* border: 1px solid tan; */
   max-width: 100ch;
@@ -1095,17 +1126,17 @@ h1 {
 }
 
 .cell-status {
-  background-color: #EEE;
+  background-color: #f0f0f0;
+    border-radius: 0.5em;
+    padding: 0.5em;
 }
 
 .result-label {
-  padding: 3px
 }
 
 .result-view {
   padding-left: 25px;
   padding-bottom: 5px;
-  background-color: #EEE;
 }
 
 .type-indicator {
@@ -1114,7 +1145,6 @@ h1 {
 }
 
 .type-label {
-  background-color: #EEE;
   padding: 3px;
   display: inline-block;
   padding-right: 5px;
@@ -1126,7 +1156,6 @@ h1 {
 
 .htype-view {
   padding: 3px;
-  background-color: #EEE;
   display: inline-block;
 }
 
@@ -1410,10 +1439,11 @@ h1 {
 #cell {
   position: relative;
   width: auto;
-  margin-top: 20px;
-  background-color: white;
   padding: 10px;
+  /*andrew temp disable*/
+  /*margin-top: 20px;
   border: 2px solid #CCC;
+  background-color: white;*/
 }
 #cell:focus {
   outline: 0px;
