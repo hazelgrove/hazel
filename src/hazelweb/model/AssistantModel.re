@@ -5,14 +5,14 @@ type t = {
   filter_editor: Program.typ,
 };
 
-let init_filter_editor = ty =>
+let mk_filter_editor = ty =>
   Program.Typ.mk(~width=80, ZTyp.place_before(ty));
 
 let init = {
   active: false,
   selection_index: 0,
   choice_display_limit: 6,
-  filter_editor: init_filter_editor(OpSeq.wrap(UHTyp.Hole)),
+  filter_editor: mk_filter_editor(OpSeq.wrap(UHTyp.Hole)),
 };
 
 let put_filter_editor = (assistant_model, filter_editor) => {
@@ -57,5 +57,5 @@ let apply_update = (u: update, model: t) =>
       ...model,
       selection_index: model.selection_index - 1,
     }
-  | Set_type_editor(uty) => put_filter_editor(model, init_filter_editor(uty))
+  | Set_type_editor(uty) => put_filter_editor(model, mk_filter_editor(uty))
   };

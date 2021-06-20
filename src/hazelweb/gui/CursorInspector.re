@@ -893,10 +893,6 @@ let view =
     };
   let on_empty_hole =
     Assistant_common.on_empty_expr_hole(cursor_info.cursor_term);
-  //TODO(andrew): remove
-  //let assistant_enabled =
-  //  Assistant_common.valid_assistant_term(cursor_info.cursor_term);
-  let assistant_enabled = /*assistant_enabled &&*/ assistant_model.active;
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -910,7 +906,7 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       on_empty_hole,
-      assistant_enabled,
+      assistant_model.active,
       type_editor_is_focused,
       assistant_model,
       u_gen,
@@ -925,7 +921,7 @@ let view =
     };
   /* TODO need to make sure lightbulb shows up when needs to */
   let content =
-    if (assistant_enabled) {
+    if (assistant_model.active) {
       List.append(
         content,
         switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
@@ -973,7 +969,7 @@ let view =
       Attr.id("cursor-inspector"),
       Attr.classes(
         ["cursor-inspector-outer", above_or_below]
-        @ (assistant_enabled ? ["assistant-active"] : []),
+        @ (assistant_model.active ? ["assistant-active"] : []),
       ),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),

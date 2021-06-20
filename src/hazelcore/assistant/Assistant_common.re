@@ -25,7 +25,7 @@ type cursor_info_pro = {
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   ctx
   |> Contexts.gamma
-  |> VarMap.filter(((_, ty: HTyp.t)) => HTyp.consistent(ty, typ));
+  |> VarMap.filter(((_, ty)) => HTyp.consistent(ty, typ));
 };
 
 /**
@@ -137,10 +137,6 @@ let on_textable_expr: CursorInfo.cursor_term => bool =
   | Exp(_, Var(_)) => true
   | Exp(_, _) => false
   | _ => false;
-
-let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
-  on_empty_expr_hole(term) || on_textable_expr(term);
-};
 
 let promote_cursor_info =
     (

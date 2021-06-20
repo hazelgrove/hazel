@@ -9,11 +9,11 @@ let action_abbreviation: assistant_action_categories => string =
   | InsertApp => "app"
   | InsertLit => "lit"
   | InsertConstructor => "con"
-  | InsertElim => "elm"
+  | InsertElim => "elim"
   | ReplaceOperator => "opr"
-  | Wrap => "wrp";
+  | Wrap => "wrap";
 
-let get_editor = (exp: UHExp.t): Program.exp =>
+let mk_editor = (exp: UHExp.t): Program.exp =>
   exp
   |> ZExp.place_before
   |> Program.EditState_Exp.mk
@@ -63,13 +63,12 @@ let action_view =
       is_selected: bool,
       search_string: string,
     ) => {
-  let perform_action = _ => {
+  let perform_action = _ =>
     Event.Many([
       Event.Prevent_default,
       Event.Stop_propagation,
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
-  };
   let cat_label = action_abbreviation(category);
   let category_view =
     div([Attr.classes(["category", cat_label])], [text(cat_label)]);
@@ -82,7 +81,7 @@ let action_view =
       ~is_focused=false,
       ~settings,
       ~font_metrics,
-      get_editor(result),
+      mk_editor(result),
     );
   // NOTE(andrew): extra level of div nesting seems
   // necessary for correct decoration layout
@@ -108,12 +107,12 @@ let view =
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      assistant_model: AssistantModel.t,
+      assistant: AssistantModel.t,
       ci: Assistant_common.cursor_info_pro,
     )
     : Node.t => {
   let filter_string = Assistant_common.term_to_str(ci.term);
-  let actions = get_display_actions(ci, assistant_model);
+  let actions = get_display_actions(ci, assistant);
   div(
     [Attr.id("assistant")],
     List.mapi(
