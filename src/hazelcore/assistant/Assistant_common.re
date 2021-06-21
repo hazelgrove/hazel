@@ -140,12 +140,17 @@ let on_textable_expr: CursorInfo.cursor_term => bool =
 
 let promote_cursor_info =
     (
-      {cursor_term, typed, ctx, uses, syntactic_context}: CursorInfo.t,
       u_gen: MetaVarGen.t,
+      {cursor_term, typed, ctx, uses, syntactic_context}: CursorInfo.t,
     )
-    : option(cursor_info_pro) => {
+    : cursor_info_pro => {
   let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
-  let+ expected_ty = expected_ty;
+  // TODO(andrew): handle more cases in get_types_and_mode
+  let expected_ty =
+    switch (expected_ty) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
+    };
   {
     expected_ty,
     actual_ty,

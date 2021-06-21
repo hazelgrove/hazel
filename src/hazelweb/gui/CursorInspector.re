@@ -922,21 +922,16 @@ let view =
   /* TODO need to make sure lightbulb shows up when needs to */
   let content =
     if (assistant_model.active) {
-      List.append(
-        content,
-        switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
-        | None => []
-        | Some(ci) => [
-            AssistantView.view(
-              ~inject,
-              ~font_metrics,
-              ~settings,
-              assistant_model,
-              ci,
-            ),
-          ]
-        },
-      );
+      content
+      @ [
+        AssistantView.view(
+          ~inject,
+          ~font_metrics,
+          ~settings,
+          assistant_model,
+          Assistant_common.promote_cursor_info(u_gen, cursor_info),
+        ),
+      ];
     } else if (cursor_inspector.type_assist) {
       switch (cursor_info.cursor_term) {
       | Exp(_, EmptyHole(_)) =>

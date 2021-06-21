@@ -78,10 +78,9 @@ let code_view =
       let cursor_info = Program.Exp.get_cursor_info(program);
       let ci_settings = settings.cursor_inspector;
       let assistant_action =
-        switch (Assistant_common.promote_cursor_info(cursor_info, u_gen)) {
-        | None => None
-        | Some(ci) => AssistantView.select_action(assistant_model, ci)
-        };
+        cursor_info
+        |> Assistant_common.promote_cursor_info(u_gen)
+        |> AssistantModel.select_action(assistant_model);
       let key_handlers =
         main_editor_is_focused
           ? UHCode.key_handlers(
@@ -92,7 +91,6 @@ let code_view =
               ~assistant_active=assistant_model.active,
             )
           : [];
-
       let cursor_inspector =
         if (ci_settings.visible) {
           [

@@ -8,7 +8,8 @@ type assistant_action_categories =
   | InsertConstructor
   | InsertElim
   | Wrap
-  | ReplaceOperator;
+  | ReplaceOperator
+  | Delete;
 
 type assistant_action = {
   category: assistant_action_categories,
@@ -37,10 +38,10 @@ let mk_case = u_gen => {
     );
   UHExp.case(wrap(mk_hole(u_gen)), [rule]);
 };
-let wrap_space = (operand: UHExp.operand, seq: exp_seq) =>
+let ap_seq = (operand: UHExp.operand, seq: exp_seq): exp_seq =>
   Seq.S(operand, A(Operators_Exp.Space, seq));
 let mk_ap = (f_name: string, seq: exp_seq): UHExp.t =>
-  wrap_space(UHExp.var(f_name), seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+  ap_seq(UHExp.var(f_name), seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 let mk_bin_seq = (operand1, operator, operand2) =>
   Seq.seq_op_seq(Seq.wrap(operand1), operator, Seq.wrap(operand2));
 
@@ -55,27 +56,26 @@ let mk_ap_and_fix =
     : UHExp.t =>
   mk_ap(f_name, seq) |> fix_holes_local(ctx, u_gen);
 
-let rec mk_ap_seq_holes =
-        (f_ty: HTyp.t, hole_ty: HTyp.t)
-        : option((HTyp.t, Seq.t(UHExp.operand, UHExp.operator))) => {
+let rec mk_ap_iter_seq =
+        (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, exp_seq)) => {
   switch (f_ty) {
-  | Arrow(_, output_ty) =>
-    if (HTyp.consistent(output_ty, hole_ty)) {
-      Some((output_ty, S(EmptyHole(0), E)));
+  | Arrow(_, out_ty) =>
+    if (HTyp.consistent(out_ty, hole_ty)) {
+      Some((out_ty, S(EmptyHole(0), E)));
     } else {
-      let+ (res_ty, affix) = mk_ap_seq_holes(output_ty, hole_ty);
-      (res_ty, wrap_space(UHExp.EmptyHole(0), affix));
+      let* (res_ty, affix) = mk_ap_iter_seq(out_ty, hole_ty);
+      Some((res_ty, ap_seq(UHExp.EmptyHole(0), affix)));
     }
   | _ => None
   };
 };
 
-let mk_ap_inner =
+let mk_ap_iter =
     ({expected_ty, ctx, u_gen, _}: cursor_info_pro, f: Var.t, f_ty: HTyp.t)
     : option((HTyp.t, UHExp.t)) => {
-  let+ (res_ty, inner_seq) = mk_ap_seq_holes(f_ty, expected_ty);
-  let exp = mk_ap_and_fix(f, inner_seq, ctx, u_gen);
-  (res_ty, exp);
+  let+ (output_ty, holes_seq) = mk_ap_iter_seq(f_ty, expected_ty);
+  let exp = mk_ap_and_fix(f, holes_seq, ctx, u_gen);
+  (output_ty, exp);
 };
 
 let mk_var_action =
@@ -94,8 +94,7 @@ let mk_app_action =
     (ci: cursor_info_pro, (name: string, f_ty: HTyp.t)): assistant_action => {
   //TODO(andrew): splice maybe?
   let (res_ty, e) =
-    mk_ap_inner(ci, name, f_ty)
-    |> OptUtil.get(_ => failwith("mk_app_action"));
+    mk_ap_iter(ci, name, f_ty) |> OptUtil.get(_ => failwith("mk_app_action"));
   {
     category: InsertApp,
     text: name,
@@ -112,6 +111,39 @@ let mk_bool_lit_action = (b: bool): assistant_action => {
     text: string_of_bool(b),
     action: ReplaceAtCursor(operand),
     res_ty: HTyp.Bool,
+    result: wrap(operand),
+  };
+};
+
+let mk_int_lit_action = (s: string): assistant_action => {
+  let operand = UHExp.intlit(s);
+  {
+    category: InsertLit,
+    text: s,
+    action: ReplaceAtCursor(operand),
+    res_ty: HTyp.Int,
+    result: wrap(operand),
+  };
+};
+
+let mk_float_lit_action = (s: string): assistant_action => {
+  let operand = UHExp.floatlit(s);
+  {
+    category: InsertLit,
+    text: s,
+    action: ReplaceAtCursor(operand),
+    res_ty: HTyp.Float,
+    result: wrap(operand),
+  };
+};
+
+let mk_empty_hole_action = ({u_gen, _}: cursor_info_pro): assistant_action => {
+  let operand = UHExp.EmptyHole(u_gen);
+  {
+    category: Delete,
+    text: "",
+    action: ReplaceAtCursor(operand),
+    res_ty: HTyp.Hole,
     result: wrap(operand),
   };
 };
@@ -152,32 +184,35 @@ let mk_case_action = ({u_gen, _}: cursor_info_pro): assistant_action => {
 };
 
 let intro_actions = (ci: cursor_info_pro): list(assistant_action) => [
+  mk_empty_hole_action(ci),
   mk_bool_lit_action(true),
   mk_bool_lit_action(false),
   mk_nil_list_action,
   mk_inj_action(ci, L),
   mk_inj_action(ci, R),
+  mk_int_lit_action("0"),
+  mk_float_lit_action("0.0"),
 ];
 
-let compute_intro_actions =
+let intro_actions =
     ({expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
   ci
   |> intro_actions
   |> List.filter(a => HTyp.consistent(a.res_ty, expected_ty));
 
-let compute_var_actions =
+let var_actions =
     ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
   //TODO(andrew): resolve issue with fn position in apps
   expected_ty |> extract_vars(ctx) |> List.map(mk_var_action(ci));
 
-let compute_app_actions =
+let app_actions =
     ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) => {
   //TODO(andrew): Do I want to special-case synthetic here?
   expected_ty |> fun_vars(ctx) |> List.map(mk_app_action(ci));
 };
 
-let compute_elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
-  compute_app_actions(ci) @ [mk_case_action(ci)];
+let elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
+  app_actions(ci) @ [mk_case_action(ci)];
 
 let mk_basic_wrap_action =
     ({term, ctx, u_gen, _}: cursor_info_pro, (name: string, _)) => {
@@ -201,13 +236,15 @@ let mk_basic_wrap_action =
   };
 };
 
-let compute_wrap_actions =
-    ({ctx, expected_ty, actual_ty, _} as ci: cursor_info_pro) => {
-  //TODO(andrew): decide if want to limit options for synthetic mode
-  //TODO(andrew): non-unary wraps
-  switch (actual_ty) {
-  | None => []
-  | Some(actual_ty) =>
+let wrap_actions =
+    ({ctx, expected_ty, actual_ty, term, _} as ci: cursor_info_pro) => {
+  // TODO(andrew): decide if want to limit options for synthetic mode
+  // TODO(andrew): non-unary wraps
+  switch (actual_ty, term) {
+  | (None, _)
+  | (_, Exp(_, EmptyHole(_))) => []
+  // NOTE: wrapping empty holes redundant to ap
+  | (Some(actual_ty), _) =>
     fun_vars(ctx, expected_ty)
     |> List.filter(((_, f_ty)) =>
          HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
@@ -217,10 +254,7 @@ let compute_wrap_actions =
 };
 
 let operand_actions = (ci: cursor_info_pro): list(assistant_action) =>
-  compute_wrap_actions(ci)
-  @ compute_intro_actions(ci)
-  @ compute_var_actions(ci)
-  @ compute_elim_actions(ci);
+  wrap_actions(ci) @ intro_actions(ci) @ var_actions(ci) @ elim_actions(ci);
 
 let exp_operator_of_ty =
     (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>
@@ -266,7 +300,7 @@ let mk_replace_operator_action =
   };
 };
 
-let compute_replace_operator_actions =
+let replace_operator_actions =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, seq_ty: HTyp.t, zseq: exp_zseq) => {
   let ty_ignoring_err = operand =>
     switch (
@@ -297,6 +331,14 @@ let operator_actions =
     : list(assistant_action) =>
   switch (syntactic_context) {
   | ExpSeq(seq_ty, zseq) =>
-    compute_replace_operator_actions(ctx, u_gen, seq_ty, zseq)
+    replace_operator_actions(ctx, u_gen, seq_ty, zseq)
   | _ => []
   };
+
+let virtual_actions = ({term, _}: cursor_info_pro): list(assistant_action) => {
+  switch (term) {
+  | Exp(_, IntLit(_, s)) => [mk_int_lit_action(s)]
+  | Exp(_, FloatLit(_, s)) => [mk_float_lit_action(s)]
+  | _ => []
+  };
+};

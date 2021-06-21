@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 type t = {
   active: bool,
   selection_index: int,
@@ -59,3 +61,35 @@ let apply_update = (u: update, model: t) =>
     }
   | Set_type_editor(uty) => put_filter_editor(model, mk_filter_editor(uty))
   };
+
+let normalize_index = (index: int, xs: list('a)): int =>
+  IntUtil.wrap(index, List.length(xs));
+
+let get_ty = (editor: Program.typ): HTyp.t =>
+  editor
+  |> Program.get_edit_state
+  |> Program.EditState_Typ.get_uhstx
+  |> UHTyp.expand;
+
+let select_action =
+    ({selection_index, _}: t, ci: Assistant_common.cursor_info_pro)
+    : option(Action.t) => {
+  let actions = Assistant.get_actions(ci);
+  let selection_index = normalize_index(selection_index, actions);
+  let+ selection = List.nth_opt(actions, selection_index);
+  selection.action;
+};
+
+let get_display_actions =
+    (
+      ci: Assistant_common.cursor_info_pro,
+      {selection_index, choice_display_limit, filter_editor, _}: t,
+    )
+    : list(Assistant_Exp.assistant_action) => {
+  let filter_ty = get_ty(filter_editor);
+  let actions = Assistant.get_actions_of_ty(ci, filter_ty);
+  let selection_index = normalize_index(selection_index, actions);
+  actions
+  |> ListUtil.rotate_n(selection_index)
+  |> ListUtil.trim(choice_display_limit);
+};
