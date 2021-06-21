@@ -13,9 +13,10 @@ let card_select =
       model: Model.t,
       cardstacks: list(CardstackInfo.t),
     ) => {
-  let n = ZList.prefix_length(model.cardstacks);
   let cards =
-    switch (List.nth_opt(cardstacks, n)) {
+    switch (
+      model.cardstacks |> ZList.prefix_length |> List.nth_opt(cardstacks)
+    ) {
     | None => []
     | Some({cards, _}) => cards
     };
@@ -23,7 +24,7 @@ let card_select =
     Node.select(
       [
         Attr.on_change((_, id) =>
-          inject(ModelAction.LoadExample(int_of_string(id)))
+          inject(ModelAction.LoadCard(int_of_string(id)))
         ),
       ],
       List.mapi(card_to_option, cards),

@@ -24,7 +24,7 @@ type t =
   | MoveAction(move_input)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(int)
+  | LoadCard(int)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
