@@ -24,7 +24,7 @@ type t =
   | MoveAction(move_input)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(Examples.id)
+  | LoadExample(int)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
@@ -42,4 +42,5 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | UpdateIsMac(bool)
+  | SerializeToConsole;

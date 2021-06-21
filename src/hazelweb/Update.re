@@ -64,7 +64,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | SerializeToConsole =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -120,7 +121,7 @@ let apply_action =
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
-      | LoadExample(id) => Model.load_example(model, Examples.get(id))
+      | LoadExample(n) => Model.nth_card(n, model)
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
@@ -203,6 +204,10 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
+      | SerializeToConsole =>
+        let e = model |> Model.get_program |> Program.get_uhexp;
+        JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+        model;
       };
     },
   );
