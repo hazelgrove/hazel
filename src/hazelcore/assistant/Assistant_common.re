@@ -66,9 +66,9 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | AnaKeyword(expected, _)
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
-  | SynErrorArrow(expected, actual)
-  | SynMatchingArrow(expected, actual) => (
-      Some(expected),
+  | SynErrorArrow(_expected, actual)
+  | SynMatchingArrow(_expected, actual) => (
+      Some(Arrow(Hole, Hole)),
       Some(actual),
       Synthetic,
     )
