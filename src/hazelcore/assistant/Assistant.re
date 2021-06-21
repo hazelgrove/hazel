@@ -27,7 +27,25 @@ let get_operator_actions = (ci: cursor_info_pro): list(assistant_action) =>
   | _ => []
   };
 
-let get_actions = ({term, _} as ci: cursor_info_pro): list(assistant_action) => {
+let get_actions =
+    (
+      {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: cursor_info_pro,
+    )
+    : list(assistant_action) => {
+  if (true) {
+    print_endline("ASSISTANT DEBUG:");
+    P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
+    switch (actual_ty) {
+    | None => print_endline("  actual_ty: None")
+    | Some(ty) => P.p("actual_ty: %s\n", HTyp.sexp_of_t(ty))
+    };
+    P.p("  mode: %s\n", sexp_of_mode(mode));
+    P.p(
+      "  syntactic_context: %s\n",
+      CursorInfo.sexp_of_syntactic_context(syntactic_context),
+    );
+    P.p("  term: %s\n", CursorInfo.sexp_of_cursor_term(term));
+  };
   virtual_actions(ci)
   @ get_operand_actions(ci)
   @ get_operator_actions(ci)

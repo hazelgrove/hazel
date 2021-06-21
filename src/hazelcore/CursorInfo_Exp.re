@@ -515,7 +515,12 @@ and syn_cursor_info_skel =
           | ZOperand(zoperand, _) => zoperand
           };
         let mk = typed =>
-          CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
+          CursorInfo_common.mk(
+            typed,
+            ctx,
+            extract_from_zexp_zseq(zseq),
+            ~syntactic_context,
+          );
         switch (cursor_on_outer_expr(zoperand)) {
         | None =>
           syn_cursor_info_zoperand(
@@ -576,7 +581,9 @@ and syn_cursor_info_skel =
         };
       }
     | BinOp(_, Space, skel1, skel2) =>
-      switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+      switch (
+        syn_cursor_info_skel(~steps, ctx, skel1, zseq, ~syntactic_context)
+      ) {
       | Some(_) as result => result
       | None =>
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
@@ -1196,7 +1203,14 @@ and syn_cursor_info_rule =
     : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
+    Some(
+      CursorInfo_common.mk(
+        OnRule,
+        ctx,
+        extract_from_zrule(zrule),
+        ~syntactic_context,
+      ),
+    )
   | RuleZP(zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
@@ -1243,7 +1257,14 @@ and ana_cursor_info_rule =
     : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
+    Some(
+      CursorInfo_common.mk(
+        OnRule,
+        ctx,
+        extract_from_zrule(zrule),
+        ~syntactic_context,
+      ),
+    )
   | RuleZP(zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
