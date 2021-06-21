@@ -11,6 +11,8 @@ let get_model_action =
     Some(EditAction(Construct(SOp(SArrow))))
   | (GT, _, _) => Some(EditAction(Construct(SOp(SGreaterThan))))
   | (Ampersand, _, _) => Some(EditAction(Construct(SOp(SAnd))))
+  | (VBar, {CursorInfo.typed: OnType, _}, _) =>
+    Some(EditAction(Construct(SOp(SVBar))))
   | (VBar, _, _) => Some(EditAction(Construct(SOp(SOr))))
   | (LeftParen, _, _) => Some(EditAction(Construct(SParenthesized)))
   | (Colon, _, _) => Some(EditAction(Construct(SAnn)))
