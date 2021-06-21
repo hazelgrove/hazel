@@ -36,19 +36,9 @@ let has_next = (cardstack: t): bool => {
   !ListUtil.is_empty(suffix);
 };
 
-let prev_card = (cardstack: t): t => {
+let map = (f, cardstack: t): t => {
   let width = get_program(cardstack).width;
-  switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_prev) {
-  | None => cardstack
-  | Some(shifted) => {
-      ...cardstack,
-      zcards: shifted |> ZList.map_z(ZCard.mk(~width)),
-    }
-  };
-};
-let next_card = (cardstack: t): t => {
-  let width = get_program(cardstack).width;
-  switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_next) {
+  switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> f) {
   | None => cardstack
   | Some(shifted) => {
       ...cardstack,
@@ -57,13 +47,6 @@ let next_card = (cardstack: t): t => {
   };
 };
 
-let nth_card = (n: int, cardstack: t): t => {
-  let width = get_program(cardstack).width;
-  switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_to(n)) {
-  | None => cardstack
-  | Some(shifted) => {
-      ...cardstack,
-      zcards: shifted |> ZList.map_z(ZCard.mk(~width)),
-    }
-  };
-};
+let prev_card = map(ZList.shift_prev);
+let next_card = map(ZList.shift_next);
+let nth_card = n => map(ZList.shift_to(n));
