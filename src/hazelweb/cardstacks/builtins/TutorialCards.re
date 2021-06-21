@@ -44,7 +44,9 @@ let intro_init_zexp =
  */
 let intro_card: CardInfo.t = {
   caption: div([], []),
-  init_zexp: intro_init_zexp,
+  // TODO(andrew): restore default
+  init_zexp: ZExp.place_before(Examples.assistant_test),
+  //init_zexp: intro_init_zexp,
 };
 /*
  let backspace_caption =
