@@ -116,6 +116,7 @@ let key_handlers =
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         switch (HazelKeyCombos.of_evt(evt)) {
+        | Some(Ctrl_S) => prevent_stop_inject(ModelAction.SerializeToConsole)
         | Some(Ctrl_Z) =>
           if (is_mac) {
             Event.Ignore;

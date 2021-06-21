@@ -51,6 +51,7 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 
 let prev_card: t => t;
 let next_card: t => t;
+let nth_card: (int, t) => t;
 
 let perform_edit_action: (Action.t, t) => t;
 
@@ -67,11 +68,6 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  */
 let toggle_left_sidebar: t => t;
 let toggle_right_sidebar: t => t;
-
-/**
- * Load an expression into the editor
- */
-let load_example: (t, UHExp.t) => t;
 
 /**
  * Load a selected cardstack into view

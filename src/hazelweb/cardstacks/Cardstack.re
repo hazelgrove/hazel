@@ -56,3 +56,14 @@ let next_card = (cardstack: t): t => {
     }
   };
 };
+
+let nth_card = (n: int, cardstack: t): t => {
+  let width = get_program(cardstack).width;
+  switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_to(n)) {
+  | None => cardstack
+  | Some(shifted) => {
+      ...cardstack,
+      zcards: shifted |> ZList.map_z(ZCard.mk(~width)),
+    }
+  };
+};

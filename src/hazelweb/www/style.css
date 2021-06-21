@@ -113,6 +113,27 @@ body {
   justify-content: flex-start;
 }
 
+#card-controls {
+  display: flex;
+  gap: 0.26em;
+  flex-direction: row;
+  align-items: center;
+}
+
+#card-controls select, #card-controls button {
+  background-color: #187346;
+  color: #94deba;
+  border-width: 0;
+  height: 1.3rem;
+  border-radius: 0.3em;
+  box-shadow: 0 3px #000;
+}
+
+#card-controls select:hover, #card-controls button:hover {
+  color: #d7ffec;
+  background-color: #239d60; 
+}
+
 #cardstack-controls {
   margin-top: 10px;
   display: flex;

@@ -1,45 +1,35 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 
-let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
+let card_to_option = (id, {name, _}: CardInfo.t): Vdom.Node.t =>
+  Vdom.Node.option(
+    [Vdom.Attr.value(string_of_int(id))],
+    [Vdom.Node.text(name)],
+  );
+
+let card_select =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      model: Model.t,
+      cardstacks: list(CardstackInfo.t),
+    ) => {
+  let n = ZList.prefix_length(model.cardstacks);
+  let cards =
+    switch (List.nth_opt(cardstacks, n)) {
+    | None => []
+    | Some({cards, _}) => cards
+    };
   Vdom.(
     Node.select(
       [
-        Attr.on_change((_, example_id) =>
-          inject(ModelAction.LoadExample(example_id))
+        Attr.on_change((_, id) =>
+          inject(ModelAction.LoadExample(int_of_string(id)))
         ),
       ],
-      [
-        Node.option([Attr.value("just_hole")], [Node.text("just a hole")]),
-        Node.option(
-          [Attr.value("holey_lambda")],
-          [Node.text("holey lambda")],
-        ),
-        Node.option(
-          [Attr.value("let_line")],
-          [Node.text("let with extra lines")],
-        ),
-        Node.option([Attr.value("map_example")], [Node.text("map")]),
-        Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
-        Node.option(
-          [Attr.value("qsort_example_3")],
-          [Node.text("qsort (3x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_10")],
-          [Node.text("qsort (10x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_30")],
-          [Node.text("qsort (30x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_100")],
-          [Node.text("qsort (100x)")],
-        ),
-      ],
+      List.mapi(card_to_option, cards),
     )
   );
+};
 
 let cardstacks_select =
     (
@@ -81,7 +71,7 @@ let prev_card_button = (~inject, model: Model.t) => {
         Attr.on_click(_ => inject(ModelAction.PrevCard)),
         ...show_prev,
       ],
-      [Node.text("Previous")],
+      [Node.text("<")],
     )
   );
 };
@@ -96,25 +86,20 @@ let next_card_button = (~inject, model: Model.t) => {
         Attr.on_click(_ => inject(ModelAction.NextCard)),
         ...show_next,
       ],
-      [Node.text("Next")],
+      [Node.text(">")],
     )
   );
 };
 
-let cardstack_controls = (~inject, model: Model.t) =>
-  Vdom.(
-    Node.div(
-      [Attr.id("cardstack-controls")],
-      [
-        Node.div(
-          [Attr.id("button-centering-container")],
-          [
-            prev_card_button(~inject, model),
-            next_card_button(~inject, model),
-          ],
-        ),
-      ],
-    )
+let cards_panel = (~inject, model: Model.t) =>
+  Vdom.Node.div(
+    [Vdom.Attr.id("card-controls")],
+    [
+      cardstacks_select(~inject, Model.cardstack_info),
+      card_select(~inject, model, Model.cardstack_info),
+      prev_card_button(~inject, model),
+      next_card_button(~inject, model),
+    ],
   );
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
@@ -188,7 +173,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              cards_panel(~inject, model),
             ],
           ),
           Node.div(
@@ -212,21 +197,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           ),
                           Cell.view(~inject, model),
                           cell_status,
-                          cardstack_controls(~inject, model),
                         ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
                       ),
                       Node.div(
                         [
