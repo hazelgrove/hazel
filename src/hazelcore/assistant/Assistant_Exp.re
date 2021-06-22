@@ -392,6 +392,7 @@ let mk_wrap_action =
 // TODO(andrew): label replacement actions seperately!! for non-empty hole case, categorization MATTERS
 // ie we want to know why this is being suggested
 // TODO: mode toggle for favoring simplifying versus complexifying actions?
+// TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
 
 let wrap_actions =
     ({ctx, expected_ty, actual_ty, term, _} as ci: cursor_info_pro) => {
