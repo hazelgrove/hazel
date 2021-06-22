@@ -1,55 +1,62 @@
 let get_model_action =
     (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
-    : option(ModelAction.t) =>
-  switch (kc, cursor_info, is_mac) {
-  | (Escape, _, _) => None
-  | (Backspace, _, _) => Some(EditAction(Backspace))
-  | (Delete, _, _) => Some(EditAction(Delete))
-  | (ShiftTab, _, _) => Some(EditAction(MoveToPrevHole))
-  | (Tab, _, _) => Some(EditAction(MoveToNextHole))
-  | (GT, {CursorInfo.typed: OnType, _}, _) =>
-    Some(EditAction(Construct(SOp(SArrow))))
-  | (GT, _, _) => Some(EditAction(Construct(SOp(SGreaterThan))))
-  | (Ampersand, _, _) => Some(EditAction(Construct(SOp(SAnd))))
-  | (VBar, {CursorInfo.typed: OnType, _}, _) =>
-    Some(EditAction(Construct(SOp(SVBar))))
-  | (VBar, _, _) => Some(EditAction(Construct(SOp(SOr))))
-  | (LeftParen, _, _) => Some(EditAction(Construct(SParenthesized)))
-  | (Colon, _, _) => Some(EditAction(Construct(SAnn)))
-  | (Equals, _, _) => Some(EditAction(Construct(SOp(SEquals))))
-  | (Enter, _, _) => Some(EditAction(Construct(SLine)))
-  | (Shift_Enter, _, _) => Some(EditAction(Construct(SCommentLine)))
-  | (Backslash, _, _) => Some(EditAction(Construct(SLam)))
-  | (Plus, _, _) => Some(EditAction(Construct(SOp(SPlus))))
-  | (Minus, _, _) => Some(EditAction(Construct(SOp(SMinus))))
-  | (Asterisk, _, _) => Some(EditAction(Construct(SOp(STimes))))
-  | (Slash, _, _) => Some(EditAction(Construct(SOp(SDivide))))
-  | (LT, _, _) => Some(EditAction(Construct(SOp(SLessThan))))
-  | (Space, {CursorInfo.cursor_term: Line(_, CommentLine(_)), _}, _) =>
-    Some(EditAction(Construct(SChar(" "))))
-  | (Space, _, _) => Some(EditAction(Construct(SOp(SSpace))))
-  | (Comma, _, _) => Some(EditAction(Construct(SOp(SComma))))
-  | (LeftBracket, {CursorInfo.typed: OnType, _}, _) =>
-    Some(EditAction(Construct(SList)))
-  | (LeftBracket, _, _) => Some(EditAction(Construct(SListNil)))
-  | (Semicolon, _, _) => Some(EditAction(Construct(SOp(SCons))))
-  | (Alt_L, _, _) => Some(EditAction(Construct(SInj(L))))
-  | (Alt_R, _, _) => Some(EditAction(Construct(SInj(R))))
-  | (Alt_C, _, _) => Some(EditAction(Construct(SCase)))
-  | (Pound, _, _) => Some(EditAction(Construct(SCommentLine)))
-  | (Ctrl_Z, _, true) => None
-  | (Ctrl_Z, _, false) => Some(Undo)
-  | (Ctrl_Shift_Z, _, true) => None
-  | (Ctrl_Shift_Z, _, false) => Some(Redo)
-  | (Ctrl_Alt_I, _, _) => Some(EditAction(SwapUp))
-  | (Ctrl_Alt_K, _, _) => Some(EditAction(SwapDown))
-  | (Ctrl_Alt_J, _, _) => Some(EditAction(SwapLeft))
-  | (Ctrl_Alt_L, _, _) => Some(EditAction(SwapRight))
-  | (Meta_Z, _, true) => Some(Undo)
-  | (Meta_Z, _, false) => None
-  | (Meta_Shift_Z, _, true) => Some(Redo)
-  | (Meta_Shift_Z, _, false) => None
+    : option(ModelAction.t) => {
+  let construct = (shape: Action.shape): option(ModelAction.t) =>
+    Some(EditAction(Construct(shape)));
+
+  let (cursor_on_type, cursor_on_comment) =
+    switch (cursor_info) {
+    | {typed: OnType, _} => (true, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
+    | _ => (false, false)
+    };
+
+  switch (kc) {
+  | Escape => None
+  | Backspace => Some(EditAction(Backspace))
+  | Delete => Some(EditAction(Delete))
+  | ShiftTab => Some(EditAction(MoveToPrevHole))
+  | Tab => Some(EditAction(MoveToNextHole))
+  | GT when cursor_on_type => construct(SOp(SArrow))
+  | GT => construct(SOp(SGreaterThan))
+  | Ampersand => construct(SOp(SAnd))
+  | VBar when cursor_on_type => construct(SOp(SVBar))
+  | VBar => construct(SOp(SOr))
+  | LeftParen => construct(SParenthesized)
+  | Colon => construct(SAnn)
+  | Equals => construct(SOp(SEquals))
+  | Enter => construct(SLine)
+  | Shift_Enter => construct(SCommentLine)
+  | Backslash => construct(SLam)
+  | Plus => construct(SOp(SPlus))
+  | Minus => construct(SOp(SMinus))
+  | Asterisk => construct(SOp(STimes))
+  | Slash => construct(SOp(SDivide))
+  | LT => construct(SOp(SLessThan))
+  | Space when cursor_on_comment => construct(SChar(" "))
+  | Space => construct(SOp(SSpace))
+  | Comma => construct(SOp(SComma))
+  | LeftBracket when cursor_on_type => construct(SList)
+  | LeftBracket => construct(SListNil)
+  | Semicolon => construct(SOp(SCons))
+  | Alt_L => construct(SInj(L))
+  | Alt_R => construct(SInj(R))
+  | Alt_C => construct(SCase)
+  | Pound => construct(SCommentLine)
+  | Ctrl_Z when is_mac => None
+  | Ctrl_Z => Some(Undo)
+  | Ctrl_Shift_Z when is_mac => None
+  | Ctrl_Shift_Z => Some(Redo)
+  | Ctrl_Alt_I => Some(EditAction(SwapUp))
+  | Ctrl_Alt_K => Some(EditAction(SwapDown))
+  | Ctrl_Alt_J => Some(EditAction(SwapLeft))
+  | Ctrl_Alt_L => Some(EditAction(SwapRight))
+  | Meta_Z when is_mac => Some(Undo)
+  | Meta_Z => None
+  | Meta_Shift_Z when is_mac => Some(Redo)
+  | Meta_Shift_Z => None
   };
+};
 
 let get_action =
     (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
