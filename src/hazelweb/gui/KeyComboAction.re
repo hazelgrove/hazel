@@ -57,11 +57,3 @@ let get_model_action =
   | Meta_Shift_Z => None
   };
 };
-
-let get_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
-    : option(Action.t) =>
-  switch (get_model_action(cursor_info, kc, is_mac)) {
-  | Some(EditAction(action)) => Some(action)
-  | _ => None
-  };
