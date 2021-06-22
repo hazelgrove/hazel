@@ -42,4 +42,6 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | UpdateIsMac(bool)
+  | Extraction(OCamlExtraction.t)
+  | CloseExtraction;

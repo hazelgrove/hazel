@@ -64,7 +64,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | Extraction(_)
+  | CloseExtraction =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -199,6 +201,11 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
+      | Extraction(msg) => {...model, extraction: (true, msg)}
+      | CloseExtraction => {
+          ...model,
+          extraction: (false, ExtractionFailed("Empty")),
+        }
       | UpdateSettings(u) => {
           ...model,
           settings: Settings.apply_update(u, model.settings),

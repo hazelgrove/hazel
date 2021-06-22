@@ -3,10 +3,33 @@
 // output with your test's output.
 //
 // More at https://github.com/janestreet/ppx_expect
+
+open Js_of_ocaml_toplevel;
+
 let%expect_test "expect_test" = {
-  print_endline("hazel");
+  let () = JsooTop.initialize();
+
+  let execute: string => string =
+    code => {
+      let buffer = Buffer.create(100);
+      let formatter = Format.formatter_of_buffer(buffer);
+      JsooTop.execute(true, formatter, code);
+      let result = Buffer.contents(buffer);
+      result;
+    };
+
+  let eval: string => unit =
+    code => {
+      let _result = execute(code);
+      ();
+    };
+
+  eval("let () = print_endline \"hazel\";;");
   %expect
   {|hazel|};
+  // print_endline("hazel");
+  // %expect
+  // {|hazel|};
 };
 
 // To create an inline test, write a function () -> bool

@@ -7,6 +7,7 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  extraction: OCamlExtraction.result,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
 };
@@ -77,6 +78,7 @@ let init = (): t => {
         col_width: 1.0,
       },
     is_mac: true,
+    extraction: (false, ExtractionFailed("Empty")),
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
   };
