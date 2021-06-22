@@ -920,10 +920,10 @@ let view =
     | _ => [summary]
     };
   /* TODO need to make sure lightbulb shows up when needs to */
-  print_endline("cursorinfo: ");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_t(cursor_info)),
-  );
+  //print_endline("cursorinfo: ");
+  //print_endline(
+  //  Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_t(cursor_info)),
+  //);
   let content =
     if (assistant_model.active) {
       content

@@ -369,7 +369,10 @@ and syn_cursor_info_zopseq =
   // show the complete product type
 
   // NOTE(andrew): overwrite existing syntactic context
-  let syntactic_context = CursorInfo.ExpSeq(Hole, zseq);
+  // TODO(andrew): does this actually need err status?
+  let opseq = ZExp.erase_zopseq(zopseq);
+  let err = UHExp.get_err_status_opseq(opseq);
+  let syntactic_context = CursorInfo.ExpSeq(Hole, zseq, err);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -824,13 +827,13 @@ and ana_cursor_info_zopseq =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
+  let opseq = ZExp.erase_zopseq(zopseq);
+  let err = UHExp.get_err_status_opseq(opseq);
   // NOTE(andrew): overwrite existing syntactic context
-  let syntactic_context = CursorInfo.ExpSeq(ty, zseq);
+  let syntactic_context = CursorInfo.ExpSeq(ty, zseq, err);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
-    let opseq = ZExp.erase_zopseq(zopseq);
-    let err = UHExp.get_err_status_opseq(opseq);
     switch (err) {
     | NotInHole =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
@@ -854,7 +857,7 @@ and ana_cursor_info_zopseq =
              cursor_term,
            )
          );
-    };
+    }
   | _ =>
     // cursor in tuple element
     switch (Statics_Exp.tuple_zip(skel, ty)) {

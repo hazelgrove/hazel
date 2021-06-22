@@ -32,7 +32,7 @@ let get_actions =
       {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: cursor_info_pro,
     )
     : list(assistant_action) => {
-  if (true) {
+  if (false) {
     print_endline("ASSISTANT DEBUG:");
     P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
     switch (actual_ty) {

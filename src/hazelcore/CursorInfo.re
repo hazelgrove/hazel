@@ -129,6 +129,7 @@ type syntactic_context =
   | ExpSeq(
       HTyp.t,
       ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator),
+      ErrStatus.t,
     )
   | NoSeq;
 

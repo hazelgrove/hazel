@@ -24,7 +24,7 @@ let action_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, text: act_str, _}: assistant_action,
+      {action, result, res_ty, category, text: act_str, delta_errors, _}: assistant_action,
       is_selected: bool,
       search_string: string,
     ) => {
@@ -48,13 +48,30 @@ let action_view =
       ~font_metrics,
       mk_editor(result),
     );
+  let error_str =
+    switch (delta_errors) {
+    | 1 => "+"
+    | 2 => "++"
+    | 3 => "+++"
+    | (-1) => "-"
+    | (-2) => "--"
+    | (-3) => "---"
+    | _ => ""
+    };
   div(
     [
-      Attr.classes(["choice"] @ (is_selected ? ["selected"] : [])),
+      Attr.classes(
+        ["choice"]
+        @ (is_selected ? ["selected"] : [])
+        @ (delta_errors > 0 ? ["errors-less"] : [])
+        @ (delta_errors < 0 ? ["errors-more"] : []),
+      ),
       Attr.on_click(perform_action),
     ],
     [
       category_view,
+      div([Attr.classes(["delta-errors"])], [text(error_str)]),
+      //div([], [context_consistent |> string_of_bool |> text]),
       div(
         [Attr.classes(["code-container"])],
         [div([Attr.classes(["code"])], [overlay_view] @ result_view)],

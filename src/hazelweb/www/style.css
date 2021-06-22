@@ -660,7 +660,7 @@ body {
 }
 
 #assistant > .choice > .type {
-  color: #e5e3e3 !important;
+  color: #e5e3e3;
   display: flex;
   align-items: center;
 }
@@ -668,8 +668,36 @@ body {
 #assistant > .choice:hover,
 #assistant > .selected  {
   color: #383838;
-  background-color: rgb(197, 253, 197);
+  background-color: rgb(197, 253, 197) !important;
 }
+
+#assistant .errors-more   {
+  color: #b00b0b;
+  background-color: rgb(203 164 164)
+}
+#assistant > .errors-more:hover,
+#assistant > .errors-more.selected   {
+  color: #b00b0b;
+  background-color: rgb(253, 217, 197);
+}
+
+#assistant .errors-less   {
+  color: #0c5b64;
+  background-color: rgb(144 177 193);
+}
+
+#assistant > .errors-less:hover,
+#assistant > .errors-less.selected   {
+  color: #0c5b64;
+  background-color: rgb(197, 235, 253);
+}
+
+#assistant > .choice > .delta-errors {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.5em;
+} 
 
 #assistant > .choice:hover > .category  {
   color: #666 !important;
