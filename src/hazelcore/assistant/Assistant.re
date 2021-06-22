@@ -27,6 +27,13 @@ let get_operator_actions = (ci: cursor_info_pro): list(assistant_action) =>
   | _ => []
   };
 
+let sort_by_delta =
+    (action_list: list(assistant_action)): list(assistant_action) => {
+  let compare = (a1: assistant_action, a2: assistant_action) =>
+    Int.compare(a2.delta_errors, a1.delta_errors);
+  List.sort(compare, action_list);
+};
+
 let get_actions =
     (
       {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: cursor_info_pro,
@@ -49,6 +56,7 @@ let get_actions =
   virtual_actions(ci)
   @ get_operand_actions(ci)
   @ get_operator_actions(ci)
+  |> sort_by_delta
   |> sort_by_prefix(term_to_str(term));
 };
 
