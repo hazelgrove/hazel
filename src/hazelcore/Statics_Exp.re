@@ -1304,12 +1304,12 @@ and ana_fix_holes_operand =
   | Inj(_, tag, body_opt) =>
     switch (ty) {
     | Hole =>
+      let (tag, u_gen) =
+        Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
       let (body_opt, u_gen) =
         switch (body_opt) {
         | None => (None, u_gen)
         | Some(body) =>
-          let (tag, u_gen) =
-            Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
           let (body, u_gen) =
             ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
           (Some(body), u_gen);
