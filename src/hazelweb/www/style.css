@@ -613,11 +613,11 @@ details:focus {
   /*align-items: start;*/
 }
 
-.context-inspector-panel details {
+.context-inspector-panel .details {
   background-color: #f0fff3;
   overflow: overlay;
 }
-.context-inspector-panel summary {
+.context-inspector-panel .summary {
   padding-left: 8px;
   padding-top: 4px;
   padding-bottom: 4px;
