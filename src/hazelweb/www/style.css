@@ -642,11 +642,19 @@ details:focus {
   font-size: 75%;
 }
 
+.the-context-scroll-container {
+  /* can't put this on the-context directly because 
+     firefox treats the horizontal scrollbar as extra
+     height, causing a vertical scrollbar to appear
+     unnecessary whenever there is only horizontal 
+     scrollbar */
+  overflow: auto;
+}
+
 .the-context {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: auto 1fr;
-  overflow: auto;
 }
 
 .context-entry {
