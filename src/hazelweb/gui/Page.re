@@ -32,18 +32,22 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("grade_cutoffs")],
         ),
         Node.option(
-          [Attr.value("ll_def_slider")],
-          [Node.text("livelit slider, defined")],
+          [Attr.value("ll_def_slider_basic")],
+          [Node.text("user-defined livelit slider; basic")],
         ),
         Node.option(
-          [Attr.value("ll_def_slider2")],
-          [Node.text("livelit slider, defined, unique-id")],
+          [Attr.value("ll_def_slider_ill_typed_expansion")],
+          [Node.text("user-defined livelit slider; ill-typed expansion")],
+        ),
+        Node.option(
+          [Attr.value("ll_def_slider_free_var_in_exp")],
+          [Node.text("user-defined livelit slider; free var in expansion")],
         ),
       ],
     )
   );
 
-let cardstacks_select =
+let _cardstacks_select =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
@@ -103,7 +107,7 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cardstack_controls = (~inject, model: Model.t) =>
+let _cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(
       [Attr.id("cardstack-controls")],
@@ -132,10 +136,10 @@ let view =
       let selected_instance = Model.get_selected_instance(model);
       let cell_status =
         if (!settings.evaluation.evaluate) {
-          Node.div([], []);
+          Node.div([Attr.id("result-box")], []);
         } else {
           Node.div(
-            [],
+            [Attr.id("result-box")],
             [
               Node.div(
                 [Attr.classes(["cell-status"])],
@@ -163,6 +167,7 @@ let view =
                     ~selected_instance,
                     ~settings=settings.evaluation,
                     ~width=80,
+                    ~font_metrics=model.font_metrics,
                     settings.evaluation.show_unevaluated_expansion
                       ? program |> Program.get_elaboration
                       : program |> Program.get_result |> Result.get_dhexp,
@@ -185,98 +190,66 @@ let view =
                 ],
                 [Node.text("Hazel")],
               ),
-              cardstacks_select(~inject, Model.cardstack_info),
+              // TODO(d) commented out for artifact review
+              // cardstacks_select(~inject, Model.cardstack_info),
+            ],
+          ),
+          Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
+            [ActionPanel.view(~inject, model)]
+          ),
+          Node.div(
+            [Attr.id("page-area")],
+            [
+              Node.div(
+                [Attr.classes(["page"])],
+                [
+                  Node.div(
+                    [Attr.classes(["card-caption"])],
+                    [card.info.caption],
+                  ),
+                  Cell.view(~inject, ~sync_livelit, model),
+                  cell_status,
+                  // cardstack_controls(~inject, model),
+                ],
+              ),
+              examples_select(~inject),
+              Node.button(
+                [
+                  Attr.on_click(_ => {
+                    let e = program |> Program.get_uhexp;
+                    JSUtil.log(Js.string(Serialization.string_of_exp(e)));
+                    Event.Ignore;
+                  }),
+                ],
+                [Node.text("Serialize to console")],
+              ),
+              Node.div(
+                [
+                  Attr.style(
+                    Css_gen.(
+                      white_space(`Pre) @> font_family(["monospace"])
+                    ),
+                  ),
+                ],
+                [],
+              ),
             ],
           ),
           Node.div(
-            [Attr.classes(["main-area"])],
+            [Attr.id("right-sidebar")],
             [
-              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-                [ActionPanel.view(~inject, model)]
+              CursorInspector.view(~inject, Program.get_cursor_info(program)),
+              ContextInspector.view(
+                ~inject,
+                ~selected_instance,
+                ~settings=settings.evaluation,
+                ~typing_ctx_open=model.typing_ctx_open,
+                ~livelit_ctx_open=model.livelit_ctx_open,
+                ~font_metrics=model.font_metrics,
+                program,
               ),
-              Node.div(
-                [Attr.classes(["flex-wrapper"])],
-                [
-                  Node.div(
-                    [Attr.id("page-area")],
-                    [
-                      Node.div(
-                        [Attr.classes(["page"])],
-                        [
-                          Node.div(
-                            [Attr.classes(["card-caption"])],
-                            [card.info.caption],
-                          ),
-                          Cell.view(~inject, ~sync_livelit, model),
-                          cell_status,
-                          cardstack_controls(~inject, model),
-                        ],
-                      ),
-                      examples_select(~inject),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
-                      ),
-                      Node.widget(
-                        ~id=
-                          Base__Type_equal.Id.create(~name="w_state", _ =>
-                            Sexplib.Sexp.List([])
-                          ),
-                        ~init=
-                          () =>
-                            (
-                              0,
-                              {
-                                let div = Dom_html.(createDiv(document));
-                                div##.id := Js.string("hello");
-                                div##.innerHTML :=
-                                  Js.string(
-                                    "<script type=\"text/javascript\">function print_me() { console.log(\"hello world\"); }</script>"
-                                    ++ "<div style=\"width: 10px; height: 10px; background-color: red;\" onclick=\"print_me()\"></div>",
-                                  );
-                                div;
-                              },
-                            ),
-                        (),
-                      ),
-                      Node.div(
-                        [
-                          Attr.style(
-                            Css_gen.(
-                              white_space(`Pre) @> font_family(["monospace"])
-                            ),
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
-                [
-                  CursorInspector.view(
-                    ~inject,
-                    Program.get_cursor_info(program),
-                  ),
-                  ContextInspector.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    program,
-                  ),
-                  UndoHistoryPanel.view(~inject, model),
-                  SettingsPanel.view(~inject, settings),
-                ]
-              ),
+              // UndoHistoryPanel.view(~inject, model),
+              SettingsPanel.view(~inject, settings),
             ],
           ),
         ],

@@ -81,18 +81,24 @@ let on_startup = (~schedule_action, _) => {
      combinations, such as Ctrl+Z vs Cmd+Z for undo */
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Mac"),
+      Js.string("MAC"),
     )
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
 
-  /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      UHCode.focus();
+      schedule_action(FocusWindow);
       Js._true;
     });
-  UHCode.focus();
+  Dom_html.window##.onblur :=
+    Dom_html.handler(_ => {
+      schedule_action(BlurWindow);
+      Js._true;
+    });
+  if (JSUtil.window_has_focus()) {
+    schedule_action(FocusCell);
+  };
 
   Async_kernel.Deferred.return(State.State);
 };
@@ -157,15 +163,15 @@ let create =
       // for things that require actual DOM manipulation post-render
       ~on_display=
         (_, ~schedule_action) => {
-          if (!Model.get_undo_history(model).disable_auto_scrolling) {
-            switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
-            | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
-            | None => ()
-            };
-          };
-          switch (Model.get_program(model).edit_state.term) {
-          | Unfocused(_) => ()
-          | Focused(_) =>
+          // if (!Model.get_undo_history(model).disable_auto_scrolling) {
+          //   switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
+          //   | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
+          //   | None => ()
+          //   };
+          // };
+          switch (Model.get_program(model).edit_state.focus) {
+          | None => ()
+          | Some(_) =>
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {

@@ -33,6 +33,7 @@ and follow_operand =
     | EmptyHole(_)
     | Wild(_)
     | InvalidText(_)
+    // | LivelitName(_)
     | Var(_)
     | IntLit(_)
     | FloatLit(_)
@@ -107,6 +108,7 @@ and of_steps_operand =
     | EmptyHole(_)
     | Wild(_)
     | InvalidText(_)
+    // | LivelitName(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -203,6 +205,7 @@ and holes_operand =
   | InvalidText(u, _) => [
       {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
     ]
+  // | LivelitName(_) => hs
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
@@ -280,6 +283,7 @@ and holes_zoperand =
         (),
       )
     }
+  // | CursorP(_, LivelitName(_)) => CursorPath_common.no_holes
   | CursorP(OnDelim(k, _), Parenthesized(body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {

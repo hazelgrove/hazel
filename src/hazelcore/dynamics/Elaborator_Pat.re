@@ -54,32 +54,31 @@ and syn_elab_skel =
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
     switch (UHPat.get_tuple_elements(skel)) {
-    | [skel1, skel2, ...tail] =>
-      let%bind (dp1, ty1, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel1, seq);
-      let%bind (dp2, ty2, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel2, seq);
-      tail
-      |> ListUtil.map_with_accumulator_opt(
-           ((dp_acc, ctx, delta), skel) => {
-             syn_elab_skel(ctx, delta, skel, seq)
-             |> ElaborationResult.to_option
-             |> Option.map(((dp, ty, ctx, delta)) =>
-                  ((DHPat.Pair(dp_acc, dp), ctx, delta), ty)
-                )
-           },
-           (DHPat.Pair(dp1, dp2), ctx, delta),
-         )
-      |> Option.map((((dp_acc, ctx, delta), tys)) =>
-           (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), ctx, delta)
-         )
-      |> ElaborationResult.from_option;
+    | [_, _, ..._] as skels =>
+      let recurse =
+        List.fold_right(
+          (skel, acc) =>
+            switch (acc) {
+            | None => None
+            | Some((ds, tys, ctx, delta)) =>
+              switch (syn_elab_skel(ctx, delta, skel, seq)) {
+              | DoesNotElaborate => None
+              | Elaborates(d, ty, ctx, delta) =>
+                Some(([d, ...ds], [ty, ...tys], ctx, delta))
+              }
+            },
+          skels,
+          Some(([], [], ctx, delta)),
+        );
+      switch (recurse) {
+      | None => DoesNotElaborate
+      | Some((ds, tys, ctx, delta)) =>
+        let d = DHPat.mk_tuple(ds);
+        let ty = HTyp.Prod(tys);
+        Elaborates(d, ty, ctx, delta);
+      };
     | _ =>
-      raise(
-        Invalid_argument(
-          "Encountered tuple pattern type with less than 2 elements!",
-        ),
-      )
+      raise(Invalid_argument("Encountered tuple with less than 2 elements!"))
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
@@ -147,9 +146,7 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
-  | Var(NotInHole, InVarHole(Free, _), _) =>
-    print_endline("4");
-    raise(UHPat.FreeVarInPat);
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
@@ -370,9 +367,7 @@ and ana_elab_operand =
     let dp = DHPat.EmptyHole(u, 0);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Var(NotInHole, InVarHole(Free, _), _) =>
-    print_endline("5");
-    raise(UHPat.FreeVarInPat);
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>

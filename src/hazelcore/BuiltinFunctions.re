@@ -13,19 +13,28 @@ let ctx: VarCtx.t = [
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
   ("assert", Arrow(Bool, Prod([]))),
+  // ("weights", List(Float)),
   (
     "compute_weighted_averages",
     Arrow(
       Prod([List(String), List(Prod([String, List(Float)]))]),
-      Arrow(List(Float), List(Int)),
+      Arrow(List(Float), List(Prod([String, Float]))),
     ),
   ),
-  ("weights", List(Float)),
   (
     "assign_grades",
-    Arrow(List(Int), Arrow(Prod([Int, Int, Int, Int]), Prod([]))),
+    Arrow(
+      List(Prod([String, Float])),
+      Arrow(
+        Prod([Float, Float, Float, Float]),
+        List(Prod([String, String])),
+      ),
+    ),
   ),
-  ("format_for_university", Arrow(Prod([]), Prod([]))),
+  (
+    "format_for_university",
+    Arrow(List(Prod([String, String])), List(Prod([String, String]))),
+  ),
 ];
 
 let lookup = x => VarMap.lookup(ctx, x);

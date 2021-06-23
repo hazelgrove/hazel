@@ -591,7 +591,7 @@ and syn_cursor_info_skel =
           | Some(
               StandardErr(
                 InHole(
-                  TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
+                  TypeInconsistent(Some(InsufficientParams | DecodingError)),
                   _,
                 ),
               ),
@@ -600,6 +600,13 @@ and syn_cursor_info_skel =
             |> Option.map(ty =>
                  mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
                )
+          | Some(
+              StandardErr(
+                InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+              ),
+            ) =>
+            //TODO(andrew): Do we have access to the actual lldefn here? If so, expansion types below
+            Some(mk(LivelitIllTypedExpansion(Hole, Hole)))
           | Some(VarErr(Free)) =>
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some(VarErr(Keyword(k))) =>
@@ -688,6 +695,44 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(
+      _,
+      ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+        _,
+        name,
+        model,
+        splice_info,
+      ),
+    ) =>
+    let* declared_ty = Statics_Exp.declared_livelit_expansion_type(ctx, name);
+    let* actual_ty =
+      Statics_Exp.actual_livelit_expansion_type(
+        ctx,
+        name,
+        model,
+        splice_info,
+      );
+    Some(
+      CursorInfo_common.mk(
+        LivelitIllTypedExpansion(declared_ty, actual_ty),
+        ctx,
+        cursor_term,
+      ),
+    );
+  | CursorE(
+      _,
+      ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(DecodingError)), _),
+        _,
+        _,
+        _,
+        _,
+      ),
+    ) =>
+    Some(CursorInfo_common.mk(SynLivelitDecodingError, ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -1119,16 +1164,41 @@ and ana_cursor_info_zoperand =
           ),
         )
       }
+
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        InHole(TypeInconsistent(Some(IllTypedExpansion)), _),
+        _,
+        name,
+        model,
+        splice_info,
+      ) =>
+      let* declared_ty =
+        Statics_Exp.declared_livelit_expansion_type(ctx, name);
+      let* actual_ty =
+        Statics_Exp.actual_livelit_expansion_type(
+          ctx,
+          name,
+          model,
+          splice_info,
+        );
+      Some(
+        CursorInfo_common.mk(
+          LivelitIllTypedExpansion(declared_ty, actual_ty),
+          ctx,
+          cursor_term,
+        ),
+      );
+    | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(DecodingError)), _),
         _,
         _,
         _,
         _,
       ) =>
       Some(
-        CursorInfo_common.mk(AnaLivelitDoesNotExpand(ty), ctx, cursor_term),
+        CursorInfo_common.mk(AnaLivelitDecodingError(ty), ctx, cursor_term),
       )
     | FreeLivelit(_, _) =>
       Some(CursorInfo_common.mk(AnaFreeLivelit(ty), ctx, cursor_term))

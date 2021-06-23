@@ -40,14 +40,36 @@ module rec M: Statics_Exp_Sig.S = {
     expand_ty: HTyp.t,
   };
 
-  let ll_init_ty = (model_type, _) => UHTyp.expand(model_type);
+  let ll_defun_update_monad_ty = model_type =>
+    /*TODO make type more specific */
+    HTyp.Sum(
+      HTyp.Sum(UHTyp.expand(model_type), HTyp.Hole),
+      HTyp.Sum(
+        HTyp.Prod([
+          HTyp.String,
+          HTyp.Prod([HTyp.String, HTyp.Arrow(HTyp.Hole, HTyp.Hole)]),
+        ]),
+        HTyp.Hole,
+      ),
+    );
+
+  let ll_init_ty = (model_type, _) => ll_defun_update_monad_ty(model_type);
+
   let ll_update_ty = (model_type, action_type) =>
     HTyp.Arrow(
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
-      UHTyp.expand(model_type),
+      ll_defun_update_monad_ty(model_type),
+    );
+  let ll_defun_view_mond_ty =
+    HTyp.Sum(
+      HTyp.Prod([String, List(Prod([String, String])), List(Hole)]),
+      Hole // TODO(andrew): improve this type
     );
   let ll_view_ty = (model_type, _) =>
-    HTyp.Arrow(Prod([HTyp.Int, UHTyp.expand(model_type)]), HTyp.String);
+    HTyp.Arrow(
+      Prod([Int, UHTyp.expand(model_type)]),
+      ll_defun_view_mond_ty,
+    );
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
@@ -70,9 +92,188 @@ module rec M: Statics_Exp_Sig.S = {
   let serialize_ll_monad = model =>
     SpliceGenCmd.return(DHExp.sexp_of_t(model));
 
-  let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+  let eval = (d: DHExp.t): DHExp.t => {
+    switch (Evaluator.evaluate(~eval_livelit_holes=false, d)) {
+    | InvalidInput(_) => failwith("Statics_Exp eval InvalidInput")
+    | Indet(v)
+    | BoxedValue(v) => DHExp.strip_casts(v)
+    };
+  };
+
+  let rec mk_update_monad =
+          (ctx: Contexts.t, delta: Delta.t, model_ty: HTyp.t, d: DHExp.t)
+          : option(SpliceGenCmd.t(SerializedModel.t)) => {
+    /* at this point, we have already evaluated init or update, resulting
+          in a dhexp d which is a value of the following type:
+
+       Since algebraic datatype support in Hazel is as yet incomplete,
+       the Update and View monads have been assigned the following
+       encoding in terms of anonymous pairs and sums:
+
+       UpdateMonad:
+
+       return(x) = inj[L](inj[L](x))
+       bindNewSplice((ty, exp), f) = inj[R](inj[L](ty, (exp, f)))
+       bindSetSplice((spliceno, ty, exp), f) = inj[R](inj[R]((spliceno, (ty, (exp, f)))))
+
+       ViewMonad:
+
+       return(x) = inj[L](x)
+       bindEvalSplice(spliceno, f) = inj[R](spliceno, f)
+
+       Example:
+
+        Spliceslider init (ADT):
+        Bind(,
+          NewSplice("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])")
+          fun (spliceno) { Return((spliceno, 50))} )
+
+        Spliceslider update (ADT):
+        fun ((spliceno, _), action) { Return((spliceno, action)) }
+
+        Spliceslider init (anon):
+
+        inj[R](inj[L](
+          "HTyp.Int",
+            ("UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, 100), E)))])",
+             fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
+
+       sexped str: "((ExpLine(OpSeq(Placeholder 0) (S(IntLit NotInHole 100) E))))"
+
+        Spliceslider update (anon):
+        fun ((spliceno, _), action) { inj[L](inj[L]((spliceno, action))) }
+
+        *: uhexps would need to be sexped
+
+       */
+    let run' = mk_update_monad(ctx, delta, model_ty);
+    let serialize = d => {
+      d |> DHExp.strip_casts |> DHExp.sexp_of_t |> SpliceGenCmd.return;
+    };
+    switch (d) {
+    | Inj(_, L, Inj(_, L, d0)) =>
+      let* d_ty = Statics_DHExp.syn(ctx, delta, d);
+      let updatemonadmodel_ty =
+        HTyp.Sum(HTyp.Sum(model_ty, HTyp.Hole), HTyp.Hole);
+      HTyp.consistent(d_ty, updatemonadmodel_ty)
+        ? Some(serialize(d0)) : None;
+    | Inj(
+        _,
+        R,
+        Inj(_, L, Pair(StringLit(s_ty), Pair(StringLit(s_exp), f))),
+      ) =>
+      let* ty =
+        try(Some(s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp)) {
+        | _ => None
+        };
+      // TODO: handle none case for option(Exp).. but how?
+      let* exp =
+        try(Some(s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp)) {
+        | _ => None
+        };
+      let a =
+        SpliceGenCmd.new_splice(~init_uhexp_gen=u_gen => (exp, u_gen), ty);
+      Some(
+        SpliceGenCmd.bind(a, spliceno => {
+          switch (DHExp.Ap(f, DHExp.IntLit(spliceno)) |> eval |> run') {
+          | None => failwith("mk_update_monad bindNewSplice case")
+          | Some(d) => d
+          }
+        }),
+      );
+    | Inj(
+        _,
+        R,
+        Inj(
+          _,
+          R,
+          Pair(
+            IntLit(spliceno),
+            Pair(StringLit(s_ty), Pair(StringLit(s_exp), f)),
+          ),
+        ),
+      ) =>
+      // TODO: not sure logic on this case is right
+      let ty = s_ty |> Sexplib.Sexp.of_string |> HTyp.t_of_sexp;
+      // TODO: handle none case for option(Exp).. but how?
+      let exp = s_exp |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+      let a =
+        SpliceGenCmd.map_splice(spliceno, (_, u_gen) => ((ty, exp), u_gen));
+      Some(
+        SpliceGenCmd.bind(a, _ => {
+          switch (DHExp.Ap(f, DHExp.Triv) |> eval |> run') {
+          | None => failwith("mk_update_monad bindSetSplice case")
+          | Some(d) => d
+          }
+        }),
+      );
+
+    | _ =>
+      print_endline("ERROR: run_init_monad: wrong data type. got:");
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+      None;
+    };
+  };
+
+  let mk_ll_init =
+      (init: UHExp.t, model_ty: HTyp.t)
+      : option(SpliceGenCmd.t(SerializedModel.t)) => {
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
+    let elab_delta = Delta.empty;
+    switch (Elaborator.syn_elab(elab_ctx, elab_delta, init)) {
+    | DoesNotElaborate =>
+      print_endline("ERROR: mk_ll_init DoesNotElaborate");
+      None;
+    | Elaborates(d, _, delta) =>
+      switch (d |> eval |> mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None =>
+        print_endline("ERROR: mk_ll_init mk failed");
+        None;
+      | Some(sgc) => Some(sgc)
+      }
+    };
+  };
+
+  let mk_ll_update =
+      (
+        update: UHExp.t,
+        model_ty: HTyp.t,
+        action: SerializedAction.t,
+        model: SerializedModel.t,
+      )
+      : SpliceGenCmd.t(SerializedModel.t) => {
+    let elab_ctx = Contexts.empty;
+    let elab_delta = Delta.empty;
+    switch (Elaborator.syn_elab(elab_ctx, elab_delta, update)) {
+    | DoesNotElaborate => failwith("ERROR: mk_ll_update DoesNotElaborate")
+    | Elaborates(update_dhexp, _, delta) =>
+      let action_dhexp = DHExp.t_of_sexp(action);
+      let model_dhexp = DHExp.t_of_sexp(model);
+      let ap = DHExp.Ap(update_dhexp, DHExp.Pair(action_dhexp, model_dhexp));
+      switch (ap |> eval |> mk_update_monad(elab_ctx, delta, model_ty)) {
+      | None => failwith("ERROR: mk_ll_update mk failed")
+      | Some(sgc) => sgc
+      };
+    };
+  };
+
+  let _mk_ll_view_new =
+      (view: UHExp.t, llu: int, model: SerializedModel.t): option(DHExp.t) => {
+    let model_dhexp = DHExp.t_of_sexp(model);
+    let llu_dhexp = DHExp.IntLit(llu);
+    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
+    | DoesNotElaborate => failwith("mk_ll_view elab DoesNotElaborate")
+    | Elaborates(view_dhexp, _, _) =>
+      let ap = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
+      switch (Evaluator.evaluate(~eval_livelit_holes=false, ap)) {
+      | BoxedValue(v) => Some(DHExp.strip_casts(v))
+      | _ => None
+      };
+    };
+  };
+
+  let _mk_ll_init_old = (init: UHExp.t, _): SpliceGenCmd.t(SerializedModel.t) => {
+    let elab_ctx = Contexts.empty;
     let dh_init = Elaborator.syn_elab(elab_ctx, Delta.empty, init);
     switch (dh_init) {
     | DoesNotElaborate => failwith("mk_ll_init DoesNotElaborate")
@@ -80,12 +281,11 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_update =
+  let _mk_ll_update_old =
       (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
     let action_dhexp = DHExp.t_of_sexp(action);
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let update_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, update)) {
       | DoesNotElaborate => failwith("mk_ll_update DoesNotElaborate")
@@ -99,7 +299,7 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_view =
+  let _mk_ll_view =
       (view: UHExp.t, llu: int, model: SerializedModel.t): option(string) => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let llu_dhexp = DHExp.IntLit(llu);
@@ -135,14 +335,12 @@ module rec M: Statics_Exp_Sig.S = {
       : LivelitDefinition.livelit_expand_result => {
     let model_dhexp = DHExp.t_of_sexp(model);
     let elab_ctx = Contexts.empty;
-    // TODO(andrew): above should have base livelits; requires refactor of Livelits.re
     let expand_dhexp =
       switch (Elaborator.syn_elab(elab_ctx, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
       | Elaborates(expand, _, _) => expand
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
-    print_endline("mk_ll_expand");
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(v) =>
       switch (DHExp.strip_casts(v)) {
@@ -170,6 +368,15 @@ module rec M: Statics_Exp_Sig.S = {
  */
   let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
     syn_block(ctx, e)
+  and extend_let_body_ctx =
+      (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+    /* precondition: (p)attern and (def)inition have consistent types */
+    def
+    |> syn(extend_let_def_ctx(ctx, p, def))
+    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
+    |> Statics_Pat.ana(ctx, p)
+    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
+  }
   and extend_livelit_ctx = (ctx: Contexts.t, llrecord) => {
     let (gamma, livelit_ctx) = ctx;
     let {
@@ -181,6 +388,8 @@ module rec M: Statics_Exp_Sig.S = {
       shape,
       expand,
       expansion_type,
+      model_type,
+      action_type,
       _,
     }: UHExp.livelit_record = llrecord;
     let captures_ty =
@@ -188,15 +397,22 @@ module rec M: Statics_Exp_Sig.S = {
       | Some(ty) => ty
       | None => HTyp.Hole
       };
-    let new_ll_def: LivelitDefinition.t = {
-      name: name_str,
-      captures_ty,
-      expansion_ty: UHTyp.expand(expansion_type),
-      param_tys: [], // TODO: params
-      init_model: mk_ll_init(init),
-      update: mk_ll_update(update),
-      expand: mk_ll_expand(expand),
-    };
+
+    let init_model = mk_ll_init(init, UHTyp.expand(model_type));
+    let init_valid =
+      switch (init_model) {
+      | None => false
+      | _ => true
+      };
+
+    let ll_def_valid =
+      UHExp.is_complete(init)
+      && UHExp.is_complete(update)
+      && UHExp.is_complete(view)
+      && UHExp.is_complete(shape)
+      && UHExp.is_complete(expand)
+      && init_valid;
+
     /* NOTE(andrew): Extend the livelit context only if all
      * fields typecheck; otherwise we have a litany of possible
      * failure cases to contend with at the ap site, most of which
@@ -205,23 +421,34 @@ module rec M: Statics_Exp_Sig.S = {
      * livelitdefs and dealing with these heterogenously at
      * the ap site. */
 
-    // TODO(andrew):
-    // below approach is inadequate as it prevents using prebuilt livelits
-    // inside lldefs since UHExp.is_complete ApLivelit case is false for livelit aps
-    let ll_def_valid =
-      UHExp.is_complete(init)
-      && UHExp.is_complete(update)
-      && UHExp.is_complete(view)
-      && UHExp.is_complete(shape)
-      && UHExp.is_complete(expand);
-    let new_livelit_ctx =
-      ll_def_valid
-        ? LivelitCtx.extend(
-            livelit_ctx,
-            (name_str, (new_ll_def, [])) // TODO: params
-          )
-        : livelit_ctx;
-    (gamma, new_livelit_ctx);
+    if (ll_def_valid) {
+      let init_model = OptUtil.get(() => failwith("No"), init_model);
+      (
+        gamma,
+        LivelitCtx.extend(
+          livelit_ctx,
+          (
+            name_str,
+            (
+              {
+                name: name_str,
+                action_ty: UHTyp.expand(action_type),
+                model_ty: UHTyp.expand(model_type),
+                captures_ty,
+                expansion_ty: UHTyp.expand(expansion_type),
+                param_tys: [], // TODO: params
+                init_model,
+                update: mk_ll_update(update, UHTyp.expand(model_type)),
+                expand: mk_ll_expand(expand),
+              }: LivelitDefinition.t,
+              [],
+            ),
+          ) // TODO: params
+        ),
+      );
+    } else {
+      (gamma, livelit_ctx);
+    };
   }
   and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
     let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
@@ -239,6 +466,47 @@ module rec M: Statics_Exp_Sig.S = {
          Some(ctx),
        );
   }
+  and syn_livelit_abbreviation =
+      (ctx: Contexts.t, err: AbbrevErrStatus.t, llp: LLPat.t, def: UHExp.t)
+      : option(Contexts.t) => {
+    let skip_with_reason = reason =>
+      switch (err) {
+      | InAbbrevHole(reason', _) when reason' == reason => Some(ctx)
+      | _ => None
+      };
+    switch (LLExp.of_uhexp(def)) {
+    | None => skip_with_reason(NotLivelitExp)
+    | Some((hd, args)) =>
+      let (gamma, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+      | None => skip_with_reason(Free)
+      | Some((old_def, applied_param_tys)) =>
+        let unapplied_param_tys =
+          ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
+        let (arg_tys, (extra_args, _)) =
+          ListUtil.zip_tails(args, unapplied_param_tys);
+        let* _ =
+          arg_tys
+          |> List.map(((arg, (_, ty))) => ana_operand(ctx, arg, ty))
+          |> OptUtil.sequence;
+        let* _ =
+          extra_args |> List.map(syn_operand(ctx)) |> OptUtil.sequence;
+        switch (extra_args) {
+        | [_, ..._] => skip_with_reason(ExtraneousArgs)
+        | [] =>
+          let livelit_ctx =
+            LivelitCtx.extend(
+              livelit_ctx,
+              (
+                llp,
+                (old_def, applied_param_tys @ snd(List.split(arg_tys))),
+              ),
+            );
+          Some((gamma, livelit_ctx));
+        };
+      };
+    };
+  }
   and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     switch (line) {
     | ExpLine(opseq) =>
@@ -247,65 +515,12 @@ module rec M: Statics_Exp_Sig.S = {
     | EmptyLine
     | CommentLine(_) => Some(ctx)
     | LetLine(err, p, def) =>
-      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      switch (LLPat.of_uhpat(p)) {
       | None =>
         let def_ctx = extend_let_def_ctx(ctx, p, def);
         let* ty_def = syn(def_ctx, def);
         Statics_Pat.ana(ctx, p, ty_def);
-      | Some((lln_new, lln_old, args)) =>
-        let (gamma, livelit_ctx) = ctx;
-        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-        let args_ana = tys =>
-          List.combine(args, tys)
-          |> List.for_all(((arg, ty)) =>
-               Option.is_some(ana(ctx, UHExp.Block.wrap(arg), ty))
-             );
-        switch (old_data_opt, err) {
-        | (None, InAbbrevHole(Free, _)) =>
-          args_ana(args |> List.map(_ => HTyp.Hole)) ? Some(ctx) : None
-        | (
-            Some((old_defn, old_closed_param_tys)),
-            (NotInAbbrevHole | InAbbrevHole(ExtraneousArgs, _)) as err_status,
-          ) =>
-          let all_param_tys = old_defn.param_tys;
-          let reqd_param_tys =
-            all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-          let num_args = List.length(args);
-          let num_args_diff = num_args - List.length(reqd_param_tys);
-          let padded_reqd_param_tys =
-            num_args_diff > 0
-              ? reqd_param_tys
-                @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-              : reqd_param_tys |> ListUtil.take(num_args);
-          let adjusted_reqd_param_tys =
-            num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-          if (!args_ana(padded_reqd_param_tys |> List.map(((_, ty)) => ty))) {
-            None;
-          } else {
-            let wrong_num_extra_args =
-              switch (err_status) {
-              | InAbbrevHole(ExtraneousArgs, _) => num_args_diff < 1
-              | _ => num_args_diff > 0
-              };
-            if (wrong_num_extra_args) {
-              None;
-            } else {
-              let livelit_ctx =
-                LivelitCtx.extend(
-                  livelit_ctx,
-                  (
-                    lln_new,
-                    (
-                      old_defn,
-                      old_closed_param_tys @ adjusted_reqd_param_tys,
-                    ),
-                  ),
-                );
-              Some((gamma, livelit_ctx));
-            };
-          };
-        | _ => None
-        };
+      | Some(llp) => syn_livelit_abbreviation(ctx, err, llp, def)
       }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
@@ -502,7 +717,9 @@ module rec M: Statics_Exp_Sig.S = {
         let reqd_param_tys =
           all_param_tys |> ListUtil.drop(List.length(closed_tys));
         switch (err_status, reqd_param_tys) {
-        | (InHole(TypeInconsistent(Some(DoesNotExpand)), _), []) =>
+        | (InHole(TypeInconsistent(Some(IllTypedExpansion)), _), []) =>
+          actual_livelit_expansion_type(ctx, name, serialized_model, si)
+        | (InHole(TypeInconsistent(Some(DecodingError)), _), []) =>
           Some(Hole)
         | (NotInHole, [_, ..._])
         | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
@@ -545,23 +762,33 @@ module rec M: Statics_Exp_Sig.S = {
   }
   and syn_ApLivelit =
       (ctx, livelit_defn, serialized_model, splice_info, all_param_tys)
-      : option(HTyp.t) =>
-    switch (
-      ana_splice_map_and_params(ctx, splice_info.splice_map, all_param_tys)
-    ) {
-    | None => None
-    | Some(splice_ctx) =>
-      let {expand, expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
-      switch (expand(serialized_model)) {
-      | Failure(_) => None
-      | Success(expansion) =>
-        let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
-        switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
-        | None => None
-        | Some(_) => Some(expansion_ty)
-        };
+      : option(HTyp.t) => {
+    let* _guard =
+      // check model type
+      switch (livelit_defn.model_ty) {
+      | HTyp.Hole =>
+        // builtin livelit case
+        Some()
+      | _ =>
+        // user-defined livelit case
+        let* model =
+          try(Some(DHExp.t_of_sexp(serialized_model))) {
+          | _ => None
+          };
+        let* model_ty = Statics_DHExp.syn(ctx, Delta.empty, model); //TODO: attach real Delta?
+        HTyp.consistent(model_ty, livelit_defn.model_ty) ? Some() : None;
       };
-    }
+    let* splice_ctx =
+      ana_splice_map_and_params(ctx, splice_info.splice_map, all_param_tys);
+    let {expansion_ty, captures_ty, _}: LivelitDefinition.t = livelit_defn;
+    switch (livelit_defn.expand(serialized_model)) {
+    | Failure(_) => None
+    | Success(expansion) =>
+      let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+      let* _guard = ana(splice_ctx, expansion, expansion_ap_ty);
+      Some(expansion_ty);
+    };
+  }
   and ana_splice_map_and_params =
       (
         ctx: Contexts.t,
@@ -585,6 +812,34 @@ module rec M: Statics_Exp_Sig.S = {
       splice_map,
       Some(params_ctx),
     );
+  }
+  and declared_livelit_expansion_type =
+      (ctx: Contexts.t, name: LivelitName.t): option(HTyp.t) => {
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    let* ({expansion_ty, captures_ty, _}, _) =
+      LivelitCtx.lookup(livelit_ctx, name);
+    Some(HTyp.Arrow(captures_ty, expansion_ty));
+  }
+  and actual_livelit_expansion_type =
+      (
+        ctx: Contexts.t,
+        name: LivelitName.t,
+        model: SerializedModel.t,
+        splice_info: UHExp.splice_info,
+      )
+      : option(HTyp.t) => {
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    let* (livelit_defn, _) = LivelitCtx.lookup(livelit_ctx, name);
+    let* splice_ctx =
+      ana_splice_map_and_params(
+        ctx,
+        splice_info.splice_map,
+        livelit_defn.param_tys,
+      );
+    switch (livelit_defn.expand(model)) {
+    | Failure(_) => None
+    | Success(expansion) => syn(splice_ctx, expansion)
+    };
   }
   and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
     ana_block(ctx, e, ty)
@@ -706,17 +961,7 @@ module rec M: Statics_Exp_Sig.S = {
     | FreeLivelit(_) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       ana_subsume_operand(ctx, operand', ty);
-    | ApLivelit(
-        _,
-        InHole(
-          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-          _,
-        ),
-        _,
-        _,
-        _,
-        _,
-      ) =>
+    | ApLivelit(_, InHole(TypeInconsistent(Some(_)), _), _, _, _, _) =>
       ana_subsume_operand(ctx, operand, ty)
     | Parenthesized(body) => ana(ctx, body, ty)
     | Subscript(NotInHole, _, _, _) =>
@@ -971,87 +1216,47 @@ module rec M: Statics_Exp_Sig.S = {
     | EmptyLine
     | CommentLine(_) => (line, ctx, u_gen)
     | LetLine(_, p, def) =>
-      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      let (p, ty_p, _, u_gen) =
+        Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+      switch (LLPat.of_uhpat(p)) {
       | None =>
-        let (p, ty_p, _, u_gen) =
-          Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
         let def_ctx = extend_let_def_ctx(ctx, p, def);
         let (def, u_gen) =
           ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
         let body_ctx = extend_let_body_ctx(ctx, p, def);
         (UHExp.letline(p, def), body_ctx, u_gen);
-      | Some((lln_new, lln_old, args)) =>
-        let (gamma, livelit_ctx) = ctx;
-        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-        let ana_fix_args = (u_gen, tys) =>
-          List.combine(args, tys)
-          |> ListUtil.map_with_accumulator(
-               (u_gen, (arg, ty)) => {
-                 let (arg, u_gen) =
-                   ana_fix_holes_operand(
-                     ctx,
-                     u_gen,
-                     ~renumber_empty_holes,
-                     arg,
-                     ty,
-                   );
-                 (u_gen, arg);
-               },
-               u_gen,
-             );
-        switch (old_data_opt) {
-        | None =>
-          let (u_gen, args) =
-            ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
-          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-          (
-            UHExp.Line.mk_livelit_abbreviation(
-              ~err=InAbbrevHole(Free, u),
-              lln_new,
-              lln_old,
-              args,
-            ),
+      | Some(llp) =>
+        let (err, def, ctx, u_gen) =
+          fix_livelit_abbreviation(
+            ~renumber_empty_holes,
             ctx,
             u_gen,
+            llp,
+            def,
           );
-        | Some((old_defn, old_closed_param_tys)) =>
-          let all_param_tys = old_defn.param_tys;
-          let reqd_param_tys =
-            all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-          let num_args = List.length(args);
-          let num_args_diff = num_args - List.length(reqd_param_tys);
-          let padded_reqd_param_tys =
-            num_args_diff > 0
-              ? reqd_param_tys
-                @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-              : reqd_param_tys |> ListUtil.take(num_args);
-          let adjusted_reqd_param_tys =
-            num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-          let (u_gen, err: AbbrevErrStatus.t) =
-            if (num_args_diff > 0) {
-              let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-              (u_gen, InAbbrevHole(ExtraneousArgs, u));
-            } else {
-              (u_gen, NotInAbbrevHole);
-            };
-          let (u_gen, args) =
-            padded_reqd_param_tys
-            |> List.map(((_, ty)) => ty)
-            |> ana_fix_args(u_gen);
-          let livelit_ctx =
-            LivelitCtx.extend(
-              livelit_ctx,
-              (
-                lln_new,
-                (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
-              ),
-            );
-          let ctx = (gamma, livelit_ctx);
-          let fixed_line =
-            UHExp.Line.mk_livelit_abbreviation(~err, lln_new, lln_old, args);
-          (fixed_line, ctx, u_gen);
-        };
-      }
+        (UHExp.letline(~err, p, def), ctx, u_gen);
+      // switch (LLExp.of_uhexp(def)) {
+      // | None =>
+      //   let (err, u_gen) = {
+      //     let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+      //     (AbbrevErrStatus.InAbbrevHole(NotLivelitExp, u), u_gen);
+      //   };
+      //   let (def, _, u_gen) =
+      //     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, def);
+      //   (UHExp.letline(~err, p, def), ctx, u_gen);
+      // | Some((lln_old, args)) =>
+      //   let (err, args, ctx, u_gen) =
+      //     fix_livelit_abbreviation(
+      //       ~renumber_empty_holes,
+      //       ctx,
+      //       u_gen,
+      //       lln_new,
+      //       lln_old,
+      //       args,
+      //     );
+      //   (LivelitAbbrev.mk(~err, lln_new, (lln_old, args)), ctx, u_gen);
+      // }
+      };
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       // TODO: captures
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
@@ -1072,6 +1277,90 @@ module rec M: Statics_Exp_Sig.S = {
         u_gen,
       );
     }
+  and fix_livelit_abbreviation =
+      (
+        ~renumber_empty_holes,
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        llp: LLPat.t,
+        e: UHExp.t,
+      )
+      : (AbbrevErrStatus.t, UHExp.t, Contexts.t, MetaVarGen.t) => {
+    switch (LLExp.of_uhexp(e)) {
+    | None =>
+      let (err, u_gen) = {
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (AbbrevErrStatus.InAbbrevHole(NotLivelitExp, u), u_gen);
+      };
+      let (e, _, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
+      (err, e, ctx, u_gen);
+    | Some((hd, args)) =>
+      let (gamma, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+      | None =>
+        let (e, _, u_gen) =
+          syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
+        // let (u_gen, args) =
+        //   ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (InAbbrevHole(Free, u), e, ctx, u_gen);
+      | Some((old_def, applied_param_tys)) =>
+        let unapplied_param_tys =
+          ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
+        let (arg_tys, (extra_args, _)) =
+          ListUtil.zip_tails(args, unapplied_param_tys);
+        let (u_gen, fixed_args) =
+          arg_tys
+          |> ListUtil.map_with_accumulator(
+               (u_gen, (arg, (_, ty))) => {
+                 let (arg, u_gen) =
+                   ana_fix_holes_operand(
+                     ctx,
+                     u_gen,
+                     ~renumber_empty_holes,
+                     arg,
+                     ty,
+                   );
+                 (u_gen, arg);
+               },
+               u_gen,
+             );
+        let (u_gen, fixed_extra_args) =
+          extra_args
+          |> ListUtil.map_with_accumulator(
+               (u_gen, arg) => {
+                 let (arg, _, u_gen) =
+                   syn_fix_holes_operand(
+                     ctx,
+                     u_gen,
+                     ~renumber_empty_holes,
+                     arg,
+                   );
+                 (u_gen, arg);
+               },
+               u_gen,
+             );
+
+        let e = LLExp.to_uhexp((hd, fixed_args @ fixed_extra_args));
+        switch (extra_args) {
+        | [_, ..._] =>
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          (InAbbrevHole(ExtraneousArgs, u), e, ctx, u_gen);
+        | [] =>
+          let livelit_ctx =
+            LivelitCtx.extend(
+              livelit_ctx,
+              (
+                llp,
+                (old_def, applied_param_tys @ snd(List.split(arg_tys))),
+              ),
+            );
+          (NotInAbbrevHole, e, (gamma, livelit_ctx), u_gen);
+        };
+      };
+    };
+  }
   and syn_fix_holes_opseq =
       (
         ctx: Contexts.t,
@@ -1522,6 +1811,7 @@ module rec M: Statics_Exp_Sig.S = {
     let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
     let (llu, u_gen) = MetaVarGen.next_livelit(u_gen);
     syn_fix_holes_livelit(
+      ctx,
       ~put_in_hole,
       u_gen,
       livelit_defn,
@@ -1544,6 +1834,8 @@ module rec M: Statics_Exp_Sig.S = {
         splice_info,
       )
       : (UHExp.operand, HTyp.t, MetaVarGen.t) => {
+    let (llu, u_gen) =
+      renumber_empty_holes ? MetaVarGen.next_livelit(u_gen) : (llu, u_gen);
     let (splice_map, u_gen) =
       ana_fix_holes_splice_map(
         ctx,
@@ -1553,6 +1845,7 @@ module rec M: Statics_Exp_Sig.S = {
       );
     let splice_info = SpliceInfo.update_splice_map(splice_info, splice_map);
     syn_fix_holes_livelit(
+      ctx,
       ~put_in_hole,
       u_gen,
       livelit_defn,
@@ -1563,17 +1856,16 @@ module rec M: Statics_Exp_Sig.S = {
     );
   }
   and syn_fix_holes_livelit =
-      (~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
-    let expansion_ty = livelit_defn.expansion_ty;
-    let base_lln = livelit_defn.name;
-    let does_not_expand =
-      switch (livelit_defn.expand(model)) {
-      | Success(_u) => false
-      // expansion must be complete
-      // TODO(andrew): but if I make it so, builtin livelits break...
-      //UHExp.is_complete(u, false)
-      | Failure(_) => true
-      };
+      (
+        ctx,
+        ~put_in_hole,
+        u_gen,
+        {captures_ty, expansion_ty, name, param_tys, expand, _},
+        llu,
+        lln,
+        model,
+        {splice_map, _} as splice_info,
+      ) => {
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
@@ -1582,18 +1874,55 @@ module rec M: Statics_Exp_Sig.S = {
           ErrStatus.InHole(TypeInconsistent(Some(InsufficientParams)), u),
           u_gen,
         );
-      } else if (does_not_expand) {
-        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (
-          HTyp.Hole,
-          ErrStatus.InHole(TypeInconsistent(Some(DoesNotExpand)), u),
-          u_gen,
-        );
       } else {
-        (expansion_ty, NotInHole, u_gen);
+        switch (expand(model)) {
+        | Failure(_) =>
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          (
+            HTyp.Hole,
+            ErrStatus.InHole(TypeInconsistent(Some(DecodingError)), u),
+            u_gen,
+          );
+        | Success(expansion) =>
+          switch (ana_splice_map_and_params(ctx, splice_map, param_tys)) {
+          | None =>
+            let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+            (
+              HTyp.Hole,
+              ErrStatus.InHole(TypeInconsistent(Some(DecodingError)), u),
+              u_gen,
+            );
+          | Some(splice_ctx) =>
+            switch (syn(splice_ctx, expansion)) {
+            | None =>
+              let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+              (
+                HTyp.Hole,
+                ErrStatus.InHole(TypeInconsistent(Some(DecodingError)), u),
+                u_gen,
+              );
+            | Some(_ty) =>
+              let expansion_ap_ty = HTyp.Arrow(captures_ty, expansion_ty);
+              switch (ana(splice_ctx, expansion, expansion_ap_ty)) {
+              | None =>
+                let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+                (
+                  expansion_ty,
+                  ErrStatus.InHole(
+                    TypeInconsistent(Some(IllTypedExpansion)),
+                    u,
+                  ),
+                  u_gen,
+                );
+              | Some(_) => (expansion_ty, NotInHole, u_gen)
+              };
+            }
+          }
+        };
       };
+
     (
-      UHExp.ApLivelit(llu, err_status, base_lln, lln, model, splice_info),
+      UHExp.ApLivelit(llu, err_status, name, lln, model, splice_info),
       typ,
       u_gen,
     );
@@ -2035,16 +2364,7 @@ module rec M: Statics_Exp_Sig.S = {
           u_gen,
         );
       };
-    }
-  and extend_let_body_ctx =
-      (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
-    /* precondition: (p)attern and (def)inition have consistent types */
-    def
-    |> syn(extend_let_def_ctx(ctx, p, def))
-    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-    |> Statics_Pat.ana(ctx, p)
-    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
-  };
+    };
 
   let syn_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
@@ -2055,7 +2375,7 @@ module rec M: Statics_Exp_Sig.S = {
       CursorPath_Exp.follow(path, e)
       |> OptUtil.get(() =>
            failwith(
-             "syn_fix_holes did not preserve path "
+             "Statics_Exp.syn_fix_holes did not preserve path "
              ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
            )
          );
@@ -2102,6 +2422,30 @@ module rec M: Statics_Exp_Sig.S = {
     (zrules, rule_types, common_type, u_gen);
   };
 
+  let fix_livelit_abbreviation_z =
+      (
+        ~renumber_empty_holes,
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        llp: LLPat.t,
+        ze: ZExp.t,
+      )
+      : (AbbrevErrStatus.t, ZExp.t, Contexts.t, MetaVarGen.t) => {
+    let path = CursorPath_Exp.of_z(ze);
+    let (err, e, ctx, u_gen) =
+      fix_livelit_abbreviation(
+        ~renumber_empty_holes,
+        ctx,
+        u_gen,
+        llp,
+        ZExp.erase(ze),
+      );
+    let ze =
+      CursorPath_Exp.follow(path, e)
+      |> OptUtil.get_or_fail("fix_livelit_abbreviation did not preserve path");
+    (err, ze, ctx, u_gen);
+  };
+
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {
@@ -2141,7 +2485,7 @@ module rec M: Statics_Exp_Sig.S = {
   let rec build_ll_view_ctx = (block: UHExp.t): Statics.livelit_web_view_ctx => {
     let ll_view = build_ll_view_ctx_block(block, VarMap.empty);
     IntMap.map(
-      ((view, shape)) => (mk_ll_view(view), mk_ll_shape(shape)),
+      ((view, shape)) => (_mk_ll_view_new(view), mk_ll_shape(shape)),
       ll_view,
     );
   }

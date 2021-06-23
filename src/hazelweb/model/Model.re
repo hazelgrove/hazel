@@ -6,9 +6,12 @@ type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
-  undo_history: UndoHistory.t,
+  just_selected_instance: bool,
+  // undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  typing_ctx_open: bool,
+  livelit_ctx_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
@@ -25,7 +28,7 @@ let cardstack_info = [
 let init = (): t => {
   let cell_width = 100;
   let cardstacks = ZCardstacks.mk(~width=cell_width, cardstack_info);
-  let undo_history: UndoHistory.t = {
+  let _undo_history: UndoHistory.t = {
     let cursor_term_info =
       UndoHistory.get_cursor_term_info(
         ~new_cardstacks_after=cardstacks,
@@ -48,7 +51,7 @@ let init = (): t => {
       groups: ([], undo_history_group, []),
       all_hidden_history_expand: false,
       disable_auto_scrolling: false,
-      preview_on_hover: true,
+      preview_on_hover: false,
       hover_recover_group_id: 0,
       hover_recover_elt_id: 0,
       cur_group_id: 0,
@@ -72,9 +75,12 @@ let init = (): t => {
     cardstacks,
     cell_width,
     selected_instances,
-    undo_history,
+    just_selected_instance: false,
+    // undo_history,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    livelit_ctx_open: true,
+    typing_ctx_open: true,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -102,11 +108,13 @@ let map_program = (f: Program.t => Program.t, model: t): t => {
   model |> put_program(new_program);
 };
 
-let get_undo_history = (model: t): UndoHistory.t => model.undo_history;
-let put_undo_history = (history: UndoHistory.t, model: t): t => {
-  ...model,
-  undo_history: history,
-};
+/*
+ let get_undo_history = (model: t): UndoHistory.t => model.undo_history;
+ let put_undo_history = (history: UndoHistory.t, model: t): t => {
+   ...model,
+   undo_history: history,
+ };
+ */
 
 let get_cardstacks = model => model.cardstacks;
 let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
@@ -154,7 +162,13 @@ let next_card = model => {
 };
 
 let perform_action =
-    (~move_via: option(MoveInput.t)=?, a: Action.t, model: t): t => {
+    (
+      ~livelit_move=false,
+      ~move_via: option(MoveInput.t)=?,
+      a: Action.t,
+      model: t,
+    )
+    : t => {
   let settings = model.settings;
   TimeUtil.measure_time(
     "Model.perform_action",
@@ -163,7 +177,13 @@ let perform_action =
     () => {
       let old_program = get_program(model);
       let new_program =
-        Program.perform_action(~settings, ~move_via?, a, old_program);
+        Program.perform_action(
+          ~settings,
+          ~livelit_move,
+          ~move_via?,
+          a,
+          old_program,
+        );
       let update_selected_instances = si => {
         let si =
           Program.get_result(old_program) == Program.get_result(new_program)
@@ -183,26 +203,42 @@ let perform_action =
       };
       model
       |> put_program(new_program)
-      |> map_selected_instances(update_selected_instances)
-      |> put_undo_history(
-           {
-             let history = get_undo_history(model);
-             let new_cardstacks =
-               model |> put_program(new_program) |> get_cardstacks;
-             // HACK(andrew)
-             let new_new_cardstack =
-               switch (
-                 ZCardstacks.get_program(new_cardstacks).edit_state.term
-               ) {
-               | Unfocused(_) =>
-                 model
-                 |> put_program(Program.focus(new_program))
-                 |> get_cardstacks
-               | Focused(_) => new_cardstacks
-               };
-             UndoHistory.push_edit_state(history, new_new_cardstack, a);
-           },
-         );
+      |> map_selected_instances(update_selected_instances);
+      /*
+       |> put_undo_history(
+            {
+              let history = get_undo_history(model);
+              let new_cardstacks =
+                model |> put_program(new_program) |> get_cardstacks;
+              /*
+               // HACK(andrew)
+               let new_new_cardstack =
+                 switch (
+                   ZCardstacks.get_program(new_cardstacks).edit_state.focus
+                 ) {
+                 | None =>
+                   model
+                   |> put_program(Program.focus(new_program))
+                   |> get_cardstacks
+                 | Some(_) => new_cardstacks
+                 };
+                UndoHistory.push_edit_state(history, new_new_cardstack, a);
+               */
+              // TODO(d) confirm that this is reasonable
+              switch (new_program.edit_state.focus) {
+              | Some(focused) when !livelit_move =>
+                print_endline("updating undo history");
+                print_endline(
+                  Sexplib.Sexp.to_string(
+                    Program.EditState.sexp_of_focused(focused),
+                  ),
+                );
+                UndoHistory.push_edit_state(history, new_cardstacks, a);
+              | _ => history
+              };
+            },
+          );
+         */
     },
   );
 };
@@ -247,12 +283,15 @@ let toggle_right_sidebar = (model: t): t => {
 };
 
 let load_example = (model: t, e: UHExp.t): t => {
-  let (ze, ty, u_gen) =
-    Statics_Exp.fix_and_renumber_holes_z(
-      Contexts.empty,
-      ZExp.place_before(e),
-    );
-  let edit_state: Program.EditState.t = {term: Focused(ze), ty, u_gen};
+  let (term, ty, u_gen) =
+    Statics_Exp.fix_and_renumber_holes(Contexts.empty, e);
+  let path = CursorPath_Exp.of_z(ZExp.place_before(term));
+  let edit_state: Program.EditState.t = {
+    term,
+    ty,
+    u_gen,
+    focus: Some({path, window_has_focus: true}),
+  };
   model |> put_program(Program.mk(~width=model.cell_width, edit_state));
 };
 
@@ -262,20 +301,22 @@ let load_cardstack = (model, idx) => {
   |> map_program(Program.focus);
 };
 
-let load_undo_history =
-    (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {
-  let new_cardstacks =
-    UndoHistory.get_cardstacks(undo_history, ~is_after_move);
-  let new_program = ZCardstacks.get_program(new_cardstacks);
-  let update_selected_instances = _ => {
-    let si = UserSelectedInstances.init;
-    switch (Program.cursor_on_inst(new_program)) {
-    | None => si
-    | Some((kind, u)) => UserSelectedInstances.add((kind, (u, 0)), si)
-    };
-  };
-  model
-  |> put_undo_history(undo_history)
-  |> put_cardstacks(new_cardstacks)
-  |> map_selected_instances(update_selected_instances);
-};
+/*
+ let load_undo_history =
+     (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {
+   let new_cardstacks =
+     UndoHistory.get_cardstacks(undo_history, ~is_after_move);
+   let new_program = ZCardstacks.get_program(new_cardstacks);
+   let update_selected_instances = _ => {
+     let si = UserSelectedInstances.init;
+     switch (Program.cursor_on_inst(new_program)) {
+     | None => si
+     | Some((kind, u)) => UserSelectedInstances.add((kind, (u, 0)), si)
+     };
+   };
+   model
+   |> put_undo_history(undo_history)
+   |> put_cardstacks(new_cardstacks)
+   |> map_selected_instances(update_selected_instances);
+ };
+ */

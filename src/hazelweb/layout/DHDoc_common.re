@@ -158,6 +158,7 @@ let mk_Inj = (inj_side, padded_child) =>
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
-let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
+let mk_Pair = (doc1, doc2) =>
+  Doc.(hcats([doc1, text(", ("), doc2, text(")")]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);

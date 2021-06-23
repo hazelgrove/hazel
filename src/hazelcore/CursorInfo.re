@@ -32,8 +32,9 @@ type typed =
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   | AnaFreeLivelit(HTyp.t)
   // user-defined livelit has no expansion
-  | AnaLivelitDoesNotExpand(HTyp.t)
-  | SynLivelitDoesNotExpand
+  | AnaLivelitDecodingError(HTyp.t)
+  | SynLivelitDecodingError
+  | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
   | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
@@ -140,3 +141,16 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
+
+let is_text_cursor = (ci: t) =>
+  switch (ci.cursor_term) {
+  | Exp(OnText(_), _)
+  | Pat(OnText(_), _)
+  | Typ(OnText(_), _)
+  | ExpOp(OnText(_), _)
+  | PatOp(OnText(_), _)
+  | TypOp(OnText(_), _)
+  | Line(OnText(_), _)
+  | Rule(OnText(_), _) => true
+  | _ => false
+  };

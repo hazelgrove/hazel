@@ -6,75 +6,86 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-/**
- * A buffered container for SVG elements so that strokes along
- * the bounding box of the elements do not get clipped by the
- * viewBox boundaries
- */
-let decoration_container =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~origin: MeasuredPosition.t,
-      ~height: int,
-      ~width: int,
-      ~cls: string,
-      svgs: list(Vdom.Node.t),
-    )
-    : Vdom.Node.t => {
-  let buffered_height = height + 1;
-  let buffered_width = width + 1;
+exception NotElem;
 
-  let buffered_height_px =
-    Float.of_int(buffered_height) *. font_metrics.row_height;
-  let buffered_width_px =
-    Float.of_int(buffered_width) *. font_metrics.col_width;
+[@warning "-32"]
+let decode_livelit_view = (splices: int => Vdom.Node.t, d: DHExp.t) => {
+  let rec decode_attrs: DHExp.t => list(Vdom.Attr.t) =
+    d =>
+      switch (d) {
+      | ListNil(_) => []
+      | Cons(Pair(StringLit(k), StringLit(v)), tl) => [
+          Vdom.Attr.create(k, v),
+          ...decode_attrs(tl),
+        ]
+      | _ => raise(NotElem)
+      };
+  let rec decode_elem = (d: DHExp.t) => {
+    switch (d) {
+    | Pair(
+        StringLit("editor"),
+        Pair(Cons(Pair(StringLit("id"), IntLit(id)), _), _),
+      ) =>
+      splices(id)
+    | Pair(StringLit(tag), Pair(d_attrs, d_children)) =>
+      let attrs = decode_attrs(d_attrs);
+      let children = decode_children(d_children);
+      Vdom.Node.create(tag, attrs, children);
+    | _ => raise(NotElem)
+    };
+  }
+  and decode_children = (d: DHExp.t) => {
+    switch (d) {
+    | ListNil(_) => []
+    | Cons(child, tl) => [decode_elem(child), ...decode_children(tl)]
+    | _ => raise(NotElem)
+    };
+  };
+  switch (decode_elem(DHExp.strip_casts'(d))) {
+  | elem => Some(elem)
+  | exception NotElem => None
+  };
+};
 
-  let container_origin_x =
-    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
-  let container_origin_y =
-    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+let widget_id_tbl = Hashtbl.create(5);
 
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes([
-          "decoration-container",
-          Printf.sprintf("%s-container", cls),
-        ]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "top: calc(%fpx - 1px); left: %fpx;",
-            container_origin_x,
-            container_origin_y,
-          ),
-        ),
-      ],
-      [
-        Node.create_svg(
-          "svg",
-          [
-            Attr.classes([cls]),
-            Attr.create(
-              "viewBox",
-              Printf.sprintf(
-                "-0.5 -0.5 %d %d",
-                buffered_width,
-                buffered_height,
-              ),
-            ),
-            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-            Attr.create(
-              "height",
-              Printf.sprintf("%fpx", buffered_height_px),
-            ),
-            Attr.create("preserveAspectRatio", "none"),
-          ],
-          svgs,
-        ),
-      ],
-    )
-  );
+let _get_widget_id = llu =>
+  switch (Hashtbl.find_opt(widget_id_tbl, llu)) {
+  | Some(id) => id
+  | None =>
+    let id =
+      Base__Type_equal.Id.create(
+        ~name="livelit-state-" ++ string_of_int(llu), _ =>
+        Sexplib.Sexp.List([])
+      );
+    Hashtbl.add(widget_id_tbl, llu, id);
+    id;
+  };
+
+let rec mk_view_monad =
+        (
+          dhcode: IntMap.key => option((DHExp.t, Virtual_dom.Vdom.Node.t)),
+          splices,
+          d: DHExp.t,
+        )
+        : option(Vdom.Node.t) => {
+  let run = mk_view_monad(dhcode, splices);
+  // two cases:
+  // inj[L](d) : return(d) where d is pseudovdom
+  // inj[R]    : bindEvalSplice(spliceno, f)
+  switch (d) {
+  | Inj(_, L, d0) => decode_livelit_view(splices, d0)
+  | Inj(_, R, Pair(IntLit(spliceno), f)) =>
+    let spliceval =
+      spliceno
+      |> dhcode
+      |> OptUtil.get(() => failwith("splicelookup failed"))
+      |> (((d, _)) => d);
+    //|> DHExp.sexp_of_t
+    //|> Sexplib.Sexp.to_string;
+    DHExp.Ap(f, spliceval) |> Statics_Exp.eval |> run;
+  | _ => failwith("mk_view_monad unhandled")
+  };
 };
 
 // need to use mousedown instead of click to fire
@@ -201,12 +212,73 @@ let decoration_views =
       (l, splice_ls): UHLayout.with_splices,
     )
     : list(Vdom.Node.t) => {
-  let corner_radius = 2.5;
-  let corner_radii = (
-    corner_radius /. font_metrics.col_width,
-    corner_radius /. font_metrics.row_height,
-  );
+  let corner_radii = Decoration_common.corner_radii(font_metrics);
 
+  let livelit_error_view =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["user-defined-livelit-container-error"])],
+        [Node.text("Livelit View Error")],
+      )
+    );
+
+  let create_ll_view = (start: MeasuredPosition.t, shape: LivelitShape.t, vs) => {
+    let top = Float.of_int(start.row) *. font_metrics.row_height;
+    let left = Float.of_int(start.col) *. font_metrics.col_width;
+    let dim_attr =
+      switch (shape) {
+      | InvalidShape =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+            13,
+            font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      | Inline(width) =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+            width,
+            font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      | MultiLine(height) =>
+        Vdom.Attr.create(
+          "style",
+          Printf.sprintf(
+            "height: %fpx; top: %fpx; left: %fpx;",
+            float_of_int(height) *. font_metrics.row_height,
+            top,
+            left,
+          ),
+        )
+      };
+    Vdom.[
+      Node.div(
+        [
+          Attr.classes([
+            "LivelitView",
+            "custom-scrollbar",
+            switch (shape) {
+            | InvalidShape => "InvalidShape"
+            | Inline(_) => "Inline"
+            | MultiLine(_) => "MultiLine"
+            },
+          ]),
+          dim_attr,
+          Attr.on_mousedown(_ => Event.Stop_propagation),
+        ],
+        vs,
+      ),
+    ];
+  };
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[], // tail-recursive
@@ -256,7 +328,7 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               decoration_container(
+               Decoration_common.container(
                  ~font_metrics,
                  ~height=MeasuredLayout.height(m),
                  ~width=MeasuredLayout.width(~offset, m),
@@ -267,58 +339,102 @@ let decoration_views =
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | LivelitView({llu, base_llname, shape, model, hd_step, _}) =>
+        let uhcode = splice_name => {
+          let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
+          let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+          let caret =
+            switch (caret_pos) {
+            | Some((caret_pos, Some((u, name))))
+                when u == llu && name == splice_name => [
+                UHDecoration.Caret.view(~font_metrics, caret_pos),
+              ]
+            | _ => []
+            };
+          let splice_ds = {
+            let stepped =
+              dpaths
+              |> UHDecorationPaths.take_step(hd_step)
+              |> UHDecorationPaths.take_step(splice_name);
+            UHDecorationPaths.is_empty(stepped)
+              ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
+          };
+          let splice_code = view_of_box(UHBox.mk(splice_l));
+          Vdom.(
+            Node.div(
+              [
+                Attr.id(id),
+                Attr.classes(["splice"]),
+                Attr.on_mousedown(
+                  on_mousedown(
+                    ~inject,
+                    ~id,
+                    ~font_metrics,
+                    ~splice=Some((llu, splice_name)),
+                  ),
+                ),
+              ],
+              caret
+              @ splice_ds
+              @ [Node.span([Attr.classes(["code"])], splice_code)],
+            )
+          );
+        };
+        let selected_inst_opt =
+          selected_instances
+          |> UserSelectedInstances.find_opt(TaggedNodeInstance.Livelit, llu)
+          |> Option.map(i => (llu, i));
+        let inst_opt =
+          switch (selected_inst_opt) {
+          | None => LivelitInstanceInfo.default_instance(llii, llu)
+          | Some(inst) => Some(inst)
+          };
+        let sim_dargs_opt =
+          inst_opt
+          |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
+          |> Option.map(((_, _, (si, dargs))) =>
+               (SpliceInfo.splice_map(si), dargs)
+             );
+
+        let dhview =
+          DHCode.view(
+            ~inject,
+            // TODO undo hardcoded width
+            ~width=80,
+            ~settings=settings.evaluation,
+            ~font_metrics,
+          );
+
+        let dhcode = splice_name => {
+          open OptUtil.Syntax;
+          let* (splice_map, _) = sim_dargs_opt;
+          let* (_, d_opt) = IntMap.find_opt(splice_name, splice_map);
+          let+ d = d_opt;
+          (d, dhview(d));
+        };
+
+        let dargs =
+          sim_dargs_opt
+          |> Option.map(((_, dargs)) =>
+               dargs
+               |> List.map(((v, darg_opt)) =>
+                    (
+                      v,
+                      darg_opt |> Option.map(darg => (darg, dhview(darg))),
+                    )
+                  )
+             );
         let current_vs =
           switch (IntMap.find_opt(llu, llview_ctx)) {
           | Some((llview, _)) =>
-            // type magic required by virtual dom to ensure
-            // each widget state's type is unique from others
-            let id =
-              Base__Type_equal.Id.create(
-                ~name=string_of_int(llu) ++ "-state", _ =>
-                Sexplib.Sexp.List([])
-              );
-            Vdom.[
-              Node.widget(
-                ~update=(state, container) => (state, container),
-                ~id,
-                ~init=
-                  () => {
-                    let container_origin_x =
-                      (-1.)
-                      +. Float.of_int(start.row)
-                      *. font_metrics.row_height;
-                    let container_origin_y =
-                      Float.of_int(1 + start.col) *. font_metrics.col_width;
-                    let container_position_style =
-                      Printf.sprintf(
-                        "top: %fpx; left: %fpx;",
-                        container_origin_x,
-                        container_origin_y,
-                      );
-                    let container = Dom_html.(createDiv(document));
-                    container##setAttribute(
-                      Js.string("style"),
-                      Js.string(container_position_style),
-                    );
-                    switch (llview(llu, model)) {
-                    | None =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container-error"),
-                      );
-                      container##.innerHTML := Js.string("Livelit View Error");
-                    | Some(view_str) =>
-                      container##setAttribute(
-                        Js.string("class"),
-                        Js.string("user-defined-livelit-container"),
-                      );
-                      container##.innerHTML := Js.string(view_str);
-                    };
-                    ((), container);
-                  },
-                (),
-              ),
-            ];
+            let llviewres =
+              OptUtil.get(() => failwith(""), llview(llu, model))
+              |> DHExp.strip_casts';
+            switch (mk_view_monad(dhcode, uhcode, llviewres)) {
+            | Some(view_vdom) =>
+              let vs = [view_vdom];
+              create_ll_view(start, shape, vs);
+            | _ => [livelit_error_view]
+            };
           | None =>
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
@@ -338,153 +454,9 @@ let decoration_views =
               );
             let livelit_view = llview(model, trigger, sync);
             let vs = {
-              let uhcode = splice_name => {
-                let splice_l =
-                  SpliceMap.get_splice(llu, splice_name, splice_ls);
-                let id =
-                  Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-                let caret =
-                  switch (caret_pos) {
-                  | Some((caret_pos, Some((u, name))))
-                      when u == llu && name == splice_name => [
-                      UHDecoration.Caret.view(~font_metrics, caret_pos),
-                    ]
-                  | _ => []
-                  };
-                let splice_ds = {
-                  let stepped =
-                    dpaths
-                    |> UHDecorationPaths.take_step(hd_step)
-                    |> UHDecorationPaths.take_step(splice_name);
-                  UHDecorationPaths.is_empty(stepped)
-                    ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
-                };
-                let splice_code = view_of_box(UHBox.mk(splice_l));
-                Vdom.(
-                  Node.div(
-                    [
-                      Attr.id(id),
-                      Attr.classes(["splice"]),
-                      Attr.on_mousedown(
-                        on_mousedown(
-                          ~inject,
-                          ~id,
-                          ~font_metrics,
-                          ~splice=Some((llu, splice_name)),
-                        ),
-                      ),
-                    ],
-                    caret
-                    @ splice_ds
-                    @ [Node.span([Attr.classes(["code"])], splice_code)],
-                  )
-                );
-              };
-
-              let selected_inst_opt =
-                selected_instances
-                |> UserSelectedInstances.find_opt(
-                     TaggedNodeInstance.Livelit,
-                     llu,
-                   )
-                |> Option.map(i => (llu, i));
-              let inst_opt =
-                switch (selected_inst_opt) {
-                | None => LivelitInstanceInfo.default_instance(llii, llu)
-                | Some(inst) => Some(inst)
-                };
-              let sim_dargs_opt =
-                inst_opt
-                |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-                |> Option.map(((_, _, (si, dargs))) =>
-                     (SpliceInfo.splice_map(si), dargs)
-                   );
-
-              let dhview =
-                DHCode.view(
-                  ~inject,
-                  // TODO undo hardcoded width
-                  ~width=80,
-                  ~settings=settings.evaluation,
-                );
-
-              let dhcode = splice_name => {
-                open OptUtil.Syntax;
-                let* (splice_map, _) = sim_dargs_opt;
-                let* (_, d_opt) = IntMap.find_opt(splice_name, splice_map);
-                let+ d = d_opt;
-                (d, dhview(d));
-              };
-
-              let dargs =
-                sim_dargs_opt
-                |> Option.map(((_, dargs)) =>
-                     dargs
-                     |> List.map(((v, darg_opt)) =>
-                          (
-                            v,
-                            darg_opt
-                            |> Option.map(darg => (darg, dhview(darg))),
-                          )
-                        )
-                   );
-
               [livelit_view({uhcode, dhcode, dargs})];
             };
-            let top = Float.of_int(start.row) *. font_metrics.row_height;
-            let left = Float.of_int(start.col) *. font_metrics.col_width;
-            let dim_attr =
-              switch (shape) {
-              | InvalidShape =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                    13,
-                    font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              | Inline(width) =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                    width,
-                    font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              | MultiLine(height) =>
-                Vdom.Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "height: %fpx; top: %fpx; left: %fpx;",
-                    float_of_int(height) *. font_metrics.row_height,
-                    top,
-                    left,
-                  ),
-                )
-              };
-            Vdom.[
-              Node.div(
-                [
-                  Attr.classes([
-                    "LivelitView",
-                    switch (shape) {
-                    | InvalidShape => "InvalidShape"
-                    | Inline(_) => "Inline"
-                    | MultiLine(_) => "MultiLine"
-                    },
-                  ]),
-                  dim_attr,
-                  Attr.on_mousedown(_ => Event.Stop_propagation),
-                ],
-                vs,
-              ),
-            ];
+            create_ll_view(start, shape, vs);
           };
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
@@ -504,12 +476,7 @@ let decoration_views =
 };
 
 let key_handlers =
-    (
-      ~inject,
-      ~is_mac: bool,
-      ~cursor_info: CursorInfo.t,
-      ~is_text_cursor: bool,
-    )
+    (~inject, ~is_mac as _: bool, ~cursor_info: CursorInfo.t)
     : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
@@ -522,64 +489,45 @@ let key_handlers =
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         let s = Key.get_key(evt);
-        switch (s, is_text_cursor) {
-        | (
-            "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" | "(" |
-            ")" |
-            "-" |
-            "_" |
-            "=" |
-            "+" |
-            "{" |
-            "}" |
-            "[" |
-            "]" |
-            ":" |
-            ";" |
-            "\"" |
-            "'" |
-            "<" |
-            ">" |
-            "," |
-            "." |
-            "?" |
-            "/" |
-            "|" |
-            "\\" |
-            " ",
-            true,
-          ) =>
-          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
-        | ("Enter", true) =>
+        switch (cursor_info.cursor_term) {
+        | Exp(OnText(_), StringLit(_))
+            when KeyCombo.matches(KeyCombo.enter, evt) =>
           prevent_stop_inject(
             ModelAction.EditAction(Construct(SChar("\n"))),
           )
-        | (_, _) =>
+        | Exp(OnText(_), StringLit(_))
+            when
+              String.length(s) == 1
+              && ModKeys.matches(ModKeys.no_ctrl_alt_meta, evt) =>
+          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
+        | _ =>
           switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Undo);
-            }
-          | Some(Meta_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Undo);
-            } else {
-              Event.Ignore;
-            }
-          | Some(Ctrl_Shift_Z) =>
-            if (is_mac) {
-              Event.Ignore;
-            } else {
-              prevent_stop_inject(ModelAction.Redo);
-            }
-          | Some(Meta_Shift_Z) =>
-            if (is_mac) {
-              prevent_stop_inject(ModelAction.Redo);
-            } else {
-              Event.Ignore;
-            }
+          /*
+           | Some(Ctrl_Z) =>
+             if (is_mac) {
+               Event.Ignore;
+             } else {
+               prevent_stop_inject(ModelAction.Undo);
+             }
+           | Some(Meta_Z) =>
+             if (is_mac) {
+               prevent_stop_inject(ModelAction.Undo);
+             } else {
+               Event.Ignore;
+             }
+           | Some(Ctrl_Shift_Z) =>
+             if (is_mac) {
+               Event.Ignore;
+             } else {
+               prevent_stop_inject(ModelAction.Redo);
+             }
+           | Some(Meta_Shift_Z) =>
+             if (is_mac) {
+               prevent_stop_inject(ModelAction.Redo);
+             } else {
+               Event.Ignore;
+             }
+           */
           | Some(kc) =>
             prevent_stop_inject(
               ModelAction.EditAction(
@@ -651,16 +599,9 @@ let view =
       };
 
       let key_handlers =
-        switch (Program.get_cursor_info(program), Program.get_zexp(program)) {
-        | (None, _)
-        | (_, None) => []
-        | (Some(cursor_info), Some(ze)) =>
-          key_handlers(
-            ~inject,
-            ~is_mac,
-            ~cursor_info,
-            ~is_text_cursor=CursorInfo_common.is_text_cursor(ze),
-          )
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some(cursor_info) => key_handlers(~inject, ~is_mac, ~cursor_info)
         };
 
       Node.div(
@@ -675,41 +616,13 @@ let view =
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          Attr.on_blur(_ =>
+            JSUtil.window_has_focus()
+              ? inject(ModelAction.BlurCell) : Event.Many([])
+          ),
           ...key_handlers,
         ],
-        [
-          Node.span(
-            [Attr.classes(["code"])],
-            code_text,
-            // @ [
-            //   Node.div(
-            //     [],
-            //     [
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("[")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/y8neczz3\"")],
-            //       ),
-            //       Node.span([], [Node.text(",")]),
-            //       Node.text(UnicodeConstants.nbsp),
-            //       Node.span(
-            //         [Attr.classes(["code-string-lit"])],
-            //         [Node.text("\"tinyurl.com/yd2dw4ww\"")],
-            //       ),
-            //       Node.span(
-            //         [Attr.classes(["code-delim"])],
-            //         [Node.text("]")],
-            //       ),
-            //     ],
-            //   ),
-            // ],
-          ),
-          ...decorations,
-        ],
+        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );

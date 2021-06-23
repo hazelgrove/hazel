@@ -1,8 +1,21 @@
-type esi = SpliceInfo.t(UHExp.t);
-type out('a) = ('a, esi, MetaVarGen.t);
 [@deriving sexp]
-type t('a) = (esi, MetaVarGen.t) => out('a);
-let return = (x, psi, u_gen) => (x, psi, u_gen);
+type esi = SpliceInfo.t(UHExp.t);
+[@deriving sexp]
+type out('a) = ('a, esi, MetaVarGen.t);
+
+module T = {
+  [@deriving sexp]
+  type t('a) = (esi, MetaVarGen.t) => out('a);
+  let return = (x, psi, u_gen) => (x, psi, u_gen);
+  let bind = (cmd, f, psi, u_gen) => {
+    let (a, psi, u_gen) = cmd(psi, u_gen);
+    f(a, psi, u_gen);
+  };
+  let map = Monads.MapDefinition.Define_using_bind;
+};
+include T;
+include Monads.Make(T);
+
 let new_splice =
     (
       ~init_uhexp_gen=u_gen => {
@@ -61,10 +74,6 @@ let drop_splice =
     },
     u_gen,
   );
-};
-let bind = (cmd, f, psi, u_gen) => {
-  let (a, psi, u_gen) = cmd(psi, u_gen);
-  f(a, psi, u_gen);
 };
 
 let exec = (cmd, psi, u_gen) => {

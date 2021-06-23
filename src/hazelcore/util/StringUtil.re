@@ -80,7 +80,7 @@ let rec find_and_replace =
     | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s), err)
     | "\\\\" => find_and_replace(acc ++ "\\", String.sub(s, 2, len_s), err)
     | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s), err)
-    | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s), err)
+    | "\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s), err)
     | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s), err)
     | "\\o" when len_s >= 3 =>
       let ch1 = s.[2];

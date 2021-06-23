@@ -268,19 +268,13 @@ module MatrixLivelitView = {
                       [uhcode(splice)],
                     );
                   } else {
-                    let cls =
-                      splice == selected
-                        ? "matrix-selected" : "matrix-unselected";
                     let child =
                       switch (dhcode(splice)) {
                       | None => Node.text("Uneval'd")
                       | Some((_, view)) => view
                       };
                     Node.div(
-                      [
-                        Attr.classes([cls]),
-                        Attr.on_mousedown(_ => trig(Select(splice))),
-                      ],
+                      [Attr.on_mousedown(_ => trig(Select(splice)))],
                       [child],
                     );
                   };
@@ -353,24 +347,42 @@ module GradeCutoffLivelitView = {
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
+  let is_valid_percentage = (p: float) => 0. <= p && p <= 100.;
 
   let grades_invalids_to_svgs = ((grades, invalid_count)) => {
     let valid_grades =
       grades
-      |> List.filter_map(grade =>
-           if (0 <= grade && grade <= 100) {
+      |> List.filter_map(((student, grade)) =>
+           if (0. <= grade && grade <= 100.) {
              Some(
                Node.create_svg(
-                 "circle",
+                 "g",
+                 [Attr.classes(["student-average"])],
                  [
-                   Attr.create("cx", string_of_int(grade)),
-                   Attr.create("cy", "0"),
-                   Attr.create("r", "0.75"),
-                   Attr.create("fill", "orange"),
-                   Attr.create("stroke-width", "0"),
+                   Node.create_svg(
+                     "text",
+                     Attr.[
+                       classes(["student-average-label"]),
+                       create("vector-effect", "non-scaling-stroke"),
+                       create("dominant-baseline", "middle"),
+                       create("text-anchor", "middle"),
+                       create("x", Printf.sprintf("%f", grade)),
+                       create("y", "-2.5"),
+                     ],
+                     [Node.text(student)],
+                   ),
+                   Node.create_svg(
+                     "circle",
+                     Attr.[
+                       create("cx", Printf.sprintf("%f", grade)),
+                       create("cy", "0"),
+                       create("r", "0.75"),
+                       create("fill", "orange"),
+                       create("stroke-width", "0"),
+                     ],
+                     [],
+                   ),
                  ],
-                 [],
                ),
              );
            } else {
@@ -385,8 +397,8 @@ module GradeCutoffLivelitView = {
 
   let rec dhexp_to_grades_invalids = (rslt, invalid_count) =>
     fun
-    | DHExp.Cons(DHExp.IntLit(g), d) =>
-      dhexp_to_grades_invalids([g, ...rslt], invalid_count, d)
+    | DHExp.Cons(Pair(StringLit(s), FloatLit(g)), d) =>
+      dhexp_to_grades_invalids([(s, g), ...rslt], invalid_count, d)
     | DHExp.Cons(_, d) =>
       dhexp_to_grades_invalids(rslt, invalid_count + 1, d)
     | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
@@ -397,35 +409,51 @@ module GradeCutoffLivelitView = {
         {a, b, c, d, selecting}: BuiltinLivelits.GradeCutoffLivelitCore.model,
         trigger,
         _,
-        {dargs: _, _}: LivelitView.splice_and_param_getters,
+        {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
-    /*
-     let data_opt =
-       switch (dargs) {
-       | None
-       | Some([(_, None)]) => None
-       | Some([(_, Some((d, _)))]) => Some(d)
-       | Some(l) =>
-         failwith(
-           "Invalid grade_cutoffs params: "
-           ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
-         )
-       };
-     */
-    let grades = [93, 88, 75, 86, 78, 82, 67, 54, 45, 71, 69, 62, 97, 83, 85];
     let data_opt =
-      Some(
-        grades
-        |> List.fold_left(
-             (acc, g) => DHExp.Cons(IntLit(g), acc),
-             DHExp.ListNil(Int),
-           ),
-      );
+      switch (dargs) {
+      | None
+      | Some([(_, None)]) => None
+      | Some([(_, Some((d, _)))]) => Some(DHExp.strip_casts'(d))
+      | Some(l) =>
+        failwith(
+          "Invalid grade_cutoffs params: "
+          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+        )
+      };
+    /*
+     let grades = [
+       93.,
+       88.,
+       75.,
+       86.,
+       78.,
+       82.,
+       67.,
+       54.,
+       45.,
+       71.,
+       69.,
+       62.,
+       97.,
+       83.,
+       85.,
+     ];
+     let data_opt =
+       Some(
+         grades
+         |> List.fold_left(
+              (acc, g) =>
+                DHExp.Cons(Pair(StringLit(""), FloatLit(g)), acc),
+              DHExp.ListNil(Float),
+            ),
+       );
+     */
+    let grades_invalids_opt =
+      Option.map(dhexp_to_grades_invalids([], 0), data_opt);
     let grades_svgs_invalids_opt =
-      data_opt
-      |> Option.map(d =>
-           dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
-         );
+      Option.map(grades_invalids_to_svgs, grades_invalids_opt);
     let (grades_svgs, data_err_msg) =
       switch (grades_svgs_invalids_opt) {
       | None => ([], [Node.text("Grades data was never evaluated")])
@@ -453,9 +481,8 @@ module GradeCutoffLivelitView = {
     let thumb_radius = 3.;
     let thumb_tip = 5.;
 
-    let cutoff_thumb = (letter: letter_grade, value: int) => {
+    let cutoff_thumb = (letter: letter_grade, v: float) => {
       open SvgUtil;
-      let v = Float.of_int(value);
       let chord_distance = thumb_radius /. Float.sqrt(2.);
       let arc_start = Point.{x: v -. chord_distance, y: -. thumb_tip};
       let arc_end = Point.{x: v +. chord_distance, y: -. thumb_tip};
@@ -556,80 +583,70 @@ module GradeCutoffLivelitView = {
       );
     };
 
-    let distribution_line = {
-      let (fs, ds) = List.partition(g => g < d, grades);
-      let (ds, cs) = List.partition(g => g < c, ds);
-      let (cs, bs) = List.partition(g => g < b, cs);
-      let (bs, as_) = List.partition(g => g < a, bs);
-      let line_y = (-12.);
-      // let line =
-      //   Node.create_svg(
-      //     "line",
-      //     [
-      //       Attr.classes(["distribution-line"]),
-      //       Attr.create("x1", "0"),
-      //       Attr.create("y1", string_of_float(line_y)),
-      //       Attr.create("x2", Printf.sprintf("%f", scale_len)),
-      //       Attr.create("y2", string_of_float(line_y)),
-      //       Attr.create("vector-effect", "non-scaling-stroke"),
-      //     ],
-      //     [],
-      //   );
-      let labeled_bucket = (x1, x2, num) => {
-        let len = (-0.75);
-        let bucket =
-          SvgUtil.Path.[
-            M({x: x1, y: line_y -. len}),
-            V({y: line_y}),
-            H({x: x2}),
-            V({y: line_y -. len}),
-          ]
-          |> SvgUtil.Path.view(
-               ~attrs=[
-                 Attr.classes(["bucket-path"]),
-                 Attr.create("vector-effect", "non-scaling-stroke"),
-               ],
-             );
-        let label =
-          Node.create_svg(
-            "text",
-            [
-              Attr.classes(["grade-cutoff-bucket-label"]),
-              Attr.create("x", string_of_float((x1 +. x2) *. 0.5)),
-              Attr.create("y", string_of_float(line_y -. 1.)),
-              Attr.create("dominant-baseline", "auto"),
-              Attr.create("text-anchor", "middle"),
-              Attr.create("vector-effect", "non-scaling-stroke"),
-            ],
-            [Node.text(string_of_int(num))],
-          );
-        [bucket, label];
+    let distribution_line =
+      switch (grades_invalids_opt) {
+      | None => []
+      | Some((grades, _)) =>
+        let grades = List.map(snd, grades);
+        let (fs, ds) = List.partition(g => g < d, grades);
+        let (ds, cs) = List.partition(g => g < c, ds);
+        let (cs, bs) = List.partition(g => g < b, cs);
+        let (bs, as_) = List.partition(g => g < a, bs);
+        let line_y = (-12.);
+        // let line =
+        //   Node.create_svg(
+        //     "line",
+        //     [
+        //       Attr.classes(["distribution-line"]),
+        //       Attr.create("x1", "0"),
+        //       Attr.create("y1", string_of_float(line_y)),
+        //       Attr.create("x2", Printf.sprintf("%f", scale_len)),
+        //       Attr.create("y2", string_of_float(line_y)),
+        //       Attr.create("vector-effect", "non-scaling-stroke"),
+        //     ],
+        //     [],
+        //   );
+        let labeled_bucket = (x1, x2, num) => {
+          let len = (-0.75);
+          let bucket =
+            SvgUtil.Path.[
+              M({x: x1, y: line_y -. len}),
+              V({y: line_y}),
+              H({x: x2}),
+              V({y: line_y -. len}),
+            ]
+            |> SvgUtil.Path.view(
+                 ~attrs=[
+                   Attr.classes(["bucket-path"]),
+                   Attr.create("vector-effect", "non-scaling-stroke"),
+                 ],
+               );
+          let label =
+            Node.create_svg(
+              "text",
+              [
+                Attr.classes(["grade-cutoff-bucket-label"]),
+                Attr.create("x", string_of_float((x1 +. x2) *. 0.5)),
+                Attr.create("y", string_of_float(line_y -. 1.)),
+                Attr.create("dominant-baseline", "auto"),
+                Attr.create("text-anchor", "middle"),
+                Attr.create("vector-effect", "non-scaling-stroke"),
+              ],
+              [Node.text(string_of_int(num))],
+            );
+          [bucket, label];
+        };
+        let buffer = 0.4;
+        let fs_bucket = labeled_bucket(0., d -. buffer, List.length(fs));
+        let ds_bucket =
+          labeled_bucket(d +. buffer, c -. buffer, List.length(ds));
+        let cs_bucket =
+          labeled_bucket(c +. buffer, b -. buffer, List.length(cs));
+        let bs_bucket =
+          labeled_bucket(b +. buffer, a -. buffer, List.length(bs));
+        let as_bucket = labeled_bucket(a +. buffer, 100., List.length(as_));
+        fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
       };
-      let buffer = 0.4;
-      let fs_bucket =
-        labeled_bucket(0., Float.of_int(d) -. buffer, List.length(fs));
-      let ds_bucket =
-        labeled_bucket(
-          Float.of_int(d) +. buffer,
-          Float.of_int(c) -. buffer,
-          List.length(ds),
-        );
-      let cs_bucket =
-        labeled_bucket(
-          Float.of_int(c) +. buffer,
-          Float.of_int(b) -. buffer,
-          List.length(cs),
-        );
-      let bs_bucket =
-        labeled_bucket(
-          Float.of_int(b) +. buffer,
-          Float.of_int(a) -. buffer,
-          List.length(bs),
-        );
-      let as_bucket =
-        labeled_bucket(Float.of_int(a) +. buffer, 100., List.length(as_));
-      fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
-    };
 
     let thumbs = {
       let (a, b, c, d) = (
@@ -665,7 +682,7 @@ module GradeCutoffLivelitView = {
                   100.
                   *. (offset_x -. scale##.left)
                   /. (px_scalar *. scale_len);
-                trigger(UpdateCutoff(letter, Float.to_int(cutoff)));
+                trigger(UpdateCutoff(letter, cutoff));
               }),
             ],
             [],
@@ -699,7 +716,7 @@ module GradeCutoffLivelitView = {
             ),
             Attr.create("stroke", "black"),
           ],
-          [percentage_line(grades_svgs), ...thumbs] @ distribution_line,
+          thumbs @ [percentage_line(grades_svgs), ...distribution_line],
         ),
         Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
         ...overlay,
@@ -785,7 +802,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(grayscale)],
             ),
             Node.div([], []),
@@ -801,7 +818,7 @@ module GrayscaleLivelitView = {
               [],
             ),
             Node.div(
-              [Attr.classes(["splice-content"])],
+              [Attr.classes(["splice-content", "custom-scrollbar"])],
               [uhcode(brightness)],
             ),
           ],
@@ -891,15 +908,17 @@ module ColorLivelitView = {
     let is_valid_alpha = a => 0 <= a && a <= 100;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
-      | (
-          Some((IntLit(r), _)),
-          Some((IntLit(g), _)),
-          Some((IntLit(b), _)),
-          Some((IntLit(a), _)),
-        )
-          when
-            is_valid(r) && is_valid(g) && is_valid(b) && is_valid_alpha(a) =>
-        Some((r, g, b, a))
+      | (Some((d_r, _)), Some((d_g, _)), Some((d_b, _)), Some((d_a, _))) =>
+        switch (List.map(DHExp.strip_casts', [d_r, d_g, d_b, d_a])) {
+        | [IntLit(r), IntLit(g), IntLit(b), IntLit(a)]
+            when
+              is_valid(r)
+              && is_valid(g)
+              && is_valid(b)
+              && is_valid_alpha(a) =>
+          Some((r, g, b, a))
+        | _ => None
+        }
       | _ => None
       };
 
@@ -907,11 +926,26 @@ module ColorLivelitView = {
       let height = 135.0;
       let width = 135.0;
       let px = Printf.sprintf("%fpx");
+      let bounded = f => max(0., min(1., f));
+      let evt_to_rgb = (h, evt) => {
+        let (client_x, client_y) =
+          Js.Unsafe.(get(evt, "clientX"), get(evt, "clientY"))
+          |> TupleUtil.map2(Float.of_int);
+        let sat_val_rect =
+          JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+        let (rect_x, rect_y) = (sat_val_rect##.left, sat_val_rect##.top);
+        let (norm_x, norm_y) = (
+          (client_x -. rect_x) /. width,
+          (height -. (client_y -. rect_y)) /. height,
+        );
+        rgb_of_hsv((h, bounded(norm_x), bounded(norm_y)));
+      };
       let sat_val_box = {
         let box = (bg_color, attrs, children) => {
           Node.div(
             [
               Attr.classes(["sat-val-box"]),
+              Attr.create("tabindex", "0"),
               attr_style(
                 StringUtil.cat([
                   prop_val("height", height |> px),
@@ -929,41 +963,21 @@ module ColorLivelitView = {
         | Some((rval, gval, bval, _)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
-          let bounded = f => max(0., min(1., f));
-          let offset_x_y = evt =>
-            Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
-            |> TupleUtil.map2(Float.of_int);
-          let on_first_click = evt => {
-            let (offset_x, offset_y) = offset_x_y(evt);
-            let s = offset_x /. width;
-            let v = (height -. offset_y) /. height;
-            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
-            Event.Many([
-              trigger(StartSelectingSatVal: action),
-              trigger(SelectRGB(rgb)),
-            ]);
-          };
-          let on_drag = evt => {
-            let sat_val_rect =
-              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
-            let (offset_x, offset_y) = offset_x_y(evt);
-            let s = (offset_x -. sat_val_rect##.left) /. width;
-            let v = (height -. (offset_y -. sat_val_rect##.top)) /. height;
-            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
-            trigger(SelectRGB(rgb));
-          };
-          let overlay =
-            Node.div(
-              Attr.[
-                classes(["dragging-overlay"]),
-                on_mouseup(_ => trigger(StopSelectingSatVal)),
-                on_mousemove(on_drag),
-              ],
-              [],
-            );
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-            [Attr.on_mousedown(on_first_click)],
+            [
+              Attr.on_mousedown(evt =>
+                Event.Many([
+                  trigger(StartSelectingSatVal: action),
+                  trigger(SelectRGB(evt_to_rgb(h, evt)): action),
+                ])
+              ),
+              Attr.on_mousemove(evt =>
+                selecting_sat_val
+                  ? trigger(SelectRGB(evt_to_rgb(h, evt))) : Event.Ignore
+              ),
+              Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
+            ],
             [
               Node.div(
                 [
@@ -974,11 +988,9 @@ module ColorLivelitView = {
                       prop_val("top", height -. v *. height |> px),
                     ]),
                   ),
-                  Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
                 ],
                 [],
               ),
-              ...selecting_sat_val ? [overlay] : [],
             ],
           );
         };
@@ -1118,7 +1130,7 @@ module ColorLivelitView = {
         Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
       let splice = splice_name =>
         Node.div(
-          [Attr.classes(["splice-content"])],
+          [Attr.classes(["splice-content", "custom-scrollbar"])],
           [uhcode(splice_name)],
         );
       Node.div(
@@ -1406,7 +1418,16 @@ module SliderLivelitView = {
         ],
       );
     ({dargs, _}: LivelitView.splice_and_param_getters) => {
-      switch (dargs) {
+      let stripped_dargs =
+        Option.map(
+          List.map(
+            PairUtil.map_snd(
+              Option.map(PairUtil.map_fst(DHExp.strip_casts')),
+            ),
+          ),
+          dargs,
+        );
+      switch (stripped_dargs) {
       | Some([
           ("min", Some((DHExp.IntLit(min), _))),
           ("max", Some((DHExp.IntLit(max), _))),
@@ -1431,11 +1452,106 @@ module SliderLivelitView = {
     };
   };
 
-  let view_shape = _ => LivelitShape.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(15);
+};
+
+module SliderLivelitFloatView = {
+  [@deriving sexp]
+  type endpoint =
+    | Min
+    | Max;
+
+  [@deriving sexp]
+  type model = BuiltinLivelits.SliderLivelitFloatCore.model;
+  [@deriving sexp]
+  type action = BuiltinLivelits.SliderLivelitFloatCore.action;
+  type trigger = action => Event.t;
+  type sync = action => unit;
+
+  let view = (model, trigger: trigger, sync) => {
+    let _endpoint_view = (cls, value) => {
+      let padding = "3px";
+      let val_str = string_of_int(value);
+      Node.label(
+        [
+          Attr.classes([cls]),
+          attr_style(
+            StringUtil.sep([
+              prop_val("padding", padding),
+              prop_val(
+                "width",
+                Printf.sprintf(
+                  "calc(%dch + %s)",
+                  String.length(val_str),
+                  padding,
+                ),
+              ),
+            ]),
+          ),
+        ],
+        [Node.text(val_str)],
+      );
+    };
+
+    let slider =
+        (
+          ~disabled: bool,
+          ~min: float=0.,
+          ~max: float=100.,
+          ~value: float=50.,
+          (),
+        ) =>
+      Node.span(
+        [Attr.classes(["slider-livelit"])],
+        [
+          Node.input(
+            [
+              Attr.classes(["slider"]),
+              Attr.type_("range"),
+              Attr.create("min", Printf.sprintf("%f", min)),
+              Attr.create("max", Printf.sprintf("%f", max)),
+              Attr.create("step", "0.01"),
+              Attr.value(Printf.sprintf("%f", value)),
+              Attr.on_input((_, value_str) =>
+                trigger(Slide(float_of_string(value_str)))
+              ),
+              ...disabled ? [Attr.disabled] : [],
+            ],
+            [],
+          ),
+        ],
+      );
+    ({dargs, _}: LivelitView.splice_and_param_getters) => {
+      switch (dargs) {
+      | Some([
+          ("min", Some((DHExp.FloatLit(min), _))),
+          ("max", Some((DHExp.FloatLit(max), _))),
+        ])
+          when min <= max =>
+        let value =
+          switch (model) {
+          | Some(f) when min <= f && f <= max => f
+          | _ =>
+            let new_value = (min +. max) /. 2.;
+            sync(Slide(new_value): action);
+            new_value;
+          };
+        slider(~disabled=false, ~min, ~max, ~value, ());
+      | _ =>
+        switch (model) {
+        | None => ()
+        | Some(_) => sync(InvalidParams)
+        };
+        slider(~disabled=true, ());
+      };
+    };
+  };
+
+  let view_shape = _ => LivelitShape.Inline(15);
 };
 
 module DataFrameLivelitView = {
-  let name = "$data_frame";
+  let name = "$dataframe";
   let expansion_ty =
     HTyp.(Prod([List(String), List(Prod([String, List(Float)]))]));
   let param_tys = [];
@@ -1478,12 +1594,7 @@ module DataFrameLivelitView = {
       Node.div(
         [
           attr_style(grid_area(grid_coordinates)),
-          Attr.classes([
-            "matrix-splice",
-            splice_name == m.selected
-              ? "matrix-selected" : "matrix-unselected",
-            ...clss,
-          ]),
+          Attr.classes(["custom-scrollbar", "matrix-splice", ...clss]),
           Attr.on_mousedown(_ => trig(Select(splice_name): action)),
           // Attr.on_click(_ => trig(Del(Col, j))),
         ],
@@ -1495,6 +1606,14 @@ module DataFrameLivelitView = {
           //Node.span([Attr.classes(["delete"])], [Node.text("x")]),
         ],
       );
+    let selected_outline = (~clss, ~grid_coordinates) =>
+      Node.div(
+        [
+          attr_style(grid_area(grid_coordinates)),
+          Attr.classes(["selected-splice", ...clss]),
+        ],
+        [],
+      );
 
     let width = get_width(m);
     let height = get_height(m);
@@ -1503,18 +1622,46 @@ module DataFrameLivelitView = {
       |> List.mapi((j, header) =>
            splice(
              ~clss=["col-header"],
-             ~grid_coordinates=(1, j + 2, 2, j + 3),
+             ~grid_coordinates=(1, j + 3, 2, j + 4),
              header,
            )
+         );
+    let selected_col_header =
+      m.col_headers
+      |> List.mapi((j, header) => (j, header))
+      |> List.filter_map(
+           fun
+           | (j, header) when header == m.selected =>
+             Some(
+               selected_outline(
+                 ~clss=["selected-col-header"],
+                 ~grid_coordinates=(1, j + 3, 2, j + 4),
+               ),
+             )
+           | _ => None,
          );
     let row_headers =
       m.rows
       |> List.mapi((i, row: row) =>
            splice(
              ~clss=["row-header"],
-             ~grid_coordinates=(i + 2, 1, i + 3, 2),
+             ~grid_coordinates=(i + 3, 1, i + 4, 2),
              row.header,
            )
+         );
+    let selected_row_header =
+      m.rows
+      |> List.mapi((i, row: row) => (i, row.header))
+      |> List.filter_map(
+           fun
+           | (i, header) when header == m.selected =>
+             Some(
+               selected_outline(
+                 ~clss=["selected-row-header"],
+                 ~grid_coordinates=(i + 3, 1, i + 4, 2),
+               ),
+             )
+           | _ => None,
          );
     let cells =
       m.rows
@@ -1523,17 +1670,40 @@ module DataFrameLivelitView = {
            |> List.mapi((j, cell) =>
                 splice(
                   ~clss=["matrix-cell"],
-                  ~grid_coordinates=(i + 2, j + 2, i + 3, j + 3),
+                  ~grid_coordinates=(i + 3, j + 3, i + 4, j + 4),
                   cell,
                 )
               )
          )
       |> List.flatten;
+    let selected_cell =
+      m.rows
+      |> List.mapi((i, row) => (i, row))
+      |> List.filter_map(((i, row: row)) =>
+           row.cells
+           |> List.mapi((j, cell) => (j, cell))
+           |> List.filter_map(
+                fun
+                | (j, cell) when cell == m.selected =>
+                  Some(
+                    selected_outline(
+                      ~clss=["selected-cell"],
+                      ~grid_coordinates=(i + 3, j + 3, i + 4, j + 4),
+                    ),
+                  )
+                | _ => None,
+              )
+           |> (
+             fun
+             | [] => None
+             | [selected, ..._] => Some(selected)
+           )
+         );
+    let selected = selected_row_header @ selected_col_header @ selected_cell;
 
     let add_row_button =
       Node.button(
         [
-          attr_style(grid_area(((-1), 2, (-2), (-3)))),
           Attr.classes(["add-row", "add-button"]),
           Attr.on_click(_ => trig(Add(Row))),
         ],
@@ -1542,64 +1712,81 @@ module DataFrameLivelitView = {
     let add_col_button =
       Node.button(
         [
-          attr_style(grid_area((2, (-2), (-3), (-1)))),
           Attr.classes(["add-col", "add-button"]),
           Attr.on_click(_ => trig(Add(Col))),
         ],
         [Node.text("+")],
       );
 
-    let cells_border =
+    let header_corner =
       Node.div(
         [
-          attr_style(grid_area((2, 2, (-3), (-3)))),
-          Attr.classes(["cells-border"]),
+          attr_style(grid_area((1, 1, 2, 2))),
+          Attr.classes(["header-corner"]),
         ],
         [],
       );
 
-    let dim_template = dim =>
-      StringUtil.sep(
-        List.concat([ListUtil.replicate(1 + dim, "auto"), ["4px", "auto"]]),
-      );
+    let dim_template = (cell_size, dim) =>
+      // gap between headers and cells so that header cells
+      // (which need higher z-index than regular cells to
+      // support freezing ux) don't cover selection highlight\
+      // of neighboring cells
+      StringUtil.sep([
+        cell_size,
+        "2px", // header margin duplicated in stylesheet
+        ...ListUtil.replicate(dim, cell_size),
+      ]);
 
     Node.div(
       [Attr.classes(["matrix-livelit"])],
       [
         Node.div(
-          [Attr.classes(["formula-bar"])],
+          [Attr.classes(["formula-bar", "custom-scrollbar"])],
           [
             Node.div(
               [Attr.classes(["formula-bar-prompt"])],
-              [Node.text(" > ")],
+              [Node.text(" = ")],
             ),
             uhcode(m.selected),
           ],
         ),
         Node.div(
+          [Attr.classes(["outer-container"])],
           [
-            Attr.classes(["grid-container"]),
-            attr_style(
-              StringUtil.cat([
-                prop_val("grid-template-columns", dim_template(width)),
-                prop_val("grid-template-rows", dim_template(height)),
+            Node.div(
+              [
+                Attr.classes(["cells", "grid-container", "custom-scrollbar"]),
+                // matrix cell width/height are duplicated in stylesheet
+                attr_style(
+                  StringUtil.cat([
+                    prop_val(
+                      "grid-template-columns",
+                      dim_template("100px", width),
+                    ),
+                    prop_val(
+                      "grid-template-rows",
+                      dim_template("30px", height),
+                    ),
+                  ]),
+                ),
+              ],
+              List.concat([
+                [header_corner, ...row_headers],
+                col_headers,
+                cells,
+                selected,
               ]),
             ),
+            add_row_button,
+            add_col_button,
           ],
-          List.concat([
-            row_headers,
-            col_headers,
-            [cells_border, ...cells],
-            [add_row_button, add_col_button],
-          ]),
         ),
       ],
     );
   };
 
-  let view_shape = m => {
-    LivelitShape.MultiLine(3 * get_height(m) + 1);
-  };
+  let view_shape = _ => LivelitShape.MultiLine(10);
 };
 
 /* ----------
@@ -1625,6 +1812,8 @@ module SliderLivelitMinSplice: LIVELIT =
   );
 module SliderLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.SliderLivelitCore, SliderLivelitView);
+module SliderLivelitFloat: LIVELIT =
+  MkLivelit(BuiltinLivelits.SliderLivelitFloatCore, SliderLivelitFloatView);
 module MatrixLivelit: LIVELIT =
   MkLivelit(BuiltinLivelits.MatrixLivelitCore, MatrixLivelitView);
 module DataFrameLivelit: LIVELIT =
@@ -1636,6 +1825,7 @@ module ColorLivelitViewAdapter = LivelitViewAdapter(ColorLivelit);
 module CheckboxLivelitViewAdapter = LivelitViewAdapter(CheckboxLivelit);
 module PairLivelitViewAdapter = LivelitViewAdapter(PairLivelit);
 module SliderLivelitViewAdapter = LivelitViewAdapter(SliderLivelit);
+module SliderLivelitFloatViewAdapter = LivelitViewAdapter(SliderLivelitFloat);
 module SliderLivelitMinViewAdapter = LivelitViewAdapter(SliderLivelitMin);
 module SliderLivelitMinSpliceViewAdapter =
   LivelitViewAdapter(SliderLivelitMinSplice);
@@ -1657,6 +1847,7 @@ let initial_livelit_view_ctx =
       PairLivelitViewAdapter.contexts_entry,
       CheckboxLivelitViewAdapter.contexts_entry,
       SliderLivelitViewAdapter.contexts_entry,
+      SliderLivelitFloatViewAdapter.contexts_entry,
       ColorLivelitViewAdapter.contexts_entry,
       SliderLivelitMinViewAdapter.contexts_entry,
       SliderLivelitMinSpliceViewAdapter.contexts_entry,

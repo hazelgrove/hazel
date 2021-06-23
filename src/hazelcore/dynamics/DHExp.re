@@ -281,7 +281,16 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
   );
 
 let rec strip_casts = (d: t): t =>
+  //TODO: strip casts recursively inside other forms?
   switch (d) {
   | Cast(d, _, _) => strip_casts(d)
   | _ => d
   };
+
+// deeply strip casts within values
+let rec strip_casts' =
+  fun
+  | Cast(d, _, _) => strip_casts'(d)
+  | Cons(d1, d2) => Cons(strip_casts'(d1), strip_casts'(d2))
+  | Pair(d1, d2) => Pair(strip_casts'(d1), strip_casts'(d2))
+  | d => d;

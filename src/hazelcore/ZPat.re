@@ -14,12 +14,29 @@ type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
 type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);
 type zseq = ZSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator);
 
+let rec erase: t => UHPat.t = zp => erase_zopseq(zp)
+and erase_zopseq: zopseq => UHPat.opseq =
+  zos => ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zos)
+and erase_zoperand: zoperand => UHPat.operand =
+  zop =>
+    switch (zop) {
+    | CursorP(_, operand) => operand
+    | ParenthesizedZ(zp) => UHPat.Parenthesized(erase(zp))
+    | TypeAnnZP(err, zoperand, ty) =>
+      UHPat.TypeAnn(err, erase_zoperand(zoperand), ty)
+    | TypeAnnZA(err, operand, zty) =>
+      UHPat.TypeAnn(err, operand, ZTyp.erase(zty))
+    | InjZ(err, side, zp) => UHPat.Inj(err, side, erase(zp))
+    }
+and erase_zoperator = ((_, operator)) => operator;
+
 let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
     fun
     | EmptyHole(_) => delim_cursors(1)
     | Wild(_) => delim_cursors(1)
     | InvalidText(_, t) => text_cursors(String.length(t))
+    // | LivelitName(name) => text_cursors(String.length(name))
     | Var(_, _, x) => text_cursors(Var.length(x))
     | IntLit(_, n) => text_cursors(String.length(n))
     | FloatLit(_, f) => text_cursors(String.length(f))
@@ -41,6 +58,12 @@ let is_valid_cursor_operand =
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
   valid_cursors_operator(operator) |> List.mem(cursor);
+
+let get_err_status = zp => zp |> erase |> UHPat.get_err_status;
+let get_err_status_zopseq = zopseq =>
+  zopseq |> erase_zopseq |> UHPat.get_err_status_opseq;
+let get_err_status_zoperand = zoperand =>
+  zoperand |> erase_zoperand |> UHPat.get_err_status_operand;
 
 let rec set_err_status = (err: ErrStatus.t, zp: t): t =>
   zp |> set_err_status_zopseq(err)
@@ -112,6 +135,7 @@ and is_before_zoperand =
   | CursorP(cursor, StringLit(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
+  // | CursorP(cursor, LivelitName(_))
   | CursorP(cursor, IntLit(_, _))
   | CursorP(cursor, FloatLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
@@ -162,6 +186,7 @@ and place_before_operand = operand =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | InvalidText(_, _)
+  // | LivelitName(_)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
@@ -260,6 +285,7 @@ and move_cursor_left_zoperand =
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
       FloatLit(_, _),
+      // LivelitName(_),
     ) =>
     // invalid cursor position
     None
@@ -326,6 +352,7 @@ and move_cursor_right_zoperand =
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
       FloatLit(_, _),
+      // LivelitName(_),
     ) =>
     // invalid cursor position
     None

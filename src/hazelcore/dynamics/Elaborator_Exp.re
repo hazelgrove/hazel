@@ -590,22 +590,21 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     type t =
       | Elaborates(DHExp.t, HTyp.t, Delta.t)
       | DoesNotElaborate;
+    /* let to_option =
+         fun
+         | DoesNotElaborate => None
+         | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
 
-    let to_option =
-      fun
-      | DoesNotElaborate => None
-      | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
+       let from_option =
+         fun
+         | None => DoesNotElaborate
+         | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
 
-    let from_option =
-      fun
-      | None => DoesNotElaborate
-      | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
-
-    let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
-      switch (x) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, ty, delta) => f((dp, ty, delta))
-      };
+       let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
+         switch (x) {
+         | DoesNotElaborate => DoesNotElaborate
+         | Elaborates(dp, ty, delta) => f((dp, ty, delta))
+         }; */
   };
 
   module Let_syntax = ElaborationResult;
@@ -708,7 +707,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | EmptyLine
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
     | LetLine(err, p, def) =>
-      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      switch (LLPat.of_uhpat(p)) {
       | None =>
         switch (Statics_Pat.syn(mk_statics_ctx(ctx), p)) {
         | None => LinesDoNotExpand
@@ -736,53 +735,59 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
             };
           };
         }
-      | Some((lln_new, lln_old, args)) =>
+      | Some(llp) =>
         let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
-        switch (err) {
-        | InAbbrevHole(Free, _) => ret(ctx, delta)
-        | InAbbrevHole(ExtraneousArgs, _)
-        | NotInAbbrevHole =>
+        switch (LLExp.of_uhexp(def)) {
+        | None => ret(ctx, delta)
+        | Some((hd, args)) =>
           let (gamma, livelit_ctx) = ctx;
-          let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-          switch (old_data_opt) {
-          | None => LinesDoNotExpand
-          | Some((old_defn, old_closed_args)) =>
-            let base_param_tys = old_defn.param_tys;
-            let reqd_param_tys =
-              base_param_tys |> ListUtil.drop(List.length(old_closed_args));
-            let args = args |> ListUtil.take(List.length(reqd_param_tys));
-            let adjusted_param_tys =
-              reqd_param_tys |> ListUtil.take(List.length(args));
-            let delta_expanded_args_opt =
-              adjusted_param_tys
-              |> List.map(((_, ty)) => ty)
-              |> List.combine(args)
-              |> ListUtil.map_with_accumulator_opt(
-                   (delta, (arg, ty)) =>
-                     switch (
-                       ana_elab_operand(~livelit_holes, ctx, delta, arg, ty)
-                     ) {
-                     | ElaborationResult.DoesNotElaborate => None
-                     | Elaborates(darg, _, delta) =>
-                       Some((delta, (darg, ty)))
-                     },
-                   delta,
-                 );
-            switch (delta_expanded_args_opt) {
-            | None => LinesDoNotExpand
-            | Some((delta, dargs)) =>
-              let dargs =
-                dargs
-                |> List.combine(
-                     adjusted_param_tys |> List.map(((s, _)) => s),
+          switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+          | None =>
+            switch (err) {
+            | InAbbrevHole(Free, _) => ret(ctx, delta)
+            | _ => LinesDoNotExpand
+            }
+          | Some((old_def, applied_param_ds)) =>
+            let unapplied_param_tys =
+              ListUtil.drop(
+                List.length(applied_param_ds),
+                old_def.param_tys,
+              );
+            let (arg_tys, (extra_args, _)) =
+              ListUtil.zip_tails(args, unapplied_param_tys);
+            let param_names = fst(List.split(snd(List.split(arg_tys))));
+            switch (extra_args) {
+            | [_, ..._] =>
+              switch (err) {
+              | InAbbrevHole(ExtraneousArgs, _) => ret(ctx, delta)
+              | _ => LinesDoNotExpand
+              }
+            | [] =>
+              let elaborated_args =
+                arg_tys
+                |> ListUtil.map_with_accumulator_opt(
+                     (delta, (arg, (_, ty))) =>
+                       switch (
+                         ana_elab_operand(~livelit_holes, ctx, delta, arg, ty)
+                       ) {
+                       | DoesNotElaborate => None
+                       | Elaborates(darg, _, delta) =>
+                         Some((delta, (darg, ty)))
+                       },
+                     delta,
                    );
-              let livelit_ctx =
-                LivelitCtx.extend(
-                  livelit_ctx,
-                  (lln_new, (old_defn, old_closed_args @ dargs)),
-                );
-              let ctx = (gamma, livelit_ctx);
-              ret(ctx, delta);
+              switch (elaborated_args) {
+              | None => LinesDoNotExpand
+              | Some((delta, dargs)) =>
+                let dargs = List.combine(param_names, dargs);
+                let livelit_ctx =
+                  LivelitCtx.extend(
+                    livelit_ctx,
+                    (llp, (old_def, applied_param_ds @ dargs)),
+                  );
+                let ctx = (gamma, livelit_ctx);
+                ret(ctx, delta);
+              };
             };
           };
         };
@@ -926,31 +931,32 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       };
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
-      | [skel1, skel2, ...tail] =>
-        let%bind (dp1, ty1, delta) =
-          syn_elab_skel(~livelit_holes, ctx, delta, skel1, seq);
-        let%bind (dp2, ty2, delta) =
-          syn_elab_skel(~livelit_holes, ctx, delta, skel2, seq);
-        tail
-        |> ListUtil.map_with_accumulator_opt(
-             ((dp_acc, delta), skel) => {
-               syn_elab_skel(~livelit_holes, ctx, delta, skel, seq)
-               |> ElaborationResult.to_option
-               |> Option.map(((dp, ty, delta)) =>
-                    ((DHExp.Pair(dp_acc, dp), delta), ty)
-                  )
-             },
-             (DHExp.Pair(dp1, dp2), delta),
-           )
-        |> Option.map((((dp_acc, delta), tys)) =>
-             (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), delta)
-           )
-        |> ElaborationResult.from_option;
+      | [_, _, ..._] as skels =>
+        let recurse =
+          List.fold_right(
+            (skel, acc) =>
+              switch (acc) {
+              | None => None
+              | Some((ds, tys, delta)) =>
+                switch (syn_elab_skel(~livelit_holes, ctx, delta, skel, seq)) {
+                | DoesNotElaborate => None
+                | Elaborates(d, ty, delta) =>
+                  Some(([d, ...ds], [ty, ...tys], delta))
+                }
+              },
+            skels,
+            Some(([], [], delta)),
+          );
+        switch (recurse) {
+        | None => DoesNotElaborate
+        | Some((ds, tys, delta)) =>
+          let d = DHExp.mk_tuple(ds);
+          let ty = HTyp.Prod(tys);
+          Elaborates(d, ty, delta);
+        };
       | _ =>
         raise(
-          Invalid_argument(
-            "Encountered tuple pattern type with less than 2 elements!",
-          ),
+          Invalid_argument("Encountered tuple with less than 2 elements!"),
         )
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -1070,8 +1076,18 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | ApLivelit(
+        _,
+        InHole(
+          TypeInconsistent(None | Some(IllTypedExpansion)) as reason,
+          u,
+        ),
+        _,
+        _,
+        _,
+        _,
+      )
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1245,13 +1261,13 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       }
     | ApLivelit(
         _,
-        InHole(TypeInconsistent(Some(DoesNotExpand)), _),
+        InHole(TypeInconsistent(Some(DecodingError)), _),
         _,
         _,
         _,
         _,
       ) =>
-      //TODO(andrew): not sure this makes sense
+      //TODO(andrew): not sure what this should do
       Elaborates(Triv, Hole, delta)
     | ApLivelit(
         llu,
@@ -1298,7 +1314,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         lln,
         serialized_model,
         si,
-        {name, expansion_ty, captures_ty, param_tys, expand, _},
+        {name, expansion_ty, captures_ty, param_tys, _} as livelit_defn,
         closed_dargs,
         reqd_param_tys,
         args,
@@ -1309,7 +1325,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       |> ListUtil.take(closed_dargs |> List.length)
       |> List.combine(closed_dargs)
       |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
-    let proto_expansion = expand(serialized_model);
+    let proto_expansion = livelit_defn.expand(serialized_model);
     let proto_expansion_ty = HTyp.Arrow(captures_ty, expansion_ty);
     switch (proto_expansion) {
     | Failure(_err) => DoesNotElaborate
@@ -1387,7 +1403,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
                  );
             let captures_value =
               switch (captures_ty) {
-              | HTyp.Hole => DHExp.Triv
+              | HTyp.Prod([]) => DHExp.Triv
               | _ => DHExp.BoundVar(name)
               };
             let proto_elaboration =
@@ -1741,8 +1757,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         _,
         _,
       )
-    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
+    | Subscript(InHole(TypeInconsistent(_) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_elab_operand(~livelit_holes, ctx, delta, operand')) {
       | DoesNotElaborate => DoesNotElaborate
@@ -1874,11 +1889,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
     | Subscript(NotInHole, _, _, _)
     | ApLivelit(
         _,
-        NotInHole |
-        InHole(
-          TypeInconsistent(Some(InsufficientParams | DoesNotExpand)),
-          _,
-        ),
+        NotInHole | InHole(TypeInconsistent(None | Some(_)), _),
         _,
         _,
         _,

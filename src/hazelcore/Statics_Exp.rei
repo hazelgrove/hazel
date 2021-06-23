@@ -114,6 +114,10 @@ let ana_fix_holes_splice_map:
   ) =>
   (UHExp.splice_map, MetaVarGen.t);
 
+let fix_livelit_abbreviation:
+  (~renumber_empty_holes: bool, Contexts.t, MetaVarGen.t, LLPat.t, UHExp.t) =>
+  (AbbrevErrStatus.t, UHExp.t, Contexts.t, MetaVarGen.t);
+
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
 let syn_fix_holes_zlines:
@@ -122,6 +126,10 @@ let syn_fix_holes_zlines:
 let syn_fix_holes_zrules:
   (Contexts.t, MetaVarGen.t, ZExp.zrules, HTyp.t) =>
   (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t);
+
+let fix_livelit_abbreviation_z:
+  (~renumber_empty_holes: bool, Contexts.t, MetaVarGen.t, LLPat.t, ZExp.t) =>
+  (AbbrevErrStatus.t, ZExp.t, Contexts.t, MetaVarGen.t);
 
 let ana_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t, HTyp.t) => (ZExp.t, MetaVarGen.t);
@@ -164,3 +172,8 @@ let ll_shape_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
 let ll_expand_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
 
 let build_ll_view_ctx: UHExp.t => Statics.livelit_web_view_ctx;
+
+let declared_livelit_expansion_type: (Contexts.t, Var.t) => option(HTyp.t);
+let actual_livelit_expansion_type:
+  (Contexts.t, Var.t, SerializedModel.t, UHExp.splice_info) => option(HTyp.t);
+let eval: DHExp.t => DHExp.t;

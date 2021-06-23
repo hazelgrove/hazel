@@ -68,15 +68,14 @@ and syn_operand =
   | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVarHole(Free, _), _) =>
-    print_endline("0");
-    raise(UHPat.FreeVarInPat);
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
     )
+  // | LivelitName(_)
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
@@ -107,8 +106,8 @@ and ana_opseq =
     | (InHole(TypeInconsistent(_), _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-      let+ _ = syn_opseq(ctx, opseq');
-      ctx;
+      let+ (_, ctx') = syn_opseq(ctx, opseq');
+      ctx';
     | _ => None
     }
   | Some(skel_tys) =>
@@ -172,9 +171,7 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Free, _), _) =>
-    print_endline("1");
-    raise(UHPat.FreeVarInPat);
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
@@ -402,9 +399,7 @@ and syn_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, Hole, ctx, u_gen)
   | InvalidText(_) => (operand_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) =>
-    print_endline("2");
-    raise(UHPat.FreeVarInPat);
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
@@ -667,9 +662,7 @@ and ana_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, ctx, u_gen)
   | InvalidText(_) => (operand_nih, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) =>
-    print_endline("3");
-    raise(UHPat.FreeVarInPat);
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
@@ -748,7 +741,7 @@ let syn_fix_holes_z =
     CursorPath_Pat.follow(path, p)
     |> OptUtil.get(() =>
          failwith(
-           "syn_fix_holes did not preserve path "
+           "Statics_Pat.syn_fix_holes did not preserve path "
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );

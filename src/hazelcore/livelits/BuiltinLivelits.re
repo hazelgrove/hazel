@@ -175,8 +175,8 @@ module MatrixLivelitCore = {
 
 module GradeCutoffLivelitCore = {
   let name = "$grade_cutoffs";
-  let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
-  let param_tys = [("data", HTyp.(List(Int)))];
+  let expansion_ty = HTyp.(Prod([Float, Float, Float, Float]));
+  let param_tys = [("data", HTyp.(List(Prod([String, Float]))))];
 
   [@deriving sexp]
   type letter_grade =
@@ -187,23 +187,23 @@ module GradeCutoffLivelitCore = {
 
   [@deriving sexp]
   type model = {
-    a: int,
-    b: int,
-    c: int,
-    d: int,
+    a: float,
+    b: float,
+    c: float,
+    d: float,
     selecting: option(letter_grade),
   };
 
   [@deriving sexp]
   type action =
-    | UpdateCutoff(letter_grade, int)
+    | UpdateCutoff(letter_grade, float)
     | StartSelecting(letter_grade)
     | StopSelecting;
 
   let init_model =
-    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selecting: None});
+    SpliceGenCmd.return({a: 90., b: 80., c: 70., d: 60., selecting: None});
 
-  let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
+  let is_valid_percentage = (p: float) => 0. <= p && p <= 100.;
 
   let rec update_a = (new_a, model): model =>
     if (!is_valid_percentage(new_a)) {
@@ -211,7 +211,7 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, a: new_a};
       if (updated.a < updated.b) {
-        update_b(updated.a - 1, updated);
+        update_b(updated.a -. 1., updated);
       } else {
         updated;
       };
@@ -222,9 +222,9 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, b: new_b};
       if (updated.a <= updated.b) {
-        update_a(updated.b + 1, updated);
+        update_a(updated.b +. 1., updated);
       } else if (updated.b <= updated.c) {
-        update_c(updated.b - 1, updated);
+        update_c(updated.b -. 1., updated);
       } else {
         updated;
       };
@@ -235,9 +235,9 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, c: new_c};
       if (updated.b <= updated.c) {
-        update_b(updated.c + 1, updated);
+        update_b(updated.c +. 1., updated);
       } else if (updated.c <= updated.d) {
-        update_d(updated.c - 1, updated);
+        update_d(updated.c -. 1., updated);
       } else {
         updated;
       };
@@ -248,7 +248,7 @@ module GradeCutoffLivelitCore = {
     } else {
       let updated = {...model, d: new_d};
       if (updated.c <= updated.d) {
-        update_c(updated.c + 1, updated);
+        update_c(updated.c +. 1., updated);
       } else {
         updated;
       };
@@ -275,11 +275,11 @@ module GradeCutoffLivelitCore = {
     let tupl_seq =
       UHExp.(
         Seq.mk(
-          intlit'(a),
+          floatlit'(a),
           [
-            (Operators_Exp.Comma, intlit'(b)),
-            (Operators_Exp.Comma, intlit'(c)),
-            (Operators_Exp.Comma, intlit'(d)),
+            (Operators_Exp.Comma, floatlit'(b)),
+            (Operators_Exp.Comma, floatlit'(c)),
+            (Operators_Exp.Comma, floatlit'(d)),
           ],
         )
       );
@@ -595,78 +595,6 @@ module SliderLivelitMinSpliceCore = {
   [@deriving sexp]
   type action = int;
 
-  /*
-
-   To implement spliceslider we need:
-   return: a -> S(a)
-   bind: S(a) -> (a->S(b)) -> S(b)
-   newsplice: ("SexpofHTyp", "SexpofUHExp") -> S(spliceno)
-
-   To implement color picker we also need:
-   mapsplice: spliceno -> (("SexpofHTyp", "SexpofUHExp") -> ("SexpofHTyp", "SexpofUHExp")) -> S("SexpofUHExp")
-
-   To implement the rest of the prebuilts we also need:
-   SpliceGenCmd.drop_splice, MonadsUtil.bind_count, MonadsUtil.bind_list,
-
-   So:
-
-   Return(x) = inj[L](inj[L](x))
-   Bind(x, f) = inj[L](inj[R]((x, f)))
-   NewSplice(s) = inj[R](inj[L](s_ty, s_exp))
-   MapSplice(s) = inj[R](inj[R]((n, uf)))
-
-   Newsplice above assumes we derive type and thread it in ourselves
-   This also assumes we'll go back and thread u_gen thru on the backend
-   (for new_splice and map_splice)
-
-
-   spliceslider init (ADT):
-
-   Bind(,
-    NewSplice("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, "100"), E)))])"*)
-    fun (spliceno) { Return((spliceno, 50))} )
-
-   spliceslider init (anon):
-
-   inj[L](inj[R]((
-    inj[R](inj[L]("HTyp.Int", "UHExp.([ExpLine(OpSeq(Placeholder(0), S(IntLit(NotInHole, "100"), E)))])"*)),
-    fun (spliceno) { inj[L](inj[L]((spliceno, 50))) })))
-
-   *: uhexp would need to be sexped
-
-   interpret_update_monad (x) =
-   //TODO: error handling.....
-   ...
-   Return(x) =>
-   // x will be?? evaluated dhexp of model
-   // should we serialize this?
-   // strip casts; check if model type;
-   SpliceGenCmd.return(serialize(x))
-
-   Bind(x, f) =>
-   SpliceGenCmd.bind(
-     interpret_update_monad(x),
-     spliceno => {
-       // read popl19 on casts
-       // strip casts; check if model type;
-       let hx = convert_to_hazel_int(spliceno);
-       hazel_evaluate(DHExp.App(f, hx))
-     }
-   )
-
-   NewSplice(str_of_sexp_of_typ, str_of_sexp_of_exp) =>
-    let ty = deserialize(str_of_sexp_of_typ);
-    let uhexp = deserialize(str_of_sexp_of_exp);
-    // handle none case for option(Exp)
-    SpliceGenCmd.new_splice(
-      ~init_uhexp_gen =
-        u_gen => (uhexp, u_gen),
-      ty
-    )
-
-
-   */
-
   let init_model = {
     SpliceGenCmd.(
       bind(
@@ -735,8 +663,40 @@ module SliderLivelitCore = {
     | Some(n) => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.intlit'(n)));
 };
 
+module SliderLivelitFloatCore = {
+  let name = "$fslider";
+  let expansion_ty = HTyp.Float;
+  let param_tys = [("min", HTyp.Float), ("max", HTyp.Float)];
+
+  [@deriving sexp]
+  type endpoint =
+    | Min
+    | Max;
+
+  [@deriving sexp]
+  type model = option(float);
+
+  [@deriving sexp]
+  type action =
+    | InvalidParams
+    | Slide(float);
+
+  let init_model = SpliceGenCmd.return(Some(0.));
+
+  let update = (_, a) =>
+    switch (a) {
+    | InvalidParams => SpliceGenCmd.return(None)
+    | Slide(f) => SpliceGenCmd.return(Some(f))
+    };
+
+  let expand =
+    fun
+    | None => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.floatlit'(0.)))
+    | Some(f) => wrap_lambda_dummy(UHExp.Block.wrap(UHExp.floatlit'(f)));
+};
+
 module DataFrameLivelitCore = {
-  let name = "$data_frame";
+  let name = "$dataframe";
   let expansion_ty =
     HTyp.(Prod([List(String), List(Prod([String, List(Float)]))]));
   let param_tys = [];
@@ -935,7 +895,9 @@ module LivelitCoreAdapter = (L: LIVELIT_CORE) => {
     LivelitDefinition.{
       name: L.name,
       expansion_ty: L.expansion_ty,
-      captures_ty: HTyp.Hole, // NOTE(andrew): morally should be unit type
+      captures_ty: HTyp.Prod([]),
+      action_ty: HTyp.Hole,
+      model_ty: HTyp.Hole,
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>
@@ -986,6 +948,8 @@ module ColorLivelitCoreAdapter = LivelitCoreAdapter(ColorLivelitCore);
 module CheckboxLivelitCoreAdapter = LivelitCoreAdapter(CheckboxLivelitCore);
 module PairLivelitCoreAdapter = LivelitCoreAdapter(PairLivelitCore);
 module SliderLivelitCoreAdapter = LivelitCoreAdapter(SliderLivelitCore);
+module SliderLivelitFloatCoreAdapter =
+  LivelitCoreAdapter(SliderLivelitFloatCore);
 module SliderLivelitMinCoreAdapter = LivelitCoreAdapter(SliderLivelitMinCore);
 module SliderLivelitMinSpliceCoreAdapter =
   LivelitCoreAdapter(SliderLivelitMinSpliceCore);
@@ -1001,16 +965,17 @@ let ctx =
     LivelitCoreContexts.extend,
     LivelitCoreContexts.empty,
     [
-      GrayscaleLivelitCoreAdapter.contexts_entry,
-      DataFrameLivelitCoreAdapter.contexts_entry,
       GradeCutoffLivelitCoreAdapter.contexts_entry,
-      MatrixLivelitCoreAdapter.contexts_entry,
-      PairLivelitCoreAdapter.contexts_entry,
-      CheckboxLivelitCoreAdapter.contexts_entry,
-      SliderLivelitCoreAdapter.contexts_entry,
+      DataFrameLivelitCoreAdapter.contexts_entry,
+      GrayscaleLivelitCoreAdapter.contexts_entry,
       ColorLivelitCoreAdapter.contexts_entry,
-      SliderLivelitMinCoreAdapter.contexts_entry,
-      SliderLivelitMinSpliceCoreAdapter.contexts_entry,
+      SliderLivelitFloatCoreAdapter.contexts_entry,
+      SliderLivelitCoreAdapter.contexts_entry,
+      // MatrixLivelitCoreAdapter.contexts_entry,
+      // PairLivelitCoreAdapter.contexts_entry,
+      // CheckboxLivelitCoreAdapter.contexts_entry,
+      // SliderLivelitMinCoreAdapter.contexts_entry,
+      // SliderLivelitMinSpliceCoreAdapter.contexts_entry,
       //GradientLivelitCoreAdapter.contexts_entry,
     ],
   );

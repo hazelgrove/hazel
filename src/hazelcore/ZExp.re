@@ -311,6 +311,22 @@ let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
   valid_cursors_rule(rule) |> List.mem(cursor);
 
 module ZLine = {
+  let mk_livelit_abbreviation_zp =
+      (
+        ~err: AbbrevErrStatus.t=NotInAbbrevHole,
+        zp: ZPat.t,
+        old_name: LivelitName.t,
+        args: list(UHExp.operand),
+      )
+      : zline => {
+    let seq =
+      Seq.mk(
+        UHExp.var(old_name),
+        List.map(arg => (Operators_Exp.Space, arg), args),
+      );
+    LetLineZP(err, zp, [ExpLine(UHExp.mk_OpSeq(seq))]);
+  };
+
   let force_get_zopseq =
     fun
     | CursorL(_)
@@ -441,7 +457,7 @@ and is_after_zline =
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
   | CursorL(cursor, LivelitDefLine(_)) => cursor == OnDelim(2, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)

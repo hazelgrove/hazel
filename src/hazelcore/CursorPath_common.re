@@ -151,20 +151,19 @@ let holes_case_err =
 let holes_abbrev_err = (err: AbbrevErrStatus.t, rev_steps: rev_steps) =>
   switch (err) {
   | NotInAbbrevHole => (x => x)
-  | InAbbrevHole(Free, u) =>
+  | InAbbrevHole(reason, u) =>
+    let hole_shape =
+      switch (reason) {
+      | Free => VarErr
+      | ExtraneousArgs
+      | NotLivelitExp => TypeErr
+      };
     List.cons(
       CursorPath.{
-        sort: LivelitAbbrev(u, VarErr),
         steps: List.rev(rev_steps),
+        sort: LivelitAbbrev(u, hole_shape),
       },
-    )
-  | InAbbrevHole(ExtraneousArgs, u) =>
-    List.cons(
-      CursorPath.{
-        sort: LivelitAbbrev(u, TypeErr),
-        steps: List.rev(rev_steps),
-      },
-    )
+    );
   };
 
 let holes_skel_ =

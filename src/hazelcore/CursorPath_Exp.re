@@ -1264,8 +1264,8 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), Parenthesized(body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
-    | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
+    | 0 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>

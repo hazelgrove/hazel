@@ -157,6 +157,12 @@ let view =
   let got_invalid_livelit_expansion_indicator =
     got_indicator("Got invalid livelit expansion", typebar(HTyp.Hole));
 
+  let got_ill_typed_livelit_expansion_declared_indicator = ty =>
+    got_indicator("Expected livelit proto-expansion type", typebar(ty));
+
+  let got_ill_typed_livelit_expansion_actual_indicator = ty =>
+    got_indicator("Actual livelit proto-expansion type", typebar(ty));
+
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
@@ -205,13 +211,18 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_livelit_indicator;
       (ind1, ind2, BindingError);
-    | AnaLivelitDoesNotExpand(expected_ty) =>
+    | AnaLivelitDecodingError(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_livelit_expansion_indicator;
       (ind1, ind2, TypeInconsistency);
-    | SynLivelitDoesNotExpand =>
+    | SynLivelitDecodingError =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_livelit_expansion_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | LivelitIllTypedExpansion(declared_ty, actual_ty) =>
+      let ind1 =
+        got_ill_typed_livelit_expansion_declared_indicator(declared_ty);
+      let ind2 = got_ill_typed_livelit_expansion_actual_indicator(actual_ty);
       (ind1, ind2, TypeInconsistency);
     | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);

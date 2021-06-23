@@ -17,6 +17,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
+  // | LivelitName(LivelitName.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 

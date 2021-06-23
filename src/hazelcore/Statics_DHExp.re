@@ -3,8 +3,7 @@ open HTyp;
 
 let rec ana_pat =
         (ctx: Contexts.t, p: DHPat.t, ty: HTyp.t): option(Contexts.t) => {
-  let consistent_with = target_ty =>
-    HTyp.consistent(ty, target_ty) ? Some(ctx) : None;
+  let eq_to = target_ty => HTyp.eq(ty, target_ty) ? Some(ctx) : None;
   switch (p) {
   | Var(name) => Some(Contexts.extend_gamma(ctx, (name, ty)))
   | Keyword(_)
@@ -12,12 +11,12 @@ let rec ana_pat =
   | EmptyHole(_)
   | Wild => Some(ctx)
   | NonEmptyHole(_, _, _, p) => ana_pat(ctx, p, Hole)
-  | Triv => consistent_with(Prod([]))
-  | ListNil => consistent_with(List(Hole))
-  | IntLit(_) => consistent_with(Int)
-  | FloatLit(_) => consistent_with(Float)
-  | BoolLit(_) => consistent_with(Bool)
-  | StringLit(_) => consistent_with(String)
+  | Triv => eq_to(Prod([]))
+  | ListNil => eq_to(List(ty))
+  | IntLit(_) => eq_to(Int)
+  | FloatLit(_) => eq_to(Float)
+  | BoolLit(_) => eq_to(Bool)
+  | StringLit(_) => eq_to(String)
   | Pair(d0, d1) =>
     switch (ty) {
     | Prod([d0_ty, d1_ty]) =>
