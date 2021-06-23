@@ -111,7 +111,81 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
+  gap: 1em;
+  align-items: center;
+  border-bottom: solid #082903 3px;
 }
+
+.logo-text {
+  color: white;
+  text-decoration: none;
+}
+
+
+/* menu panel */
+
+.dropdown {
+  color:#239d60;
+  display: inline-block;
+  position: relative;
+}
+.dropdown:hover {
+  color:#40cb85;
+}
+
+.dropdown details {
+  display: flex;
+  align-items: center;
+}
+
+.dropdown ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dropdown ul li {
+  font-size: 0.8em;
+  padding: 0.6em;
+}
+
+.dropdown ul li:hover {
+  cursor: pointer;
+  color: white;
+}
+
+.dropdown summary {
+  list-style: none;
+  cursor: pointer;
+}
+.dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.dropdown .dropdown-content {
+  font-size: 1em;
+  font-weight: normal;
+  position: absolute;
+  top: 1.4em;
+  min-inline-size: max-content;
+  background-color: var(--title-bar-color);
+  border-radius: 0.23em;
+  box-shadow: 0 3px #082903;
+  z-index: 10001;
+}
+
+.dropdown details[open] summary::before {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  content: "";
+  cursor: default;
+  background-color: #0000;
+  z-index: 10000;
+}
+
 
 #card-controls {
   display: flex;
@@ -158,12 +232,6 @@ body {
   font-weight: bold;
   line-height: 0%;
   white-space: pre;
-}
-
-.logo-text {
-  color: white;
-  text-decoration: none;
-  margin-right: var(--page-padding);
 }
 
 /* arrangement of main area */
