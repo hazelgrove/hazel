@@ -258,20 +258,42 @@ and mk_line =
             mk_doc(expand, 9),
           )
         | LetLine(_, p, def) =>
-          let p =
+          let doc_p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let def =
-            mk_child(
-              ~memoize,
-              ~enforce_inline,
-              ~child_step=1,
-              (llview_ctx, def),
-            );
-          UHDoc_common.mk_LetLine(p, def);
+          let doc_def =
+            switch (LLPat.of_uhpat(p), LLExp.of_uhexp(def)) {
+            | (None, _)
+            | (_, None) =>
+              mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=1,
+                (llview_ctx, def),
+              )
+            | (Some(_), Some(lle)) =>
+              mk_llexp(~memoize, ~enforce_inline, (llview_ctx, lle))
+            };
+          UHDoc_common.mk_LetLine(doc_p, doc_def);
         }: UHDoc.t
       )
     )
   )
+and mk_llexp = (~memoize, ~enforce_inline, (llview_ctx, (hd, args))) => {
+  let doc_hd =
+    UHDoc_common.(
+      mk_text(hd)
+      |> annot_Tessera
+      |> annot_Operand(~sort=Exp)
+      |> annot_Step(0)
+    );
+  let doc_args =
+    args
+    |> List.mapi((i, arg) =>
+         Lazy.force(mk_operand, ~memoize, ~enforce_inline, (llview_ctx, arg))
+         |> UHDoc_common.annot_Step(i + 1)
+       );
+  EnforcedInline(Doc.hseps([doc_hd, ...doc_args]));
+}
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
