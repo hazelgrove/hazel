@@ -419,7 +419,10 @@ let view =
         };
         [llctx_section, ctx_section];
       };
-    Node.div([Attr.classes(["the-context"])], contents);
+    Node.div(
+      [Attr.classes(["the-context-scroll-container"])],
+      [Node.div([Attr.classes(["the-context"])], contents)],
+    );
   };
 
   /**
