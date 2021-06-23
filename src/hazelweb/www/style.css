@@ -113,7 +113,6 @@ body {
   justify-content: flex-start;
   gap: 1em;
   align-items: center;
-  border-bottom: solid #082903 3px;
 }
 
 .logo-text {
@@ -125,6 +124,7 @@ body {
 /* menu panel */
 
 .dropdown {
+  margin-left: auto;
   color:#239d60;
   display: inline-block;
   position: relative;
@@ -145,6 +145,9 @@ body {
 }
 
 .dropdown ul li {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
   font-size: 0.8em;
   padding: 0.6em;
 }
@@ -154,9 +157,17 @@ body {
   color: white;
 }
 
+.dropdown .shortcut {
+  font-size: 0.7em;
+  font-style: italic;
+  color:#7f8b85;
+}
+
 .dropdown summary {
+  text-shadow: 0 2px #020;
   list-style: none;
   cursor: pointer;
+  padding-left: 1.5em;
 }
 .dropdown summary::-webkit-details-marker {
   display: none;
@@ -166,12 +177,15 @@ body {
   font-size: 1em;
   font-weight: normal;
   position: absolute;
-  top: 1.4em;
+  right: -0.8em;
+  top: 1.7em;
   min-inline-size: max-content;
   background-color: var(--title-bar-color);
-  border-radius: 0.23em;
-  box-shadow: 0 3px #082903;
+  border-bottom-left-radius: 0.23em;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
   z-index: 10001;
+  filter: drop-shadow(0 0.2em 0.3em #2337);
 }
 
 .dropdown details[open] summary::before {
@@ -200,7 +214,7 @@ body {
   border-width: 0;
   height: 1.3rem;
   border-radius: 0.3em;
-  box-shadow: 0 3px #000;
+  box-shadow: 0 3px #020;
 }
 
 #card-controls select:hover, #card-controls button:hover {
