@@ -180,15 +180,7 @@ let main_key_action =
     (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
   switch (key_of(evt)) {
   | Move(k) => Some(MoveAction(Key(k)))
-  | Combo(Ctrl_Z) when !is_mac => Some(Undo)
-  | Combo(Meta_Z) when is_mac => Some(Undo)
-  | Combo(Ctrl_Shift_Z) when !is_mac => Some(Redo)
-  | Combo(Meta_Shift_Z) when is_mac => Some(Redo)
-  | Combo(Escape) => Some(update_ci(Set_visible(false)))
-  | Combo(Ctrl_Space) => Some(update_ci(Toggle_visible))
-  | Combo(Ctrl_A) =>
-    Some(Chain([update_ci(Set_visible(true)), UpdateAssistant(Turn_on)]))
-  | Combo(k) => Some(EditAction(KeyComboAction.get(cursor_info, k)))
+  | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
   | _ => None
