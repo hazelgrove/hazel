@@ -92,7 +92,7 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cards_panel = (~inject, model: Model.t) =>
+let cards_panel = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) =>
   Vdom.Node.div(
     [Vdom.Attr.id("card-controls")],
     [
@@ -102,6 +102,39 @@ let cards_panel = (~inject, model: Model.t) =>
       next_card_button(~inject, model),
     ],
   );
+
+let details = Vdom.Node.create("details");
+let summary = Vdom.Node.create("summary");
+
+let dropdown_options = (~inject) => [
+  Vdom.Node.li(
+    [
+      Vdom.Attr.id("serialize-to-console"),
+      Vdom.Attr.on_click(_ => inject(ModelAction.SerializeToConsole)),
+    ],
+    [Vdom.Node.text("Serialize to console")],
+  ),
+];
+
+let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model as _: Model.t) => {
+  details(
+    [],
+    [
+      summary([], [Vdom.Node.text("☰ Actions")]),
+      Vdom.Node.ul(
+        [Vdom.Attr.classes(["dropdown-content"])],
+        dropdown_options(~inject),
+      ),
+    ],
+  );
+};
+
+let menu_panel = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["dropdown"])],
+    [dropdown(~inject, ~model)],
+  );
+};
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let settings = model.settings;
@@ -174,7 +207,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [Node.text("Hazel")],
               ),
-              cards_panel(~inject, model),
+              menu_panel(~inject, ~model),
+              cards_panel(~inject, ~model),
             ],
           ),
           Node.div(
