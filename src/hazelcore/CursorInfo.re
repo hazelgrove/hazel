@@ -87,7 +87,10 @@ type typed =
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
-  | ExpAbbrevHead(HTyp.t)
+  | LivelitExpHead({
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // none of the above
   | Synthesized(HTyp.t, string)
   /* cursor in analytic pattern position */

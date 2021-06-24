@@ -421,21 +421,16 @@ and syn_cursor_info_line =
           syn_cursor_info_zoperand(~steps=steps @ [0, n], ctx, zoperand)
           |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
         | Some((old_def, applied_param_tys)) =>
-          let unapplied_param_tys =
+          let unapplied_params =
             ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
           if (n == 0) {
             let (_, cursor_position) = CursorPath_Exp.of_zoperand(zoperand);
             let operand = ZExp.erase_zoperand(zoperand);
-            let ty =
-              List.fold_right(
-                ((_, param_ty), ty) => HTyp.Arrow(param_ty, ty),
-                unapplied_param_tys,
-                old_def.expansion_ty,
-              );
+            let expansion_ty = old_def.expansion_ty;
             Some(
               CursorNotOnDeferredVarPat(
                 CursorInfo_common.mk(
-                  ExpAbbrevHead(ty),
+                  LivelitExpHead({unapplied_params, expansion_ty}),
                   ctx,
                   Exp(cursor_position, operand),
                 ),
@@ -443,7 +438,7 @@ and syn_cursor_info_line =
             );
           } else {
             let ci =
-              switch (List.nth_opt(unapplied_param_tys, n)) {
+              switch (List.nth_opt(unapplied_params, n)) {
               | Some((_, ty)) =>
                 ana_cursor_info_zoperand(
                   ~steps=steps @ [0, n],

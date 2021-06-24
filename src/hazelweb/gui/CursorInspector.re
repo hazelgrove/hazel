@@ -9,8 +9,9 @@ type err_state_b =
 
 let view =
     (~inject: ModelAction.t => Event.t, ci: option(CursorInfo.t)): Node.t => {
-  let typebar = ty =>
-    Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
+  let typebar_container = typebar =>
+    Node.div([Attr.classes(["infobar", "typebar"])], [typebar]);
+  let typebar = ty => typebar_container(HTypCode.view(ty));
   let matched_ty_bar = (ty1, ty2) =>
     Node.div(
       [Attr.classes(["infobar", "matched-type-bar"])],
@@ -95,6 +96,12 @@ let view =
       ),
     );
 
+  let editing_livelit_expression_indicator =
+    expected_indicator(
+      "Editing a livelit expression",
+      special_msg_bar(Unicode.nbsp),
+    );
+
   let got_indicator = (title_text, type_div) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
@@ -154,8 +161,36 @@ let view =
       typebar(got_ty),
     );
 
-  let got_livelit_exp = ty =>
-    got_indicator("Got livelit of type", typebar(ty));
+  let got_livelit_exp = (unapplied_params, expansion_ty) => {
+    let param_tys =
+      unapplied_params
+      |> List.map(((_, ty)) =>
+           Node.[
+             HTypCode.view(ty),
+             text(Unicode.nbsp),
+             span(
+               [Attr.classes(["Delim"])],
+               [text(Unicode.typeArrowSym)],
+             ),
+             text(Unicode.nbsp),
+           ]
+         )
+      |> List.flatten;
+    let expansion_ty = HTypCode.view(expansion_ty);
+    got_indicator(
+      "of type",
+      typebar_container(
+        Node.div(
+          [Attr.classes(["code", "HTypCode", "livelit-expression-type"])],
+          param_tys
+          @ Node.[
+              span([Attr.classes(["Delim"])], [text("@")]),
+              expansion_ty,
+            ],
+        ),
+      ),
+    );
+  };
 
   let got_pat_abbrev_indicator =
     got_indicator("Got", special_msg_bar("a livelit abbreviation"));
@@ -250,7 +285,10 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | ExpAbbrevHead(ty) => (expected_any_indicator, got_livelit_exp(ty), OK)
+    | LivelitExpHead({unapplied_params, expansion_ty}) =>
+      let ind1 = editing_livelit_expression_indicator;
+      let ind2 = got_livelit_exp(unapplied_params, expansion_ty);
+      (ind1, ind2, OK);
     | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
       if (msg == "") {
