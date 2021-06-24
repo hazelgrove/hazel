@@ -292,7 +292,11 @@ and mk_llexp = (~memoize, ~enforce_inline, (llview_ctx, (hd, args))) => {
          Lazy.force(mk_operand, ~memoize, ~enforce_inline, (llview_ctx, arg))
          |> UHDoc_common.annot_Step(i + 1)
        );
-  EnforcedInline(Doc.hseps([doc_hd, ...doc_args]));
+  EnforcedInline(
+    UHDoc_common.(
+      Doc.hseps([doc_hd, ...doc_args]) |> annot_Step(0) |> annot_Step(1)
+    ),
+  );
 }
 and mk_opseq =
   lazy(
