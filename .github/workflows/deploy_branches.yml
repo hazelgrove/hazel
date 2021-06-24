@@ -17,7 +17,6 @@ jobs:
       #- run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
       - run: which opam
-      - run: cd /.opam
       - run: ls
       # install
       - run: export OPAMYES=1
