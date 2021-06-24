@@ -120,6 +120,14 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
 let get_cardstack = model => model |> get_cardstacks |> ZCardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
 
+let get_cards_info = (model: t): list(CardInfo.t) =>
+  switch (
+    model.cardstacks |> ZList.prefix_length |> List.nth_opt(cardstack_info)
+  ) {
+  | None => []
+  | Some(cardinfo) => cardinfo.cards
+  };
+
 let map_selected_instances =
     (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
   ...model,
