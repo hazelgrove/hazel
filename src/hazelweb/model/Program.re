@@ -151,27 +151,12 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | _ => None
          }
        );
-  let livelit_abbreviations =
-    holes
-    |> List.filter_map((CursorPath.{steps, sort}) =>
-         switch (sort) {
-         | LivelitAbbrev(_) => Some(steps)
-         | _ => None
-         }
-       );
   let var_uses =
     switch (get_cursor_info(program)) {
     | Some({uses: Some(uses), _}) => uses
     | _ => []
     };
-  {
-    current_term,
-    err_holes,
-    var_uses,
-    var_err_holes,
-    livelits,
-    livelit_abbreviations,
-  };
+  {current_term, err_holes, var_uses, var_err_holes, livelits};
 };
 
 module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp.M);

@@ -8,7 +8,6 @@ type t = {
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
   livelits: list(CursorPath.steps),
-  livelit_abbreviations: list(CursorPath.steps),
 };
 
 let is_empty: t => bool;
