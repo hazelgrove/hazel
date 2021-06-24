@@ -87,6 +87,7 @@ type typed =
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
+  | ExpAbbrevHead(HTyp.t)
   // none of the above
   | Synthesized(HTyp.t, string)
   /* cursor in analytic pattern position */
@@ -114,6 +115,7 @@ type typed =
   // cursor is on a keyword
   | PatSynthesized(HTyp.t, string)
   | PatSynKeyword(ExpandingKeyword.t)
+  | PatAbbrev
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/

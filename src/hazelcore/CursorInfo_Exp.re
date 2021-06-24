@@ -348,35 +348,124 @@ and syn_cursor_info_line =
     }
   // TODO review desired behavior w.r.t. abbrev err status
   | LetLineZP(_, zp, def) =>
-    let ty_def =
-      switch (Statics_Exp.syn(ctx, def)) {
-      | Some(ty) => ty
-      | None => HTyp.Hole
+    switch (LLPat.of_uhpat(ZPat.erase(zp))) {
+    | None =>
+      let ty_def =
+        switch (Statics_Exp.syn(ctx, def)) {
+        | Some(ty) => ty
+        | None => HTyp.Hole
+        };
+      switch (
+        CursorInfo_Pat.ana_cursor_info_zopseq(
+          ~steps=steps @ [0],
+          ctx,
+          zp,
+          ty_def,
+        )
+      ) {
+      | None => None
+      | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
+      | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+        switch (Statics_Exp.recursive_let_id(ZPat.erase(zp), def)) {
+        | None => deferrable
+        | Some(_) =>
+          let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
+          Some(
+            CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
+          );
+        }
       };
-    switch (
-      CursorInfo_Pat.ana_cursor_info_zopseq(
-        ~steps=steps @ [0],
-        ctx,
-        zp,
-        ty_def,
-      )
-    ) {
-    | None => None
-    | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
-    | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-      switch (Statics_Exp.recursive_let_id(ZPat.erase(zp), def)) {
-      | None => deferrable
-      | Some(_) =>
-        let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
-        Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
-      }
-    };
+    | Some(llp) =>
+      let (_, cursor_position) = CursorPath_Pat.of_z(zp);
+      Some(
+        CursorOnDeferredVarPat(
+          uses =>
+            CursorInfo_common.mk(
+              ~uses,
+              PatAbbrev,
+              ctx,
+              Pat(cursor_position, UHPat.var(llp)),
+            ),
+          llp,
+        ),
+      );
+    }
   | LetLineZE(_, p, zdef) =>
-    let def = ZExp.erase(zdef);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
-    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    switch (LLPat.of_uhpat(p)) {
+    | None =>
+      let def = ZExp.erase(zdef);
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+      ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
+      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    | Some(_) =>
+      switch (LLExp.of_uhexp(ZExp.erase(zdef))) {
+      | None =>
+        syn_cursor_info(~steps=steps @ [1], ctx, zdef)
+        |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+      | Some((hd, _)) =>
+        let (zoperand, n) =
+          switch (zdef) {
+          | (_, ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (prefix, _)))), _) => (
+              zoperand,
+              Seq.length_of_affix(prefix),
+            )
+          | _ =>
+            failwith(
+              "expected livelit exp to consist of single line spaced opseq",
+            )
+          };
+        let (_, livelit_ctx) = ctx;
+        switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+        | None =>
+          syn_cursor_info_zoperand(~steps=steps @ [0, n], ctx, zoperand)
+          |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+        | Some((old_def, applied_param_tys)) =>
+          let unapplied_param_tys =
+            ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
+          if (n == 0) {
+            let (_, cursor_position) = CursorPath_Exp.of_zoperand(zoperand);
+            let operand = ZExp.erase_zoperand(zoperand);
+            let ty =
+              List.fold_right(
+                ((_, param_ty), ty) => HTyp.Arrow(param_ty, ty),
+                unapplied_param_tys,
+                old_def.model_ty,
+              );
+            Some(
+              CursorNotOnDeferredVarPat(
+                CursorInfo_common.mk(
+                  ExpAbbrevHead(ty),
+                  ctx,
+                  Exp(cursor_position, operand),
+                ),
+              ),
+            );
+          } else {
+            let ci =
+              switch (List.nth_opt(unapplied_param_tys, n)) {
+              | Some((_, ty)) =>
+                ana_cursor_info_zoperand(
+                  ~steps=steps @ [0, n],
+                  ctx,
+                  zoperand,
+                  ty,
+                )
+              | None =>
+                syn_cursor_info_zoperand(
+                  ~steps=steps @ [0, n],
+                  ctx,
+                  zoperand,
+                )
+              };
+            ci
+            |> Option.map(ci =>
+                 CursorInfo_common.CursorNotOnDeferredVarPat(ci)
+               );
+          };
+        };
+      }
+    }
   | LivelitDefLineZExpansionType({expansion_type, _}) =>
     CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, expansion_type)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))

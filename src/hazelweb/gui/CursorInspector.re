@@ -154,6 +154,12 @@ let view =
       typebar(got_ty),
     );
 
+  let got_livelit_exp = ty =>
+    got_indicator("Got livelit of type", typebar(ty));
+
+  let got_pat_abbrev_indicator =
+    got_indicator("Got", special_msg_bar("a livelit abbreviation"));
+
   let got_invalid_livelit_expansion_indicator =
     got_indicator("Got invalid livelit expansion", typebar(HTyp.Hole));
 
@@ -244,6 +250,7 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | ExpAbbrevHead(ty) => (expected_any_indicator, got_livelit_exp(ty), OK)
     | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
       if (msg == "") {
@@ -425,6 +432,10 @@ let view =
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | PatAbbrev =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_pat_abbrev_indicator;
+      (ind1, ind2, OK);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
