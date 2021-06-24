@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # before_install
-      - run: sudo add-apt-repository --yes ppa:avsm/ppa
+      #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       - run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
       # install
