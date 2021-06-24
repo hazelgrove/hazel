@@ -430,7 +430,7 @@ and syn_cursor_info_line =
               List.fold_right(
                 ((_, param_ty), ty) => HTyp.Arrow(param_ty, ty),
                 unapplied_param_tys,
-                old_def.model_ty,
+                old_def.expansion_ty,
               );
             Some(
               CursorNotOnDeferredVarPat(
