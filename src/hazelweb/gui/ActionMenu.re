@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 
 type menu_entry = {
-  id: string,
   label: string,
   shortcut: option(string),
   action: ModelAction.t,
@@ -10,23 +9,21 @@ type menu_entry = {
 
 let menu_entries: list(menu_entry) = [
   {
-    id: "serialize-to-console",
     label: "Serialize to console",
     shortcut: Some("Ctrl-S"),
-    action: ModelAction.SerializeToConsole,
+    action: SerializeToConsole,
   },
+  {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
+  {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
 ];
 
-let dropdown_option = (~inject, {id, label, shortcut, action}: menu_entry) => {
+let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
   let shortcut_view =
     switch (shortcut) {
     | None => []
     | Some(s) => [div([Attr.classes(["shortcut"])], [text(s)])]
     };
-  li(
-    [Attr.id(id), Attr.on_click(_ => inject(action))],
-    [text(label)] @ shortcut_view,
-  );
+  li([Attr.on_click(_ => inject(action))], [text(label)] @ shortcut_view);
 };
 
 let dropdown_options = (~inject) =>
