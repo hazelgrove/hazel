@@ -11,19 +11,18 @@ jobs:
       # before_install
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
-      - run: ls -a
-      #- run: sudo apt --assume-yes install m4 opam
+      - run: sudo apt --assume-yes install m4 opam
       # install
-      #- run: export OPAMYES=1
-      #- run: opam init --compiler=ocaml-base-compiler.4.08.1
-      #- run: eval $(opam env)
-      #- run: echo $(ls)
-      #- run: make deps   
+      - run: export OPAMYES=1
+      - run: opam init --compiler=ocaml-base-compiler.4.08.1
+      - run: eval $(opam env)
+      - run: echo $(ls)
+      - run: make deps   
       # script
-      #- run: make release
+      - run: make release
       # deploy
-      #- name: deploy
-      #  if: ${{ github.ref == 'refs/heads/github-actions-test' }}
-      #  run: bash .travis-deploy.sh
+      - name: deploy
+        if: ${{ github.ref == 'refs/heads/github-actions-test' }}
+        run: bash .travis-deploy.sh
 
 
