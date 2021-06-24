@@ -2,22 +2,19 @@ module ElaborationResult = {
   type t =
     | Elaborates(DHPat.t, HTyp.t, Contexts.t, Delta.t)
     | DoesNotElaborate;
-
-  let to_option =
-    fun
-    | DoesNotElaborate => None
-    | Elaborates(pat, ty, ctx, delta) => Some((pat, ty, ctx, delta));
-
-  let from_option =
-    fun
-    | None => DoesNotElaborate
-    | Some((pat, ty, ctx, delta)) => Elaborates(pat, ty, ctx, delta);
-
-  let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
-    switch (x) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
-    };
+  // let to_option =
+  //   fun
+  //   | DoesNotElaborate => None
+  //   | Elaborates(pat, ty, ctx, delta) => Some((pat, ty, ctx, delta));
+  // let from_option =
+  //   fun
+  //   | None => DoesNotElaborate
+  //   | Some((pat, ty, ctx, delta)) => Elaborates(pat, ty, ctx, delta);
+  // let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
+  //   switch (x) {
+  //   | DoesNotElaborate => DoesNotElaborate
+  //   | Elaborates(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
+  //   };
 };
 
 module Let_syntax = ElaborationResult;
@@ -100,7 +97,8 @@ and syn_elab_skel =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, ty2, ctx, delta) =>
         let dp = DHPat.Tuple([(Some(l), dp2)]);
-        Elaborates(dp, Prod([Some(l), ty2]), ctx, delta);
+        let ty = HTyp.Prod([(Some(l), ty2)]);
+        Elaborates(dp, ty, ctx, delta);
       }
     | Elaborates(dp1, _, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
@@ -161,20 +159,19 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Label(_, l) =>
-    if (Label.is_valid(l)) {
-      let d = DHPat.ErrLabel(l);
-      let ty = HTyp.Hole;
-      Elaborates(d, ty, ctx, delta);
-    } else {
+  | Label(err, l) =>
+    switch (err) {
+    | NotInLabelHole =>
+      let dp = DHPat.ErrLabel(l);
+      let ty = HTyp.Label(l);
+      Elaborates(dp, ty, ctx, delta);
+    | InLabelHole(_, u) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
-      let d = DHPat.ErrLabel(l);
+      let dp = DHPat.ErrLabel(l);
       let ty = HTyp.Hole;
-      let delta =
-        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(d, ty, delta);
-    } // ECD TODO: May need to change
+      let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
+      Elaborates(dp, ty, ctx, delta);
+    }
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
@@ -221,8 +218,6 @@ and ana_elab_opseq =
     )
     : ElaborationResult.t => {
   // handle n-tuples
-  // ECD: You are here, working through elaborator_pat
-  // Need to apply same changes as in Elaborator_exp
   switch (Statics_Pat.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
     skel_tys
@@ -251,12 +246,12 @@ and ana_elab_opseq =
             | [] => failwith("expected at least one element")
             | [dp1] => dp1
             | _ =>
-              DHExp.Tuple(
+              DHPat.Tuple(
                 List.map(
-                  dpn => {
+                  (dpn: DHPat.t) => {
                     switch (dpn) {
-                    | Tuple([(label, dpn')]) => (label, dpn')
-                    | _ => (None, dn)
+                    | DHPat.Tuple([(label, dpn')]) => (label, dpn')
+                    | _ => (None, dpn)
                     }
                   },
                   rev_dps |> List.rev,
@@ -273,7 +268,10 @@ and ana_elab_opseq =
       |> UHPat.get_tuple_elements
       |> List.fold_left(
            (
-             acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+             acc:
+               option(
+                 (list((option(Label.t), DHPat.t)), Contexts.t, Delta.t),
+               ),
              skel: UHPat.skel,
            ) =>
              switch (acc) {
@@ -281,8 +279,11 @@ and ana_elab_opseq =
              | Some((rev_dps, ctx, delta)) =>
                switch (syn_elab_skel(ctx, delta, skel, seq)) {
                | DoesNotElaborate => None
+               // ECD TODO: check if this needs to check for casts as well
+               | Elaborates(Tuple([tuple_elt]), _, ctx, delta) =>
+                 Some(([tuple_elt, ...rev_dps], ctx, delta))
                | Elaborates(dp, _, ctx, delta) =>
-                 Some(([dp, ...rev_dps], ctx, delta))
+                 Some(([(None, dp), ...rev_dps], ctx, delta))
                }
              },
            Some(([], ctx, delta)),
@@ -291,7 +292,12 @@ and ana_elab_opseq =
         fun
         | None => ElaborationResult.DoesNotElaborate
         | Some((rev_dps, ctx, delta)) => {
-            let dp = DHPat.mk_tuple(List.rev(rev_dps));
+            let dp =
+              switch (rev_dps) {
+              | [] => failwith("Expected at least 1 element")
+              | [(None, dp)] => dp
+              | _ => DHPat.Tuple(List.rev(rev_dps))
+              };
             Elaborates(dp, ty, ctx, delta);
           }
       );
@@ -348,7 +354,7 @@ and ana_elab_skel =
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, ty', delta) =>
+    | Elaborates(dp, ty', ctx, delta) =>
       if (HTyp.consistent(ty, ty')) {
         Elaborates(dp, ty, ctx, delta);
       } else {
@@ -422,7 +428,7 @@ and ana_elab_operand =
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
-  | ErrLabel(_, _)
+  | Label(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
@@ -483,7 +489,7 @@ let rec renumber_result_only =
   | Tuple(tuple_elts) =>
     let (hii, tuple_elts) =
       ListUtil.map_with_accumulator(
-        (hii, (label, dn)) => {
+        (hii, (label, dpn)) => {
           let (dpn, hii) = renumber_result_only(path, hii, dpn);
           (hii, (label, dpn));
         },
@@ -498,5 +504,5 @@ let rec renumber_result_only =
   | Ap(dp1, dp2) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
-    (Label([(None, dp1), (None, dp2)]), hii);
+    (Tuple([(None, dp1), (None, dp2)]), hii);
   };

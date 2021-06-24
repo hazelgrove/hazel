@@ -565,22 +565,19 @@ module ElaborationResult = {
   type t =
     | Elaborates(DHExp.t, HTyp.t, Delta.t)
     | DoesNotElaborate;
-
-  let to_option =
-    fun
-    | DoesNotElaborate => None
-    | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
-
-  let from_option =
-    fun
-    | None => DoesNotElaborate
-    | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
-
-  let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
-    switch (x) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, ty, delta) => f((dp, ty, delta))
-    };
+  // let to_option =
+  //   fun
+  //   | DoesNotElaborate => None
+  //   | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
+  // let from_option =
+  //   fun
+  //   | None => DoesNotElaborate
+  //   | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
+  // let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
+  //   switch (x) {
+  //   | DoesNotElaborate => DoesNotElaborate
+  //   | Elaborates(dp, ty, delta) => f((dp, ty, delta))
+  //   };
 };
 
 module Let_syntax = ElaborationResult;
@@ -740,7 +737,7 @@ and syn_elab_skel =
           Elaborates(d, Prod([(Some(l), ty2')]), delta);
         }
       // all other labels in a hole should be in a hole
-      | Label(InLabelHole(_, u_gen), l) =>
+      | Label(InLabelHole(_, u_gen), _) =>
         switch (syn_elab_skel(ctx, delta, skel2, seq)) {
         | ElaborationResult.DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, _, delta) =>
@@ -777,32 +774,33 @@ and syn_elab_skel =
               when List.length(tuple_elts) < 2 =>
             Elaborates(
               Tuple(tuple_elts @ d_list),
-              Tuple(tuple_tys @ ty_list),
+              Prod(tuple_tys @ ty_list),
               delta,
             )
           | Elaborates(Tuple(tuple_elts), ty, delta)
               when List.length(tuple_elts) < 2 =>
             Elaborates(
               Tuple(tuple_elts @ d_list),
-              Tuple([(None, ty), ...ty_list]),
+              Prod([(None, ty), ...ty_list]),
               delta,
             )
           | Elaborates(d, Prod(tuple_tys), delta)
               when List.length(tuple_tys) < 2 =>
             Elaborates(
               Tuple([(None, d), ...d_list]),
-              Tuple(tuple_tys @ ty_list),
+              Prod(tuple_tys @ ty_list),
               delta,
             )
           | Elaborates(d, ty, delta) =>
             Elaborates(
               Tuple([(None, d), ...d_list]),
-              Tuple([(None, ty), ...ty_list]),
+              Prod([(None, ty), ...ty_list]),
               delta,
             )
           | DoesNotElaborate => DoesNotElaborate
           }
         | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(_, _, _) => DoesNotElaborate
         }
       },
       Elaborates(Tuple([]), Prod([]), delta),
@@ -946,10 +944,9 @@ and syn_elab_operand =
   | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d, ty, delta) =>
+    | Elaborates(d', _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
-      let d = DHExp.ErrPrj(d, label);
+      let d = DHExp.ErrPrj(d', label);
       let ty = HTyp.Hole;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
@@ -975,11 +972,10 @@ and syn_elab_operand =
     switch (err) {
     | NotInLabelHole =>
       let d = DHExp.ErrLabel(l);
-      let ty = HTyp.Hole;
+      let ty = HTyp.Label(l);
       Elaborates(d, ty, delta);
     | InLabelHole(_, u) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
       let d = DHExp.ErrLabel(l);
       let ty = HTyp.Hole;
       let delta =
@@ -1084,19 +1080,13 @@ and syn_elab_operand =
      | None -> DoesNotElaborate
      end */ /* TODO fix me */
 
-  | Prj(NotInHole, body, l) =>
+  | Prj(StandardErrStatus(NotInHole), body, l) =>
     switch (syn_elab_operand(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
       switch (DHExp.get_prj_idx(d, l), HTyp.get_prj_type(e_ty, l)) {
       | (None, _)
-      | (_, None) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let ty = HTyp.Hole;
-        let delta =
-          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-        Elaborates(DHExp.ErrPrj(d, l), ty, delta);
+      | (_, None) => DoesNotElaborate
       | (Some(idx), Some(ty')) =>
         Elaborates(DHExp.Prj(d, l, idx), ty', delta)
       }
@@ -1212,9 +1202,9 @@ and ana_elab_opseq =
             | _ =>
               DHExp.Tuple(
                 List.map(
-                  dn => {
+                  (dn: DHExp.t) => {
                     switch (dn) {
-                    | Tuple([(label, dn')]) => (label, dn')
+                    | DHExp.Tuple([(label, dn')]) => (label, dn')
                     | _ => (None, dn)
                     }
                   },
@@ -1231,9 +1221,9 @@ and ana_elab_opseq =
             | _ =>
               HTyp.Prod(
                 List.map(
-                  tyn => {
+                  (tyn: HTyp.t) => {
                     switch (tyn) {
-                    | Prod([(label, tyn')]) => (label, tyn')
+                    | HTyp.Prod([(label, tyn')]) => (label, tyn')
                     | _ => (None, tyn)
                     }
                   },
@@ -1250,7 +1240,14 @@ and ana_elab_opseq =
       |> UHExp.get_tuple_elements
       |> List.fold_left(
            (
-             acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
+             acc:
+               option(
+                 (
+                   list((option(Label.t), DHExp.t)),
+                   list((option(Label.t), HTyp.t)),
+                   Delta.t,
+                 ),
+               ),
              skel: UHExp.skel,
            ) =>
              switch (acc) {
@@ -1258,8 +1255,16 @@ and ana_elab_opseq =
              | Some((rev_ds, rev_tys, delta)) =>
                switch (syn_elab_skel(ctx, delta, skel, seq)) {
                | DoesNotElaborate => None
+               // Flatten any singleton prods as labeled elements
+               // ECD TODO: Do I need a specific case for casts?
+               | Elaborates(Tuple([d_elt]), Prod([ty_elt]), delta) =>
+                 Some(([d_elt, ...rev_ds], [ty_elt, ...rev_tys], delta))
                | Elaborates(d, ty, delta) =>
-                 Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
+                 Some((
+                   [(None, d), ...rev_ds],
+                   [(None, ty), ...rev_tys],
+                   delta,
+                 ))
                }
              },
            Some(([], [], delta)),
@@ -1268,11 +1273,16 @@ and ana_elab_opseq =
         fun
         | None => ElaborationResult.DoesNotElaborate
         | Some((rev_ds, rev_tys, delta)) => {
-            let d = DHExp.mk_tuple(List.rev(rev_ds));
+            let d =
+              switch (rev_ds) {
+              | [] => failwith("expected at least 1 element")
+              | [(None, d)] => d
+              | _ => DHExp.Tuple(List.rev(rev_ds))
+              };
             let ty =
               switch (rev_tys) {
               | [] => failwith("expected at least 1 element")
-              | [ty] => ty
+              | [(None, ty)] => ty
               | _ => HTyp.Prod(rev_tys |> List.rev)
               };
             Elaborates(d, ty, delta);
@@ -1397,7 +1407,7 @@ and ana_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Prj(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1426,7 +1436,8 @@ and ana_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
+  | Prj(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1519,15 +1530,25 @@ and ana_elab_operand =
     let d = DHExp.InvalidText(u, 0, sigma, t);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | Prj(InPrjHole(DoesNotAppear, u), body, label) =>
+    let gamma = Contexts.gamma(ctx);
+    switch (syn_elab_operand(ctx, delta, body)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d, _, delta) =>
+      let d' = DHExp.ErrPrj(d, label);
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+      Elaborates(d', ty, delta);
+    };
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | ApPalette(NotInHole, _, _, _)
-  | Prj(NotInHole, _, _) =>
+  | Prj(StandardErrStatus(NotInHole), _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
-
+  // ECD TODO: may need to change this label case to a subsumption case
   | Label(_, l) =>
     let d = DHExp.ErrLabel(l);
     Elaborates(d, Hole, delta);
