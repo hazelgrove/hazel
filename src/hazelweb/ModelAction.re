@@ -31,7 +31,6 @@ type t =
   | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
-  | InvalidVar(string)
   | FocusCell
   | BlurCell
   | Redo
