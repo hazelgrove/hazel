@@ -98,8 +98,8 @@ let view =
 
   let editing_livelit_expression_indicator =
     expected_indicator(
-      "Editing a livelit expression",
-      special_msg_bar(Unicode.nbsp),
+      "Expecting a livelit expression of",
+      special_msg_bar("any type"),
     );
 
   let got_indicator = (title_text, type_div) =>
@@ -178,7 +178,7 @@ let view =
       |> List.flatten;
     let expansion_ty = HTypCode.view(expansion_ty);
     got_indicator(
-      "of type",
+      "Got type",
       typebar_container(
         Node.div(
           [Attr.classes(["code", "HTypCode", "livelit-expression-type"])],
@@ -191,6 +191,8 @@ let view =
       ),
     );
   };
+  let got_free_livelit_exp =
+    got_indicator("Got a free livelit", typebar(Hole));
 
   let got_pat_abbrev_indicator =
     got_indicator("Got", special_msg_bar("a livelit abbreviation"));
@@ -284,6 +286,10 @@ let view =
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | LivelitExpHeadFree =>
+      let ind1 = editing_livelit_expression_indicator;
+      let ind2 = got_free_livelit_exp;
       (ind1, ind2, BindingError);
     | LivelitExpHead({unapplied_params, expansion_ty}) =>
       let ind1 = editing_livelit_expression_indicator;

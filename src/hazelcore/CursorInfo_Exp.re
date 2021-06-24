@@ -415,17 +415,31 @@ and syn_cursor_info_line =
               "expected livelit exp to consist of single line spaced opseq",
             )
           };
+        let (_, cursor_position) = CursorPath_Exp.of_zoperand(zoperand);
+        let operand = ZExp.erase_zoperand(zoperand);
         let (_, livelit_ctx) = ctx;
         switch (LivelitCtx.lookup(livelit_ctx, hd)) {
         | None =>
-          syn_cursor_info_zoperand(~steps=steps @ [0, n], ctx, zoperand)
-          |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+          if (n == 0) {
+            Some(
+              CursorNotOnDeferredVarPat(
+                CursorInfo_common.mk(
+                  LivelitExpHeadFree,
+                  ctx,
+                  Exp(cursor_position, operand),
+                ),
+              ),
+            );
+          } else {
+            syn_cursor_info_zoperand(~steps=steps @ [0, n], ctx, zoperand)
+            |> Option.map(ci =>
+                 CursorInfo_common.CursorNotOnDeferredVarPat(ci)
+               );
+          }
         | Some((old_def, applied_param_tys)) =>
           let unapplied_params =
             ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
           if (n == 0) {
-            let (_, cursor_position) = CursorPath_Exp.of_zoperand(zoperand);
-            let operand = ZExp.erase_zoperand(zoperand);
             let expansion_ty = old_def.expansion_ty;
             Some(
               CursorNotOnDeferredVarPat(
