@@ -2,7 +2,7 @@ name: Deploy examples-cardstack
 on:
   push:
     branches:
-    - examples-cardstack   #set to all
+    - github-actions-test   #set to all
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
