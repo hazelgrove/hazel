@@ -155,13 +155,7 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let got_insufficient_livelit_args_indicator = got_ty =>
-    got_indicator(
-      "This livelit requires additional arguments",
-      typebar(got_ty),
-    );
-
-  let got_livelit_exp = (unapplied_params, expansion_ty) => {
+  let got_livelit_exp = (s, unapplied_params, expansion_ty) => {
     let param_tys =
       unapplied_params
       |> List.map(((_, ty)) =>
@@ -178,7 +172,7 @@ let view =
       |> List.flatten;
     let expansion_ty = HTypCode.view(expansion_ty);
     got_indicator(
-      "Got type",
+      s,
       typebar_container(
         Node.div(
           [Attr.classes(["code", "HTypCode", "livelit-expression-type"])],
@@ -191,6 +185,10 @@ let view =
       ),
     );
   };
+
+  let got_insufficient_livelit_args_indicator =
+    got_livelit_exp("Got a livelit with insufficient arguments");
+
   let got_free_livelit_exp =
     got_indicator("Got a free livelit", typebar(Hole));
 
@@ -267,9 +265,13 @@ let view =
         got_ill_typed_livelit_expansion_declared_indicator(declared_ty);
       let ind2 = got_ill_typed_livelit_expansion_actual_indicator(actual_ty);
       (ind1, ind2, TypeInconsistency);
-    | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+    | AnaInsufficientLivelitArgs({expected, unapplied_params, expansion_ty}) =>
+      let ind1 = expected_ty_indicator(expected);
+      let ind2 =
+        got_insufficient_livelit_args_indicator(
+          unapplied_params,
+          expansion_ty,
+        );
       (ind1, ind2, InsufficientLivelitArgs);
     | AnaSubsumed(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -293,7 +295,7 @@ let view =
       (ind1, ind2, BindingError);
     | LivelitExpHead({unapplied_params, expansion_ty}) =>
       let ind1 = editing_livelit_expression_indicator;
-      let ind2 = got_livelit_exp(unapplied_params, expansion_ty);
+      let ind2 = got_livelit_exp("Got type", unapplied_params, expansion_ty);
       (ind1, ind2, OK);
     | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
@@ -329,10 +331,13 @@ let view =
         let ind2 = got_invalid_escape(msg);
         (ind1, ind2, InvalidEscape);
       };
-    | SynErrorInsufficientLivelitArgs(got_ty) =>
-      let ind1 =
-        expected_msg_indicator("livelit name followed by sufficient args");
-      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+    | SynErrorInsufficientLivelitArgs({unapplied_params, expansion_ty}) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_insufficient_livelit_args_indicator(
+          unapplied_params,
+          expansion_ty,
+        );
       (ind1, ind2, InsufficientLivelitArgs);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");

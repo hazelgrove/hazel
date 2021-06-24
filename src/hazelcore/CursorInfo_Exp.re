@@ -831,6 +831,27 @@ and syn_cursor_info_zoperand =
       ),
     ) =>
     Some(CursorInfo_common.mk(SynLivelitDecodingError, ctx, cursor_term))
+  | CursorE(
+      _,
+      ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
+        lln,
+        _,
+        _,
+      ),
+    ) =>
+    let (_, livelit_ctx) = ctx;
+    let+ (old_def, applied_params) = LivelitCtx.lookup(livelit_ctx, lln);
+    let unapplied_params =
+      ListUtil.drop(List.length(applied_params), old_def.param_tys);
+    let expansion_ty = old_def.expansion_ty;
+    CursorInfo_common.mk(
+      SynErrorInsufficientLivelitArgs({unapplied_params, expansion_ty}),
+      ctx,
+      cursor_term,
+    );
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -1247,21 +1268,24 @@ and ana_cursor_info_zoperand =
         _,
         InHole(TypeInconsistent(Some(InsufficientParams)), _),
         _,
-        _,
+        lln,
         _,
         _,
       ) =>
-      switch (Statics_Exp.syn_operand(ctx, e)) {
-      | None => None
-      | Some(ty') =>
-        Some(
-          CursorInfo_common.mk(
-            AnaInsufficientLivelitArgs(ty, ty'),
-            ctx,
-            cursor_term,
-          ),
-        )
-      }
+      let (_, livelit_ctx) = ctx;
+      let+ (old_def, applied_params) = LivelitCtx.lookup(livelit_ctx, lln);
+      let unapplied_params =
+        ListUtil.drop(List.length(applied_params), old_def.param_tys);
+      let expansion_ty = old_def.expansion_ty;
+      CursorInfo_common.mk(
+        AnaInsufficientLivelitArgs({
+          expected: ty,
+          unapplied_params,
+          expansion_ty,
+        }),
+        ctx,
+        cursor_term,
+      );
 
     | ApLivelit(
         _,

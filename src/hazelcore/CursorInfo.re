@@ -35,7 +35,11 @@ type typed =
   | AnaLivelitDecodingError(HTyp.t)
   | SynLivelitDecodingError
   | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
-  | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
+  | AnaInsufficientLivelitArgs({
+      expected: HTyp.t,
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -71,7 +75,10 @@ type typed =
   // none of the above, cursor is on a free variable
   | SynFree
   | SynFreeLivelit
-  | SynErrorInsufficientLivelitArgs(HTyp.t)
+  | SynErrorInsufficientLivelitArgs({
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // cursor is on the clause of a case
