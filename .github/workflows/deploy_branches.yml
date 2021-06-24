@@ -9,7 +9,7 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: '~/.opam'
+          path: '/home/runner/.opam'
           
           key: ${{ runner.os }}-modules-${{ hashFiles('opam.export') }}
       # before_install
