@@ -739,7 +739,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
         let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
         switch (LLExp.of_uhexp(def)) {
         | None => ret(ctx, delta)
-        | Some((hd, args)) =>
+        | Some({hd, args, meta: _}) =>
           let (gamma, livelit_ctx) = ctx;
           switch (LivelitCtx.lookup(livelit_ctx, hd)) {
           | None =>

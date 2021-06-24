@@ -476,7 +476,7 @@ module rec M: Statics_Exp_Sig.S = {
       };
     switch (LLExp.of_uhexp(def)) {
     | None => skip_with_reason(NotLivelitExp)
-    | Some((hd, args)) =>
+    | Some({hd, args, meta: _}) =>
       let (gamma, livelit_ctx) = ctx;
       switch (LivelitCtx.lookup(livelit_ctx, hd)) {
       | None => skip_with_reason(Free)
@@ -1295,7 +1295,7 @@ module rec M: Statics_Exp_Sig.S = {
       let (e, _, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
       (err, e, ctx, u_gen);
-    | Some((hd, args)) =>
+    | Some({hd, args, meta}) =>
       let (gamma, livelit_ctx) = ctx;
       switch (LivelitCtx.lookup(livelit_ctx, hd)) {
       | None =>
@@ -1342,7 +1342,8 @@ module rec M: Statics_Exp_Sig.S = {
                u_gen,
              );
 
-        let e = LLExp.to_uhexp((hd, fixed_args @ fixed_extra_args));
+        let e =
+          LLExp.to_uhexp({meta, hd, args: fixed_args @ fixed_extra_args});
         switch (extra_args) {
         | [_, ..._] =>
           let (u, u_gen) = MetaVarGen.next_hole(u_gen);

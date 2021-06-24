@@ -278,7 +278,8 @@ and mk_line =
       )
     )
   )
-and mk_llexp = (~memoize, ~enforce_inline, (llview_ctx, (hd, args))) => {
+and mk_llexp =
+    (~memoize, ~enforce_inline, (llview_ctx, {hd, args, meta: _})) => {
   let doc_hd =
     UHDoc_common.(
       mk_text(hd)

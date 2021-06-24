@@ -403,7 +403,7 @@ and syn_cursor_info_line =
       | None =>
         syn_cursor_info(~steps=steps @ [1], ctx, zdef)
         |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-      | Some((hd, _)) =>
+      | Some({hd, _}) =>
         let (zoperand, n) =
           switch (zdef) {
           | (_, ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (prefix, _)))), _) => (

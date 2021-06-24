@@ -1,6 +1,20 @@
 open OptUtil.Syntax;
 
-type t = (LivelitName.t, list(UHExp.operand));
+type meta =
+  | Free(MetaVar.t)
+  | Ap({
+      u: MetaVar.t,
+      err: ErrStatus.t,
+      orig_lln: LivelitName.t,
+      model: SerializedModel.t,
+      splice_info: UHExp.splice_info,
+    });
+
+type t = {
+  meta,
+  hd: LivelitName.t,
+  args: list(UHExp.operand),
+};
 
 let rec get_spaced_args = (affix: Seq.affix(_, UHExp.operator)) =>
   switch (affix) {
@@ -14,19 +28,23 @@ let rec get_spaced_args = (affix: Seq.affix(_, UHExp.operator)) =>
 let of_uhexp = (e: UHExp.t): option(t) => {
   let* (_, OpSeq(_, S(hd, tl))) = UHExp.Block.split_conclusion(e);
   let* args = get_spaced_args(tl);
-  let+ hd =
+  let+ (hd, meta) =
     switch (hd) {
-    | Var(_, _, lln) => Some(lln)
+    | ApLivelit(u, err, lln, orig_lln, model, splice_info) =>
+      Some((lln, Ap({u, err, orig_lln, model, splice_info})))
+    | FreeLivelit(u, lln) => Some((lln, Free(u)))
     | _ => None
     };
-  (hd, args);
+  {meta, hd, args};
 };
 
-let to_uhexp = ((lln, args): t): UHExp.t => {
-  let seq =
-    Seq.mk(
-      UHExp.var(lln),
-      List.map(arg => (Operators_Exp.Space, arg), args),
-    );
+let to_uhexp = ({meta, hd, args}: t): UHExp.t => {
+  let hd =
+    switch (meta) {
+    | Free(u) => UHExp.FreeLivelit(u, hd)
+    | Ap({u, err, orig_lln, model, splice_info}) =>
+      ApLivelit(u, err, hd, orig_lln, model, splice_info)
+    };
+  let seq = Seq.mk(hd, List.map(arg => (Operators_Exp.Space, arg), args));
   [ExpLine(UHExp.mk_OpSeq(seq))];
 };
