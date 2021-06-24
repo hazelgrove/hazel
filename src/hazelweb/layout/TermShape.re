@@ -13,4 +13,5 @@ type t =
     })
   | BinOp({op_index: int})
   | NTuple({comma_indices: list(int)})
+  | Line
   | SubBlock({hd_index: int});

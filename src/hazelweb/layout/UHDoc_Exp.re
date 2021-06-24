@@ -174,6 +174,7 @@ and mk_block =
                ~enforce_inline,
                (llview_ctx, line),
              )
+             |> Doc.annot(UHAnnot.Term({shape: Line, sort: Exp}))
              |> UHDoc_common.annot_Step(offset + i),
            )
          )
