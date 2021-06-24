@@ -22,6 +22,8 @@ jobs:
       - run: eval $(opam env)
       - run: export PATH="~/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
+      - run: cd .opam
+      - run: ls
       # script
       # - run: make release
       # deploy
