@@ -8,6 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: cache opam
+        id: opam-cache
+        uses: actions/cache@v2
+        with:
+          path: '$HOME/.opam'
+          key: ${{ runner.os }}-modules-${{ hashFiles('$HOME/opam.export') }}
       # before_install
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
@@ -16,7 +22,7 @@ jobs:
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
       - run: eval $(opam env)
-      - run: echo $(ls)
+      - run: export PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
       # script
       - run: make release
