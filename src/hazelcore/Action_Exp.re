@@ -1361,27 +1361,26 @@ and syn_perform_line =
         };
       }
     | Some(lln_new) =>
-      switch (Statics_Exp.syn(ctx, ZExp.erase(zdef))) {
-      | None => Failed
-      | Some(ty_def) =>
-        // sort of a hack to re-use syn_perform instead of
-        // writing a proper perform fn for livelit exps
-        switch (syn_perform(ctx, a, (zdef, ty_def, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) => escape(u_gen, side)
-        | Succeeded((new_zdef, _, u_gen)) =>
-          let (err, new_zdef, ctx, u_gen) =
-            Statics_Exp.fix_livelit_abbreviation_z(
-              ~renumber_empty_holes=false,
-              ctx,
-              u_gen,
-              lln_new,
-              new_zdef,
-            );
-          let new_zline = ZExp.LetLineZE(err, p, new_zdef);
-          Succeeded(LineDone((([], new_zline, []), ctx, u_gen)));
-        }
-      }
+      // hack: reusing syn_perform instead of writing
+      // a proper perform fn for livelit exps. need to
+      // syn_fix beforehand to ensure it typechecks as
+      // a regular expression (as opposed to as llexp)
+      let (zdef, ty, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, zdef);
+      switch (syn_perform(ctx, a, (zdef, ty, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((new_zdef, _, u_gen)) =>
+        let (err, new_zdef, ctx, u_gen) =
+          Statics_Exp.fix_livelit_abbreviation_z(
+            ~renumber_empty_holes=false,
+            ctx,
+            u_gen,
+            lln_new,
+            new_zdef,
+          );
+        let new_zline = ZExp.LetLineZE(err, p, new_zdef);
+        Succeeded(LineDone((([], new_zline, []), ctx, u_gen)));
+      };
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
