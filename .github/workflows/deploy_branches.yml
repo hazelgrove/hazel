@@ -1,5 +1,8 @@
 name: Deploy examples-cardstack
-on: [push]
+on:
+  push:
+    branches:
+    - examples-cardstack   #set to all
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
@@ -7,14 +10,14 @@ jobs:
       # before_install
       - name: before_install
         run: sudo add-apt-repository --yes ppa:avsm/ppa
-        run: sudo apt update
-        run: sudo apt --assume-yes install m4 opam
+      - run: sudo apt update
+      - run: sudo apt --assume-yes install m4 opam
       # install
       - name: install
         run: export OPAMYES=1
-        run: opam init --compiler=ocaml-base-compiler.4.08.1
-        run: eval $(opam env)
-        run: make deps   
+      - run: opam init --compiler=ocaml-base-compiler.4.08.1
+      - run: eval $(opam env)
+      - run: make deps   
       # script
       - name: script
         run: make release
