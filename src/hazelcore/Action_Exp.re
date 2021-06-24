@@ -2153,7 +2153,13 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
-  | (Construct(SChar(s)), CursorE(OnText(j), FreeLivelit(_, lln))) =>
+  | (
+      Construct(SChar(s)),
+      CursorE(
+        OnText(j),
+        FreeLivelit(_, lln) | ApLivelit(_, _, _, lln, _, _),
+      ),
+    ) =>
     syn_insert_text(ctx, u_gen, (j, s), lln)
   | (Construct(SChar(s)), CursorE(OnText(j), StringLit(_, s2))) =>
     let text_cursor = CursorPosition.OnText(j + String.length(s));
@@ -3843,7 +3849,13 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
-  | (Construct(SChar(s)), CursorE(OnText(j), FreeLivelit(_, lln))) =>
+  | (
+      Construct(SChar(s)),
+      CursorE(
+        OnText(j),
+        FreeLivelit(_, lln) | ApLivelit(_, _, _, lln, _, _),
+      ),
+    ) =>
     ana_insert_text(ctx, u_gen, (j, s), lln, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), StringLit(_, s2))) =>
     let text_cursor = CursorPosition.OnText(j + String.length(s));
