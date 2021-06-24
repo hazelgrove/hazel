@@ -12,8 +12,9 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: '$HOME/.opam'
-          key: ${{ runner.os }}-modules-${{ hashFiles('$HOME/opam.export') }}
+          path: '.opam'
+          
+          key: ${{ runner.os }}-modules-${{ hashFiles('opam.export') }}
       # before_install
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
