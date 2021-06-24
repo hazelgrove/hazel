@@ -12,18 +12,18 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: '.opam'
+          path: '~/.opam'
           
           key: ${{ runner.os }}-modules-${{ hashFiles('opam.export') }}
       # before_install
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
-      #- run:sudo apt update
+      #- run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
       # install
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
       - run: eval $(opam env)
-      - run: export PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
+      - run: export PATH="~/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
       # script
       - run: make release
