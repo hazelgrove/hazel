@@ -458,7 +458,7 @@ and syn_cursor_info_line =
             );
           } else {
             let ci =
-              switch (List.nth_opt(unapplied_params, n)) {
+              switch (List.nth_opt(unapplied_params, n - 1)) {
               | Some((_, ty)) =>
                 ana_cursor_info_zoperand(
                   ~steps=steps @ [0, n],
