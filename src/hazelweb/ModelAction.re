@@ -36,7 +36,6 @@ type t =
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
