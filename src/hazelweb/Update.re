@@ -58,7 +58,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | Undo
   | Redo
   | ShiftHistory(_)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
@@ -151,7 +150,6 @@ let apply_action =
                shift_history_info.call_by_mouseenter,
              );
         Model.load_undo_history(model, new_history, ~is_after_move=false);
-      | ShiftWhenScroll => model
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
