@@ -1342,10 +1342,14 @@ module rec M: Statics_Exp_Sig.S = {
                u_gen,
              );
 
-        let meta: LLExp.meta =
+        let (meta: LLExp.meta, u_gen) =
           switch (meta) {
-          | Free(u) => Free(u)
-          | Ap(r) => Ap({...r, err: NotInHole})
+          | Free(u) => (Free(u), u_gen)
+          | Ap(r) =>
+            let (u, u_gen) =
+              renumber_empty_holes
+                ? MetaVarGen.next_livelit(u_gen) : (r.u, u_gen);
+            (Ap({...r, u, err: NotInHole}), u_gen);
           };
         let e =
           LLExp.to_uhexp({meta, hd, args: fixed_args @ fixed_extra_args});
