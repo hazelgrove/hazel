@@ -335,12 +335,18 @@ and syn_cursor_info_line =
     (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
-  | CursorL(_) =>
+  | CursorL(_, line) =>
+    let err =
+      switch (line) {
+      | LetLine(err, p, _) when Option.is_some(LLPat.of_uhpat(p)) =>
+        Some(err)
+      | _ => None
+      };
     Some(
       CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnLine, ctx, extract_from_zline(zline)),
+        CursorInfo_common.mk(OnLine(err), ctx, extract_from_zline(zline)),
       ),
-    )
+    );
   | ExpLineZ(ze) =>
     switch (syn_cursor_info_zopseq(~steps, ctx, ze)) {
     | None => None

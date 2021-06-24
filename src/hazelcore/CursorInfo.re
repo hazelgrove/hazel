@@ -130,7 +130,7 @@ type typed =
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
-  | OnLine
+  | OnLine(option(AbbrevErrStatus.t))
   | OnRule;
 
 [@deriving sexp]

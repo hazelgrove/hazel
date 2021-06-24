@@ -102,6 +102,12 @@ let view =
       special_msg_bar("any type"),
     );
 
+  let expected_abbrev_indicator =
+    expected_indicator(
+      "Expecting",
+      special_msg_bar("a livelit abbreviation"),
+    );
+
   let got_indicator = (title_text, type_div) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
@@ -185,6 +191,25 @@ let view =
       ),
     );
   };
+
+  let got_valid_abbrev_indicator =
+    got_indicator("Got", special_msg_bar("a livelit abbreviation"));
+
+  let got_invalid_abbrev_indicator = (reason: AbbrevErrStatus.HoleReason.t) =>
+    switch (reason) {
+    | Free =>
+      got_indicator("Got", special_msg_bar("a free base livelit name"))
+    | ExtraneousArgs =>
+      got_indicator(
+        "Got",
+        special_msg_bar("a base livelit applied to too many parameters"),
+      )
+    | NotLivelitExp =>
+      got_indicator(
+        "Got",
+        special_msg_bar("a RHS that is not a livelit expression"),
+      )
+    };
 
   let got_insufficient_livelit_args_indicator =
     got_livelit_exp("Got a livelit with insufficient arguments");
@@ -485,11 +510,19 @@ let view =
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_pat_abbrev_indicator;
       (ind1, ind2, OK);
-    | OnLine =>
+    | OnLine(None) =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
       (ind1, ind2, OK);
+    | OnLine(Some(NotInAbbrevHole)) =>
+      let ind1 = expected_abbrev_indicator;
+      let ind2 = got_valid_abbrev_indicator;
+      (ind1, ind2, OK);
+    | OnLine(Some(InAbbrevHole(reason, _))) =>
+      let ind1 = expected_abbrev_indicator;
+      let ind2 = got_invalid_abbrev_indicator(reason);
+      (ind1, ind2, BindingError);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;

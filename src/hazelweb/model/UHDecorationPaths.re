@@ -89,7 +89,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
          | _ => false
          }
        )
-    |> Option.map(_ => UHDecorationShape.ErrHole)
+    |> Option.map(_ => UHDecorationShape.VarErrHole)
     |> Option.to_list;
   let livelits = {
     let found =
