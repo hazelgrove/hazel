@@ -363,25 +363,29 @@ let view =
           let ctx_entries =
             ctx |> VarCtx.to_list |> List.map(context_entry(sigma));
           let details =
-            ctx_entries == []
-              ? [
-                Node.div(
-                  [Attr.classes(["context-is-empty-msg"])],
-                  [Node.text("no variables in scope")],
-                ),
-              ]
-              : ctx_entries;
+            typing_ctx_open
+              ? ctx_entries == []
+                  ? [
+                    Node.div(
+                      [
+                        Attr.classes(["details"]),
+                        Attr.classes(["context-is-empty-msg"]),
+                      ],
+                      [Node.text("no variables in scope")],
+                    ),
+                  ]
+                  : ctx_entries
+              : [];
           Node.div(
             [Attr.id("typing-ctx")],
             [
-              Node.create(
-                "details",
+              Node.div(
+                [Attr.on("mousedown", _ => inject(ToggleTypingCtx))],
                 [
-                  Attr.bool_property("open", typing_ctx_open),
-                  Attr.on("mousedown", _ => inject(ToggleTypingCtx)),
-                ],
-                [
-                  Node.create("summary", [], [Node.text("typing context")]),
+                  Node.div(
+                    [Attr.classes(["summary"])],
+                    [Node.text("typing context")],
+                  ),
                   ...details,
                 ],
               ),
@@ -392,25 +396,29 @@ let view =
           let llctx_entries =
             llctx |> VarMap.to_list |> List.map(llcontext_entry);
           let details =
-            llctx_entries == []
-              ? [
-                Node.div(
-                  [Attr.classes(["context-is-empty-msg"])],
-                  [Node.text("no livelit definitions in scope")],
-                ),
-              ]
-              : llctx_entries;
+            livelit_ctx_open
+              ? llctx_entries == []
+                  ? [
+                    Node.div(
+                      [
+                        Attr.classes(["details"]),
+                        Attr.classes(["context-is-empty-msg"]),
+                      ],
+                      [Node.text("no livelit definitions in scope")],
+                    ),
+                  ]
+                  : llctx_entries
+              : [];
           Node.div(
             [Attr.id("livelit-ctx")],
             [
-              Node.create(
-                "details",
+              Node.div(
+                [Attr.on("mousedown", _ => inject(ToggleLivelitCtx))],
                 [
-                  Attr.bool_property("open", livelit_ctx_open),
-                  Attr.on("mousedown", _ => inject(ToggleLivelitCtx)),
-                ],
-                [
-                  Node.create("summary", [], [Node.text("livelit context")]),
+                  Node.div(
+                    [Attr.classes(["summary"])],
+                    [Node.text("livelit context")],
+                  ),
                   ...details,
                 ],
               ),
