@@ -7,7 +7,6 @@ let eq = (x: t, y: t) => x == y;
 let valid_regex = Re.Str.regexp("^\\$[_a-zA-Z][_a-zA-Z0-9']*$");
 let valid_regex_free = Re.Str.regexp("^\\$[_a-zA-Z0-9']*$");
 let is_valid = s => {
-  print_endline("LivelitName.is_valid: s = " ++ s);
   // TODO(d) create proper regexp for empty livelit name
   s == "$" || Re.Str.string_match(valid_regex, s, 0);
 };
