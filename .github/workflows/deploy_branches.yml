@@ -8,19 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # before_install
-      - name: before_install
-        run: sudo add-apt-repository --yes ppa:avsm/ppa
+      - run: sudo add-apt-repository --yes ppa:avsm/ppa
       - run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
       # install
-      - name: install
-        run: export OPAMYES=1
+      - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
       - run: eval $(opam env)
+      - run: ls
       - run: make deps   
       # script
-      - name: script
-        run: make release
+      - run: make release
       # deploy
       - name: deploy
         if: ${{ github.ref == 'refs/heads/github-actions-test' }}
