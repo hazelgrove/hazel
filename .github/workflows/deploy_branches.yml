@@ -23,7 +23,7 @@ jobs:
         run: make release
       # deploy
       - name: deploy
-        if: ($TRAVIS_PULL_REQUEST == false) && ($TRAVIS_BRANCH =~ ^(examples-cardstack)$)
+        if: ${{ github.ref == 'refs/heads/github-actions-test' }}
         run: bash .travis-deploy.sh
 
 
