@@ -1458,7 +1458,15 @@ and syn_perform_operand =
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_, _operand)) =>
-    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_before;
+    // TODO(andrew): remove
+    // Advance to next INTERNAL hole
+    /*
+     let ze =
+       switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
+       | ActionOutcome.Succeeded((ze, _, _)) => ze
+       | _ => ze
+       };*/
     switch (Statics_Exp.syn(ctx, ZExp.erase(ze))) {
     | None => Failed
     | Some(ty) => Succeeded(SynDone((ze, ty, u_gen)))
@@ -2893,7 +2901,14 @@ and ana_perform_operand =
     Failed
 
   | (ReplaceAtCursor(new_operand), CursorE(_)) =>
-    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
+    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_before;
+    // TODO(andrew): remove
+    /*
+     let ze =
+       switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
+       | ActionOutcome.Succeeded((ze, _, _)) => ze
+       | _ => ze
+       };*/
     Succeeded(AnaDone((ze, u_gen)));
   //TODO(andrew): remove
   /*

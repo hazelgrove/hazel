@@ -80,7 +80,7 @@ let get_actions =
     );
     P.p("  term: %s\n", CursorInfo.sexp_of_cursor_term(term));
     switch (syntactic_context) {
-    | NoSeq => print_endline("the goggles")
+    | NoSeq => print_endline("the goggles do noseq")
     | ExpSeq(_ty, seq, _err) =>
       let path = seq |> ZExp.mk_ZOpSeq |> CursorPath_Exp.of_zopseq;
       print_endline("path:");

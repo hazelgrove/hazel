@@ -36,21 +36,16 @@ type update =
   | Turn_on
   | Turn_off
   | Set_type_editor(UHTyp.t)
-  | Reset_selection_index
+  | Reset
   | Increment_selection_index
   | Decrement_selection_index;
 
 let apply_update = (u: update, model: t) =>
   switch (u) {
+  | Turn_off => init
+  | Turn_on => {...init, active: true}
   | Toggle => {...model, active: !model.active}
-  | Turn_on => {...model, active: true, selection_index: 0}
-  | Turn_off => {
-      ...model,
-      active: false,
-      selection_index: 0,
-      filter_editor: init.filter_editor,
-    }
-  | Reset_selection_index => {...model, selection_index: 0}
+  | Reset => {...init, active: model.active}
   | Increment_selection_index => {
       ...model,
       selection_index: model.selection_index + 1,
@@ -72,9 +67,14 @@ let get_ty = (editor: Program.typ): HTyp.t =>
   |> UHTyp.expand;
 
 let select_action =
-    ({selection_index, _}: t, ci: Assistant_common.cursor_info_pro)
+    (
+      {selection_index, filter_editor, _}: t,
+      ci: Assistant_common.cursor_info_pro,
+    )
     : option(Action.t) => {
-  let actions = Assistant.get_actions(ci);
+  let filter_ty = get_ty(filter_editor);
+  let actions = Assistant.get_actions_of_ty(ci, filter_ty);
+  //let actions = Assistant.get_actions(ci);
   let selection_index = normalize_index(selection_index, actions);
   let+ selection = List.nth_opt(actions, selection_index);
   selection.action;
@@ -87,6 +87,7 @@ let get_display_actions =
     )
     : list(Assistant_Exp.assistant_action) => {
   let filter_ty = get_ty(filter_editor);
+  //let actions = Assistant.get_actions(ci);
   let actions = Assistant.get_actions_of_ty(ci, filter_ty);
   let selection_index = normalize_index(selection_index, actions);
   actions

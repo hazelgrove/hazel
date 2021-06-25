@@ -210,9 +210,7 @@ let key_handlers =
       | _ =>
         switch (main_key_action(~is_mac, ~cursor_info, evt)) {
         | Some(action) =>
-          inject_stop_prevent(
-            Chain([UpdateAssistant(Reset_selection_index), action]),
-          )
+          inject_stop_prevent(Chain([UpdateAssistant(Reset), action]))
         | _ => Event.Ignore
         }
       };
