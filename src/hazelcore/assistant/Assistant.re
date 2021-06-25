@@ -39,7 +39,7 @@ let get_actions =
       {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: cursor_info_pro,
     )
     : list(assistant_action) => {
-  if (false) {
+  if (true) {
     print_endline("ASSISTANT DEBUG:");
     P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
     switch (actual_ty) {
@@ -52,6 +52,13 @@ let get_actions =
       CursorInfo.sexp_of_syntactic_context(syntactic_context),
     );
     P.p("  term: %s\n", CursorInfo.sexp_of_cursor_term(term));
+    switch (syntactic_context) {
+    | NoSeq => print_endline("the goggles")
+    | ExpSeq(_ty, seq, _err) =>
+      let path = seq |> ZExp.mk_ZOpSeq |> CursorPath_Exp.of_zopseq;
+      print_endline("path:");
+      print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
+    };
   };
   virtual_actions(ci)
   @ get_operand_actions(ci)
