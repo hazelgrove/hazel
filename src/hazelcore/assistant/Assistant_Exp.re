@@ -63,14 +63,17 @@ let exp_operator_of_ty =
       ? Operators_Exp.[FLessThan, FGreaterThan, FEquals] : [],
   ]);
 
-let wrap = UHExp.Block.wrap;
+/* SYNTAX CONSTRUCTION:
+ *   Make syntax without proper hole numbering, then
+ *   renumber holes at assistant boundary */
+
 let hole_operand = UHExp.new_EmptyHole(0) |> fst;
-let hole_exp = wrap(hole_operand);
+let hole_exp = UHExp.Block.wrap(hole_operand);
 let hole_pat = UHPat.new_EmptyHole(0) |> fst |> OpSeq.wrap;
+let lambda_operand = UHExp.lam(hole_pat, hole_exp);
 let rule = UHExp.Rule(hole_pat, hole_exp);
 let mk_case = scrut => UHExp.case(scrut, [rule]);
 let case_operand = mk_case(hole_exp);
-let lambda_operand = UHExp.lam(hole_pat, hole_exp);
 let mk_inj = side => UHExp.inj(side, hole_exp);
 let ap_seq = (operand: UHExp.operand, seq: exp_seq): exp_seq =>
   Seq.S(operand, A(Space, seq));
@@ -82,13 +85,11 @@ let mk_bin_seq = (operand1, operator, operand2) =>
 let rec mk_ap_iter_seq =
         (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, exp_seq)) => {
   switch (f_ty) {
-  | Arrow(_, out_ty) =>
-    if (HTyp.consistent(out_ty, hole_ty)) {
-      Some((out_ty, S(EmptyHole(0), E)));
-    } else {
-      let* (res_ty, affix) = mk_ap_iter_seq(out_ty, hole_ty);
-      Some((res_ty, ap_seq(UHExp.EmptyHole(0), affix)));
-    }
+  | Arrow(_, out_ty) when HTyp.consistent(out_ty, hole_ty) =>
+    Some((out_ty, Seq.wrap(hole_operand)))
+  | Arrow(_, out_ty') =>
+    let* (out_ty, affix) = mk_ap_iter_seq(out_ty', hole_ty);
+    Some((out_ty, ap_seq(hole_operand, affix)));
   | _ => None
   };
 };
@@ -97,8 +98,7 @@ let mk_ap_iter =
     ({expected_ty, _}: cursor_info_pro, f: Var.t, f_ty: HTyp.t)
     : option((HTyp.t, UHExp.t)) => {
   let+ (output_ty, holes_seq) = mk_ap_iter_seq(f_ty, expected_ty);
-  let exp = mk_ap(f, holes_seq);
-  (output_ty, exp);
+  (output_ty, mk_ap(f, holes_seq));
 };
 
 type context_status = {
@@ -109,7 +109,6 @@ type context_status = {
 type action_report = {
   before: context_status,
   after: context_status,
-  //context_consistent: bool,
   delta_errors: int,
 };
 
@@ -184,17 +183,6 @@ let check_action =
     Printf.printf("internal_errors: %d\n", internal_errors);
     print_endline("END check_action");
   };
-  /*Some({
-      before: {
-        ty: expected_ty,
-        errors: err_paths_before,
-      },
-      after: {
-        ty: actual_ty,
-        errors: err_paths_after,
-      },
-      delta_errors
-    });*/
   delta_errors;
 };
 
@@ -225,24 +213,14 @@ let mk_operand_action' =
     };
   let delta_errors =
     switch (check_action(action, ci)) {
-    | None => 0 //TODO(andrew): unfuck
+    | None => 0 //TODO(andrew): do properly
     | Some(delta_errors) => delta_errors
     };
   {...mk_action(~category, ~text, ~action, ~result, ~res_ty), delta_errors};
 };
 
-let mk_operand_action = (~ci: cursor_info_pro, ~category, ~operand) =>
-  mk_operand_action'(
-    ~ci,
-    ~category,
-    ~operand,
-    ~text=lit_to_string(operand),
-    ~action=ReplaceAtCursor(operand),
-    ~result=wrap(operand),
-  );
-
-let mk_operand_action_res =
-    (~ci: cursor_info_pro, ~category, ~operand, ~result) =>
+let mk_operand_action =
+    (~operand, ~result=UHExp.Block.wrap(operand), ~category, ci) =>
   mk_operand_action'(
     ~ci,
     ~category,
@@ -252,42 +230,36 @@ let mk_operand_action_res =
     ~result,
   );
 
-let mk_lit_action = (~ci, ~operand) =>
-  mk_operand_action(~ci, ~category=InsertLit, ~operand);
+let mk_lit_action = mk_operand_action(~category=InsertLit);
 
 // INTROS  -----------------------------------------------------------------
 
 let mk_bool_lit_action = (ci: cursor_info_pro, b: bool): assistant_action =>
-  mk_lit_action(~ci, ~operand=UHExp.boollit(b));
+  mk_lit_action(~operand=UHExp.boollit(b), ci);
 
 let mk_int_lit_action = (ci: cursor_info_pro, s: string): assistant_action =>
-  mk_lit_action(~ci, ~operand=UHExp.intlit(s));
+  mk_lit_action(~operand=UHExp.intlit(s), ci);
 
 let mk_float_lit_action = (ci: cursor_info_pro, s: string): assistant_action =>
-  mk_lit_action(~ci, ~operand=UHExp.floatlit(s));
+  mk_lit_action(~operand=UHExp.floatlit(s), ci);
 
 let mk_nil_list_action = (ci: cursor_info_pro): assistant_action =>
-  mk_lit_action(~ci, ~operand=UHExp.listnil());
+  mk_lit_action(~operand=UHExp.listnil(), ci);
 
 let mk_var_action = (ci: cursor_info_pro, (s: string, _)): assistant_action =>
-  mk_operand_action(~ci, ~category=InsertVar, ~operand=UHExp.var(s));
+  mk_operand_action(~category=InsertVar, ~operand=UHExp.var(s), ci);
 
-let mk_empty_hole_action = (ci: cursor_info_pro): assistant_action => {
-  mk_operand_action(~ci, ~category=Delete, ~operand=hole_operand);
-};
+let mk_empty_hole_action = (ci: cursor_info_pro): assistant_action =>
+  mk_operand_action(~category=Delete, ~operand=hole_operand, ci);
 
 let mk_inj_action = (ci: cursor_info_pro, side: InjSide.t): assistant_action =>
-  mk_operand_action(~ci, ~category=InsertConstructor, ~operand=mk_inj(side));
+  mk_operand_action(~category=InsertConstructor, ~operand=mk_inj(side), ci);
 
 let mk_case_action = (ci: cursor_info_pro): assistant_action =>
-  mk_operand_action(~ci, ~category=InsertElim, ~operand=case_operand);
+  mk_operand_action(~category=InsertElim, ~operand=case_operand, ci);
 
 let mk_lambda_action = (ci: cursor_info_pro): assistant_action =>
-  mk_operand_action(
-    ~ci,
-    ~category=InsertConstructor,
-    ~operand=lambda_operand,
-  );
+  mk_operand_action(~category=InsertConstructor, ~operand=lambda_operand, ci);
 
 let mk_intro_actions = (ci: cursor_info_pro): list(assistant_action) => [
   mk_empty_hole_action(ci),
@@ -336,10 +308,10 @@ let mk_wrap_case_action =
     ({term, _} as ci: cursor_info_pro): assistant_action => {
   let operand =
     switch (term) {
-    | Exp(_, operand) => operand |> wrap |> mk_case
+    | Exp(_, operand) => operand |> UHExp.Block.wrap |> mk_case
     | _ => failwith("mk_wrap_case_action impossible")
     };
-  mk_operand_action(~ci, ~category=Wrap, ~operand);
+  mk_operand_action(~category=Wrap, ~operand, ci);
 };
 
 let elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
@@ -362,11 +334,11 @@ let mk_wrap_action = ({term, _} as ci: cursor_info_pro, (name: string, _)) => {
     | Exp(_, operand) => mk_ap(name, S(operand, E))
     | _ => failwith("mk_basic_wrap_action impossible")
     };
-  mk_operand_action_res(
-    ~ci,
+  mk_operand_action(
     ~category=Wrap,
     ~operand=UHExp.Parenthesized(result),
     ~result,
+    ci,
   );
 };
 

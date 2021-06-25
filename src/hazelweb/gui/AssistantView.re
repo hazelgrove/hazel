@@ -1,8 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
-open Assistant_Exp;
 
-let action_abbreviation: assistant_action_categories => string =
+let action_abbreviation: Assistant_Exp.assistant_action_categories => string =
   fun
   | InsertVar => "var"
   | InsertApp => "app"
@@ -24,7 +23,7 @@ let action_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, text: act_str, delta_errors, _}: assistant_action,
+      {action, result, res_ty, category, text: act_str, delta_errors, _}: Assistant_Exp.assistant_action,
       is_selected: bool,
       search_string: string,
     ) => {
