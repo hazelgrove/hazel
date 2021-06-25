@@ -34,6 +34,33 @@ let sort_by_delta =
   List.sort(compare, action_list);
 };
 
+let renumber_holes_action =
+    (ctx, u_gen, {action, result, _} as a: assistant_action)
+    : assistant_action => {
+  let (result, _, _) =
+    Statics_Exp.syn_fix_holes(
+      ctx,
+      u_gen - 1,
+      ~renumber_empty_holes=true,
+      result,
+    );
+  let action: Action.t =
+    switch (action) {
+    | ReplaceAtCursor(operand) =>
+      let (operand, _, _) =
+        Statics_Exp.syn_fix_holes_operand(
+          ctx,
+          u_gen - 1,
+          ~renumber_empty_holes=true,
+          operand,
+        );
+      ReplaceAtCursor(operand);
+    // TODO| ReplaceOpSeqAroundCursor(zseq)
+    | _ => action
+    };
+  {...a, result, action};
+};
+
 let get_actions =
     (
       {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: cursor_info_pro,
@@ -60,9 +87,11 @@ let get_actions =
       print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
     };
   };
-  virtual_actions(ci)
-  @ get_operand_actions(ci)
+  get_operand_actions(ci)
   @ get_operator_actions(ci)
+  |> List.map(renumber_holes_action(ci.ctx, ci.u_gen))
+  // TODO(andrew): consider using init u_gen extracted from current expr?
+  // but then might have overlap after... maybe better to do in Replace action itself
   |> sort_by_delta
   |> sort_by_prefix(term_to_str(term));
 };
