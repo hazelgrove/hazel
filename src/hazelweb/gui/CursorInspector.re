@@ -83,7 +83,6 @@ let advanced_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       switch (ty) {
@@ -231,7 +230,6 @@ let assistant_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       let any_typ_msg =
@@ -406,7 +404,6 @@ let novice_summary =
         ]
       }
     | Synthesized(ty)
-    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       switch (ty) {
@@ -836,7 +833,6 @@ let view =
     | AnaFree(_) => BindingError
     | AnaSubsumed(_) => OK
     | AnaKeyword(_) => BindingError
-    | SynCaseScrut(_)
     | Synthesized(_) => OK
     | SynInvalid => BindingError
     | SynFree => BindingError

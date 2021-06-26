@@ -123,7 +123,7 @@ let err_holes = ze =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
-let idomaticity_score = (operand: UHExp.operand): int => {
+let _idomaticity_score = (operand: UHExp.operand): int => {
   // this doesn't work if the cursor is already on the case scrut or fexpr in app
   // assume aps are parenthesized for now
   UHExp.(
@@ -155,8 +155,40 @@ let idomaticity_score = (operand: UHExp.operand): int => {
   );
 };
 
+let idomaticity_score_parent =
+    (operand: UHExp.operand, opParent: CursorInfo.opParent): int => {
+  switch (opParent) {
+  | None => 0
+  | Some(parent_operand) =>
+    switch (parent_operand) {
+    | Case(_) =>
+      switch (operand) {
+      | Case(_) => (-2)
+      | Lam(_) => (-3) // idea: addn cursorinfo case type check for non-enum types?
+      | Inj(_) => (-1)
+      | IntLit(_)
+      | BoolLit(_)
+      | FloatLit(_)
+      | ListNil(_) => (-1)
+      | _ => 0
+      }
+    // as this only handles operands, it only handles parenthesized apps
+    | Parenthesized([ExpLine(OpSeq(_, S(_, A(Operators_Exp.Space, _))))]) =>
+      // lits/inj don't really matter as the type will never match
+      P.p("!!!!!!!!!operand: %s\n", UHExp.sexp_of_operand(operand));
+      switch (operand) {
+      | Case(_) => (-3)
+      | Lam(_) => (-2)
+      | Parenthesized(_) => (-1)
+      | _ => 0
+      };
+    | _ => 0
+    }
+  };
+};
+
 let check_action =
-    (action: Action.t, {ctx, syntactic_context, _}: CursorInfo.pro)
+    (action: Action.t, {ctx, syntactic_context, opParent, _}: CursorInfo.pro)
     : option((int, int)) => {
   let* (expected_ty, old_zexp, context_consistent_before) =
     switch (syntactic_context) {
@@ -197,7 +229,7 @@ let check_action =
   let delta_errors = internal_errors + context_errors;
   let score =
     switch (action) {
-    | ReplaceAtCursor(operand) => idomaticity_score(operand)
+    | ReplaceAtCursor(operand) => idomaticity_score_parent(operand, opParent)
     | _ => 0 // TODO (log)
     };
   if (false) {

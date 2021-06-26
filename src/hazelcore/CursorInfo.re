@@ -42,7 +42,6 @@ type typed =
   // none of the above and went through subsumption
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */
-  | SynCaseScrut(HTyp.t)
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
@@ -142,7 +141,7 @@ type syntactic_context =
   | NoSeq;
 
 [@deriving sexp]
-type opParent = option(cursor_term);
+type opParent = option(UHExp.operand);
 // TODO refactor into variants
 // based on term sort and shape
 [@deriving sexp]
