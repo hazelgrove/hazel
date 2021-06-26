@@ -10,6 +10,7 @@ type cursor_info_pro = {
   expected_ty: HTyp.t,
   actual_ty: option(HTyp.t),
   mode,
+  typed: CursorInfo.typed,
   term: CursorInfo.cursor_term,
   ctx: Contexts.t,
   uses: option(UsageAnalysis.uses_list),
@@ -154,6 +155,7 @@ let promote_cursor_info =
   {
     expected_ty,
     actual_ty,
+    typed,
     mode,
     u_gen,
     term: cursor_term,
