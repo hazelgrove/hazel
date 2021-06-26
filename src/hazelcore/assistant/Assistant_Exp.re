@@ -1,5 +1,4 @@
 open OptUtil.Syntax;
-open Assistant_common;
 
 type assistant_action_categories =
   | InsertLit
@@ -96,7 +95,7 @@ let rec mk_ap_iter_seq =
 };
 
 let mk_ap_iter =
-    ({expected_ty, _}: cursor_info_pro, f: Var.t, f_ty: HTyp.t)
+    ({expected_ty, _}: CursorInfo.pro, f: Var.t, f_ty: HTyp.t)
     : option((HTyp.t, UHExp.t)) => {
   let+ (output_ty, holes_seq) = mk_ap_iter_seq(f_ty, expected_ty);
   (output_ty, mk_ap(f, holes_seq));
@@ -157,7 +156,7 @@ let idomaticity_score = (operand: UHExp.operand): int => {
 };
 
 let check_action =
-    (action: Action.t, {ctx, syntactic_context, _}: cursor_info_pro)
+    (action: Action.t, {ctx, syntactic_context, _}: CursorInfo.pro)
     : option((int, int)) => {
   let* (expected_ty, old_zexp, context_consistent_before) =
     switch (syntactic_context) {
@@ -237,7 +236,7 @@ let mk_action =
 
 let mk_operand_action' =
     (
-      ~ci: cursor_info_pro,
+      ~ci: CursorInfo.pro,
       ~category: assistant_action_categories,
       ~text: string,
       ~operand: UHExp.operand,
@@ -277,34 +276,34 @@ let mk_lit_action = mk_operand_action(~category=InsertLit);
 
 // INTROS  -----------------------------------------------------------------
 
-let mk_bool_lit_action = (ci: cursor_info_pro, b: bool): assistant_action =>
+let mk_bool_lit_action = (ci: CursorInfo.pro, b: bool): assistant_action =>
   mk_lit_action(~operand=UHExp.boollit(b), ci);
 
-let mk_int_lit_action = (ci: cursor_info_pro, s: string): assistant_action =>
+let mk_int_lit_action = (ci: CursorInfo.pro, s: string): assistant_action =>
   mk_lit_action(~operand=UHExp.intlit(s), ci);
 
-let mk_float_lit_action = (ci: cursor_info_pro, s: string): assistant_action =>
+let mk_float_lit_action = (ci: CursorInfo.pro, s: string): assistant_action =>
   mk_lit_action(~operand=UHExp.floatlit(s), ci);
 
-let mk_nil_list_action = (ci: cursor_info_pro): assistant_action =>
+let mk_nil_list_action = (ci: CursorInfo.pro): assistant_action =>
   mk_lit_action(~operand=UHExp.listnil(), ci);
 
-let mk_var_action = (ci: cursor_info_pro, (s: string, _)): assistant_action =>
+let mk_var_action = (ci: CursorInfo.pro, (s: string, _)): assistant_action =>
   mk_operand_action(~category=InsertVar, ~operand=UHExp.var(s), ci);
 
-let mk_empty_hole_action = (ci: cursor_info_pro): assistant_action =>
+let mk_empty_hole_action = (ci: CursorInfo.pro): assistant_action =>
   mk_operand_action(~category=Delete, ~operand=hole_operand, ci);
 
-let mk_inj_action = (ci: cursor_info_pro, side: InjSide.t): assistant_action =>
+let mk_inj_action = (ci: CursorInfo.pro, side: InjSide.t): assistant_action =>
   mk_operand_action(~category=InsertConstructor, ~operand=mk_inj(side), ci);
 
-let mk_case_action = (ci: cursor_info_pro): assistant_action =>
+let mk_case_action = (ci: CursorInfo.pro): assistant_action =>
   mk_operand_action(~category=InsertElim, ~operand=case_operand, ci);
 
-let mk_lambda_action = (ci: cursor_info_pro): assistant_action =>
+let mk_lambda_action = (ci: CursorInfo.pro): assistant_action =>
   mk_operand_action(~category=InsertConstructor, ~operand=lambda_operand, ci);
 
-let mk_intro_actions = (ci: cursor_info_pro): list(assistant_action) => [
+let mk_intro_actions = (ci: CursorInfo.pro): list(assistant_action) => [
   mk_empty_hole_action(ci),
   mk_bool_lit_action(ci, true),
   mk_bool_lit_action(ci, false),
@@ -315,7 +314,7 @@ let mk_intro_actions = (ci: cursor_info_pro): list(assistant_action) => [
 ];
 
 let intro_actions =
-    ({expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
+    ({expected_ty, _} as ci: CursorInfo.pro): list(assistant_action) =>
   ci
   |> mk_intro_actions
   |> List.filter(a => HTyp.consistent(a.res_ty, expected_ty));
@@ -323,13 +322,15 @@ let intro_actions =
 //----------------------------------------------------------------------------
 
 let var_actions =
-    ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) =>
-  expected_ty |> extract_vars(ctx) |> List.map(mk_var_action(ci));
+    ({ctx, expected_ty, _} as ci: CursorInfo.pro): list(assistant_action) =>
+  expected_ty
+  |> Assistant_common.extract_vars(ctx)
+  |> List.map(mk_var_action(ci));
 
 //----------------------------------------------------------------------------
 
 let mk_app_action =
-    (ci: cursor_info_pro, (name: string, f_ty: HTyp.t)): assistant_action => {
+    (ci: CursorInfo.pro, (name: string, f_ty: HTyp.t)): assistant_action => {
   let (res_ty, e) =
     mk_ap_iter(ci, name, f_ty) |> OptUtil.get(_ => failwith("mk_app_action"));
   mk_action(
@@ -343,12 +344,13 @@ let mk_app_action =
 };
 
 let app_actions =
-    ({ctx, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) => {
-  expected_ty |> fun_vars(ctx) |> List.map(mk_app_action(ci));
+    ({ctx, expected_ty, _} as ci: CursorInfo.pro): list(assistant_action) => {
+  expected_ty
+  |> Assistant_common.fun_vars(ctx)
+  |> List.map(mk_app_action(ci));
 };
 
-let mk_wrap_case_action =
-    ({term, _} as ci: cursor_info_pro): assistant_action => {
+let mk_wrap_case_action = ({term, _} as ci: CursorInfo.pro): assistant_action => {
   let operand =
     switch (term) {
     | Exp(_, operand) => operand |> UHExp.Block.wrap |> mk_case
@@ -357,12 +359,12 @@ let mk_wrap_case_action =
   mk_operand_action(~category=Wrap, ~operand, ci);
 };
 
-let elim_actions = (ci: cursor_info_pro): list(assistant_action) =>
+let elim_actions = (ci: CursorInfo.pro): list(assistant_action) =>
   app_actions(ci) @ [mk_wrap_case_action(ci)];
 
 //----------------------------------------------------------------------------
 
-let mk_operand_wrap_action = (~ci: cursor_info_pro, ~category, ~operand) =>
+let mk_operand_wrap_action = (~ci: CursorInfo.pro, ~category, ~operand) =>
   mk_operand_action'(
     ~ci,
     ~category,
@@ -370,7 +372,7 @@ let mk_operand_wrap_action = (~ci: cursor_info_pro, ~category, ~operand) =>
     ~text=lit_to_string(operand),
     ~action=ReplaceAtCursor(operand),
   );
-let mk_wrap_action = ({term, _} as ci: cursor_info_pro, (name: string, _)) => {
+let mk_wrap_action = ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
   //TODO(andrew): considering splicing into opseq context
   let result =
     switch (term) {
@@ -391,7 +393,7 @@ let mk_wrap_action = ({term, _} as ci: cursor_info_pro, (name: string, _)) => {
 // TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
 
 let wrap_actions =
-    ({ctx, expected_ty, actual_ty, term, _} as ci: cursor_info_pro) => {
+    ({ctx, expected_ty, actual_ty, term, _} as ci: CursorInfo.pro) => {
   // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
   switch (actual_ty, term) {
@@ -399,7 +401,7 @@ let wrap_actions =
   | (_, Exp(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
   | (Some(actual_ty), _) =>
-    fun_vars(ctx, expected_ty)
+    Assistant_common.fun_vars(ctx, expected_ty)
     |> List.filter(((_, f_ty)) =>
          HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
        )
@@ -413,7 +415,7 @@ let str_int_to_float = s =>
   s |> int_of_string |> Float.of_int |> string_of_float;
 
 let virtual_actions =
-    ({term, expected_ty, _} as ci: cursor_info_pro): list(assistant_action) => {
+    ({term, expected_ty, _} as ci: CursorInfo.pro): list(assistant_action) => {
   (
     switch (term) {
     | Exp(_, IntLit(_, s)) when s != "0" => [
@@ -443,7 +445,7 @@ let virtual_actions =
   |> List.filter(a => HTyp.consistent(a.res_ty, expected_ty));
 };
 
-let operand_actions = (ci: cursor_info_pro): list(assistant_action) =>
+let operand_actions = (ci: CursorInfo.pro): list(assistant_action) =>
   virtual_actions(ci)
   @ wrap_actions(ci)
   @ intro_actions(ci)
@@ -507,7 +509,7 @@ let replace_operator_actions =
 };
 
 let operator_actions =
-    ({syntactic_context, ctx, _}: cursor_info_pro): list(assistant_action) =>
+    ({syntactic_context, ctx, _}: CursorInfo.pro): list(assistant_action) =>
   switch (syntactic_context) {
   | ExpSeq(seq_ty, zseq, err) =>
     replace_operator_actions(ctx, seq_ty, zseq, err)

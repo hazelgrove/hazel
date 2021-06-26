@@ -99,10 +99,10 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       assistant: AssistantModel.t,
-      ci: Assistant_common.cursor_info_pro,
+      ci: CursorInfo.pro,
     )
     : Node.t => {
-  let filter_string = Assistant_common.term_to_str(ci.term);
+  let filter_string = CursorInfo_common.string_of_cursor_term(ci.term);
   let actions = AssistantModel.get_display_actions(ci, assistant);
   let action_view = (i, a) =>
     action_view(~inject, ~settings, ~font_metrics, a, i == 0, filter_string);

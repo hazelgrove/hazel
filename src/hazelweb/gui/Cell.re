@@ -79,7 +79,7 @@ let code_view =
       let ci_settings = settings.cursor_inspector;
       let assistant_action =
         cursor_info
-        |> Assistant_common.promote_cursor_info(u_gen)
+        |> CursorInfo.promote_cursor_info(u_gen)
         |> AssistantModel.select_action(assistant_model);
       let key_handlers =
         main_editor_is_focused

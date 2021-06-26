@@ -67,10 +67,7 @@ let get_ty = (editor: Program.typ): HTyp.t =>
   |> UHTyp.expand;
 
 let select_action =
-    (
-      {selection_index, filter_editor, _}: t,
-      ci: Assistant_common.cursor_info_pro,
-    )
+    ({selection_index, filter_editor, _}: t, ci: CursorInfo.pro)
     : option(Action.t) => {
   let filter_ty = get_ty(filter_editor);
   let actions = Assistant.get_actions_of_ty(ci, filter_ty);
@@ -82,7 +79,7 @@ let select_action =
 
 let get_display_actions =
     (
-      ci: Assistant_common.cursor_info_pro,
+      ci: CursorInfo.pro,
       {selection_index, choice_display_limit, filter_editor, _}: t,
     )
     : list(Assistant_Exp.assistant_action) => {

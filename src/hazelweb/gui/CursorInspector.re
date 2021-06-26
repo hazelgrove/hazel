@@ -83,6 +83,7 @@ let advanced_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
+    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       switch (ty) {
@@ -230,6 +231,7 @@ let assistant_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
+    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       let any_typ_msg =
@@ -404,6 +406,7 @@ let novice_summary =
         ]
       }
     | Synthesized(ty)
+    | SynCaseScrut(ty)
     | PatSynthesized(ty)
     | OnLetLine(ty) =>
       switch (ty) {
@@ -833,6 +836,7 @@ let view =
     | AnaFree(_) => BindingError
     | AnaSubsumed(_) => OK
     | AnaKeyword(_) => BindingError
+    | SynCaseScrut(_)
     | Synthesized(_) => OK
     | SynInvalid => BindingError
     | SynFree => BindingError
@@ -892,7 +896,7 @@ let view =
     | _ => "below"
     };
   let on_empty_hole =
-    Assistant_common.on_empty_expr_hole(cursor_info.cursor_term);
+    CursorInfo_common.is_empty_hole(cursor_info.cursor_term);
   let show =
     switch (expanded) {
     | Some(_) => true
@@ -933,7 +937,7 @@ let view =
           ~font_metrics,
           ~settings,
           assistant_model,
-          Assistant_common.promote_cursor_info(u_gen, cursor_info),
+          CursorInfo.promote_cursor_info(u_gen, cursor_info),
         ),
       ];
     } else if (cursor_inspector.type_assist) {

@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open OptUtil.Syntax;
 
 [@deriving sexp]
 type join_of_branches =
@@ -6,6 +7,12 @@ type join_of_branches =
   // steps to the case
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
+
+[@deriving sexp]
+type mode =
+  | Analytic
+  | Synthetic
+  | UnknownMode;
 
 [@deriving sexp]
 type typed =
@@ -35,6 +42,7 @@ type typed =
   // none of the above and went through subsumption
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */
+  | SynCaseScrut(HTyp.t)
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
@@ -143,4 +151,103 @@ type t = {
   syntactic_context,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+};
+
+type pro = {
+  expected_ty: HTyp.t,
+  actual_ty: option(HTyp.t),
+  mode,
+  typed,
+  term: cursor_term,
+  ctx: Contexts.t,
+  uses: option(UsageAnalysis.uses_list),
+  u_gen: MetaVarGen.t,
+  syntactic_context,
+};
+
+let rec get_types_and_mode = (typed: typed) => {
+  switch (typed) {
+  | AnaAnnotatedLambda(expected, actual)
+  | AnaTypeInconsistent(expected, actual)
+  | AnaSubsumed(expected, actual) => (
+      Some(expected),
+      Some(actual),
+      Analytic,
+    )
+
+  | AnaWrongLength(_, _, expected)
+  | AnaFree(expected)
+  | AnaInvalid(expected)
+  | AnaKeyword(expected, _)
+  | Analyzed(expected) => (Some(expected), None, Analytic)
+
+  | SynErrorArrow(_expected, actual)
+  | SynMatchingArrow(_expected, actual) => (
+      Some(Arrow(Hole, Hole)),
+      Some(actual),
+      Synthetic,
+    )
+
+  | SynFreeArrow(actual)
+  | SynKeywordArrow(actual, _)
+  | SynInvalidArrow(actual)
+  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+
+  | SynInvalid
+  | SynFree
+  | SynKeyword(_) => (Some(Hole), None, Synthetic)
+
+  | SynBranchClause(join, typed, _) =>
+    switch (join, typed) {
+    | (JoinTy(ty), Synthesized(got_ty)) =>
+      switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+      | (true, _) => (Some(Hole), None, Synthetic)
+      | _ => (None, None, Synthetic)
+      }
+    | (NoBranches, _) => get_types_and_mode(typed)
+    | _ => (None, None, Synthetic)
+    }
+
+  | _ => (None, None, UnknownMode)
+  };
+};
+/**
+   * Gets the type of the expression at the cursor.
+   * Return HTyp.t
+   */
+let get_type = (cursor_info: t): option(HTyp.t) => {
+  let (expected_ty, _, _) = get_types_and_mode(cursor_info.typed);
+  let+ expected_ty = expected_ty;
+  expected_ty;
+};
+
+let get_mode = (cursor_info: t) => {
+  let (_, _, mode) = get_types_and_mode(cursor_info.typed);
+  mode;
+};
+
+let promote_cursor_info =
+    (
+      u_gen: MetaVarGen.t,
+      {cursor_term, typed, ctx, uses, syntactic_context}: t,
+    )
+    : pro => {
+  let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
+  // TODO(andrew): handle more cases in get_types_and_mode
+  let expected_ty =
+    switch (expected_ty) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
+    };
+  {
+    expected_ty,
+    actual_ty,
+    typed,
+    mode,
+    u_gen,
+    term: cursor_term,
+    ctx,
+    uses,
+    syntactic_context,
+  };
 };

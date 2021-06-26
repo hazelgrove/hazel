@@ -42,6 +42,22 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   };
 };
 
+let string_of_cursor_term = (term: CursorInfo.cursor_term): string => {
+  switch (term) {
+  | Pat(_, Var(_, _, s))
+  | Pat(_, InvalidText(_, s))
+  | Pat(_, IntLit(_, s))
+  | Pat(_, FloatLit(_, s))
+  | Exp(_, Var(_, _, s))
+  | Exp(_, InvalidText(_, s))
+  | Exp(_, IntLit(_, s))
+  | Exp(_, FloatLit(_, s)) => s
+  | Exp(_, BoolLit(_, b))
+  | Pat(_, BoolLit(_, b)) => string_of_bool(b)
+  | _ => ""
+  };
+};
+
 let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, EmptyHole(_)) => true
@@ -82,7 +98,7 @@ let mk =
   syntactic_context,
 };
 
-let get_ctx = ci => ci.ctx;
+let get_ctx = (ci: CursorInfo.t) => ci.ctx;
 
 /*
  * there are cases we can't determine where to find the uses of a variable
