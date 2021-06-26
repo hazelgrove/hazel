@@ -62,11 +62,16 @@ let renumber_holes_action =
 
 let get_actions =
     (
-      {term, syntactic_context, mode, expected_ty, actual_ty, _} as ci: CursorInfo.pro,
+      {term, syntactic_context, mode, expected_ty, actual_ty, opParent, _} as ci: CursorInfo.pro,
     )
     : list(assistant_action) => {
   if (true) {
     print_endline("ASSISTANT DEBUG:");
+    switch (opParent) {
+    | None => print_endline("  opParent: None")
+    | Some(opp) =>
+      P.p("  opParent: %s\n", CursorInfo.sexp_of_cursor_term(opp))
+    };
     P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
     switch (actual_ty) {
     | None => print_endline("  actual_ty: None")

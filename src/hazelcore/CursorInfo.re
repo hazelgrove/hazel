@@ -141,6 +141,8 @@ type syntactic_context =
     )
   | NoSeq;
 
+[@deriving sexp]
+type opParent = option(cursor_term);
 // TODO refactor into variants
 // based on term sort and shape
 [@deriving sexp]
@@ -149,6 +151,7 @@ type t = {
   typed,
   ctx: Contexts.t,
   syntactic_context,
+  opParent,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
@@ -163,6 +166,7 @@ type pro = {
   uses: option(UsageAnalysis.uses_list),
   u_gen: MetaVarGen.t,
   syntactic_context,
+  opParent,
 };
 
 let rec get_types_and_mode = (typed: typed) => {
@@ -229,7 +233,7 @@ let get_mode = (cursor_info: t) => {
 let promote_cursor_info =
     (
       u_gen: MetaVarGen.t,
-      {cursor_term, typed, ctx, uses, syntactic_context}: t,
+      {cursor_term, typed, ctx, uses, syntactic_context, opParent}: t,
     )
     : pro => {
   let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
@@ -249,5 +253,6 @@ let promote_cursor_info =
     ctx,
     uses,
     syntactic_context,
+    opParent,
   };
 };

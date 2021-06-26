@@ -101,6 +101,7 @@ module EditState_Exp = {
   let holes = CursorPath_Exp.holes;
   let cursor_info =
     CursorInfo_Exp.syn_cursor_info(
+      ~opParent=None,
       ~steps=[],
       ~syntactic_context=CursorInfo.NoSeq,
     );

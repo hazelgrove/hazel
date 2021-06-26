@@ -89,13 +89,21 @@ let is_empty_line = (cursor_term): bool => {
 };
 
 let mk =
-    (~uses=?, ~syntactic_context=CursorInfo.NoSeq, typed, ctx, cursor_term)
+    (
+      ~uses=?,
+      ~syntactic_context=CursorInfo.NoSeq,
+      ~opParent=None,
+      typed,
+      ctx,
+      cursor_term,
+    )
     : CursorInfo.t => {
   typed,
   ctx,
   uses,
   cursor_term,
   syntactic_context,
+  opParent,
 };
 
 let get_ctx = (ci: CursorInfo.t) => ci.ctx;
