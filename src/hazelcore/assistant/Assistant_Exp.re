@@ -18,6 +18,7 @@ type assistant_action = {
   result: UHExp.t,
   res_ty: HTyp.t,
   delta_errors: int,
+  score: int,
 };
 
 type exp_seq = Seq.t(UHExp.operand, Operators_Exp.t);
@@ -123,9 +124,41 @@ let err_holes = ze =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
+let idomaticity_score = (operand: UHExp.operand): int => {
+  // this doesn't work if the cursor is already on the case scrut or fexpr in app
+  // assume aps are parenthesized for now
+  UHExp.(
+    switch (operand) {
+    | Case(_, [ExpLine(OpSeq(_, S(operand, E)))], _) =>
+      switch (operand) {
+      | Case(_) => (-3)
+      | Lam(_) => (-3) // idea: addn cursorinfo case type check for non-enum types?
+      | Inj(_) => (-1)
+      | IntLit(_)
+      | BoolLit(_)
+      | FloatLit(_)
+      | ListNil(_) => (-1)
+      | _ => 0
+      }
+    | Parenthesized([
+        ExpLine(OpSeq(_, S(operand, A(Operators_Exp.Space, _)))),
+      ]) =>
+      // lits/inj don't really matter as the type will never match
+      switch (operand) {
+      | Case(_) => (-3)
+      | Lam(_) => (-2)
+      | Parenthesized(_) => (-1)
+      | _ => 0
+      // lits/inj don't really matter as the type will never match
+      }
+    | _ => 0
+    }
+  );
+};
+
 let check_action =
     (action: Action.t, {ctx, syntactic_context, _}: cursor_info_pro)
-    : option(int) => {
+    : option((int, int)) => {
   let* (expected_ty, old_zexp, context_consistent_before) =
     switch (syntactic_context) {
     | ExpSeq(expected_ty, zseq, err) =>
@@ -163,6 +196,11 @@ let check_action =
     | _ => 0
     };
   let delta_errors = internal_errors + context_errors;
+  let score =
+    switch (action) {
+    | ReplaceAtCursor(operand) => idomaticity_score(operand)
+    | _ => 0 // TODO (log)
+    };
   if (false) {
     print_endline("START check_action");
     Printf.printf(
@@ -183,7 +221,7 @@ let check_action =
     Printf.printf("internal_errors: %d\n", internal_errors);
     print_endline("END check_action");
   };
-  delta_errors;
+  (delta_errors, score);
 };
 
 let mk_action =
@@ -194,6 +232,7 @@ let mk_action =
   result,
   res_ty,
   delta_errors: 0,
+  score: 0,
 };
 
 let mk_operand_action' =
@@ -211,12 +250,16 @@ let mk_operand_action' =
     | None => HTyp.Hole
     | Some(ty) => ty
     };
-  let delta_errors =
+  let (delta_errors, score) =
     switch (check_action(action, ci)) {
-    | None => 0 //TODO(andrew): do properly
-    | Some(delta_errors) => delta_errors
+    | None => (0, 0) //TODO(andrew): do properly or at least log
+    | Some(res) => res
     };
-  {...mk_action(~category, ~text, ~action, ~result, ~res_ty), delta_errors};
+  {
+    ...mk_action(~category, ~text, ~action, ~result, ~res_ty),
+    delta_errors,
+    score,
+  };
 };
 
 let mk_operand_action =

@@ -27,10 +27,10 @@ let get_operator_actions = (ci: cursor_info_pro): list(assistant_action) =>
   | _ => []
   };
 
-let sort_by_delta =
+let sort_actions =
     (action_list: list(assistant_action)): list(assistant_action) => {
   let compare = (a1: assistant_action, a2: assistant_action) =>
-    Int.compare(a2.delta_errors, a1.delta_errors);
+    Int.compare(a2.delta_errors + a2.score, a1.delta_errors + a1.score);
   List.sort(compare, action_list);
 };
 
@@ -92,9 +92,19 @@ let get_actions =
   |> List.map(renumber_holes_action(ci.ctx, ci.u_gen))
   // TODO(andrew): consider using init u_gen extracted from current expr?
   // but then might have overlap after... maybe better to do in Replace action itself
-  |> sort_by_delta
+  |> sort_actions
   |> sort_by_prefix(term_to_str(term));
 };
+
+/*
+ RANKING NOTES:
+ error delta
+ idiomacy points
+ type specificity:
+   for analytic, concrete types over hole
+   for synthetic: none?
+
+  */
 
 let get_actions_of_ty =
     (ci: cursor_info_pro, ty: HTyp.t): list(assistant_action) =>

@@ -23,7 +23,16 @@ let action_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, text: act_str, delta_errors, _}: Assistant_Exp.assistant_action,
+      {
+        action,
+        result,
+        res_ty,
+        category,
+        text: act_str,
+        delta_errors,
+        score,
+        _,
+      }: Assistant_Exp.assistant_action,
       is_selected: bool,
       search_string: string,
     ) => {
@@ -69,7 +78,10 @@ let action_view =
     ],
     [
       category_view,
-      div([Attr.classes(["delta-errors"])], [text(error_str)]),
+      div(
+        [Attr.classes(["delta-errors"])],
+        [text(error_str), text(string_of_int(score))],
+      ),
       //div([], [context_consistent |> string_of_bool |> text]),
       div(
         [Attr.classes(["code-container"])],
