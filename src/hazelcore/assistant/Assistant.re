@@ -65,11 +65,11 @@ let get_actions =
       {term, syntactic_context, mode, expected_ty, actual_ty, opParent, _} as ci: CursorInfo.pro,
     )
     : list(assistant_action) => {
-  if (false) {
+  if (true) {
     print_endline("ASSISTANT DEBUG:");
     switch (opParent) {
     | None => print_endline("  opParent: None")
-    | Some(opp) => P.p("  opParent: %s\n", UHExp.sexp_of_operand(opp))
+    | Some(opp) => P.p("  opParent: %s\n", ZExp.sexp_of_zoperand(opp))
     };
     P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
     switch (actual_ty) {

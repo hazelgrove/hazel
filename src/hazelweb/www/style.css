@@ -659,23 +659,26 @@ body {
   min-height: 2.25rem;
 }
 
+#assistant > .selected  {
+  color: #383838;
+  background-color: rgb(197, 253, 197) !important;
+}
+#assistant > .choice:hover {
+  z-index: 1000000;
+  outline: solid 2px rgb(197, 253, 197);
+}
+
 #assistant > .choice > .type {
   color: #e5e3e3;
   display: flex;
   align-items: center;
 }
 
-#assistant > .choice:hover,
-#assistant > .selected  {
-  color: #383838;
-  background-color: rgb(197, 253, 197) !important;
-}
-
 #assistant .errors-more   {
   color: #b00b0b;
   background-color: rgb(203 164 164)
 }
-#assistant > .errors-more:hover,
+/*#assistant > .errors-more:hover,*/
 #assistant > .errors-more.selected   {
   color: #b00b0b;
   background-color: rgb(253, 217, 197);
@@ -686,7 +689,7 @@ body {
   background-color: rgb(144 177 193);
 }
 
-#assistant > .errors-less:hover,
+/*#assistant > .errors-less:hover,*/
 #assistant > .errors-less.selected   {
   color: #0c5b64;
   background-color: rgb(197, 235, 253);

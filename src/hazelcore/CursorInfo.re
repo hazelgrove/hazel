@@ -141,7 +141,7 @@ type syntactic_context =
   | NoSeq;
 
 [@deriving sexp]
-type opParent = option(UHExp.operand);
+type opParent = option(ZExp.zoperand);
 // TODO refactor into variants
 // based on term sort and shape
 [@deriving sexp]

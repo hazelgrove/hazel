@@ -677,7 +677,7 @@ and syn_cursor_info_zoperand =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
-  let opParent_new = Some(ZExp.erase_zoperand(zoperand));
+  let opParent_new = Some(zoperand);
   let mk = typed =>
     CursorInfo_common.mk(
       typed,
@@ -1046,7 +1046,7 @@ and ana_cursor_info_zoperand =
       ~syntactic_context,
       ~opParent,
     );
-  let opParent_new = Some(ZExp.erase_zoperand(zoperand));
+  let opParent_new = Some(zoperand);
   let syn_cursor_info_go = (~steps, ctx, zexp) =>
     syn_cursor_info(
       ~steps,

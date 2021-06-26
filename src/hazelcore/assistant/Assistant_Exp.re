@@ -161,7 +161,7 @@ let idomaticity_score_parent =
   | None => 0
   | Some(parent_operand) =>
     switch (parent_operand) {
-    | Case(_) =>
+    | CaseZE(_) =>
       switch (operand) {
       | Case(_) => (-2)
       | Lam(_) => (-3) // idea: addn cursorinfo case type check for non-enum types?
@@ -173,24 +173,31 @@ let idomaticity_score_parent =
       | _ => 0
       }
     // as this only handles operands, it only handles parenthesized apps
-    | Parenthesized([ExpLine(OpSeq(_, S(_, A(Operators_Exp.Space, _))))]) =>
+    | ParenthesizedZ((
+        [],
+        ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), (E, A(Space, _))))),
+        [],
+      )) =>
       // lits/inj don't really matter as the type will never match
-      P.p("!!!!!!!!!operand: %s\n", UHExp.sexp_of_operand(operand));
       switch (operand) {
       | Case(_) => (-3)
       | Lam(_) => (-2)
       | Parenthesized(_) => (-1)
       | _ => 0
-      };
+      }
     | _ => 0
     }
   };
 };
 
 let check_action =
-    (action: Action.t, {ctx, syntactic_context, opParent, _}: CursorInfo.pro)
+    (
+      action: Action.t,
+      res_ty: HTyp.t,
+      {ctx, syntactic_context, opParent, expected_ty, _}: CursorInfo.pro,
+    )
     : option((int, int)) => {
-  let* (expected_ty, old_zexp, context_consistent_before) =
+  let* (opseq_expected_ty, old_zexp, context_consistent_before) =
     switch (syntactic_context) {
     | ExpSeq(expected_ty, zseq, err) =>
       Some((
@@ -208,14 +215,15 @@ let check_action =
       Action_Exp.syn_perform(
         ctx,
         action,
-        (old_zexp, expected_ty, MetaVarGen.init),
+        (old_zexp, opseq_expected_ty, MetaVarGen.init),
       )
     ) {
     | Failed
     | CursorEscaped(_) => None
     | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
     };
-  let context_consistent_after = HTyp.consistent(expected_ty, actual_ty);
+  let context_consistent_after =
+    HTyp.consistent(opseq_expected_ty, actual_ty);
   let err_paths_before = err_holes(old_zexp);
   let err_paths_after = err_holes(new_zexp);
   let internal_errors =
@@ -231,6 +239,16 @@ let check_action =
     switch (action) {
     | ReplaceAtCursor(operand) => idomaticity_score_parent(operand, opParent)
     | _ => 0 // TODO (log)
+    };
+  // TODO: 'if res_ty is less specific then expected_ty, -1'
+  let type_specificity_score =
+    switch (expected_ty) {
+    | Hole => 0
+    | _ =>
+      switch (res_ty) {
+      | Hole => (-1)
+      | _ => 0
+      }
     };
   if (false) {
     print_endline("START check_action");
@@ -252,7 +270,7 @@ let check_action =
     Printf.printf("internal_errors: %d\n", internal_errors);
     print_endline("END check_action");
   };
-  (delta_errors, score);
+  (delta_errors, score + type_specificity_score);
 };
 
 let mk_action =
@@ -282,7 +300,7 @@ let mk_operand_action' =
     | Some(ty) => ty
     };
   let (delta_errors, score) =
-    switch (check_action(action, ci)) {
+    switch (check_action(action, res_ty, ci)) {
     | None => (0, 0) //TODO(andrew): do properly or at least log
     | Some(res) => res
     };
