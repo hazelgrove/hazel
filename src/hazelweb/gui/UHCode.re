@@ -158,17 +158,29 @@ let update_ci = (x: Settings.CursorInspector.update): ModelAction.t =>
   UpdateSettings(CursorInspector(x));
 
 let assistant_key_action =
-    (~assistant_action: option(Action.t), evt): option(ModelAction.t) => {
+    (~assistant_action: option(Action.t), ~cursor_info: CursorInfo.t, evt)
+    : option(ModelAction.t) => {
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
+  let is_on_hole =
+    CursorInfo_common.is_empty_hole(cursor_info.cursor_term)
+    || CursorInfo_common.is_op(cursor_info.cursor_term)
+    || CursorInfo_common.is_empty_line(cursor_info.cursor_term)
+    || CursorInfo_common.is_comment_line(cursor_info.cursor_term);
   switch (key_of(evt), assistant_action) {
-  | (Combo(Escape), _) =>
-    Some(
-      Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
-    )
+  //| (Combo(Escape), _) =>
+  //  Some(
+  //    Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
+  //  )
+  | (Combo(Backspace), _) when !is_on_hole =>
+    Some(EditAction(ReplaceAtCursor(Assistant_Exp.hole_operand, None)))
   | (Move(ArrowDown), Some(_)) =>
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
     Some(UpdateAssistant(Decrement_selection_index))
+  | (Combo(Enter), Some(ReplaceAtCursor(operand, _))) =>
+    Some(
+      AcceptSuggestion(ReplaceAtCursor(operand, Some(ZExp.place_after))),
+    )
   | (Combo(Enter), Some(action)) => Some(AcceptSuggestion(action))
   | (Combo(Tab), Some(action)) =>
     Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))
@@ -179,6 +191,9 @@ let assistant_key_action =
 let main_key_action =
     (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
   switch (key_of(evt)) {
+  | Combo(Escape) =>
+    // TODO(andrew): this is brittle as these can get out of sync
+    Some(Chain([UpdateAssistant(Toggle), update_ci(Toggle_visible)]))
   | Move(k) => Some(MoveAction(Key(k)))
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>
@@ -205,7 +220,7 @@ let key_handlers =
           Event.Stop_propagation,
           inject(ev),
         ]);
-      switch (assistant_key_action(~assistant_action, evt)) {
+      switch (assistant_key_action(~assistant_action, ~cursor_info, evt)) {
       | Some(action) when assistant_active => inject_stop_prevent(action)
       | _ =>
         switch (main_key_action(~is_mac, ~cursor_info, evt)) {

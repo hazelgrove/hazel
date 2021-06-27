@@ -74,17 +74,26 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   };
 };
 
+let is_op = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _) => true
+  | _ => false
+  };
+};
+
 let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
   | Line(_, EmptyLine) => true
-  | Line(_, _) => false
-  | Exp(_, _)
-  | Pat(_, _)
-  | Typ(_, _)
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => false
+  | _ => false
+  };
+};
+
+let is_comment_line = (cursor_term): bool => {
+  switch (cursor_term) {
+  | Line(_, CommentLine(_)) => true
+  | _ => false
   };
 };
 

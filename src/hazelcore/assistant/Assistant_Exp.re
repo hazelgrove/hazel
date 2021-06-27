@@ -237,7 +237,8 @@ let check_action =
   let delta_errors = internal_errors + context_errors;
   let score =
     switch (action) {
-    | ReplaceAtCursor(operand) => idomaticity_score_parent(operand, opParent)
+    | ReplaceAtCursor(operand, None) =>
+      idomaticity_score_parent(operand, opParent)
     | _ => 0 // TODO (log)
     };
   // TODO: 'if res_ty is less specific then expected_ty, -1'
@@ -318,7 +319,7 @@ let mk_operand_action =
     ~category,
     ~operand,
     ~text=lit_to_string(operand),
-    ~action=ReplaceAtCursor(operand),
+    ~action=ReplaceAtCursor(operand, None),
     ~result,
   );
 
@@ -387,7 +388,7 @@ let mk_app_action =
     ~category=InsertApp,
     ~text=name,
     //TODO(andrew): this should probably actually be an opseq-level action
-    ~action=ReplaceAtCursor(UHExp.Parenthesized(e)),
+    ~action=ReplaceAtCursor(UHExp.Parenthesized(e), None),
     ~res_ty,
     ~result=e,
   );
@@ -420,7 +421,7 @@ let mk_operand_wrap_action = (~ci: CursorInfo.pro, ~category, ~operand) =>
     ~category,
     ~operand,
     ~text=lit_to_string(operand),
-    ~action=ReplaceAtCursor(operand),
+    ~action=ReplaceAtCursor(operand, None),
   );
 let mk_wrap_action = ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
   //TODO(andrew): considering splicing into opseq context

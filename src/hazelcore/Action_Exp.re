@@ -1457,8 +1457,20 @@ and syn_perform_operand =
     // ReplaceOpSeqAroundCursor handled at opseq level
     Failed
 
-  | (ReplaceAtCursor(new_operand), CursorE(_, _operand)) =>
-    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_before;
+  | (ReplaceAtCursor(new_operand, z_proj), CursorE(_, _operand)) =>
+    let fz_proj =
+      switch (z_proj) {
+      | None => ZExp.place_before
+      | Some(fz_proj) => fz_proj
+      };
+    let (e, _, _) =
+      Statics_Exp.syn_fix_holes(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        UHExp.Block.wrap(new_operand),
+      );
+    let ze = fz_proj(e);
     // TODO(andrew): remove
     // Advance to next INTERNAL hole
     /*
@@ -2900,8 +2912,20 @@ and ana_perform_operand =
     // ReplaceOpSeqAroundCursor handled at opseq level
     Failed
 
-  | (ReplaceAtCursor(new_operand), CursorE(_)) =>
-    let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_before;
+  | (ReplaceAtCursor(new_operand, z_proj), CursorE(_)) =>
+    let fz_proj =
+      switch (z_proj) {
+      | None => ZExp.place_before
+      | Some(fz_proj) => fz_proj
+      };
+    let (e, _, _) =
+      Statics_Exp.syn_fix_holes(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        UHExp.Block.wrap(new_operand),
+      );
+    let ze = fz_proj(e);
     // TODO(andrew): remove
     /*
      let ze =

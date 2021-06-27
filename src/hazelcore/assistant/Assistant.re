@@ -45,7 +45,7 @@ let renumber_holes_action =
     );
   let action: Action.t =
     switch (action) {
-    | ReplaceAtCursor(operand) =>
+    | ReplaceAtCursor(operand, proj_z) =>
       let (operand, _, _) =
         Statics_Exp.syn_fix_holes_operand(
           ctx,
@@ -53,7 +53,7 @@ let renumber_holes_action =
           ~renumber_empty_holes=true,
           operand,
         );
-      ReplaceAtCursor(operand);
+      ReplaceAtCursor(operand, proj_z);
     // TODO| ReplaceOpSeqAroundCursor(zseq)
     | _ => action
     };
