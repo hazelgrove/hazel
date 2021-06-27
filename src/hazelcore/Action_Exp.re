@@ -1215,11 +1215,15 @@ and syn_perform_opseq =
     print_endline("!!! CASE 1");
     mk_success(prefix, ZExp.place_after_operand(prev), suffix);
   | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
-      when
-        is_or_will_become_hole(a, prev |> ZExp.place_after_operand)
-        && ZExp.is_before_zoperand(curr) =>
-    print_endline("!!! CASE 1.1");
-    mk_success(prefix, curr, suffix);
+      when ZExp.is_before_zoperand(curr) =>
+    let new_zopseq =
+      ZSeq.ZOperand(
+        ZExp.place_after_operand(prev),
+        (prefix, A(Space, S(curr |> ZExp.erase_zoperand, suffix))),
+      )
+      |> ZExp.mk_ZOpSeq;
+    print_endline("!!! CASE 1.1"); // TODO: proper ty
+    syn_perform_opseq(ctx, a, (new_zopseq, Hole, u_gen));
   | (Backspace, ZOperand(curr, (E as prefix, A(Space, S(next, suffix)))))
       when is_or_will_become_hole(a, curr) =>
     print_endline("!!! CASE 2");
@@ -1229,11 +1233,18 @@ and syn_perform_opseq =
     print_endline("!!! CASE 3");
     mk_success(prefix, ZExp.place_before_operand(next), suffix);
   | (Delete, ZOperand(curr, (prefix, A(Space, S(next, suffix)))))
-      when
-        is_or_will_become_hole(a, next |> ZExp.place_before_operand)
-        && ZExp.is_after_zoperand(curr) =>
-    print_endline("!!! CASE 3.3");
-    mk_success(prefix, curr, suffix);
+      when ZExp.is_after_zoperand(curr) =>
+    let new_zopseq =
+      ZSeq.ZOperand(
+        ZExp.place_before_operand(next),
+        (
+          A(Operators_Exp.Space, S(curr |> ZExp.erase_zoperand, prefix)),
+          suffix,
+        ),
+      )
+      |> ZExp.mk_ZOpSeq;
+    print_endline("!!! CASE 3.3"); // TODO: proper ty
+    syn_perform_opseq(ctx, a, (new_zopseq, Hole, u_gen));
   | (Delete, ZOperand(curr, (A(Space, S(prev, prefix)), E as suffix)))
       when is_or_will_become_hole(a, curr) =>
     print_endline("!!! CASE 4");
