@@ -1,3 +1,4 @@
+open Sexplib.Std;
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -211,7 +212,7 @@ let resurround_z =
     };
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
-
+[@deriving sexp]
 type expanding_result = {
   kw: ExpandingKeyword.t,
   u_gen: MetaVarGen.t,
@@ -224,10 +225,14 @@ type line_success =
   | LineExpands(expanding_result)
   | LineDone((ZExp.zblock, Contexts.t, MetaVarGen.t));
 
+[@deriving sexp]
 type syn_done = (ZExp.t, HTyp.t, MetaVarGen.t);
+
+[@deriving sexp]
 type syn_success =
   | SynExpands(expanding_result)
   | SynDone(syn_done);
+
 let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
@@ -594,6 +599,29 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
+  /*
+             most specific fix:
+             case: when on ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), [_whatever, A(Space, rest_of_seq)]))
+
+   (
+     ()
+     (ExpLineZ
+       (ZOpSeq
+         (BinOp NotInHole Space (Placeholder 0) (Placeholder 1))
+         (ZOperand
+           (CursorE (OnDelim 0 After) (EmptyHole 21))
+           (
+             E
+             (A Space (S (IntLit NotInHole 4) E))))))
+     ()
+   )
+    */
+  switch (a) {
+  | Backspace =>
+    print_endline("SYN backspace pressed");
+    P.p("ze: %s\n", ZExp.sexp_of_t(ze));
+  | _ => Printf.printf("")
+  };
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -682,7 +710,11 @@ and syn_perform_block =
     }
   | Backspace when ZExp.is_before_zline(zline) =>
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
-    | (None, _) => CursorEscaped(Before)
+    | (None, _) =>
+      print_endline(
+        "NOTE(andrew): this is the case that catches delete first hole",
+      );
+      CursorEscaped(Before);
     | (Some(([], EmptyLine)), EmptyLine) =>
       let new_ze = {
         let (_, new_zline, new_suffix) = suffix |> ZExp.place_before_block;
@@ -1073,7 +1105,47 @@ and syn_perform_opseq =
         u_gen: MetaVarGen.t,
       ),
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
+  print_endline("syn_perform_opseq");
+  let mk_success = (prefix, zoperand, suffix): ActionOutcome.t(syn_success) =>
+    Succeeded(
+      SynDone(
+        mk_and_syn_fix_ZOpSeq(
+          ctx,
+          u_gen,
+          ZSeq.ZOperand(zoperand, (prefix, suffix)),
+        ),
+      ),
+    );
+  let is_or_will_become_hole = (a, zoperand) => {
+    let act_outcome =
+      syn_perform_operand(ctx, a, (zoperand, HTyp.Hole, u_gen));
+    P.p(
+      "act outcome: %s\n",
+      ActionOutcome.sexp_of_t(sexp_of_syn_success, act_outcome),
+    );
+    switch (zoperand, act_outcome) {
+    | (ZExp.CursorE(_, EmptyHole(_)), _)
+    | (
+        _,
+        Succeeded(
+          SynDone((
+            (
+              [],
+              ExpLineZ(
+                ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E))),
+              ),
+              [],
+            ),
+            _,
+            _,
+          )),
+        ),
+      ) =>
+      true
+    | _ => false
+    };
+  };
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1138,34 +1210,79 @@ and syn_perform_opseq =
     let new_zseq = delete_operator(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
+  | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
+      when is_or_will_become_hole(a, curr) =>
+    print_endline("!!! CASE 1");
+    mk_success(prefix, ZExp.place_after_operand(prev), suffix);
+  | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
+      when
+        is_or_will_become_hole(a, prev |> ZExp.place_after_operand)
+        && ZExp.is_before_zoperand(curr) =>
+    print_endline("!!! CASE 1.1");
+    mk_success(prefix, curr, suffix);
+  | (Backspace, ZOperand(curr, (E as prefix, A(Space, S(next, suffix)))))
+      when is_or_will_become_hole(a, curr) =>
+    print_endline("!!! CASE 2");
+    mk_success(prefix, ZExp.place_before_operand(next), suffix);
+  | (Delete, ZOperand(curr, (prefix, A(Space, S(next, suffix)))))
+      when is_or_will_become_hole(a, curr) =>
+    print_endline("!!! CASE 3");
+    mk_success(prefix, ZExp.place_before_operand(next), suffix);
+  | (Delete, ZOperand(curr, (prefix, A(Space, S(next, suffix)))))
+      when
+        is_or_will_become_hole(a, next |> ZExp.place_before_operand)
+        && ZExp.is_after_zoperand(curr) =>
+    print_endline("!!! CASE 3.3");
+    mk_success(prefix, curr, suffix);
+  | (Delete, ZOperand(curr, (A(Space, S(prev, prefix)), E as suffix)))
+      when is_or_will_become_hole(a, curr) =>
+    print_endline("!!! CASE 4");
+    mk_success(prefix, ZExp.place_after_operand(prev), suffix);
+
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
-  | (
-      Backspace,
-      ZOperand(
-        CursorE(_, EmptyHole(_)) as zhole,
-        (A(Space, prefix_tl), suffix),
-      ),
-    )
-      when ZExp.is_before_zoperand(zhole) =>
-    let S(operand, new_prefix) = prefix_tl;
-    let zoperand = operand |> ZExp.place_after_operand;
-    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+  /*
+    | (
+        Backspace,
+        ZOperand(
+          CursorE(OnDelim(0, Before), EmptyHole(_)),
+          (E, A(Space, S(operand, rest_of_seq))),
+        ),
+      ) =>
+      print_endline("NEW COOL CASE");
+      let new_zseq =
+        ZSeq.ZOperand(
+          ZExp.place_before_operand(operand),
+          //ZExp.CursorE(OnDelim(0, Before), operand),
+          (E, rest_of_seq),
+        );
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | (
+        Backspace,
+        ZOperand(
+          CursorE(_, EmptyHole(_)) as zhole,
+          (A(Space, prefix_tl), suffix),
+        ),
+      )
+        when ZExp.is_before_zoperand(zhole) =>
+      let S(operand, new_prefix) = prefix_tl;
+      let zoperand = operand |> ZExp.place_after_operand;
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
-  /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
-  | (
-      Delete,
-      ZOperand(
-        CursorE(_, EmptyHole(_)) as zhole,
-        (prefix, A(Space, suffix_tl)),
-      ),
-    )
-      when ZExp.is_after_zoperand(zhole) =>
-    let S(operand, new_suffix) = suffix_tl;
-    let zoperand = operand |> ZExp.place_before_operand;
-    let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-
+   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
+   | (
+       Delete,
+       ZOperand(
+         CursorE(_, EmptyHole(_)) as zhole,
+         (prefix, A(Space, suffix_tl)),
+       ),
+     )
+       when ZExp.is_after_zoperand(zhole) =>
+     let S(operand, new_suffix) = suffix_tl;
+     let zoperand = operand |> ZExp.place_before_operand;
+     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
+     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+   */
   /* Construction */
 
   /* Making Float Operators from Int Operators */
@@ -1379,7 +1496,8 @@ and syn_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and syn_perform_operand =
     (
       ctx: Contexts.t,
@@ -2202,7 +2320,13 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
+  switch (a) {
+  | Backspace =>
+    print_endline("ANA backspace pressed");
+    P.p("ze: %s\n", ZExp.sexp_of_t(ze));
+  | _ => Printf.printf("")
+  };
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2217,7 +2341,8 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  }
+  };
+}
 and ana_perform_block =
     (
       ctx: Contexts.t,
