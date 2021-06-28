@@ -783,6 +783,7 @@ and syn_perform_block =
         ) =>
         switch (suffix) {
         | [] =>
+          P.p("guy: %s\n", UHExp.sexp_of_t(zblock |> ZExp.erase_zblock));
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
@@ -790,7 +791,7 @@ and syn_perform_block =
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
-          }
+          };
         | [_, ..._] =>
           let (suffix, new_ty, u_gen) =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
@@ -978,8 +979,14 @@ and syn_perform_line =
     let new_zblock = ([UHExp.EmptyLine], zline, []);
     fix_and_mk_result(u_gen, new_zblock);
   | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
-    let new_zline = UHExp.EmptyLine |> ZExp.place_before_line;
-    let new_zblock = ([zline |> ZExp.erase_zline], new_zline, []);
+    let new_zline =
+      UHExp.ExpLine(OpSeq.wrap(UHExp.EmptyHole(u_gen)))
+      |> ZExp.place_before_line;
+    /* If the current line is just a hole, leave it empty */
+    let prev_line =
+      ZExp.zline_is_just_empty_hole(zline)
+        ? UHExp.EmptyLine : ZExp.erase_zline(zline);
+    let new_zblock = ([prev_line], new_zline, []);
     fix_and_mk_result(u_gen, new_zblock);
 
   | (Construct(_), CursorL(_, EmptyLine)) =>
