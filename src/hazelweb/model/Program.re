@@ -65,7 +65,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
          | TypHole => None
          | PatHole(_, shape)
