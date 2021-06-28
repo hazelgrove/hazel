@@ -961,3 +961,19 @@ and cursor_on_EmptyHole_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+
+let starts_with_hole_and_space = zline =>
+  /* True if zline begins with an empty hole followed by a space operator */
+  switch (zline) {
+  | ExpLineZ(
+      ZOpSeq(
+        _,
+        ZOperand(
+          CursorE(OnDelim(_, Before), EmptyHole(_)),
+          (E, A(Space, _)),
+        ),
+      ),
+    ) =>
+    true
+  | _ => false
+  };

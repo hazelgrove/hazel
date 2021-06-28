@@ -620,7 +620,7 @@ and syn_perform_block =
         u_gen: MetaVarGen.t,
       ),
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
   switch (a) {
   /* Movement */
   | MoveTo(_)
@@ -680,7 +680,13 @@ and syn_perform_block =
     | _ =>
       syn_perform(ctx, MoveRight, (zblock, ty, u_gen)) |> wrap_in_SynDone
     }
-  | Backspace when ZExp.is_before_zline(zline) =>
+  | Backspace
+      when
+        ZExp.is_before_zline(zline)
+        && !ZExp.starts_with_hole_and_space(zline) =>
+    /* Second condition above prevents this case from capturing and thus
+       preventing backspace deletions of the initial hole at the start
+       of an opseq which is followed by a space operator */
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
@@ -801,7 +807,8 @@ and syn_perform_block =
         }
       }
     }
-  }
+  };
+}
 and syn_perform_line =
     (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
     : ActionOutcome.t(line_success) => {
@@ -1136,6 +1143,18 @@ and syn_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
     let new_zseq = delete_operator(surround);
+    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+
+  /* <|_ + [k] + ...  ==>  |[k] + ... */
+  | (
+      Backspace,
+      ZOperand(
+        CursorE(_, EmptyHole(_)) as zhole,
+        (E, A(Space, S(operand, suffix))),
+      ),
+    )
+      when ZExp.is_before_zoperand(zhole) =>
+    let new_zseq = ZSeq.ZOperand(ZExp.place_before_operand(operand), (E, suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
@@ -2249,7 +2268,10 @@ and ana_perform_block =
     | _ =>
       ana_perform(ctx, MoveRight, (zblock, u_gen), ty) |> wrap_in_AnaDone
     }
-  | (Backspace, _) when ZExp.is_before_zline(zline) =>
+  | (Backspace, _)
+      when
+        ZExp.is_before_zline(zline)
+        && !ZExp.starts_with_hole_and_space(zline) =>
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
@@ -2484,6 +2506,18 @@ and ana_perform_opseq =
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
+  /* <|_ + [k] + ...  ==>  |[k] + ... */
+  | (
+      Backspace,
+      ZOperand(
+        CursorE(_, EmptyHole(_)) as zhole,
+        (E, A(Space, S(operand, suffix))),
+      ),
+    )
+      when ZExp.is_before_zoperand(zhole) =>
+    let new_zseq =
+      ZSeq.ZOperand(ZExp.place_before_operand(operand), (E, suffix));
+    Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
       Delete,
