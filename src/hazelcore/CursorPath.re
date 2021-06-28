@@ -58,6 +58,8 @@ let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
    will lead to the function position as opposed to the ap itself.
    This is turned on for cursor movement to holes, as there is no
    cursor position on an ap, but off to draw error hole decorations */
-let get_hole_steps =
+let get_steps =
     (~to_fpos_for_aps: bool=false, {steps, ap_steps, _}: hole_info) =>
   to_fpos_for_aps ? ap_steps : steps;
+
+let get_sort = ({sort, _}: hole_info): hole_sort => sort;
