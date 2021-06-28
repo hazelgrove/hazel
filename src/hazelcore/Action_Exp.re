@@ -783,7 +783,6 @@ and syn_perform_block =
         ) =>
         switch (suffix) {
         | [] =>
-          P.p("guy: %s\n", UHExp.sexp_of_t(zblock |> ZExp.erase_zblock));
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
@@ -791,7 +790,7 @@ and syn_perform_block =
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
-          };
+          }
         | [_, ..._] =>
           let (suffix, new_ty, u_gen) =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
