@@ -40,6 +40,41 @@ let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   | FEquals => None
   };
 
+
+type merge_class =
+  | Empty | CanMerge| NoMerge;
+
+let merge_class = (o: UHExp.operand) : merge_class =>
+  switch(o) {
+  | EmptyHole(_) => Empty
+  | InvalidText(_)
+  | Var(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_) => CanMerge
+  | _ => NoMerge  
+  };
+
+ let parse_token = (s:string):UHExp.operand => {
+      let int_r = Str.regexp("[+-]?\b[0-9]+\b");
+    let float_r = Str.regexp("[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?");
+    let bool_r = Str.regexp("true|false");
+    let var_r = Str.regexp("[a-zA-Z_][0-9a-zA-Z_']*")
+      let match = (s, r) => Str.string_match(r, s, 0);
+      if (match(s,int_r)) {
+        IntLit(NotInHole, s)
+      } else if (match(s, bool_r)) {
+        BoolLit(NotInHole, bool_of_string(s)) 
+      } else if (match(s, float_r)) {
+        FloatLit(NotInHole, s) 
+      } else if (match(s, var_r)) {
+        Var(NotInHole, NotInVarHole, s) 
+      } else {
+        InvalidText(0, s)
+      }
+    }; 
+
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq
@@ -599,23 +634,6 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  /*
-             most specific fix:
-             case: when on ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), [_whatever, A(Space, rest_of_seq)]))
-
-   (
-     ()
-     (ExpLineZ
-       (ZOpSeq
-         (BinOp NotInHole Space (Placeholder 0) (Placeholder 1))
-         (ZOperand
-           (CursorE (OnDelim 0 After) (EmptyHole 21))
-           (
-             E
-             (A Space (S (IntLit NotInHole 4) E))))))
-     ()
-   )
-    */
   switch (a) {
   | Backspace =>
     print_endline("SYN backspace pressed");
@@ -1209,6 +1227,20 @@ and syn_perform_opseq =
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
     let new_zseq = delete_operator(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+
+
+  | (Backspace, ZOperand(CursorE(_,operand_a) as zop, (A(Space, S(operand_b, prefix)), suffix)))
+    when ZExp.is_before_zoperand(zop) =>
+    let place_before = ZExp.place_before_operand;
+    let place_after = ZExp.place_after_operand;
+    let z = switch(merge_class(operand_a), merge_class(operand_b)) {
+    | (Empty, _) => ZSeq.ZOperand(place_before(operand_b), (prefix, suffix))
+    | (CanMerge, Empty) => ZSeq.ZOperand(place_after(operand_b), (prefix, suffix))
+    | (NoMerge|CanMerge, NoMerge) => ZSeq.ZOperand(place_after(operand_b), (prefix, A(Space, S(operand_a, suffix))))
+    | (CanMerge, CanMerge) =>
+    | _ => 666
+    }
+
 
   | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
       when is_or_will_become_hole(a, curr) =>
