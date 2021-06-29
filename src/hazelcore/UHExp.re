@@ -343,3 +343,31 @@ and is_complete_operand = (operand: 'operand): bool => {
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
 };
+
+let string_of_operand = (o: operand): string =>
+  switch (o) {
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | ListNil(_) => "[]"
+  | BoolLit(_, b) => string_of_bool(b)
+  | EmptyHole(_) => ""
+  | _ => ""
+  };
+
+let operand_of_string = (s: string): operand => {
+  let match = (s, r) =>
+    Re.Str.string_match(Re.Str.regexp("^" ++ r ++ "$"), s, 0);
+  if (match(s, "true\\|false")) {
+    BoolLit(NotInHole, bool_of_string(s));
+  } else if (match(s, "[-+]?[0-9]*\\.?[0-9]+\\([eE][-+]?[0-9]+\\)?")) {
+    FloatLit(NotInHole, s);
+  } else if (match(s, "[-]?\\b[0-9]+\\b")) {
+    IntLit(NotInHole, s);
+  } else if (match(s, "[a-zA-Z_][0-9a-zA-Z_']*")) {
+    Var(NotInHole, NotInVarHole, s);
+  } else {
+    InvalidText(0, s);
+  };
+};
