@@ -24,22 +24,21 @@ type t =
   | MoveAction(move_input)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(Examples.id)
+  | LoadCard(int)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
-  | InvalidVar(string)
   | FocusCell
   | BlurCell
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | UpdateIsMac(bool)
+  | SerializeToConsole;
