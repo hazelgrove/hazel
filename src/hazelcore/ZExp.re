@@ -129,9 +129,7 @@ and is_before_zline = (zline: zline): bool =>
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
-  | ExpLineZ(zopseq) =>
-    print_endline("is_before_zopseq");
-    is_before_zopseq(zopseq);
+  | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZE(_) => false
   }
