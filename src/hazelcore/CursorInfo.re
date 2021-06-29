@@ -68,7 +68,9 @@ type typed =
   // cursor is on invalid text
   | SynInvalid
   // cursor is on label
-  | SynLabel(LabelErrStatus.t, Label.t)
+  | SynLabel(Label.t)
+  // cursor is on err label
+  | SynLabelErr(LabelErrStatus.HoleReason.t, Label.t)
   // cursor is on a projection in error status
   | SynPrjErr(PrjErrStatus.t)
   // none of the above, cursor is on a free variable

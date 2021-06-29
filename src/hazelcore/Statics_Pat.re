@@ -28,6 +28,7 @@ and syn_skel =
            syn_skel(ctx, skel, seq) |> Option.map(TupleUtil.swap),
          ctx,
        )
+    // ECD You are here: Need to figure out how to refactor this to work with new def of prod
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {

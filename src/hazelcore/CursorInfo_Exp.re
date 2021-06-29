@@ -166,7 +166,8 @@ type err_status_result =
   | StandardErr(ErrStatus.t)
   | VarErr(VarErrStatus.HoleReason.t)
   | InconsistentBranchesErr(list(HTyp.t))
-  | LabelErr(LabelErrStatus.HoleReason.t);
+  | LabelErr(LabelErrStatus.HoleReason.t, Label.t)
+  | PrjErr(PrjErrStatus.HoleReason.t);
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -176,6 +177,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
         | Case(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
+        | Label(InLabelHole(reason), l) => LabelErr(reason, l)
+        | Prj(InPrjHole(reason), _, _) => PrjErr(reason)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -453,10 +456,7 @@ and syn_cursor_info_skel =
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
-        | Some(LabelErr(Standalone))
-        | Some(LabelErr(Duplicate))
-        | Some(LabelErr(Empty)) =>
-          failwith(__LOC__ ++ "Unimplemented Label Err Status")
+        | Some(LabelErr(reason, l)) => Some(mk(SynLabelErr(Reason, l)))
         | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand
@@ -464,7 +464,7 @@ and syn_cursor_info_skel =
             |> UHExp.set_err_status_operand(NotInHole);
           switch (operand_nih) {
           | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
-          | Label(err, l) => Some(mk(SynLabel(err, l)))
+          | Label(_, l) => Some(mk(SynLabel(l)))
           | _ =>
             switch (
               Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
@@ -540,8 +540,10 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, Label(lerr, l)) =>
-    Some(CursorInfo_common.mk(SynLabel(lerr, l), ctx, cursor_term))
+  | CursorE(_, Label(InLabelHole(reason, _), l)) =>
+    Some(CursorInfo_common.mk(SynLabelErr(reason, l), ctx, cursor_term))
+  | CursorE(_, Label(NotInLabelHole, l)) =>
+    Some(CursorInfo_common.mk(SynLabel(l), ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
