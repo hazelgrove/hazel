@@ -1154,7 +1154,8 @@ and syn_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zhole) =>
-    let new_zseq = ZSeq.ZOperand(ZExp.place_before_operand(operand), (E, suffix));
+    let new_zseq =
+      ZSeq.ZOperand(ZExp.place_before_operand(operand), (E, suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
