@@ -86,19 +86,32 @@ let parse_token = (s: string): UHExp.operand => {
 };
 
 let hole_adjacent_backspace = (operand_A, operand_B, prefix, suffix) =>
-  //                 bksp       del
-  //   |HOLE     =>  same       HOLE|?
-  //    HOLE|    =>  |HOLE      same
-  //   |HOLE  B  =>  same?      |B
-  //    HOLE| B  =>  |B         ?
-  //    HOLE |B  =>  |B         ?
-  // A| HOLE     =>  ?          A|
-  // A |HOLE     =>  A|         A|
-  // A  HOLE|    =>  A|         same?
-  // A| HOLE  B  =>  ?
-  // A |HOLE  B  =>  ?
-  // A  HOLE| B  =>  ?
-  // A  HOLE |B  =>  ?
+// principles:
+//1: ?always? kill a hole if ur between one and a space
+//2: backspace ?never? moves the cursor right
+//3: delete ?never? moves the cursor left (unless there is no more left)
+//
+//                 BKSP       DEL
+//      |H     =>  escape     H|
+//       H|    =>  |H         escape
+//
+//    H |H     =>  |H         H|
+//       H| H  =>  |H         H|
+//    A |H     =>  A|?        A|
+//       H| B  =>  |B         |B?
+//      |H  B  =>  escape     |B
+//    A  H|    =>  A|         escape
+//    A| H     =>  delegate   A|
+//       H |B  =>  |B         delegate
+//
+//    A |H  B  =>  A| B?      A |B
+//    A  H| B  =>  A| B       A |B?
+//    H |H  B  =>  |H B       H |B
+//    A  H| H  =>  A |H       A H|
+//    H| H  B  =>  |H B       H| B
+//    A  H |H  =>  A |H       A H|
+//    A| H  B  =>  delegate   A| B
+//    A  H |B  =>  A |B       delegate
   switch (merge_class(operand_A), merge_class(operand_B)) {
   | (Empty, _) =>
     // CASE H1: HOLE| SPACE B => |B - for delete, | might want to go right if it can
