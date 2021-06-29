@@ -43,6 +43,7 @@ let get_model_action =
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
+  | Ctrl_S => Some(SerializeToConsole)
   | Ctrl_Z when is_mac => None
   | Ctrl_Z => Some(Undo)
   | Ctrl_Shift_Z when is_mac => None
