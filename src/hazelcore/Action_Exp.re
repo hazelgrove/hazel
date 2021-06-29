@@ -40,40 +40,98 @@ let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   | FEquals => None
   };
 
-
 type merge_class =
-  | Empty | CanMerge| NoMerge;
+  | Empty
+  | CanMerge(string)
+  | NoMerge;
 
-let merge_class = (o: UHExp.operand) : merge_class =>
-  switch(o) {
+let string_of_operand = (o: UHExp.operand): string =>
+  switch (o) {
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | ListNil(_) => "[]"
+  | BoolLit(_, b) => string_of_bool(b)
+  | EmptyHole(_) => ""
+  | _ => ""
+  };
+
+let merge_class = (o: UHExp.operand): merge_class =>
+  switch (o) {
   | EmptyHole(_) => Empty
   | InvalidText(_)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | ListNil(_) => CanMerge
-  | _ => NoMerge  
+  | ListNil(_) => CanMerge(string_of_operand(o))
+  | _ => NoMerge
   };
 
- let parse_token = (s:string):UHExp.operand => {
-      let int_r = Str.regexp("[+-]?\b[0-9]+\b");
-    let float_r = Str.regexp("[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?");
-    let bool_r = Str.regexp("true|false");
-    let var_r = Str.regexp("[a-zA-Z_][0-9a-zA-Z_']*")
-      let match = (s, r) => Str.string_match(r, s, 0);
-      if (match(s,int_r)) {
-        IntLit(NotInHole, s)
-      } else if (match(s, bool_r)) {
-        BoolLit(NotInHole, bool_of_string(s)) 
-      } else if (match(s, float_r)) {
-        FloatLit(NotInHole, s) 
-      } else if (match(s, var_r)) {
-        Var(NotInHole, NotInVarHole, s) 
-      } else {
-        InvalidText(0, s)
-      }
-    }; 
+let parse_token = (s: string): UHExp.operand => {
+  let match = (s, r) =>
+    Re.Str.string_match(Re.Str.regexp("^" ++ r ++ "$"), s, 0);
+  if (match(s, "true\\|false")) {
+    BoolLit(NotInHole, bool_of_string(s));
+  } else if (match(s, "[-+]?[0-9]*\\.?[0-9]+\\([eE][-+]?[0-9]+\\)?")) {
+    FloatLit(NotInHole, s);
+  } else if (match(s, "[+-]?\\b[0-9]+\\b")) {
+    IntLit(NotInHole, s);
+  } else if (match(s, "[a-zA-Z_][0-9a-zA-Z_']*")) {
+    Var(NotInHole, NotInVarHole, s);
+  } else {
+    InvalidText(0, s);
+  };
+};
+
+let hole_adjacent_backspace = (operand_A, operand_B, prefix, suffix) =>
+  switch (merge_class(operand_A), merge_class(operand_B)) {
+  | (Empty, _) =>
+    // CASE H1: HOLE| SPACE OPERAND_AFTER => |OPERAND_AFTER
+    // CASE H2: |HOLE SPACE OPERAND_AFTER => |OPERAND_AFTER
+    // (note H2 at beginning case is captured at block level)
+    print_endline("CASE O1: HOLE SPACE |B => |B");
+    switch (prefix) {
+    // cases 01a and especially 01b might be weirder than they are worth
+    | Seq.A(Operators_Exp.Space, S(operand_C, preprefix)) =>
+      print_endline("CASE O1a");
+      ZSeq.ZOperand(
+        ZExp.place_after_operand(operand_C),
+        (preprefix, A(Operators_Exp.Space, S(operand_B, suffix))),
+      );
+    /*
+     | Seq.A(operator, S(operand_C, preprefix)) =>
+       print_endline("CASE O1b");
+       ZSeq.ZOperator(
+         (CursorPosition.OnOp(After), operator),
+         (S(operand_C, preprefix), S(operand_B, suffix)),
+       );
+     */
+    | _ =>
+      print_endline("CASE O1c");
+      ZSeq.ZOperand(ZExp.place_before_operand(operand_B), (prefix, suffix));
+    };
+  //ZSeq.ZOperand(ZExp.place_before_operand(operand_B), (prefix, suffix));
+  | (_, Empty) =>
+    // CASE H3: OPERAND SPACE HOLE| => OPERAND_AFTER|
+    // CASE H4: OPERAND SPACE |HOLE => OPERAND_AFTER|
+    print_endline("CASE O2: A SPACE |HOLE => A|");
+    ZOperand(ZExp.place_after_operand(operand_A), (prefix, suffix));
+  | (CanMerge(sa), CanMerge(sb)) =>
+    // CASE N1: A SPACE |B => A|B
+    print_endline("CASE O3: A SPACE |B => A|B");
+    let new_operand = parse_token(sa ++ sb);
+    let n = String.length(sa);
+    ZOperand(CursorE(OnText(n), new_operand), (prefix, suffix));
+  | (_, _) =>
+    // CASE N2: A SPACE |B => A| SPACE B
+    print_endline("CASE O4: A SPACE |B => A| SPACE B");
+    ZOperand(
+      ZExp.place_after_operand(operand_A),
+      (prefix, A(Operators_Exp.Space, S(operand_B, suffix))),
+    );
+  };
 
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
@@ -1135,6 +1193,8 @@ and syn_perform_opseq =
         ),
       ),
     );
+  let mk_success_z = (zseq): ActionOutcome.t(syn_success) =>
+    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
   let is_or_will_become_hole = (a, zoperand) => {
     let act_outcome =
       syn_perform_operand(ctx, a, (zoperand, HTyp.Hole, u_gen));
@@ -1228,42 +1288,42 @@ and syn_perform_opseq =
     let new_zseq = delete_operator(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
+  | (
+      Backspace,
+      ZOperand(
+        CursorE(_, EmptyHole(_) as operand_A),
+        (prefix, A(Space, S(operand_B, suffix))),
+      ),
+    )
+  | (
+      Backspace,
+      ZOperand(
+        CursorE(_, EmptyHole(_) as operand_B),
+        (A(Space, S(operand_A, prefix)), E as suffix),
+      ),
+    ) =>
+    mk_success_z(
+      hole_adjacent_backspace(operand_A, operand_B, prefix, suffix),
+    )
+  | (
+      Backspace,
+      ZOperand(
+        CursorE(_, operand_B) as zop,
+        (A(Space, S(operand_A, prefix)), suffix),
+      ),
+    )
+      when ZExp.is_before_zoperand(zop) =>
+    mk_success_z(
+      hole_adjacent_backspace(operand_A, operand_B, prefix, suffix),
+    )
 
-  | (Backspace, ZOperand(CursorE(_,operand_a) as zop, (A(Space, S(operand_b, prefix)), suffix)))
-    when ZExp.is_before_zoperand(zop) =>
-    let place_before = ZExp.place_before_operand;
-    let place_after = ZExp.place_after_operand;
-    let z = switch(merge_class(operand_a), merge_class(operand_b)) {
-    | (Empty, _) => ZSeq.ZOperand(place_before(operand_b), (prefix, suffix))
-    | (CanMerge, Empty) => ZSeq.ZOperand(place_after(operand_b), (prefix, suffix))
-    | (NoMerge|CanMerge, NoMerge) => ZSeq.ZOperand(place_after(operand_b), (prefix, A(Space, S(operand_a, suffix))))
-    | (CanMerge, CanMerge) =>
-    | _ => 666
-    }
-
-
-  | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
-      when is_or_will_become_hole(a, curr) =>
-    print_endline("!!! CASE 1");
-    mk_success(prefix, ZExp.place_after_operand(prev), suffix);
-  | (Backspace, ZOperand(curr, (A(Space, S(prev, prefix)), suffix)))
-      when ZExp.is_before_zoperand(curr) =>
-    let new_zopseq =
-      ZSeq.ZOperand(
-        ZExp.place_after_operand(prev),
-        (prefix, A(Space, S(curr |> ZExp.erase_zoperand, suffix))),
-      )
-      |> ZExp.mk_ZOpSeq;
-    print_endline("!!! CASE 1.1"); // TODO: proper ty
-    syn_perform_opseq(ctx, a, (new_zopseq, Hole, u_gen));
-  | (Backspace, ZOperand(curr, (E as prefix, A(Space, S(next, suffix)))))
-      when is_or_will_become_hole(a, curr) =>
-    print_endline("!!! CASE 2");
-    mk_success(prefix, ZExp.place_before_operand(next), suffix);
-  | (Delete, ZOperand(curr, (prefix, A(Space, S(next, suffix)))))
-      when is_or_will_become_hole(a, curr) =>
+  | (
+      Delete,
+      ZOperand(operand_A, (prefix, A(Space, S(operand_B, suffix)))),
+    )
+      when is_or_will_become_hole(a, operand_A) =>
     print_endline("!!! CASE 3");
-    mk_success(prefix, ZExp.place_before_operand(next), suffix);
+    mk_success(prefix, ZExp.place_before_operand(operand_B), suffix);
   | (Delete, ZOperand(curr, (prefix, A(Space, S(next, suffix)))))
       when ZExp.is_after_zoperand(curr) =>
     let new_zopseq =
@@ -1277,55 +1337,14 @@ and syn_perform_opseq =
       |> ZExp.mk_ZOpSeq;
     print_endline("!!! CASE 3.3"); // TODO: proper ty
     syn_perform_opseq(ctx, a, (new_zopseq, Hole, u_gen));
-  | (Delete, ZOperand(curr, (A(Space, S(prev, prefix)), E as suffix)))
-      when is_or_will_become_hole(a, curr) =>
+  | (
+      Delete,
+      ZOperand(operand_B, (A(Space, S(operand_A, prefix)), E as suffix)),
+    )
+      when is_or_will_become_hole(a, operand_B) =>
     print_endline("!!! CASE 4");
-    mk_success(prefix, ZExp.place_after_operand(prev), suffix);
+    mk_success(prefix, ZExp.place_after_operand(operand_A), suffix);
 
-  /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
-  /*
-    | (
-        Backspace,
-        ZOperand(
-          CursorE(OnDelim(0, Before), EmptyHole(_)),
-          (E, A(Space, S(operand, rest_of_seq))),
-        ),
-      ) =>
-      print_endline("NEW COOL CASE");
-      let new_zseq =
-        ZSeq.ZOperand(
-          ZExp.place_before_operand(operand),
-          //ZExp.CursorE(OnDelim(0, Before), operand),
-          (E, rest_of_seq),
-        );
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-    | (
-        Backspace,
-        ZOperand(
-          CursorE(_, EmptyHole(_)) as zhole,
-          (A(Space, prefix_tl), suffix),
-        ),
-      )
-        when ZExp.is_before_zoperand(zhole) =>
-      let S(operand, new_prefix) = prefix_tl;
-      let zoperand = operand |> ZExp.place_after_operand;
-      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-
-   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
-   | (
-       Delete,
-       ZOperand(
-         CursorE(_, EmptyHole(_)) as zhole,
-         (prefix, A(Space, suffix_tl)),
-       ),
-     )
-       when ZExp.is_after_zoperand(zhole) =>
-     let S(operand, new_suffix) = suffix_tl;
-     let zoperand = operand |> ZExp.place_before_operand;
-     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-   */
   /* Construction */
 
   /* Making Float Operators from Int Operators */
