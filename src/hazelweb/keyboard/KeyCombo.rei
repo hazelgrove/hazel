@@ -41,6 +41,7 @@ let alt_PageDown: t;
 let ctrl_z: t;
 let ctrl_a: t;
 let ctrl_space: t;
+let ctrl_s: t;
 let ctrl_shift_z: t;
 let ctrl_alt_i: t;
 let ctrl_alt_k: t;

@@ -33,6 +33,7 @@ type t =
   | Ctrl_A
   | Ctrl_Z
   | Ctrl_Space
+  | Ctrl_S
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K
@@ -73,6 +74,7 @@ let get_details =
   | Ctrl_Z => KeyCombo.ctrl_z
   | Ctrl_A => KeyCombo.ctrl_a
   | Ctrl_Space => KeyCombo.ctrl_space
+  | Ctrl_S => KeyCombo.ctrl_s
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
@@ -89,6 +91,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Ctrl_Z);
   } else if (evt_matches(KeyCombo.ctrl_a)) {
     Some(Ctrl_A);
+  } else if (evt_matches(KeyCombo.ctrl_s)) {
+    Some(Ctrl_S);
   } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
     Some(Ctrl_Shift_Z);
   } else if (evt_matches(KeyCombo.meta_z)) {

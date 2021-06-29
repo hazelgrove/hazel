@@ -33,6 +33,7 @@ type t =
   | Ctrl_A
   | Ctrl_Z
   | Ctrl_Space
+  | Ctrl_S
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K

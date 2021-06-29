@@ -50,6 +50,9 @@ let on_startup = (~schedule_action, _) => {
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
 
+  //TODO(andrew): remove this (loads assistant example by default)
+  schedule_action(LoadCard(5));
+
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {

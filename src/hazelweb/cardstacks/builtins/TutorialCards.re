@@ -43,6 +43,7 @@ let intro_init_zexp =
  };
  */
 let intro_card: CardInfo.t = {
+  name: "intro",
   caption: div([], []),
   // TODO(andrew): restore default
   init_zexp: ZExp.place_before(Examples.assistant_test),

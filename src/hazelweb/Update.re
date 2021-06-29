@@ -46,20 +46,18 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | MoveAction(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(_)
+  | LoadCard(_)
   | LoadCardstack(_)
   | NextCard
   | PrevCard
   | UpdateSettings(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
-  | InvalidVar(_)
   | FocusCell(_)
   | BlurCell
   | Undo
   | Redo
   | ShiftHistory(_)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
@@ -67,7 +65,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateIsMac(_)
   | UpdateAssistant(_)
   | AcceptSuggestion(_)
-  | Chain(_) =>
+  | Chain(_)
+  | SerializeToConsole =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -123,14 +122,13 @@ let rec apply_action =
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
-      | LoadExample(id) => Model.load_example(model, Examples.get(id))
+      | LoadCard(n) => Model.nth_card(n, model)
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
-      | InvalidVar(_) => model
       | FocusCell(editor) =>
         P.p(
           "FOCUSCELL current: %s\n",
@@ -166,7 +164,6 @@ let rec apply_action =
                shift_history_info.call_by_mouseenter,
              );
         Model.load_undo_history(model, new_history, ~is_after_move=false);
-      | ShiftWhenScroll => model
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
@@ -229,6 +226,15 @@ let rec apply_action =
       | Chain([x, ...xs]) =>
         let model' = apply_action(model, x, state, ~schedule_action);
         apply_action(model', Chain(xs), state, ~schedule_action);
+      | SerializeToConsole =>
+        model
+        |> Model.get_program
+        |> Program.get_edit_state
+        |> Program.EditState_Exp.get_uhstx
+        |> Serialization.string_of_exp
+        |> Js.string
+        |> JSUtil.log;
+        model;
       };
     },
   );
