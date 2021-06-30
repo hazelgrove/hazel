@@ -23,10 +23,11 @@ jobs:
       #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
       # script
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
+
       - run: eval $(opam env)
       - run: make release
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
       # deploy
       #- name: deploy
       #  if: ${{ github.ref == 'refs/heads/github-actions-test' }}
