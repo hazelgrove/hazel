@@ -121,7 +121,7 @@ and mk_line =
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
         | CommentLine(comment) =>
           let comment_doc =
-            UHDoc_common.mk_text(comment)
+            UHDoc_common.mk_comment(comment)
             |> Doc.annot(
                  UHAnnot.mk_Token(
                    ~shape=Text,

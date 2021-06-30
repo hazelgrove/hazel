@@ -74,14 +74,8 @@ module CurrentTerm = {
     ];
   };
 
-  let sort_cls: TermSort.t => string =
-    fun
-    | Typ => "Typ"
-    | Pat => "Pat"
-    | Exp => "Exp";
-
   let closed_child_filter = (sort: TermSort.t) => {
-    let sort_cls = sort_cls(sort);
+    let sort_cls = TermSort.string_of(sort);
     Node.create_svg(
       "filter",
       [
@@ -344,7 +338,9 @@ module CurrentTerm = {
       @ open_child_borders
       |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
       |> SvgUtil.Path.view(
-           ~attrs=[Attr.classes(["code-current-term", sort_cls(sort)])],
+           ~attrs=[
+             Attr.classes(["code-current-term", TermSort.string_of(sort)]),
+           ],
          );
     };
     let closed_children =
@@ -360,7 +356,9 @@ module CurrentTerm = {
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
            |> SvgUtil.Path.view(
                 ~attrs=
-                  Attr.[classes(["code-closed-child", sort_cls(sort)])],
+                  Attr.[
+                    classes(["code-closed-child", TermSort.string_of(sort)]),
+                  ],
               );
          });
     let outer_filter =
@@ -371,7 +369,10 @@ module CurrentTerm = {
           Node.create_svg(
             "feDropShadow",
             [
-              Attr.classes(["current-term-drop-shadow", sort_cls(sort)]),
+              Attr.classes([
+                "current-term-drop-shadow",
+                TermSort.string_of(sort),
+              ]),
               Attr.create("dx", "0.1"),
               Attr.create("dy", "0.04"),
               Attr.create("stdDeviation", "0"),

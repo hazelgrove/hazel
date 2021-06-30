@@ -2,4 +2,12 @@
 type t =
   | Typ
   | Pat
-  | Exp;
+  | Exp
+  | Comment;
+
+let string_of: t => string =
+  fun
+  | Typ => "typ"
+  | Pat => "pat"
+  | Exp => "exp"
+  | Comment => "comment";

@@ -155,13 +155,29 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
       | Annot(annot, box) =>
         let vs = view_of_box(box);
         switch (annot) {
-        | Token({shape, _}) =>
+        | Token({shape, ann_class, sort, _}) =>
           let clss =
-            switch (shape) {
-            | Text => ["code-text"]
-            | Op => ["code-op"]
-            | Delim(_) => ["code-delim"]
-            };
+            (
+              switch (shape) {
+              | Text => ["code-text"]
+              | Op => ["code-op"]
+              | Delim(_) => ["code-delim"]
+              }
+            )
+            @ (
+              switch (sort) {
+              | None => []
+              | Some(ts) => ["ann-sort-" ++ TermSort.string_of(ts)]
+              }
+            )
+            @ (
+              switch (ann_class) {
+              | None => []
+              | Some(ann_class) => [
+                  "ann-class-" ++ UHAnnot.string_of_ann_class(ann_class),
+                ]
+              }
+            );
           [Node.span([Attr.classes(clss)], vs)];
         | HoleLabel({len}) =>
           let width = Css_gen.width(`Ch(float_of_int(len)));

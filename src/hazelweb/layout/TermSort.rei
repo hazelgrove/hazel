@@ -2,4 +2,7 @@
 type t =
   | Typ
   | Pat
-  | Exp;
+  | Exp
+  | Comment;
+
+let string_of: t => string;
