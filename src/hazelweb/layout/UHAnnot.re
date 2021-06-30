@@ -41,20 +41,20 @@ let string_of_delimiter: delimiter => string =
 [@deriving sexp]
 type signifier =
   | Operator
-  | Operand
   | Variable
   | Literal
   | Invalid
-  | Comment;
+  | Comment
+  | Hole;
 
 let string_of_signifier: signifier => string =
   fun
-  | Operator => "operator"
-  | Operand => "operand"
   | Variable => "variable"
   | Literal => "literal"
+  | Operator => "operator"
   | Invalid => "invalid"
-  | Comment => "comment";
+  | Comment => "comment"
+  | Hole => "hole";
 
 [@deriving sexp]
 type ann_class =
@@ -63,15 +63,15 @@ type ann_class =
 
 let string_of_ann_class =
   fun
-  | Delimiter(d) => string_of_delimiter(d)
-  | Signifier(s) => string_of_signifier(s);
+  | Delimiter(d) => "delimiter-" ++ string_of_delimiter(d)
+  | Signifier(s) => "signifier-" ++ string_of_signifier(s);
 
 [@deriving sexp]
 type token_data = {
   shape: token_shape,
   len: int,
-  ann_class: option(ann_class),
-  sort: option(TermSort.t),
+  ann_class,
+  sort: TermSort.t,
 };
 
 [@deriving sexp]
@@ -92,9 +92,9 @@ type t =
 
 let mk_Token =
     (
-      ~sort: option(TermSort.t)=None,
+      ~sort: TermSort.t,
       ~len: int,
-      ~ann_class: option(ann_class)=None,
+      ~ann_class: ann_class,
       ~shape: token_shape,
       (),
     ) =>

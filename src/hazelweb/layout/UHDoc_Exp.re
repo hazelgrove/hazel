@@ -116,25 +116,14 @@ and mk_line =
       (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
       (
         switch (line) {
-        | EmptyLine =>
-          UHDoc_common.empty_
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+        | EmptyLine => UHDoc_common.emptyline
         | CommentLine(comment) =>
-          let comment_doc =
-            UHDoc_common.mk_comment(comment)
-            |> Doc.annot(
-                 UHAnnot.mk_Token(
-                   ~shape=Text,
-                   ~len=StringUtil.utf8_length(comment),
-                   (),
-                 ),
-               );
           Doc.hcats([
             UHDoc_common.Delim.open_CommentLine(),
             UHDoc_common.space_,
-            comment_doc,
+            UHDoc_common.mk_comment(comment),
           ])
-          |> Doc.annot(UHAnnot.CommentLine);
+          |> Doc.annot(UHAnnot.CommentLine)
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, def) =>
@@ -163,7 +152,7 @@ and mk_opseq =
 and mk_operator = (op: UHExp.operator): UHDoc.t =>
   op |> Operators_Exp.is_Space
     ? UHDoc_common.mk_space_op
-    : UHDoc_common.mk_op(Operators_Exp.to_string(op))
+    : UHDoc_common.mk_op(~sort=Exp, Operators_Exp.to_string(op))
 and mk_operand =
   lazy(
     UHDoc_common.memoize(

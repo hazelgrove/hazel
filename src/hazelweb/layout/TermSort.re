@@ -3,11 +3,11 @@ type t =
   | Typ
   | Pat
   | Exp
-  | Comment;
+  | Meta;
 
 let string_of: t => string =
   fun
-  | Typ => "typ"
-  | Pat => "pat"
-  | Exp => "exp"
-  | Comment => "comment";
+  | Typ => "Typ"
+  | Pat => "Pat"
+  | Exp => "Exp"
+  | Meta => "Meta";

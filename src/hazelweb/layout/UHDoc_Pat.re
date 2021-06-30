@@ -56,7 +56,7 @@ and mk_opseq =
 and mk_operator = (op: UHPat.operator): UHDoc.t =>
   op |> Operators_Pat.is_Space
     ? UHDoc_common.mk_space_op
-    : UHDoc_common.mk_op(Operators_Pat.to_string(op))
+    : UHDoc_common.mk_op(~sort=Pat, Operators_Pat.to_string(op))
 and mk_operand =
   lazy(
     UHDoc_common.memoize(

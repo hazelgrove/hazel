@@ -3,6 +3,6 @@ type t =
   | Typ
   | Pat
   | Exp
-  | Comment;
+  | Meta;
 
 let string_of: t => string;

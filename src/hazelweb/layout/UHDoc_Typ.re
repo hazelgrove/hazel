@@ -43,7 +43,7 @@ and mk_opseq =
     )
   )
 and mk_operator = (op: UHTyp.operator): UHDoc.t =>
-  UHDoc_common.mk_op(Operators_Typ.to_string(op))
+  UHDoc_common.mk_op(~sort=Typ, Operators_Typ.to_string(op))
 and mk_operand =
   lazy(
     UHDoc_common.memoize(

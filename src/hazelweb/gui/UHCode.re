@@ -164,20 +164,8 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
               | Delim(_) => ["code-delim"]
               }
             )
-            @ (
-              switch (sort) {
-              | None => []
-              | Some(ts) => ["ann-sort-" ++ TermSort.string_of(ts)]
-              }
-            )
-            @ (
-              switch (ann_class) {
-              | None => []
-              | Some(ann_class) => [
-                  "ann-class-" ++ UHAnnot.string_of_ann_class(ann_class),
-                ]
-              }
-            );
+            @ ["ann-sort-" ++ TermSort.string_of(sort)]
+            @ ["ann-class-" ++ UHAnnot.string_of_ann_class(ann_class)];
           [Node.span([Attr.classes(clss)], vs)];
         | HoleLabel({len}) =>
           let width = Css_gen.width(`Ch(float_of_int(len)));

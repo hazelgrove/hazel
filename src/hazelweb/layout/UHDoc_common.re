@@ -56,9 +56,9 @@ let linebreak_: t = Doc.linebreak();
 let indent_and_align_ = (doc: t): t => Doc.(hcat(indent_, align(doc)));
 
 module Delim = {
-  let mk = //TODO(andrew): remove defaults
+  let mk =
       (
-        ~sort: option(TermSort.t)=None,
+        ~sort: TermSort.t,
         ~index: int,
         ~delim_class: UHAnnot.delimiter,
         delim_text: string,
@@ -66,7 +66,7 @@ module Delim = {
       : t =>
     Doc.annot(
       UHAnnot.mk_Token(
-        ~ann_class=Some(Delimiter(delim_class)),
+        ~ann_class=Delimiter(delim_class),
         ~sort,
         ~len=StringUtil.utf8_length(delim_text),
         ~shape=Delim(index),
@@ -75,47 +75,41 @@ module Delim = {
       Doc.text(delim_text),
     );
 
-  let empty_hole_doc = (hole_lbl: string): t => {
-    let len = hole_lbl |> StringUtil.utf8_length;
-    Doc.text(hole_lbl)
-    |> Doc.annot(UHAnnot.HoleLabel({len: len}))
-    |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
-  };
+  let mk_structural = mk(~delim_class=Structural);
+  let mk_exp_structural = mk_structural(~sort=Exp);
+  let mk_exp_keyword = mk(~sort=Exp, ~delim_class=Keyword);
 
-  let open_List = (): t => mk(~delim_class=Structural, ~index=0, "[");
-  let close_List = (): t => mk(~delim_class=Structural, ~index=1, "]");
+  let open_List = (~sort): t => mk_structural(~sort, ~index=0, "[");
+  let close_List = (~sort): t => mk_structural(~sort, ~index=1, "]");
 
   let open_Parenthesized = (~sort: TermSort.t): t =>
-    mk(~sort=Some(sort), ~index=0, ~delim_class=Keyword, "(");
+    mk_structural(~sort, ~index=0, "(");
   let close_Parenthesized = (~sort: TermSort.t): t =>
-    mk(~sort=Some(sort), ~index=1, ~delim_class=Structural, ")");
+    mk_structural(~sort, ~index=1, ")");
 
   let open_Inj = (inj_side: InjSide.t): t =>
     // TODO(andrew): i can fix him (separate into kw and structural?)
-    mk(
-      ~delim_class=Keyword,
-      ~index=0,
-      "inj[" ++ InjSide.to_string(inj_side) ++ "](",
-    );
-  let close_Inj = (): t => mk(~delim_class=Structural, ~index=1, ")");
+    mk_exp_keyword(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
+  let close_Inj = (): t => mk_exp_structural(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~delim_class=Keyword, ~index=0, Unicode.lamSym);
-  let open_Lam = (): t => mk(~delim_class=Structural, ~index=1, ".{");
-  let close_Lam = (): t => mk(~delim_class=Structural, ~index=2, "}");
+  let sym_Lam = (): t => mk_exp_keyword(~index=0, Unicode.lamSym);
+  let open_Lam = (): t => mk_exp_structural(~index=1, ".{");
+  let close_Lam = (): t => mk_exp_structural(~index=2, "}");
 
-  let open_Case = (): t => mk(~delim_class=Keyword, ~index=0, "case");
-  let close_Case = (): t => mk(~delim_class=Keyword, ~index=1, "end");
+  let open_Case = (): t => mk_exp_keyword(~index=0, "case");
+  let close_Case = (): t => mk_exp_keyword(~index=1, "end");
 
-  let bar_Rule = (): t => mk(~delim_class=Structural, ~index=0, "|");
-  let arrow_Rule = (): t => mk(~delim_class=Structural, ~index=1, "=>");
+  let bar_Rule = (): t => mk_exp_structural(~index=0, "|");
+  let arrow_Rule = (): t => mk_exp_structural(~index=1, "=>");
 
-  let let_LetLine = (): t => mk(~delim_class=Keyword, ~index=0, "let");
-  let eq_LetLine = (): t => mk(~delim_class=Structural, ~index=1, "=");
-  let in_LetLine = (): t => mk(~delim_class=Keyword, ~index=2, "in");
+  let let_LetLine = (): t => mk_exp_keyword(~index=0, "let");
+  let eq_LetLine = (): t => mk_exp_structural(~index=1, "=");
+  let in_LetLine = (): t => mk_exp_keyword(~index=2, "in");
 
-  let open_CommentLine = (): t => mk(~delim_class=Structural, ~index=0, "#");
+  let open_CommentLine = (): t =>
+    mk(~sort=Meta, ~delim_class=Structural, ~index=0, "#");
 
-  let colon_Ann = (): t => mk(~delim_class=Structural, ~index=0, ":");
+  let colon_Ann = (): t => mk_exp_structural(~index=0, ":");
 };
 
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
@@ -133,8 +127,8 @@ let mk_Signifier =
     (~sort: TermSort.t, ~sig_class: UHAnnot.signifier, s: string): t =>
   Doc.annot(
     UHAnnot.mk_Token(
-      ~sort=Some(sort),
-      ~ann_class=Some(Signifier(sig_class)),
+      ~sort,
+      ~ann_class=Signifier(sig_class),
       ~shape=Text,
       ~len=StringUtil.utf8_length(s),
       (),
@@ -142,13 +136,77 @@ let mk_Signifier =
     Doc.text(s),
   );
 
-let mk_comment = mk_Signifier(~sort=Comment, ~sig_class=Comment);
+let mk_comment = comment =>
+  comment
+  |> mk_Signifier(~sort=Meta, ~sig_class=Comment)
+  |> Doc.annot(
+       UHAnnot.mk_Token(
+         ~shape=Text,
+         ~sort=Meta,
+         ~ann_class=Signifier(Comment),
+         ~len=StringUtil.utf8_length(comment),
+         (),
+       ),
+     );
 
-let mk_op = (op_text: string): t =>
+let emptyline =
+  empty_
+  |> Doc.annot(
+       UHAnnot.mk_Token(
+         ~sort=Meta,
+         ~shape=Text,
+         ~ann_class=Signifier(Comment),
+         ~len=0,
+         (),
+       ),
+     );
+
+let mk_op = (~sort, op_text: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(~len=StringUtil.utf8_length(op_text), ~shape=Op, ()),
+    UHAnnot.mk_Token(
+      ~sort,
+      ~ann_class=Signifier(Operator),
+      ~len=StringUtil.utf8_length(op_text),
+      ~shape=Op,
+      (),
+    ),
     Doc.text(op_text),
   );
+
+let mk_Lit = (~sort: TermSort.t, text: string): t =>
+  Doc.annot(
+    UHAnnot.mk_Token(
+      ~ann_class=Signifier(Literal),
+      ~sort,
+      ~len=StringUtil.utf8_length(text),
+      ~shape=Delim(0), // TODO(andrew): are these delims for a reason?
+      (),
+    ),
+    Doc.text(text),
+  );
+
+let mk_Wild = (): t =>
+  mk_Lit(~sort=Pat, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
+
+let mk_TypeLit = (s: string, ()) =>
+  s |> mk_Lit(~sort=Typ) |> annot_Tessera |> annot_Operand(~sort=Typ);
+
+let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t => {
+  let len = hole_lbl |> StringUtil.utf8_length;
+  Doc.text(hole_lbl)
+  |> Doc.annot(UHAnnot.HoleLabel({len: len}))
+  |> Doc.annot(
+       UHAnnot.mk_Token(
+         ~sort,
+         ~ann_class=Signifier(Hole),
+         ~shape=Delim(0),
+         ~len,
+         (),
+       ),
+     )
+  |> annot_Tessera
+  |> annot_Operand(~sort);
+};
 
 let mk_space_op: t = space_;
 
@@ -298,22 +356,6 @@ let pad_left_delimited_closed_child =
     ~inline_padding=(space_, empty_),
   );
 
-let mk_Lit = (~sort: TermSort.t, text: string): t =>
-  //TODO(andrew): remove defaults
-  Doc.annot(
-    UHAnnot.mk_Token(
-      ~ann_class=Some(Signifier(Literal)),
-      ~sort=Some(sort),
-      ~len=StringUtil.utf8_length(text),
-      ~shape=Delim(0), // TODO(andrew): are these delims for a reason?
-      (),
-    ),
-    Doc.text(text),
-  );
-
-let mk_TypeLit = (s: string, ()) =>
-  s |> mk_Lit(~sort=Typ) |> annot_Tessera |> annot_Operand(~sort=Typ);
-
 let mk_Unit = mk_TypeLit("()");
 let mk_Bool = mk_TypeLit("Bool");
 let mk_Int = mk_TypeLit("Int");
@@ -322,12 +364,6 @@ let mk_Float = mk_TypeLit("Float");
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
   StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
-
-let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
-  Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
-
-let mk_Wild = (): t =>
-  mk_Lit(~sort=Pat, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
 
 let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
   mk_Signifier(~sort, ~sig_class=Invalid, t)
@@ -367,8 +403,8 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
 };
 
 let mk_List = (body: formatted_child): t => {
-  let open_group = Delim.open_List() |> annot_Tessera;
-  let close_group = Delim.close_List() |> annot_Tessera;
+  let open_group = Delim.open_List(~sort=Typ) |> annot_Tessera;
+  let close_group = Delim.close_List(~sort=Typ) |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort=Typ);
 };
@@ -572,7 +608,7 @@ let mk_NTuple =
         UHAnnot.OpenChild(enforce_inline ? InlineWithBorder : Multiline),
         mk_BinOp(~enforce_inline, hd),
       );
-    let comma_doc = (step: int) => annot_Step(step, mk_op(","));
+    let comma_doc = (step: int) => annot_Step(step, mk_op(~sort, ","));
     let (inline_choice, comma_indices) =
       tl
       |> List.fold_left(
