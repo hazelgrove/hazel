@@ -4,22 +4,19 @@ jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
     steps:
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
       - uses: actions/checkout@v2
       - name: cache opam
         id: opam-cache
         uses: actions/cache@v2
         with:
           path: '/home/runner/.opam'
-          
           key: ${{ runner.os }}-modules-${{ hashFiles('opam.export') }}
       # before_install
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
-      - run: cd /home/runner/.opam
-      - run: ls
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
       # install
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
