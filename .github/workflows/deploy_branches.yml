@@ -19,13 +19,13 @@ jobs:
       # install
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
-      - run: opam env
-      - run: eval $(opam env)
+      - run: echo "/home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin" >> $GITHUB_PATH
+      #- run: eval $(opam env)
       #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
-      - run: make deps   
+      - run: make deps  
+      - run: which dune 
       # script
 
-      - run: eval $(opam env)
       - run: make release
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
