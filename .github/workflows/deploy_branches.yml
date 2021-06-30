@@ -4,6 +4,8 @@ jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
     steps:
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
       - uses: actions/checkout@v2
       - name: cache opam
         id: opam-cache
