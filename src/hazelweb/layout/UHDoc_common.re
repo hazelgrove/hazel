@@ -391,9 +391,7 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   |> annot_Operand(~sort);
 
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
-  mk_Signifier(~sort, ~sig_class=Literal, "[]")
-  |> annot_Tessera
-  |> annot_Operand(~sort);
+  mk_Lit(~sort, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized(~sort) |> annot_Tessera;
