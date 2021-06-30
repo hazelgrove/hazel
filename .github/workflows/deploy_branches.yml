@@ -23,23 +23,32 @@ jobs:
       #- run: eval $(opam env)
       #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       # script
+      - run: ls -a
+        env: #duplicated effect of eval $(opam env)
+          OPAM_SWITCH_PREFIX: /home/runner/.opam/ocaml-base-compiler.4.08.1
+          CAML_LD_LIBRARY_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/stublibs
+          OCAML_TOPLEVEL_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/toplevel
+          MANPATH: :/home/runner/.opam/ocaml-base-compiler.4.08.1/man
+          
+
       - run: which dune
         env: #duplicated effect of eval $(opam env)
-          OPAM_SWITCH_PREFIX: '/home/runner/.opam/ocaml-base-compiler.4.08.1'
-          CAML_LD_LIBRARY_PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/lib/stublibs:Updated by package ocaml'
-          OCAML_TOPLEVEL_PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/lib/toplevel'
-          MANPATH: ':/home/runner/.opam/ocaml-base-compiler.4.08.1/man'
-          PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
+          OPAM_SWITCH_PREFIX: /home/runner/.opam/ocaml-base-compiler.4.08.1
+          CAML_LD_LIBRARY_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/stublibs
+          OCAML_TOPLEVEL_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/toplevel
+          MANPATH: :/home/runner/.opam/ocaml-base-compiler.4.08.1/man
+          PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
       - run: make deps 
 
       - run: make release
         env: #duplicated effect of eval $(opam env)
-          OPAM_SWITCH_PREFIX: '/home/runner/.opam/ocaml-base-compiler.4.08.1'
-          CAML_LD_LIBRARY_PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/lib/stublibs:Updated by package ocaml'
-          OCAML_TOPLEVEL_PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/lib/toplevel'
-          MANPATH: ':/home/runner/.opam/ocaml-base-compiler.4.08.1/man'
-          PATH: '/home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
+          OPAM_SWITCH_PREFIX: /home/runner/.opam/ocaml-base-compiler.4.08.1
+          CAML_LD_LIBRARY_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/stublibs
+          OCAML_TOPLEVEL_PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/lib/toplevel
+          MANPATH: :/home/runner/.opam/ocaml-base-compiler.4.08.1/man
+          PATH: /home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
       # deploy
