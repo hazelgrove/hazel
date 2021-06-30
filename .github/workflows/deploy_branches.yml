@@ -19,6 +19,7 @@ jobs:
       # install
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
+      - run: opam env
       - run: eval $(opam env)
       #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
