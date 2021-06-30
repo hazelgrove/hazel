@@ -13,6 +13,7 @@
 }
 
 :root {
+  --page-bg-color: #fff9ec;
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
   --page-padding: 15px;
@@ -819,11 +820,12 @@ body {
 /* page */
 
 .page {
-  background-color: white;
+  background-color: var(--page-bg-color);
   width: 100%;
   padding: 0.25in;
-  margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
-  box-shadow: 3px 3px tan;
+  margin-bottom: 14px;
+  box-shadow: 0px 3px tan;
+  border-radius: 0.5em;
   min-width: 450px;
   /* border: 1px solid tan; */
   max-width: 100ch;
@@ -943,13 +945,12 @@ h1 {
 }*/
 
 .ann-class-delimiter-keyword {
-  font-weight: bold;
-  font-variant-ligatures: normal;
   color: #b0a17e;
 }
 
 .ann-class-delimiter-structural {
-  color: #e2d9c5;
+  font-variant-ligatures: normal;
+  color: #dbd2be;
 }
 
 .ann-sort-Exp.ann-class-signifier-variable,
@@ -971,7 +972,7 @@ h1 {
 } 
 
 .code-closed-child {
-  fill: white;
+  fill: var(--page-bg-color);
 }
 
 #code-root,
@@ -1183,12 +1184,14 @@ h1 {
 }
 
 #cell {
+  /*
   position: relative;
   width: auto;
   margin-top: 20px;
   background-color: white;
-  padding: 10px;
   border: 2px solid #CCC;
+  */
+  padding: 10px;
 }
 #cell:focus {
   outline: 0px;
