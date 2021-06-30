@@ -25,6 +25,7 @@ jobs:
       # script
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
+      - run: eval $(opam env)
       - run: make release
       # deploy
       #- name: deploy
