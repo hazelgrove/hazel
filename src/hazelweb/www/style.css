@@ -936,10 +936,39 @@ h1 {
 .code.presentation .Term.BinOp {
   display: inline;
 }
-.code-delim {
+
+/*.code-delim {
   font-weight: bold;
   font-variant-ligatures: normal;
+}*/
+
+.ann-class-delimiter-keyword {
+  font-weight: bold;
+  font-variant-ligatures: normal;
+  color: #b0a17e;
 }
+
+.ann-class-delimiter-structural {
+  color: #e2d9c5;
+}
+
+.ann-sort-Exp.ann-class-signifier-variable,
+.ann-sort-Exp.ann-class-signifier-literal,
+.ann-sort-Exp.ann-class-signifier-operator {
+  color: black;
+}
+
+.ann-sort-Pat.ann-class-signifier-variable,
+.ann-sort-Pat.ann-class-signifier-literal,
+.ann-sort-Pat.ann-class-signifier-operator {
+  color: #3e8653;
+}
+
+.ann-sort-Typ.ann-class-signifier-variable,
+.ann-sort-Typ.ann-class-signifier-literal,
+.ann-sort-Typ.ann-class-signifier-operator {
+  color: #4247ce;
+} 
 
 .code-closed-child {
   fill: white;
