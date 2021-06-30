@@ -15,8 +15,7 @@ jobs:
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
       - run: sudo apt --assume-yes install m4 opam
-      #- name: Debugging with ssh
-      #  uses: lhotari/action-upterm@v1
+
       # install
       - run: export OPAMYES=1
       - run: opam init --compiler=ocaml-base-compiler.4.08.1
@@ -24,6 +23,8 @@ jobs:
       #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
       - run: make deps   
       # script
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
       - run: make release
       # deploy
       #- name: deploy
