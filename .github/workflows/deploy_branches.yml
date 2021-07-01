@@ -10,6 +10,7 @@ jobs:
           path: source
       - name: grab the website
         uses: actions/checkout@v2
+        token: ${{ secrets.API_TOKEN_GITHUB }} # TODO: reduce permissions
         with:
           repository: hazelgrove/build
           path: server
@@ -27,10 +28,6 @@ jobs:
       #- run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # 
       #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
-      - uses: actions/checkout@v2 # commit aka deploy
-        with:
-          repository: hazelgrove/build
-          path: server
       - run: |
           ls -a
           git config user.name github-deploy-action
