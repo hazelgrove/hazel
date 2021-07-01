@@ -267,6 +267,8 @@ body {
 
 #page-area {
   flex-grow: 1;
+  display: flex;
+  justify-content: center;
   /* enable scroll */
   height: 100%;
   width: 100%;
@@ -822,12 +824,10 @@ body {
 .page {
   background-color: var(--page-bg-color);
   width: 100%;
-  padding: 0.25in;
-  margin-bottom: 14px;
+  height: fit-content;
   box-shadow: 0px 3px tan;
   border-radius: 0.5em;
   min-width: 450px;
-  /* border: 1px solid tan; */
   max-width: 100ch;
 }
 
@@ -843,7 +843,9 @@ h1 {
 }
 
 .cell-status {
-  background-color: #EEE;
+  padding-top: 0.75em;
+  padding-left: 2em;
+  background-color: #f5ecdb;
 }
 
 .result-label {
@@ -851,30 +853,29 @@ h1 {
 }
 
 .result-view {
-  padding-left: 25px;
-  padding-bottom: 5px;
-  background-color: #EEE;
+  padding-left: 2em;
+  padding-bottom: 1em;
+  background-color: #f5ecdb;
+  border-bottom-left-radius: 0.5em;
+  border-bottom-right-radius: 0.5em;
 }
 
 .type-indicator {
   width: 100%;
-  font-size: 12pt;
+  /*font-size: 12pt;*/
 }
 
 .type-label {
-  background-color: #EEE;
-  padding: 3px;
   display: inline-block;
-  padding-right: 5px;
+  padding-right: 0.5em;
   text-transform: uppercase;
   font-weight: bold;
-  font-size: 11pt;
+  /*font-size: 11pt;*/
   color: gray;
 }
 
 .htype-view {
   padding: 3px;
-  background-color: #EEE;
   display: inline-block;
 }
 
@@ -1166,14 +1167,14 @@ h1 {
 
 .err-hole {
   stroke: red;
-  stroke-dasharray: 3 2;
+  /*stroke-dasharray: 3 2;*/
   stroke-width: 1;
   fill: none;
 }
 
 .var-err-hole {
   stroke: var(--verr-hole-color);
-  stroke-dasharray: 3 2;
+  /*stroke-dasharray: 3 2;*/
   stroke-width: 1;
   fill: none;
 }
@@ -1191,7 +1192,7 @@ h1 {
   background-color: white;
   border: 2px solid #CCC;
   */
-  padding: 10px;
+  padding: 2em;
 }
 #cell:focus {
   outline: 0px;
@@ -1205,9 +1206,9 @@ h1 {
 	font-style: normal;
 }
 
-.result-view {
+/*.result-view {
   font-size: 125%;
-}
+}*/
 
 .DHCode .EmptyHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */
