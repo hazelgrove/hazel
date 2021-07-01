@@ -15,12 +15,15 @@ jobs:
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
       - run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # clear old copy
-      - run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
+      - run: touch plargstukha.txt
+      - run: mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
+      #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
       - run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
-          git commit -m "github-deploy-action" --allow-empty
+          git add .
+          git commit -m "github-deploy-action"
           git push
 
       - name: Debugging with ssh
