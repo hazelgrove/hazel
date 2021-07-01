@@ -29,7 +29,8 @@ jobs:
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
       - run: |
-          cd server
+          ls -a
+          cd ./server
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
           git status
