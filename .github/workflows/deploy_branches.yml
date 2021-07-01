@@ -17,7 +17,7 @@ jobs:
       - name: install dependencies and build # STEP 2
       #- run: sudo add-apt-repository --yes ppa:avsm/ppa
       #- run: sudo apt update
-      - run: |
+        run: |
           sudo apt --assume-yes install m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.4.08.1
