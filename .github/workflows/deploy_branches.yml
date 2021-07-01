@@ -1,3 +1,5 @@
+# General notes on github actions: Note that both the working directory
+# and environment variables generally are not shared between steps.
 name: Deploy hazel
 on: [push]
 jobs:
@@ -18,7 +20,7 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: './source/.opam'
+          path: './source/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Install dependencies and build hazel # STEP 3
         run: |
