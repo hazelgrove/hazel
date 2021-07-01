@@ -27,9 +27,9 @@ jobs:
       - run: eval $(opam env); make deps 
 
       - run: eval $(opam env); make release
-      
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
+
+      #- name: Debugging with ssh
+      #  uses: lhotari/action-upterm@v1
       # deploy
       #- name: deploy
       #  if: ${{ github.ref == 'refs/heads/github-actions-test' }}
