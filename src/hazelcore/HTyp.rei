@@ -38,3 +38,5 @@ let matched_list: t => option(t);
 let complete: t => bool;
 
 let join_all: (join, list(t)) => option(t);
+
+let flatten_prod: list(t) => list((option(Label.t), t));

@@ -240,3 +240,16 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let flatten_prod = (tys: list(t)): list((option(Label.t), t)) => {
+  List.map(
+    ty => {
+      switch (ty) {
+      // singleton prod implies it is a single labeled element
+      | Prod([elt]) => elt
+      | _ => (None, ty)
+      }
+    },
+    tys,
+  );
+};

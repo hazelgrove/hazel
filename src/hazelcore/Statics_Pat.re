@@ -29,7 +29,9 @@ and syn_skel =
          ctx,
        )
     // ECD You are here: Need to figure out how to refactor this to work with new def of prod
-    |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
+    |> Option.map(((ctx, tys)) => {
+         (HTyp.Prod(tys |> HTyp.flatten_prod), ctx)
+       })
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
     | None => None
@@ -41,7 +43,7 @@ and syn_skel =
         | Placeholder(n) =>
           let pn = seq |> Seq.nth_operand(n);
           switch (pn) {
-          | Label(_, l) => Some((Label_Elt(l, HTyp.Hole), ctx))
+          | Label(_, l) => Some((Prod([(Some(l), HTyp.Hole)]), ctx))
           | _ => Some((Hole, ctx))
           };
         | _ => Some((Hole, ctx))
@@ -342,7 +344,13 @@ and syn_fix_holes_skel =
            (ctx, u_gen, seq),
          );
     let (skels, tys) = List.split(pairs);
-    (UHPat.mk_tuple(skels), seq, Prod(tys), ctx, u_gen);
+    (
+      UHPat.mk_tuple(skels),
+      seq,
+      Prod(tys |> HTyp.flatten_prod),
+      ctx,
+      u_gen,
+    );
   | BinOp(_, Space, skel1, skel2) =>
     let arrow_case =
         (): (UHPat.skel, UHPat.seq, HTyp.t, Contexts.t, MetaVarGen.t) => {
@@ -391,7 +399,7 @@ and syn_fix_holes_skel =
         let (skel2, seq, ty, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
-        let ty = HTyp.Label_Elt(l, ty);
+        let ty = HTyp.Prod([(Some(l), ty)]);
         (skel, seq, ty, ctx, u_gen);
       | Label(InLabelHole(Standalone, _), l) =>
         let seq =
@@ -399,7 +407,7 @@ and syn_fix_holes_skel =
         let (skel2, seq, ty, ctx, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         let skel = Skel.BinOp(NotInHole, Operators_Pat.Space, skel1, skel2);
-        let ty = HTyp.Label_Elt(l, ty);
+        let ty = HTyp.Prod([(Some(l), ty)]);
         (skel, seq, ty, ctx, u_gen);
       | Label(InLabelHole(_, _), _) =>
         let (skel2, seq, _, ctx, u_gen) =

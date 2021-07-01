@@ -93,7 +93,7 @@ and syn_skel =
       | Label(NotInLabelHole, l)
       | Label(InLabelHole(Standalone, _), l) =>
         switch (syn_skel(ctx, skel2, seq)) {
-        | Some(ty) => Some(Label_Elt(l, ty))
+        | Some(ty) => Some(Prod([Some(l), ty]))
         | None => None
         }
       | Label(InLabelHole(_), _) => Some(Hole)
@@ -122,7 +122,7 @@ and syn_skel =
     |> UHExp.get_tuple_elements
     |> List.map(skel => syn_skel(ctx, skel, seq))
     |> OptUtil.sequence
-    |> Option.map(tys => HTyp.Prod(tys))
+    |> Option.map(tys => HTyp.Prod(tys |> HTyp.flatten_prod))
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
     let ty = HTyp.List(ty1);
