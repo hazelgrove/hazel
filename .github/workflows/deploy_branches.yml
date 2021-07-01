@@ -4,12 +4,17 @@ jobs:
   Deploy:
     runs-on: ubuntu-latest
     steps:
+      # NOTE: position the below lines in the code between two steps
+      # and uncomment them to open an ssh connection at that point:
+      #- name: Debugging with ssh
+      #  uses: lhotari/action-upterm@v1
       - name: Checkout the hazel repo on the current branch # STEP 1
         uses: actions/checkout@v2
         with:
           path: source
-      - uses: nelonoel/branch-name@v1.0.1 # get branch name as BRANCH_NAME
-      - run: echo "${BRANCH_NAME}"
+      - name: Add the name of the current branch to the environment as BRANCH_NAME
+        uses: nelonoel/branch-name@v1.0.1
+      #- run: echo "${BRANCH_NAME}"
       - name: Retrieve the build environment if cached # STEP 2
         id: opam-cache
         uses: actions/cache@v2
@@ -31,13 +36,12 @@ jobs:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }} # TODO: reduce permissions
           path: server
-      
-      - name: Clear the old build of this branch # STEP 5
+      - name: Clear any old build of this branch # STEP 5
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
       - name: Copy in the newly built source # STEP 6
         run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/hazelweb/www/" "./server/${BRANCH_NAME}"
-      - name : Commit to the website, aka deploy # STEP 7
+      - name : Commit to the website aka deploy # STEP 7
         run: |
           ls -a
           git config user.name github-deploy-action
@@ -49,8 +53,7 @@ jobs:
           git push
         working-directory: ./server
 
-      #- name: Debugging with ssh
-      #  uses: lhotari/action-upterm@v1
+
 
 
 
