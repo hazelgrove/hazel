@@ -25,7 +25,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (
       Space,
       fun
-      | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
+      | {CursorInfo.cursor_term: Line(_, CommentLine(_), _), _} =>
         Construct(SChar(" "))
       | _ => Construct(SOp(SSpace)),
     ),

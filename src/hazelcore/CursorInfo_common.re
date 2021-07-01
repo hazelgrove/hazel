@@ -28,17 +28,17 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | _ => false
     }
   | Typ(_, _)
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => false
-  | Line(_, line) =>
+  | ExpOp(_, _, _, _)
+  | PatOp(_, _, _, _)
+  | TypOp(_, _, _, _) => false
+  | Line(_, line, _) =>
     switch (line) {
     | EmptyLine
     | CommentLine(_) => true
     | LetLine(_)
     | ExpLine(_) => false
     }
-  | Rule(_, _) => false
+  | Rule(_, _, _, _) => false
   };
 };
 
@@ -50,25 +50,25 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | Pat(_, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false
+  | ExpOp(_, _, _, _)
+  | PatOp(_, _, _, _)
+  | TypOp(_, _, _, _)
+  | Line(_, _, _)
+  | Rule(_, _, _, _) => false
   };
 };
 
 let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
-  | Line(_, EmptyLine) => true
-  | Line(_, _) => false
+  | Line(_, EmptyLine, _) => true
+  | Line(_, _, _) => false
   | Exp(_, _)
   | Pat(_, _)
   | Typ(_, _)
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => false
+  | ExpOp(_, _, _, _)
+  | PatOp(_, _, _, _)
+  | TypOp(_, _, _, _)
+  | Rule(_, _, _, _) => false
   };
 };
 

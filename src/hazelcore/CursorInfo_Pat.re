@@ -1,17 +1,20 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
-  switch (zpat) {
-  | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
-  };
-}
-and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+/* Hannah Pause place - do as zopseq thing*/
+let rec extract_cursor_term =
+        (ZOpSeq(skel, zseq) as zpat: ZPat.t): cursor_term => {
   switch (zseq) {
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
+    let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, ZSeq.length(zseq));
     let (cursor_pos, uop) = zpat_operator;
-    PatOp(cursor_pos, uop);
+    PatOp(
+      cursor_pos,
+      uop,
+      AnnotatedSkel.get_root_num(annotated_skel),
+      ZPat.erase_zopseq(zpat),
+    );
   };
 }
 and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
@@ -87,7 +90,7 @@ and syn_cursor_info_zopseq =
            CursorInfo_common.mk(
              PatSynthesized(Prod(rev_tys |> List.rev)),
              ctx,
-             extract_cursor_pat_zseq(zseq),
+             extract_cursor_term(ZOpSeq(skel, zseq)),
            ),
          )
        )
@@ -143,7 +146,7 @@ and syn_cursor_info_skel =
              CursorInfo_common.mk(
                PatSynthesized(ty),
                ctx,
-               extract_cursor_pat_zseq(zseq),
+               extract_cursor_term(ZOpSeq(skel, zseq)),
              ),
            )
          })
@@ -258,7 +261,7 @@ and ana_cursor_info_zopseq =
           CursorInfo_common.mk(
             PatAnalyzed(ty),
             ctx,
-            extract_cursor_pat_zseq(zseq),
+            extract_cursor_term(zopseq),
           ),
         ),
       )
@@ -270,7 +273,7 @@ and ana_cursor_info_zopseq =
           CursorInfo_common.mk(
             PatAnaWrongLength(expected_length, got_length, ty),
             ctx,
-            extract_cursor_pat_zseq(zseq),
+            extract_cursor_term(zopseq),
           ),
         ),
       );
@@ -282,7 +285,7 @@ and ana_cursor_info_zopseq =
              CursorInfo_common.mk(
                PatAnaTypeInconsistent(ty, ty'),
                ctx,
-               extract_cursor_pat_zseq(zseq),
+               extract_cursor_term(ZOpSeq(skel, zseq)),
              ),
            )
          });
@@ -355,7 +358,7 @@ and ana_cursor_info_skel =
                CursorInfo_common.mk(
                  PatAnalyzed(ty),
                  ctx,
-                 extract_cursor_pat_zseq(zseq),
+                 extract_cursor_term(ZOpSeq(skel, zseq)),
                ),
              )
            )
@@ -369,7 +372,7 @@ and ana_cursor_info_skel =
                CursorInfo_common.mk(
                  PatAnaTypeInconsistent(ty, ty'),
                  ctx,
-                 extract_cursor_pat_zseq(zseq),
+                 extract_cursor_term(ZOpSeq(skel, zseq)),
                ),
              )
            });

@@ -58,11 +58,11 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | Exp(cursor_pos, _)
   | Pat(cursor_pos, _)
   | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
-  | TypOp(cursor_pos, _)
-  | Line(cursor_pos, _)
-  | Rule(cursor_pos, _) => cursor_pos
+  | ExpOp(cursor_pos, _, _, _)
+  | PatOp(cursor_pos, _, _, _)
+  | TypOp(cursor_pos, _, _, _)
+  | Line(cursor_pos, _, _)
+  | Rule(cursor_pos, _, _, _) => cursor_pos
   };
 };
 
@@ -175,11 +175,11 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_)
     | List(_) => MaxLen
     }
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => MaxLen
-  | Line(_, line) =>
+  | ExpOp(_, _, _, _)
+  | PatOp(_, _, _, _)
+  | TypOp(_, _, _, _)
+  | Rule(_, _, _, _) => MaxLen
+  | Line(_, line, _) =>
     switch (line) {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
@@ -208,7 +208,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
     | Lam(_) => true
     | _ => false
     }
-  | Line(_, line_content) =>
+  | Line(_, line_content, _) =>
     switch (line_content) {
     | LetLine(_) => true
     | _ => false

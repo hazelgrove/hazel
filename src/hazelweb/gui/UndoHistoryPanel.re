@@ -253,10 +253,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
     | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
-    | Line(_, line_content) =>
+    | ExpOp(_, op, _, _) => code_view(Operators_Exp.to_string(op))
+    | PatOp(_, op, _, _) => code_view(Operators_Pat.to_string(op))
+    | TypOp(_, op, _, _) => code_view(Operators_Typ.to_string(op))
+    | Line(_, line_content, _) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
       | CommentLine(comment) =>
@@ -280,7 +280,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
       | ExpLine(_) => indicate_words_view("expression line")
       }
-    | Rule(_, _) =>
+    | Rule(_, _, _, _) =>
       Vdom.(
         Node.span(
           [],
@@ -429,11 +429,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Exp(_, _) => Exp
     | Pat(_, _) => Pat
     | Typ(_, _) => Typ
-    | ExpOp(_, _) => Exp
-    | PatOp(_, _) => Pat
-    | TypOp(_, _) => Typ
-    | Line(_, _)
-    | Rule(_, _) => Exp
+    | ExpOp(_, _, _, _) => Exp
+    | PatOp(_, _, _, _) => Pat
+    | TypOp(_, _, _, _) => Typ
+    | Line(_, _, _)
+    | Rule(_, _, _, _) => Exp
     };
   };
   let display_tag_typ =

@@ -1,15 +1,19 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (ztyp: ZTyp.t): cursor_term => {
-  switch (ztyp) {
-  | ZOpSeq(_, zseq) =>
-    switch (zseq) {
-    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
-    | ZOperator(ztyp_operator, _) =>
-      let (cursor_pos, uop) = ztyp_operator;
-      TypOp(cursor_pos, uop);
-    }
+let rec extract_cursor_term =
+        (ZOpSeq(skel, zseq) as ztyp: ZTyp.t): cursor_term => {
+  switch (zseq) {
+  | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+  | ZOperator(ztyp_operator, _) =>
+    let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, ZSeq.length(zseq));
+    let (cursor_pos, uop) = ztyp_operator;
+    TypOp(
+      cursor_pos,
+      uop,
+      AnnotatedSkel.get_root_num(annotated_skel),
+      ZTyp.erase_zopseq(ztyp),
+    );
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {

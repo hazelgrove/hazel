@@ -111,16 +111,18 @@ type typed =
   | OnLine
   | OnRule;
 
+/* Have enough info to build the children paths and such (do that in seperate pass) */
+/* Figure out how to highlight a block of code */
 [@deriving sexp]
 type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
-  | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule);
+  | ExpOp(CursorPosition.t, UHExp.operator, int, UHExp.opseq)
+  | PatOp(CursorPosition.t, UHPat.operator, int, UHPat.opseq)
+  | TypOp(CursorPosition.t, UHTyp.operator, int, UHTyp.opseq)
+  | Line(CursorPosition.t, UHExp.line, option(UHExp.t))
+  | Rule(CursorPosition.t, UHExp.rule, int, UHExp.t);
 
 // TODO refactor into variants
 // based on term sort and shape
