@@ -11,7 +11,7 @@ jobs:
         with:
           repository: hazelgrove/build
           path: build
-      - run: cd build
+      # - run: cd build
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
       - name: clear old copy
@@ -26,7 +26,9 @@ jobs:
       #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
-      - name: commit and deploy
+        with:
+          repository: hazelgrove/build
+          path: build
         run: |
           git status
           git config user.name github-deploy-action
@@ -35,7 +37,7 @@ jobs:
           git status
           git commit -m "github-deploy-action"
           git push
-        working-directory: ./build
+
 
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
