@@ -20,9 +20,11 @@ jobs:
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
       - run: |
+          git status
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
           git add -A
+          git status
           git commit -m "github-deploy-action"
           git push
 
