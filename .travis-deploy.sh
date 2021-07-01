@@ -28,4 +28,3 @@ git add .
 if git commit -m "Travis Build"; then
   git push origin master
 fi
-
