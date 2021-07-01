@@ -10,7 +10,7 @@ jobs:
         with:
           repository: hazelgrove/build
           path: build
-     - run: cd build
+      - run: cd build
       - run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       - run: git config --global user.name "Github Deploy Action"
       - name: Debugging with ssh
