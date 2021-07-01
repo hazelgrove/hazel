@@ -12,12 +12,14 @@ jobs:
           repository: hazelgrove/build
           path: build
       - run: cd build
+      - run: ls -a
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
       - run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # clear old copy
-      - run: touch plargstukha.txt
-      - run: mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
+      - run: ls -a; touch plargstukha.txt
+      - run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
+      - run: ls -a
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
       - uses: actions/checkout@v2 # commit aka deploy
