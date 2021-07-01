@@ -15,12 +15,12 @@ jobs:
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
       - run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # clear old copy
-      - run: mkdir "test-branch-name" ; cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
+      - run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
       - run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
-          git commit -m "github-deploy-action"
+          git commit -m "github-deploy-action" --allow-empty
           git push
 
       - name: Debugging with ssh
@@ -47,8 +47,6 @@ jobs:
       - run: eval $(opam env); make deps 
 
       - run: eval $(opam env); make release
-
-
 
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
