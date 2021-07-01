@@ -6,33 +6,33 @@ jobs:
     steps:
       - name: grab the code
         uses: actions/checkout@v2
+        with:
+          path: source
       - name: grab the website
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
-          path: build
+          path: server
       # - run: cd build
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
       - name: clear old copy
         run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi 
-        working-directory: ./build
+        working-directory: ./server
       - run: ls -a; touch plargstukha.txt #temp remove
-        working-directory: ./build
+        working-directory: ./server
       - name: copy new copy
         run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" #replace with real path
-        working-directory: ./build
+        working-directory: ./server
       #- run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # 
       #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
       - uses: actions/checkout@v2 # commit aka deploy
-        with:
-          repository: hazelgrove/build
-          path: build
         run: |
-          git status
+          cd server
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
+          git status
           git add -A
           git status
           git commit -m "github-deploy-action"
