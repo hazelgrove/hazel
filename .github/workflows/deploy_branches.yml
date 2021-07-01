@@ -27,7 +27,7 @@ jobs:
       #- run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # 
       #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
-      - uses: actions/checkout@v2 # commit aka deploy
+      #- uses: actions/checkout@v2 # commit aka deploy
       - run: |
           ls -a
           cd ./server
@@ -38,6 +38,7 @@ jobs:
           git status
           git commit -m "github-deploy-action"
           git push
+        working-directory: ./server
 
 
       - name: Debugging with ssh
