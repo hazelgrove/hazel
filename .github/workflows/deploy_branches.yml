@@ -5,6 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Checkout website
+        uses: actions/checkout@v2
+        with:
+          repository: hazelgrove/build
+          path: build
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
       - name: cache opam
         id: opam-cache
         uses: actions/cache@v2
