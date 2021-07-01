@@ -10,10 +10,10 @@ jobs:
           path: source
       - name: grab the website
         uses: actions/checkout@v2
-        token: ${{ secrets.API_TOKEN_GITHUB }} # TODO: reduce permissions
         with:
           repository: hazelgrove/build
           path: server
+          token: ${{ secrets.API_TOKEN_GITHUB }} # TODO: reduce permissions
       # - run: cd build
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
