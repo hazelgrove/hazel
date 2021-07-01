@@ -30,7 +30,6 @@ jobs:
       #- uses: actions/checkout@v2 # commit aka deploy
       - run: |
           ls -a
-          cd ./server
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
           git status
