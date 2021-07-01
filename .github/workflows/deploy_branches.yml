@@ -12,18 +12,22 @@ jobs:
           repository: hazelgrove/build
           path: build
       - run: cd build
-      - run: ls -a
       #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
       #- run: git config --global user.name "Github Deploy Action"
-      - run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # clear old copy
-      - run: ls -a; touch plargstukha.txt
-      - run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
+      - name: clear old copy
+        run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi 
+        working-directory: ./build
+      - run: ls -a; touch plargstukha.txt #temp remove
+        working-directory: ./build
+      - name: copy new copy
+        run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" #replace with real path
+        working-directory: ./build
+      #- run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # 
+      #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
       #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
-      - run: ls -a
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
       - uses: actions/checkout@v2 # commit aka deploy
-      - run: |
+      - name: commit and deploy
+        run: |
           git status
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
@@ -31,6 +35,7 @@ jobs:
           git status
           git commit -m "github-deploy-action"
           git push
+        working-directory: ./build
 
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
