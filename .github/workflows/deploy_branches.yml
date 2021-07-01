@@ -22,7 +22,7 @@ jobs:
       - run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
-          git add .
+          git add -A
           git commit -m "github-deploy-action"
           git push
 
