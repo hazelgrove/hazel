@@ -4,31 +4,42 @@ jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
     steps:
-      - name: grab the code
+      - name: grab the code # STEP 1
         uses: actions/checkout@v2
         with:
           path: source
-      - name: grab the website
+      - name: cache/retrieve build environment # STEP 1.5
+        id: opam-cache
+        uses: actions/cache@v2
+        with:
+          path: './source/.opam'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
+      - name: install dependencies and build # STEP 2
+      #- run: sudo add-apt-repository --yes ppa:avsm/ppa
+      #- run: sudo apt update
+      - run: |
+          sudo apt --assume-yes install m4 opam
+          export OPAMYES=1
+          opam init --compiler=ocaml-base-compiler.4.08.1
+          eval $(opam env); make deps 
+          eval $(opam env); make release
+        working-directory: ./source
+      - name: grab the website # STEP 3
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }} # TODO: reduce permissions
           path: server
-      # - run: cd build
-      #- run: git config --global user.email "hazel-deploy@hazel.org"                                                                                  │·································································
-      #- run: git config --global user.name "Github Deploy Action"
-      - name: clear old copy
+      - name: clear old build # STEP 4
         run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi 
         working-directory: ./server
-      - run: ls -a; touch plargstukha.txt #temp remove
-        working-directory: ./server
-      - name: copy new copy
-        run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" #replace with real path
-        working-directory: ./server
-      #- run: if [ -d "test-branch-name" ] ; then rm -rf "test-branch-name" ; fi # 
-      #- run: ls -a; mkdir "test-branch-name" && cp -r plargstukha.txt "test-branch-name" # copy new copy
-      #- run: mkdir "test-branch-name" && cp -r ../"$(make echo-html-dir)"/* "test-branch-name" # copy new copy
-      - run: |
+      #- run: ls -a; touch plargstukha.txt #temp remove
+      #  working-directory: ./server
+      - name: copy new build # STEP 5
+        run: mkdir "./server/test-branch-name" && cp -r "./source/_build/default/src/hazelweb/www/*" "./server/test-branch-name"
+        #working-directory: ./server
+      - name : commit website aka deploy # STEP 6
+        run: |
           ls -a
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
@@ -38,41 +49,15 @@ jobs:
           git commit -m "github-deploy-action"
           git push
         working-directory: ./server
+      #- name: Debugging with ssh
+      #  uses: lhotari/action-upterm@v1
 
-
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
-      - name: cache opam
-        id: opam-cache
-        uses: actions/cache@v2
-        with:
-          path: '/home/runner/.opam'
-          key: ${{ runner.os }}-modules-${{ hashFiles('opam.export') }}
       # before_install
-      #- run: sudo add-apt-repository --yes ppa:avsm/ppa
-      #- run: sudo apt update
-      - run: sudo apt --assume-yes install m4 opam
 
-      # install
-      - run: export OPAMYES=1
-      - run: opam init --compiler=ocaml-base-compiler.4.08.1
-      #- run: echo "/home/runner/.opam/ocaml-base-compiler.4.08.1/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/runner/.local/bin:/opt/pipx_bin:/usr/share/rust/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin" >> $GITHUB_PATH
-      #- run: eval $(opam env)
-      #- run: export PATH="/home/runner/.opam/4.08.1/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin"
-      # script
-
-      - run: eval $(opam env); make deps 
-
-      - run: eval $(opam env); make release
-
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
       # deploy
       #- name: deploy
       #  if: ${{ github.ref == 'refs/heads/github-actions-test' }}
       #  run: bash .travis-deploy.sh # UPDATE MEEEEE
       #  env: TRAVIS_BRANCH: ${{ github.ref }}
-
-
 
 # if git commit -m "Github Deploy Action" --allow-empty; then git push origin master # deploy
