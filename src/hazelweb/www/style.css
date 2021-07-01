@@ -15,7 +15,7 @@
 :root {
   --page-bg-color: #fff9ec;
   --empty-hole-color: #a040a0;
-  --title-bar-color: #073f24;
+  --title-bar-color: #79ba9a;
   --page-padding: 15px;
 
   --code-font-family: "Fira Code", monospace;
@@ -94,19 +94,20 @@ body {
   display: grid;
   grid-template-rows: 1fr 200fr;
   overflow-y: auto;
+  background-color: wheat;
 }
 
 /* top bar */
 
 .top-bar {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
   padding-left: var(--page-padding);
   padding-right: var(--page-padding);
   background-color: var(--title-bar-color);
-  color: white;
-  font-weight: bold;
-  font-size: 14pt;
+  border-bottom-left-radius: 0.75em;
+  border-bottom-right-radius: 0.75em;
+  /* border-bottom: #4f9272 solid 1px; */
   width: 100%;
   height: min-content;
   display: flex;
@@ -118,6 +119,8 @@ body {
 
 .logo-text {
   color: white;
+  font-weight: bold;
+  text-transform: uppercase;
   text-decoration: none;
 }
 
@@ -126,12 +129,11 @@ body {
 
 .dropdown {
   margin-left: auto;
-  color:#239d60;
+  color:#bdffde;
   display: inline-block;
   position: relative;
 }
 .dropdown:hover {
-  color:#40cb85;
 }
 
 .dropdown details {
@@ -159,13 +161,12 @@ body {
 }
 
 .dropdown .shortcut {
-  font-size: 0.7em;
   font-style: italic;
-  color:#7f8b85;
+  color: #428965;
 }
 
 .dropdown summary {
-  text-shadow: 0 2px #020;
+  text-shadow: 0 2px #0206;
   list-style: none;
   cursor: pointer;
   padding-left: 1.5em;
@@ -175,17 +176,14 @@ body {
 }
 
 .dropdown .dropdown-content {
-  font-size: 1em;
-  font-weight: normal;
   position: absolute;
-  right: -0.8em;
-  top: 1.7em;
+  right: -0.95em;
   min-inline-size: max-content;
   background-color: var(--title-bar-color);
   border-bottom-left-radius: 0.23em;
   padding: 0.5em;
   z-index: 10001;
-  filter: drop-shadow(0 0.2em 0.3em #2337);
+  filter: drop-shadow(0 0.7em 0.3em #2334);
 }
 
 .dropdown details[open] summary::before {
@@ -209,17 +207,18 @@ body {
 }
 
 #card-controls select, #card-controls button {
-  background-color: #187346;
-  color: #94deba;
+  background-color: #5da983;
+  color: #aff1d1;
   border-width: 0;
   height: 1.3rem;
   border-radius: 0.3em;
-  box-shadow: 0 3px #020;
+  box-shadow: 0 1px #beffbe;
 }
 
 #card-controls select:hover, #card-controls button:hover {
-  color: #d7ffec;
-  background-color: #239d60; 
+  background-color: #0a924d;
+  box-shadow: 0 1px #38ff91;
+  color: #b5ffbf;
 }
 
 #cardstack-controls {
@@ -252,7 +251,6 @@ body {
 
 .main-area {
   flex-grow: 1;
-  background-color: wheat;
   display: flex;
   flex-direction: row;
   width: 100%;
@@ -301,8 +299,19 @@ body {
   /* Need to reverse the text direction to make the left bar
    * overflow to the left during its hide animation.
    */
+  border-top-right-radius: 0.75em;
+  border-bottom-right-radius: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
   direction: rtl;
   overflow: hidden;
+}
+
+#collapsible-right-bar {
+  border-top-left-radius: 0.75em;
+  border-bottom-left-radius: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .sidebar {
@@ -312,8 +321,12 @@ body {
   background-color: tan;
   display: grid;
   grid-template-rows: 1fr auto;
-  padding-top: 7px;
+  padding-top: 0.5em;
   cursor: pointer;
+}
+
+.sidebar:hover {
+  background-color: var(--title-bar-color);
 }
 
 .sidebar-tab {
@@ -357,7 +370,7 @@ body {
 
 #slidable-left-bar-body {
   direction: rtl;
-  padding-left: 7px;
+  /*padding-left: 7px;*/
 }
 
 #slidable-right-bar-body {
@@ -404,8 +417,8 @@ body {
 /* panels */
 
 .panel {
-  outline: 1px solid var(--title-bar-color);
-  background-color: #FEFEEA;
+  /*outline: 1px solid var(--title-bar-color);*/
+  /*background-color: #FEFEEA;*/
   /* box-shadow: 2px 2px 0px 0px #af8e63; */
   margin-bottom: 7px;
   display: flex;
@@ -420,7 +433,7 @@ body {
   padding-right: 0px;
   font-size: 10pt;
   font-weight: bold;
-  background-color: var(--title-bar-color);
+  /*background-color: var(--title-bar-color);*/
   min-height: 23px;
 }
 
@@ -527,14 +540,11 @@ body {
 
 .action-panel {
   flex-grow: 2;
-  background-color: var(--title-bar-color);
   cursor: default;
 }
 
 .action-panel .title-bar {
-  /* background-color: #331757; */
-  /* background-color: #163454; */
-  background-color: var(--title-bar-color);
+
 }
 
 .action-panel-body {
@@ -542,16 +552,18 @@ body {
    * so it aligns nicely with the panel border.
    */
   margin-bottom: -1px;
+  background-color: #b29b7a;
+  padding-left: 0.5em;
+  border-bottom-right-radius: 0.75em;
+  border-top-right-radius: 0.75em;
 }
 
 .sub-panel-title {
-  text-align: center;
-  /* background-color: #163454; */
-  background-color: var(--title-bar-color);
+  /* text-align: center; */
   text-transform: uppercase;
-  line-height: 30px;
-  color: white;
-  font-size: 8pt;
+  line-height: 2rem;
+  /* color: white; */
+  font-size: 0.75em;
 }
 
 .action-panel-entry {
