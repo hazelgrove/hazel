@@ -14,7 +14,6 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      #- run: echo "${BRANCH_NAME}"
       - name: Retrieve the build environment if cached # STEP 2
         id: opam-cache
         uses: actions/cache@v2
@@ -34,7 +33,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
-          token: ${{ secrets.ACCESS_TOKEN }} # TODO: reduce permissions
+          token: ${{ secrets.ACCESS_TOKEN }}
           path: server
       - name: Clear any old build of this branch # STEP 5
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
@@ -43,32 +42,10 @@ jobs:
         run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/hazelweb/www"/* "./server/${BRANCH_NAME}"
       - name : Commit to the website aka deploy # STEP 7
         run: |
-          ls -a
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
-          git status
           git add -A
           git status
           git commit -m "github-deploy-action"
           git push
         working-directory: ./server
-
-
-
-
-
-      #- run: ls -a; touch plargstukha.txt #temp remove
-      #  working-directory: ./server
-
-      #- run: sudo add-apt-repository --yes ppa:avsm/ppa
-      #- run: sudo apt update
-
-      # before_install
-
-      # deploy
-      #- name: deploy
-      #  if: ${{ github.ref == 'refs/heads/github-actions-test' }}
-      #  run: bash .travis-deploy.sh # UPDATE MEEEEE
-      #  env: TRAVIS_BRANCH: ${{ github.ref }}
-
-# if git commit -m "Github Deploy Action" --allow-empty; then git push origin master # deploy
