@@ -27,9 +27,8 @@ jobs:
           sudo apt --assume-yes install m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.4.08.1
-          eval $(opam env)
-          make deps 
-          make release
+      - name: Debugging with ssh
+        uses: lhotari/action-upterm@v1
         working-directory: ./source
       - name: Checkout the website repo # STEP 4
         uses: actions/checkout@v2
