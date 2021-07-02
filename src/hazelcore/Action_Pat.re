@@ -431,6 +431,31 @@ and syn_perform_opseq =
 
   /* Deletion */
 
+  /* This case prevents deletion of parentheses from the front with backspace
+     or from the rear with delete from taking two keypresses, the first of
+     which does not result in caret movement. */
+  | (
+      a,
+      ZOperand(
+        ParenthesizedZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+        (upper_prefix, upper_suffix),
+      ),
+    )
+      when
+        ZPat.is_before_zoperand(zop)
+        && a == Backspace
+        || ZPat.is_after_zoperand(zop)
+        && a == Delete =>
+    let new_zseq =
+      ZSeq.ZOperand(
+        zop,
+        (
+          Seq.affix_affix(upper_prefix, prefix),
+          Seq.affix_affix(suffix, upper_suffix),
+        ),
+      );
+    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
     syn_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq)
@@ -911,6 +936,31 @@ and ana_perform_opseq =
     ana_move(ctx, u_gen, a, zopseq, ty)
 
   /* Deletion */
+
+  /* This case prevents deletion of parentheses from the front with backspace
+     or from the rear with delete from taking two keypresses, the first of
+     which does not result in caret movement. */
+  | (
+      a,
+      ZOperand(
+        ParenthesizedZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+        (upper_prefix, upper_suffix),
+      ),
+    )
+      when
+        ZPat.is_before_zoperand(zop)
+        && a == Backspace
+        || ZPat.is_after_zoperand(zop)
+        && a == Delete =>
+    let new_zseq =
+      ZSeq.ZOperand(
+        zop,
+        (
+          Seq.affix_affix(upper_prefix, prefix),
+          Seq.affix_affix(suffix, upper_suffix),
+        ),
+      );
+    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>

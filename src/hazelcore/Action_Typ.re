@@ -124,6 +124,31 @@ and perform_opseq =
 
   /* Deletion */
 
+  /* This case prevents deletion of parentheses from the front with backspace
+     or from the rear with delete from taking two keypresses, the first of
+     which does not result in caret movement. */
+  | (
+      a,
+      ZOperand(
+        ParenthesizedZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+        (upper_prefix, upper_suffix),
+      ),
+    )
+      when
+        ZTyp.is_before_zoperand(zop)
+        && a == Backspace
+        || ZTyp.is_after_zoperand(zop)
+        && a == Delete =>
+    let new_zseq =
+      ZSeq.ZOperand(
+        zop,
+        (
+          Seq.affix_affix(upper_prefix, prefix),
+          Seq.affix_affix(suffix, upper_suffix),
+        ),
+      );
+    Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
+
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
     perform_opseq(Action_common.escape(side), zopseq)
