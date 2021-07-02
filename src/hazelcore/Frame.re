@@ -48,9 +48,8 @@ and get_frame_zline = (zline: ZExp.zline): t =>
   }
 and get_frame_exp_zopseq = (ZOpSeq(_, zseq): ZExp.zopseq): t =>
   switch (zseq) {
-  | ZOperand(zoperand, _) =>
-    cons(ExpOperand(zoperand), get_frame_exp_zoperand(zoperand))
-  | ZOperator(zoperator, _) => [ExpOperator(zoperator)]
+  | ZOperand(zop, _) => cons(ExpOperand(zop), get_frame_exp_zoperand(zop))
+  | ZOperator(zop, _) => [ExpOperator(zop)]
   }
 and get_frame_exp_zoperand = (zoperand: ZExp.zoperand): t =>
   switch (zoperand) {
@@ -74,23 +73,21 @@ and get_frame_zrule = (zrule: ZExp.zrule): t =>
   }
 and get_frame_pat = (ZOpSeq(_, zseq): ZPat.zopseq): t =>
   switch (zseq) {
-  | ZOperand(zoperand, _) =>
-    cons(PatOperand(zoperand), get_frame_pat_zoperand(zoperand))
-  | ZOperator(zoperator, _) => [PatOperator(zoperator)]
+  | ZOperand(zop, _) => cons(PatOperand(zop), get_frame_pat_zoperand(zop))
+  | ZOperator(zop, _) => [PatOperator(zop)]
   }
 and get_frame_pat_zoperand = (zoperand: ZPat.zoperand): t =>
   switch (zoperand) {
   | CursorP(_) => []
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => get_frame_pat(zpat)
-  | TypeAnnZP(_, zoperand, _) => get_frame_pat_zoperand(zoperand)
+  | TypeAnnZP(_, zop, _) => get_frame_pat_zoperand(zop)
   | TypeAnnZA(_, _, ztyp) => cons(TypSeq(ztyp), get_frame_typ(ztyp))
   }
 and get_frame_typ = (ZOpSeq(_, zseq): ZTyp.zopseq): t =>
   switch (zseq) {
-  | ZOperand(zoperand, _) =>
-    cons(TypOperand(zoperand), get_frame_typ_zoperand(zoperand))
-  | ZOperator(zoperator, _) => [TypOperator(zoperator)]
+  | ZOperand(zop, _) => cons(TypOperand(zop), get_frame_typ_zoperand(zop))
+  | ZOperator(zop, _) => [TypOperator(zop)]
   }
 and get_frame_typ_zoperand = (zoperand: ZTyp.zoperand): t =>
   switch (zoperand) {
@@ -103,14 +100,14 @@ let frame = (zexp: ZExp.t): t => zexp |> get_frame |> List.rev;
 
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
   switch (frame(zexp)) {
-  | [ExpLine(CursorL(a, b)), ..._] => Line(a, b)
-  | [ExpOperand(CursorE(a, b)), ..._] => Exp(a, b)
-  | [ExpOperator((a, b)), ..._] => ExpOp(a, b)
-  | [ExpRule(CursorR(a, b)), ..._] => Rule(a, b)
-  | [PatOperand(CursorP(a, b)), ..._] => Pat(a, b)
-  | [PatOperator((a, b)), ..._] => PatOp(a, b)
-  | [TypOperand(CursorT(a, b)), ..._] => Typ(a, b)
-  | [TypOperator((a, b)), ..._] => TypOp(a, b)
+  | [ExpLine(CursorL(c, s)), ..._] => Line(c, s)
+  | [ExpOperand(CursorE(c, s)), ..._] => Exp(c, s)
+  | [ExpOperator((c, s)), ..._] => ExpOp(c, s)
+  | [ExpRule(CursorR(c, s)), ..._] => Rule(c, s)
+  | [PatOperand(CursorP(c, s)), ..._] => Pat(c, s)
+  | [PatOperator((c, s)), ..._] => PatOp(c, s)
+  | [TypOperand(CursorT(c, s)), ..._] => Typ(c, s)
+  | [TypOperator((c, s)), ..._] => TypOp(c, s)
   | frame =>
     print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(frame)));
     failwith("INVALID FRAME (extract_cursor_term)");
