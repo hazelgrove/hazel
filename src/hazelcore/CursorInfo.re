@@ -120,15 +120,7 @@ type typed =
   | OnRule;
 
 [@deriving sexp]
-type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
-  | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule);
+type cursor_term = Frame.cursor_term;
 
 [@deriving sexp]
 type syntactic_context =

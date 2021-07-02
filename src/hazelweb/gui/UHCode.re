@@ -1,4 +1,5 @@
 //open OptUtil.Syntax;
+open Sexplib.Std;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -292,6 +293,27 @@ let codebox_view =
       program: Program.exp,
     )
     : list(Node.t) => {
+  let zexp = Program.EditState_Exp.get_zstx(Program.get_edit_state(program));
+  //let frame = Frame.frame(zexp);
+  print_endline("FRAME: cursortermNew ");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      CursorInfo.sexp_of_cursor_term(Frame.extract_cursor_term(zexp)),
+    ),
+  );
+  print_endline("FRAME: nearest opParent: ");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      sexp_of_option(ZExp.sexp_of_zoperand, Frame.get_opParent(zexp)),
+    ),
+  );
+  print_endline("FRAME: nearest zopseq: ");
+  //print_endline(Sexplib.Sexp.to_string_hum(Frame.sexp_of_t(frame)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      sexp_of_option(ZExp.sexp_of_zopseq, Frame.get_nearest_zopseq(zexp)),
+    ),
+  );
   let layout = Program.Exp.get_layout(~settings, program);
   let code_text = layout |> UHBox.mk |> view_of_box;
   let dpaths = Program.Exp.get_decoration_paths(program, is_focused);
