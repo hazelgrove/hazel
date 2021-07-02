@@ -1095,23 +1095,25 @@ and syn_perform_opseq =
       ZOperand(
         ParenthesizedZ((
           [],
-          ExpLineZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+          ExpLineZ(
+            ZOpSeq(_, ZOperand(zop, (inner_prefix, inner_suffix))) as inner_zopseq,
+          ),
           [],
         )),
-        (upper_prefix, upper_suffix),
+        (prefix, suffix),
       ),
     )
       when
-        ZExp.is_before_zoperand(zop)
+        ZExp.is_before_zopseq(inner_zopseq)
         && a == Backspace
-        || ZExp.is_after_zoperand(zop)
+        || ZExp.is_after_zopseq(inner_zopseq)
         && a == Delete =>
     let new_zseq =
       ZSeq.ZOperand(
         zop,
         (
-          Seq.affix_affix(upper_prefix, prefix),
-          Seq.affix_affix(suffix, upper_suffix),
+          Seq.affix_affix(inner_prefix, prefix),
+          Seq.affix_affix(inner_suffix, suffix),
         ),
       );
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
@@ -2452,23 +2454,25 @@ and ana_perform_opseq =
       ZOperand(
         ParenthesizedZ((
           [],
-          ExpLineZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+          ExpLineZ(
+            ZOpSeq(_, ZOperand(zop, (inner_prefix, inner_suffix))) as inner_zopseq,
+          ),
           [],
         )),
-        (upper_prefix, upper_suffix),
+        (prefix, suffix),
       ),
     )
       when
-        ZExp.is_before_zoperand(zop)
+        ZExp.is_before_zopseq(inner_zopseq)
         && a == Backspace
-        || ZExp.is_after_zoperand(zop)
+        || ZExp.is_after_zopseq(inner_zopseq)
         && a == Delete =>
     let new_zseq =
       ZSeq.ZOperand(
         zop,
         (
-          Seq.affix_affix(upper_prefix, prefix),
-          Seq.affix_affix(suffix, upper_suffix),
+          Seq.affix_affix(inner_prefix, prefix),
+          Seq.affix_affix(inner_suffix, suffix),
         ),
       );
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
