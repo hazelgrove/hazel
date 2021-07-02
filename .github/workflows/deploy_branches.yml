@@ -20,7 +20,7 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: './source/.opam/'
+          path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Install dependencies and build hazel # STEP 3
         run: |
@@ -31,7 +31,7 @@ jobs:
           make deps 
           make release
         working-directory: ./source
-      - name: Checkout the website repo # STEP 4
+      - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
@@ -48,6 +48,5 @@ jobs:
           git config user.email hazel-deploy@hazel.org
           git add -A
           git status
-          git commit -m "github-deploy-action-${BRANCH_NAME}"
-          git push
+          git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
