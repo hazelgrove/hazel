@@ -31,7 +31,7 @@ jobs:
           make deps 
           make release
         working-directory: ./source
-      - name: Checkout the website repo # STEP 4
+      - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
