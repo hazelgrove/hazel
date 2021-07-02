@@ -1087,6 +1087,34 @@ and syn_perform_opseq =
 
   /* Deletion */
 
+  /* This case prevents deletion of parentheses from the front with backspace
+     or from the rear with delete from taking two keypresses, the first of
+     which does not result in caret movement. */
+  | (
+      a,
+      ZOperand(
+        ParenthesizedZ((
+          [],
+          ExpLineZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+          [],
+        )),
+        (upper_prefix, upper_suffix),
+      ),
+    )
+      when
+        ZExp.is_before_zoperand(zop)
+        && a == Backspace
+        || ZExp.is_after_zoperand(zop)
+        && a == Delete =>
+    let new_zseq =
+      ZSeq.ZOperand(
+        zop,
+        (
+          Seq.affix_affix(upper_prefix, prefix),
+          Seq.affix_affix(suffix, upper_suffix),
+        ),
+      );
+    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
     syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, ty, u_gen))
@@ -2415,6 +2443,36 @@ and ana_perform_opseq =
     ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
   /* Deletion */
+
+  /* This case prevents deletion of parentheses from the front with backspace
+     or from the rear with delete from taking two keypresses, the first of
+     which does not result in caret movement. */
+  | (
+      a,
+      ZOperand(
+        ParenthesizedZ((
+          [],
+          ExpLineZ(ZOpSeq(_, ZOperand(zop, (prefix, suffix)))),
+          [],
+        )),
+        (upper_prefix, upper_suffix),
+      ),
+    )
+      when
+        ZExp.is_before_zoperand(zop)
+        && a == Backspace
+        || ZExp.is_after_zoperand(zop)
+        && a == Delete =>
+    let new_zseq =
+      ZSeq.ZOperand(
+        zop,
+        (
+          Seq.affix_affix(upper_prefix, prefix),
+          Seq.affix_affix(suffix, upper_suffix),
+        ),
+      );
+    Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+
   /* Backspace "." from Float Op to get Int Op */
   /* ( +.<| ) ==> ( + ) */
   | (
