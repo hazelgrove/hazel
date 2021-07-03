@@ -1,5 +1,5 @@
 open CursorInfo;
-open Frame;
+open CursorFrame;
 
 type zoperand =
   | ZExp(ZExp.zoperand)
@@ -115,7 +115,6 @@ let mk =
   syntactic_context,
   opParent,
 };
-
 let get_ctx = (ci: CursorInfo.t) => ci.ctx;
 
 /*

@@ -120,7 +120,7 @@ type typed =
   | OnRule;
 
 [@deriving sexp]
-type cursor_term = Frame.cursor_term;
+type cursor_term = CursorFrame.cursor_term;
 
 [@deriving sexp]
 type syntactic_context =

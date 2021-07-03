@@ -366,11 +366,11 @@ and get_frame_typ_zoperand = (zoperand: ZTyp.zoperand): t => {
   ];
 };
 
-let frame = (zexp: ZExp.t): t =>
+let get = (zexp: ZExp.t): t =>
   zexp |> get_frame(~ctx=Contexts.empty, ~ty_e=Some(Hole)) |> List.rev;
 
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
-  switch (frame(zexp)) {
+  switch (get(zexp)) {
   | [{slice: ExpLine(CursorL(c, s)), _}, ..._] => Line(c, s)
   | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
   | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
@@ -386,7 +386,7 @@ let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
 };
 
 let get_nearest_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) => {
-  let frame = frame(zexp);
+  let frame = get(zexp);
   let is_expseq = si =>
     switch (si.slice) {
     | ExpSeq(_) => true
@@ -401,7 +401,7 @@ let get_nearest_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) => {
 };
 
 let get_expected_type_opseq = (zexp: ZExp.t): option(HTyp.t) => {
-  let frame = frame(zexp);
+  let frame = get(zexp);
   let is_expseq = si =>
     switch (si.slice) {
     | ExpSeq(_) => true
@@ -423,17 +423,17 @@ let get_cursor_term =
   | [] => None;
 
 let get_expected_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_term(frame(zexp));
+  let* slice = get_cursor_term(get(zexp));
   slice.ty_e;
 };
 
 let get_actual_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_term(frame(zexp));
+  let* slice = get_cursor_term(get(zexp));
   slice.ty_a;
 };
 
 let get_opParent = (zexp: ZExp.t): option(ZExp.zoperand) => {
-  let frame = frame(zexp);
+  let frame = get(zexp);
   let frame =
     switch (frame) {
     | [{slice: ExpOperand(_), _}, ...xs]

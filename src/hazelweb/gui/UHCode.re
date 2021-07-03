@@ -294,19 +294,19 @@ let codebox_view =
     )
     : list(Node.t) => {
   let zexp = Program.EditState_Exp.get_zstx(Program.get_edit_state(program));
-  //let frame = Frame.frame(zexp);
+  //let frame = CursorFrame.frame(zexp);
   /*
       print_endline("FRAME: cursortermNew ");
       print_endline(
         Sexplib.Sexp.to_string_hum(
-          CursorInfo.sexp_of_cursor_term(Frame.extract_cursor_term(zexp)),
+          CursorInfo.sexp_of_cursor_term(CursorFrame.extract_cursor_term(zexp)),
         ),
       );
 
        print_endline("FRAME: nearest opParent: ");
        print_endline(
          Sexplib.Sexp.to_string_hum(
-           sexp_of_option(ZExp.sexp_of_zoperand, Frame.get_opParent(zexp)),
+           sexp_of_option(ZExp.sexp_of_zoperand, CursorFrame.get_opParent(zexp)),
          ),
        );
    */
@@ -314,22 +314,31 @@ let codebox_view =
     "FRAME cursorterm expected_ty: %s\n",
     sexp_of_option(
       HTyp.sexp_of_t,
-      Frame.get_expected_type_cursor_term(zexp),
+      CursorFrame.get_expected_type_cursor_term(zexp),
     ),
   );
 
   P.p(
     "FRAME cursorterm actual_ty: %s\n",
-    sexp_of_option(HTyp.sexp_of_t, Frame.get_actual_type_cursor_term(zexp)),
+    sexp_of_option(
+      HTyp.sexp_of_t,
+      CursorFrame.get_actual_type_cursor_term(zexp),
+    ),
   );
 
   P.p(
     "FRAME nearest zopseq: %s\n",
-    sexp_of_option(ZExp.sexp_of_zopseq, Frame.get_nearest_zopseq(zexp)),
+    sexp_of_option(
+      ZExp.sexp_of_zopseq,
+      CursorFrame.get_nearest_zopseq(zexp),
+    ),
   );
   P.p(
     "FRAME: nearest zopseq_ty: %s\n",
-    sexp_of_option(HTyp.sexp_of_t, Frame.get_expected_type_opseq(zexp)),
+    sexp_of_option(
+      HTyp.sexp_of_t,
+      CursorFrame.get_expected_type_opseq(zexp),
+    ),
   );
 
   let layout = Program.Exp.get_layout(~settings, program);
