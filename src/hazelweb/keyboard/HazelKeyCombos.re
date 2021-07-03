@@ -139,6 +139,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Comma);
   } else if (evt_matches(KeyCombo.left_bracket)) {
     Some(LeftBracket);
+  } else if (evt_matches(KeyCombo.tilde)) {
+    Some(Tilde);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
   } else if (evt_matches(KeyCombo.alt_L)) {
