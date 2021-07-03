@@ -22,11 +22,13 @@ type slice_info = {
   slice,
   ty_e: option(HTyp.t),
   ty_a: option(HTyp.t),
+  ctx: Contexts.t,
 };
 
 let mk =
-    (~ty_e: option(HTyp.t), ~ty_a: option(HTyp.t), ~slice: slice)
+    (~ctx, ~ty_e: option(HTyp.t), ~ty_a: option(HTyp.t), ~slice: slice)
     : slice_info => {
+  ctx,
   slice,
   ty_e,
   ty_a,
@@ -61,6 +63,7 @@ and get_frame_zblock =
   //P.p("get_frame_exp_zblock ty:%s\n", sexp_of_option(HTyp.sexp_of_t, ty_e));
   let new_slice =
     mk(
+      ~ctx,
       ~slice=ExpBlock(zblock),
       ~ty_e,
       ~ty_a=Statics_Exp.syn_block(ctx, ZExp.erase(zblock)),
@@ -79,10 +82,11 @@ and get_frame_zblock =
 and get_frame_zline =
     (~ctx: Contexts.t, ~ty_e: option(HTyp.t), zline: ZExp.zline): t => {
   //P.p("get_frame_exp_zline ty:%s\n", sexp_of_option(HTyp.sexp_of_t, ty_e));
-  let slice = mk(~slice=ExpLine(zline), ~ty_e, ~ty_a=None);
+  let slice = mk(~ctx, ~slice=ExpLine(zline), ~ty_e, ~ty_a=None);
   switch (zline) {
   | CursorL(_, ExpLine(opseq)) => [
       mk(
+        ~ctx,
         ~slice=ExpLine(zline),
         ~ty_e,
         ~ty_a=Statics_Exp.syn_opseq(ctx, opseq),
@@ -115,7 +119,7 @@ and get_frame_exp_zopseq =
   let opseq = ZExp.erase_zopseq(zopseq);
   let ty_a =
     Statics_Exp.syn_opseq(ctx, UHExp.set_err_status_opseq(NotInHole, opseq));
-  let slice = mk(~slice=ExpSeq(zopseq), ~ty_e, ~ty_a);
+  let slice = mk(~ctx, ~slice=ExpSeq(zopseq), ~ty_e, ~ty_a);
   switch (zseq) {
   | ZOperand(zop, (prefix, _)) =>
     let operand_index = Seq.length_of_affix(prefix);
@@ -126,8 +130,7 @@ and get_frame_exp_zopseq =
           Statics_Exp.ana_nth_type_mode(ctx, operand_index, opseq, ty_e)
         ) {
         | Some(Ana(ty)) =>
-          //print_endline("ana_nth_type_mode ana(ty):");
-          // P.p("ana ana ty:%s\n", HTyp.sexp_of_t(ty));
+          //P.p("ana ana ty:%s\n", HTyp.sexp_of_t(ty));
           Some(ty)
         | Some(Syn) =>
           //print_endline("ana_nth_type_mode syn so hole");
@@ -139,7 +142,6 @@ and get_frame_exp_zopseq =
       | None =>
         switch (Statics_Exp.syn_nth_type_mode(ctx, operand_index, opseq)) {
         | Some(Ana(ty)) =>
-          //print_endline("syn_nth_type_mode ana(ty):");
           //P.p("syn ana ty:%s\n", HTyp.sexp_of_t(ty));
           Some(ty)
         | Some(Syn) =>
@@ -157,10 +159,10 @@ and get_frame_exp_zopseq =
   };
 }
 and get_frame_exp_zoperator =
-    (~ctx as _: Contexts.t, ~ty_e: option(HTyp.t), zop: ZExp.zoperator): t => {
+    (~ctx: Contexts.t, ~ty_e: option(HTyp.t), zop: ZExp.zoperator): t => {
   [
     // TODO(andrew): fix
-    mk(~slice=ExpOperator(zop), ~ty_e, ~ty_a=None),
+    mk(~ctx, ~slice=ExpOperator(zop), ~ty_e, ~ty_a=None),
   ];
 }
 and get_frame_exp_zoperand =
@@ -175,7 +177,7 @@ and get_frame_exp_zoperand =
       ctx,
       UHExp.set_err_status_operand(NotInHole, operand),
     );
-  let slice = mk(~slice=ExpOperand(zoperand), ~ty_e, ~ty_a);
+  let slice = mk(~ctx, ~slice=ExpOperand(zoperand), ~ty_e, ~ty_a);
   let tail =
     switch (zoperand) {
     | CursorE(_) => []
@@ -226,7 +228,7 @@ and get_frame_zrules =
       Statics_Exp.syn_rules(ctx, ZExp.erase_zrules(zrules), ty_scrut)
     | None => None
     };
-  let slice = mk(~slice=ExpRules(zrules), ~ty_a, ~ty_e=None);
+  let slice = mk(~ctx, ~slice=ExpRules(zrules), ~ty_a, ~ty_e=None);
   let tail = get_frame_zrule(~ctx, ~ty_e, ~ty_scrut, zrule);
   cons(slice, tail);
 }
@@ -244,7 +246,7 @@ and get_frame_zrule =
       Statics_Exp.syn_rule(ctx, ZExp.erase_zrule(zrule), ty_scrut)
     | None => None
     };
-  let slice = mk(~slice=ExpRule(zrule), ~ty_a, ~ty_e);
+  let slice = mk(~ctx, ~slice=ExpRule(zrule), ~ty_a, ~ty_e);
   let tail =
     switch (zrule) {
     | CursorR(_) => []
@@ -264,7 +266,7 @@ and get_frame_pat =
   let ty_a =
     Statics_Pat.syn(ctx, UHPat.set_err_status_opseq(NotInHole, opseq))
     |> Option.map(((ty, _)) => ty);
-  let slice = mk(~slice=PatSeq(zopseq), ~ty_e, ~ty_a);
+  let slice = mk(~ctx, ~slice=PatSeq(zopseq), ~ty_e, ~ty_a);
   switch (zseq) {
   | ZOperand(zop, (prefix, _)) =>
     let operand_index = Seq.length_of_affix(prefix);
@@ -287,13 +289,9 @@ and get_frame_pat =
     cons(slice, get_frame_pat_zoperator(~ctx, ~ty_e=None, zop))
   };
 }
-and get_frame_pat_zoperator =
-    (~ctx as _: Contexts.t, ~ty_e as _: option(HTyp.t), zop: ZPat.zoperator)
-    : t => {
-  [
-    // TODO(andrew): fix
-    mk(~slice=PatOperator(zop), ~ty_e=None, ~ty_a=None),
-  ];
+and get_frame_pat_zoperator = // TODO(andrew): fix
+    (~ctx: Contexts.t, ~ty_e as _: option(HTyp.t), zop: ZPat.zoperator): t => {
+  [mk(~ctx, ~slice=PatOperator(zop), ~ty_e=None, ~ty_a=None)];
 }
 
 and get_frame_pat_zoperand =
@@ -305,33 +303,36 @@ and get_frame_pat_zoperand =
       UHPat.set_err_status_operand(NotInHole, operand),
     )
     |> Option.map(((ty, _)) => ty);
-  let slice = mk(~slice=PatOperand(zoperand), ~ty_a, ~ty_e);
-  let slice_plus = cons(slice);
-  switch (zoperand) {
-  | CursorP(_) => slice_plus([])
-  | ParenthesizedZ(zpat) => slice_plus(get_frame_pat(~ctx, ~ty_e, zpat))
-  | InjZ(_, side, zpat) =>
-    let ty_side = {
-      let* ty = ty_e;
-      let+ (ty1, ty2) = HTyp.matched_sum(ty);
-      InjSide.pick(side, ty1, ty2);
+  let slice = mk(~ctx, ~slice=PatOperand(zoperand), ~ty_a, ~ty_e);
+  let tail =
+    switch (zoperand) {
+    | CursorP(_) => []
+    | ParenthesizedZ(zpat) => get_frame_pat(~ctx, ~ty_e, zpat)
+    | InjZ(_, side, zpat) =>
+      let ty_side = {
+        let* ty = ty_e;
+        let+ (ty1, ty2) = HTyp.matched_sum(ty);
+        InjSide.pick(side, ty1, ty2);
+      };
+      get_frame_pat(~ctx, ~ty_e=ty_side, zpat);
+    | TypeAnnZA(_, _, ty_zopseq) => get_frame_typ(ty_zopseq)
+    | TypeAnnZP(_, zoperand, ann) =>
+      let ty_ann = UHTyp.expand(ann);
+      get_frame_pat_zoperand(~ctx, ~ty_e=Some(ty_ann), zoperand);
     };
-    slice_plus(get_frame_pat(~ctx, ~ty_e=ty_side, zpat));
-  | TypeAnnZA(_, _, ty_zopseq) => slice_plus(get_frame_typ(ty_zopseq))
-  | TypeAnnZP(_, zoperand, ann) =>
-    let ty_ann = UHTyp.expand(ann);
-    slice_plus(get_frame_pat_zoperand(~ctx, ~ty_e=Some(ty_ann), zoperand));
-  };
+  cons(slice, tail);
 }
 and get_frame_typ = (ZOpSeq(_, zseq) as zopseq: ZTyp.zopseq): t => {
   let opseq = ZTyp.erase_zopseq(zopseq);
   let ty_a = Some(UHTyp.expand(opseq)); // not actually true but whatever
-  let slice = mk(~slice=TypSeq(zopseq), ~ty_e=None, ~ty_a);
-  let slice_plus = cons(slice);
-  switch (zseq) {
-  | ZOperand(zop, _) => slice_plus(get_frame_typ_zoperand(zop))
-  | ZOperator(zop, _) => slice_plus(get_frame_typ_zoperator(zop))
-  };
+  let slice =
+    mk(~ctx=Contexts.empty, ~slice=TypSeq(zopseq), ~ty_e=None, ~ty_a);
+  let tail =
+    switch (zseq) {
+    | ZOperand(zop, _) => get_frame_typ_zoperand(zop)
+    | ZOperator(zop, _) => get_frame_typ_zoperator(zop)
+    };
+  cons(slice, tail);
 }
 and get_frame_typ_zoperator = (zoperator: ZTyp.zoperator): t => {
   //let operator = ZTyp.erase_zoperator(zoperator);
@@ -342,18 +343,27 @@ and get_frame_typ_zoperator = (zoperator: ZTyp.zoperator): t => {
     | (_, Prod) => HTyp.Prod([]) // lol
     | (_, Sum) => HTyp.Sum(HTyp.Hole, HTyp.Hole)
     };
-  let slice =
-    mk(~slice=TypOperator(zoperator), ~ty_e=None, ~ty_a=Some(t_op_sort_of));
-  let slice_plus = cons(slice);
-  slice_plus([]);
+  [
+    mk(
+      ~ctx=Contexts.empty,
+      ~slice=TypOperator(zoperator),
+      ~ty_e=None,
+      ~ty_a=Some(t_op_sort_of),
+    ),
+  ];
 }
 
 and get_frame_typ_zoperand = (zoperand: ZTyp.zoperand): t => {
-  let operand = ZTyp.erase_zoperand(zoperand);
-  let ty_a = Some(UHTyp.expand_operand(operand));
-  let slice = mk(~slice=TypOperand(zoperand), ~ty_e=None, ~ty_a);
-  let slice_plus = cons(slice);
-  slice_plus([]);
+  // lol
+  let ty_operand = zoperand |> ZTyp.erase_zoperand |> UHTyp.expand_operand;
+  [
+    mk(
+      ~ctx=Contexts.empty,
+      ~slice=TypOperand(zoperand),
+      ~ty_e=None,
+      ~ty_a=Some(ty_operand),
+    ),
+  ];
 };
 
 let frame = (zexp: ZExp.t): t =>
