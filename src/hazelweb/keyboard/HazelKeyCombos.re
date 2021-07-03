@@ -32,6 +32,7 @@ type t =
   | Alt_C
   | Pound
   | Ctrl_Z
+  | Ctrl_S
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K
@@ -71,6 +72,7 @@ let get_details =
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
   | Ctrl_Z => KeyCombo.ctrl_z
+  | Ctrl_S => KeyCombo.ctrl_s
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
@@ -85,6 +87,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Pound);
   } else if (evt_matches(KeyCombo.ctrl_z)) {
     Some(Ctrl_Z);
+  } else if (evt_matches(KeyCombo.ctrl_s)) {
+    Some(Ctrl_S);
   } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
     Some(Ctrl_Shift_Z);
   } else if (evt_matches(KeyCombo.meta_z)) {
