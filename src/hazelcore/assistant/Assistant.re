@@ -66,29 +66,32 @@ let get_actions =
     )
     : list(assistant_action) => {
   if (true) {
-    print_endline("ASSISTANT DEBUG:");
+    //print_endline("ASSISTANT DEBUG:");
     switch (opParent) {
-    | None => print_endline("  opParent: None")
-    | Some(opp) => P.p("  opParent: %s\n", ZExp.sexp_of_zoperand(opp))
+    | None => print_endline("TRAD opParent: None")
+    | Some(opp) => P.p("TRAD opParent: %s\n", ZExp.sexp_of_zoperand(opp))
     };
-    P.p("  expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
+    P.p("TRAD expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
     switch (actual_ty) {
-    | None => print_endline("  actual_ty: None")
-    | Some(ty) => P.p("actual_ty: %s\n", HTyp.sexp_of_t(ty))
+    | None => print_endline("TRAD actual_ty: None")
+    | Some(ty) => P.p("TRAD actual_ty: %s\n", HTyp.sexp_of_t(ty))
     };
+
     P.p("  mode: %s\n", CursorInfo.sexp_of_mode(mode));
     P.p(
-      "  syntactic_context: %s\n",
+      "TRAD nearest zopseq: %s\n",
       CursorInfo.sexp_of_syntactic_context(syntactic_context),
     );
-    P.p("  term: %s\n", CursorInfo.sexp_of_cursor_term(term));
-    switch (syntactic_context) {
-    | NoSeq => print_endline("the goggles do noseq")
-    | ExpSeq(_ty, seq, _err) =>
-      let path = seq |> ZExp.mk_ZOpSeq |> CursorPath_Exp.of_zopseq;
-      print_endline("path:");
-      print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
-    };
+    /*
+     P.p("  term: %s\n", CursorInfo.sexp_of_cursor_term(term));
+     switch (syntactic_context) {
+     | NoSeq => print_endline("the goggles do noseq")
+     | ExpSeq(_ty, seq, _err) =>
+       let path = seq |> ZExp.mk_ZOpSeq |> CursorPath_Exp.of_zopseq;
+       print_endline("path:");
+       print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
+     };
+     */
   };
   get_operand_actions(ci)
   @ get_operator_actions(ci)
