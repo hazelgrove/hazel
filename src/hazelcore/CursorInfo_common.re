@@ -1,5 +1,4 @@
 open CursorInfo;
-open CursorFrame;
 
 type zoperand =
   | ZExp(ZExp.zoperand)

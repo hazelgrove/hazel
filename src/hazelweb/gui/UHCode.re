@@ -330,14 +330,14 @@ let codebox_view =
     "FRAME nearest zopseq: %s\n",
     sexp_of_option(
       ZExp.sexp_of_zopseq,
-      CursorFrame.get_nearest_zopseq(zexp),
+      CursorFrame.enclosing_zopseq(zexp),
     ),
   );
   P.p(
     "FRAME: nearest zopseq_ty: %s\n",
     sexp_of_option(
       HTyp.sexp_of_t,
-      CursorFrame.get_expected_type_opseq(zexp),
+      CursorFrame.enclosing_zopseq_expected_ty(zexp),
     ),
   );
 

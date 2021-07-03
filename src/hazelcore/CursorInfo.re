@@ -120,7 +120,15 @@ type typed =
   | OnRule;
 
 [@deriving sexp]
-type cursor_term = CursorFrame.cursor_term;
+type cursor_term =
+  | Exp(CursorPosition.t, UHExp.operand)
+  | Pat(CursorPosition.t, UHPat.operand)
+  | Typ(CursorPosition.t, UHTyp.operand)
+  | ExpOp(CursorPosition.t, UHExp.operator)
+  | PatOp(CursorPosition.t, UHPat.operator)
+  | TypOp(CursorPosition.t, UHTyp.operator)
+  | Line(CursorPosition.t, UHExp.line)
+  | Rule(CursorPosition.t, UHExp.rule);
 
 [@deriving sexp]
 type syntactic_context =
@@ -245,5 +253,21 @@ let promote_cursor_info =
     uses,
     syntactic_context,
     opParent,
+  };
+};
+
+let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
+  switch (CursorFrame.get(zexp)) {
+  | [{slice: ExpLine(CursorL(c, s)), _}, ..._] => Line(c, s)
+  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
+  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
+  | [{slice: ExpRule(CursorR(c, s)), _}, ..._] => Rule(c, s)
+  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => Pat(c, s)
+  | [{slice: PatOperator((c, s)), _}, ..._] => PatOp(c, s)
+  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => Typ(c, s)
+  | [{slice: TypOperator((c, s)), _}, ..._] => TypOp(c, s)
+  | frame =>
+    print_endline(Sexplib.Sexp.to_string_hum(CursorFrame.sexp_of_t(frame)));
+    failwith("INVALID FRAME (extract_cursor_term)");
   };
 };

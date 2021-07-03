@@ -37,17 +37,6 @@ let mk =
 [@deriving sexp]
 type t = list(slice_info);
 
-[@deriving sexp]
-type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
-  | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule);
-
 let cons = List.cons;
 
 let rec get_frame = (~ctx: Contexts.t, ~ty_e: option(HTyp.t), ze: ZExp.t): t =>
@@ -335,7 +324,7 @@ and get_frame_typ = (ZOpSeq(_, zseq) as zopseq: ZTyp.zopseq): t => {
   cons(slice, tail);
 }
 and get_frame_typ_zoperator = (zoperator: ZTyp.zoperator): t => {
-  //let operator = ZTyp.erase_zoperator(zoperator);
+  // yolo
   // TODO: improve society somewhat
   let t_op_sort_of =
     switch (zoperator) {
@@ -354,7 +343,7 @@ and get_frame_typ_zoperator = (zoperator: ZTyp.zoperator): t => {
 }
 
 and get_frame_typ_zoperand = (zoperand: ZTyp.zoperand): t => {
-  // lol
+  // yolo
   let ty_operand = zoperand |> ZTyp.erase_zoperand |> UHTyp.expand_operand;
   [
     mk(
@@ -369,23 +358,7 @@ and get_frame_typ_zoperand = (zoperand: ZTyp.zoperand): t => {
 let get = (zexp: ZExp.t): t =>
   zexp |> get_frame(~ctx=Contexts.empty, ~ty_e=Some(Hole)) |> List.rev;
 
-let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
-  switch (get(zexp)) {
-  | [{slice: ExpLine(CursorL(c, s)), _}, ..._] => Line(c, s)
-  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
-  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
-  | [{slice: ExpRule(CursorR(c, s)), _}, ..._] => Rule(c, s)
-  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => Pat(c, s)
-  | [{slice: PatOperator((c, s)), _}, ..._] => PatOp(c, s)
-  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => Typ(c, s)
-  | [{slice: TypOperator((c, s)), _}, ..._] => TypOp(c, s)
-  | frame =>
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(frame)));
-    failwith("INVALID FRAME (extract_cursor_term)");
-  };
-};
-
-let get_nearest_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) => {
+let enclosing_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) => {
   let frame = get(zexp);
   let is_expseq = si =>
     switch (si.slice) {
@@ -400,7 +373,7 @@ let get_nearest_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) => {
   };
 };
 
-let get_expected_type_opseq = (zexp: ZExp.t): option(HTyp.t) => {
+let enclosing_zopseq_expected_ty = (zexp: ZExp.t): option(HTyp.t) => {
   let frame = get(zexp);
   let is_expseq = si =>
     switch (si.slice) {
@@ -417,18 +390,19 @@ let get_expected_type_opseq = (zexp: ZExp.t): option(HTyp.t) => {
   };
 };
 
-let get_cursor_term =
-  fun
-  | [x, ..._] => Some(x)
-  | [] => None;
+let get_cursor_term = (zexp: ZExp.t): option(slice_info) =>
+  switch (get(zexp)) {
+  | [si, ..._] => Some(si)
+  | [] => None
+  };
 
 let get_expected_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_term(get(zexp));
+  let* slice = get_cursor_term(zexp);
   slice.ty_e;
 };
 
 let get_actual_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_term(get(zexp));
+  let* slice = get_cursor_term(zexp);
   slice.ty_a;
 };
 
