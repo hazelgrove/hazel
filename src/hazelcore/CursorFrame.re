@@ -25,7 +25,7 @@ type slice_info = {
   ctx: Contexts.t,
 };
 
-let mk =
+let mk_si =
     (~ctx, ~ty_e: option(HTyp.t), ~ty_a: option(HTyp.t), ~slice: slice)
     : slice_info => {
   ctx,
@@ -241,31 +241,31 @@ let get_zchild_slice = (slice: slice): list(slice) => {
 
 // *****************************************************************
 
-let rec get_frame =
+let rec mk_frame =
         (slice: slice, ~ctx: Contexts.t, ~ty_e: option(HTyp.t))
         : list(slice_info) => {
-  let head = mk(~ctx, ~slice, ~ty_e, ~ty_a=synthetic(~ctx, slice));
+  let head = mk_si(~ctx, ~slice, ~ty_e, ~ty_a=synthetic(~ctx, slice));
   let tail =
     switch (get_zchild_slice(slice)) {
     | [child_slice] =>
       let ctx_new = get_ctx(~ctx, ~ty_e, slice);
       let ty_e_new = analytic(~ctx=ctx_new, ~ty_e, slice);
       // TODO: doublecheck logic about new_ctx getting used for ty_e_new
-      get_frame(child_slice, ~ctx=ctx_new, ~ty_e=ty_e_new);
+      mk_frame(child_slice, ~ctx=ctx_new, ~ty_e=ty_e_new);
     | _ => []
     };
   [head, ...tail];
 };
 
-let get = (zexp: ZExp.t): t =>
+let mk = (zexp: ZExp.t): t =>
   ExpBlock(zexp)
-  |> get_frame(~ctx=Contexts.empty, ~ty_e=Some(Hole))
+  |> mk_frame(~ctx=Contexts.empty, ~ty_e=Some(Hole))
   |> List.rev;
 
 // *****************************************************************
 
 let get_cursor_slice = (zexp: ZExp.t): option(slice_info) =>
-  switch (get(zexp)) {
+  switch (mk(zexp)) {
   | [si, ..._] => Some(si)
   | [] => None
   };
@@ -308,13 +308,13 @@ let pop_exp_operand = frame =>
 
 let get_opParent = (zexp: ZExp.t): option(ZExp.zoperand) =>
   // skip cursor_term if it's an operand
-  zexp |> get |> pop_exp_operand |> find_map(first_exp_operand);
+  zexp |> mk |> pop_exp_operand |> find_map(first_exp_operand);
 
 let enclosing_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) =>
-  zexp |> get |> find_map(first_exp_seq_zopseq);
+  zexp |> mk |> find_map(first_exp_seq_zopseq);
 
 let enclosing_zopseq_expected_ty = (zexp: ZExp.t): option(HTyp.t) =>
-  zexp |> get |> find_map(first_exp_seq_ty_e);
+  zexp |> mk |> find_map(first_exp_seq_ty_e);
 
 let get_expected_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
   let* slice = get_cursor_slice(zexp);

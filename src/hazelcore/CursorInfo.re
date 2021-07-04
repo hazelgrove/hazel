@@ -257,7 +257,7 @@ let promote_cursor_info =
 };
 
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
-  switch (CursorFrame.get(zexp)) {
+  switch (CursorFrame.mk(zexp)) {
   | [{slice: ExpLine(CursorL(c, s)), _}, ..._] => Line(c, s)
   | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
   | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
