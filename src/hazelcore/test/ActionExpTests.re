@@ -349,8 +349,10 @@ let%expect_test "mixed spaced operation prediction test" = {
 };
 
 /* edge case where LHS float operand analyzes as function type
+   cursor on empty hole, LHS float operand
    1. |_ => 1. +.| _ */
-let%expect_test "float operand on opposing side of zoperand test" = {
+let%expect_test "float operand on LHS of empty hole zoperand test" = {
+  // float as left operand
   let zoperand =
     ZExp.CursorE(CursorPosition.OnDelim(0, Before), UHExp.EmptyHole(0));
   let skel =
@@ -386,4 +388,41 @@ let%expect_test "float operand on opposing side of zoperand test" = {
 
   %expect
   {|(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(FloatLit NotInHole 1.)E)(S(EmptyHole 0)E)))))())|};
+};
+
+/* cursor on empty hole, RHS float operand
+   _| 1. => _ +.| 1. */
+let%expect_test "float operand on RHS of empty hole zoperand test" = {
+  // float as right operand
+  let zoperand =
+    ZExp.CursorE(CursorPosition.OnDelim(0, After), UHExp.EmptyHole(0));
+  let skel =
+    Skel.BinOp(
+      NotInHole,
+      Operators_Exp.Space,
+      Placeholder(0),
+      Placeholder(1),
+    );
+  let zopseq =
+    ZOpSeq.ZOpSeq(
+      skel,
+      ZOperand(
+        zoperand,
+        (E, A(Space, S(UHExp.FloatLit(NotInHole, "1."), E))),
+      ),
+    );
+  let zline = ZExp.ExpLineZ(zopseq);
+  let e = ([], zline, []);
+  switch (
+    Action_Exp.syn_perform(
+      Contexts.empty,
+      Construct(SOp(SPlus)),
+      (e, HTyp.Hole, MetaVarGen.init),
+    )
+  ) {
+  | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
+  | _ => print_endline("nothing")
+  };
+  %expect
+  {|(()(ExpLineZ(ZOpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(ZOperator((OnOp After)FPlus)((S(EmptyHole 0)E)(S(FloatLit NotInHole 1.)E)))))())|};
 };
