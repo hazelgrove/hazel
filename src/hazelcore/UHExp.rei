@@ -54,6 +54,8 @@ let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
+let deferral: (~err: ErrStatus.t=?, unit) => operand;
+
 module Line: {
   let prune_empty_hole: line => line;
 

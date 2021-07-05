@@ -73,6 +73,8 @@ let case =
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
+let deferral = (~err: ErrStatus.t=NotInHole, ()): operand => Deferral(err);
+
 module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {

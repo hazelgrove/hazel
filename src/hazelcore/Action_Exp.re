@@ -1600,7 +1600,7 @@ and syn_perform_operand =
 
   | (Construct(SDeferral), CursorE(_, EmptyHole(_))) =>
     let new_ze =
-      UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
+      UHExp.deferral() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
     let new_ty = HTyp.List(Hole);
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
   | (Construct(SDeferral), CursorE(_)) => Failed
