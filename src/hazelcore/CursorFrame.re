@@ -49,8 +49,6 @@ let synthetic = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
     |> UHExp.set_err_status_opseq(NotInHole)
     |> Statics_Exp.syn_opseq(ctx)
   | ExpOperand(zoperand) =>
-    //P.p("synethic ExpOperand: %s\n", ZExp.sexp_of_zoperand(zoperand));
-    //P.p("ctx: %s\n", Contexts.sexp_of_t(ctx));
     zoperand
     |> ZExp.erase_zoperand
     |> UHExp.set_err_status_operand(NotInHole)
@@ -79,22 +77,31 @@ let synthetic = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
   | TypOperator(_) => None
   };
 
+let expected_ty_from_ty_mode: Statics.type_mode => HTyp.t =
+  fun
+  | Ana(ty) => ty
+  | Syn => HTyp.Hole;
+
 let analytic =
     (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): option(HTyp.t) =>
   switch (slice) {
+  | ExpOperand(CursorE(_))
+  | ExpOperand(ApPaletteZ(_))
+  | PatOperand(CursorP(_))
+  | ExpLine(CursorL(_))
+  | ExpRule(CursorR(_)) => None // these have no children
   | ExpBlock((_, _, suffix)) =>
-    // last line gets type
+    // last line inherits type (could be last ExpLine)
     suffix == [] ? ty_e : None
   | ExpLine(LetLineZE(p, _)) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | Some((ty, _)) => Some(ty)
     | None => Some(HTyp.Hole)
     }
-  | ExpLine(LetLineZP(_)) => None
+  | ExpLine(LetLineZP(_)) =>
+    // could incorporate def type if any
+    None
   | ExpLine(ExpLineZ(_)) => ty_e
-  | ExpOperand(CursorE(_))
-  | ExpOperand(ApPaletteZ(_))
-  | PatOperand(CursorP(_)) => None
   | ExpOperand(ParenthesizedZ(_))
   | PatOperand(ParenthesizedZ(_)) => ty_e
   | ExpOperand(InjZ(_, side, _)) =>
@@ -111,15 +118,15 @@ let analytic =
     ty_body;
   | PatOperand(TypeAnnZP(_, _, ann)) => Some(UHTyp.expand(ann))
   | PatOperand(TypeAnnZA(_, _, _)) => None
-  | ExpOperand(CaseZE(_)) => None
+  | ExpOperand(CaseZE(_)) =>
+    // could incoporate joint pattern type here if any...
+    None
   | ExpOperand(LamZP(_)) => None
   | ExpOperand(CaseZR(_, scrut, _)) =>
-    // NOTE special case with scrut type...
-    let ty_scrut = Statics_Exp.syn(ctx, scrut);
-    switch (ty_scrut, ty_e) {
-    | (Some(ty_scrut), Some(ty_e)) => Some(HTyp.Arrow(ty_scrut, ty_e))
-    | _ => None
-    };
+    // let's pretend rules have type ty_scrut => ty_expected
+    let* ty_e' = ty_e;
+    let+ ty_scrut = Statics_Exp.syn(ctx, scrut);
+    HTyp.Arrow(ty_scrut, ty_e');
   | ExpRules(_) => ty_e
   | ExpRule(RuleZP(_)) =>
     switch (ty_e) {
@@ -136,38 +143,33 @@ let analytic =
     let operand_index = Seq.length_of_affix(prefix);
     switch (ty_e) {
     | Some(ty_e) =>
-      switch (Statics_Exp.ana_nth_type_mode(ctx, operand_index, opseq, ty_e)) {
-      | Some(Ana(ty)) => Some(ty)
-      | Some(Syn) => Some(HTyp.Hole)
-      | None => None
-      }
+      let+ ty_mode_operand =
+        Statics_Exp.ana_nth_type_mode(ctx, operand_index, opseq, ty_e);
+      expected_ty_from_ty_mode(ty_mode_operand);
     | None =>
-      switch (Statics_Exp.syn_nth_type_mode(ctx, operand_index, opseq)) {
-      | Some(Ana(ty)) => Some(ty)
-      | Some(Syn) => Some(HTyp.Hole)
-      | _ => None
-      }
+      // TODO: not sure this case should be necessary...
+      let+ ty_mode_operand =
+        Statics_Exp.syn_nth_type_mode(ctx, operand_index, opseq);
+      expected_ty_from_ty_mode(ty_mode_operand);
     };
   | PatSeq(ZOpSeq(_, ZOperand(_, (prefix, _))) as zopseq) =>
     let opseq = ZPat.erase_zopseq(zopseq);
     let operand_index = Seq.length_of_affix(prefix);
-    switch (ty_e) {
-    | Some(ty_e) =>
-      switch (Statics_Pat.ana_nth_type_mode(ctx, operand_index, opseq, ty_e)) {
-      | Some(Ana(ty)) => Some(ty)
-      | Some(Syn) => Some(HTyp.Hole)
-      | None => None
-      }
-    | _ => None
-    };
+    let* ty_e' = ty_e;
+    let+ ty_mode_operand =
+      Statics_Pat.ana_nth_type_mode(ctx, operand_index, opseq, ty_e');
+    expected_ty_from_ty_mode(ty_mode_operand);
   | ExpSeq(ZOpSeq(_, ZOperator(_zop, _))) =>
     //TODO(andrew): FIX adapt syn/ana_nth_type_mode to return operator types
     None
   | PatSeq(ZOpSeq(_, ZOperator(_))) =>
     // TODO(andrew): FIX adapt syn/ana_nth_type_mode to return operator types
     None
-
-  | _ => None
+  | TypSeq(_)
+  | TypOperand(_) => None
+  | ExpOperator(_)
+  | PatOperator(_)
+  | TypOperator(_) => None
   };
 
 let get_ctx =
@@ -208,7 +210,7 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | ExpLine(CursorL(_)) => []
   | ExpLine(ExpLineZ(zopseq)) => [ExpSeq(zopseq)]
   | ExpLine(LetLineZE(_, zblock)) => [ExpBlock(zblock)]
-  | ExpLine(LetLineZP(zpat, _)) => [PatSeq(zpat)]
+  | ExpLine(LetLineZP(zopseq, _)) => [PatSeq(zopseq)]
   | ExpSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [ExpOperand(zoperand)]
   | ExpSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [ExpOperator(zoperator)]
   | ExpOperator(_zoperator) => [] // TODO(andrew)
@@ -218,18 +220,18 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | ExpOperand(LamZE(_, _, zblock))
   | ExpOperand(InjZ(_, _, zblock))
   | ExpOperand(CaseZE(_, zblock, _)) => [ExpBlock(zblock)]
-  | ExpOperand(LamZP(_, zpat, _)) => [PatSeq(zpat)]
+  | ExpOperand(LamZP(_, zopseq, _)) => [PatSeq(zopseq)]
   | ExpOperand(CaseZR(_, _, zrules)) => [ExpRules(zrules)]
   | ExpRules((_, zrule, _)) => [ExpRule(zrule)]
   | ExpRule(CursorR(_)) => []
-  | ExpRule(RuleZP(zpat, _)) => [PatSeq(zpat)]
+  | ExpRule(RuleZP(zopseq, _)) => [PatSeq(zopseq)]
   | ExpRule(RuleZE(_, zblock)) => [ExpBlock(zblock)]
   | PatSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [PatOperand(zoperand)]
   | PatSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [PatOperator(zoperator)]
   | PatOperator(_zop) => [] // TODO(andrew)
   | PatOperand(CursorP(_)) => []
-  | PatOperand(ParenthesizedZ(zpat))
-  | PatOperand(InjZ(_, _, zpat)) => [PatSeq(zpat)]
+  | PatOperand(ParenthesizedZ(zopseq))
+  | PatOperand(InjZ(_, _, zopseq)) => [PatSeq(zopseq)]
   | PatOperand(TypeAnnZA(_, _, zopseq)) => [TypSeq(zopseq)]
   | PatOperand(TypeAnnZP(_, zoperand, _)) => [PatOperand(zoperand)]
   | TypSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [TypOperand(zoperand)]
@@ -251,6 +253,7 @@ let rec mk_frame =
       let ctx_new = get_ctx(~ctx, ~ty_e, slice);
       let ty_e_new = analytic(~ctx=ctx_new, ~ty_e, slice);
       // TODO: doublecheck logic about new_ctx getting used for ty_e_new
+      // i.e. make sure we dont sometimes have to use ty_e_new for getting ctx_new
       mk_frame(child_slice, ~ctx=ctx_new, ~ty_e=ty_e_new);
     | _ => []
     };

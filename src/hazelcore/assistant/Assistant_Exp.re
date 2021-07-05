@@ -533,9 +533,7 @@ let mk_replace_operator_action =
   );
 };
 
-let replace_operator_actions =
-    (ctx: Contexts.t, seq_ty: HTyp.t, zseq: exp_zseq, _err: ErrStatus.t) => {
-  let ty_ignoring_err = operand =>
+let actual_ty_operand = (~ctx, operand) =>
     switch (
       Statics_Exp.syn_operand(
         ctx,
@@ -543,20 +541,80 @@ let replace_operator_actions =
       )
     ) {
     | None =>
-      print_endline("TODO(andrew): WARNING 1 replace_operator_actions");
+      print_endline("TODO(andrew): WARNING actual_ty_operand");
       HTyp.Hole;
     | Some(ty) => ty
     };
+
+let replace_operator_actions =
+    (ctx: Contexts.t, seq_ty: HTyp.t, zseq: exp_zseq, _err: ErrStatus.t) => {
+  //TODO(andrew): unhardcode from binops
   switch (ZExp.erase_zseq(zseq)) {
   | S(operand1, A(_operator, S(operand2, E))) =>
-    let in1_ty = ty_ignoring_err(operand1);
-    let in2_ty = ty_ignoring_err(operand2);
+    let in1_ty = actual_ty_operand(~ctx,operand1);
+    let in2_ty = actual_ty_operand(~ctx,operand2);
     exp_operator_of_ty(in1_ty, in2_ty, seq_ty)
     |> List.map(mk_replace_operator_action(seq_ty, zseq, ctx));
   | _ =>
-    print_endline("TODO(andrew): WARNING 2 replace_operator_actions");
+    print_endline("TODO(andrew): WARNING replace_operator_actions");
     [];
   };
+};
+
+
+/*
+case 1v1:
+given opseq: prefix Zoperand| <o1>s1 <o2>s2 ... <on>sn
+suggest:
+prefix Zoperand| (f <o1>s1) <o2>s2 ... <on>sn
+prefix Zoperand| (f <o1>s1 <o2>s2) ... <on>sn
+prefix Zoperand| (f <o1>s1 <o2>s2 ... <on>sn)
+iff the types work
+case 1v2: above, but splice in without parens if possible
+
+case 2v1:
+given opseq: preseq Zoperator| s1<o1> s2<o2> ... sn
+suggest:
+preseq Zoperator| (f s1)<o1> s2<o2> ... sn
+preseq Zoperator| (f s1<o1> s2)<o2> ... sn
+preseq Zoperator| (f s1<o1> s2<o2> ... sn)
+
+
+possible helpers:
+1. predicate to tell if parens are necessary
+  when pointed at a parensthesized operand in an opseq
+
+2. function that when, pointed at an operator, gives
+   the subprefix and subsuffic which are that operator's operands
+ */
+let _mk_seq_wrap_action =
+    (
+      seq_ty: HTyp.t,
+      zseq: exp_zseq,
+      ctx: Contexts.t,
+      new_operator: Operators_Exp.t,
+    )
+    : assistant_action => {
+  // TODO(andrew): this is hardcoded for binops, and resets cursor pos. rewrite!
+  let fix_holes_local = (ctx: Contexts.t, exp: UHExp.t): UHExp.t =>
+    exp
+    |> Statics_Exp.syn_fix_holes(ctx, MetaVarGen.init)
+    |> (((x, _, _)) => x);
+  let new_seq =
+    switch (ZExp.erase_zseq(zseq)) {
+    | S(operand1, A(_operator, S(operand2, E))) =>
+      Seq.S(operand1, A(new_operator, S(operand2, E)))
+    | _ => failwith("TODO(andrew) mk_replace_operator_action")
+    };
+  let new_opseq = new_seq |> UHExp.mk_OpSeq;
+  let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
+  mk_action(
+    ~category=ReplaceOperator,
+    ~text=Operators_Exp.to_string(new_operator),
+    ~action=ReplaceOpSeqAroundCursor(new_zseq),
+    ~res_ty=seq_ty,
+    ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
+  );
 };
 
 let operator_actions =
