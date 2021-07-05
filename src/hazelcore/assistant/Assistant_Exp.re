@@ -534,25 +534,25 @@ let mk_replace_operator_action =
 };
 
 let actual_ty_operand = (~ctx, operand) =>
-    switch (
-      Statics_Exp.syn_operand(
-        ctx,
-        UHExp.set_err_status_operand(NotInHole, operand),
-      )
-    ) {
-    | None =>
-      print_endline("TODO(andrew): WARNING actual_ty_operand");
-      HTyp.Hole;
-    | Some(ty) => ty
-    };
+  switch (
+    Statics_Exp.syn_operand(
+      ctx,
+      UHExp.set_err_status_operand(NotInHole, operand),
+    )
+  ) {
+  | None =>
+    print_endline("TODO(andrew): WARNING actual_ty_operand");
+    HTyp.Hole;
+  | Some(ty) => ty
+  };
 
 let replace_operator_actions =
     (ctx: Contexts.t, seq_ty: HTyp.t, zseq: exp_zseq, _err: ErrStatus.t) => {
   //TODO(andrew): unhardcode from binops
   switch (ZExp.erase_zseq(zseq)) {
   | S(operand1, A(_operator, S(operand2, E))) =>
-    let in1_ty = actual_ty_operand(~ctx,operand1);
-    let in2_ty = actual_ty_operand(~ctx,operand2);
+    let in1_ty = actual_ty_operand(~ctx, operand1);
+    let in2_ty = actual_ty_operand(~ctx, operand2);
     exp_operator_of_ty(in1_ty, in2_ty, seq_ty)
     |> List.map(mk_replace_operator_action(seq_ty, zseq, ctx));
   | _ =>
@@ -561,32 +561,31 @@ let replace_operator_actions =
   };
 };
 
-
 /*
-case 1v1:
-given opseq: prefix Zoperand| <o1>s1 <o2>s2 ... <on>sn
-suggest:
-prefix Zoperand| (f <o1>s1) <o2>s2 ... <on>sn
-prefix Zoperand| (f <o1>s1 <o2>s2) ... <on>sn
-prefix Zoperand| (f <o1>s1 <o2>s2 ... <on>sn)
-iff the types work
-case 1v2: above, but splice in without parens if possible
+ case 1v1:
+ given opseq: prefix Zoperand| <o1>s1 <o2>s2 ... <on>sn
+ suggest:
+ prefix Zoperand| (f <o1>s1) <o2>s2 ... <on>sn
+ prefix Zoperand| (f <o1>s1 <o2>s2) ... <on>sn
+ prefix Zoperand| (f <o1>s1 <o2>s2 ... <on>sn)
+ iff the types work
+ case 1v2: above, but splice in without parens if possible
 
-case 2v1:
-given opseq: preseq Zoperator| s1<o1> s2<o2> ... sn
-suggest:
-preseq Zoperator| (f s1)<o1> s2<o2> ... sn
-preseq Zoperator| (f s1<o1> s2)<o2> ... sn
-preseq Zoperator| (f s1<o1> s2<o2> ... sn)
+ case 2v1:
+ given opseq: preseq Zoperator| s1<o1> s2<o2> ... sn
+ suggest:
+ preseq Zoperator| (f s1)<o1> s2<o2> ... sn
+ preseq Zoperator| (f s1<o1> s2)<o2> ... sn
+ preseq Zoperator| (f s1<o1> s2<o2> ... sn)
 
 
-possible helpers:
-1. predicate to tell if parens are necessary
-  when pointed at a parensthesized operand in an opseq
+ possible helpers:
+ 1. predicate to tell if parens are necessary
+   when pointed at a parensthesized operand in an opseq
 
-2. function that when, pointed at an operator, gives
-   the subprefix and subsuffic which are that operator's operands
- */
+ 2. function that when, pointed at an operator, gives
+    the subprefix and subsuffic which are that operator's operands
+  */
 let _mk_seq_wrap_action =
     (
       seq_ty: HTyp.t,

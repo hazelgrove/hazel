@@ -82,7 +82,7 @@ let expected_ty_from_ty_mode: Statics.type_mode => HTyp.t =
   | Ana(ty) => ty
   | Syn => HTyp.Hole;
 
-let analytic =
+let expected_analytic =
     (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): option(HTyp.t) =>
   switch (slice) {
   | ExpOperand(CursorE(_))
@@ -90,10 +90,14 @@ let analytic =
   | PatOperand(CursorP(_))
   | ExpLine(CursorL(_))
   | ExpRule(CursorR(_)) => None // these have no children
-  | ExpBlock((_, _, suffix)) =>
+  | ExpBlock((_, _, [])) =>
     // last line inherits type (could be last ExpLine)
-    suffix == [] ? ty_e : None
+    ty_e
+  | ExpBlock((_, _, [_, ..._])) =>
+    // non-last lines have no expected type
+    None
   | ExpLine(LetLineZE(p, _)) =>
+    // ctx already extended by get_ctx
     switch (Statics_Pat.syn(ctx, p)) {
     | Some((ty, _)) => Some(ty)
     | None => Some(HTyp.Hole)
@@ -116,12 +120,18 @@ let analytic =
     let* ty_e' = ty_e;
     let+ (_, ty_body) = HTyp.matched_arrow(ty_e');
     ty_body;
-  | PatOperand(TypeAnnZP(_, _, ann)) => Some(UHTyp.expand(ann))
+  | ExpOperand(LamZP(_)) =>
+    let* ty_e' = ty_e;
+    let+ (ty_pat, _) = HTyp.matched_arrow(ty_e');
+    ty_pat;
+  | PatOperand(TypeAnnZP(_, _, ann)) =>
+    let ty_ann = UHTyp.expand(ann);
+    let* ty_e' = ty_e;
+    HTyp.consistent(ty_e', ty_ann) ? Some(ty_ann) : None;
   | PatOperand(TypeAnnZA(_, _, _)) => None
   | ExpOperand(CaseZE(_)) =>
     // could incoporate joint pattern type here if any...
     None
-  | ExpOperand(LamZP(_)) => None
   | ExpOperand(CaseZR(_, scrut, _)) =>
     // let's pretend rules have type ty_scrut => ty_expected
     let* ty_e' = ty_e;
@@ -129,15 +139,13 @@ let analytic =
     HTyp.Arrow(ty_scrut, ty_e');
   | ExpRules(_) => ty_e
   | ExpRule(RuleZP(_)) =>
-    switch (ty_e) {
-    | Some(Arrow(ty_scrut, _)) => Some(ty_scrut)
-    | x => x
-    }
+    let* ty_e' = ty_e;
+    let+ (ty_scrut, _) = HTyp.matched_arrow(ty_e');
+    ty_scrut;
   | ExpRule(RuleZE(_)) =>
-    switch (ty_e) {
-    | Some(Arrow(_, ty_top)) => Some(ty_top)
-    | x => x
-    }
+    let* ty_e' = ty_e;
+    let+ (_, ty_body) = HTyp.matched_arrow(ty_e');
+    ty_body;
   | ExpSeq(ZOpSeq(_, ZOperand(_, (prefix, _))) as zopseq) =>
     let opseq = ZExp.erase_zopseq(zopseq);
     let operand_index = Seq.length_of_affix(prefix);
@@ -200,6 +208,16 @@ let get_ctx =
     | None => ctx
     | Some(ctx) => ctx
     }
+  | ExpRule(RuleZE(pat, _)) =>
+    switch (ty_e) {
+    | Some(Arrow(pat_ty, _)) =>
+      switch (Statics_Pat.ana(ctx, pat, pat_ty)) {
+      | Some(ctx) => ctx
+      | _ => ctx
+      }
+    | _ => ctx
+    }
+  //TODO(andrew): pattern cases!!!!
   | _ => ctx
   };
 };
@@ -241,6 +259,135 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   };
 };
 
+open Statics;
+let get_child_mode =
+    (~ctx: Contexts.t, mode: option(Statics.type_mode), slice: slice)
+    : option(Statics.type_mode) => {
+  // first pass: assuming no error holes
+  // ASSUME: ctx here get passed ctx from get_ctx
+  switch (slice) {
+  | ExpBlock((_, _, [])) => mode
+  | ExpBlock((_, _, [_, ..._])) => Some(Syn) //non-last lines always syn
+  | ExpLine(CursorL(_)) => None // no child
+  | ExpLine(ExpLineZ(_)) => mode
+  | ExpLine(LetLineZE(p, _zdef)) =>
+    // same as get_expected xcept Hole vs None
+    let+ (ty, _) = Statics_Pat.syn(ctx, p);
+    Ana(ty);
+  | ExpLine(LetLineZP(_, _)) => Some(Syn)
+  | ExpSeq(ZOpSeq(_, ZOperand(_, (prefix, _))) as zopseq) =>
+    let opseq = ZExp.erase_zopseq(zopseq);
+    let operand_index = Seq.length_of_affix(prefix);
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty_e) =>
+      Statics_Exp.ana_nth_type_mode(ctx, operand_index, opseq, ty_e)
+    | Syn => Statics_Exp.syn_nth_type_mode(ctx, operand_index, opseq)
+    };
+  | ExpSeq(ZOpSeq(_, ZOperator(_zoperator, _))) =>
+    // TODO??
+    None
+  | ExpOperator(_) => None // no child
+  | ExpOperand(CursorE(_)) => None // no child
+  | ExpOperand(ApPaletteZ(_)) => None // no child
+  | ExpOperand(ParenthesizedZ(_)) => mode
+  | ExpOperand(LamZE(_)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ (_, ty_body) = HTyp.matched_arrow(ty);
+      Ana(ty_body);
+    | Syn => Some(Syn)
+    };
+  | ExpOperand(LamZP(_)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ (ty_p_given, _) = HTyp.matched_arrow(ty);
+      Ana(ty_p_given);
+    | Syn => Some(Syn)
+    };
+  | ExpOperand(InjZ(_, side, _)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ (ty1, ty2) = HTyp.matched_sum(ty);
+      Ana(InjSide.pick(side, ty1, ty2));
+    | Syn => Some(Syn)
+    };
+  | ExpOperand(CaseZE(_)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(_) => Some(Syn)
+    | Syn => Some(Syn)
+    };
+  | ExpOperand(CaseZR(_, scrut, _)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ ty_scrut = Statics_Exp.syn(ctx, scrut);
+      Ana(HTyp.Arrow(ty_scrut, ty));
+    | Syn => Some(Syn)
+    };
+  | ExpRules(_) => mode
+  | ExpRule(CursorR(_)) => None // no child
+  | ExpRule(RuleZP(_)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ (ty_pat, _) = HTyp.matched_arrow(ty);
+      Ana(ty_pat);
+    | Syn => Some(Syn)
+    // TODO: technically should be??:
+    /*let+ (ty_pat, _) = HTyp.matched_arrow(ty);
+      Ana(ty_pat);*/
+    };
+  | ExpRule(RuleZE(_)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      // need to get ctx from pattern to generate real body ty
+      let+ (_, ty_body) = HTyp.matched_arrow(ty);
+      Ana(ty_body);
+    | Syn => Some(Syn) // correct?
+    };
+  | PatSeq(ZOpSeq(_, ZOperand(_, (prefix, _))) as zopseq) =>
+    let opseq = ZPat.erase_zopseq(zopseq);
+    let operand_index = Seq.length_of_affix(prefix);
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty_e) =>
+      Statics_Pat.ana_nth_type_mode(ctx, operand_index, opseq, ty_e)
+    | Syn => Statics_Pat.syn_nth_type_mode(ctx, operand_index, opseq)
+    };
+  | PatSeq(ZOpSeq(_, ZOperator(_zoperator, _))) =>
+    // TODO??
+    None
+  | PatOperator(_) => None // no child
+  | PatOperand(CursorP(_)) => None // no child
+  | PatOperand(ParenthesizedZ(_)) => mode
+  | PatOperand(InjZ(_, side, _)) =>
+    let* mode' = mode;
+    switch (mode') {
+    | Ana(ty) =>
+      let+ (tyL, tyR) = HTyp.matched_sum(ty);
+      Ana(InjSide.pick(side, tyL, tyR));
+    | Syn => Some(Syn)
+    };
+  | PatOperand(TypeAnnZA(_)) => None // ZA is type
+  | PatOperand(TypeAnnZP(_, _, ann)) =>
+    let* mode' = mode;
+    let ty_ann = UHTyp.expand(ann);
+    switch (mode') {
+    | Ana(ty) => HTyp.consistent(ty, ty_ann) ? Some(Ana(ty_ann)) : None
+    | Syn => Some(Ana(ty_ann))
+    };
+  | TypSeq(_)
+  | TypOperand(_)
+  | TypOperator(_) => None
+  };
+};
+
 // *****************************************************************
 
 let rec mk_frame =
@@ -251,7 +398,7 @@ let rec mk_frame =
     switch (get_zchild_slice(slice)) {
     | [child_slice] =>
       let ctx_new = get_ctx(~ctx, ~ty_e, slice);
-      let ty_e_new = analytic(~ctx=ctx_new, ~ty_e, slice);
+      let ty_e_new = expected_analytic(~ctx=ctx_new, ~ty_e, slice);
       // TODO: doublecheck logic about new_ctx getting used for ty_e_new
       // i.e. make sure we dont sometimes have to use ty_e_new for getting ctx_new
       mk_frame(child_slice, ~ctx=ctx_new, ~ty_e=ty_e_new);
