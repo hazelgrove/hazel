@@ -30,15 +30,13 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
-  | Ctrl_Z
   | Ctrl_S
+  | Ctrl_Z
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K
   | Ctrl_Alt_J
-  | Ctrl_Alt_L
-  | Meta_Z
-  | Meta_Shift_Z;
+  | Ctrl_Alt_L;
 
 let get_details =
   fun
@@ -69,30 +67,18 @@ let get_details =
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
-  | Ctrl_Z => KeyCombo.ctrl_z
   | Ctrl_S => KeyCombo.ctrl_s
+  | Ctrl_Z => KeyCombo.ctrl_z
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
   | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
-  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l
-  | Meta_Z => KeyCombo.meta_z
-  | Meta_Shift_Z => KeyCombo.meta_shift_z;
+  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l;
 
-let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
-  let evt_matches = details => KeyCombo.matches(details, evt);
+let of_evt = (evt: Js.t(Dom_html.keyboardEvent), is_mac): option(t) => {
+  let evt_matches = details => KeyCombo.matches(details, evt, is_mac);
   if (evt_matches(KeyCombo.pound)) {
     Some(Pound);
-  } else if (evt_matches(KeyCombo.ctrl_z)) {
-    Some(Ctrl_Z);
-  } else if (evt_matches(KeyCombo.ctrl_s)) {
-    Some(Ctrl_S);
-  } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
-    Some(Ctrl_Shift_Z);
-  } else if (evt_matches(KeyCombo.meta_z)) {
-    Some(Meta_Z);
-  } else if (evt_matches(KeyCombo.meta_shift_z)) {
-    Some(Meta_Shift_Z);
   } else if (evt_matches(KeyCombo.escape)) {
     Some(Escape);
   } else if (evt_matches(KeyCombo.backspace)) {
@@ -145,6 +131,12 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_R);
   } else if (evt_matches(KeyCombo.alt_C)) {
     Some(Alt_C);
+  } else if (evt_matches(KeyCombo.ctrl_s)) {
+    Some(Ctrl_S);
+  } else if (evt_matches(KeyCombo.ctrl_z)) {
+    Some(Ctrl_Z);
+  } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
+    Some(Ctrl_Shift_Z);
   } else if (evt_matches(KeyCombo.ctrl_alt_i)) {
     Some(Ctrl_Alt_I);
   } else if (evt_matches(KeyCombo.ctrl_alt_k)) {

@@ -58,7 +58,8 @@ let action_button =
       inject: ModelAction.t => Event.t,
       a: Action.t,
       lbl: list(Node.t),
-      key_combo,
+      key_combo: KeyCombo.t,
+      is_mac: bool,
     ) => {
   let can_perform = is_action_allowed(a);
   Node.div(
@@ -70,7 +71,7 @@ let action_button =
       ),
       Attr.on_click(_ => inject(ModelAction.EditAction(a))),
       Attr.on_keydown(evt =>
-        if (KeyCombo.matches(key_combo, evt)) {
+        if (KeyCombo.matches(key_combo, evt, is_mac)) {
           Event.Many([
             inject(ModelAction.EditAction(a)),
             Event.Prevent_default,
@@ -84,7 +85,7 @@ let action_button =
       Node.div([Attr.classes(["action-label"])], lbl),
       Node.div(
         [Attr.classes(["keyboard-shortcut"])],
-        [Node.text(KeyCombo.name(key_combo))],
+        [Node.text(KeyCombo.name(key_combo, is_mac))],
       ),
     ],
   );
@@ -105,7 +106,7 @@ let brown_label = body => {
   );
 };
 
-let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
+let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo, ~is_mac) => {
   Node.div(
     [
       Attr.classes(
@@ -116,7 +117,7 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
       Attr.on_click(_ => inject(ModelAction.EditAction(action))),
       Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
       Attr.on_keydown(evt =>
-        if (KeyCombo.matches(combo, evt)) {
+        if (KeyCombo.matches(combo, evt, is_mac)) {
           Event.Many([
             inject(ModelAction.EditAction(action)),
             Event.Prevent_default,
@@ -126,7 +127,7 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
         }
       ),
     ],
-    [Node.text(KeyCombo.name(combo))],
+    [Node.text(KeyCombo.name(combo, is_mac))],
   );
 };
 
@@ -138,9 +139,10 @@ let action_list =
       inject: ModelAction.t => Event.t,
       actions: list((KeyCombo.t, Action.t)),
       label: string,
+      is_mac: bool,
     ) => {
   let item = ((combo, action)) => {
-    keyboard_button(is_action_allowed, ~inject, ~action, ~combo);
+    keyboard_button(is_action_allowed, ~inject, ~action, ~combo, ~is_mac);
   };
   let display_flex =
     Attr.style(Css_gen.create(~field="display", ~value="flex"));
@@ -166,13 +168,13 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
   };
 
   let action_of_combo = combo =>
-    switch (KeyComboAction.get_model_action(cursor_info, combo, is_mac)) {
+    switch (KeyComboAction.get_model_action(cursor_info, combo)) {
     | Some(EditAction(action)) => action
     | _ =>
       failwith(
         __LOC__
         ++ ": "
-        ++ (combo |> HazelKeyCombos.get_details |> KeyCombo.name)
+        ++ KeyCombo.name(HazelKeyCombos.get_details(combo), is_mac)
         ++ " does not correspond to an EditAction in KeyComboAction.get_model_action",
       )
     };
@@ -185,6 +187,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
       action,
       description,
       HazelKeyCombos.get_details(combo),
+      is_mac,
     );
   };
 
@@ -222,13 +225,13 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
         combos,
       );
     let is_action_allowed = is_action_allowed_with_on_type_check(~on_type);
-    action_list(is_action_allowed, inject, actions, text);
+    action_list(is_action_allowed, inject, actions, text, is_mac);
   };
 
   let keyboard_button = combo => {
     let action = action_of_combo(combo);
     let combo = HazelKeyCombos.get_details(combo);
-    keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
+    keyboard_button(is_action_allowed, ~inject, ~combo, ~action, ~is_mac);
   };
 
   let display_inline_block =

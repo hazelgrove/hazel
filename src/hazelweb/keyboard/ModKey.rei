@@ -7,7 +7,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 type t =
   | Ctrl
   | Shift
-  | Alt
-  | Meta;
+  | Alt;
 
-let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
+let matches: (t, Js.t(Dom_html.keyboardEvent), bool) => bool;

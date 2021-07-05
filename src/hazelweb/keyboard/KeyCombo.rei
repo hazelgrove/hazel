@@ -6,9 +6,9 @@ type t = {
   key: Key.t,
 };
 
-let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
+let matches: (t, Js.t(Dom_html.keyboardEvent), bool) => bool;
+let name: (t, bool) => string;
 
-let name: t => string;
 let enter: t;
 let escape: t;
 let backspace: t;
@@ -38,12 +38,10 @@ let alt_R: t;
 let alt_C: t;
 let alt_PageUp: t;
 let alt_PageDown: t;
-let ctrl_z: t;
 let ctrl_s: t;
+let ctrl_z: t;
 let ctrl_shift_z: t;
 let ctrl_alt_i: t;
 let ctrl_alt_k: t;
 let ctrl_alt_j: t;
 let ctrl_alt_l: t;
-let meta_z: t;
-let meta_shift_z: t;

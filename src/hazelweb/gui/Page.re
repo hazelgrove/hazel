@@ -77,6 +77,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~selected_instance,
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
+        ~is_mac=model.is_mac,
         program,
       ),
       UndoHistoryPanel.view(~inject, model),

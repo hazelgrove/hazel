@@ -16,36 +16,39 @@ type t = {
   c: req,
   s: req,
   a: req,
-  m: req,
 };
 
-let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
-let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
-let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
-let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
-let meta = {c: NotHeld, s: NotHeld, a: NotHeld, m: Held};
-let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
-let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
-let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
-let meta_shift = {c: NotHeld, s: Held, a: NotHeld, m: Held};
+let not_held = {c: NotHeld, s: NotHeld, a: NotHeld};
+let ctrl = {c: Held, s: NotHeld, a: NotHeld};
+let shift = {c: NotHeld, s: Held, a: NotHeld};
+let alt = {c: NotHeld, s: Any, a: Held};
+let no_ctrl_alt = {c: NotHeld, s: Any, a: NotHeld};
+let ctrl_shift = {c: Held, s: Held, a: NotHeld};
+let ctrl_alt = {c: Held, s: NotHeld, a: Held};
 
-let req_matches = (req, mk, evt) =>
-  switch (req) {
-  | Any => true
-  | Held => ModKey.matches(mk, evt)
-  | NotHeld => !ModKey.matches(mk, evt)
+let matches = (mks, evt: Js.t(Dom_html.keyboardEvent), is_mac) => {
+  let req_matches = (req, mk) => {
+    let mod_matches = ModKey.matches(mk, evt, is_mac);
+    switch (req) {
+    | Any => true
+    | Held => mod_matches
+    | NotHeld => !mod_matches
+    };
   };
 
-let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) =>
-  req_matches(mks.c, ModKey.Ctrl, evt)
-  && req_matches(mks.s, ModKey.Shift, evt)
-  && req_matches(mks.a, ModKey.Alt, evt)
-  && req_matches(mks.m, ModKey.Meta, evt);
+  req_matches(mks.c, ModKey.Ctrl)
+  && req_matches(mks.s, ModKey.Shift)
+  && req_matches(mks.a, ModKey.Alt);
+};
 
-let mod_prefix = mk => {
-  let ctrl_text = is_held(mk.c) ? "Ctrl + " : "";
+let mod_prefix = (mk, is_mac) => {
+  let ctrl_text =
+    switch (is_held(mk.c), is_mac) {
+    | (true, true) => "Cmd + "
+    | (true, false) => "Ctrl + "
+    | (false, _) => ""
+    };
   let shift_text = is_held(mk.s) ? "Shift + " : "";
   let alt_text = is_held(mk.a) ? "Alt + " : "";
-  let meta_text = is_held(mk.m) ? "Meta + " : "";
-  meta_text ++ ctrl_text ++ alt_text ++ shift_text;
+  ctrl_text ++ alt_text ++ shift_text;
 };

@@ -1,6 +1,5 @@
 let get_model_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
-    : option(ModelAction.t) => {
+    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(ModelAction.t) => {
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
@@ -44,17 +43,11 @@ let get_model_action =
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
   | Ctrl_S => Some(SerializeToConsole)
-  | Ctrl_Z when is_mac => None
   | Ctrl_Z => Some(Undo)
-  | Ctrl_Shift_Z when is_mac => None
   | Ctrl_Shift_Z => Some(Redo)
   | Ctrl_Alt_I => Some(EditAction(SwapUp))
   | Ctrl_Alt_K => Some(EditAction(SwapDown))
   | Ctrl_Alt_J => Some(EditAction(SwapLeft))
   | Ctrl_Alt_L => Some(EditAction(SwapRight))
-  | Meta_Z when is_mac => Some(Undo)
-  | Meta_Z => None
-  | Meta_Shift_Z when is_mac => Some(Redo)
-  | Meta_Shift_Z => None
   };
 };

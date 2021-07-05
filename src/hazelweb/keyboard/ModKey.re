@@ -4,13 +4,11 @@ module Dom_html = Js_of_ocaml.Dom_html;
 type t =
   | Ctrl
   | Shift
-  | Alt
-  | Meta;
+  | Alt;
 
-let matches = (mk, evt: Js.t(Dom_html.keyboardEvent)) =>
+let matches = (mk, evt: Js.t(Dom_html.keyboardEvent), is_mac) =>
   switch (mk) {
-  | Ctrl => Js.to_bool(evt##.ctrlKey)
+  | Ctrl => is_mac ? Js.to_bool(evt##.metaKey) : Js.to_bool(evt##.ctrlKey)
   | Shift => Js.to_bool(evt##.shiftKey)
   | Alt => Js.to_bool(evt##.altKey)
-  | Meta => Js.to_bool(evt##.metaKey)
   };
