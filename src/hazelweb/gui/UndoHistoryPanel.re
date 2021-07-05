@@ -998,7 +998,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
 
   let undo_button = (disabled, is_mac) => {
-    let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
+    let title = "Undo (" ++ HazelKeyCombos.name(Ctrl_Z, is_mac) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1023,8 +1023,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let redo_button = (disabled, is_mac) => {
-    let title =
-      if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
+    let title = "Redo (" ++ HazelKeyCombos.name(Ctrl_Shift_Z, is_mac) ++ ")";
     Vdom.(
       Node.div(
         disabled

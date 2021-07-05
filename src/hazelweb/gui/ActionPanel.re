@@ -174,7 +174,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
       failwith(
         __LOC__
         ++ ": "
-        ++ KeyCombo.name(HazelKeyCombos.get_details(combo), is_mac)
+        ++ HazelKeyCombos.name(combo, is_mac)
         ++ " does not correspond to an EditAction in KeyComboAction.get_model_action",
       )
     };

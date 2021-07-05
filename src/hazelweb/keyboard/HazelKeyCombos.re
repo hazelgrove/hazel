@@ -149,3 +149,6 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent), is_mac): option(t) => {
     None;
   };
 };
+
+let name = (combo: t, is_mac: bool): string =>
+  KeyCombo.name(get_details(combo), is_mac);

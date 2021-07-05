@@ -7,10 +7,10 @@ type menu_entry = {
   action: ModelAction.t,
 };
 
-let menu_entries: list(menu_entry) = [
+let menu_entries = (is_mac: bool): list(menu_entry) => [
   {
     label: "Serialize to console",
-    shortcut: Some("Ctrl-S"),
+    shortcut: Some(HazelKeyCombos.name(Ctrl_S, is_mac)),
     action: SerializeToConsole,
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
@@ -26,16 +26,19 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
   li([Attr.on_click(_ => inject(action))], [text(label)] @ shortcut_view);
 };
 
-let dropdown_options = (~inject) =>
-  List.map(dropdown_option(~inject), menu_entries);
+let dropdown_options = (~inject, ~is_mac) =>
+  List.map(dropdown_option(~inject), menu_entries(is_mac));
 
-let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model as _: Model.t) => {
+let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   create(
     "details",
     [],
     [
       create("summary", [], [text("☰")]),
-      ul([Attr.classes(["dropdown-content"])], dropdown_options(~inject)),
+      ul(
+        [Attr.classes(["dropdown-content"])],
+        dropdown_options(~inject, ~is_mac=model.is_mac),
+      ),
     ],
   );
 };
