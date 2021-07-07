@@ -73,7 +73,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr
+           | LabelErr => Some((shape, steps))
            }
          }
        )
@@ -108,7 +109,10 @@ exception InvalidInput;
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
+  | InvalidInput(_) as ii =>
+    print_endline("Input:");
+    ii |> Evaluator.sexp_of_result |> string_of_sexp |> print_endline;
+    raise(InvalidInput);
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
@@ -161,9 +165,13 @@ exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-  | Failed => raise(FailedAction)
+  | Failed =>
+    print_endline("action:");
+    a |> Action.sexp_of_t |> string_of_sexp |> print_endline;
+    raise(FailedAction);
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    print_endline("In succed state :)");
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {

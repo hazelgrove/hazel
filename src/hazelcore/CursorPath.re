@@ -16,6 +16,7 @@ type rev_t = (CursorPosition.t, rev_steps);
 type hole_shape =
   | TypeErr
   | VarErr
+  | LabelErr
   | Empty;
 
 [@deriving sexp]

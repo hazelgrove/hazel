@@ -30,6 +30,7 @@ let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
+let mk_Label: Label.t => UHDoc.t = UHDoc_common.mk_Label(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
 let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
@@ -105,6 +106,14 @@ and mk_block =
               Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
             ),
           )
+        | StructLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
+            ),
+          )
         },
       leading,
       last_doc,
@@ -140,8 +149,23 @@ and mk_line =
         | LetLine(p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
+          let ann =
+            ann
+            |> Option.map(ann =>
+                 UHDoc_Typ.mk_child(
+                   ~memoize,
+                   ~enforce_inline,
+                   ~child_step=1,
+                   ann,
+                 )
+               );
+          let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
+          UHDoc_common.mk_LetLine(p, ann, def);
+        | StructLine(p, _, def) =>
+          let p =
+            UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
-          UHDoc_common.mk_LetLine(p, def);
+          UHDoc_common.mk_StructLine(p, None, def);
         }: UHDoc.t
       )
     )
@@ -177,7 +201,8 @@ and mk_operand =
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
         | ListNil(_) => mk_ListNil()
-        | Lam(_, p, body) =>
+        | Label(_, l) => mk_Label(l)
+        | Lam(_, p, ann, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
@@ -203,6 +228,8 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
+        // ECD TODO: mk_Prj function
+        | Prj(_, _, l) => mk_Label(l)
         }: UHDoc.t
       )
     )

@@ -67,17 +67,19 @@ let follow_opseq_ =
     ) {
     | (None, None) => None
     | (Some((operand, surround)), _) =>
+      print_endline(__LOC__ ++ " Some first");
       operand
       |> follow_operand((xs, cursor))
       |> Option.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
-         )
+         );
     | (_, Some((operator, surround))) =>
+      print_endline(__LOC__ ++ " Some Second");
       operator
       |> follow_operator((xs, cursor))
       |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
-         )
+         );
     }
   };
 
@@ -133,6 +135,21 @@ let holes_verr =
   switch (verr) {
   | NotInVarHole => hs
   | InVarHole(_, u) => [
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  };
+
+let holes_lerr =
+    (
+      ~hole_sort: MetaVar.t => hole_sort,
+      lerr: LabelErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (lerr) {
+  | NotInLabelHole => hs
+  | InLabelHole(_, u) => [
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]

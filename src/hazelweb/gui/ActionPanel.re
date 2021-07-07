@@ -429,6 +429,16 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
         combo(Enter, simple("Add new rule")),
       ],
     ),
+    section(
+      "Modules",
+      [
+        info([
+          text("Type \""),
+          mono_text("module "),
+          text("\" to add a struct"),
+        ]),
+      ],
+    ),
   ];
 };
 
@@ -495,6 +505,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
+  | Construct(SStruct) => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added

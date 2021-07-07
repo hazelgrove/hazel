@@ -2,19 +2,22 @@
 type t =
   | Arrow
   | Prod
-  | Sum;
+  | Sum
+  | Space;
 
 let to_string =
   fun
   | Arrow => Unicode.typeArrowSym
   | Prod => ","
-  | Sum => "|";
+  | Sum => "|"
+  | Space => " ";
 
 let precedence =
   fun
   | Sum => 3
   | Arrow => 2
-  | Prod => 1;
+  | Prod => 1
+  | Space => 4;
 
 let precedence_const = 4;
 

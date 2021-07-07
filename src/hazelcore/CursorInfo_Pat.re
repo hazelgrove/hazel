@@ -473,6 +473,12 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
         ),
       )
+    | Label(_, _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaLabel(ty), ctx, cursor_term),
+        ),
+      )
     | Var(NotInHole, _, x) =>
       Some(
         CursorOnDeferredVarPat(

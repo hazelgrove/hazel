@@ -14,6 +14,7 @@ let precedence_And: int;
 let precedence_Or: int;
 let precedence_Comma: int;
 let precedence_max: int;
+let precedence_Label: int;
 
 let pad_child:
   (
@@ -85,3 +86,7 @@ let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_Pair: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_Label: Label.t => Pretty.Doc.t('a);
+
+let mk_Label_Elt: (Label.t, Pretty.Doc.t('a)) => Pretty.Doc.t('a);

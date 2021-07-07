@@ -17,7 +17,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(ErrStatus.t, InjSide.t, t);
+  | Inj(ErrStatus.t, InjSide.t, t)
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -36,6 +37,8 @@ let intlit: (~err: ErrStatus.t=?, string) => operand;
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
+
+let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
 
 let get_tuple_elements: skel => list(skel);
 

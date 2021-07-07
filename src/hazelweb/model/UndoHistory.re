@@ -501,6 +501,7 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
+      | SStruct
       | SCase => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
@@ -612,6 +613,17 @@ let get_new_action_group =
                     Some(ConstructEdit(SOp(SSpace)));
                   }
                 | OnDelim(_, _)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
+              | Struct =>
+                switch (
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
+                ) {
+                | OnText(pos) =>
+                  Some(ConstructEdit(pos == 2 ? SStruct : SOp(SSpace)))
+                | OnDelim(_)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
               }

@@ -43,8 +43,9 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
-    | TypeAnn(_) => delim_cursors(1)
+    | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
   );
+
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
@@ -139,8 +140,7 @@ and is_before_zoperand =
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false
-  | TypeAnnZP(_, zop, _) => is_before_zoperand(zop)
-  | TypeAnnZA(_) => false;
+  | CursorP(cursor, Label(_)) => cursor == OnText(0);
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
@@ -164,8 +164,7 @@ and is_after_zoperand =
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false
-  | TypeAnnZP(_) => false
-  | TypeAnnZA(_, _, zann) => ZTyp.is_after(zann);
+  | CursorP(cursor, Label(_, l)) => cursor == OnText(Label.length(l));
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
@@ -183,7 +182,8 @@ and place_before_operand = operand =>
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) => CursorP(OnText(0), operand)
+  | BoolLit(_, _)
+  | Label(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   | TypeAnn(err, op, ann) => TypeAnnZP(err, place_before_operand(op), ann)
@@ -209,7 +209,7 @@ and place_after_operand = operand =>
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
-  | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
+  | Label(_, l) => CursorP(OnText(Label.length(l)), operand)
   };
 let place_after_operator = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
@@ -259,7 +259,11 @@ and move_cursor_left_zoperand =
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
-  | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(
+      OnDelim(_, Before),
+      EmptyHole(_) | Wild(_) | ListNil(_) | Label(_),
+    ) =>
+    None
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
@@ -332,7 +336,8 @@ and move_cursor_right_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _),
+      FloatLit(_, _) |
+      Label(_, _),
     ) =>
     // invalid cursor position
     None
