@@ -258,10 +258,10 @@ let promote_cursor_info =
 
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
   switch (CursorFrame.mk(zexp)) {
-  | [{slice: ExpLine(CursorL(c, s)), _}, ..._] => Line(c, s)
+  | [{slice: Line(CursorL(c, s)), _}, ..._] => Line(c, s)
   | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
   | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
-  | [{slice: ExpRule(CursorR(c, s)), _}, ..._] => Rule(c, s)
+  | [{slice: Rule(CursorR(c, s)), _}, ..._] => Rule(c, s)
   | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => Pat(c, s)
   | [{slice: PatOperator((c, s)), _}, ..._] => PatOp(c, s)
   | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => Typ(c, s)

@@ -4,12 +4,12 @@ open OptUtil.Syntax;
 [@deriving sexp]
 type slice =
   | ExpBlock(ZExp.zblock)
-  | ExpLine(ZExp.zline)
+  | Line(ZExp.zline)
   | ExpSeq(ZExp.zopseq)
   | ExpOperand(ZExp.zoperand)
   | ExpOperator(ZExp.zoperator)
-  | ExpRules(ZExp.zrules)
-  | ExpRule(ZExp.zrule)
+  | Rules(ZExp.zrules)
+  | Rule(ZExp.zrule)
   | PatSeq(ZPat.zopseq)
   | PatOperand(ZPat.zoperand)
   | PatOperator(ZPat.zoperator)
@@ -37,12 +37,11 @@ let mk_si =
 [@deriving sexp]
 type t = list(slice_info);
 
-let synthetic = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
+let actual = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
   switch (slice) {
   | ExpBlock(zblock) => zblock |> ZExp.erase |> Statics_Exp.syn_block(ctx)
-  | ExpLine(CursorL(_, ExpLine(opseq))) =>
-    Statics_Exp.syn_opseq(ctx, opseq)
-  | ExpLine(_) => None
+  | Line(CursorL(_, ExpLine(opseq))) => Statics_Exp.syn_opseq(ctx, opseq)
+  | Line(_) => None
   | ExpSeq(zopseq) =>
     zopseq
     |> ZExp.erase_zopseq
@@ -54,10 +53,10 @@ let synthetic = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
     |> UHExp.set_err_status_operand(NotInHole)
     |> Statics_Exp.syn_operand(ctx)
   | ExpOperator(_zoperator) => None // TODO(andrew)
-  | ExpRules(zrules) =>
+  | Rules(zrules) =>
     // last arg was scrut_ty  but not sure that makes sense...
     Statics_Exp.syn_rules(ctx, ZExp.erase_zrules(zrules), HTyp.Hole)
-  | ExpRule(zrule) =>
+  | Rule(zrule) =>
     Statics_Exp.syn_rule(ctx, ZExp.erase_zrule(zrule), HTyp.Hole)
   | PatSeq(zopseq) =>
     zopseq
@@ -82,30 +81,30 @@ let expected_ty_from_ty_mode: Statics.type_mode => HTyp.t =
   | Ana(ty) => ty
   | Syn => HTyp.Hole;
 
-let expected_analytic =
+let expected =
     (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): option(HTyp.t) =>
   switch (slice) {
   | ExpOperand(CursorE(_))
   | ExpOperand(ApPaletteZ(_))
   | PatOperand(CursorP(_))
-  | ExpLine(CursorL(_))
-  | ExpRule(CursorR(_)) => None // these have no children
+  | Line(CursorL(_))
+  | Rule(CursorR(_)) => None // these have no children
   | ExpBlock((_, _, [])) =>
     // last line inherits type (could be last ExpLine)
     ty_e
   | ExpBlock((_, _, [_, ..._])) =>
     // non-last lines have no expected type
     None
-  | ExpLine(LetLineZE(p, _)) =>
+  | Line(LetLineZE(p, _)) =>
     // ctx already extended by get_ctx
     switch (Statics_Pat.syn(ctx, p)) {
     | Some((ty, _)) => Some(ty)
     | None => Some(HTyp.Hole)
     }
-  | ExpLine(LetLineZP(_)) =>
+  | Line(LetLineZP(_)) =>
     // could incorporate def type if any
     None
-  | ExpLine(ExpLineZ(_)) => ty_e
+  | Line(ExpLineZ(_)) => ty_e
   | ExpOperand(ParenthesizedZ(_))
   | PatOperand(ParenthesizedZ(_)) => ty_e
   | ExpOperand(InjZ(_, side, _)) =>
@@ -137,12 +136,12 @@ let expected_analytic =
     let* ty_e' = ty_e;
     let+ ty_scrut = Statics_Exp.syn(ctx, scrut);
     HTyp.Arrow(ty_scrut, ty_e');
-  | ExpRules(_) => ty_e
-  | ExpRule(RuleZP(_)) =>
+  | Rules(_) => ty_e
+  | Rule(RuleZP(_)) =>
     let* ty_e' = ty_e;
     let+ (ty_scrut, _) = HTyp.matched_arrow(ty_e');
     ty_scrut;
-  | ExpRule(RuleZE(_)) =>
+  | Rule(RuleZE(_)) =>
     let* ty_e' = ty_e;
     let+ (_, ty_body) = HTyp.matched_arrow(ty_e');
     ty_body;
@@ -180,7 +179,7 @@ let expected_analytic =
   | TypOperator(_) => None
   };
 
-let get_ctx =
+let get_ctx_for_child =
     (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): Contexts.t => {
   // TODO(andrew): does let body ctx get incorporated somewhere?
   //let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, def);
@@ -195,7 +194,7 @@ let get_ctx =
       //P.p("new ctx (some): %s\n", Contexts.sexp_of_t(ctx));
       ctx
     }
-  | ExpLine(LetLineZE(p, zblock)) =>
+  | Line(LetLineZE(p, zblock)) =>
     zblock |> ZExp.erase |> Statics_Exp.extend_let_def_ctx(ctx, p)
   | ExpOperand(LamZE(_, p, _)) =>
     switch (
@@ -208,7 +207,7 @@ let get_ctx =
     | None => ctx
     | Some(ctx) => ctx
     }
-  | ExpRule(RuleZE(pat, _)) =>
+  | Rule(RuleZE(pat, _)) =>
     switch (ty_e) {
     | Some(Arrow(pat_ty, _)) =>
       switch (Statics_Pat.ana(ctx, pat, pat_ty)) {
@@ -224,11 +223,11 @@ let get_ctx =
 
 let get_zchild_slice = (slice: slice): list(slice) => {
   switch (slice) {
-  | ExpBlock((_, zline, _)) => [ExpLine(zline)]
-  | ExpLine(CursorL(_)) => []
-  | ExpLine(ExpLineZ(zopseq)) => [ExpSeq(zopseq)]
-  | ExpLine(LetLineZE(_, zblock)) => [ExpBlock(zblock)]
-  | ExpLine(LetLineZP(zopseq, _)) => [PatSeq(zopseq)]
+  | ExpBlock((_, zline, _)) => [Line(zline)]
+  | Line(CursorL(_)) => []
+  | Line(ExpLineZ(zopseq)) => [ExpSeq(zopseq)]
+  | Line(LetLineZE(_, zblock)) => [ExpBlock(zblock)]
+  | Line(LetLineZP(zopseq, _)) => [PatSeq(zopseq)]
   | ExpSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [ExpOperand(zoperand)]
   | ExpSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [ExpOperator(zoperator)]
   | ExpOperator(_zoperator) => [] // TODO(andrew)
@@ -239,11 +238,11 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | ExpOperand(InjZ(_, _, zblock))
   | ExpOperand(CaseZE(_, zblock, _)) => [ExpBlock(zblock)]
   | ExpOperand(LamZP(_, zopseq, _)) => [PatSeq(zopseq)]
-  | ExpOperand(CaseZR(_, _, zrules)) => [ExpRules(zrules)]
-  | ExpRules((_, zrule, _)) => [ExpRule(zrule)]
-  | ExpRule(CursorR(_)) => []
-  | ExpRule(RuleZP(zopseq, _)) => [PatSeq(zopseq)]
-  | ExpRule(RuleZE(_, zblock)) => [ExpBlock(zblock)]
+  | ExpOperand(CaseZR(_, _, zrules)) => [Rules(zrules)]
+  | Rules((_, zrule, _)) => [Rule(zrule)]
+  | Rule(CursorR(_)) => []
+  | Rule(RuleZP(zopseq, _)) => [PatSeq(zopseq)]
+  | Rule(RuleZE(_, zblock)) => [ExpBlock(zblock)]
   | PatSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [PatOperand(zoperand)]
   | PatSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [PatOperator(zoperator)]
   | PatOperator(_zop) => [] // TODO(andrew)
@@ -268,13 +267,13 @@ let get_child_mode =
   switch (slice) {
   | ExpBlock((_, _, [])) => mode
   | ExpBlock((_, _, [_, ..._])) => Some(Syn) //non-last lines always syn
-  | ExpLine(CursorL(_)) => None // no child
-  | ExpLine(ExpLineZ(_)) => mode
-  | ExpLine(LetLineZE(p, _zdef)) =>
+  | Line(CursorL(_)) => None // no child
+  | Line(ExpLineZ(_)) => mode
+  | Line(LetLineZE(p, _zdef)) =>
     // same as get_expected xcept Hole vs None
     let+ (ty, _) = Statics_Pat.syn(ctx, p);
     Ana(ty);
-  | ExpLine(LetLineZP(_, _)) => Some(Syn)
+  | Line(LetLineZP(_, _)) => Some(Syn)
   | ExpSeq(ZOpSeq(_, ZOperand(_, (prefix, _))) as zopseq) =>
     let opseq = ZExp.erase_zopseq(zopseq);
     let operand_index = Seq.length_of_affix(prefix);
@@ -329,9 +328,9 @@ let get_child_mode =
       Ana(HTyp.Arrow(ty_scrut, ty));
     | Syn => Some(Syn)
     };
-  | ExpRules(_) => mode
-  | ExpRule(CursorR(_)) => None // no child
-  | ExpRule(RuleZP(_)) =>
+  | Rules(_) => mode
+  | Rule(CursorR(_)) => None // no child
+  | Rule(RuleZP(_)) =>
     let* mode' = mode;
     switch (mode') {
     | Ana(ty) =>
@@ -342,7 +341,7 @@ let get_child_mode =
     /*let+ (ty_pat, _) = HTyp.matched_arrow(ty);
       Ana(ty_pat);*/
     };
-  | ExpRule(RuleZE(_)) =>
+  | Rule(RuleZE(_)) =>
     let* mode' = mode;
     switch (mode') {
     | Ana(ty) =>
@@ -393,12 +392,12 @@ let get_child_mode =
 let rec mk_frame =
         (slice: slice, ~ctx: Contexts.t, ~ty_e: option(HTyp.t))
         : list(slice_info) => {
-  let head = mk_si(~ctx, ~slice, ~ty_e, ~ty_a=synthetic(~ctx, slice));
+  let head = mk_si(~ctx, ~slice, ~ty_e, ~ty_a=actual(~ctx, slice));
   let tail =
     switch (get_zchild_slice(slice)) {
     | [child_slice] =>
-      let ctx_new = get_ctx(~ctx, ~ty_e, slice);
-      let ty_e_new = expected_analytic(~ctx=ctx_new, ~ty_e, slice);
+      let ctx_new = get_ctx_for_child(~ctx, ~ty_e, slice);
+      let ty_e_new = expected(~ctx=ctx_new, ~ty_e, slice);
       // TODO: doublecheck logic about new_ctx getting used for ty_e_new
       // i.e. make sure we dont sometimes have to use ty_e_new for getting ctx_new
       mk_frame(child_slice, ~ctx=ctx_new, ~ty_e=ty_e_new);
