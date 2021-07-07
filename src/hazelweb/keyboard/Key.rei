@@ -20,9 +20,14 @@ type t = {
 };
 
 /**
- * Creates a `t` with a single recognition method
+ * Creates a `t` with a single Key recognition method
  */
 let key1: (string, string) => t;
+
+/**
+ * Creates a `t` with a single Code recognition method
+ */
+let with_code: (string, string) => t;
 
 /**
  * Creates a `t` whose plain name is the same as the key

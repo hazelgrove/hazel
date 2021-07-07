@@ -23,6 +23,11 @@ let key1 = (plain_name, key) => {
   recognition_methods: [Key(key)],
 };
 
+let with_code = (plain_name, code) => {
+  plain_name,
+  recognition_methods: [Code(code)],
+};
+
 let the_key = key => key1(key, key);
 
 let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>
