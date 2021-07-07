@@ -60,19 +60,18 @@ let spacebuster =
     (operand_A, operand_B, prefix, suffix, a: Action.t): ZExp.zseq => {
   let place_before = ZExp.place_before_operand;
   let place_after = ZExp.place_after_operand;
-  let place_depending = a == Backspace ? place_before : place_after;
   /* This handles the logic for BACKSPACE and DELETE actions when the cursor
-        is (conceptually) adjacent to a space operator. The table below is
-        intended to completely cover the space of such cases; however some
-        cases should be handled either above or below the opseq level.
+     is (conceptually) adjacent to a space operator. The table below is
+     intended to completely cover the space of such cases; however some
+     cases should be handled either above or below the opseq level.
 
-        If these case get captured by this function, they may result in non-ideal
-        cursor placement. They are denoted in the table below as follows:
+     If these case get captured by this function, they may result in non-ideal
+     cursor placement. They are denoted in the table below as follows:
 
          *  : case should be handled at block level
          ** : case should be handled at operand level
 
-        In addition, the following notation will be used:
+     In addition, the following notation will be used:
 
          H    : empty hole
          A, B : non-empty-hole operands
@@ -83,7 +82,8 @@ let spacebuster =
     //                 BKSP     DEL
     //    H |H     =>  |H       H|
     //    H| H     =>  |H       H|
-    ZOperand(place_depending(EmptyHole(0)), (prefix, suffix))
+    let place_depending = a == Backspace ? place_before : place_after;
+    ZOperand(place_depending(EmptyHole(0)), (prefix, suffix));
   | (Empty, _) =>
     //    H| B     =>  |B       |B
     //   |H  B     =>  *        |B
@@ -104,12 +104,19 @@ let spacebuster =
     );
   | (NoMerge, NoMerge)
   | (NoMerge, CanMerge(_))
-  | (CanMerge(_), NoMerge) =>
+  | (CanMerge(_), NoMerge) when a == Backspace =>
     //    A |B     =>  A| B     **
+    ZOperand(
+      place_after(operand_A),
+      (prefix, A(Space, S(operand_B, suffix))),
+    )
+  | (NoMerge, NoMerge)
+  | (NoMerge, CanMerge(_))
+  | (CanMerge(_), NoMerge) =>
     //    A| B     =>  **       A |B
     ZOperand(
-      place_depending(operand_A),
-      (prefix, A(Space, S(operand_B, suffix))),
+      place_before(operand_B),
+      (A(Space, S(operand_A, prefix)), suffix),
     )
   };
 };
