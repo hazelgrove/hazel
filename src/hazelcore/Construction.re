@@ -72,16 +72,18 @@ module HTyp = {
 
       switch (k) {
       | Kind.Singleton(_, ty) => consistent(ctx, ty, y)
-      | KHole
-      | Type => failwith("impossible for bounded type variables (currently)")
+      | KHole => true
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 5")
       };
     | (_, TyVar(i, _)) =>
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
       | Kind.Singleton(_, ty) => consistent(ctx, x, ty)
-      | KHole
-      | Type => failwith("impossible for bounded type variables (currently)")
+      | KHole => true
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 6")
       };
     | (Int, Int) => true
     | (Int, _) => false
@@ -135,16 +137,18 @@ module HTyp = {
 
       switch (k) {
       | Kind.Singleton(_, ty) => join(ctx, j, ty, ty2)
-      | KHole
-      | Type => failwith("impossible for bounded type variables (currently)")
+      | KHole => join(ctx, j, Hole, ty2)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 1")
       };
     | (_, TyVar(i, _)) =>
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), i);
 
       switch (k) {
       | Kind.Singleton(_, ty) => join(ctx, j, ty1, ty)
-      | KHole
-      | Type => failwith("impossible for bounded type variables (currently)")
+      | KHole => join(ctx, j, ty1, Hole)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 2")
       };
     | (Int, Int) => Some(ty1)
     | (Int, _) => None
