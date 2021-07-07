@@ -361,10 +361,10 @@ let operand_of_string = (s: string): operand => {
     Re.Str.string_match(Re.Str.regexp("^" ++ r ++ "$"), s, 0);
   if (match(s, "true\\|false")) {
     BoolLit(NotInHole, bool_of_string(s));
-  } else if (match(s, "[-+]?[0-9]*\\.?[0-9]+\\([eE][-+]?[0-9]+\\)?")) {
-    FloatLit(NotInHole, s);
   } else if (match(s, "[-]?\\b[0-9]+\\b")) {
     IntLit(NotInHole, s);
+  } else if (match(s, "[-+]?[0-9]*\\.[0-9]+\\([eE][-+]?[0-9]+\\)?")) {
+    FloatLit(NotInHole, s);
   } else if (match(s, "[a-zA-Z_][0-9a-zA-Z_']*")) {
     Var(NotInHole, NotInVarHole, s);
   } else {
