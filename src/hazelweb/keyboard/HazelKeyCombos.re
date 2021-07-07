@@ -75,8 +75,8 @@ let get_details =
   | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
   | Ctrl_Alt_L => KeyCombo.ctrl_alt_l;
 
-let of_evt = (evt: Js.t(Dom_html.keyboardEvent), is_mac): option(t) => {
-  let evt_matches = details => KeyCombo.matches(details, evt, is_mac);
+let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
+  let evt_matches = details => KeyCombo.matches(details, evt);
   if (evt_matches(KeyCombo.pound)) {
     Some(Pound);
   } else if (evt_matches(KeyCombo.escape)) {
@@ -150,5 +150,4 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent), is_mac): option(t) => {
   };
 };
 
-let name = (combo: t, is_mac: bool): string =>
-  KeyCombo.name(get_details(combo), is_mac);
+let name = (combo: t): string => KeyCombo.name(get_details(combo));

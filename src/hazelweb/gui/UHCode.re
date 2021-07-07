@@ -103,8 +103,7 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
-let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -113,7 +112,7 @@ let key_handlers =
     Attr.on_keydown(evt => {
       let model_action: option(ModelAction.t) = {
         let move_key = MoveKey.of_key(Key.get_key(evt));
-        let key_combo = HazelKeyCombos.of_evt(evt, is_mac);
+        let key_combo = HazelKeyCombos.of_evt(evt);
         let single_key = JSUtil.is_single_key(evt);
         switch (move_key, key_combo, single_key) {
         | (Some(move_key), _, _) => Some(MoveAction(Key(move_key)))
@@ -190,7 +189,6 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
       program: Program.t,
     )
@@ -218,7 +216,6 @@ let view =
         program.is_focused
           ? key_handlers(
               ~inject,
-              ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];

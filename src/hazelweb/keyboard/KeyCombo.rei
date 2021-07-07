@@ -6,8 +6,8 @@ type t = {
   key: Key.t,
 };
 
-let matches: (t, Js.t(Dom_html.keyboardEvent), bool) => bool;
-let name: (t, bool) => string;
+let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
+let name: t => string;
 
 let enter: t;
 let escape: t;

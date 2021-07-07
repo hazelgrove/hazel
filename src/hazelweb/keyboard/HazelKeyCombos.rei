@@ -40,6 +40,6 @@ type t =
 
 let get_details: t => KeyCombo.t;
 
-let of_evt: (Js.t(Dom_html.keyboardEvent), bool) => option(t);
+let of_evt: Js.t(Dom_html.keyboardEvent) => option(t);
 
-let name: (t, bool) => string;
+let name: t => string;

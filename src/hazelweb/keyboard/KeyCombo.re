@@ -14,11 +14,11 @@ let alt = key => {mod_keys: ModKeys.alt, key};
 let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
 let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
 
-let matches = (kc, evt: Js.t(Dom_html.keyboardEvent), is_mac) =>
-  ModKeys.matches(kc.mod_keys, evt, is_mac) && Key.matches(kc.key, evt);
+let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
+  ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
 
-let name = (kc, is_mac) => {
-  let mod_prefix = ModKeys.mod_prefix(kc.mod_keys, is_mac);
+let name = kc => {
+  let mod_prefix = ModKeys.mod_prefix(kc.mod_keys);
   mod_prefix ++ kc.key.plain_name;
 };
 

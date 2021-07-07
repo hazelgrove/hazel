@@ -9,4 +9,4 @@ type t =
   | Shift
   | Alt;
 
-let matches: (t, Js.t(Dom_html.keyboardEvent), bool) => bool;
+let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;

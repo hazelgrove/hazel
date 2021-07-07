@@ -26,9 +26,9 @@ let no_ctrl_alt = {c: NotHeld, s: Any, a: NotHeld};
 let ctrl_shift = {c: Held, s: Held, a: NotHeld};
 let ctrl_alt = {c: Held, s: NotHeld, a: Held};
 
-let matches = (mks, evt: Js.t(Dom_html.keyboardEvent), is_mac) => {
+let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) => {
   let req_matches = (req, mk) => {
-    let mod_matches = ModKey.matches(mk, evt, is_mac);
+    let mod_matches = ModKey.matches(mk, evt);
     switch (req) {
     | Any => true
     | Held => mod_matches
@@ -41,10 +41,10 @@ let matches = (mks, evt: Js.t(Dom_html.keyboardEvent), is_mac) => {
   && req_matches(mks.a, ModKey.Alt);
 };
 
-let mod_prefix = (mk, is_mac) => {
+let mod_prefix = mk => {
   let conditional_text = (req, name) => is_held(req) ? name ++ " " : "";
 
-  if (is_mac) {
+  if (IsMac.is_mac) {
     let option_text = conditional_text(mk.a, Unicode.option);
     let shift_text = conditional_text(mk.s, Unicode.shift);
     let command_text = conditional_text(mk.c, Unicode.command);

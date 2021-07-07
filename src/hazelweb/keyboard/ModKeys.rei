@@ -23,7 +23,7 @@ let no_ctrl_alt: t;
 let ctrl_shift: t;
 let ctrl_alt: t;
 
-let matches: (t, Js.t(Dom_html.keyboardEvent), bool) => bool;
+let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
 
 /** generates a string representation of a ModKeys for display */
-let mod_prefix: (t, bool) => string;
+let mod_prefix: t => string;

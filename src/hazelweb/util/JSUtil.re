@@ -268,9 +268,9 @@ let force_get_next_sibling_elem = elem =>
   |> Js.Opt.to_option
   |> OptUtil.get(() => assert(false));
 
-let listen_for_key = (kc, f, is_mac) =>
+let listen_for_key = (kc, f) =>
   listen_to_t(Ev.keydown, Dom_html.document, evt =>
-    if (KeyCombo.matches(kc, evt, is_mac)) {
+    if (KeyCombo.matches(kc, evt)) {
       f(evt);
       ();
     } else {
