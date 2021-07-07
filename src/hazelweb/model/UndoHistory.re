@@ -313,8 +313,32 @@ let delim_edge_handle =
     None;
         /* jump to next term */
   };
+
+let is_parentheses_delete_action = (a: Action.t, zexp: ZExp.t): bool => {
+  switch (zexp) {
+  | (
+      _,
+      ExpLineZ(
+        ZOpSeq(
+          _,
+          ZOperand(ParenthesizedZ(([], ExpLineZ(inner_zopseq), [])), _),
+        ),
+      ),
+      _,
+    )
+      when
+        ZExp.is_before_zopseq(inner_zopseq)
+        && a == Backspace
+        || ZExp.is_after_zopseq(inner_zopseq)
+        && a == Delete =>
+    true
+  | _ => false
+  };
+};
+
 let delete =
     (
+      ~action: Action.t,
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
@@ -324,6 +348,10 @@ let delete =
     UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
   switch (cursor_pos) {
+  | _
+      when
+        is_parentheses_delete_action(action, new_cursor_term_info.zexp_before) =>
+    Some(DeleteEdit(ParenthesesFromTheInside))
   | OnText(_) =>
     if (CursorInfo_Exp.caret_is_after_zoperand(
           new_cursor_term_info.zexp_before,
@@ -387,6 +415,7 @@ let delete =
 
 let backspace =
     (
+      ~action: Action.t,
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
@@ -395,6 +424,10 @@ let backspace =
   let cursor_pos =
     UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
+  | _
+      when
+        is_parentheses_delete_action(action, new_cursor_term_info.zexp_before) =>
+    Some(DeleteEdit(ParenthesesFromTheInside))
   | OnText(_) =>
     if (CursorInfo_Exp.caret_is_before_zoperand(
           new_cursor_term_info.zexp_before,
@@ -470,9 +503,19 @@ let get_new_action_group =
   } else {
     switch (action) {
     | Delete =>
-      delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+      delete(
+        ~action,
+        ~prev_group,
+        ~new_cardstacks_before,
+        ~new_cursor_term_info,
+      )
     | Backspace =>
-      backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+      backspace(
+        ~action,
+        ~prev_group,
+        ~new_cardstacks_before,
+        ~new_cursor_term_info,
+      )
     | Construct(shape) =>
       switch (shape) {
       | SLine =>

@@ -332,6 +332,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
+      | ParenthesesFromTheInside =>
+        indicate_words_view("delete parentheses from inside")
       | Term(cursor_term, start_from_insertion) =>
         let indicate_words =
           if (start_from_insertion) {"insert and delete "} else {"delete "};
@@ -443,7 +445,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       switch (edit_detail) {
       | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
       | Space
-      | EmptyLine =>
+      | EmptyLine
+      | ParenthesesFromTheInside =>
         Some(
           get_cursor_term_tag_typ(
             undo_history_entry.cursor_term_info.cursor_term_before,

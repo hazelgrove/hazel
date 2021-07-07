@@ -8,6 +8,9 @@ type delete_group =
   | Term(cursor_term, start_from_insertion)
   /* cursor_term is insufficient for space, empty line and type annotation deletion,
      so we add the following three constructors */
+  | ParenthesesFromTheInside
+  /* Special case action for deleting parentheses in a single keystrokes when
+     the cursor is on a contained operand bordering the parentheses */
   | Space
   | EmptyLine
   | TypeAnn;
