@@ -12,9 +12,9 @@ let empty = [];
 let extend = (ctx: t, binding: (TyId.t, Kind.t)): t => {
   let incr_if_singleton = ((id, k)) =>
     switch (k) {
-    | Kind.Singleton(hty) => (
+    | Kind.Singleton(k', hty) => (
         id,
-        Kind.Singleton(HTyp.tyvar_debruijn_increment(hty)),
+        Kind.Singleton(k', HTyp.tyvar_debruijn_increment(hty)),
       )
     | _ => (id, k)
     };
