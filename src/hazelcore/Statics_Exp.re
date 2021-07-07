@@ -1862,7 +1862,6 @@ module rec M: Statics_Exp_Sig.S = {
           }
         };
       };
-
     (
       UHExp.ApLivelit(llu, err_status, name, lln, model, splice_info),
       typ,
@@ -2204,7 +2203,14 @@ module rec M: Statics_Exp_Sig.S = {
     | FreeLivelit(_) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(ty, ty')) {
+      let is_insufficient_params =
+        switch (UHExp.get_err_status_operand(e)) {
+        | InHole(TypeInconsistent(Some(InsufficientParams)), _) => false
+        | _ => true
+        };
+      if (is_insufficient_params) {
+        (e, u_gen);
+      } else if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
