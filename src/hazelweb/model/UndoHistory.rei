@@ -9,6 +9,8 @@ type undo_history_entry = {
   previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
+  current_cardstack: int,
+  current_card: int,
 };
 
 [@deriving sexp]
@@ -34,6 +36,7 @@ type t = {
   cur_elt_id: int,
 };
 
+let get_undo_entry: t => undo_history_entry;
 let get_cardstacks: (t, ~is_after_move: bool) => ZCardstacks.t;
 
 /**
@@ -68,7 +71,16 @@ let shift_history: (int, int, bool, t) => t;
  * entry for performing action `a` starting with cardstacks `before`
  * and resulting in cardstacks `after`.
  */
-let push_edit_state: (t, ZCardstacks.t, ZCardstacks.t, Action.t) => t;
+let push_edit_state:
+  (
+    ~undo_history: t,
+    ~new_cardstacks_before: ZCardstacks.t,
+    ~new_cardstacks_after: ZCardstacks.t,
+    ~action: Action.t,
+    ~current_card: int,
+    ~current_cardstack: int
+  ) =>
+  t;
 
 /**
  * Returns the `UndoHistoryCore.cursor_term_info` associated with

@@ -42,3 +42,5 @@ let shift_end: t('a, 'a) => t('a, 'a);
 let shift_begin: t('a, 'a) => t('a, 'a);
 
 let shift_to: (int, t('a, 'a)) => option(t('a, 'a));
+
+let get_index: t('z, 'a) => int;

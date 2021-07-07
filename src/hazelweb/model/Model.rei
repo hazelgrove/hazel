@@ -33,6 +33,8 @@ let get_edit_state: t => Statics.edit_state;
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;
 let get_cards_info: t => list(CardInfo.t);
+let get_cardstack_index: t => int;
+let get_card_index: t => int;
 
 let get_cursor_info: t => CursorInfo.t;
 
@@ -50,9 +52,13 @@ let is_cell_focused: t => bool;
 let select_hole_instance: (HoleInstance.t, t) => t;
 let get_selected_hole_instance: t => option(HoleInstance.t);
 
+/**
+ * Set the current cardstack and card
+ */
 let prev_card: t => t;
 let next_card: t => t;
-let nth_card: (int, t) => t;
+let load_card: (int, t) => t;
+let load_cardstack: (int, t) => t;
 
 let perform_edit_action: (Action.t, t) => t;
 
@@ -69,11 +75,6 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  */
 let toggle_left_sidebar: t => t;
 let toggle_right_sidebar: t => t;
-
-/**
- * Load a selected cardstack into view
- */
-let load_cardstack: (t, int) => t;
 
 /**
  * load_undo_history(model, undo_history, ~is_after_move)

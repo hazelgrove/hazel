@@ -37,6 +37,8 @@ let init = (): t => {
       previous_action: Init,
       action_group: Init,
       timestamp,
+      current_cardstack: 0,
+      current_card: 0,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
@@ -119,6 +121,9 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
 
 let get_cardstack = model => model |> get_cardstacks |> ZCardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
+let get_cardstack_index = model => model |> get_cardstacks |> ZList.get_index;
+let get_card_index = model =>
+  model |> get_cardstack |> (cs => cs.zcards |> ZList.get_index);
 
 let get_cards_info = (model: t): list(CardInfo.t) =>
   switch (
@@ -185,18 +190,15 @@ let update_program = (a: Action.t, new_program, model) => {
   |> put_program(new_program)
   |> map_selected_instances(update_selected_instances)
   |> put_undo_history(
-       {
-         let history = model |> get_undo_history;
-         let prev_cardstacks = model |> get_cardstacks;
-         let new_cardstacks =
-           model |> put_program(new_program) |> get_cardstacks;
-         UndoHistory.push_edit_state(
-           history,
-           prev_cardstacks,
-           new_cardstacks,
-           a,
-         );
-       },
+       UndoHistory.push_edit_state(
+         ~undo_history=get_undo_history(model),
+         ~new_cardstacks_before=get_cardstacks(model),
+         ~new_cardstacks_after=
+           model |> put_program(new_program) |> get_cardstacks,
+         ~action=a,
+         ~current_card=get_card_index(model),
+         ~current_cardstack=get_cardstack_index(model),
+       ),
      );
 };
 
@@ -211,10 +213,14 @@ let next_card = model => {
   |> focus_cell;
 };
 
-let nth_card = (n, model) => {
+let load_card = (idx, model) => {
   model
-  |> map_cardstacks(ZCardstacks.map_z(Cardstack.nth_card(n)))
+  |> map_cardstacks(ZCardstacks.map_z(Cardstack.nth_card(idx)))
   |> focus_cell;
+};
+
+let load_cardstack = (idx, model) => {
+  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
@@ -266,14 +272,12 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
-let load_cardstack = (model, idx) => {
-  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
-};
-
 let load_undo_history =
     (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {
+  let undo_entry = UndoHistory.get_undo_entry(undo_history);
   let new_cardstacks =
-    UndoHistory.get_cardstacks(undo_history, ~is_after_move);
+    is_after_move
+      ? undo_entry.cardstacks_after_move : undo_entry.cardstacks_after_action;
   let new_program = ZCardstacks.get_program(new_cardstacks);
   let update_selected_instances = _ => {
     let si = UserSelectedInstances.init;
@@ -285,5 +289,7 @@ let load_undo_history =
   model
   |> put_undo_history(undo_history)
   |> put_cardstacks(new_cardstacks)
-  |> map_selected_instances(update_selected_instances);
+  |> map_selected_instances(update_selected_instances)
+  |> load_cardstack(undo_entry.current_cardstack)
+  |> load_card(undo_entry.current_card);
 };
