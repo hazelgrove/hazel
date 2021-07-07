@@ -42,13 +42,17 @@ let matches = (mks, evt: Js.t(Dom_html.keyboardEvent), is_mac) => {
 };
 
 let mod_prefix = (mk, is_mac) => {
-  let ctrl_text =
-    switch (is_held(mk.c), is_mac) {
-    | (true, true) => "Cmd + "
-    | (true, false) => "Ctrl + "
-    | (false, _) => ""
-    };
-  let shift_text = is_held(mk.s) ? "Shift + " : "";
-  let alt_text = is_held(mk.a) ? "Alt + " : "";
-  ctrl_text ++ alt_text ++ shift_text;
+  let conditional_text = (req, name) => is_held(req) ? name ++ " " : "";
+
+  if (is_mac) {
+    let option_text = conditional_text(mk.a, Unicode.option);
+    let shift_text = conditional_text(mk.s, Unicode.shift);
+    let command_text = conditional_text(mk.c, Unicode.command);
+    option_text ++ shift_text ++ command_text;
+  } else {
+    let ctrl_text = conditional_text(mk.c, "Ctrl +");
+    let shift_text = conditional_text(mk.s, "Shift +");
+    let alt_text = conditional_text(mk.a, "Alt +");
+    ctrl_text ++ alt_text ++ shift_text;
+  };
 };
