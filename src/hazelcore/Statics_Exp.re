@@ -51,6 +51,9 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
     let* _ = ana(ctx_def, def, ty);
     Statics_Pat.ana(ctx, p, ty);
+  | StructLine(_) as strct =>
+    let* desugared = UHExp.desugar_struct'(strct);
+    syn_line(ctx, desugared);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -662,6 +665,13 @@ and syn_fix_holes_line =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
       (LetLine(p, ann, def), ctx, u_gen);
     }
+  | StructLine(p, ann, def) =>
+    // TODO (hejohns): no idea what this is supposed to do
+    let (def, ty1, u_gen) =
+      syn_fix_holes(~renumber_empty_holes, ctx, u_gen, def);
+    let (p, ctx, u_gen) =
+      Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
+    (StructLine(p, ann, def), ctx, u_gen);
   }
 and syn_fix_holes_opseq =
     (

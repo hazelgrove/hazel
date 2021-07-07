@@ -583,7 +583,8 @@ and syn_perform_operand =
   | (
       Construct(
         SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SCommentLine |
+        SStruct,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -1020,7 +1021,8 @@ and ana_perform_operand =
   | (
       Construct(
         SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SCommentLine |
+        SStruct,
       ) |
       UpdateApPalette(_) |
       SwapUp |

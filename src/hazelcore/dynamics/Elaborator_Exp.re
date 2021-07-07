@@ -675,6 +675,13 @@ and syn_elab_line =
         }
       }
     }
+  | StructLine(_) as strct =>
+    // TODO (hejohns): this is where we inject the record
+    // see Program.re:111 -> 99
+    switch (UHExp.desugar_struct'(strct)) {
+    | None => LinesExpand(d => d, ctx, delta)
+    | Some(strct_as_let) => syn_elab_line(ctx, delta, strct_as_let)
+    }
   }
 and syn_elab_opseq =
     (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
@@ -995,7 +1002,11 @@ and syn_elab_operand =
       MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
     let d =
       switch (reason) {
-      | Free => DHExp.FreeVar(u, 0, sigma, x)
+      | Free =>
+        switch (VarMap.lookup(gamma, x)) {
+        | Some(_) => DHExp.BoundVar(x)
+        | None => DHExp.FreeVar(u, 0, sigma, x)
+        }
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);

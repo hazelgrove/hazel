@@ -31,7 +31,8 @@ type shape =
   | SLine
   | SCase
   | SOp(operator_shape)
-  | SApPalette(PaletteName.t);
+  | SApPalette(PaletteName.t)
+  | SStruct;
 
 [@deriving sexp]
 type t =

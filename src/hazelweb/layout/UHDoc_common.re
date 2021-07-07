@@ -393,6 +393,31 @@ let mk_LetLine =
   ]);
 };
 
+let mk_StructLine =
+    (p: formatted_child, ann: option(formatted_child), def: formatted_child)
+    : t => {
+  // TODO (hejohns): ?
+  let open_group = {
+    let doc =
+      switch (ann) {
+      | None =>
+        Doc.hcats([
+          Delim.mk(~index=0, "module"),
+          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+          Delim.mk(~index=1, "= {"),
+        ])
+      | _ => failwith("not implemented")
+      };
+    doc |> annot_Tessera;
+  };
+  let close_group = Delim.mk(~index=2, "} in") |> annot_Tessera;
+  Doc.hcats([
+    open_group,
+    def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+    close_group,
+  ]);
+};
+
 let pad_operator =
     (~inline_padding as (left, right): (t, t), operator: t): t => {
   open Doc;
