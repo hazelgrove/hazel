@@ -998,7 +998,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
 
   let undo_button = disabled => {
-    let title = "Undo (" ++ HazelKeyCombos.name(Ctrl_Z) ++ ")";
+    let title = "Undo (" ++ HazelKeyCombos.name(CtrlOrCmd_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1023,7 +1023,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let redo_button = disabled => {
-    let title = "Redo (" ++ HazelKeyCombos.name(Ctrl_Shift_Z) ++ ")";
+    let title = "Redo (" ++ HazelKeyCombos.name(CtrlOrCmd_Shift_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled

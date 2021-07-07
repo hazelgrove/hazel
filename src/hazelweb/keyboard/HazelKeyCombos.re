@@ -30,13 +30,13 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
-  | Ctrl_S
-  | Ctrl_Z
-  | Ctrl_Shift_Z
-  | Ctrl_Alt_I
-  | Ctrl_Alt_K
-  | Ctrl_Alt_J
-  | Ctrl_Alt_L;
+  | CtrlOrCmd_S
+  | CtrlOrCmd_Z
+  | CtrlOrCmd_Shift_Z
+  | CtrlOrCmd_Alt_I
+  | CtrlOrCmd_Alt_K
+  | CtrlOrCmd_Alt_J
+  | CtrlOrCmd_Alt_L;
 
 let get_details =
   fun
@@ -67,13 +67,13 @@ let get_details =
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
-  | Ctrl_S => KeyCombo.ctrl_s
-  | Ctrl_Z => KeyCombo.ctrl_z
-  | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
-  | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
-  | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
-  | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
-  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l;
+  | CtrlOrCmd_S => KeyCombo.ctrlOrCmd_s
+  | CtrlOrCmd_Z => KeyCombo.ctrlOrCmd_z
+  | CtrlOrCmd_Shift_Z => KeyCombo.ctrlOrCmd_shift_z
+  | CtrlOrCmd_Alt_I => KeyCombo.ctrlOrCmd_alt_i
+  | CtrlOrCmd_Alt_K => KeyCombo.ctrlOrCmd_alt_k
+  | CtrlOrCmd_Alt_J => KeyCombo.ctrlOrCmd_alt_j
+  | CtrlOrCmd_Alt_L => KeyCombo.ctrlOrCmd_alt_l;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
@@ -131,20 +131,20 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_R);
   } else if (evt_matches(KeyCombo.alt_C)) {
     Some(Alt_C);
-  } else if (evt_matches(KeyCombo.ctrl_s)) {
-    Some(Ctrl_S);
-  } else if (evt_matches(KeyCombo.ctrl_z)) {
-    Some(Ctrl_Z);
-  } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
-    Some(Ctrl_Shift_Z);
-  } else if (evt_matches(KeyCombo.ctrl_alt_i)) {
-    Some(Ctrl_Alt_I);
-  } else if (evt_matches(KeyCombo.ctrl_alt_k)) {
-    Some(Ctrl_Alt_K);
-  } else if (evt_matches(KeyCombo.ctrl_alt_j)) {
-    Some(Ctrl_Alt_J);
-  } else if (evt_matches(KeyCombo.ctrl_alt_l)) {
-    Some(Ctrl_Alt_L);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_s)) {
+    Some(CtrlOrCmd_S);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_z)) {
+    Some(CtrlOrCmd_Z);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_shift_z)) {
+    Some(CtrlOrCmd_Shift_Z);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_i)) {
+    Some(CtrlOrCmd_Alt_I);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_k)) {
+    Some(CtrlOrCmd_Alt_K);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_j)) {
+    Some(CtrlOrCmd_Alt_J);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_l)) {
+    Some(CtrlOrCmd_Alt_L);
   } else {
     None;
   };

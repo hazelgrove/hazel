@@ -275,11 +275,17 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ),
         single_line_multiple_actions(
           "Swap line up / down",
-          [keyboard_button(Ctrl_Alt_I), keyboard_button(Ctrl_Alt_K)],
+          [
+            keyboard_button(CtrlOrCmd_Alt_I),
+            keyboard_button(CtrlOrCmd_Alt_K),
+          ],
         ),
         single_line_multiple_actions(
           "Swap operand left / right",
-          [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
+          [
+            keyboard_button(CtrlOrCmd_Alt_J),
+            keyboard_button(CtrlOrCmd_Alt_L),
+          ],
         ),
         combo(Enter, simple("Create new line ")),
         single_line_multiple_actions(
