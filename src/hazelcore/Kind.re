@@ -4,14 +4,18 @@ open Sexplib;
 type t =
   | KHole
   | Type
-  | Singleton(HTyp.t);
+  | Singleton(t, HTyp.t);
 
-let to_string: t => string =
+let rec to_string: t => string =
   fun
   | KHole => "KHole"
   | Type => "Type"
-  | Singleton(typ) =>
-    "Singleton(" ++ (HTyp.sexp_of_t(typ) |> Sexp.to_string) ++ ")";
+  | Singleton(t, typ) =>
+    "Singleton("
+    ++ to_string(t)
+    ++ ", "
+    ++ (HTyp.sexp_of_t(typ) |> Sexp.to_string)
+    ++ ")";
 
 let is_singleton: t => bool =
   fun

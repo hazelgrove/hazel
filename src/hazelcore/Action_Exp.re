@@ -234,13 +234,7 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) => {
-  SynExpands({
-    kw: TyAlias,
-    u_gen,
-    prefix,
-    suffix,
-    subject: nextLine,
-  });
+  SynExpands({kw: TyAlias, u_gen, prefix, suffix, subject: nextLine});
 };
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =

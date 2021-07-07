@@ -30,7 +30,7 @@ let rec ground_cases_of = (ctx: Contexts.t, ty: HTyp.t): ground_cases =>
   | List(Hole) => Ground
   | TyVar(idx, _) =>
     switch (TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx)) {
-    | (_, Singleton(ty2)) => ground_cases_of(ctx, ty2)
+    | (_, Singleton(_, ty2)) => ground_cases_of(ctx, ty2)
     | (_, KHole | Type) => failwith("impossible for bound type variables")
     }
   | Prod(tys) =>

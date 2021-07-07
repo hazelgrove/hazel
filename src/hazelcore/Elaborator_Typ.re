@@ -36,7 +36,7 @@ and syn_skel = (ctx, delta, skel, seq) =>
     let delta =
       ds |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
     let tau = HTyp.Prod(tys);
-    (tau, Kind.Singleton(tau), delta);
+    (tau, Kind.Singleton(Type, tau), delta);
   | BinOp(_, op, skel1, skel2) =>
     /* TElabSBinOp */
     let* (ty1, d1) = ana_skel(ctx, delta, Kind.Type, skel1, seq);
@@ -47,12 +47,12 @@ and syn_skel = (ctx, delta, skel, seq) =>
       | Sum => HTyp.Sum(ty1, ty2)
       | Prod => failwith("Impossible, Prod is matched first")
       };
-    (ty, Kind.Singleton(ty), Delta.union(d1, d2));
+    (ty, Kind.Singleton(Type, ty), Delta.union(d1, d2));
   }
 and syn_operand = (ctx, delta, operand) => {
   let const = (c: HTyp.t) => {
     /* TElabSConst */
-    Some((c, Kind.Singleton(c), delta));
+    Some((c, Kind.Singleton(Type, c), delta));
   };
 
   switch (operand) {
@@ -71,8 +71,9 @@ and syn_operand = (ctx, delta, operand) => {
   | TyVar(NotInVarHole, t) =>
     /* TElabSVar */
     let+ idx = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
+    let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
     let tau = HTyp.TyVar(idx, t);
-    (tau, Kind.Singleton(tau), delta);
+    (tau, Kind.Singleton(k, tau), delta);
   | TyVar(InVarHole(_, u), t) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
@@ -94,7 +95,7 @@ and syn_operand = (ctx, delta, operand) => {
     /* TElabSList */
     let+ (ty, delta) = ana(ctx, delta, opseq, Kind.Type);
     let tau = HTyp.List(ty);
-    (tau, Kind.Singleton(tau), delta);
+    (tau, Kind.Singleton(Type, tau), delta);
   };
 }
 
@@ -209,10 +210,10 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
     (UHTyp.TyVar(InVarHole(r, u), t), Kind.KHole, u_gen)
-  | Unit => (Unit, Kind.Singleton(Prod([])), u_gen)
-  | Int => (Int, Kind.Singleton(Int), u_gen)
-  | Float => (Float, Kind.Singleton(Float), u_gen)
-  | Bool => (Bool, Kind.Singleton(Bool), u_gen)
+  | Unit => (Unit, Kind.Singleton(Type, Prod([])), u_gen)
+  | Int => (Int, Kind.Singleton(Type, Int), u_gen)
+  | Float => (Float, Kind.Singleton(Type, Float), u_gen)
+  | Bool => (Bool, Kind.Singleton(Type, Bool), u_gen)
   | Parenthesized(body) =>
     let (block, kind, u_gen) = syn_fix_holes(ctx, u_gen, body);
     (Parenthesized(block), kind, u_gen);

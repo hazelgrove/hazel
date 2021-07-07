@@ -2,7 +2,8 @@
 type t =
   | KHole
   | Type
-  | Singleton(HTyp.t);
+  // higher singleton
+  | Singleton(t, HTyp.t);
 
 let to_string: t => string;
 
