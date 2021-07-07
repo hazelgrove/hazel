@@ -332,6 +332,42 @@ let is_parentheses_delete_action = (a: Action.t, zexp: ZExp.t): bool => {
         || ZExp.is_after_zopseq(inner_zopseq)
         && a == Delete =>
     true
+  | (_, LetLineZP(pat, _), _)
+  | (
+      _,
+      ExpLineZ(
+        ZOpSeq(_, ZOperand(CaseZR(_, _, (_, RuleZP(pat, _), _)), _)),
+      ),
+      _,
+    )
+  | (_, ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_, pat, _), _))), _) =>
+    switch (pat) {
+    | ZOpSeq(_, ZOperand(ParenthesizedZ(inner_zopseq), _))
+        when
+          ZPat.is_before_zopseq(inner_zopseq)
+          && a == Backspace
+          || ZPat.is_after_zopseq(inner_zopseq)
+          && a == Delete =>
+      true
+    | ZOpSeq(
+        _,
+        ZOperand(
+          TypeAnnZA(
+            _,
+            _,
+            ZOpSeq(_, ZOperand(ParenthesizedZ(inner_zopseq), _)),
+          ),
+          _,
+        ),
+      )
+        when
+          ZTyp.is_before_zopseq(inner_zopseq)
+          && a == Backspace
+          || ZTyp.is_after_zopseq(inner_zopseq)
+          && a == Delete =>
+      true
+    | _ => false
+    }
   | _ => false
   };
 };
