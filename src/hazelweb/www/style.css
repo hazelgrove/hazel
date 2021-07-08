@@ -866,7 +866,7 @@ h1 {
 
 .result-view {
   padding-left: 25px;
-  padding-bottom: 5px;
+  padding-bottom: 18px;
   background-color: #EEE;
 }
 
@@ -970,6 +970,7 @@ h1 {
 
 #code-root,
 .DHCode {
+  line-height: 0; /* hack, prevents undesired scroll bars */
   position: relative;
 }
 #code-root:focus {
@@ -995,7 +996,6 @@ h1 {
   z-index: var(--var-use-z);
 }
 #code-root .current-term-container {
-  line-height: 0;
   z-index: var(--current-term-z);
 }
 #code-root .livelit-exp-container {
