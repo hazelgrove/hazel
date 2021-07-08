@@ -237,7 +237,7 @@ let operand_of_string = (text: string): operand => {
   | BoolLit(b) => BoolLit(NotInHole, b)
   | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
   | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
-  | Underscore => Var(NotInHole, NotInVarHole, "_")
+  | Underscore => Wild(NotInHole)
   | Var(s) => Var(NotInHole, NotInVarHole, s)
   };
 };
