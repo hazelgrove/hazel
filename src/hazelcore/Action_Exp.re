@@ -363,39 +363,39 @@ let spacebuster = (opA, opB, prefix, suffix, a: Action.t): ZExp.zseq => {
 
   switch (merge_class(opA), a, merge_class(opB)) {
   | (Empty, Backspace, Empty) =>
-    //  H |H   B=>   |H
     //  H| H   B=>   |H
+    //  H |H   B=>   |H
     mono(before_(EmptyHole(0)))
   | (Empty, Delete, Empty) =>
-    //  H |H   D=>    H|
     //  H| H   D=>    H|
+    //  H |H   D=>    H|
     mono(after_(EmptyHole(0)))
   | (Empty, _, _) =>
-    //  H| B   B=>   |B   D=>   |B
     // |H  B   B=>   *    D=>   |B
+    //  H| B   B=>   |B   D=>   |B
     //  H |B   B=>   |B   D=>   **
     mono(before_(opB))
   | (_, _, Empty) =>
+    //  A| H   B=>   **   D=>   A|
     //  A |H   B=>   A|   D=>   A|
     //  A  H|  B=>   A|   D=>    *
-    //  A| H   B=>   **   D=>   A|
     mono(after_(opA))
   | (Merge(sa), _, Merge(sb)) =>
-    //  A |B   B=>  A|B   D=>   **
     //  A| B   B=>  **    D=>   A|B
+    //  A |B   B=>  A|B   D=>   **
     mono(at_index(UHExp.operand_of_string(sa ++ sb), String.length(sa)))
   // If we can't delete anything, we try to move in the relevant direction
   | (Inert, Backspace, Inert)
   | (Inert, Backspace, Merge(_))
   | (Merge(_), Backspace, Inert) =>
-    //  A |B   B=>    A| B
     //  A| B   B=>    **
+    //  A |B   B=>    A| B
     bin_first(after_(opA), opB)
   | (Inert, Delete, Inert)
   | (Inert, Delete, Merge(_))
   | (Merge(_), Delete, Inert) =>
-    //  A |B   D=>    **
     //  A| B   D=>    A |B
+    //  A |B   D=>    **
     bin_second(opA, before_(opB))
   };
 };
