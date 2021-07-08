@@ -59,9 +59,13 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
-  | Inj(ty, side, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
+  | Inj((ty, tag, d3_opt)) =>
+    let d3_opt' = Option.map(subst_var(d1, x), d3_opt);
+    Inj((ty, tag, d3_opt'));
+  | InjError(reason, u, i, sigma, (ty, tag, d3_opt)) =>
+    let d3_opt' = Option.map(subst_var(d1, x), d3_opt);
+    let sigma' = subst_var_env(d1, x, sigma);
+    InjError(reason, u, i, sigma', (ty, tag, d3_opt'));
   | Pair(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -123,6 +127,24 @@ let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
        d,
      );
 
+let cast_tymaps =
+    (tymap1: TagMap.t(option(HTyp.t)), tymap2: TagMap.t(option(HTyp.t)))
+    : option(TagMap.t((HTyp.t, HTyp.t))) => {
+  let (tags1, types1) = tymap1 |> TagMap.bindings |> List.split;
+  let (tags2, types2) = tymap2 |> TagMap.bindings |> List.split;
+  if (tags1 == tags2) {
+    let tys1 = types1 |> List.filter(Option.is_some) |> List.map(Option.get);
+    let tys2 = types2 |> List.filter(Option.is_some) |> List.map(Option.get);
+    if (List.length(tys1) == List.length(tys2)) {
+      Some(List.(combine(tys1, tys2) |> combine(tags1)) |> TagMap.of_list);
+    } else {
+      None;
+    };
+  } else {
+    None;
+  };
+};
+
 type match_result =
   | Matches(Environment.t)
   | DoesNotMatch
@@ -180,16 +202,39 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (Inj(side1, dp), Inj(_, side2, d)) =>
-    switch (side1, side2) {
-    | (L, L)
-    | (R, R) => matches(dp, d)
-    | _ => DoesNotMatch
+  | (Inj(tag1, dp_opt), Inj((_, tag2, d_opt))) =>
+    switch (tag1, tag2) {
+    | (Tag(_), Tag(_))
+    | (TagHole(_), TagHole(_)) when UHTag.eq(tag1, tag2) =>
+      switch (dp_opt, d_opt) {
+      | (None, None) => Matches(Environment.empty)
+      | (Some(dp), Some(d)) => matches(dp, d)
+      | (None, Some(_))
+      | (Some(_), None) => DoesNotMatch
+      }
+    | (Tag(_), Tag(_)) => DoesNotMatch
+    | (TagHole(_), TagHole(_))
+    | (Tag(_), TagHole(_))
+    | (TagHole(_), Tag(_)) =>
+      switch (dp_opt, d_opt) {
+      | (None, None) => Indet
+      | (Some(dp), Some(d)) =>
+        switch (matches(dp, d)) {
+        | Matches(_)
+        | Indet => Indet
+        | DoesNotMatch => DoesNotMatch
+        }
+      | (None, Some(_))
+      | (Some(_), None) => DoesNotMatch
+      }
     }
-  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
-    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
+  | (Inj(tag, dp_opt), Cast(d, Sum(tymap1), Sum(tymap2))) =>
+    switch (cast_tymaps(tymap1, tymap2)) {
+    | Some(castmap) => matches_cast_Inj(tag, dp_opt, d, [castmap])
+    | None => DoesNotMatch
+    }
+  | (Inj(_, _), Cast(d, Sum(_), Hole))
+  | (Inj(_, _), Cast(d, Hole, Sum(_))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -255,36 +300,37 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   }
 and matches_cast_Inj =
     (
-      side: InjSide.t,
-      dp: DHPat.t,
+      tag: UHTag.t,
+      dp_opt: option(DHPat.t),
       d: DHExp.t,
-      casts: list((HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
+      castmaps: list(TagMap.t((HTyp.t, HTyp.t))),
     )
     : match_result =>
   switch (d) {
-  | Inj(_, side', d') =>
-    switch (side, side') {
-    | (L, L)
-    | (R, R) =>
-      let side_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
-            let (tyL1, tyR1, tyL2, tyR2) = c;
-            switch (side) {
-            | L => (tyL1, tyL2)
-            | R => (tyR1, tyR2)
-            };
-          },
-          casts,
-        );
-      matches(dp, DHExp.apply_casts(d', side_casts));
+  | Inj((_, tag, d_opt)) =>
+    switch (dp_opt, d_opt) {
+    | (None, None) => Matches(Environment.empty)
+    | (Some(dp), Some(d')) =>
+      switch (
+        castmaps
+        |> List.map(castmap => TagMap.find_opt(tag, castmap))
+        |> OptUtil.sequence
+      ) {
+      | Some(side_casts) => matches(dp, DHExp.apply_casts(d', side_casts))
+      | None => DoesNotMatch
+      }
     | _ => DoesNotMatch
     }
-  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole)
-  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(d', Sum(tymap1), Sum(tymap2)) =>
+    switch (cast_tymaps(tymap1, tymap2)) {
+    | Some(castmap) =>
+      matches_cast_Inj(tag, dp_opt, d', [castmap, ...castmaps])
+    | None => DoesNotMatch
+    }
+  | Cast(d', Sum(_), Hole)
+  | Cast(d', Hole, Sum(_)) => matches_cast_Inj(tag, dp_opt, d', castmaps)
   | Cast(_, _, _) => DoesNotMatch
+  | InjError(_, _, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -364,7 +410,8 @@ and matches_cast_Pair =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
+  | Inj(_)
+  | InjError(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -435,7 +482,8 @@ and matches_cast_Cons =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
+  | Inj(_)
+  | InjError(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -708,7 +756,6 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -727,7 +774,6 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
@@ -823,18 +869,18 @@ and syn_elab_operand =
         }
       }
     }
-  | Inj(NotInHole, side, body) =>
-    switch (syn_elab(ctx, delta, body)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      let d = DHExp.Inj(Hole, side, d1);
-      let ty =
-        switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
-        };
-      Elaborates(d, ty, delta);
-    }
+  // | Inj(NotInHole, side, body) =>
+  //   switch (syn_elab(ctx, delta, body)) {
+  //   | DoesNotElaborate => DoesNotElaborate
+  //   | Elaborates(d1, ty1, delta) =>
+  //     let d = DHExp.Inj(Hole, side, d1);
+  //     let ty =
+  //       switch (side) {
+  //       | L => HTyp.Sum(ty1, Hole)
+  //       | R => HTyp.Sum(Hole, ty1)
+  //       };
+  //     Elaborates(d, ty, delta);
+  //   }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1127,7 +1173,7 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  // | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -1155,7 +1201,7 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
+  // | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
@@ -1200,23 +1246,23 @@ and ana_elab_operand =
         }
       };
     }
-  | Inj(NotInHole, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => DoesNotElaborate
-    | Some((ty1, ty2)) =>
-      let e1ty = InjSide.pick(side, ty1, ty2);
-      switch (ana_elab(ctx, delta, body, e1ty)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d1, e1ty', delta) =>
-        let (ann_ty, ty) =
-          switch (side) {
-          | L => (ty2, HTyp.Sum(e1ty', ty2))
-          | R => (ty1, HTyp.Sum(ty1, e1ty'))
-          };
-        let d = DHExp.Inj(ann_ty, side, d1);
-        Elaborates(d, ty, delta);
-      };
-    }
+  // | Inj(NotInHole, side, body) =>
+  //   switch (HTyp.matched_sum(ty)) {
+  //   | None => DoesNotElaborate
+  //   | Some((ty1, ty2)) =>
+  //     let e1ty = InjSide.pick(side, ty1, ty2);
+  //     switch (ana_elab(ctx, delta, body, e1ty)) {
+  //     | DoesNotElaborate => DoesNotElaborate
+  //     | Elaborates(d1, e1ty', delta) =>
+  //       let (ann_ty, ty) =
+  //         switch (side) {
+  //         | L => (ty2, HTyp.Sum(e1ty', ty2))
+  //         | R => (ty1, HTyp.Sum(ty1, e1ty'))
+  //         };
+  //       let d = DHExp.Inj(ann_ty, side, d1);
+  //       Elaborates(d, ty, delta);
+  //     };
+  //   }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1329,9 +1375,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | Inj(ty, side, d1) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Inj(ty, side, d1), hii);
+  // | Inj(ty, side, d1) =>
+  //   let (d1, hii) = renumber_result_only(path, hii, d1);
+  //   (Inj(ty, side, d1), hii);
   | Pair(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1427,9 +1473,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | Inj(ty, side, d1) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Inj(ty, side, d1), hii);
+  // | Inj(ty, side, d1) =>
+  //   let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+  //   (Inj(ty, side, d1), hii);
   | Pair(d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);

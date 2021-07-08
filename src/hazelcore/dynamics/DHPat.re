@@ -12,12 +12,14 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
-  | Inj(InjSide.t, t)
+  | Inj(inj)
+  | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, inj)
   | ListNil
   | Cons(t, t)
   | Pair(t, t)
   | Triv /* unit intro */
-  | Ap(t, t);
+  | Ap(t, t)
+and inj = (UHTag.t, option(t));
 
 let rec mk_tuple: list(t) => t =
   fun
@@ -41,7 +43,8 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | ListNil
   | Keyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
-  | Inj(_, dp1) => binds_var(x, dp1)
+  | Inj(_, Some(dp1)) => binds_var(x, dp1)
+  | Inj(_, None) => false
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Ap(_, _) => false
