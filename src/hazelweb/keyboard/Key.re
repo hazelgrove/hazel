@@ -101,45 +101,26 @@ let without_option_key =
     failwith(__LOC__ ++ ": Key cannot be recognized because it is a dead key")
   | other => other;
 
-/**
- * Avoid Using!
- * Does not respect non-QWERTY keyboard layouts
- */
-let get_code = (evt: Js.t(Dom_html.keyboardEvent)) =>
-  Js.to_string(Js.Optdef.get(evt##.code, () => assert(false)));
-
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
 
-type recognition_method =
-  // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code
-  | Code(string)
-  // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
-  | Key(string);
-
 type t = {
   plain_name: string,
-  recognition_methods: list(recognition_method),
+  recognized_keys: list(string),
 };
 
-let key1 = (plain_name, key) => {
-  plain_name,
-  recognition_methods: [Key(key)],
-};
+let key1 = (plain_name, key) => {plain_name, recognized_keys: [key]};
 
 let the_key = key => key1(key, key);
 
-let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>
-  switch (r) {
-  | Code(c) =>
-    let code = get_code(evt);
-    String.equal(code, c);
-  | Key(k) =>
-    let key = without_option_key(get_key(evt));
-    String.equal(String.uppercase_ascii(key), String.uppercase_ascii(k));
+let matches = (key: t, evt: Js.t(Dom_html.keyboardEvent)) => {
+  let recognize = key => {
+    let evt_key = evt |> get_key |> without_option_key;
+    String.equal(
+      String.uppercase_ascii(evt_key),
+      String.uppercase_ascii(key),
+    );
   };
 
-let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
-  let recognition_methods = k.recognition_methods;
-  ListUtil.any(recognition_methods, recognize(evt));
+  ListUtil.any(key.recognized_keys, recognize);
 };
