@@ -8,8 +8,6 @@ module ElaborationResult: {
     | DoesNotElaborate;
 };
 
-let id_env: VarCtx.t => Environment.t;
-
 let syn_elab: (Contexts.t, Delta.t, UHExp.t) => ElaborationResult.t;
 
 let ana_elab: (Contexts.t, Delta.t, UHExp.t, HTyp.t) => ElaborationResult.t;

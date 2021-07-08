@@ -125,3 +125,12 @@ let subst = (env: t, d: DHExp.t): DHExp.t =>
        },
        d,
      );
+
+let id_env = (ctx: VarCtx.t): t =>
+  VarMap.map(
+    xt => {
+      let (x, _) = xt;
+      DHExp.BoundVar(x);
+    },
+    ctx,
+  );

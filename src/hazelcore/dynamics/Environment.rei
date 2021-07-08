@@ -6,3 +6,5 @@ include (module type of VarMap);
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
 
 let subst: (t, DHExp.t) => DHExp.t;
+
+let id_env: VarCtx.t => t;
