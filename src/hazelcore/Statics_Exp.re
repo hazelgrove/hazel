@@ -1029,8 +1029,9 @@ module rec M: Statics_Exp_Sig.S = {
           };
         | None =>
           let* ty1 = syn_skel(ctx, skel1, seq);
+          let* (ty_2, _) = HTyp.matched_arrow(ty1);
           n <= Skel.rightmost_tm_index(skel1)
-            ? go(skel1) : ana_go(skel2, HTyp.List(ty1));
+            ? go(skel1) : ana_go(skel2, ty_2);
         };
       | BinOp(NotInHole, Cons, skel1, skel2) =>
         let* ty1 = syn_skel(ctx, skel1, seq);
