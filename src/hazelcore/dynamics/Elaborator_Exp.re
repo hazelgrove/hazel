@@ -807,7 +807,34 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    } /* not in hole */
+    }
+  | Inj(InHole(reason, u), tag, body_opt) =>
+    switch (body_opt) {
+    | None =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      Elaborates(
+        InjError(reason, u, 0, sigma, (Hole, tag, None)),
+        Hole,
+        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta),
+      );
+    | Some(body) =>
+      switch (ana_elab(ctx, delta, body, Hole)) {
+      | Elaborates(d, ty, delta) =>
+        let d' = DHExp.Cast(d, ty, Hole);
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+        Elaborates(
+          InjError(reason, u, 0, sigma, (Hole, tag, Some(d'))),
+          Hole,
+          delta,
+        );
+      | DoesNotElaborate => DoesNotElaborate
+      }
+    }
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -869,18 +896,7 @@ and syn_elab_operand =
         }
       }
     }
-  // | Inj(NotInHole, side, body) =>
-  //   switch (syn_elab(ctx, delta, body)) {
-  //   | DoesNotElaborate => DoesNotElaborate
-  //   | Elaborates(d1, ty1, delta) =>
-  //     let d = DHExp.Inj(Hole, side, d1);
-  //     let ty =
-  //       switch (side) {
-  //       | L => HTyp.Sum(ty1, Hole)
-  //       | R => HTyp.Sum(Hole, ty1)
-  //       };
-  //     Elaborates(d, ty, delta);
-  //   }
+  | Inj(NotInHole, _, _) => DoesNotElaborate
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
