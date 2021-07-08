@@ -53,6 +53,9 @@ let syn_fix_holes_lines:
 let syn_fix_holes_opseq:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
   (UHExp.opseq, HTyp.t, MetaVarGen.t);
+let syn_fix_holes_operand:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.operand) =>
+  (UHExp.operand, HTyp.t, MetaVarGen.t);
 let syn_fix_holes_rules:
   (
     Contexts.t,
@@ -102,7 +105,8 @@ let ana_fix_holes_rules:
   (UHExp.rules, MetaVarGen.t);
 
 let syn_fix_holes_z:
-  (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
+  (~renumber_empty_holes: bool=?, Contexts.t, MetaVarGen.t, ZExp.t) =>
+  (ZExp.t, HTyp.t, MetaVarGen.t);
 let syn_fix_holes_zlines:
   (Contexts.t, MetaVarGen.t, ZExp.zblock) =>
   (ZExp.zblock, Contexts.t, MetaVarGen.t);
