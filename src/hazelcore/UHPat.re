@@ -19,6 +19,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
+  // | LivelitName(LivelitName.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 
@@ -84,8 +85,9 @@ and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
 and get_err_status_operand =
   fun
-  | EmptyHole(_) => NotInHole
-  | InvalidText(_, _) => NotInHole
+  | EmptyHole(_)
+  | InvalidText(_) => NotInHole
+  // | LivelitName(_) => NotInHole
   | Wild(err)
   | Var(err, _, _)
   | IntLit(err, _)
@@ -103,8 +105,9 @@ and set_err_status_opseq = (err, opseq) =>
   OpSeq.set_err_status(~set_err_status_operand, err, opseq)
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
-  | EmptyHole(_) => operand
-  | InvalidText(_, _) => operand
+  | EmptyHole(_)
+  | InvalidText(_) => operand
+  // | LivelitName(_) => operand
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
@@ -135,6 +138,7 @@ and mk_inconsistent_operand =
   // already in hole
   | EmptyHole(_)
   | InvalidText(_, _)
+  // | LivelitName(_)
   | Wild(InHole(TypeInconsistent(_), _))
   | Var(InHole(TypeInconsistent(_), _), _, _)
   | IntLit(InHole(TypeInconsistent(_), _), _)
@@ -208,6 +212,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
+  // | LivelitName(_) => true
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
   | Var(InHole(_), _, _) => false

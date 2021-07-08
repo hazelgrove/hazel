@@ -31,7 +31,6 @@ type shape =
   | SListNil
   | SInj(InjSide.t)
   | SLet
-  | SAbbrev
   | SLivelitDef
   | SLine
   | SCase

@@ -23,6 +23,7 @@ let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
   | None => if_absent()
   | Some(a) => a
   };
+let get_or_fail = s => get(() => failwith(s));
 let get_or_raise = e => get(() => raise(e));
 
 let and_then = (f: 'a => 'b, opt: option('a)): 'b =>

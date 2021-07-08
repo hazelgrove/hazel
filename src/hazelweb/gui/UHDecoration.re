@@ -161,6 +161,7 @@ module CurrentTerm = {
     | BinOp(_) => true
     | Case
     | Rule
+    | Line
     | Operand
     | FreeLivelit
     | ApLivelit
@@ -180,8 +181,8 @@ module CurrentTerm = {
          ~annot=
            (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (SubBlock(_), Step(_) | Term({shape: Line, _}))
+             | (Case, Step(_) | Term({shape: Rule, _})) => go(m)
              | (_, Tessera) =>
                Decoration_common.rects(
                  ~indent,
@@ -209,8 +210,8 @@ module CurrentTerm = {
              switch (shape, annot) {
              // hack for case and subblocks
              // TODO remove when we have tiles
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (SubBlock(_), Step(_) | Term({shape: Line, _}))
+             | (Case, Step(_) | Term({shape: Rule, _})) => go(m)
              | (_, Tessera) => go(m)
              | (_, ClosedChild({sort, _})) => [
                  (
@@ -236,8 +237,8 @@ module CurrentTerm = {
            ~annot=
              (go, annot: UHAnnot.t, m) =>
                switch (shape, annot) {
-               | (Case | SubBlock(_), Step(_))
-               | (Case, Term({shape: Rule, _})) => go(m)
+               | (SubBlock(_), Step(_) | Term({shape: Line, _}))
+               | (Case, Step(_) | Term({shape: Rule, _})) => go(m)
                | (_, OpenChild(Multiline)) => true
                | (_, _) => false
                },
@@ -279,8 +280,8 @@ module CurrentTerm = {
              };
 
              switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (SubBlock(_), Step(_) | Term({shape: Line, _}))
+             | (Case, Step(_) | Term({shape: Rule, _})) => go(m)
              | (_, OpenChild(InlineWithBorder)) =>
                // TODO(d) specify indent?
                inline_open_child_rects(start, m)

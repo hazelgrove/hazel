@@ -174,6 +174,7 @@ and mk_block =
                ~enforce_inline,
                (llview_ctx, line),
              )
+             |> Doc.annot(UHAnnot.Term({shape: Line, sort: Exp}))
              |> UHDoc_common.annot_Step(offset + i),
            )
          )
@@ -185,7 +186,6 @@ and mk_block =
         | EmptyLine
         | CommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
-        | AbbrevLine(_)
         | LivelitDefLine(_)
         | LetLine(_) =>
           annot_SubBlock(
@@ -234,21 +234,6 @@ and mk_line =
             ~enforce_inline,
             (llview_ctx, opseq),
           )
-        | AbbrevLine(lln_new, _, lln_old, args) =>
-          let formattable = (i, arg, ~enforce_inline) =>
-            (llview_ctx, arg)
-            |> Lazy.force(mk_operand, ~memoize, ~enforce_inline)
-            |> UHDoc_common.annot_Step(i);
-          let formatteds =
-            args
-            |> List.mapi((i, arg) =>
-                 enforce_inline
-                   ? UHDoc_common.EnforcedInline(
-                       formattable(i, arg, ~enforce_inline=true),
-                     )
-                   : Unformatted(formattable(i, arg))
-               );
-          UHDoc_common.mk_AbbrevLine(lln_new, lln_old, formatteds);
         | LivelitDefLine({
             name: (_, name_str),
             expansion_type,
@@ -273,21 +258,48 @@ and mk_line =
             mk_doc(shape, 8),
             mk_doc(expand, 9),
           )
-        | LetLine(p, def) =>
-          let p =
+        | LetLine(_, p, def) =>
+          let doc_p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let def =
-            mk_child(
-              ~memoize,
-              ~enforce_inline,
-              ~child_step=1,
-              (llview_ctx, def),
-            );
-          UHDoc_common.mk_LetLine(p, def);
+          let doc_def =
+            switch (LLPat.of_uhpat(p), LLExp.of_uhexp(def)) {
+            | (None, _)
+            | (_, None) =>
+              mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=1,
+                (llview_ctx, def),
+              )
+            | (Some(_), Some(lle)) =>
+              mk_llexp(~memoize, ~enforce_inline, (llview_ctx, lle))
+            };
+          UHDoc_common.mk_LetLine(doc_p, doc_def);
         }: UHDoc.t
       )
     )
   )
+and mk_llexp =
+    (~memoize, ~enforce_inline, (llview_ctx, {hd, args, meta: _})) => {
+  let doc_hd =
+    UHDoc_common.(
+      mk_text(hd)
+      |> annot_Tessera
+      |> annot_Operand(~sort=Exp)
+      |> annot_Step(0)
+    );
+  let doc_args =
+    args
+    |> List.mapi((i, arg) =>
+         Lazy.force(mk_operand, ~memoize, ~enforce_inline, (llview_ctx, arg))
+         |> UHDoc_common.annot_Step(i + 1)
+       );
+  EnforcedInline(
+    UHDoc_common.(
+      Doc.hseps([doc_hd, ...doc_args]) |> annot_Step(0) |> annot_Step(1)
+    ),
+  );
+}
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
@@ -490,12 +502,11 @@ let mk_splices = (llview_ctx, e: UHExp.t): UHDoc.splices => {
     | EmptyLine
     | CommentLine(_) => SpliceMap.empty
     | ExpLine(opseq) => mk_opseq(opseq)
-    | AbbrevLine(_, _, _, args) => args |> List.map(mk_operand) |> union_join
     | LivelitDefLine({captures, init, update, view, shape, expand, _}) =>
       [captures, init, update, view, shape, expand]
       |> List.map(mk_block)
       |> union_join
-    | LetLine(_, def) => mk_block(def)
+    | LetLine(_, _, def) => mk_block(def)
     }
   and mk_opseq = (OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
     Seq.operands(seq) |> List.map(mk_operand) |> union_join

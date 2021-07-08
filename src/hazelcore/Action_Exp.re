@@ -76,7 +76,6 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | LivelitDef => Construct(SLivelitDef)
-  | Abbrev => Construct(SAbbrev)
   | Case => Construct(SCase)
   };
 
@@ -236,8 +235,6 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
-let mk_SynExpandsToAbbrev = (~u_gen, ~prefix=[], ~suffix=[], ~arg, ()) =>
-  SynExpands({kw: Abbrev, u_gen, prefix, suffix, subject: arg});
 let mk_SynExpandsToLivelitDef = (~u_gen, ~prefix=[], ~suffix=[], ()) =>
   SynExpands({kw: LivelitDef, u_gen, prefix, suffix, subject: []});
 
@@ -255,8 +252,6 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
-let mk_AnaExpandsToAbbrev = (~u_gen, ~prefix=[], ~suffix=[], ~arg, ()) =>
-  AnaExpands({kw: Abbrev, u_gen, prefix, suffix, subject: arg});
 let mk_AnaExpandsToLivelitDef = (~u_gen, ~prefix=[], ~suffix=[], ()) =>
   AnaExpands({kw: LivelitDef, u_gen, prefix, suffix, subject: []});
 
@@ -435,7 +430,6 @@ let syn_split_text =
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | LivelitDef => mk_SynExpandsToLivelitDef(~u_gen, ())
-      | Abbrev => mk_SynExpandsToAbbrev(~u_gen, ~arg=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
       },
     );
@@ -476,7 +470,6 @@ let ana_split_text =
     Succeeded(
       switch (kw) {
       | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
-      | Abbrev => mk_AnaExpandsToAbbrev(~u_gen, ~arg=subject, ())
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
       | LivelitDef => mk_AnaExpandsToLivelitDef(~u_gen, ())
       },
@@ -638,7 +631,8 @@ let rec syn_perform =
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
+    let zlet =
+      ZExp.LetLineZP(NotInAbbrevHole, ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: LivelitDef, prefix, suffix, u_gen, _})) =>
@@ -669,16 +663,6 @@ let rec syn_perform =
         }),
       );
     let new_ze = (prefix, zlldef, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  | Succeeded(SynExpands({kw: Abbrev, prefix, subject: _, suffix, u_gen})) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
-    let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    let zlet =
-      ZExp.CursorL(
-        OnDelim(0, Before),
-        UHExp.AbbrevLine("$", InAbbrevHole(Free, u), "$", [hole]),
-      );
-    let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
@@ -788,11 +772,7 @@ and syn_perform_block =
       suffix,
     ) {
     | (None, _, _) => Failed
-    | (
-        Some((_, AbbrevLine(_) | LetLine(_))),
-        ExpLine(OpSeq(_, S(EmptyHole(_), E))),
-        [],
-      ) =>
+    | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
     /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
     | (Some((rest, EmptyLine)), _, []) =>
@@ -814,12 +794,7 @@ and syn_perform_block =
     switch (suffix, zline) {
     | ([], _) => Failed
     /* avoid swap down for the Let line if it is second to last */
-    | (
-        [_],
-        LetLineZP(_) | AbbrevLineZL(_) |
-        CursorL(_, AbbrevLine(_) | LetLine(_)),
-      ) =>
-      Failed
+    | ([_], LetLineZP(_) | CursorL(_, LetLine(_))) => Failed
     /* handle corner case when the second to last line is an EmptyLine */
     | ([last], CursorL(_, EmptyLine)) =>
       let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -915,26 +890,10 @@ and syn_perform_line =
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
       CursorL(OnOp(_), LivelitDefLine(_)) |
-      CursorL(OnOp(_), AbbrevLine(_) | CommentLine(_)) |
+      CursorL(OnOp(_), CommentLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
     Failed
-  | (
-      Construct(SChar(s)),
-      CursorL(OnText(j), AbbrevLine(lln_new, err_status, lln_old, args)),
-    ) =>
-    let lln_new_len = LivelitName.length(lln_new);
-    let (lln_new, lln_old) =
-      j <= lln_new_len
-        ? (lln_new |> StringUtil.insert(j, s), lln_old)
-        : (lln_new, lln_old |> StringUtil.insert(j - 1 - lln_new_len, s));
-    let new_ze =
-      ZExp.CursorL(
-        OnText(j + String.length(s)),
-        AbbrevLine(lln_new, err_status, lln_old, args),
-      );
-    fix_and_mk_result(u_gen, ([], new_ze, []));
-  | (_, CursorL(OnText(_), AbbrevLine(_))) => Failed
   | (
       Construct(SChar(s)),
       CursorL(
@@ -1019,11 +978,11 @@ and syn_perform_line =
     let new_zline = ZExp.CursorL(OnDelim(k, After), line);
     syn_perform_line(ctx, Backspace, (new_zline, u_gen));
 
-  | (Backspace, CursorL(OnDelim(k, After), LetLine(p, def))) =>
+  | (Backspace, CursorL(OnDelim(k, After), LetLine(_, p, def))) =>
     if (k == 1) {
       /* let x :<| Int = 2   ==>   let x| = 2 */
       let zp = p |> ZPat.place_after;
-      let new_zblock = ([], ZExp.LetLineZP(zp, def), []);
+      let new_zblock = ([], ZExp.LetLineZP(NotInAbbrevHole, zp, def), []);
       fix_and_mk_result(u_gen, new_zblock);
     } else {
       let new_ze = k == 2 ? def |> ZExp.place_after : def |> ZExp.place_before; // changed 3 to 2?
@@ -1061,32 +1020,6 @@ and syn_perform_line =
       let new_line: UHExp.line =
         LivelitDefLine({...llrecord, name: (err, new_name_str)});
       mk_result(u_gen, ([], ZExp.CursorL(OnText(j), new_line), []));
-    }
-  | (
-      Backspace,
-      CursorL(
-        OnDelim(k, After),
-        AbbrevLine(lln_new, err_status, lln_old, args),
-      ),
-    ) =>
-    if (k == 1) {
-      let lln_new_len = LivelitName.length(lln_new);
-      let new_lln_new =
-        lln_new_len == 0 ? "" : String.sub(lln_new, 0, lln_new_len - 1);
-      let new_zblock = (
-        [],
-        ZExp.CursorL(
-          OnText(String.length(new_lln_new)),
-          UHExp.AbbrevLine(new_lln_new, err_status, lln_old, args),
-        ),
-        [],
-      );
-      fix_and_mk_result(u_gen, new_zblock);
-    } else {
-      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-      let new_zblock =
-        UHExp.FreeLivelit(u, lln_new) |> UHExp.Block.wrap |> ZExp.place_after;
-      fix_and_mk_result(u_gen, new_zblock);
     }
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
@@ -1172,7 +1105,7 @@ and syn_perform_line =
   | (Construct(_) | PerformLivelitAction(_), CursorL(_)) => Failed
 
   /* Invalid swap actions */
-  | (SwapUp | SwapDown, CursorL(_) | AbbrevLineZL(_) | LetLineZP(_)) => Failed
+  | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_)) => Failed
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
@@ -1338,7 +1271,39 @@ and syn_perform_line =
       syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
 
-  | (_, LetLineZP(zp, def)) =>
+  /* TODO review desired behavior and implement in LetLine cases below
+     | (_, AbbrevLineZL(lln_new, err_status, lln_old, (prefix, zarg, suffix))) =>
+       switch (ana_perform_operand(ctx, a, (zarg, u_gen), HTyp.Hole)) {
+       | Failed => Failed
+       | CursorEscaped(side) => escape(u_gen, side)
+       | Succeeded(
+           AnaDone((
+             ([], ExpLineZ(ZOpSeq(_, ZOperand(zarg, (pre, suf)))), []),
+             u_gen,
+           )),
+         ) =>
+         let pre =
+           List.map(
+             UHExp.set_err_status_operand(NotInHole),
+             Seq.operands_of_affix(pre),
+           );
+         let suf =
+           List.map(
+             UHExp.set_err_status_operand(NotInHole),
+             Seq.operands_of_affix(suf),
+           );
+         let new_zabbrev =
+           ZExp.AbbrevLineZL(
+             lln_new,
+             err_status,
+             lln_old,
+             (prefix @ pre, zarg, suf @ suffix),
+           );
+         Succeeded(LineDone((([], new_zabbrev, []), ctx, u_gen)));
+       | Succeeded(_) => Failed
+       }
+     */
+  | (_, LetLineZP(_, zp, def)) =>
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
     let ty_def =
       switch (Statics_Exp.syn(def_ctx, def)) {
@@ -1350,65 +1315,72 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zp, _, u_gen)) =>
-      // NOTE: Need to fix holes since ana_perform may have created
-      // holes if ty_def is inconsistent with pattern type
-      let (new_zp, ty_p, _, u_gen) =
-        Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
-      let p = ZPat.erase(new_zp);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-      let (new_def, u_gen) =
-        Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
-      let new_zline = ZExp.LetLineZP(new_zp, new_def);
-      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-    };
-
-  | (_, LetLineZE(p, zdef)) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => Failed
-    | Some((ty_p, _)) =>
-      let def = ZExp.erase(zdef);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-      switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
-      | Failed => Failed
-      | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded((new_zdef, u_gen)) =>
-        let new_zline = ZExp.LetLineZE(p, new_zdef);
-        let new_def = ZExp.erase(new_zdef);
+      switch (LLPat.of_uhpat(ZPat.erase(new_zp))) {
+      | None =>
+        // NOTE: Need to fix holes since ana_perform may have created
+        // holes if ty_def is inconsistent with pattern type
+        let (new_zp, ty_p, _, u_gen) =
+          Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
+        let p = ZPat.erase(new_zp);
+        let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+        let (new_def, u_gen) =
+          Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
+        let new_zline = ZExp.LetLineZP(NotInAbbrevHole, new_zp, new_def);
         let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
         Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-      };
-    }
+      | Some(lln_new) =>
+        let (err, new_def, ctx, u_gen) =
+          Statics_Exp.fix_livelit_abbreviation(
+            ~renumber_empty_holes=false,
+            ctx,
+            u_gen,
+            lln_new,
+            def,
+          );
+        let new_zline = ZExp.LetLineZP(err, new_zp, new_def);
+        Succeeded(LineDone((([], new_zline, []), ctx, u_gen)));
+      }
+    };
 
-  | (_, AbbrevLineZL(lln_new, err_status, lln_old, (prefix, zarg, suffix))) =>
-    switch (ana_perform_operand(ctx, a, (zarg, u_gen), HTyp.Hole)) {
-    | Failed => Failed
-    | CursorEscaped(side) => escape(u_gen, side)
-    | Succeeded(
-        AnaDone((
-          ([], ExpLineZ(ZOpSeq(_, ZOperand(zarg, (pre, suf)))), []),
-          u_gen,
-        )),
-      ) =>
-      let pre =
-        List.map(
-          UHExp.set_err_status_operand(NotInHole),
-          Seq.operands_of_affix(pre),
-        );
-      let suf =
-        List.map(
-          UHExp.set_err_status_operand(NotInHole),
-          Seq.operands_of_affix(suf),
-        );
-      let new_zabbrev =
-        ZExp.AbbrevLineZL(
-          lln_new,
-          err_status,
-          lln_old,
-          (prefix @ pre, zarg, suf @ suffix),
-        );
-      Succeeded(LineDone((([], new_zabbrev, []), ctx, u_gen)));
-    | Succeeded(_) => Failed
+  | (_, LetLineZE(_, p, zdef)) =>
+    switch (LLPat.of_uhpat(p)) {
+    | None =>
+      switch (Statics_Pat.syn(ctx, p)) {
+      | None => Failed
+      | Some((ty_p, _)) =>
+        let def = ZExp.erase(zdef);
+        let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+        switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
+        | Failed => Failed
+        | CursorEscaped(side) => escape(u_gen, side)
+        | Succeeded((new_zdef, u_gen)) =>
+          let new_zline = ZExp.LetLineZE(NotInAbbrevHole, p, new_zdef);
+          let new_def = ZExp.erase(new_zdef);
+          let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+          Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
+        };
+      }
+    | Some(lln_new) =>
+      // hack: reusing syn_perform instead of writing
+      // a proper perform fn for livelit exps. need to
+      // syn_fix beforehand to ensure it typechecks as
+      // a regular expression (as opposed to as llexp)
+      let (zdef, ty, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, zdef);
+      switch (syn_perform(ctx, a, (zdef, ty, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((new_zdef, _, u_gen)) =>
+        let (err, new_zdef, ctx, u_gen) =
+          Statics_Exp.fix_livelit_abbreviation_z(
+            ~renumber_empty_holes=false,
+            ctx,
+            u_gen,
+            lln_new,
+            new_zdef,
+          );
+        let new_zline = ZExp.LetLineZE(err, p, new_zdef);
+        Succeeded(LineDone((([], new_zline, []), ctx, u_gen)));
+      };
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
@@ -2129,15 +2101,6 @@ and syn_perform_operand =
     )
   | (Construct(SLivelitDef), CursorE(_, _)) =>
     Succeeded(mk_SynExpandsToLivelitDef(~u_gen, ()))
-
-  | (Construct(SAbbrev), CursorE(_, operand)) =>
-    Succeeded(
-      mk_SynExpandsToAbbrev(
-        ~u_gen,
-        ~arg=UHExp.Block.wrap'(OpSeq.wrap(operand)),
-        (),
-      ),
-    )
 
   | (Construct(SAnn), CursorE(_)) => Failed
 
@@ -2985,22 +2948,9 @@ and ana_perform =
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
   | Succeeded(AnaExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
+    let zlet =
+      ZExp.LetLineZP(NotInAbbrevHole, ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  | Succeeded(AnaExpands({kw: Abbrev, prefix, subject, suffix, u_gen})) =>
-    let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-    let zabbrev =
-      ZExp.CursorL(
-        OnDelim(0, After),
-        UHExp.AbbrevLine(
-          "$",
-          InAbbrevHole(Free, u),
-          "$",
-          [UHExp.Parenthesized(subject)],
-        ),
-      );
-    let new_zblock = (prefix, zabbrev, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
   }
 and ana_perform_block =
@@ -3072,11 +3022,7 @@ and ana_perform_block =
       suffix,
     ) {
     | (None, _, _) => Failed
-    | (
-        Some((_, AbbrevLine(_) | LetLine(_))),
-        ExpLine(OpSeq(_, S(EmptyHole(_), E))),
-        [],
-      ) =>
+    | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
     /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
     | (Some((rest, EmptyLine)), _, []) =>
@@ -3098,12 +3044,7 @@ and ana_perform_block =
     switch (suffix, zline) {
     | ([], _) => Failed
     /* avoid swap down for the Let line if it is second to last */
-    | (
-        [_],
-        LetLineZP(_) | AbbrevLineZL(_) |
-        CursorL(_, AbbrevLine(_) | LetLine(_)),
-      ) =>
-      Failed
+    | ([_], LetLineZP(_) | CursorL(_, LetLine(_))) => Failed
     /* handle corner case when the second to last line is an EmptyLine */
     | ([last], CursorL(_, EmptyLine)) =>
       let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -3139,8 +3080,7 @@ and ana_perform_block =
         | LivelitDefLineZUpdate(_)
         | LivelitDefLineZView(_)
         | LivelitDefLineZShape(_)
-        | LivelitDefLineZExpand(_)
-        | AbbrevLineZL(_) => Failed
+        | LivelitDefLineZExpand(_) => Failed
         | ExpLineZ(zopseq) =>
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
@@ -3881,10 +3821,6 @@ and ana_perform_operand =
     )
   | (Construct(SLivelitDef), CursorE(_, _)) =>
     Succeeded(mk_AnaExpandsToLivelitDef(~u_gen, ()))
-  | (Construct(SAbbrev), CursorE(_, operand)) =>
-    Succeeded(
-      mk_AnaExpandsToAbbrev(~u_gen, ~arg=UHExp.Block.wrap(operand), ()),
-    )
 
   // TODO consider relaxing guards and
   // merging with regular op construction

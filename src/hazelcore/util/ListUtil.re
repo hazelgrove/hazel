@@ -37,6 +37,24 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
     opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
   };
 
+/**
+ * Zip together two lists, returning the best effort zip
+ * and a pair of lists representing any remaining unzipped
+ * elements in either list (at least one of which is
+ * guaranteed to be empty).
+ */
+let rec zip_tails =
+        (xs: list('x), ys: list('y))
+        : (list(('x, 'y)), (list('x), list('y))) =>
+  switch (xs, ys) {
+  | ([], []) => ([], ([], []))
+  | ([], [_, ..._]) => ([], ([], ys))
+  | ([_, ..._], []) => ([], (xs, []))
+  | ([x, ...xs], [y, ...ys]) =>
+    let (xys, (xtl, ytl)) = zip_tails(xs, ys);
+    ([(x, y), ...xys], (xtl, ytl));
+  };
+
 let for_all2_opt =
     (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
   switch (List.for_all2(f, xs, ys)) {

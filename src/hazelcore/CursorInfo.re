@@ -35,7 +35,11 @@ type typed =
   | AnaLivelitDecodingError(HTyp.t)
   | SynLivelitDecodingError
   | LivelitIllTypedExpansion(HTyp.t, HTyp.t)
-  | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
+  | AnaInsufficientLivelitArgs({
+      expected: HTyp.t,
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -71,7 +75,10 @@ type typed =
   // none of the above, cursor is on a free variable
   | SynFree
   | SynFreeLivelit
-  | SynErrorInsufficientLivelitArgs(HTyp.t)
+  | SynErrorInsufficientLivelitArgs({
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // cursor is on the clause of a case
@@ -87,6 +94,11 @@ type typed =
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
+  | LivelitExpHeadFree
+  | LivelitExpHead({
+      unapplied_params: list((string, HTyp.t)),
+      expansion_ty: HTyp.t,
+    })
   // none of the above
   | Synthesized(HTyp.t, string)
   /* cursor in analytic pattern position */
@@ -114,10 +126,11 @@ type typed =
   // cursor is on a keyword
   | PatSynthesized(HTyp.t, string)
   | PatSynKeyword(ExpandingKeyword.t)
+  | PatAbbrev
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
-  | OnLine
+  | OnLine(option(AbbrevErrStatus.t))
   | OnRule;
 
 [@deriving sexp]

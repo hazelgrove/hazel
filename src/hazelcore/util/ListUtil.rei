@@ -27,6 +27,9 @@ let zip: (list('a), list('b)) => list(('a, 'b));
 
 let unzip: list(('a, 'b)) => (list('a), list('b));
 
+let zip_tails:
+  (list('x), list('y)) => (list(('x, 'y)), (list('x), list('y)));
+
 /* repeat an element n times */
 let replicate: (int, 'a) => list('a);
 

@@ -95,9 +95,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | LivelitName(lln) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
-    let var =
-      UHPat.var(~var_err=InVarHole(Free, u), LivelitName.strip_prefix(lln));
+    let var = UHPat.var(lln);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | Var(x) =>
@@ -149,9 +147,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | LivelitName(lln) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
-    let var =
-      UHPat.var(~var_err=InVarHole(Free, u), LivelitName.strip_prefix(lln));
+    let var = UHPat.var(lln);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
@@ -642,8 +638,7 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAbbrev | SLivelitDef | SList | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SLivelitDef | SList | SLet | SLine | SLam | SCase | SCommentLine,
       ) |
       PerformLivelitAction(_) |
       SwapUp |
@@ -1221,8 +1216,7 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAbbrev | SLivelitDef | SList | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SLivelitDef | SList | SLet | SLine | SLam | SCase | SCommentLine,
       ) |
       PerformLivelitAction(_) |
       SwapUp |

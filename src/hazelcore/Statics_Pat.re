@@ -75,6 +75,7 @@ and syn_operand =
       x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
     )
+  // | LivelitName(_)
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
@@ -740,7 +741,7 @@ let syn_fix_holes_z =
     CursorPath_Pat.follow(path, p)
     |> OptUtil.get(() =>
          failwith(
-           "syn_fix_holes did not preserve path "
+           "Statics_Pat.syn_fix_holes did not preserve path "
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );

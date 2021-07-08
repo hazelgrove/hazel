@@ -8,10 +8,8 @@ and of_zblock = (zblock: ZExp.zblock): CursorPath.t => {
 and of_zline = (zline: ZExp.zline): CursorPath.t =>
   switch (zline) {
   | CursorL(cursor, _) => ([], cursor)
-  | LetLineZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
-  | LetLineZE(_, zdef) => cons'(1, of_z(zdef))
-  | AbbrevLineZL(_, _, _, (p, zarg, _)) =>
-    cons'(List.length(p), of_zoperand(zarg))
+  | LetLineZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | LetLineZE(_, _, zdef) => cons'(1, of_z(zdef))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   | LivelitDefLineZExpansionType({expansion_type: ty, _}) =>
     cons'(1, CursorPath_Typ.of_z(ty))
@@ -83,23 +81,19 @@ and follow_line =
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
     follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | (
-      [],
-      EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_) |
-      AbbrevLine(_),
-    ) =>
+  | ([], EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_)) =>
     line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
-  | ([x, ...xs], LetLine(p, def)) =>
+  | ([x, ...xs], LetLine(err, p, def)) =>
     switch (x) {
     | 0 =>
       p
       |> CursorPath_Pat.follow((xs, cursor))
-      |> Option.map(zp => ZExp.LetLineZP(zp, def))
+      |> Option.map(zp => ZExp.LetLineZP(err, zp, def))
     | 1 =>
       def
       |> follow((xs, cursor))
-      |> Option.map(zdef => ZExp.LetLineZE(p, zdef))
+      |> Option.map(zdef => ZExp.LetLineZE(err, p, zdef))
     | _ => None
     }
   | (
@@ -272,18 +266,6 @@ and follow_line =
            })
          )
     | _ => None
-    }
-
-  | ([x, ...xs], AbbrevLine(lln_new, err_status, lln_old, args)) =>
-    if (x >= List.length(args)) {
-      None;
-    } else {
-      let (p, carg, s) = ListUtil.split_nth(x, args);
-      carg
-      |> follow_operand((xs, cursor))
-      |> Option.map(zarg =>
-           ZExp.AbbrevLineZL(lln_new, err_status, lln_old, (p, zarg, s))
-         );
     }
   }
 and follow_opseq =
@@ -462,11 +444,7 @@ and of_steps_line =
     : option(CursorPath.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | (
-      [],
-      EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_) |
-      AbbrevLine(_),
-    ) =>
+  | ([], EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_)) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
@@ -474,7 +452,7 @@ and of_steps_line =
       };
     Some(of_zline(place_cursor(line)));
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
-  | ([x, ...xs], LetLine(p, def)) =>
+  | ([x, ...xs], LetLine(_, p, def)) =>
     switch (x) {
     | 0 =>
       p
@@ -517,11 +495,6 @@ and of_steps_line =
     | 9 => of_steps_exp(expand, 9)
     | _ => None
     };
-  | ([x, ...xs], AbbrevLine(_, _, _, args)) =>
-    List.nth_opt(args, x)
-    |> OptUtil.and_then(arg =>
-         arg |> of_steps_operand(xs, ~side) |> Option.map(cons'(x))
-       )
   }
 and of_steps_opseq =
     (steps: CursorPath.steps, ~side: Side.t, opseq: UHExp.opseq)
@@ -684,10 +657,11 @@ and holes_line =
   switch (line) {
   | EmptyLine
   | CommentLine(_) => hs
-  | LetLine(p, def) =>
+  | LetLine(err, p, def) =>
     hs
     |> holes(def, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+    |> CursorPath_common.holes_abbrev_err(err, rev_steps)
   | LivelitDefLine({
       //name,
       expansion_type,
@@ -711,12 +685,6 @@ and holes_line =
     |> CursorPath_Typ.holes(model_type, [3, ...rev_steps])
     |> holes(captures, [2, ...rev_steps])
     |> CursorPath_Typ.holes(expansion_type, [1, ...rev_steps])
-  | AbbrevLine(_, _, _, args) =>
-    ListUtil.fold_right_i(
-      ((i, arg), hs) => hs |> holes_operand(arg, [i, ...rev_steps]),
-      args,
-      hs,
-    )
   | ExpLine(opseq) =>
     hs
     |> CursorPath_common.holes_opseq(
@@ -788,7 +756,7 @@ and holes_operand =
       |> holes_err(err, rev_steps);
     [{sort: ApLivelit(llu), steps: List.rev(rev_steps)}, ...updated];
   | FreeLivelit(u, _) => [
-      {sort: LivelitHole(u), steps: List.rev(rev_steps)},
+      {sort: FreeLivelit(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   }
@@ -884,36 +852,28 @@ and holes_zline =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorL(cursor, LetLine(p, def)) =>
+  | CursorL(cursor, LetLine(err, p, def)) =>
+    let holes_err = CursorPath_common.holes_abbrev_err(err, rev_steps, []);
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_def = holes(def, [1, ...rev_steps], []);
     switch (cursor) {
     | OnDelim(0, _) =>
-      CursorPath_common.mk_zholes(~holes_after=holes_p @ holes_def, ())
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_err,
+        ~holes_after=holes_p @ holes_def,
+        (),
+      )
     | OnDelim(1, _) =>
       CursorPath_common.mk_zholes(
-        ~holes_before=holes_p,
+        ~holes_before=holes_err @ holes_p,
         ~holes_after=holes_def,
         (),
       )
     | OnDelim(2, _) =>
-      CursorPath_common.mk_zholes(~holes_before=holes_p @ holes_def, ())
-    | _ => CursorPath_common.no_holes
-    };
-  | CursorL(cursor, AbbrevLine(_, _, _, args)) =>
-    let holes_args =
-      ListUtil.fold_right_i(
-        ((i, arg), hs) => hs |> holes_operand(arg, [i, ...rev_steps]),
-        args,
-        [],
-      );
-
-    switch (cursor) {
-    | OnText(_)
-    | OnDelim(0 | 1, _) =>
-      CursorPath_common.mk_zholes(~holes_after=holes_args, ())
-    | OnDelim(2, _) =>
-      CursorPath_common.mk_zholes(~holes_before=holes_args, ())
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_err @ holes_p @ holes_def,
+        (),
+      )
     | _ => CursorPath_common.no_holes
     };
   | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
@@ -1219,40 +1179,24 @@ and holes_zline =
       ~holes_after=holes_after @ holes_body_after,
       (),
     );
-  | LetLineZP(zp, body) =>
+  | LetLineZP(err, zp, body) =>
+    let holes_err = CursorPath_common.holes_abbrev_err(err, rev_steps, []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
     let holes_body = holes(body, [1, ...rev_steps], []);
     CursorPath_common.mk_zholes(
-      ~holes_before,
+      ~holes_before=holes_err @ holes_before,
       ~hole_selected,
       ~holes_after=holes_after @ holes_body,
       (),
     );
-  | LetLineZE(p, zbody) =>
+  | LetLineZE(err, p, zbody) =>
+    let holes_err = CursorPath_common.holes_abbrev_err(err, rev_steps, []);
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zbody, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(
-      ~holes_before=holes_p @ holes_before,
-      ~hole_selected,
-      ~holes_after,
-      (),
-    );
-  | AbbrevLineZL(_, _, _, (p, zarg, s)) =>
-    let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_zoperand(zarg, [List.length(p), ...rev_steps]);
-    let holes' = (offset, args) =>
-      ListUtil.fold_right_i(
-        ((i, arg), hs) =>
-          hs |> holes_operand(arg, [i + offset, ...rev_steps]),
-        args,
-        [],
-      );
-    let holes_before = holes'(0, p) @ holes_before;
-    let holes_after = holes_after @ holes'(List.length(p) + 1, s);
-    CursorPath_common.mk_zholes(
-      ~holes_before,
+      ~holes_before=holes_err @ holes_p @ holes_before,
       ~hole_selected,
       ~holes_after,
       (),

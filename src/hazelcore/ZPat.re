@@ -36,6 +36,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | EmptyHole(_) => delim_cursors(1)
     | Wild(_) => delim_cursors(1)
     | InvalidText(_, t) => text_cursors(String.length(t))
+    // | LivelitName(name) => text_cursors(String.length(name))
     | Var(_, _, x) => text_cursors(Var.length(x))
     | IntLit(_, n) => text_cursors(String.length(n))
     | FloatLit(_, f) => text_cursors(String.length(f))
@@ -134,6 +135,7 @@ and is_before_zoperand =
   | CursorP(cursor, StringLit(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
+  // | CursorP(cursor, LivelitName(_))
   | CursorP(cursor, IntLit(_, _))
   | CursorP(cursor, FloatLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
@@ -184,6 +186,7 @@ and place_before_operand = operand =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | InvalidText(_, _)
+  // | LivelitName(_)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
@@ -282,6 +285,7 @@ and move_cursor_left_zoperand =
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
       FloatLit(_, _),
+      // LivelitName(_),
     ) =>
     // invalid cursor position
     None
@@ -348,6 +352,7 @@ and move_cursor_right_zoperand =
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
       FloatLit(_, _),
+      // LivelitName(_),
     ) =>
     // invalid cursor position
     None

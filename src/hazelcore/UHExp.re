@@ -21,13 +21,7 @@ and livelit_record = {
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, t)
-  | AbbrevLine(
-      LivelitName.t,
-      AbbrevErrStatus.t,
-      LivelitName.t,
-      list(operand),
-    )
+  | LetLine(AbbrevErrStatus.t, UHPat.t, t)
   | ExpLine(opseq)
   | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
@@ -68,7 +62,9 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
+let letline =
+    (~err: AbbrevErrStatus.t=NotInAbbrevHole, p: UHPat.t, def: t): line =>
+  LetLine(err, p, def);
 
 let var =
     (
@@ -109,6 +105,11 @@ let case =
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
+let associate =
+  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
+
+let mk_OpSeq = OpSeq.mk(~associate);
+
 module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {
@@ -116,7 +117,6 @@ module Line = {
     | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
-    | AbbrevLine(_)
     | LivelitDefLine(_)
     | LetLine(_) => line
     };
@@ -124,7 +124,6 @@ module Line = {
   let get_opseq =
     fun
     | EmptyLine
-    | AbbrevLine(_)
     | CommentLine(_)
     | LivelitDefLine(_)
     | LetLine(_) => None
@@ -133,6 +132,50 @@ module Line = {
     line
     |> get_opseq
     |> OptUtil.get(_ => failwith("force_get_opseq: expected ExpLine"));
+
+  let mk_livelit_abbreviation =
+      (
+        ~err: AbbrevErrStatus.t=NotInAbbrevHole,
+        new_name: LivelitName.t,
+        old_name: LivelitName.t,
+        args: list(operand),
+      )
+      : line => {
+    let seq =
+      Seq.mk(
+        var(old_name),
+        List.map(arg => (Operators_Exp.Space, arg), args),
+      );
+    letline(
+      ~err,
+      OpSeq.wrap(UHPat.var(new_name)),
+      [ExpLine(mk_OpSeq(seq))],
+    );
+  };
+
+  let is_livelit_abbreviation =
+      (p: UHPat.t, def: t)
+      : option((LivelitName.t, LivelitName.t, list(operand))) => {
+    open OptUtil.Syntax;
+    let rec get_args = (affix: Seq.affix(_, operator)) =>
+      switch (affix) {
+      | E => Some([])
+      | A(Space, S(arg, affix)) =>
+        let+ args = get_args(affix);
+        [arg, ...args];
+      | A(_) => None
+      };
+    switch (p, def) {
+    | (
+        OpSeq(_, S(Var(_, _, new_name), E)),
+        [ExpLine(OpSeq(_, S(Var(_, _, old_name), affix)))],
+      )
+        when LivelitName.is_valid(new_name) =>
+      let+ args = get_args(affix);
+      (new_name, old_name, args);
+    | _ => None
+    };
+  };
 };
 
 module Lines = {
@@ -214,9 +257,8 @@ and find_operand_block = block =>
 and find_operand_line =
   fun
   | EmptyLine
-  | CommentLine(_)
-  | AbbrevLine(_) => None
-  | LetLine(_, def) => def |> find_operand
+  | CommentLine(_) => None
+  | LetLine(_, _, def) => def |> find_operand
   | LivelitDefLine({init, _}) => find_operand(init) // ?
   | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
@@ -369,10 +411,9 @@ let rec is_complete_line = (l: line): bool => {
   switch (l) {
   | EmptyLine
   | CommentLine(_) => true
-  | AbbrevLine(_, NotInAbbrevHole, _, args) =>
-    args |> List.for_all(arg => is_complete_operand(arg))
-  | AbbrevLine(_) => false
-  | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | LetLine(InAbbrevHole(_), _, _) => false
+  | LetLine(NotInAbbrevHole, pat, body) =>
+    UHPat.is_complete(pat) && is_complete(body)
   | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   | LivelitDefLine({init, update, view, expand, _}) =>
     is_complete(init)

@@ -144,6 +144,16 @@ module type S = {
     ) =>
     (UHExp.splice_map, MetaVarGen.t);
 
+  let fix_livelit_abbreviation:
+    (
+      ~renumber_empty_holes: bool,
+      Contexts.t,
+      MetaVarGen.t,
+      LLPat.t,
+      UHExp.t
+    ) =>
+    (AbbrevErrStatus.t, UHExp.t, Contexts.t, MetaVarGen.t);
+
   let syn_fix_holes_z:
     (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
   let syn_fix_holes_zlines:
@@ -152,6 +162,10 @@ module type S = {
   let syn_fix_holes_zrules:
     (Contexts.t, MetaVarGen.t, ZExp.zrules, HTyp.t) =>
     (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t);
+
+  let fix_livelit_abbreviation_z:
+    (~renumber_empty_holes: bool, Contexts.t, MetaVarGen.t, LLPat.t, ZExp.t) =>
+    (AbbrevErrStatus.t, ZExp.t, Contexts.t, MetaVarGen.t);
 
   let ana_fix_holes_z:
     (Contexts.t, MetaVarGen.t, ZExp.t, HTyp.t) => (ZExp.t, MetaVarGen.t);

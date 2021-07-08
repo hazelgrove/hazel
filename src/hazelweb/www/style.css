@@ -473,6 +473,13 @@ details:focus {
   background-color: #8e000014;
 }
 
+.livelit-expression-type .code.HTypCode {
+  display: inline-block;
+}
+.livelit-expression-type .Delim {
+  font-weight: bold;
+}
+
 /* action panel */
 
 .action-panel {
@@ -643,10 +650,10 @@ details:focus {
 }
 
 .the-context-scroll-container {
-  /* can't put this on the-context directly because 
+  /* can't put this on the-context directly because
      firefox treats the horizontal scrollbar as extra
      height, causing a vertical scrollbar to appear
-     unnecessary whenever there is only horizontal 
+     unnecessary whenever there is only horizontal
      scrollbar */
   overflow: auto;
 }

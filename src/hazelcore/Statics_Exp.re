@@ -368,6 +368,15 @@ module rec M: Statics_Exp_Sig.S = {
  */
   let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
     syn_block(ctx, e)
+  and extend_let_body_ctx =
+      (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+    /* precondition: (p)attern and (def)inition have consistent types */
+    def
+    |> syn(extend_let_def_ctx(ctx, p, def))
+    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
+    |> Statics_Pat.ana(ctx, p)
+    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
+  }
   and extend_livelit_ctx = (ctx: Contexts.t, llrecord) => {
     let (gamma, livelit_ctx) = ctx;
     let {
@@ -457,6 +466,47 @@ module rec M: Statics_Exp_Sig.S = {
          Some(ctx),
        );
   }
+  and syn_livelit_abbreviation =
+      (ctx: Contexts.t, err: AbbrevErrStatus.t, llp: LLPat.t, def: UHExp.t)
+      : option(Contexts.t) => {
+    let skip_with_reason = reason =>
+      switch (err) {
+      | InAbbrevHole(reason', _) when reason' == reason => Some(ctx)
+      | _ => None
+      };
+    switch (LLExp.of_uhexp(def)) {
+    | None => skip_with_reason(NotLivelitExp)
+    | Some({hd, args, meta: _}) =>
+      let (gamma, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+      | None => skip_with_reason(Free)
+      | Some((old_def, applied_param_tys)) =>
+        let unapplied_param_tys =
+          ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
+        let (arg_tys, (extra_args, _)) =
+          ListUtil.zip_tails(args, unapplied_param_tys);
+        let* _ =
+          arg_tys
+          |> List.map(((arg, (_, ty))) => ana_operand(ctx, arg, ty))
+          |> OptUtil.sequence;
+        let* _ =
+          extra_args |> List.map(syn_operand(ctx)) |> OptUtil.sequence;
+        switch (extra_args) {
+        | [_, ..._] => skip_with_reason(ExtraneousArgs)
+        | [] =>
+          let livelit_ctx =
+            LivelitCtx.extend(
+              livelit_ctx,
+              (
+                llp,
+                (old_def, applied_param_tys @ snd(List.split(arg_tys))),
+              ),
+            );
+          Some((gamma, livelit_ctx));
+        };
+      };
+    };
+  }
   and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     switch (line) {
     | ExpLine(opseq) =>
@@ -464,10 +514,14 @@ module rec M: Statics_Exp_Sig.S = {
       ctx;
     | EmptyLine
     | CommentLine(_) => Some(ctx)
-    | LetLine(p, def) =>
-      let def_ctx = extend_let_def_ctx(ctx, p, def);
-      let* ty_def = syn(def_ctx, def);
-      Statics_Pat.ana(ctx, p, ty_def);
+    | LetLine(err, p, def) =>
+      switch (LLPat.of_uhpat(p)) {
+      | None =>
+        let def_ctx = extend_let_def_ctx(ctx, p, def);
+        let* ty_def = syn(def_ctx, def);
+        Statics_Pat.ana(ctx, p, ty_def);
+      | Some(llp) => syn_livelit_abbreviation(ctx, err, llp, def)
+      }
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
         livelit_types(llrecord);
@@ -479,56 +533,6 @@ module rec M: Statics_Exp_Sig.S = {
         ana(ctx, expand, expand_ty),
       ])
       |> Option.map(_ => extend_livelit_ctx(ctx, llrecord));
-    | AbbrevLine(lln_new, err_status, lln_old, args) =>
-      let (gamma, livelit_ctx) = ctx;
-      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-      let args_ana = tys =>
-        List.combine(args, tys)
-        |> List.for_all(((arg, ty)) =>
-             Option.is_some(ana(ctx, UHExp.Block.wrap(arg), ty))
-           );
-      switch (old_data_opt, err_status) {
-      | (None, InAbbrevHole(Free, _)) =>
-        args_ana(args |> List.map(_ => HTyp.Hole)) ? Some(ctx) : None
-      | (
-          Some((old_defn, old_closed_param_tys)),
-          (NotInAbbrevHole | InAbbrevHole(ExtraneousArgs, _)) as err_status,
-        ) =>
-        let all_param_tys = old_defn.param_tys;
-        let reqd_param_tys =
-          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-        let num_args = List.length(args);
-        let num_args_diff = num_args - List.length(reqd_param_tys);
-        let padded_reqd_param_tys =
-          num_args_diff > 0
-            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-            : reqd_param_tys |> ListUtil.take(num_args);
-        let adjusted_reqd_param_tys =
-          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-        if (!args_ana(padded_reqd_param_tys |> List.map(((_, ty)) => ty))) {
-          None;
-        } else {
-          let wrong_num_extra_args =
-            switch (err_status) {
-            | InAbbrevHole(ExtraneousArgs, _) => num_args_diff < 1
-            | _ => num_args_diff > 0
-            };
-          if (wrong_num_extra_args) {
-            None;
-          } else {
-            let livelit_ctx =
-              LivelitCtx.extend(
-                livelit_ctx,
-                (
-                  lln_new,
-                  (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
-                ),
-              );
-            Some((gamma, livelit_ctx));
-          };
-        };
-      | _ => None
-      };
     }
   and syn_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -1211,14 +1215,48 @@ module rec M: Statics_Exp_Sig.S = {
       (ExpLine(e), ctx, u_gen);
     | EmptyLine
     | CommentLine(_) => (line, ctx, u_gen)
-    | LetLine(p, def) =>
+    | LetLine(_, p, def) =>
       let (p, ty_p, _, u_gen) =
         Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-      let def_ctx = extend_let_def_ctx(ctx, p, def);
-      let (def, u_gen) =
-        ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
-      let body_ctx = extend_let_body_ctx(ctx, p, def);
-      (LetLine(p, def), body_ctx, u_gen);
+      switch (LLPat.of_uhpat(p)) {
+      | None =>
+        let def_ctx = extend_let_def_ctx(ctx, p, def);
+        let (def, u_gen) =
+          ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+        let body_ctx = extend_let_body_ctx(ctx, p, def);
+        (UHExp.letline(p, def), body_ctx, u_gen);
+      | Some(llp) =>
+        let (err, def, ctx, u_gen) =
+          fix_livelit_abbreviation(
+            ~renumber_empty_holes,
+            ctx,
+            u_gen,
+            llp,
+            def,
+          );
+        (UHExp.letline(~err, p, def), ctx, u_gen);
+      // switch (LLExp.of_uhexp(def)) {
+      // | None =>
+      //   let (err, u_gen) = {
+      //     let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+      //     (AbbrevErrStatus.InAbbrevHole(NotLivelitExp, u), u_gen);
+      //   };
+      //   let (def, _, u_gen) =
+      //     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, def);
+      //   (UHExp.letline(~err, p, def), ctx, u_gen);
+      // | Some((lln_old, args)) =>
+      //   let (err, args, ctx, u_gen) =
+      //     fix_livelit_abbreviation(
+      //       ~renumber_empty_holes,
+      //       ctx,
+      //       u_gen,
+      //       lln_new,
+      //       lln_old,
+      //       args,
+      //     );
+      //   (LivelitAbbrev.mk(~err, lln_new, (lln_old, args)), ctx, u_gen);
+      // }
+      };
     | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
       // TODO: captures
       let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
@@ -1238,71 +1276,101 @@ module rec M: Statics_Exp_Sig.S = {
         extend_livelit_ctx(ctx, llrecord),
         u_gen,
       );
-    | AbbrevLine(lln_new, _, lln_old, args) =>
-      let (gamma, livelit_ctx) = ctx;
-      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
-      let ana_fix_args = (u_gen, tys) =>
-        List.combine(args, tys)
-        |> ListUtil.map_with_accumulator(
-             (u_gen, (arg, ty)) => {
-               let (arg, u_gen) =
-                 ana_fix_holes_operand(
-                   ctx,
-                   u_gen,
-                   ~renumber_empty_holes,
-                   arg,
-                   ty,
-                 );
-               (u_gen, arg);
-             },
-             u_gen,
-           );
-      switch (old_data_opt) {
-      | None =>
-        let (u_gen, args) =
-          ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
-        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (
-          AbbrevLine(lln_new, InAbbrevHole(Free, u), lln_old, args),
-          ctx,
-          u_gen,
-        );
-      | Some((old_defn, old_closed_param_tys)) =>
-        let all_param_tys = old_defn.param_tys;
-        let reqd_param_tys =
-          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
-        let num_args = List.length(args);
-        let num_args_diff = num_args - List.length(reqd_param_tys);
-        let padded_reqd_param_tys =
-          num_args_diff > 0
-            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
-            : reqd_param_tys |> ListUtil.take(num_args);
-        let adjusted_reqd_param_tys =
-          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
-        let (u_gen, err_status: AbbrevErrStatus.t) =
-          if (num_args_diff > 0) {
-            let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-            (u_gen, InAbbrevHole(ExtraneousArgs, u));
-          } else {
-            (u_gen, NotInAbbrevHole);
-          };
-        let (u_gen, args) =
-          padded_reqd_param_tys
-          |> List.map(((_, ty)) => ty)
-          |> ana_fix_args(u_gen);
-        let livelit_ctx =
-          LivelitCtx.extend(
-            livelit_ctx,
-            (
-              lln_new,
-              (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
-            ),
-          );
-        let ctx = (gamma, livelit_ctx);
-        let fixed_line = UHExp.AbbrevLine(lln_new, err_status, lln_old, args);
-        (fixed_line, ctx, u_gen);
-      };
     }
+  and fix_livelit_abbreviation =
+      (
+        ~renumber_empty_holes,
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        llp: LLPat.t,
+        e: UHExp.t,
+      )
+      : (AbbrevErrStatus.t, UHExp.t, Contexts.t, MetaVarGen.t) => {
+    switch (LLExp.of_uhexp(e)) {
+    | None =>
+      let (err, u_gen) = {
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (AbbrevErrStatus.InAbbrevHole(NotLivelitExp, u), u_gen);
+      };
+      let (e, _, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
+      (err, e, ctx, u_gen);
+    | Some({hd, args, meta}) =>
+      let (gamma, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, hd)) {
+      | None =>
+        let (e, _, u_gen) =
+          syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
+        // let (u_gen, args) =
+        //   ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (InAbbrevHole(Free, u), e, ctx, u_gen);
+      | Some((old_def, applied_param_tys)) =>
+        let unapplied_param_tys =
+          ListUtil.drop(List.length(applied_param_tys), old_def.param_tys);
+        let (arg_tys, (extra_args, _)) =
+          ListUtil.zip_tails(args, unapplied_param_tys);
+        let (u_gen, fixed_args) =
+          arg_tys
+          |> ListUtil.map_with_accumulator(
+               (u_gen, (arg, (_, ty))) => {
+                 let (arg, u_gen) =
+                   ana_fix_holes_operand(
+                     ctx,
+                     u_gen,
+                     ~renumber_empty_holes,
+                     arg,
+                     ty,
+                   );
+                 (u_gen, arg);
+               },
+               u_gen,
+             );
+        let (u_gen, fixed_extra_args) =
+          extra_args
+          |> ListUtil.map_with_accumulator(
+               (u_gen, arg) => {
+                 let (arg, _, u_gen) =
+                   syn_fix_holes_operand(
+                     ctx,
+                     u_gen,
+                     ~renumber_empty_holes,
+                     arg,
+                   );
+                 (u_gen, arg);
+               },
+               u_gen,
+             );
+
+        let (meta: LLExp.meta, u_gen) =
+          switch (meta) {
+          | Free(u) => (Free(u), u_gen)
+          | Ap(r) =>
+            let (u, u_gen) =
+              renumber_empty_holes
+                ? MetaVarGen.next_livelit(u_gen) : (r.u, u_gen);
+            (Ap({...r, u, err: NotInHole}), u_gen);
+          };
+        let e =
+          LLExp.to_uhexp({meta, hd, args: fixed_args @ fixed_extra_args});
+        switch (extra_args) {
+        | [_, ..._] =>
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          (InAbbrevHole(ExtraneousArgs, u), e, ctx, u_gen);
+        | [] =>
+          let livelit_ctx =
+            LivelitCtx.extend(
+              livelit_ctx,
+              (
+                llp,
+                (old_def, applied_param_tys @ snd(List.split(arg_tys))),
+              ),
+            );
+          (NotInAbbrevHole, e, (gamma, livelit_ctx), u_gen);
+        };
+      };
+    };
+  }
   and syn_fix_holes_opseq =
       (
         ctx: Contexts.t,
@@ -2306,16 +2374,7 @@ module rec M: Statics_Exp_Sig.S = {
           u_gen,
         );
       };
-    }
-  and extend_let_body_ctx =
-      (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
-    /* precondition: (p)attern and (def)inition have consistent types */
-    def
-    |> syn(extend_let_def_ctx(ctx, p, def))
-    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-    |> Statics_Pat.ana(ctx, p)
-    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
-  };
+    };
 
   let syn_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
@@ -2326,7 +2385,7 @@ module rec M: Statics_Exp_Sig.S = {
       CursorPath_Exp.follow(path, e)
       |> OptUtil.get(() =>
            failwith(
-             "syn_fix_holes did not preserve path "
+             "Statics_Exp.syn_fix_holes did not preserve path "
              ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
            )
          );
@@ -2371,6 +2430,30 @@ module rec M: Statics_Exp_Sig.S = {
            )
          );
     (zrules, rule_types, common_type, u_gen);
+  };
+
+  let fix_livelit_abbreviation_z =
+      (
+        ~renumber_empty_holes,
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        llp: LLPat.t,
+        ze: ZExp.t,
+      )
+      : (AbbrevErrStatus.t, ZExp.t, Contexts.t, MetaVarGen.t) => {
+    let path = CursorPath_Exp.of_z(ze);
+    let (err, e, ctx, u_gen) =
+      fix_livelit_abbreviation(
+        ~renumber_empty_holes,
+        ctx,
+        u_gen,
+        llp,
+        ZExp.erase(ze),
+      );
+    let ze =
+      CursorPath_Exp.follow(path, e)
+      |> OptUtil.get_or_fail("fix_livelit_abbreviation did not preserve path");
+    (err, ze, ctx, u_gen);
   };
 
   let ana_fix_holes_z =
@@ -2439,13 +2522,13 @@ module rec M: Statics_Exp_Sig.S = {
       : (Statics.livelit_def_ctx, Statics.livelit_view_ctx) => {
     switch (line) {
     | EmptyLine
-    | CommentLine(_)
-    | AbbrevLine(_) => (def_ctx, MetaVarMap.empty)
+    | CommentLine(_) => (def_ctx, MetaVarMap.empty)
     | ExpLine(opseq) => (def_ctx, build_ll_view_ctx_opseq(opseq, def_ctx))
-    | LetLine(_, block) => (
-        def_ctx,
-        build_ll_view_ctx_block(block, def_ctx),
-      )
+    | LetLine(_, p, def) =>
+      switch (UHExp.Line.is_livelit_abbreviation(p, def)) {
+      | Some(_) => (def_ctx, MetaVarMap.empty)
+      | None => (def_ctx, build_ll_view_ctx_block(def, def_ctx))
+      }
     | LivelitDefLine({name: (_, name_str), view, shape, _}) =>
       let new_def_ctx = VarMap.extend(def_ctx, (name_str, (view, shape)));
       (new_def_ctx, MetaVarMap.empty);

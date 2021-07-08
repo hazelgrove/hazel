@@ -109,9 +109,7 @@ and perform_opseq =
   /* Invalid actions at the type level */
   | (
       PerformLivelitAction(_) |
-      Construct(
-        SAnn | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
-      ) |
+      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
       SwapUp |
       SwapDown,
       _,
@@ -227,8 +225,7 @@ and perform_operand =
   | (
       PerformLivelitAction(_) |
       Construct(
-        SAnn | SLet | SAbbrev | SLivelitDef | SLine | SLam | SListNil | SInj(_) |
-        SCase |
+        SAnn | SLet | SLivelitDef | SLine | SLam | SListNil | SInj(_) | SCase |
         SCommentLine |
         SQuote,
       ) |

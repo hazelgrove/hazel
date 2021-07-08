@@ -9,8 +9,9 @@ type err_state_b =
 
 let view =
     (~inject: ModelAction.t => Event.t, ci: option(CursorInfo.t)): Node.t => {
-  let typebar = ty =>
-    Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
+  let typebar_container = typebar =>
+    Node.div([Attr.classes(["infobar", "typebar"])], [typebar]);
+  let typebar = ty => typebar_container(HTypCode.view(ty));
   let matched_ty_bar = (ty1, ty2) =>
     Node.div(
       [Attr.classes(["infobar", "matched-type-bar"])],
@@ -95,6 +96,18 @@ let view =
       ),
     );
 
+  let editing_livelit_expression_indicator =
+    expected_indicator(
+      "Expecting a livelit expression of",
+      special_msg_bar("any type"),
+    );
+
+  let expected_abbrev_indicator =
+    expected_indicator(
+      "Expecting",
+      special_msg_bar("a livelit abbreviation"),
+    );
+
   let got_indicator = (title_text, type_div) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
@@ -148,11 +161,64 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let got_insufficient_livelit_args_indicator = got_ty =>
+  let got_livelit_exp = (s, unapplied_params, expansion_ty) => {
+    let param_tys =
+      unapplied_params
+      |> List.map(((_, ty)) =>
+           Node.[
+             HTypCode.view(ty),
+             text(Unicode.nbsp),
+             span(
+               [Attr.classes(["Delim"])],
+               [text(Unicode.typeArrowSym)],
+             ),
+             text(Unicode.nbsp),
+           ]
+         )
+      |> List.flatten;
+    let expansion_ty = HTypCode.view(expansion_ty);
     got_indicator(
-      "This livelit requires additional arguments",
-      typebar(got_ty),
+      s,
+      typebar_container(
+        Node.div(
+          [Attr.classes(["code", "HTypCode", "livelit-expression-type"])],
+          param_tys
+          @ Node.[
+              span([Attr.classes(["Delim"])], [text("@")]),
+              expansion_ty,
+            ],
+        ),
+      ),
     );
+  };
+
+  let got_valid_abbrev_indicator =
+    got_indicator("Got", special_msg_bar("a livelit abbreviation"));
+
+  let got_invalid_abbrev_indicator = (reason: AbbrevErrStatus.HoleReason.t) =>
+    switch (reason) {
+    | Free =>
+      got_indicator("Got", special_msg_bar("a free base livelit name"))
+    | ExtraneousArgs =>
+      got_indicator(
+        "Got",
+        special_msg_bar("a base livelit applied to too many parameters"),
+      )
+    | NotLivelitExp =>
+      got_indicator(
+        "Got",
+        special_msg_bar("a RHS that is not a livelit expression"),
+      )
+    };
+
+  let got_insufficient_livelit_args_indicator =
+    got_livelit_exp("Got a livelit with insufficient arguments");
+
+  let got_free_livelit_exp =
+    got_indicator("Got a free livelit", typebar(Hole));
+
+  let got_pat_abbrev_indicator =
+    got_indicator("Got", special_msg_bar("a livelit abbreviation"));
 
   let got_invalid_livelit_expansion_indicator =
     got_indicator("Got invalid livelit expansion", typebar(HTyp.Hole));
@@ -224,9 +290,13 @@ let view =
         got_ill_typed_livelit_expansion_declared_indicator(declared_ty);
       let ind2 = got_ill_typed_livelit_expansion_actual_indicator(actual_ty);
       (ind1, ind2, TypeInconsistency);
-    | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+    | AnaInsufficientLivelitArgs({expected, unapplied_params, expansion_ty}) =>
+      let ind1 = expected_ty_indicator(expected);
+      let ind2 =
+        got_insufficient_livelit_args_indicator(
+          unapplied_params,
+          expansion_ty,
+        );
       (ind1, ind2, InsufficientLivelitArgs);
     | AnaSubsumed(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -244,6 +314,14 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | LivelitExpHeadFree =>
+      let ind1 = editing_livelit_expression_indicator;
+      let ind2 = got_free_livelit_exp;
+      (ind1, ind2, BindingError);
+    | LivelitExpHead({unapplied_params, expansion_ty}) =>
+      let ind1 = editing_livelit_expression_indicator;
+      let ind2 = got_livelit_exp("Got type", unapplied_params, expansion_ty);
+      (ind1, ind2, OK);
     | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
       if (msg == "") {
@@ -278,10 +356,13 @@ let view =
         let ind2 = got_invalid_escape(msg);
         (ind1, ind2, InvalidEscape);
       };
-    | SynErrorInsufficientLivelitArgs(got_ty) =>
-      let ind1 =
-        expected_msg_indicator("livelit name followed by sufficient args");
-      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+    | SynErrorInsufficientLivelitArgs({unapplied_params, expansion_ty}) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_insufficient_livelit_args_indicator(
+          unapplied_params,
+          expansion_ty,
+        );
       (ind1, ind2, InsufficientLivelitArgs);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
@@ -425,11 +506,23 @@ let view =
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | OnLine =>
+    | PatAbbrev =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_pat_abbrev_indicator;
+      (ind1, ind2, OK);
+    | OnLine(None) =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
       (ind1, ind2, OK);
+    | OnLine(Some(NotInAbbrevHole)) =>
+      let ind1 = expected_abbrev_indicator;
+      let ind2 = got_valid_abbrev_indicator;
+      (ind1, ind2, OK);
+    | OnLine(Some(InAbbrevHole(reason, _))) =>
+      let ind1 = expected_abbrev_indicator;
+      let ind2 = got_invalid_abbrev_indicator(reason);
+      (ind1, ind2, BindingError);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;

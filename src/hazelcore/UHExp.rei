@@ -20,13 +20,7 @@ and livelit_record = {
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, t)
-  | AbbrevLine(
-      LivelitName.t,
-      AbbrevErrStatus.t,
-      LivelitName.t,
-      list(operand),
-    )
+  | LetLine(AbbrevErrStatus.t, UHPat.t, t)
   | ExpLine(opseq)
   | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
@@ -67,7 +61,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline: (UHPat.t, t) => line;
+let letline: (~err: AbbrevErrStatus.t=?, UHPat.t, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
@@ -91,6 +85,17 @@ module Line: {
   let prune_empty_hole: line => line;
 
   let force_get_opseq: line => opseq;
+
+  let mk_livelit_abbreviation:
+    (
+      ~err: AbbrevErrStatus.t=?,
+      LivelitName.t,
+      LivelitName.t,
+      list(operand)
+    ) =>
+    line;
+  let is_livelit_abbreviation:
+    (UHPat.t, t) => option((LivelitName.t, LivelitName.t, list(operand)));
 };
 
 module Lines: {let prune_empty_holes: list(line) => list(line);};
