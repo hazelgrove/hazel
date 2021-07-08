@@ -298,6 +298,20 @@ let mk_and_syn_fix_zseq =
     ),
   );
 
+let mk_and_ana_fix_zseq =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, ty: HTyp.t, zseq)
+    : ActionOutcome.t(ana_success) =>
+  Succeeded(
+    AnaDone(
+      Statics_Exp.ana_fix_holes_z(
+        ctx,
+        u_gen,
+        zseq |> ZExp.mk_ZOpSeq |> ZExp.ZBlock.wrap',
+        ty,
+      ),
+    ),
+  );
+
 let mk_operand_of_string = (ctx, u_gen, text) =>
   text
   |> UHExp.operand_of_string
@@ -306,123 +320,22 @@ let mk_operand_of_string = (ctx, u_gen, text) =>
        u_gen,
        ~renumber_empty_holes=true,
      )
-  |> (((e, _, _)) => e);
+  |> (((e, _, u_gen)) => (e, u_gen));
+
+let place_cursor = (caret_index, operand: UHExp.operand): ZExp.zoperand =>
+  switch (operand) {
+  | EmptyHole(_) => ZExp.place_before_operand(operand)
+  | _ => CursorE(CursorPosition.OnText(caret_index), operand)
+  };
 
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
-  let place_cursor = (operand: UHExp.operand): ZExp.zoperand =>
-    switch (operand) {
-    | EmptyHole(_) => ZExp.place_before_operand(operand)
-    | _ => CursorE(CursorPosition.OnText(caret_index), operand)
-    };
-  text
-  |> mk_operand_of_string(ctx, u_gen)
-  |> place_cursor
+  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
+  operand
+  |> place_cursor(caret_index)
   |> ZSeq.wrap
   |> mk_and_syn_fix_zseq(ctx, u_gen);
-};
-
-type merge_class =
-  | Empty
-  | Merge(string)
-  | Inert;
-
-type delete_action =
-  | Backspace
-  | Delete;
-
-let delete_action = (a: Action.t): delete_action =>
-  switch (a) {
-  | Backspace => Backspace
-  | _ => Delete
-  };
-
-let merge_class = (o: UHExp.operand): merge_class =>
-  switch (o) {
-  | EmptyHole(_) => Empty
-  | InvalidText(_)
-  | Var(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_) => Merge(UHExp.string_of_operand(o))
-  | _ => Inert
-  };
-
-let spacebuster =
-    (opA, opB, prefix, suffix, a: Action.t, ctx: Contexts.t, u_gen): ZExp.zseq => {
-  /* This handles the logic for BACKSPACE and DELETE actions when
-      the caret is _conceptually_ adjacent to a space operator.
-
-      Precondition: in the surrounding context, the caret is
-     'on the space' i.e. either after operandA or before operandB
-
-      The cases below are intended to be total in this space. However,
-      some cases should be handled either above or below the opseq level.
-      If these cases get captured by this function, they may result in
-      bad caret placement. They are denoted below as follows:
-
-          *  : case should be handled at block level
-          ** : case should be handled at operand level
-
-      In addition, the following notation will be used:
-
-          H    : empty hole
-          A, B : non-empty-hole operands
-          |    : caret
-     */
-  let before_ = ZExp.place_before_operand;
-  let after_ = ZExp.place_after_operand;
-  let at_index = (op, n): ZExp.zoperand => CursorE(OnText(n), op);
-  let a = delete_action(a);
-  let mono = (zop: ZExp.zoperand) => ZSeq.ZOperand(zop, (prefix, suffix));
-  let bin_first = (zopA, opB): ZExp.zseq =>
-    ZOperand(zopA, (prefix, A(Space, S(opB, suffix))));
-  let bin_second = (opA, zopB): ZExp.zseq =>
-    ZOperand(zopB, (A(Space, S(opA, prefix)), suffix));
-
-  switch (merge_class(opA), a, merge_class(opB)) {
-  | (Empty, Backspace, Empty) =>
-    //  H| H   B=>   |H
-    //  H |H   B=>   |H
-    mono(before_(opB))
-  | (Empty, Delete, Empty) =>
-    //  H| H   D=>    H|
-    //  H |H   D=>    H|
-    mono(after_(opA))
-  | (Empty, _, _) =>
-    // |H  B   B=>   *    D=>   |B
-    //  H| B   B=>   |B   D=>   |B
-    //  H |B   B=>   |B   D=>   **
-    mono(before_(opB))
-  | (_, _, Empty) =>
-    //  A| H   B=>   **   D=>   A|
-    //  A |H   B=>   A|   D=>   A|
-    //  A  H|  B=>   A|   D=>    *
-    mono(after_(opA))
-  | (Merge(sa), _, Merge(sb)) =>
-    //  A| B   B=>  **    D=>   A|B
-    //  A |B   B=>  A|B   D=>   **
-    mono(
-      at_index(
-        mk_operand_of_string(ctx, u_gen, sa ++ sb),
-        String.length(sa),
-      ),
-    )
-  // If we can't delete anything, we try to move in the relevant direction
-  | (Inert, Backspace, Inert)
-  | (Inert, Backspace, Merge(_))
-  | (Merge(_), Backspace, Inert) =>
-    //  A| B   B=>    **
-    //  A |B   B=>    A| B
-    bin_first(after_(opA), opB)
-  | (Inert, Delete, Inert)
-  | (Inert, Delete, Merge(_))
-  | (Merge(_), Delete, Inert) =>
-    //  A| B   D=>    A |B
-    //  A |B   D=>    **
-    bin_second(opA, before_(opB))
-  };
 };
 
 let mk_ana_text =
@@ -433,45 +346,33 @@ let mk_ana_text =
       text: string,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(_) => {
-  let text_cursor = CursorPosition.OnText(caret_index);
-  switch (TextShape.of_text(text)) {
-  | InvalidTextShape(t) =>
-    if (text |> StringUtil.is_empty) {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
-    } else {
-      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
-      Succeeded(AnaDone((ze, u_gen)));
-    }
-  | ExpandingKeyword(k) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    let var =
-      UHExp.var(
-        ~var_err=InVarHole(Keyword(k), u),
-        k |> ExpandingKeyword.to_string,
-      );
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-    Succeeded(AnaDone((ze, u_gen)));
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | Underscore
-  | Var(_) =>
-    // TODO: review whether subsumption correctly applied
-    switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
-    | Succeeded(SynDone((ze, ty', u_gen))) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded(AnaDone((ze, u_gen)));
-      } else {
-        let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
-        Succeeded(AnaDone((ze, u_gen)));
-      }
-    }
-  };
+    : ActionOutcome.t(ana_success) => {
+  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
+  operand
+  |> place_cursor(caret_index)
+  |> ZSeq.wrap
+  |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
+};
+
+let spacebuster = {
+  let merge_class = (o: UHExp.operand): Action_common.merge_class =>
+    switch (o) {
+    | EmptyHole(_) => Empty
+    | InvalidText(_)
+    | Var(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_) => Merge(UHExp.string_of_operand(o))
+    | _ => Inert
+    };
+  Action_common.spacebuster(
+    ~mk_operand_of_string,
+    ~space=Operators_Exp.Space,
+    ~at_index=(op, n): ZExp.zoperand => CursorE(OnText(n), op),
+    ~before_=ZExp.place_before_operand,
+    ~after_=ZExp.place_after_operand,
+    ~merge_class,
+  );
 };
 
 //TBD
@@ -1166,7 +1067,8 @@ and syn_perform_opseq =
       ),
     )
     : ActionOutcome.t(syn_success) => {
-  let mk_success_zseq = mk_and_syn_fix_zseq(ctx, u_gen);
+  let mk_success_zseq = ((zseq, u_gen)) =>
+    mk_and_syn_fix_zseq(ctx, u_gen, zseq);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2507,7 +2409,7 @@ and ana_perform_opseq =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let mk_success_zseq = (zseq): ActionOutcome.t(ana_success) =>
+  let mk_success_zseq = ((zseq, u_gen)): ActionOutcome.t(ana_success) =>
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
   switch (a, zseq) {
   /* Invalid cursor positions */

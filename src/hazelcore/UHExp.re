@@ -356,6 +356,8 @@ let string_of_operand = (o: operand): string =>
   | _ => ""
   };
 
+/* Callers are expected to renumber and fix holes
+   on the result given the appropriate u_gen and ctx */
 let operand_of_string = (text: string): operand => {
   switch (TextShape.of_text(text)) {
   | InvalidTextShape("") => EmptyHole(0)

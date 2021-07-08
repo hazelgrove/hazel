@@ -213,3 +213,31 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Inj(NotInHole, _, body) => is_complete(body)
   };
 };
+
+let string_of_operand = (o: operand): string =>
+  switch (o) {
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | ListNil(_) => "[]"
+  | BoolLit(_, b) => string_of_bool(b)
+  | EmptyHole(_) => ""
+  | _ => ""
+  };
+
+/* Callers are expected to renumber and fix holes
+   on the result given the appropriate u_gen and ctx */
+let operand_of_string = (text: string): operand => {
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape("") => EmptyHole(0)
+  | InvalidTextShape(s) => InvalidText(0, s)
+  | IntLit(s) => IntLit(NotInHole, s)
+  | FloatLit(s) => FloatLit(NotInHole, s)
+  | BoolLit(b) => BoolLit(NotInHole, b)
+  | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
+  | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
+  | Underscore => Var(NotInHole, NotInVarHole, "_")
+  | Var(s) => Var(NotInHole, NotInVarHole, s)
+  };
+};
