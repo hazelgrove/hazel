@@ -355,3 +355,17 @@ let string_of_operand = (o: operand): string =>
   | EmptyHole(_) => ""
   | _ => ""
   };
+
+let operand_of_string = (text: string): operand => {
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape("") => EmptyHole(0)
+  | InvalidTextShape(s) => InvalidText(0, s)
+  | IntLit(s) => IntLit(NotInHole, s)
+  | FloatLit(s) => FloatLit(NotInHole, s)
+  | BoolLit(b) => BoolLit(NotInHole, b)
+  | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
+  | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
+  | Underscore => Var(NotInHole, NotInVarHole, "_")
+  | Var(s) => Var(NotInHole, NotInVarHole, s)
+  };
+};
