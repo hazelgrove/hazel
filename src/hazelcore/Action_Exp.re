@@ -56,71 +56,6 @@ let merge_class = (o: UHExp.operand): merge_class =>
   | _ => NoMerge
   };
 
-let spacebuster =
-    (operand_A, operand_B, prefix, suffix, a: Action.t): ZExp.zseq => {
-  let place_before = ZExp.place_before_operand;
-  let place_after = ZExp.place_after_operand;
-  /* This handles the logic for BACKSPACE and DELETE actions when the cursor
-     is (conceptually) adjacent to a space operator. The table below is
-     intended to completely cover the space of such cases; however some
-     cases should be handled either above or below the opseq level.
-
-     If these case get captured by this function, they may result in non-ideal
-     cursor placement. They are denoted in the table below as follows:
-
-         *  : case should be handled at block level
-         ** : case should be handled at operand level
-
-     In addition, the following notation will be used:
-
-         H    : empty hole
-         A, B : non-empty-hole operands
-         |    : caret
-     */
-  switch (merge_class(operand_A), merge_class(operand_B)) {
-  | (Empty, Empty) =>
-    //                 BKSP     DEL
-    //    H |H     =>  |H       H|
-    //    H| H     =>  |H       H|
-    let place_depending = a == Backspace ? place_before : place_after;
-    ZOperand(place_depending(EmptyHole(0)), (prefix, suffix));
-  | (Empty, _) =>
-    //    H| B     =>  |B       |B
-    //   |H  B     =>  *        |B
-    //    H |B     =>  |B       **
-    ZOperand(place_before(operand_B), (prefix, suffix))
-  | (_, Empty) =>
-    //    A |H     =>  A|       A|
-    //    A  H|    =>  A|       *
-    //    A| H     =>  **       A|
-    ZOperand(place_after(operand_A), (prefix, suffix))
-  | (CanMerge(sa), CanMerge(sb)) =>
-    //    A |B     =>  A|B      **
-    //    A| B     =>  **       A|B
-    let merged = UHExp.operand_of_string(sa ++ sb);
-    ZOperand(
-      CursorE(OnText(String.length(sa)), merged),
-      (prefix, suffix),
-    );
-  | (NoMerge, NoMerge)
-  | (NoMerge, CanMerge(_))
-  | (CanMerge(_), NoMerge) when a == Backspace =>
-    //    A |B     =>  A| B     **
-    ZOperand(
-      place_after(operand_A),
-      (prefix, A(Space, S(operand_B, suffix))),
-    )
-  | (NoMerge, NoMerge)
-  | (NoMerge, CanMerge(_))
-  | (CanMerge(_), NoMerge) =>
-    //    A| B     =>  **       A |B
-    ZOperand(
-      place_before(operand_B),
-      (A(Space, S(operand_A, prefix)), suffix),
-    )
-  };
-};
-
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq
@@ -367,55 +302,101 @@ let zcase_of_scrut_and_suffix =
   };
 };
 
+let mk_text_operand_exp = (text: string): UHExp.operand => {
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape("") => EmptyHole(0)
+  | InvalidTextShape(s) => InvalidText(0, s)
+  | IntLit(s) => IntLit(NotInHole, s)
+  | FloatLit(s) => FloatLit(NotInHole, s)
+  | BoolLit(b) => BoolLit(NotInHole, b)
+  | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
+  | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
+  | Underscore => Var(NotInHole, NotInVarHole, "_")
+  | Var(s) => Var(NotInHole, NotInVarHole, s)
+  };
+};
+
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
-  let text_cursor = CursorPosition.OnText(caret_index);
-  switch (TextShape.of_text(text)) {
-  | InvalidTextShape(t) =>
-    if (text |> StringUtil.is_empty) {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
-    } else {
-      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
-      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-    }
-  | IntLit(n) =>
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
-    Succeeded(SynDone((ze, HTyp.Int, u_gen)));
-  | FloatLit(f) =>
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
-    Succeeded(SynDone((ze, HTyp.Float, u_gen)));
-  | BoolLit(b) =>
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
-    Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
-  | ExpandingKeyword(k) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    let var =
-      UHExp.var(
-        ~var_err=InVarHole(Keyword(k), u),
-        k |> ExpandingKeyword.to_string,
-      );
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-  | Underscore as shape
-  | Var(_) as shape =>
-    let x =
-      switch (shape) {
-      | Var(x) => x
-      | _ => "_"
-      };
-    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
-    | Some(ty) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
-      Succeeded(SynDone((ze, ty, u_gen)));
-    | None =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let var = UHExp.var(~var_err=InVarHole(Free, u), x);
-      let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-      Succeeded(SynDone((new_ze, Hole, u_gen)));
+  let place_cursor = (operand: UHExp.operand): ZExp.zoperand =>
+    switch (operand) {
+    | EmptyHole(_) => ZExp.place_before_operand(operand)
+    | _ => CursorE(CursorPosition.OnText(caret_index), operand)
     };
+  Succeeded(
+    SynDone(
+      text
+      |> mk_text_operand_exp
+      |> place_cursor
+      |> ZSeq.wrap
+      |> mk_and_syn_fix_ZOpSeq(ctx, u_gen),
+    ),
+  );
+};
+
+let spacebuster =
+    (operand_A, operand_B, prefix, suffix, a: Action.t): ZExp.zseq => {
+  let place_before = ZExp.place_before_operand;
+  let place_after = ZExp.place_after_operand;
+  /* This handles the logic for BACKSPACE and DELETE actions when the cursor
+     is (conceptually) adjacent to a space operator. The table below is
+     intended to completely cover the space of such cases; however some
+     cases should be handled either above or below the opseq level.
+
+     If these case get captured by this function, they may result in non-ideal
+     cursor placement. They are denoted in the table below as follows:
+
+         *  : case should be handled at block level
+         ** : case should be handled at operand level
+
+     In addition, the following notation will be used:
+
+         H    : empty hole
+         A, B : non-empty-hole operands
+         |    : caret
+     */
+  switch (merge_class(operand_A), merge_class(operand_B)) {
+  | (Empty, Empty) =>
+    //                 BKSP     DEL
+    //    H |H     =>  |H       H|
+    //    H| H     =>  |H       H|
+    let place_depending = a == Backspace ? place_before : place_after;
+    ZOperand(place_depending(EmptyHole(0)), (prefix, suffix));
+  | (Empty, _) =>
+    //    H| B     =>  |B       |B
+    //   |H  B     =>  *        |B
+    //    H |B     =>  |B       **
+    ZOperand(place_before(operand_B), (prefix, suffix))
+  | (_, Empty) =>
+    //    A |H     =>  A|       A|
+    //    A  H|    =>  A|       *
+    //    A| H     =>  **       A|
+    ZOperand(place_after(operand_A), (prefix, suffix))
+  | (CanMerge(sa), CanMerge(sb)) =>
+    //    A |B     =>  A|B      **
+    //    A| B     =>  **       A|B
+    let merged = mk_text_operand_exp(sa ++ sb);
+    ZOperand(
+      CursorE(OnText(String.length(sa)), merged),
+      (prefix, suffix),
+    );
+  | (NoMerge, NoMerge)
+  | (NoMerge, CanMerge(_))
+  | (CanMerge(_), NoMerge) when a == Backspace =>
+    //    A |B     =>  A| B     **
+    ZOperand(
+      place_after(operand_A),
+      (prefix, A(Space, S(operand_B, suffix))),
+    )
+  | (NoMerge, NoMerge)
+  | (NoMerge, CanMerge(_))
+  | (CanMerge(_), NoMerge) =>
+    //    A| B     =>  **       A |B
+    ZOperand(
+      place_before(operand_B),
+      (A(Space, S(operand_A, prefix)), suffix),
+    )
   };
 };
 
