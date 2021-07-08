@@ -404,10 +404,10 @@ let rec evaluate = (d: DHExp.t): result =>
       switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2))
+      | Matches(env) => evaluate(Environment.subst(env, d2))
       }
     }
-  | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
+  | FixF(x, _, d1) => evaluate(Environment.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
@@ -422,7 +422,7 @@ let rec evaluate = (d: DHExp.t): result =>
         | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator_Exp.subst(env, d3))
+          evaluate(Environment.subst(env, d3))
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -671,7 +671,7 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d))
+      | Matches(env) => evaluate(Environment.subst(env, d))
       | DoesNotMatch =>
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
