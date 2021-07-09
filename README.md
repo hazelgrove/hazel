@@ -1,4 +1,4 @@
-# Hazel ![Build Status](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
+# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
