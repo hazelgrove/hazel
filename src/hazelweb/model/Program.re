@@ -181,8 +181,8 @@ module type S = {
     (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
 
   let get_decoration_paths: (t, bool) => UHDecorationPaths.t;
-  let get_err_holes_decoration_paths:
-    t => (list(CursorPath.steps), list(CursorPath.steps));
+  //let get_err_holes_decoration_paths:
+  //  t => (list(CursorPath.steps), list(CursorPath.steps));
   let move_to_hole: (int, t) => Action.t;
   let move_via_click:
     (~settings: Settings.t, MeasuredPosition.t, t) => (t, Action.t);
@@ -265,10 +265,12 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
     |> OptUtil.get(() => raise(MissingCursorInfo));
   };
 
+ // TODO(andrew): delete? confusing merge situation
+ /*
   let get_err_holes_decoration_paths =
       (program: t): (list(CursorPath.steps), list(CursorPath.steps)) => {
     EditState.holes(program |> get_edit_state |> EditState.get_uhstx, [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, _} as hole_info) =>
          switch (sort) {
          | TypHole => None
          | PatHole(_, shape)
@@ -276,7 +278,7 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
            }
          }
        )
@@ -287,12 +289,35 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
        )
     |> TupleUtil.map2(List.map(snd));
   };
+  */
 
   let get_decoration_paths =
       (program: t, is_focused: bool): UHDecorationPaths.t => {
     let current_term = is_focused ? Some(get_path(program)) : None;
-    let (err_holes, var_err_holes) = get_err_holes_decoration_paths(program);
-    //TODO(andrew): figure out why this is crashing for typ case
+    let (err_holes, var_err_holes) =
+      EditState.holes(
+        program |> get_edit_state |> EditState.get_uhstx,
+        [],
+        [],
+      )
+      |> List.filter_map(hole_info =>
+           switch (CursorPath.get_sort(hole_info)) {
+           | TypHole => None
+           | PatHole(_, shape)
+           | ExpHole(_, shape) =>
+             switch (shape) {
+             | Empty => None
+             | VarErr
+             | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+             }
+           }
+         )
+      |> List.partition(
+           fun
+           | (CursorPath.TypeErr, _) => true
+           | (_var_err, _) => false,
+         )
+      |> TupleUtil.map2(List.map(snd));
     let var_uses =
       try(
         switch (get_cursor_info(program)) {
