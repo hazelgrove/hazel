@@ -84,7 +84,8 @@ let mk_operand_of_string = (ctx, u_gen, text) =>
 
 let place_cursor = (caret_index, operand: UHPat.operand): ZPat.zoperand =>
   switch (operand) {
-  | EmptyHole(_) => ZPat.place_before_operand(operand)
+  | EmptyHole(_)
+  | Wild(_) => ZPat.place_before_operand(operand)
   | _ => CursorP(CursorPosition.OnText(caret_index), operand)
   };
 
