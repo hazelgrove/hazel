@@ -354,17 +354,22 @@ let mk_ana_text =
   |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
 };
 
+let merge_class = (o: UHExp.operand): Action_common.merge_class =>
+  switch (o) {
+  | EmptyHole(_) => Empty
+  | InvalidText(_)
+  | Var(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_) => Merge(UHExp.string_of_operand(o))
+  | _ => Inert
+  };
+
+let will_merge = (opA, opB): bool =>
+  merge_class(opA) != Action_common.Inert
+  && merge_class(opB) != Action_common.Inert;
+
 let spacebuster = {
-  let merge_class = (o: UHExp.operand): Action_common.merge_class =>
-    switch (o) {
-    | EmptyHole(_) => Empty
-    | InvalidText(_)
-    | Var(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | BoolLit(_) => Merge(UHExp.string_of_operand(o))
-    | _ => Inert
-    };
   Action_common.spacebuster(
     ~mk_operand_of_string,
     ~space=Operators_Exp.Space,
