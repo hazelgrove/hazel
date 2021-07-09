@@ -152,7 +152,7 @@ If the inline test runner causes problems for you, you can likely resolve the is
 ### Continuous Integration
 
 When you push your branch to the main `hazelgrove/hazel` repository, we 
-have a GitHub Action setup (see `.github/workflows/deploy_hazel.yml`) 
+have a GitHub Action setup (see `.github/workflows/deploy_branches.yml`) 
 that will build that branch (in `release` mode) and deploy it to the URL 
 `https://hazel.org/build/<branch name>`, assuming the build succeeds.
 
