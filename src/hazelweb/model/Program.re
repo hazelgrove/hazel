@@ -335,13 +335,13 @@ let renumber =
 };
 
 exception DoesNotElaborate;
-let expand =
+let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
   );
-let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
+let get_elaboration = (program: t): DHExp.t =>
+  switch (program |> get_uhexp |> elaborate) {
   | DoesNotElaborate => raise(DoesNotElaborate)
   | Elaborates(d, _, _) => d
   };
@@ -350,7 +350,7 @@ exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate) {
+  switch (program |> get_elaboration |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
