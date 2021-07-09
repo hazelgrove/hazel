@@ -6,23 +6,35 @@
 
    In any case, that's a good reference. */
 
-module MapDefinition = {
-  type t('custom) =
-    | Define_using_bind
-    | Custom('custom);
-};
-
 module type MONAD_BASIC = {
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
-  let map: MapDefinition.t((t('a), 'a => 'b) => t('b));
+};
+
+module type MONAD_FUNCTOR = {
+  include MONAD_BASIC;
+  let map: (t('a), 'a => 'b) => t('b);
+};
+
+module Functor_of_Basic = (M: MONAD_BASIC) => {
+  include M;
+  let map = (x, f) => bind(x, a => M.return(f(a)));
+};
+
+module type MONAD_ZIP = {
+  include MONAD_FUNCTOR;
+  let zip: (t('a), t('b)) => t(('a, 'b));
+};
+
+module Zip_of_Functor = (M: MONAD_FUNCTOR) => {
+  include M;
+
+  let zip = (x, y) => bind(x, a => bind(y, b => M.return((a, b))));
 };
 
 module type MONAD = {
-  include MONAD_BASIC;
-  let map: (t('a), 'a => 'b) => t('b);
-  let zip: (t('a), t('b)) => t(('a, 'b));
+  include MONAD_ZIP;
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
@@ -30,16 +42,8 @@ module type MONAD = {
   };
 };
 
-module Make = (M: MONAD_BASIC) => {
+module MakeZ = (M: MONAD_ZIP) => {
   include M;
-
-  let map = (x, f) =>
-    switch (M.map) {
-    | Define_using_bind => bind(x, a => M.return(f(a)))
-    | Custom(mapper) => mapper(x, f)
-    };
-
-  let zip = (x, y) => bind(x, a => bind(y, b => M.return((a, b))));
 
   module Syntax = {
     let ( let* ) = bind;
@@ -47,3 +51,6 @@ module Make = (M: MONAD_BASIC) => {
     let (and+) = zip;
   };
 };
+
+module MakeB = (M: MONAD_BASIC) =>
+  MakeZ((Zip_of_Functor((Functor_of_Basic(M)))));
