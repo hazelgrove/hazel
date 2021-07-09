@@ -38,6 +38,7 @@ let colon = no_ctrl_alt_meta(Key.the_key(":"));
 let backslash = no_ctrl_alt_meta(Key.the_key("\\"));
 let left_parens = no_ctrl_alt_meta(Key.the_key("("));
 let left_bracket = no_ctrl_alt_meta(Key.the_key("["));
+let tilde = no_ctrl_alt_meta(Key.the_key("~"));
 let equals = no_ctrl_alt_meta(Key.the_key("="));
 let pound = no_ctrl_alt_meta(Key.the_key("#"));
 let plus = no_ctrl_alt_meta(Key.the_key("+"));

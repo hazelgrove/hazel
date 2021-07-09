@@ -499,6 +499,7 @@ let get_new_action_group =
       | SAnn
       | SLam
       | SListNil
+      | SDeferral
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))

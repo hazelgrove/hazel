@@ -403,6 +403,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
       [
         combo(Backslash, simple("Insert lambda function")),
         combo(Space, simple("Apply function")),
+        combo(Tilde, simple("Insert deferral")),
         combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),
@@ -488,6 +489,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added
+  | Construct(SDeferral) => Added
   | Construct(SOp(SCons)) => Added
   | Construct(SInj(L)) => Added
   | Construct(SInj(R)) => Added

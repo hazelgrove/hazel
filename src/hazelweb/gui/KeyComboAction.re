@@ -38,6 +38,7 @@ let get_model_action =
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
   | LeftBracket => construct(SListNil)
+  | Tilde => construct(SDeferral)
   | Semicolon => construct(SOp(SCons))
   | Alt_L => construct(SInj(L))
   | Alt_R => construct(SInj(R))
