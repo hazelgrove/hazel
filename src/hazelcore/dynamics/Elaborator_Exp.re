@@ -810,7 +810,7 @@ and syn_elab_operand =
       };
     }
   // ESInj
-  | Inj(InHole(reason, u), tag, body_opt) =>
+  | Inj(InHole(InjectionInSyntheticPosition as reason, u), tag, body_opt) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     switch (ana_elab_inj_body(ctx, delta, body_opt, Some(HTyp.Hole))) {
@@ -829,6 +829,7 @@ and syn_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta),
       )
     };
+  | Inj(InHole(_, _), _, _) => DoesNotElaborate
   /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
