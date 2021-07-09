@@ -273,8 +273,10 @@ and mk_inconsistent_operand = (u_gen, operand) =>
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+  // TODO: this function and its pattern equivalent are morally
+  // redundant to operand_of_string; refactor
   switch (shape) {
-  | Underscore => (var("_"), u_gen)
+  | Underscore => new_InvalidText(u_gen, "_")
   | IntLit(n) => (intlit(n), u_gen)
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
@@ -367,7 +369,7 @@ let operand_of_string = (text: string): operand => {
   | BoolLit(b) => BoolLit(NotInHole, b)
   | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
   | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
-  | Underscore => Var(NotInHole, NotInVarHole, "_")
+  | Underscore => InvalidText(0, "_")
   | Var(s) => Var(NotInHole, NotInVarHole, s)
   };
 };
