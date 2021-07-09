@@ -1,4 +1,4 @@
-# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: trunk](https://img.shields.io/travis/hazelgrove/hazel/trunk?label=build:%20trunk)](https://travis-ci.org/hazelgrove/hazel)
+# Hazel ![Build Status](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
