@@ -18,6 +18,7 @@ type t = {
 
 let not_held: t;
 let ctrlOrCmd: t;
+let ctrl: t;
 let shift: t;
 let alt: t;
 let no_ctrlOrCmd_alt: t;

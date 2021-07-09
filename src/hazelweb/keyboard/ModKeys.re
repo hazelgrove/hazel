@@ -29,6 +29,7 @@ let ignore_cmd_vs_ctrl = (ctrlOrCmd, shift, alt) =>
 
 let not_held = ignore_cmd_vs_ctrl(NotHeld, NotHeld, NotHeld);
 let ctrlOrCmd = ignore_cmd_vs_ctrl(Held, NotHeld, NotHeld);
+let ctrl = {ctrl: Held, meta: NotHeld, shift: NotHeld, alt: NotHeld};
 let shift = ignore_cmd_vs_ctrl(NotHeld, Held, NotHeld);
 let alt = ignore_cmd_vs_ctrl(NotHeld, Any, Held);
 let no_ctrlOrCmd_alt = ignore_cmd_vs_ctrl(NotHeld, Any, NotHeld);

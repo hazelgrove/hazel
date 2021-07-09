@@ -38,7 +38,7 @@ let alt_R: t;
 let alt_C: t;
 let alt_PageUp: t;
 let alt_PageDown: t;
-let ctrlOrCmd_s: t;
+let ctrl_s: t;
 let ctrlOrCmd_z: t;
 let ctrlOrCmd_shift_z: t;
 let ctrlOrCmd_alt_i: t;

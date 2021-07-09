@@ -8,6 +8,7 @@ type t = {
 
 let plain = key => {mod_keys: ModKeys.not_held, key};
 let no_ctrlOrCmd_alt = key => {mod_keys: ModKeys.no_ctrlOrCmd_alt, key};
+let ctrl = key => {mod_keys: ModKeys.ctrl, key};
 let shift = key => {mod_keys: ModKeys.shift, key};
 let ctrlOrCmd = key => {mod_keys: ModKeys.ctrlOrCmd, key};
 let alt = key => {mod_keys: ModKeys.alt, key};
@@ -51,7 +52,7 @@ let alt_R = alt(Key.the_key("R"));
 let alt_C = alt(Key.the_key("C"));
 let alt_PageUp = alt(Key.the_key("PageUp"));
 let alt_PageDown = alt(Key.the_key("PageDown"));
-let ctrlOrCmd_s = ctrlOrCmd(Key.the_key("S"));
+let ctrl_s = ctrl(Key.the_key("S"));
 let ctrlOrCmd_z = ctrlOrCmd(Key.the_key("Z"));
 let ctrlOrCmd_shift_z = ctrlOrCmd_shift(Key.the_key("Z"));
 let ctrlOrCmd_alt_i = ctrlOrCmd_alt(Key.the_key("I"));
