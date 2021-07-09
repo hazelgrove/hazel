@@ -202,7 +202,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (Inj(tag1, dp_opt), Inj((_, tag2, d_opt))) =>
+  | (Inj((tag1, dp_opt)), Inj((_, tag2, d_opt))) =>
     switch (tag1, tag2) {
     | (Tag(_), Tag(_))
     | (TagHole(_), TagHole(_)) when UHTag.eq(tag1, tag2) =>
@@ -228,14 +228,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | (Some(_), None) => DoesNotMatch
       }
     }
-  | (Inj(tag, dp_opt), Cast(d, Sum(tymap1), Sum(tymap2))) =>
+  | (Inj((tag, dp_opt)), Cast(d, Sum(tymap1), Sum(tymap2))) =>
     switch (cast_tymaps(tymap1, tymap2)) {
     | Some(castmap) => matches_cast_Inj(tag, dp_opt, d, [castmap])
     | None => DoesNotMatch
     }
-  | (Inj(_, _), Cast(d, Sum(_), Hole))
-  | (Inj(_, _), Cast(d, Hole, Sum(_))) => matches(dp, d)
-  | (Inj(_, _), _) => DoesNotMatch
+  | (Inj((_, _)), Cast(d, Sum(_), Hole))
+  | (Inj((_, _)), Cast(d, Hole, Sum(_))) => matches(dp, d)
+  | (Inj((_, _)), _) => DoesNotMatch
+  | (InjError(_, _, _, (_, _)), _) => Indet
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch

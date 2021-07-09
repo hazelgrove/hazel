@@ -10,12 +10,14 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
-  | Inj(UHTag.t, option(t))
+  | Inj(inj)
+  | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, inj)
   | ListNil
   | Cons(t, t)
   | Pair(t, t)
   | Triv
-  | Ap(t, t);
+  | Ap(t, t)
+and inj = (UHTag.t, option(t));
 
 let mk_tuple: list(t) => t;
 

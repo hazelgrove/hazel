@@ -43,8 +43,10 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | ListNil
   | Keyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
-  | Inj(_, Some(dp1)) => binds_var(x, dp1)
-  | Inj(_, None) => false
+  | Inj((_, Some(dp1))) => binds_var(x, dp1)
+  | Inj((_, None)) => false
+  | InjError(_, _, _, (_, Some(dp))) => binds_var(x, dp)
+  | InjError(_, _, _, (_, None)) => false
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Ap(_, _) => false
