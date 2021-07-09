@@ -148,3 +148,14 @@ You can run all of the unit tests located in `src/hazelcore/test` by running `ma
 Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
 
 If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
+
+### Continuous Integration
+
+When you push your branch to the main `hazelgrove/hazel` repository, we 
+have a GitHub Action setup (see `.github/workflows/deploy_hazel.yml`) 
+that will build that branch (in `release` mode) and deploy it to the URL 
+`https://hazel.org/build/<branch name>`, assuming the build succeeds.
+
+It usually takes about 2 minutes if the build environment cache hits, or 
+20+ minutes if not. You can view the status of the build in the [Actions 
+tab on Github](https://github.com/hazelgrove/hazel/actions).
