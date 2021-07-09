@@ -51,6 +51,10 @@ module Delim: {
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;
 
+  let open_If: DHDoc.t;
+  let open_Then: DHDoc.t;
+  let open_Else: DHDoc.t;
+
   let bar_Rule: DHDoc.t;
   let arrow_Rule: DHDoc.t;
 

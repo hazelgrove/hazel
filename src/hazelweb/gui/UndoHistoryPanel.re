@@ -123,6 +123,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | R => indicate_words_view("right injection")
       }
     | Case(_, _, _) => code_keywords_view("case")
+    | If(_, _, _, _) => code_keywords_view("if")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
@@ -310,6 +311,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [code_keywords_view("case"), indicate_words_view(" expression")],
+        )
+      )
+    | SIf =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("if"), indicate_words_view(" expression")],
         )
       )
     | SList

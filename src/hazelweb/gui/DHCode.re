@@ -49,6 +49,7 @@ let view_of_layout =
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
+             | InconsistentBranchesIf(_)
              | Invalid(_) =>
                let offset = start.col - indent;
                let decoration =

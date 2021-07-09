@@ -30,6 +30,7 @@ type shape =
   | SLet
   | SLine
   | SCase
+  | SIf
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 

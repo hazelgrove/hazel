@@ -91,6 +91,10 @@ module Delim = {
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
 
+  let if_If = (): t => mk(~index=0, "if");
+  let then_If = (): t => mk(~index=1, "then");
+  let else_If = (): t => mk(~index=2, "else");
+
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
 
@@ -364,6 +368,25 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
     )
   )
   |> annot_Case;
+};
+
+let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t => {
+  let if_delim = Delim.if_If() |> annot_Tessera;
+  let then_delim = Delim.then_If() |> annot_Tessera;
+  let else_delim = Delim.else_If() |> annot_Tessera;
+  Doc.hcats([
+    if_delim,
+    t1 |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+    then_delim,
+    linebreak_,
+    t2 |> pad_left_delimited_open_child(~with_border=false),
+    linebreak_,
+    else_delim,
+    linebreak_,
+    t3 |> pad_left_delimited_open_child(~with_border=false),
+  ])
+  |> annot_Tessera
+  |> annot_Operand(~sort=Exp);
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {

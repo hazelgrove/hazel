@@ -22,6 +22,9 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => extract_cursor_term(t1)
+  | IfZ2(_, _, t2, _) => extract_cursor_term(t2)
+  | IfZ3(_, _, _, t3) => extract_cursor_term(t3)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
@@ -83,6 +86,9 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => get_zoperand_from_zexp(t1)
+  | IfZ2(_, _, t2, _) => get_zoperand_from_zexp(t2)
+  | IfZ3(_, _, _, t3) => get_zoperand_from_zexp(t3)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -137,6 +143,9 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => get_outer_zrules_from_zexp(t1, outer_zrules)
+  | IfZ2(_, _, t2, _) => get_outer_zrules_from_zexp(t2, outer_zrules)
+  | IfZ3(_, _, _, t3) => get_outer_zrules_from_zexp(t3, outer_zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -164,7 +173,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _) =>
+        | Case(InconsistentBranches(types, _), _, _)
+        | If(InconsistentBranches(types, _), _, _, _) =>
           InconsistentBranchesErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
@@ -510,6 +520,14 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, If(InconsistentBranches(branch_types, _), _, _, _)) =>
+    Some(
+      CursorInfo_common.mk(
+        SynInconsistentBranches(branch_types, steps),
+        ctx,
+        cursor_term,
+      ),
+    )
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -587,6 +605,28 @@ and syn_cursor_info_zoperand =
         )
       };
     }
+  /* Prob need to fix later */
+  | IfZ1(_, t1, _, _) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, t1, HTyp.Bool)
+  | IfZ2(_, _, t2, t3) =>
+    switch (Statics_Exp.syn(ctx, t3)) {
+    | Some(ty3) =>
+      switch (ty3) {
+      | HTyp.Hole => syn_cursor_info(~steps=steps @ [1], ctx, t2)
+      | _ => ana_cursor_info(~steps=steps @ [1], ctx, t2, ty3)
+      }
+    | None => syn_cursor_info(~steps=steps @ [1], ctx, t2)
+    }
+  | IfZ3(_, _, t2, t3) =>
+    switch (Statics_Exp.syn(ctx, t2)) {
+    | Some(ty2) =>
+      switch (ty2) {
+      | HTyp.Hole => syn_cursor_info(~steps=steps @ [2], ctx, t3)
+      | _ => ana_cursor_info(~steps=steps @ [2], ctx, t3, ty2)
+      }
+    | None => syn_cursor_info(~steps=steps @ [2], ctx, t3)
+    }
+  /* syn_cursor_info(~steps=steps @ [2], ctx, t3) */
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
@@ -813,6 +853,7 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' =
         zoperand
@@ -841,6 +882,12 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
+    | If(
+        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+        _,
+        _,
+        _,
+      )
     | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -857,6 +904,8 @@ and ana_cursor_info_zoperand =
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | If(StandardErrStatus(NotInHole), _, _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
@@ -889,12 +938,33 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
+  | IfZ1(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ2(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ3(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | IfZ1(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ2(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
@@ -945,6 +1015,12 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+  | IfZ1(StandardErrStatus(NotInHole), zt1, _, _) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, zt1, HTyp.Bool)
+  | IfZ2(StandardErrStatus(NotInHole), _, zt2, _) =>
+    ana_cursor_info(~steps=steps @ [1], ctx, zt2, ty)
+  | IfZ3(StandardErrStatus(NotInHole), _, _, zt3) =>
+    ana_cursor_info(~steps=steps @ [2], ctx, zt3, ty)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };

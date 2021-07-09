@@ -492,6 +492,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SInj(L)) => Added
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
+  | Construct(SIf) => Added
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
