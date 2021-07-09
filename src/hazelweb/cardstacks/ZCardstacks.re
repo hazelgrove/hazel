@@ -25,3 +25,7 @@ let load_cardstack = (i: int, cardstacks: t): t => {
   let cardstacks_list = ZList.erase(cardstacks, x => x);
   cardstacks_list |> ZList.split_at(i) |> Option.get;
 };
+
+let get_current_cardstack_index = ZList.get_index;
+let get_current_card_index = zcardstacks =>
+  zcardstacks |> get_z |> ((cs: Cardstack.t) => cs.zcards) |> ZList.get_index;

@@ -11,8 +11,6 @@ type undo_history_entry = {
   previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
-  current_cardstack: int,
-  current_card: int,
 };
 
 [@deriving sexp]
@@ -694,8 +692,6 @@ let push_edit_state =
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cardstacks_after: ZCardstacks.t,
       ~action: Action.t,
-      ~current_card: int,
-      ~current_cardstack: int,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
@@ -734,8 +730,6 @@ let push_edit_state =
       previous_action: action,
       action_group: new_action_group,
       timestamp,
-      current_card,
-      current_cardstack,
     };
     if (group_entry(~prev_group, ~new_cardstacks_before, ~new_action_group)) {
       let new_group =

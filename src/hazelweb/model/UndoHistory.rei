@@ -9,8 +9,6 @@ type undo_history_entry = {
   previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
-  current_cardstack: int,
-  current_card: int,
 };
 
 [@deriving sexp]
@@ -76,9 +74,7 @@ let push_edit_state:
     ~undo_history: t,
     ~new_cardstacks_before: ZCardstacks.t,
     ~new_cardstacks_after: ZCardstacks.t,
-    ~action: Action.t,
-    ~current_card: int,
-    ~current_cardstack: int
+    ~action: Action.t
   ) =>
   t;
 

@@ -37,8 +37,6 @@ let init = (): t => {
       previous_action: Init,
       action_group: Init,
       timestamp,
-      current_cardstack: 0,
-      current_card: 0,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
@@ -121,7 +119,8 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
 
 let get_cardstack = model => model |> get_cardstacks |> ZCardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
-let get_cardstack_index = model => model |> get_cardstacks |> ZList.get_index;
+let get_cardstack_index = model =>
+  model |> get_cardstacks |> ZCardstacks.get_current_cardstack_index;
 let get_card_index = model =>
   model |> get_cardstack |> (cs => cs.zcards |> ZList.get_index);
 
@@ -196,8 +195,6 @@ let update_program = (a: Action.t, new_program, model) => {
          ~new_cardstacks_after=
            model |> put_program(new_program) |> get_cardstacks,
          ~action=a,
-         ~current_card=get_card_index(model),
-         ~current_cardstack=get_cardstack_index(model),
        ),
      );
 };
@@ -286,10 +283,13 @@ let load_undo_history =
     | Some(u) => si |> UserSelectedInstances.add(u, 0)
     };
   };
+  let cardstack_index =
+    ZCardstacks.get_current_cardstack_index(new_cardstacks);
+  let card_index = ZCardstacks.get_current_card_index(new_cardstacks);
   model
   |> put_undo_history(undo_history)
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances)
-  |> load_cardstack(undo_entry.current_cardstack)
-  |> load_card(undo_entry.current_card);
+  |> load_cardstack(cardstack_index)
+  |> load_card(card_index);
 };
