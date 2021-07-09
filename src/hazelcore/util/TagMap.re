@@ -9,6 +9,23 @@ type t('a) = list((key, 'a));
 
 let empty: t('a) = [];
 
+let singleton = (tag: key, value: 'a): t('a) => [(tag, value)];
+
+let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
+  switch (map) {
+  | [] => [(tag, value)]
+  | [(tag', value') as head, ...tail] =>
+    if (UHTag.eq(tag, tag')) {
+      if (value === value') {
+        map;
+      } else {
+        [(tag, value), ...tail];
+      };
+    } else {
+      [head, ...add(tag, value, tail)];
+    }
+  };
+
 let bindings = (map: t('a)): list((UHTag.t, 'a)) => map;
 
 let of_list = (bindings: list((UHTag.t, 'a))): t('a) => bindings;
