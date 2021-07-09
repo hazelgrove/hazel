@@ -216,6 +216,7 @@ and is_complete_operand = (operand: 'operand): bool => {
 
 let string_of_operand = (o: operand): string =>
   switch (o) {
+  | Wild(_) => "_"
   | InvalidText(_, s)
   | Var(_, _, s)
   | IntLit(_, s)

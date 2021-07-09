@@ -84,8 +84,8 @@ let mk_operand_of_string = (ctx, u_gen, text) =>
 
 let place_cursor = (caret_index, operand: UHPat.operand): ZPat.zoperand =>
   switch (operand) {
-  | EmptyHole(_)
-  | Wild(_) => ZPat.place_before_operand(operand)
+  | EmptyHole(_) => ZPat.place_before_operand(operand)
+  | Wild(_) => ZPat.place_after_operand(operand)
   | _ => CursorP(CursorPosition.OnText(caret_index), operand)
   };
 
@@ -123,7 +123,8 @@ let spacebuster = {
     | Var(_)
     | IntLit(_)
     | FloatLit(_)
-    | BoolLit(_) => Merge(UHPat.string_of_operand(o))
+    | BoolLit(_)
+    | Wild(_) => Merge(UHPat.string_of_operand(o))
     | _ => Inert
     };
   Action_common.spacebuster(
