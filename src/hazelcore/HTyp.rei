@@ -6,7 +6,7 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(t, t)
+  | Sum(TagMap.t(option(t)))
   | Prod(list(t))
   | List(t);
 
@@ -16,7 +16,6 @@ type join =
 
 let precedence_Prod: int;
 let precedence_Arrow: int;
-let precedence_Sum: int;
 let precedence: t => int;
 
 /* type equality */
@@ -29,7 +28,6 @@ let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
 let matched_arrow: t => option((t, t));
-let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
 
 let complete: t => bool;

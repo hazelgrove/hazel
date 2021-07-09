@@ -17,6 +17,8 @@ let opt_zip: (list('x), list('y)) => option(list(('x, 'y)));
 
 let for_all2_opt: (('a, 'b) => bool, list('a), list('b)) => option(bool);
 
+let equal: (('a, 'a) => bool, list('a), list('a)) => bool;
+
 let map2_opt: (('a, 'b) => 'c, list('a), list('b)) => option(list('c));
 
 /**

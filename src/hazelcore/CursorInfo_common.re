@@ -3,8 +3,10 @@ open CursorInfo;
 type zoperand =
   | ZExp(ZExp.zoperand)
   | ZTyp(ZTyp.zoperand)
-  | ZPat(ZPat.zoperand);
+  | ZPat(ZPat.zoperand)
+  | ZTag(ZTag.zoperand);
 
+/* TODO: are these the things that, when you press a key, you edit them as text? */
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
@@ -30,7 +32,9 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | Typ(_, _)
   | ExpOp(_, _)
   | PatOp(_, _)
-  | TypOp(_, _) => false
+  | TypOp(_, _)
+  | SumTyp(_, _)
+  | SumTypOp(_) => false
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
@@ -39,6 +43,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | ExpLine(_) => false
     }
   | Rule(_, _) => false
+  | Tag(_) => true
   };
 };
 
@@ -50,9 +55,13 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | Pat(_, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
+  | Tag(_, TagHole(_)) => true
+  | Tag(_, Tag(_)) => false
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
+  | SumTyp(_, _)
+  | SumTypOp(_)
   | Line(_, _)
   | Rule(_, _) => false
   };
@@ -68,7 +77,10 @@ let is_empty_line = (cursor_term): bool => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
-  | Rule(_, _) => false
+  | SumTyp(_, _)
+  | SumTypOp(_)
+  | Rule(_, _)
+  | Tag(_, _) => false
   };
 };
 

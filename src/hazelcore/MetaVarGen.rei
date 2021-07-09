@@ -2,4 +2,4 @@
 [@deriving sexp]
 type t = MetaVar.t;
 let init: t;
-let next: t => (t, t);
+let next: t => (MetaVar.t, t);

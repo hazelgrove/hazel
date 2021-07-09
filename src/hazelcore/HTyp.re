@@ -8,7 +8,7 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(t, t)
+  | Sum(TagMap.t(option(t)))
   | Prod(list(t))
   | List(t);
 
@@ -17,9 +17,9 @@ type join =
   | GLB
   | LUB;
 
+let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
-let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_const = Operators_Typ.precedence_const;
 let precedence = (ty: t): int =>
   switch (ty) {
@@ -30,14 +30,44 @@ let precedence = (ty: t): int =>
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  | Sum(_, _) => precedence_Sum
+  | Sum(_) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let eq = (==);
+
+let rec eq = (ty, ty') =>
+  switch (ty, ty') {
+  | (Hole, Hole) => true
+  | (Hole, _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(tys), Sum(tys')) =>
+    TagMap.equal(
+      (map1, map2) =>
+        switch (map1, map2) {
+        | (None, None) => true
+        | (None, _) => false
+        | (Some(ty), Some(ty')) => eq(ty, ty')
+        | (Some(_), _) => false
+        },
+      tys,
+      tys',
+    )
+  | (Sum(_), _) => false
+  | (Prod(tys1), Prod(tys2)) => ListUtil.equal(eq, tys1, tys2)
+  | (Prod(_), _) => false
+  | (List(ty), List(ty')) => eq(ty, ty')
+  | (List(_), _) => false
+  };
 
 /* type consistency */
 let rec consistent = (x, y) =>
@@ -50,11 +80,21 @@ let rec consistent = (x, y) =>
   | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
   | (Arrow(_, _), _) => false
-  | (Sum(_, _), _) => false
+  | (Sum(tys), Sum(tys')) =>
+    TagMap.equal(
+      (ty_opt, ty_opt') =>
+        switch (ty_opt, ty_opt') {
+        | (None, None) => true
+        | (Some(ty), Some(ty')) => consistent(ty, ty')
+        | _ => false
+        },
+      tys,
+      tys',
+    )
+  | (Sum(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.for_all2_opt(consistent, tys1, tys2)
     |> Option.value(~default=false)
@@ -90,13 +130,6 @@ let get_prod_elements: t => list(t) =
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
-/* matched sum types */
-let matched_sum =
-  fun
-  | Hole => Some((Hole, Hole))
-  | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
-
 /* matched list types */
 let matched_list =
   fun
@@ -111,8 +144,24 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
-  | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Sum(tys) =>
+    List.for_all(
+      ((tag: UHTag.t, ty_opt)) =>
+        (
+          switch (tag) {
+          | Tag(_) => true
+          | TagHole(_) => false
+          }
+        )
+        && (
+          switch (ty_opt) {
+          | Some(ty) => complete(ty)
+          | None => true
+          }
+        ),
+      tys,
+    )
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
@@ -140,11 +189,37 @@ let rec join = (j, ty1, ty2) =>
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
+  | (Sum(tys), Sum(tys')) =>
+    /* if tys != tys', then sort them first */
+    let (tys, tys') =
+      TagMap.equal_tags(tys, tys')
+        ? (tys, tys') : (TagMap.sort(tys), TagMap.sort(tys'));
+    Option.map(
+      joined_tys => Sum(joined_tys),
+      switch (
+        List.fold_left2(
+          (acc_opt, (tag, ty_opt), (tag', ty_opt')) =>
+            Option.bind(acc_opt, acc =>
+              switch (UHTag.eq(tag, tag'), ty_opt, ty_opt') {
+              | (false, _, _)
+              | (true, None, None) => Some([(tag, None), ...acc])
+              | (true, Some(ty), Some(ty')) =>
+                Option.bind(join(j, ty, ty'), joined_ty =>
+                  Some([(tag, Some(joined_ty)), ...acc])
+                )
+              | (_, Some(_), None)
+              | (_, None, Some(_)) => None
+              }
+            ),
+          Some([]),
+          tys,
+          tys',
+        )
+      ) {
+      | opt => opt
+      | exception (Invalid_argument(_)) => None
+      },
+    );
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.map2_opt(join(j), tys1, tys2)

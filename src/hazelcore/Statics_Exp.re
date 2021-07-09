@@ -129,19 +129,21 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
+  | Inj(InHole(InjectionInSyntheticPosition, _), _, body_opt) =>
+    let+ _ = inj_body_valid(ctx, body_opt);
+    HTyp.Hole;
+  | Inj(InHole(_, _), _, _) => None
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -170,12 +172,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
-  | Inj(NotInHole, side, body) =>
-    let+ ty = syn(ctx, body);
-    switch (side) {
-    | L => HTyp.Sum(ty, Hole)
-    | R => Sum(Hole, ty)
-    };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
@@ -188,6 +184,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let expansion = expand(serialized_model);
     let+ _ = ana(splice_ctx, expansion, expansion_ty);
     expansion_ty;
+  | Inj(NotInHole, _, _) => None
   | Parenthesized(body) => syn(ctx, body)
   }
 and syn_rules =
@@ -294,7 +291,6 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -306,11 +302,44 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
+  | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, body_opt) =>
+    switch (ty) {
+    | Hole
+    | Sum(_) => None
+    | _ => inj_body_valid(ctx, body_opt)
+    }
+  | Inj(InHole(UnexpectedBody, _), tag, body_opt) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap), body_opt) {
+      | (Some(None), Some(_)) => Some()
+      | (_, _) => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(ExpectedBody, _), tag, body_opt) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap), body_opt) {
+      | (Some(Some(_)), None) => Some()
+      | (_, _) => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(BadTag, _), tag, body_opt) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap)) {
+      | None => inj_body_valid(ctx, body_opt)
+      | Some(_) => None
+      }
+    | _ => None
+    }
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -326,9 +355,14 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
-  | Inj(NotInHole, side, body) =>
-    let* (ty1, ty2) = HTyp.matched_sum(ty);
-    ana(ctx, body, InjSide.pick(side, ty1, ty2));
+  | Inj(NotInHole, tag, body_opt) =>
+    switch (ty) {
+    | Hole => inj_body_valid(ctx, body_opt)
+    | Sum(tymap) =>
+      let* ty_body_opt = TagMap.find_opt(tag, tymap);
+      ana_inj_body(ctx, body_opt, ty_body_opt);
+    | _ => None
+    }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
@@ -336,6 +370,20 @@ and ana_operand =
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
+  }
+and inj_body_valid =
+    (ctx: Contexts.t, body_opt: option(UHExp.t)): option(unit) =>
+  switch (body_opt) {
+  | None => Some()
+  | Some(body) => ana(ctx, body, HTyp.Hole)
+  }
+and ana_inj_body =
+    (ctx: Contexts.t, body_opt: option(UHExp.t), ty_opt: option(HTyp.t))
+    : option(unit) =>
+  switch (body_opt, ty_opt) {
+  | (Some(body), Some(ty)) => ana(ctx, body, ty)
+  | (None, None) => Some()
+  | (_, _) => None
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -501,6 +549,7 @@ and ana_nth_type_mode' =
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
  */
+/* NOTE: These functions fix error statuses. They do not fill in holes. */
 let rec syn_fix_holes =
         (
           ctx: Contexts.t,
@@ -818,15 +867,23 @@ and syn_fix_holes_operand =
     let (body, ty_body, u_gen) =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
     (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
-  | Inj(_, side, body) =>
-    let (body, ty1, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
-    let ty =
-      switch (side) {
-      | L => HTyp.Sum(ty1, Hole)
-      | R => HTyp.Sum(Hole, ty1)
+  | Inj(_, tag, body_opt) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let (tag, u_gen) =
+      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+    let (body_opt, u_gen) =
+      switch (body_opt) {
+      | None => (None, u_gen)
+      | Some(body) =>
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+        (Some(body), u_gen);
       };
-    (Inj(NotInHole, side, body), ty, u_gen);
+    (
+      Inj(InHole(InjectionInSyntheticPosition, u), tag, body_opt),
+      HTyp.Hole,
+      u_gen,
+    );
   | Case(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
@@ -1244,30 +1301,74 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
-  | Inj(_, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
-    | Some((ty1, ty2)) =>
-      let (e1, u_gen) =
-        ana_fix_holes(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          body,
-          InjSide.pick(side, ty1, ty2),
-        );
-      (Inj(NotInHole, side, e1), u_gen);
-    | None =>
-      let (e', ty', u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(ty, ty')) {
-        (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
-      } else {
+  | Inj(_, tag, body_opt) =>
+    switch (ty) {
+    | Hole =>
+      let (tag, u_gen) =
+        Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+      let (body_opt, u_gen) =
+        switch (body_opt) {
+        | None => (None, u_gen)
+        | Some(body) =>
+          let (body, u_gen) =
+            ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+          (Some(body), u_gen);
+        };
+      (Inj(NotInHole, tag, body_opt), u_gen);
+    | Sum(tymap) =>
+      switch (body_opt, TagMap.find_opt(tag, tymap)) {
+      /* TAInj (unary) */
+      | (Some(body), Some(Some(ty_body))) =>
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty_body);
+        (Inj(NotInHole, tag, Some(body)), u_gen);
+      /* TAInjUnexpectedBody */
+      | (Some(body), Some(None)) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-          u_gen,
-        );
-      };
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+        (Inj(InHole(UnexpectedBody, u), tag, Some(body)), u_gen);
+      /* TAInjBadTag */
+      | (Some(body), None) =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+        let (body, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+        (Inj(InHole(BadTag, u), tag, Some(body)), u_gen);
+      /* TAInjBadTag */
+      | (None, None) =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+        (Inj(InHole(BadTag, u), tag, None), u_gen);
+      /* TAInj (nullary) */
+      | (None, Some(None)) => (e, u_gen)
+      /* TAInjExpectedBody */
+      | (None, Some(Some(_))) =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (tag, u_gen) =
+          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+        (Inj(InHole(ExpectedBody, u), tag, None), u_gen);
+      }
+    | _ =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (body_opt, u_gen) =
+        switch (body_opt) {
+        | None => (None, u_gen)
+        | Some(body) =>
+          let (body, u_gen) =
+            ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
+          (Some(body), u_gen);
+        };
+      (
+        Inj(InHole(ExpectedTypeNotConsistentWithSums, u), tag, body_opt),
+        u_gen,
+      );
     }
   | Case(_, scrut, rules) =>
     let (scrut, scrut_ty, u_gen) =

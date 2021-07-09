@@ -43,18 +43,12 @@ module BinFloatOp: {
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
-  | NonEmptyHole(
-      ErrStatus.HoleReason.t,
-      MetaVar.t,
-      MetaVarInst.t,
-      VarMap.t_(t),
-      t,
-    )
+  | EmptyHole(MetaVar.t, MetaVarInst.t, env)
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, t)
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
+  | Keyword(MetaVar.t, MetaVarInst.t, env, ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, MetaVarInst.t, env, Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, env, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
@@ -68,18 +62,22 @@ type t =
   | BinFloatOp(BinFloatOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
-  | Inj(HTyp.t, InjSide.t, t)
+  | Inj(inj)
+  | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, inj)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+and inj = (HTyp.t, UHTag.t, option(t))
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t)
+/* same as Environment.t, reiterated here to avoid circularity */
+and env = VarMap.t_(t);
 
 let constructor_string: t => string;
 

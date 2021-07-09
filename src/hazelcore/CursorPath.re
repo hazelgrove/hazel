@@ -22,7 +22,8 @@ type hole_shape =
 type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | ExpHole(MetaVar.t, hole_shape)
+  | TagHole(MetaVar.t);
 
 [@deriving sexp]
 type hole_info = {
@@ -39,4 +40,10 @@ type zhole_list = {
   holes_before: hole_list,
   hole_selected: option(hole_info),
   holes_after: hole_list,
+};
+
+let empty_zhole_list = {
+  holes_before: [],
+  hole_selected: None,
+  holes_after: [],
 };

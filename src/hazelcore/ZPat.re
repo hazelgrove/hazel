@@ -1,4 +1,6 @@
 open OptUtil.Syntax;
+open Sexplib.Std;
+
 [@deriving sexp]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
@@ -7,7 +9,8 @@ and zoperand =
   | ParenthesizedZ(t)
   | TypeAnnZP(ErrStatus.t, zoperand, UHTyp.t)
   | TypeAnnZA(ErrStatus.t, UHPat.operand, ZTyp.t)
-  | InjZ(ErrStatus.t, InjSide.t, t)
+  | InjZT(InjErrStatus.t, ZTag.t, option(UHPat.t))
+  | InjZP(InjErrStatus.t, UHTag.t, t)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
@@ -26,7 +29,8 @@ and erase_zoperand: zoperand => UHPat.operand =
       UHPat.TypeAnn(err, erase_zoperand(zoperand), ty)
     | TypeAnnZA(err, operand, zty) =>
       UHPat.TypeAnn(err, operand, ZTyp.erase(zty))
-    | InjZ(err, side, zp) => UHPat.Inj(err, side, erase(zp))
+    | InjZT(err, ztag, body_opt) => Inj(err, ZTag.erase(ztag), body_opt)
+    | InjZP(err, tag, zbody) => Inj(err, tag, Some(erase(zbody)))
     }
 and erase_zoperator = ((_, operator)) => operator;
 
@@ -71,7 +75,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CursorP(cursor, operand) =>
     CursorP(cursor, operand |> UHPat.set_err_status_operand(err))
   | ParenthesizedZ(zp) => ParenthesizedZ(set_err_status(err, zp))
-  | InjZ(_, inj_side, zp) => InjZ(err, inj_side, zp)
+  | InjZT(_)
+  | InjZP(_) => zoperand
   | TypeAnnZP(_, zop, ann) => TypeAnnZP(err, zop, ann)
   | TypeAnnZA(_, op, zann) => TypeAnnZA(err, op, zann)
   };
@@ -86,10 +91,8 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CursorP(cursor, operand) =>
     let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
-  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
+  | InjZT(_)
+  | InjZP(_) => (zoperand, u_gen)
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
@@ -111,7 +114,8 @@ and erase_zseq = zseq => zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator)
 and erase_zoperand =
   fun
   | CursorP(_, operand) => operand
-  | InjZ(err, inj_side, zp) => Inj(err, inj_side, erase(zp))
+  | InjZT(err, ztag, body_opt) => Inj(err, ZTag.erase(ztag), body_opt)
+  | InjZP(err, tag, zbody) => Inj(err, tag, Some(erase(zbody)))
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
   | TypeAnnZP(err, zop, ann) => TypeAnn(err, erase_zoperand(zop), ann)
   | TypeAnnZA(err, op, zann) => TypeAnn(err, op, ZTyp.erase(zann))
@@ -137,7 +141,8 @@ and is_before_zoperand =
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorP(_, TypeAnn(_)) => false
-  | InjZ(_, _, _)
+  | InjZT(_)
+  | InjZP(_) => false
   | ParenthesizedZ(_) => false
   | TypeAnnZP(_, zop, _) => is_before_zoperand(zop)
   | TypeAnnZA(_) => false;
@@ -162,7 +167,8 @@ and is_after_zoperand =
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorP(_, TypeAnn(_)) => false
-  | InjZ(_, _, _)
+  | InjZT(_)
+  | InjZP(_) => false
   | ParenthesizedZ(_) => false
   | TypeAnnZP(_) => false
   | TypeAnnZA(_, _, zann) => ZTyp.is_after(zann);
@@ -265,9 +271,11 @@ and move_cursor_left_zoperand =
     Some(ParenthesizedZ(place_after(p)))
   | CursorP(OnDelim(_k, Before), TypeAnn(err, p, a)) =>
     Some(TypeAnnZP(err, place_after_operand(p), a))
-  | CursorP(OnDelim(_k, Before), Inj(err, side, p)) =>
-    // _k == 1
-    Some(InjZ(err, side, place_after(p)))
+  | CursorP(OnDelim(1, Before), Inj(err, tag, body_opt)) =>
+    Some(InjZT(err, ZTag.place_after(tag), body_opt))
+  | CursorP(OnDelim(_2, Before), Inj(_, _, None)) => None
+  | CursorP(OnDelim(_2, Before), Inj(err, tag, Some(body))) =>
+    Some(InjZP(err, tag, place_after(body)))
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
@@ -280,10 +288,19 @@ and move_cursor_left_zoperand =
     | Some(zp) => Some(ParenthesizedZ(zp))
     | None => Some(CursorP(OnDelim(0, After), Parenthesized(erase(zp))))
     }
-  | InjZ(err, side, zp) =>
-    switch (move_cursor_left(zp)) {
-    | Some(zp) => Some(InjZ(err, side, zp))
-    | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp))))
+  | InjZT(err, ztag, body_opt) =>
+    switch (ZTag.move_cursor_left(ztag)) {
+    | Some(ztag) => Some(InjZT(err, ztag, body_opt))
+    | None =>
+      Some(
+        CursorP(OnDelim(0, After), Inj(err, ZTag.erase(ztag), body_opt)),
+      )
+    }
+  | InjZP(err, tag, zbody) =>
+    switch (move_cursor_left(zbody)) {
+    | Some(zbody) => Some(InjZP(err, tag, zbody))
+    | None =>
+      Some(CursorP(OnDelim(1, After), Inj(err, tag, Some(erase(zbody)))))
     }
   | TypeAnnZP(err, zop, ann) => {
       let+ zop = move_cursor_left_zoperand(zop);
@@ -326,9 +343,11 @@ and move_cursor_right_zoperand =
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(p)))
-  | CursorP(OnDelim(_k, After), Inj(err, side, p)) =>
-    // _k == 0
-    Some(InjZ(err, side, place_before(p)))
+  | CursorP(OnDelim(0, After), Inj(err, tag, body_opt)) =>
+    Some(InjZT(err, ZTag.place_before(tag), body_opt))
+  | CursorP(OnDelim(_1, After), Inj(_, _, None)) => None
+  | CursorP(OnDelim(_1, After), Inj(err, tag, Some(body))) =>
+    Some(InjZP(err, tag, place_before(body)))
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
@@ -341,10 +360,21 @@ and move_cursor_right_zoperand =
     | Some(zp) => Some(ParenthesizedZ(zp))
     | None => Some(CursorP(OnDelim(1, Before), Parenthesized(erase(zp))))
     }
-  | InjZ(err, side, zp) =>
-    switch (move_cursor_right(zp)) {
-    | Some(zp) => Some(InjZ(err, side, zp))
-    | None => Some(CursorP(OnDelim(1, Before), Inj(err, side, erase(zp))))
+  | InjZT(err, ztag, body_opt) =>
+    switch (ZTag.move_cursor_right(ztag)) {
+    | Some(ztag) => Some(InjZT(err, ztag, body_opt))
+    | None =>
+      Some(
+        CursorP(OnDelim(1, Before), Inj(err, ZTag.erase(ztag), body_opt)),
+      )
+    }
+  | InjZP(err, tag, zbody) =>
+    switch (move_cursor_right(zbody)) {
+    | Some(zbody) => Some(InjZP(err, tag, zbody))
+    | None =>
+      Some(
+        CursorP(OnDelim(2, Before), Inj(err, tag, Some(erase(zbody)))),
+      )
     }
   | TypeAnnZP(err, zop, ann) =>
     switch (move_cursor_right_zoperand(zop)) {

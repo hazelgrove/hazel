@@ -8,7 +8,7 @@ let to_string =
   fun
   | Arrow => Unicode.typeArrowSym
   | Prod => ","
-  | Sum => "|";
+  | Sum => "+";
 
 let precedence =
   fun
@@ -21,4 +21,5 @@ let precedence_const = 4;
 let associativity =
   fun
   | Arrow => Associativity.Right
-  | _ => Associativity.Left;
+  | Sum
+  | Prod => Associativity.Left;

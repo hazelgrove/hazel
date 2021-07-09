@@ -2,9 +2,9 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
-  | SVBar => Some(Sum)
+  | SPlus => Some(Sum)
+  | SVBar
   | SMinus
-  | SPlus
   | STimes
   | SDivide
   | SAnd
@@ -275,6 +275,13 @@ and perform_operand =
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
     Succeeded(body |> place_cursor);
 
+  /* { _ }<|  ==>  _| */
+  /* {<| _ }  ==>  |_ */
+  | (Backspace, CursorT(OnDelim(k, After), Sum(sumty))) =>
+    let place_cursor =
+      k == 0 ? ZTyp.place_before_sumtyp : ZTyp.place_after_sumtyp;
+    Succeeded(ZOpSeq.wrap(ZTyp.SumZ(sumty |> place_cursor)));
+
   /* Construction */
 
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
@@ -298,6 +305,12 @@ and perform_operand =
 
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
+
+  | (Construct(SSum), CursorT(_)) =>
+    let zsumty_operand =
+      // TODO: how to get a fresh hole number?
+      ZTyp.ArgTagZA(TagHole(failwith("XXX")), ZOpSeq.wrap(zoperand));
+    Succeeded(ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(zsumty_operand))));
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))

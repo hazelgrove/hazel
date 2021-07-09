@@ -30,6 +30,18 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on an injection and expected type is hole
+  | AnaInjHole
+  // cursor is on an injection, but expected type is not a sum
+  | AnaInjExpectedTypeNotConsistenWithSums(HTyp.t)
+  // cursor is on an injection with a bad tag
+  | AnaInjBadTag
+  // cursor is on a unary injection with no body
+  | AnaInjExpectedBody(HTyp.t)
+  // cursor is on a nullary injection with body
+  | AnaInjUnexpectedBody
+  // none of the above and didn't go through subsumption
+  | AnalyzedInjBody(option(HTyp.t))
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -107,6 +119,8 @@ type typed =
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | OnType
+  /* cursor in tag position */
+  | OnTag
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
@@ -119,8 +133,11 @@ type cursor_term =
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
+  | SumTyp(CursorPosition.t, UHTyp.sumtyp_operand)
+  | SumTypOp(CursorPosition.t, UHTyp.sumtyp_operator)
   | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule);
+  | Rule(CursorPosition.t, UHExp.rule)
+  | Tag(CursorPosition.t, UHTag.t);
 
 // TODO refactor into variants
 // based on term sort and shape

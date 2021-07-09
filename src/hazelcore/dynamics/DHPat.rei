@@ -10,7 +10,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
-  | Inj(InjSide.t, t)
+  | Inj(UHTag.t, option(t))
   | ListNil
   | Cons(t, t)
   | Pair(t, t)

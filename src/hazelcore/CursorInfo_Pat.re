@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
@@ -18,7 +20,8 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
-  | InjZ(_, _, zpat) => extract_cursor_term(zpat)
+  | InjZP(_, _, zpat) => extract_cursor_term(zpat)
+  | InjZT(_, ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.extract_cursor_term(zann)
   };
@@ -42,11 +45,13 @@ and get_zoperand_from_zpat_operand =
   switch (zoperand) {
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
-  | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | InjZP(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | InjZT(_, ztag, _) => Some(ZTag(ztag))
   | TypeAnnZP(_, zop, _) => get_zoperand_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.get_zoperand_from_ztyp(zann)
   };
 };
+
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
@@ -217,8 +222,11 @@ and syn_cursor_info_zoperand =
            ),
          )
        })
-  | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | InjZT(_, ztag, _) =>
+    let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
+    CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
+  | InjZP(_, _, zpat) => syn_cursor_info(~steps=steps @ [1], ctx, zpat)
   | TypeAnnZP(_, zop, ty) =>
     ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
   | TypeAnnZA(_, _, zann) =>
@@ -226,6 +234,7 @@ and syn_cursor_info_zoperand =
     |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
     |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
   }
+
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
@@ -437,7 +446,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | TypeAnn(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Inj(InHole(_, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -458,8 +467,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | TypeAnn(InHole(WrongLength, _), _, _)
-    | Inj(InHole(WrongLength, _), _, _) => None
+    | TypeAnn(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
@@ -527,15 +535,23 @@ and ana_cursor_info_zoperand =
            )
          )
     }
-  | InjZ(InHole(WrongLength, _), _, _) => None
-  | InjZ(InHole(TypeInconsistent, _), _, _) =>
-    syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => None
-    | Some((tyL, tyR)) =>
-      let ty_body = InjSide.pick(position, tyL, tyR);
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
+  | InjZT(err, ztag, _) =>
+    switch (err) {
+    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | NotInHole =>
+      let+ x = CursorInfo_Tag.cursor_info(ctx, ztag);
+      CursorInfo_common.CursorNotOnDeferredVarPat(x);
+    }
+  | InjZP(err, tag, zpat) =>
+    switch (err) {
+    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | NotInHole =>
+      let* ty_pat =
+        switch (ty) {
+        | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
+        | _ => None
+        };
+      ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_pat);
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)

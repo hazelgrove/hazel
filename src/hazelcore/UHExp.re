@@ -21,7 +21,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
-  | Inj(ErrStatus.t, InjSide.t, t)
+  | Inj(InjErrStatus.t, UHTag.t, option(t))
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
@@ -184,9 +184,9 @@ and get_err_status_operand =
   | BoolLit(err, _)
   | ListNil(err)
   | Lam(err, _, _)
-  | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
+  | Inj(_, _, _) => NotInHole
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -209,7 +209,7 @@ and set_err_status_operand = (err, operand) =>
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, def) => Lam(err, p, def)
-  | Inj(_, inj_side, body) => Inj(err, inj_side, body)
+  | Inj(_, _, _) => operand
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
@@ -230,20 +230,22 @@ and mk_inconsistent_block =
   let (conclusion, u_gen) = conclusion |> mk_inconsistent_opseq(u_gen);
   (Block.join_conclusion(leading, conclusion), u_gen);
 }
+/* called when we find a type inconsistency */
 and mk_inconsistent_opseq = (u_gen, opseq) =>
   OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen, opseq)
 and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
-  /* already in hole */
+  /* cannot be inconsistent */
   | EmptyHole(_)
   | InvalidText(_, _)
+  | Inj(_, _, _) => (operand, u_gen)
+  /* already in hole  */
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
@@ -253,7 +255,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -330,7 +331,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Lam(InHole(_), _, _) => false
   | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
-  | Inj(NotInHole, _, body) => is_complete(body)
+  | Inj(NotInHole, _, None) => true
+  | Inj(NotInHole, _, Some(body)) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>

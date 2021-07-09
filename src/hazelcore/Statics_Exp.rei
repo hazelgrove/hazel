@@ -32,6 +32,24 @@ let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 
 /**
+ * Under context `ctx`, `inj_body_valid(ctx, body_opt)` is `Some()` if
+ * `body_opt` is `None` or `Some(e)` for which `e` analyzes against
+ * `Hole`
+ */
+let inj_body_valid: (Contexts.t, option(UHExp.t)) => option(unit);
+
+/**
+ * Given an injection body `body_opt` with associated type `ty_opt`
+ * in analytic position under context `ctx`,
+ * `ana_inj_body(ctx, body_opt, ty_opt)` returns `Some()` when
+ * body_opt and ty_opt are both `None`, or are `Some(e)` and
+ * `Some(ty)` such that `e` analyzes against `ty`
+ *
+ */
+let ana_inj_body:
+  (Contexts.t, option(UHExp.t), option(HTyp.t)) => option(unit);
+
+/**
  * Given a pattern `e` in synthetic position under context `ctx`,
  * `syn_fix_holes(ctx, u_gen, e)` fixes the err statuses in `e` such
  * that it can synthesize a type and returns the results of doing so
