@@ -978,13 +978,16 @@ and syn_perform_line =
     let new_zblock = ([UHExp.EmptyLine], zline, []);
     fix_and_mk_result(u_gen, new_zblock);
   | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
-    let new_zline =
-      UHExp.ExpLine(OpSeq.wrap(UHExp.EmptyHole(u_gen)))
-      |> ZExp.place_before_line;
     /* If the current line is just a hole, leave it empty */
-    let prev_line =
+    let (prev_line, new_zline) =
       ZExp.zline_is_just_empty_hole(zline)
-        ? UHExp.EmptyLine : ZExp.erase_zline(zline);
+        ? (UHExp.EmptyLine, zline)
+        : (
+          ZExp.erase_zline(zline),
+          ZExp.place_before_line(
+            ExpLine(OpSeq.wrap(UHExp.EmptyHole(u_gen))),
+          ),
+        );
     let new_zblock = ([prev_line], new_zline, []);
     fix_and_mk_result(u_gen, new_zblock);
 
