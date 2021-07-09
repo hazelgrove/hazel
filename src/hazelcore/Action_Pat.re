@@ -930,41 +930,39 @@ and ana_perform_opseq =
   | (
       Backspace | Delete,
       ZOperand(
-        CursorP(_, EmptyHole(_) as operand_A),
-        (prefix, A(Space, S(operand_B, suffix))),
+        CursorP(_, EmptyHole(_) as opA),
+        (prefix, A(Space, S(opB, suffix))),
       ),
     )
   | (
       Backspace | Delete,
       ZOperand(
-        CursorP(_, EmptyHole(_) as operand_B),
-        (A(Space, S(operand_A, prefix)), E as suffix),
+        CursorP(_, EmptyHole(_) as opB),
+        (A(Space, S(opA, prefix)), E as suffix),
       ),
     ) =>
-    mk_success_zseq(
-      spacebuster(operand_A, operand_B, prefix, suffix, a, ctx, u_gen),
-    )
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, ctx, u_gen))
   | (
       Backspace,
       ZOperand(
-        CursorP(_, operand_B) as zop,
-        (A(Space, S(operand_A, prefix)), suffix),
+        CursorP(_, opB) as zopB,
+        (A(Space, S(opA, prefix)), suffix),
       ),
     )
-      when ZPat.is_before_zoperand(zop) =>
+      when ZPat.is_before_zoperand(zopB) =>
     mk_success_zseq(
-      spacebuster(operand_A, operand_B, prefix, suffix, a, ctx, u_gen),
+      spacebuster(opA, opB, prefix, suffix, Backspace, ctx, u_gen),
     )
   | (
       Delete,
       ZOperand(
-        CursorP(_, operand_B) as zop,
-        (A(Space, S(operand_A, prefix)), suffix),
+        CursorP(_, opA) as zop,
+        (prefix, A(Space, S(opB, suffix))),
       ),
     )
       when ZPat.is_after_zoperand(zop) =>
     mk_success_zseq(
-      spacebuster(operand_A, operand_B, prefix, suffix, a, ctx, u_gen),
+      spacebuster(opA, opB, prefix, suffix, Delete, ctx, u_gen),
     )
 
   /* Construction */
