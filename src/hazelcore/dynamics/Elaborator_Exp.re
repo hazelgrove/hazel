@@ -817,17 +817,15 @@ and syn_elab_operand =
     | Some(DoesNotElaborate) => DoesNotElaborate
     | Some(Elaborates(d, ty, delta)) =>
       let d' = DHExp.Cast(d, ty, Hole);
-      Elaborates(
-        InjError(reason, u, 0, sigma, (Hole, tag, Some(d'))),
-        Hole,
-        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta),
-      );
+      let d = DHExp.InjError(reason, u, 0, sigma, (Hole, tag, Some(d')));
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+      Elaborates(d, Hole, delta);
     | None =>
-      Elaborates(
-        InjError(reason, u, 0, sigma, (Hole, tag, None)),
-        Hole,
-        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta),
-      )
+      let d = DHExp.InjError(reason, u, 0, sigma, (Hole, tag, None));
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+      Elaborates(d, Hole, delta);
     };
   | Inj(InHole(_, _), _, _) => DoesNotElaborate
   /* not in hole */
@@ -1207,7 +1205,7 @@ and ana_elab_operand =
       Elaborates(d, e_ty, delta);
     }
   // EAInjUnexpectedBody
-  | Inj(InHole(UnexpectedBody, u), tag, Some(body)) =>
+  | Inj(InHole(UnexpectedBody as reason, u), tag, Some(body)) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -1219,25 +1217,18 @@ and ana_elab_operand =
         | Elaborates(d, d_ty, delta) =>
           let gamma = Contexts.gamma(ctx);
           let sigma = id_env(gamma);
-          let tymap = TagMap.add(tag, Some(d_ty), tymap);
-          Elaborates(
-            InjError(
-              UnexpectedBody,
-              u,
-              0,
-              sigma,
-              (Sum(tymap), tag, Some(d)),
-            ),
-            ty,
-            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta),
-          );
+          let ty = HTyp.Sum(TagMap.add(tag, Some(d_ty), tymap));
+          let d = DHExp.InjError(reason, u, 0, sigma, (ty, tag, Some(d)));
+          let delta =
+            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+          Elaborates(d, ty, delta);
         }
       }
     | _ => DoesNotElaborate
     }
   | Inj(InHole(UnexpectedBody, _), _, None) => DoesNotElaborate
   // EAInjExpectedBody
-  | Inj(InHole(ExpectedBody, u), tag, None) =>
+  | Inj(InHole(ExpectedBody as reason, u), tag, None) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -1246,42 +1237,41 @@ and ana_elab_operand =
       | Some(Some(_)) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
-        let tymap = TagMap.add(tag, None, tymap);
-        Elaborates(
-          InjError(ExpectedBody, u, 0, sigma, (Sum(tymap), tag, None)),
-          ty,
-          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta),
-        );
+        let ty = HTyp.Sum(TagMap.add(tag, None, tymap));
+        let d = DHExp.InjError(reason, u, 0, sigma, (ty, tag, None));
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        Elaborates(d, ty, delta);
       }
     | _ => DoesNotElaborate
     }
   | Inj(InHole(ExpectedBody, _), _, Some(_)) => DoesNotElaborate
   // EAInjBadTag
-  | Inj(InHole(BadTag, u), tag, body_opt) =>
+  | Inj(InHole(BadTag as reason, u), tag, body_opt) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(_) => DoesNotElaborate
       | None =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
         switch (ana_elab_inj_body(ctx, delta, body_opt, Some(Hole))) {
         | Some(DoesNotElaborate) => DoesNotElaborate
         | Some(Elaborates(d, d_ty, delta)) =>
-          let tymap = TagMap.add(tag, Some(d_ty), tymap);
-          Elaborates(
-            InjError(BadTag, u, 0, sigma, (Sum(tymap), tag, Some(d))),
-            ty,
-            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta),
-          );
+          let gamma = Contexts.gamma(ctx);
+          let sigma = id_env(gamma);
+          let ty = HTyp.Sum(TagMap.add(tag, Some(d_ty), tymap));
+          let d = DHExp.InjError(reason, u, 0, sigma, (ty, tag, Some(d)));
+          let delta =
+            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+          Elaborates(d, ty, delta);
         | None =>
-          let tymap = TagMap.add(tag, None, tymap);
-          Elaborates(
-            InjError(BadTag, u, 0, sigma, (Sum(tymap), tag, None)),
-            ty,
-            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta),
-          );
-        };
+          let gamma = Contexts.gamma(ctx);
+          let sigma = id_env(gamma);
+          let ty = HTyp.Sum(TagMap.add(tag, None, tymap));
+          let d = DHExp.InjError(reason, u, 0, sigma, (ty, tag, None));
+          let delta =
+            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+          Elaborates(d, ty, delta);
+        }
       }
     | _ => DoesNotElaborate
     }
@@ -1352,33 +1342,31 @@ and ana_elab_operand =
       switch (ana_elab_inj_body(ctx, delta, body_opt, Some(Hole))) {
       | Some(DoesNotElaborate) => DoesNotElaborate
       | Some(Elaborates(d, d_ty, delta)) =>
-        let tymap = TagMap.singleton(tag, Some(d_ty));
-        Elaborates(Inj((Sum(tymap), tag, Some(d))), Sum(tymap), delta);
+        let d = DHExp.Inj((ty, tag, Some(d)));
+        let ty = HTyp.Sum(TagMap.singleton(tag, Some(d_ty)));
+        Elaborates(d, ty, delta);
       | None =>
-        let tymap = TagMap.singleton(tag, None);
-        Elaborates(Inj((Sum(tymap), tag, None)), Sum(tymap), delta);
+        let d = DHExp.Inj((ty, tag, None));
+        let ty = HTyp.Sum(TagMap.singleton(tag, None));
+        Elaborates(d, ty, delta);
       }
-    | _ =>
+    | Sum(tymap) =>
       // EAInj
-      switch (ty) {
-      | Sum(tymap) =>
-        switch (TagMap.find_opt(tag, tymap)) {
-        | None => DoesNotElaborate
-        | Some(None) => Elaborates(Inj((ty, tag, None)), ty, delta)
-        | Some(Some(d_ty) as d_ty_opt) =>
-          switch (ana_elab_inj_body(ctx, delta, body_opt, d_ty_opt)) {
-          | None
-          | Some(DoesNotElaborate) => DoesNotElaborate
-          | Some(Elaborates(d, d_ty', delta)) =>
-            Elaborates(
-              Inj((ty, tag, Some(Cast(d, d_ty', d_ty)))),
-              ty,
-              delta,
-            )
-          }
+      switch (TagMap.find_opt(tag, tymap)) {
+      | None => DoesNotElaborate
+      | Some(None) =>
+        let d = DHExp.Inj((ty, tag, None));
+        Elaborates(d, ty, delta);
+      | Some(Some(d_ty) as d_ty_opt) =>
+        switch (ana_elab_inj_body(ctx, delta, body_opt, d_ty_opt)) {
+        | None
+        | Some(DoesNotElaborate) => DoesNotElaborate
+        | Some(Elaborates(d, d_ty', delta)) =>
+          let d = DHExp.Inj((ty, tag, Some(Cast(d, d_ty', d_ty))));
+          Elaborates(d, ty, delta);
         }
-      | _ => DoesNotElaborate
       }
+    | _ => DoesNotElaborate
     }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
