@@ -3,7 +3,6 @@ open Action;
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
-  | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"
@@ -17,6 +16,7 @@ let shape_to_string = (shape: shape): string => {
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
+  | SLeftParenthesis => "open parenthesis"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"

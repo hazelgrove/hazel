@@ -35,6 +35,7 @@ type action_group =
   /* SLine in Action_common.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | TightAp
   | SwapEdit(swap_group)
   | Init;
 

@@ -188,6 +188,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
     );
   };
 
+  //a function taking a keycombo and a description to mke an action_button
   let combo = combo_element(is_action_allowed);
 
   let info = text => {
@@ -404,6 +405,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
         combo(Backslash, simple("Insert lambda function")),
         combo(Space, simple("Apply function")),
         combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
+        combo_and_cursor(
+          ~on_type=false,
+          LeftParen,
+          [text("Create a tight application on an operand")],
+        ),
       ],
     ),
     section(
@@ -473,7 +479,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SGreaterThan)) => Added
   | Construct(SOp(SAnd)) => Added
   | Construct(SOp(SOr)) => Added
-  | Construct(SParenthesized) => Added
+  | Construct(SLeftParenthesis) => Added
   | Construct(SAnn) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added

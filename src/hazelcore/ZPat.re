@@ -51,6 +51,7 @@ let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
+  //error further stems here; that means that the cursor is not on a valid position????
   valid_cursors_operand(operand) |> List.mem(cursor);
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
@@ -221,6 +222,7 @@ let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)
     ? Some(CursorP(cursor, operand)) : None;
+
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
   is_valid_cursor_operator(cursor, operator)

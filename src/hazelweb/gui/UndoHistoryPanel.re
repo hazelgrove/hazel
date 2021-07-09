@@ -124,6 +124,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
+    | TightAp(_, _, _) => indicate_words_view("tightap")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
@@ -317,7 +318,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SCommentLine
     | SAnn
-    | SParenthesized =>
+    | SLeftParenthesis =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
@@ -413,6 +414,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | TightAp =>
+      Vdom.(Node.span([], [indicate_words_view("insert tightap")]))
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up => indicate_words_view("swap line up")
@@ -471,6 +474,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | TightAp =>
+      Some(
+        get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up

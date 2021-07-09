@@ -22,6 +22,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | TightAp(ErrStatus.t, operand, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -50,6 +51,8 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
+
+let tightap: (~err: ErrStatus.t=?, operand, t) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
@@ -86,6 +89,20 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
 
+//helper fn from strings3
+let find_operand: (MetaVarGen.t, t) => option(operand);
+
+let find_operand_block: (MetaVarGen.t, block) => option(operand);
+
+let find_operand_line: (MetaVarGen.t, line) => option(operand);
+
+let find_operand_opseq: opseq => option(operand);
+
+let find_operand_operator: operator => option(operand);
+
+let find_operand_operand: operand => option(operand);
+//end helper set
+
 let get_err_status: t => ErrStatus.t;
 
 let get_err_status_block: t => ErrStatus.t;
@@ -99,6 +116,10 @@ let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
 let is_inconsistent: operand => bool;
+
+let mk_inconsistent: (MetaVarGen.t, t) => (t, MetaVarGen.t);
+
+let mk_inconsistent_block: (MetaVarGen.t, block) => (block, MetaVarGen.t);
 
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 

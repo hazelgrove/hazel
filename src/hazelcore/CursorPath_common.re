@@ -31,6 +31,49 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
+let print_steps = (steps: CursorPath.steps) => {
+  steps
+  |> List.iter(x => {
+       print_endline("Step:");
+       print_endline(string_of_int(x));
+     });
+};
+
+let print_path = (path: CursorPath.t) => {
+  print_endline("Begin cursor info print:------");
+  let (steps, cursor) = path;
+  let output =
+    switch (cursor) {
+    | OnText(ind) => String.concat(" ", ["On text", string_of_int(ind)])
+    | OnDelim(ind, side) =>
+      let side_str =
+        switch (side) {
+        | Before => "before"
+        | After => "after"
+        };
+      String.concat(
+        " ",
+        ["On delim index", string_of_int(ind), "on side", side_str],
+      );
+    | OnOp(side) =>
+      let side_str =
+        switch (side) {
+        | Before => "before"
+        | After => "after"
+        };
+      String.concat(" ", ["On op", side_str]);
+    };
+
+  print_endline(output);
+  print_endline("Begin path print");
+
+  let steps_len_str = steps |> List.length |> string_of_int;
+  let out_len = String.concat(" ", ["Number of steps:", steps_len_str]);
+
+  print_endline(out_len);
+  print_steps(steps);
+};
+
 let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (
     List.rev(zhole_list.holes_before),

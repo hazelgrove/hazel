@@ -24,6 +24,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | TightAp(ErrStatus.t, operand, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -69,6 +70,9 @@ let case =
     )
     : operand =>
   Case(err, scrut, rules);
+
+let tightap = (~err: ErrStatus.t=NotInHole, func: operand, arg: t): operand =>
+  TightAp(err, func, arg);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
@@ -167,6 +171,30 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
+//helper function copied from strings3 branch; useful for backspace case in Action_Exp
+let rec find_operand = (u_gen: MetaVarGen.t, e: t): option(operand) =>
+  e |> find_operand_block(u_gen)
+and find_operand_block = (u_gen, block) =>
+  List.nth(block, List.length(block) - 1) |> find_operand_line(u_gen)
+and find_operand_line = (u_gen, line) =>
+  switch (line) {
+  | EmptyLine =>
+    let (hole, _) = new_EmptyHole(u_gen);
+    Some(hole);
+  | CommentLine(_) => None
+  | LetLine(_, def) => def |> find_operand(u_gen)
+  | ExpLine(opseq) => opseq |> find_operand_opseq
+  }
+and find_operand_opseq =
+  fun
+  | OpSeq(_, S(operand, _)) => Some(operand)
+and find_operand_operator =
+  fun
+  | _ => None
+and find_operand_operand =
+  fun
+  | e => Some(e);
+
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
   let (_, conclusion) = block |> Block.force_split_conclusion;
@@ -186,6 +214,7 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | TightAp(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -211,6 +240,7 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
+  | TightAp(_, func, arg) => TightAp(err, func, arg)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -245,6 +275,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TightAp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -260,6 +291,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
+  | TightAp(NotInHole | InHole(WrongLength, _), _, _)
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
@@ -335,6 +367,9 @@ and is_complete_operand = (operand: 'operand): bool => {
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
+  | TightAp(InHole(_), _, _) => false
+  | TightAp(NotInHole, func, arg) =>
+    is_complete_operand(func) && is_complete(arg)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

@@ -37,6 +37,7 @@ type action_group =
   /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | TightAp
   | SwapEdit(swap_group)
   | Init;
 
@@ -94,6 +95,8 @@ let group_action_group =
   switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
+  | (TightAp, TightAp) => true
+  | (TightAp, _) => false
   | (VarGroup(_), VarGroup(_)) => true
   | (VarGroup(_), DeleteEdit(delete_group)) =>
     switch (delete_group) {
@@ -148,6 +151,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Lam(_)
     | Inj(_, _, _)
     | Case(_, _, _)
+    | TightAp(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
