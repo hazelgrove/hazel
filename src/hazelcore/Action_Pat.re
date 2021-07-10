@@ -92,11 +92,43 @@ let place_cursor = (caret_index, operand: UHPat.operand): ZPat.zoperand =>
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
-  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
-  operand
-  |> place_cursor(caret_index)
-  |> ZSeq.wrap
-  |> mk_and_syn_fix_zseq(ctx, u_gen);
+  let text_cursor = CursorPosition.OnText(caret_index);
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape(t) =>
+    if (text |> StringUtil.is_empty) {
+      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
+    } else {
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    }
+  | Underscore =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | IntLit(n) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
+    Succeeded((zp, HTyp.Int, ctx, u_gen));
+  | FloatLit(f) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
+    Succeeded((zp, HTyp.Float, ctx, u_gen));
+  | BoolLit(b) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
+    Succeeded((zp, HTyp.Bool, ctx, u_gen));
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var =
+      UHPat.var(
+        ~var_err=InVarHole(Keyword(k), u),
+        k |> ExpandingKeyword.to_string,
+      );
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | Var(x) =>
+    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  };
 };
 
 let mk_ana_text =
@@ -108,11 +140,43 @@ let mk_ana_text =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
-  operand
-  |> place_cursor(caret_index)
-  |> ZSeq.wrap
-  |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
+  let text_cursor = CursorPosition.OnText(caret_index);
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape(t) =>
+    if (text |> StringUtil.is_empty) {
+      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
+    } else {
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+      Succeeded((zp, ctx, u_gen));
+    }
+  | Underscore =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
+    Succeeded((zp, ctx, u_gen));
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_) =>
+    switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded((zp, ty', ctx, u_gen)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      }
+    }
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, ctx, u_gen));
+  | Var(x) =>
+    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
+    Succeeded((zp, ctx, u_gen));
+  };
 };
 
 let rec merge_class =

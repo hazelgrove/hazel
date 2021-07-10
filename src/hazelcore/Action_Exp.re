@@ -331,11 +331,53 @@ let place_cursor = (caret_index, operand: UHExp.operand): ZExp.zoperand =>
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
-  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
-  operand
-  |> place_cursor(caret_index)
-  |> ZSeq.wrap
-  |> mk_and_syn_fix_zseq(ctx, u_gen);
+  let text_cursor = CursorPosition.OnText(caret_index);
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape(t) =>
+    if (text |> StringUtil.is_empty) {
+      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
+    } else {
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    }
+  | IntLit(n) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
+    Succeeded(SynDone((ze, HTyp.Int, u_gen)));
+  | FloatLit(f) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
+    Succeeded(SynDone((ze, HTyp.Float, u_gen)));
+  | BoolLit(b) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
+    Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var =
+      UHExp.var(
+        ~var_err=InVarHole(Keyword(k), u),
+        k |> ExpandingKeyword.to_string,
+      );
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  | Underscore as shape
+  | Var(_) as shape =>
+    let x =
+      switch (shape) {
+      | Var(x) => x
+      | _ => "_"
+      };
+    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+    | Some(ty) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
+      Succeeded(SynDone((ze, ty, u_gen)));
+    | None =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var = UHExp.var(~var_err=InVarHole(Free, u), x);
+      let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+      Succeeded(SynDone((new_ze, Hole, u_gen)));
+    };
+  };
 };
 
 let mk_ana_text =
@@ -346,12 +388,45 @@ let mk_ana_text =
       text: string,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) => {
-  let (operand, u_gen) = mk_operand_of_string(ctx, u_gen, text);
-  operand
-  |> place_cursor(caret_index)
-  |> ZSeq.wrap
-  |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
+    : ActionOutcome.t(_) => {
+  let text_cursor = CursorPosition.OnText(caret_index);
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape(t) =>
+    if (text |> StringUtil.is_empty) {
+      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+      Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+    } else {
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+      Succeeded(AnaDone((ze, u_gen)));
+    }
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var =
+      UHExp.var(
+        ~var_err=InVarHole(Keyword(k), u),
+        k |> ExpandingKeyword.to_string,
+      );
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+    Succeeded(AnaDone((ze, u_gen)));
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | Underscore
+  | Var(_) =>
+    // TODO: review whether subsumption correctly applied
+    switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
+    | Succeeded(SynDone((ze, ty', u_gen))) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded(AnaDone((ze, u_gen)));
+      } else {
+        let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+        Succeeded(AnaDone((ze, u_gen)));
+      }
+    }
+  };
 };
 
 let merge_class =
