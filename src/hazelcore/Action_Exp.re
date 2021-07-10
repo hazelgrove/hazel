@@ -981,7 +981,10 @@ and syn_perform_line =
     /* If the current line is just a hole, leave it empty */
     let (prev_line, new_zline) =
       ZExp.zline_is_just_empty_hole(zline)
-        ? (UHExp.EmptyLine, zline)
+        ? (
+          UHExp.EmptyLine,
+          zline |> ZExp.erase_zline |> ZExp.place_before_line,
+        )
         : (
           ZExp.erase_zline(zline),
           ZExp.place_before_line(
