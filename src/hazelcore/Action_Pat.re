@@ -115,7 +115,8 @@ let mk_ana_text =
   |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
 };
 
-let merge_class = (o: UHPat.operand): Action_common.merge_class =>
+let rec merge_class =
+        (o: UHPat.operand): Action_common.merge_class(ZPat.zoperand) =>
   switch (o) {
   | EmptyHole(_) => Empty
   | InvalidText(_)
@@ -124,6 +125,36 @@ let merge_class = (o: UHPat.operand): Action_common.merge_class =>
   | FloatLit(_)
   | BoolLit(_)
   | Wild(_) => Merge(UHPat.string_of_operand(o))
+  | TypeAnn(err, operand, ty) =>
+    switch (merge_class(operand)) {
+    | Inert => Inert
+    | Empty =>
+      AbsorbLeft(
+        (s, ctx, u_gen) => {
+          let (inner_operand, u_gen) = mk_operand_of_string(ctx, u_gen, s);
+          let inner_zop =
+            ZPat.CursorP(OnText(String.length(s)), inner_operand);
+          (ZPat.TypeAnnZP(err, inner_zop, ty), u_gen);
+        },
+      )
+    | Merge(inner_op_str) =>
+      AbsorbLeft(
+        (s, ctx, u_gen) => {
+          let (inner_operand, u_gen) =
+            mk_operand_of_string(ctx, u_gen, s ++ inner_op_str);
+          let inner_zop =
+            ZPat.CursorP(OnText(String.length(s)), inner_operand);
+          (ZPat.TypeAnnZP(err, inner_zop, ty), u_gen);
+        },
+      )
+    | AbsorbLeft(absorb) =>
+      AbsorbLeft(
+        (s, ctx, u_gen) => {
+          let (inner_zop, u_gen) = absorb(s, ctx, u_gen);
+          (ZPat.TypeAnnZP(err, inner_zop, ty), u_gen);
+        },
+      )
+    }
   | _ => Inert
   };
 
@@ -140,6 +171,14 @@ let spacebuster = {
     ~after_=ZPat.place_after_operand,
     ~merge_class,
   );
+};
+
+let rec is_nested_TypeAnnZP = (zoperand: ZPat.zoperand) => {
+  switch (zoperand) {
+  | TypeAnnZP(_, CursorP(_), _) => true
+  | TypeAnnZP(_, zop, _) => is_nested_TypeAnnZP(zop)
+  | _ => false
+  };
 };
 
 let syn_insert_text = Action_common.syn_insert_text_(~mk_syn_text);
@@ -942,6 +981,14 @@ and ana_perform_opseq =
       ),
     ) =>
     mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, ctx, u_gen))
+  | (Backspace, ZOperand(zopB, (A(Space, S(opA, prefix)), suffix)))
+      when ZPat.is_before_zoperand(zopB) && is_nested_TypeAnnZP(zopB) =>
+    // Shouldn't need this case in syn_perform_opseq
+    // as TypeAnnZP is necessarily analytic
+    let opB = ZPat.erase_zoperand(zopB);
+    mk_success_zseq(
+      spacebuster(opA, opB, prefix, suffix, Backspace, ctx, u_gen),
+    );
   | (
       Backspace,
       ZOperand(

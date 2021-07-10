@@ -38,9 +38,10 @@ let shape_to_string = (shape: shape): string => {
   };
 };
 
-type merge_class =
+type merge_class('a) =
   | Empty
   | Merge(string)
+  | AbsorbLeft((string, Contexts.t, MetaVarGen.t) => ('a, MetaVarGen.t))
   | Inert;
 
 type delete_action =
@@ -342,7 +343,7 @@ let delete_action = (a: Action.t): delete_action =>
 let spacebuster =
     (
       ~space: 'operator,
-      ~merge_class: 'operand => merge_class,
+      ~merge_class: 'operand => merge_class('zoperand),
       ~before_: 'operand => 'zoperand,
       ~after_: 'operand => 'zoperand,
       ~at_index: ('operand, int) => 'zoperand,
@@ -406,6 +407,10 @@ let spacebuster =
     //  A |H   B=>   A|   D=>   A|
     //  A  H|  B=>   A|   D=>    *
     mono(after_(opA))
+  | (Merge(sa), _, AbsorbLeft(absorb_op)) =>
+    // This case exists to support type annotations in patterns
+    let (zop, u_gen) = absorb_op(sa, ctx, u_gen);
+    (ZSeq.ZOperand(zop, (prefix, suffix)), u_gen);
   | (Merge(sa), _, Merge(sb)) =>
     //  A| B   B=>  **    D=>   A|B
     //  A |B   B=>  A|B   D=>   **
@@ -413,15 +418,11 @@ let spacebuster =
     let zop = at_index(op, String.length(sa));
     (ZSeq.ZOperand(zop, (prefix, suffix)), u_gen);
   // If we can't delete anything, we try to move in the relevant direction
-  | (Inert, Backspace, Inert)
-  | (Inert, Backspace, Merge(_))
-  | (Merge(_), Backspace, Inert) =>
+  | (_, Backspace, _) =>
     //  A| B   B=>    **
     //  A |B   B=>    A| B
     bin_first(after_(opA), opB)
-  | (Inert, Delete, Inert)
-  | (Inert, Delete, Merge(_))
-  | (Merge(_), Delete, Inert) =>
+  | (_, Delete, _) =>
     //  A| B   D=>    A |B
     //  A |B   D=>    **
     bin_second(opA, before_(opB))

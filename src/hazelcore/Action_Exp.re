@@ -354,7 +354,8 @@ let mk_ana_text =
   |> mk_and_ana_fix_zseq(ctx, u_gen, ty);
 };
 
-let merge_class = (o: UHExp.operand): Action_common.merge_class =>
+let merge_class =
+    (o: UHExp.operand): Action_common.merge_class(ZExp.zoperand) =>
   switch (o) {
   | EmptyHole(_) => Empty
   | InvalidText(_)
