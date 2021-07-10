@@ -26,3 +26,8 @@ let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
+
+let of_bool =
+  fun
+  | true => Some()
+  | false => None;

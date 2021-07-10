@@ -1,6 +1,17 @@
+module Index: {
+  [@deriving sexp]
+  type t; /* we use de Bruijn */
+
+  let of_int: int => t;
+
+  let lookup: (list('a), t) => 'a;
+};
+
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(Index.t, TyId.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, TyId.t) /* free type variables */
   | Hole
   | Int
   | Float

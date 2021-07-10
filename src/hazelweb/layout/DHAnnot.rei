@@ -11,4 +11,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | DivideByZero;
+  | DivideByZero
+  | TyVarHole;

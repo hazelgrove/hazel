@@ -8,6 +8,7 @@ type term_data = {
 
 [@deriving sexp]
 type token_shape =
+  | Keyword
   | Text
   | Op
   | Delim(DelimIndex.t);

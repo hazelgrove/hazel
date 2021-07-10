@@ -520,12 +520,26 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
-          let new_zseq =
-            ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-          Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
-        | _ => Failed
+        switch (Elaborator_Typ.syn_kind(ctx, zann |> ZTyp.erase)) {
+        | None => Failed
+        | Some(kind) =>
+          switch (
+            Action_Typ.syn_perform(
+              ctx,
+              a,
+              {Action_Typ.Syn_success.Poly.zty: zann, u_gen, kind},
+            )
+          ) {
+          | None => Failed
+          | Some(Succeeded({zty: new_zann, u_gen, kind: _})) =>
+            let new_zseq =
+              ZSeq.ZOperand(
+                ZPat.TypeAnnZA(err, operand, new_zann),
+                surround,
+              );
+            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+          | Some(CursorEscaped(_side)) => Failed
+          }
         }
       | _ => Failed
       }
@@ -817,7 +831,8 @@ and syn_perform_operand =
     }
 
   | (Construct(SAnn), CursorP(_)) =>
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole(u)));
     let new_zp =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
@@ -861,21 +876,32 @@ and syn_perform_operand =
       Succeeded((zpat, ty, ctx, u_gen));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded(zann) =>
-      let ty = UHTyp.expand(ZTyp.erase(zann));
-      let (zpat, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes_z(
+    // TODO: Do we need to thread delta through here?
+    switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
+    | None => Failed
+    | Some((ty, kind, _)) =>
+      switch (
+        Action_Typ.syn_perform(
           ctx,
-          u_gen,
-          ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
-          ty,
-        );
-      Succeeded((zpat, ty, ctx, u_gen));
+          a,
+          {Action_Typ.Syn_success.Poly.zty: zann, u_gen, kind},
+        )
+      ) {
+      | None => Failed
+      | Some(CursorEscaped(side)) =>
+        syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
+      | Some(Succeeded({zty: zann, u_gen, kind: _})) =>
+        let (zpat, ctx, u_gen) =
+          Statics_Pat.ana_fix_holes_z(
+            ctx,
+            u_gen,
+            ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
+            ty,
+          );
+        Succeeded((zpat, ty, ctx, u_gen));
+      }
     }
+
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -1016,13 +1042,26 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
-          let new_zseq =
-            ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-          let ty' = UHTyp.expand(ZTyp.erase(new_zann));
-          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
-        | _ => Failed
+        switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
+        | None => Failed
+        | Some((ty', kind, _)) =>
+          switch (
+            Action_Typ.syn_perform(
+              ctx,
+              a,
+              {Action_Typ.Syn_success.Poly.zty: zann, u_gen, kind},
+            )
+          ) {
+          | None => Failed
+          | Some(CursorEscaped(_side)) => Failed
+          | Some(Succeeded({zty: new_zann, u_gen, kind: _})) =>
+            let new_zseq =
+              ZSeq.ZOperand(
+                ZPat.TypeAnnZA(err, operand, new_zann),
+                surround,
+              );
+            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
+          }
         }
       | _ => Failed
       }
@@ -1423,27 +1462,38 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        u_gen,
-        Action_common.escape(side),
-        zoperand,
-        ty,
-      )
-    | Succeeded(zann) =>
-      let ty' = UHTyp.expand(ZTyp.erase(zann));
-      let (new_op, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
-      let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((new_zopseq, ctx, u_gen));
-      } else {
-        let (new_zopseq, u_gen) = new_zopseq |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((new_zopseq, ctx, u_gen));
-      };
+    // TODO: Do we need to thread delta through here?
+    switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
+    | None => Failed
+    | Some((ty', kind, _)) =>
+      switch (
+        Action_Typ.syn_perform(
+          ctx,
+          a,
+          {Action_Typ.Syn_success.Poly.zty: zann, u_gen, kind},
+        )
+      ) {
+      | None => Failed
+      | Some(CursorEscaped(side)) =>
+        ana_perform_operand(
+          ctx,
+          u_gen,
+          Action_common.escape(side),
+          zoperand,
+          ty,
+        )
+      | Some(Succeeded({zty: zann, u_gen, kind: _})) =>
+        let (new_op, ctx, u_gen) =
+          Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
+        let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((new_zopseq, ctx, u_gen));
+        } else {
+          let (new_zopseq, u_gen) =
+            new_zopseq |> ZPat.mk_inconsistent(u_gen);
+          Succeeded((new_zopseq, ctx, u_gen));
+        };
+      }
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>

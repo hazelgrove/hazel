@@ -5,11 +5,12 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t)
   | Unit
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -28,6 +29,6 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
 
-let expand: t => HTyp.t;
+/* "expand" is handled by Elaborator_Typ.syn/ana */
 
 let is_complete: t => bool;

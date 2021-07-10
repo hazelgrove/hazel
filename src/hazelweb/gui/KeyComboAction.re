@@ -6,7 +6,7 @@ let get_model_action =
 
   let (cursor_on_type, cursor_on_comment) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false)
+    | {typed: OnType(_), _} => (true, false)
     | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
     | _ => (false, false)
     };

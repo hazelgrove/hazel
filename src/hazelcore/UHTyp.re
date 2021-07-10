@@ -5,11 +5,12 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t)
   | Unit
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -26,7 +27,8 @@ let rec get_prod_elements: skel => list(skel) =
 
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
-  | Hole
+  | Hole(_)
+  | TyVar(_)
   | Unit
   | Int
   | Float
@@ -56,7 +58,9 @@ let contract = (ty: HTyp.t): t => {
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
       switch (ty) {
-      | Hole => Seq.wrap(Hole)
+      | Hole => Seq.wrap(Hole(0 /* TODO: What do we do here? */))
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -92,39 +96,11 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
-and expand_opseq =
-  fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
-  switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
-  | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Arrow(ty1, ty2);
-  | BinOp(_, Prod, _, _) =>
-    Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
-    )
-  | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Sum(ty1, ty2);
-  }
-and expand_operand =
-  fun
-  | Hole => Hole
-  | Unit => Prod([])
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
-
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
-  | Hole => false
+  | Hole(_) => false
+  | TyVar(NotInVarHole, _) => true
+  | TyVar(InVarHole(_), _) => false
   | Unit => true
   | Int => true
   | Float => true

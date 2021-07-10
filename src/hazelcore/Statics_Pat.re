@@ -87,9 +87,9 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
-    let+ op_ctx = ana_operand(ctx, op, ty_ann);
-    (ty_ann, op_ctx);
+    let* (hty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
+    let+ op_ctx = ana_operand(ctx, op, hty);
+    (hty, op_ctx);
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
@@ -184,8 +184,8 @@ and ana_operand =
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
-    HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
+    let* (hty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
+    HTyp.consistent(ty, hty) ? ana_operand(ctx, op, hty) : None;
   };
 
 let rec syn_nth_type_mode =
@@ -416,7 +416,10 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let ty = UHTyp.expand(ann);
+    let (uty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ann);
+    // TODO: Should syn_fix_holes just return the HTyp instead so we don't need a force unwrap here?
+    let (ty, _, _) =
+      Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
@@ -699,7 +702,11 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let (uty, kind, u_gen) = Elaborator_Typ.syn_fix_holes(ctx, u_gen, ann);
+    // TODO: Should syn_fix_holes just return the HTyp instead so we don't need a force unwrap here?
+    let (ty_ann, _, _) =
+      Elaborator_Typ.ana(ctx, Delta.empty, uty, kind) |> Option.get;
+
     if (HTyp.consistent(ty, ty_ann)) {
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);

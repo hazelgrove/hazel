@@ -46,6 +46,7 @@ let view_of_layout =
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
+             | TyVarHole => ([with_cls("TyVarHole", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
