@@ -1,3 +1,4 @@
+let mk_hole_sort = CursorPath.mk_hole_sort;
 let rec of_z = (zty: ZTyp.t): CursorPath.t => of_zopseq(zty)
 and of_zopseq = zopseq => CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
@@ -151,9 +152,9 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole(_) => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
+  | Hole(_) => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs]
   | TyVar(InVarHole(_), _) => [
-      {sort: TyVarHole, steps: List.rev(rev_steps)},
+      mk_hole_sort(TyVarHole, List.rev(rev_steps)),
       ...hs,
     ]
   | Unit
@@ -186,7 +187,7 @@ and holes_zoperand =
   switch (zoperand) {
   | CursorT(_, Hole(_) | TyVar(InVarHole(_), _)) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some({sort: TypHole, steps: List.rev(rev_steps)}),
+      ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInVarHole, _)) => CursorPath_common.no_holes
