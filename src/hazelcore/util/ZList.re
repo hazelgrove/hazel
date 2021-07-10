@@ -85,6 +85,7 @@ let prj_suffix = (zxs: t('z, 'a)): list('a) => {
 };
 
 let prefix_length = (zxs: t('z, 'a)): int => List.length(prj_prefix(zxs));
+let get_index = prefix_length;
 
 let suffix_length = (zxs: t('z, 'a)): int => List.length(prj_suffix(zxs));
 

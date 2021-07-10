@@ -56,8 +56,11 @@ let disable_undo = (undo_history: t): bool => {
   == 0;
 };
 
+let get_undo_entry = (history: t): undo_history_entry =>
+  ZList.prj_z(ZList.prj_z(history.groups).group_entries);
+
 let get_cardstacks = (history: t, ~is_after_move: bool): ZCardstacks.t => {
-  let cur_entry = ZList.prj_z(ZList.prj_z(history.groups).group_entries);
+  let cur_entry = get_undo_entry(history);
   if (is_after_move) {
     cur_entry.cardstacks_after_move;
   } else {
@@ -685,10 +688,10 @@ let get_cursor_term_info =
 
 let push_edit_state =
     (
-      undo_history: t,
-      new_cardstacks_before: ZCardstacks.t,
-      new_cardstacks_after: ZCardstacks.t,
-      action: Action.t,
+      ~undo_history: t,
+      ~new_cardstacks_before: ZCardstacks.t,
+      ~new_cardstacks_after: ZCardstacks.t,
+      ~action: Action.t,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
