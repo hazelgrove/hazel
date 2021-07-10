@@ -295,33 +295,41 @@ let delete_group =
       );
     };
   };
+
+let is_syntax_same_ignoring_holes = (zexp1, zexp2) => {
+  let after =
+    zexp1
+    |> ZExp.erase
+    |> Statics_Exp.syn_fix_holes(Contexts.empty, 0)
+    |> (((a, _, _)) => a);
+  let before =
+    zexp2
+    |> ZExp.erase
+    |> Statics_Exp.syn_fix_holes(Contexts.empty, 0)
+    |> (((a, _, _)) => a);
+  after == before;
+};
+
 let delim_edge_handle =
     (
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
       ~adjacent_is_empty_line: bool,
     )
-    : option(UndoHistoryCore.action_group) => {
-  // WARNING: this is galaxy brain logic
-  let space_will_merge =
-    switch (
-      new_cursor_term_info.cursor_term_before,
-      new_cursor_term_info.cursor_term_after,
-    ) {
-    | (Exp(_, opA), Exp(_, opB)) => Action_Exp.will_merge(opA, opB)
-    | (Pat(_, opA), Pat(_, opB)) => Action_Pat.will_merge(opA, opB)
-    | _ => false
-    };
+    : option(UndoHistoryCore.action_group) =>
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
-  } else if (space_will_merge) {
+  } else if (!
+               is_syntax_same_ignoring_holes(
+                 new_cursor_term_info.zexp_after,
+                 new_cursor_term_info.zexp_before,
+               )) {
     /* delete space */
     Some(DeleteEdit(Space));
   } else {
     None;
         /* jump to next term */
   };
-};
 let delete =
     (
       ~prev_group: undo_history_group,
