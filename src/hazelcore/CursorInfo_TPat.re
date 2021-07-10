@@ -21,14 +21,15 @@ let cursor_info =
   | CursorP(_, TyVar(None, tyid)) =>
     Some(
       CursorInfo_common.CursorOnDeferredTyVarPat(
-        tyuses => CursorInfo_common.mk(~tyuses, OnTPat, ctx, cursor_term),
+        tyuses =>
+          CursorInfo_common.mk(~tyuses, OnTPat(None), ctx, cursor_term),
         tyid,
       ),
     )
-  | CursorP(_, TyVar(Some(_), _)) =>
+  | CursorP(_, TyVar(Some(e), _)) =>
     Some(
       CursorInfo_common.CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnTPat, ctx, cursor_term),
+        CursorInfo_common.mk(OnTPat(Some(e)), ctx, cursor_term),
       ),
     )
   };

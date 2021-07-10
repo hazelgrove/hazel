@@ -75,6 +75,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     expected_indicator("Expecting a pattern of ", special_msg_bar(msg));
   let expected_any_indicator = expected_msg_indicator("any type");
   let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
+  let expected_any_type_pattern =
+    expected_msg_indicator_pat("any type pattern");
   let expected_a_type_indicator =
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_line_indicator =
@@ -123,6 +125,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
+  let got_a_type_variable_indicator =
+    got_indicator("Got", special_msg_bar("a type variable"));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
@@ -130,6 +134,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
+  let got_builtin_type_indicator = typ =>
+    got_indicator("Got a builtin type", typebar(typ));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
@@ -336,11 +342,20 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | OnTPat
+    | OnTPat(None)
     | OnTPatHole =>
-      let ind1 = expected_a_type_indicator;
-      let ind2 = got_a_type_indicator;
+      let ind1 = expected_any_type_pattern;
+      let ind2 = got_a_type_variable_indicator;
       (ind1, ind2, OK);
+    | OnTPat(Some(e)) =>
+      let ind1 = expected_any_type_pattern;
+      let ind2 =
+        switch (e) {
+        | TPat.VarPatErrStatus.Keyword(_kw) => got_keyword_indicator
+        | TPat.VarPatErrStatus.BuiltInType(typ) =>
+          got_builtin_type_indicator(HTyp.t_of_builtintype(typ))
+        };
+      (ind1, ind2, BindingError);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;

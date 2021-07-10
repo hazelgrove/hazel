@@ -106,7 +106,7 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type-pattern position */
-  | OnTPat
+  | OnTPat(option(TPat.VarPatErrStatus.t))
   | OnTPatHole
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)

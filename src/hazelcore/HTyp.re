@@ -115,3 +115,9 @@ let rec tyvar_debruijn_increment = t =>
   | List(t) => List(tyvar_debruijn_increment(t))
   | Prod(lst) => Prod(List.map(tyvar_debruijn_increment, lst))
   };
+
+let t_of_builtintype =
+  fun
+  | TyId.BuiltInType.Bool => Bool
+  | Float => Float
+  | Int => Int;
