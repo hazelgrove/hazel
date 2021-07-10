@@ -2581,10 +2581,14 @@ and ana_perform_opseq =
 
   | (
       Construct(SLine),
-      ZOperand(CursorE(_) as zoperand, (A(_) as prefix, suffix)),
+      ZOperand(CursorE(_, op) as zoperand, (A(_) as prefix, suffix)),
     ) =>
     let (new_line, u_gen) = {
-      let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let (hole, u_gen) =
+        switch (op) {
+        | EmptyHole(_) => (op, u_gen)
+        | _ => UHExp.new_EmptyHole(u_gen)
+        };
       let seq = Seq.prefix_seq(prefix, S(hole, E));
       let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
       (UHExp.ExpLine(opseq), u_gen);
@@ -3082,8 +3086,13 @@ and ana_perform_operand =
       [],
     );
     Succeeded(AnaDone((new_ze, u_gen)));
-  | (Construct(SLine), CursorE(_)) when ZExp.is_after_zoperand(zoperand) =>
-    let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+  | (Construct(SLine), CursorE(_, op))
+      when ZExp.is_after_zoperand(zoperand) =>
+    let (new_hole, u_gen) =
+      switch (op) {
+      | EmptyHole(_) => (op, u_gen)
+      | _ => UHExp.new_EmptyHole(u_gen)
+      };
     let new_zline =
       UHExp.ExpLine(OpSeq.wrap(new_hole)) |> ZExp.place_before_line;
     let new_ze = (
