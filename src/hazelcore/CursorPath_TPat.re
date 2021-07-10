@@ -27,9 +27,12 @@ let holes =
     (tp: TPat.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
     : CursorPath.hole_list =>
   switch (tp) {
-  | EmptyHole
+  | EmptyHole => [
+      mk_hole_sort(TPatHole(Empty), List.rev(rev_steps)),
+      ...hs,
+    ]
   | TyVar(Some(_), _) => [
-      mk_hole_sort(TPatHole, List.rev(rev_steps)),
+      mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps)),
       ...hs,
     ]
   | TyVar(None, _) => hs
@@ -38,9 +41,16 @@ let holes =
 let holes_z =
     (ztp: ZTPat.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
   switch (ztp) {
-  | CursorP(_, EmptyHole | TyVar(Some(_), _)) =>
+  | CursorP(_, EmptyHole) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some(mk_hole_sort(TPatHole, List.rev(rev_steps))),
+      ~hole_selected=
+        Some(mk_hole_sort(TPatHole(Empty), List.rev(rev_steps))),
+      (),
+    )
+  | CursorP(_, TyVar(Some(_), _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some(mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps))),
       (),
     )
   | CursorP(_, TyVar(None, _)) => CursorPath_common.no_holes

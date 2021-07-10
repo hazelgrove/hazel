@@ -52,7 +52,6 @@ and mk_operand =
         switch (operand) {
         | Hole(_) => mk_EmptyHole("?")
         | TyVar(_verr, tyid) =>
-          // TODO: How to print verr?
           UHDoc_common.mk_Var(~sort=Typ, TyId.to_string(tyid))
         | Unit => UHDoc_common.mk_Unit()
         | Int => UHDoc_common.mk_Int()

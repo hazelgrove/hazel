@@ -102,7 +102,7 @@ let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
     perform(Backspace, CursorP(OnDelim(k, After), zp))
 
   /* Backspace and delete on tyvar */
-  | (Backspace, CursorP(OnText(k), TyVar(err, x))) =>
+  | (Backspace, CursorP(OnText(k), TyVar(_, x))) =>
     ZTPat.is_before(zp)
       ? CursorEscaped(Before)
       : {
@@ -110,13 +110,13 @@ let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
         if (TyIdUtil.is_empty(new_x)) {
           Succeeded(ZTPat.place_after(EmptyHole));
         } else {
-          Succeeded(CursorP(OnText(k - 1), TyVar(err, new_x)));
+          Succeeded(CursorP(OnText(k - 1), TPat.tyvar_of_tyid(new_x)));
         };
       }
 
   | (Backspace, CursorP(OnText(_), _)) => Failed
 
-  | (Delete, CursorP(OnText(k), TyVar(err, x))) =>
+  | (Delete, CursorP(OnText(k), TyVar(_, x))) =>
     ZTPat.is_after(zp)
       ? CursorEscaped(After)
       : {
@@ -124,7 +124,7 @@ let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
         if (TyIdUtil.is_empty(new_x)) {
           Succeeded(ZTPat.place_before(EmptyHole));
         } else {
-          Succeeded(CursorP(OnText(k - 1), TyVar(err, new_x)));
+          Succeeded(CursorP(OnText(k - 1), TPat.tyvar_of_tyid(new_x)));
         };
       }
 

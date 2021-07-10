@@ -42,3 +42,5 @@ let matched_list: t => option(t);
 let complete: t => bool;
 
 let tyvar_debruijn_increment: t => t;
+
+let t_of_builtintype: TyId.BuiltInType.t => t;

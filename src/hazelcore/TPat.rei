@@ -1,6 +1,7 @@
 module VarPatErrStatus: {
   [@deriving sexp]
   type t =
+    | BuiltInType(TyId.BuiltInType.t)
     | Keyword(ExpandingKeyword.t);
 };
 
