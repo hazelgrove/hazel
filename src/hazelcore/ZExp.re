@@ -961,3 +961,10 @@ and cursor_on_EmptyHole_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+
+let zline_is_just_empty_hole = (zline: zline): bool =>
+  switch (zline) {
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))) =>
+    true
+  | _ => false
+  };
