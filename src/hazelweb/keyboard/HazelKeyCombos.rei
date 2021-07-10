@@ -33,10 +33,16 @@ type t =
   | Ctrl_S
   | CtrlOrCmd_Z
   | CtrlOrCmd_Shift_Z
-  | CtrlOrCmd_Alt_I
-  | CtrlOrCmd_Alt_K
-  | CtrlOrCmd_Alt_J
-  | CtrlOrCmd_Alt_L;
+  | Up
+  | Down
+  | Left
+  | Right
+  | Home
+  | End
+  | Alt_Up
+  | Alt_Down
+  | Alt_Left
+  | Alt_Right;
 
 let get_details: t => KeyCombo.t;
 

@@ -13,7 +13,6 @@ let shift = key => {mod_keys: ModKeys.shift, key};
 let ctrlOrCmd = key => {mod_keys: ModKeys.ctrlOrCmd, key};
 let alt = key => {mod_keys: ModKeys.alt, key};
 let ctrlOrCmd_shift = key => {mod_keys: ModKeys.ctrlOrCmd_shift, key};
-let ctrlOrCmd_alt = key => {mod_keys: ModKeys.ctrlOrCmd_alt, key};
 
 let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
   ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -55,7 +54,13 @@ let alt_PageDown = alt(Key.the_key("PageDown"));
 let ctrl_s = ctrl(Key.the_key("S"));
 let ctrlOrCmd_z = ctrlOrCmd(Key.the_key("Z"));
 let ctrlOrCmd_shift_z = ctrlOrCmd_shift(Key.the_key("Z"));
-let ctrlOrCmd_alt_i = ctrlOrCmd_alt(Key.the_key("I"));
-let ctrlOrCmd_alt_k = ctrlOrCmd_alt(Key.the_key("K"));
-let ctrlOrCmd_alt_j = ctrlOrCmd_alt(Key.the_key("J"));
-let ctrlOrCmd_alt_l = ctrlOrCmd_alt(Key.the_key("L"));
+let up = plain(Key.key1(Unicode.up_arrow_key, "ArrowUp"));
+let down = plain(Key.key1(Unicode.down_arrow_key, "ArrowDown"));
+let left = plain(Key.key1(Unicode.left_arrow_key, "ArrowLeft"));
+let right = plain(Key.key1(Unicode.right_arrow_key, "ArrowRight"));
+let home_key = plain(Key.the_key("Home"));
+let end_key = plain(Key.the_key("End"));
+let alt_up = alt(Key.key1(Unicode.up_arrow_key, "ArrowUp"));
+let alt_down = alt(Key.key1(Unicode.down_arrow_key, "ArrowDown"));
+let alt_left = alt(Key.key1(Unicode.left_arrow_key, "ArrowLeft"));
+let alt_right = alt(Key.key1(Unicode.right_arrow_key, "ArrowRight"));

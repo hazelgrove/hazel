@@ -33,10 +33,16 @@ type t =
   | Ctrl_S
   | CtrlOrCmd_Z
   | CtrlOrCmd_Shift_Z
-  | CtrlOrCmd_Alt_I
-  | CtrlOrCmd_Alt_K
-  | CtrlOrCmd_Alt_J
-  | CtrlOrCmd_Alt_L;
+  | Up
+  | Down
+  | Left
+  | Right
+  | Home
+  | End
+  | Alt_Up
+  | Alt_Down
+  | Alt_Left
+  | Alt_Right;
 
 let get_details =
   fun
@@ -70,10 +76,16 @@ let get_details =
   | Ctrl_S => KeyCombo.ctrl_s
   | CtrlOrCmd_Z => KeyCombo.ctrlOrCmd_z
   | CtrlOrCmd_Shift_Z => KeyCombo.ctrlOrCmd_shift_z
-  | CtrlOrCmd_Alt_I => KeyCombo.ctrlOrCmd_alt_i
-  | CtrlOrCmd_Alt_K => KeyCombo.ctrlOrCmd_alt_k
-  | CtrlOrCmd_Alt_J => KeyCombo.ctrlOrCmd_alt_j
-  | CtrlOrCmd_Alt_L => KeyCombo.ctrlOrCmd_alt_l;
+  | Up => KeyCombo.up
+  | Down => KeyCombo.down
+  | Left => KeyCombo.left
+  | Right => KeyCombo.right
+  | Home => KeyCombo.home_key
+  | End => KeyCombo.end_key
+  | Alt_Up => KeyCombo.alt_up
+  | Alt_Down => KeyCombo.alt_down
+  | Alt_Left => KeyCombo.alt_left
+  | Alt_Right => KeyCombo.alt_right;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
@@ -137,14 +149,26 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(CtrlOrCmd_Z);
   } else if (evt_matches(KeyCombo.ctrlOrCmd_shift_z)) {
     Some(CtrlOrCmd_Shift_Z);
-  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_i)) {
-    Some(CtrlOrCmd_Alt_I);
-  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_k)) {
-    Some(CtrlOrCmd_Alt_K);
-  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_j)) {
-    Some(CtrlOrCmd_Alt_J);
-  } else if (evt_matches(KeyCombo.ctrlOrCmd_alt_l)) {
-    Some(CtrlOrCmd_Alt_L);
+  } else if (evt_matches(KeyCombo.up)) {
+    Some(Up);
+  } else if (evt_matches(KeyCombo.down)) {
+    Some(Down);
+  } else if (evt_matches(KeyCombo.left)) {
+    Some(Left);
+  } else if (evt_matches(KeyCombo.right)) {
+    Some(Right);
+  } else if (evt_matches(KeyCombo.home_key)) {
+    Some(Home);
+  } else if (evt_matches(KeyCombo.end_key)) {
+    Some(End);
+  } else if (evt_matches(KeyCombo.alt_up)) {
+    Some(Alt_Up);
+  } else if (evt_matches(KeyCombo.alt_down)) {
+    Some(Alt_Down);
+  } else if (evt_matches(KeyCombo.alt_left)) {
+    Some(Alt_Left);
+  } else if (evt_matches(KeyCombo.alt_right)) {
+    Some(Alt_Right);
   } else {
     None;
   };
