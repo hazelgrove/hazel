@@ -1,6 +1,12 @@
 module Doc = Pretty.Doc;
 open UHDoc;
 
+module BindingForm = {
+  type t =
+    | Type
+    | Let;
+};
+
 type memoization_value('a) = {
   mutable inline_true: option('a),
   mutable inline_false: option('a),
@@ -97,6 +103,8 @@ module Delim = {
   let let_LetLine = (): t => mk(~index=0, "let");
   let eq_LetLine = (): t => mk(~index=1, "=");
   let in_LetLine = (): t => mk(~index=2, "in");
+
+  let type_TyAliasLine = (): t => mk(~index=0, "type");
 
   let open_CommentLine = (): t => mk(~index=0, "#");
 
@@ -387,12 +395,17 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
 
-let mk_LetLine = (p: formatted_child, def: formatted_child): t => {
+let mk_BindingLine =
+    (p: formatted_child, def: formatted_child, binding_form: BindingForm.t): t => {
   let open_group = {
-    let let_delim = Delim.let_LetLine();
+    let binding_delim =
+      switch (binding_form) {
+      | BindingForm.Type => Delim.type_TyAliasLine()
+      | BindingForm.Let => Delim.let_LetLine()
+      };
     let eq_delim = Delim.eq_LetLine();
     Doc.hcats([
-      let_delim,
+      binding_delim,
       p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
       eq_delim,
     ])

@@ -1,5 +1,13 @@
 open Sexplib.Std;
 
+module BuiltInType = {
+  [@deriving sexp]
+  type t =
+    | Bool
+    | Float
+    | Int;
+};
+
 [@deriving sexp]
 type t = string;
 
@@ -20,3 +28,10 @@ let is_Bool = eq("Bool");
 let is_Int = eq("Int");
 
 let is_Float = eq("Float");
+
+let to_builtin_type =
+  fun
+  | t when is_Bool(t) => Some(BuiltInType.Bool)
+  | t when is_Float(t) => Some(Float)
+  | t when is_Int(t) => Some(Int)
+  | _ => None;

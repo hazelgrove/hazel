@@ -9,6 +9,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
+  | TyAliasLine(TPat.t, UHTyp.t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)

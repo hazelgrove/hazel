@@ -22,6 +22,7 @@ type hole_shape =
 type hole_sort =
   | TypHole
   | TyVarHole
+  | TPatHole(hole_shape)
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape);
 

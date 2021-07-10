@@ -67,9 +67,11 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
-         | TyVarHole =>
-           Some((CursorPath.VarErr, CursorPath.get_steps(hole_info)))
+         | TPatHole(Empty)
          | TypHole => None
+         | TyVarHole
+         | TPatHole(_) =>
+           Some((CursorPath.VarErr, CursorPath.get_steps(hole_info)))
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
@@ -90,7 +92,12 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let tyvar_uses =
+    switch (get_cursor_info(program)) {
+    | {tyuses: Some(tyuses), _} => tyuses
+    | _ => []
+    };
+  {current_term, err_holes, var_uses, tyvar_uses, var_err_holes};
 };
 
 exception DoesNotElaborate;

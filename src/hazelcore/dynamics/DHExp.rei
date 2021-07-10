@@ -57,6 +57,7 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
+  | TyAlias(TPat.t, HTyp.t, Kind.t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
@@ -73,8 +74,8 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
-  | FailedCast(t, HTyp.t, HTyp.t)
+  | Cast(Contexts.t, t, HTyp.t, HTyp.t)
+  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -85,6 +86,6 @@ let constructor_string: t => string;
 
 let mk_tuple: list(t) => t;
 
-let cast: (t, HTyp.t, HTyp.t) => t;
+let cast: (Contexts.t, t, HTyp.t, HTyp.t) => t;
 
-let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+let apply_casts: (t, list((Contexts.t, HTyp.t, HTyp.t))) => t;

@@ -1,8 +1,10 @@
 [@deriving sexp]
 type t =
   | KHole
-  | Type;
-
-let consistent: (t, t) => bool;
+  | Type
+  // higher singleton
+  | Singleton(t, HTyp.t);
 
 let to_string: t => string;
+
+let is_singleton: t => bool;
