@@ -12,7 +12,7 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
     [
       logo_panel,
       CardsPanel.view(~inject, ~model),
-      ActionMenu.view(~inject, ~model),
+      ActionMenu.view(~inject),
     ],
   );
 };

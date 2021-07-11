@@ -40,5 +40,4 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool)
   | SerializeToConsole;
