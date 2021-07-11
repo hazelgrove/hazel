@@ -221,7 +221,6 @@ let string_of_operand = (o: operand): string =>
   | Var(_, _, s)
   | IntLit(_, s)
   | FloatLit(_, s) => s
-  | ListNil(_) => "[]"
   | BoolLit(_, b) => string_of_bool(b)
   | EmptyHole(_) => ""
   | _ => ""

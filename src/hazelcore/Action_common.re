@@ -337,7 +337,10 @@ let complete_tuple_ =
 let delete_action = (a: Action.t): delete_action =>
   switch (a) {
   | Backspace => Backspace
-  | _ => Delete
+  | Delete => Delete
+  | _ =>
+  let action_str = Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a))
+  failwith("Action_common.delete_action doesn't support action: " ++ action_str)
   };
 
 let spacebuster =
