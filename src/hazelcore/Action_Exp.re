@@ -322,6 +322,9 @@ let mk_operand_of_string = (ctx, u_gen, text) =>
      )
   |> (((e, _, u_gen)) => (e, u_gen));
 
+let mk_operand_of_string_no_ctx = (u_gen, text) =>
+  mk_operand_of_string(Contexts.empty, u_gen, text);
+
 let place_cursor = (caret_index, operand: UHExp.operand): ZExp.zoperand =>
   switch (operand) {
   | EmptyHole(_) => ZExp.place_before_operand(operand)
@@ -480,9 +483,9 @@ let syn_split_text =
     TextShape.of_text(r),
   ) {
   | (_, None, _) => Failed
-  | (ExpandingKeyword(kw), Some(Space), rshape) =>
+  | (ExpandingKeyword(kw), Some(Space), _) =>
     let (subject, u_gen) = {
-      let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
+      let (operand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
       (UHExp.Block.wrap(operand), u_gen);
     };
     Succeeded(
@@ -491,9 +494,9 @@ let syn_split_text =
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
       },
     );
-  | (lshape, Some(op), rshape) =>
-    let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
-    let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
+  | (_, Some(op), _) =>
+    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZExp.place_before_operand;
       let zopseq =
@@ -520,9 +523,9 @@ let ana_split_text =
     TextShape.of_text(r),
   ) {
   | (_, None, _) => Failed
-  | (ExpandingKeyword(kw), Some(Space), rshape) =>
+  | (ExpandingKeyword(kw), Some(Space), _) =>
     let (subject, u_gen) = {
-      let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
+      let (operand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
       (UHExp.Block.wrap(operand), u_gen);
     };
     Succeeded(
@@ -531,9 +534,9 @@ let ana_split_text =
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
       },
     );
-  | (lshape, Some(op), rshape) =>
-    let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
-    let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
+  | (_, Some(op), _) =>
+    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZExp.place_before_operand;
       let zopseq =

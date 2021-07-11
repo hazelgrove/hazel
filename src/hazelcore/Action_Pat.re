@@ -82,6 +82,9 @@ let mk_operand_of_string = (ctx, u_gen, text) =>
      )
   |> (((e, _, _, u_gen)) => (e, u_gen));
 
+let mk_operand_of_string_no_ctx = (u_gen, text) =>
+  mk_operand_of_string(Contexts.empty, u_gen, text);
+
 let place_cursor = (caret_index, operand: UHPat.operand): ZPat.zoperand =>
   switch (operand) {
   | EmptyHole(_) => ZPat.place_before_operand(operand)
@@ -268,9 +271,9 @@ let syn_split_text =
     TextShape.of_text(r),
   ) {
   | (_, None, _) => Failed
-  | (lshape, Some(op), rshape) =>
-    let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
-    let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
+  | (_, Some(op), _) =>
+    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
@@ -295,9 +298,9 @@ let ana_split_text =
     TextShape.of_text(r),
   ) {
   | (_, None, _) => Failed
-  | (lshape, Some(op), rshape) =>
-    let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
-    let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
+  | (_, Some(op), _) =>
+    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
