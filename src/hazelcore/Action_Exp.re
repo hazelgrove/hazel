@@ -312,18 +312,16 @@ let mk_and_ana_fix_zseq =
     ),
   );
 
-let mk_operand_of_string = (ctx, u_gen, text) =>
+/* Note that the result needs hole fixing */
+let mk_operand_of_string = (u_gen, text) =>
   text
   |> UHExp.operand_of_string
   |> Statics_Exp.syn_fix_holes_operand(
-       ctx,
+       Contexts.empty,
        u_gen,
        ~renumber_empty_holes=true,
      )
   |> (((e, _, u_gen)) => (e, u_gen));
-
-let mk_operand_of_string_no_ctx = (u_gen, text) =>
-  mk_operand_of_string(Contexts.empty, u_gen, text);
 
 let place_cursor = (caret_index, operand: UHExp.operand): ZExp.zoperand =>
   switch (operand) {
@@ -485,7 +483,7 @@ let syn_split_text =
   | (_, None, _) => Failed
   | (ExpandingKeyword(kw), Some(Space), _) =>
     let (subject, u_gen) = {
-      let (operand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
+      let (operand, u_gen) = mk_operand_of_string(u_gen, r);
       (UHExp.Block.wrap(operand), u_gen);
     };
     Succeeded(
@@ -495,8 +493,8 @@ let syn_split_text =
       },
     );
   | (_, Some(op), _) =>
-    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
-    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
+    let (loperand, u_gen) = mk_operand_of_string(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZExp.place_before_operand;
       let zopseq =
@@ -525,7 +523,7 @@ let ana_split_text =
   | (_, None, _) => Failed
   | (ExpandingKeyword(kw), Some(Space), _) =>
     let (subject, u_gen) = {
-      let (operand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
+      let (operand, u_gen) = mk_operand_of_string(u_gen, r);
       (UHExp.Block.wrap(operand), u_gen);
     };
     Succeeded(
@@ -535,8 +533,8 @@ let ana_split_text =
       },
     );
   | (_, Some(op), _) =>
-    let (loperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, l);
-    let (roperand, u_gen) = mk_operand_of_string_no_ctx(u_gen, r);
+    let (loperand, u_gen) = mk_operand_of_string(u_gen, l);
+    let (roperand, u_gen) = mk_operand_of_string(u_gen, r);
     let new_ze = {
       let zoperand = roperand |> ZExp.place_before_operand;
       let zopseq =
@@ -1244,7 +1242,7 @@ and syn_perform_opseq =
         (A(Space, S(opA, prefix)), E as suffix),
       ),
     ) =>
-    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, ctx, u_gen))
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, u_gen))
   | (
       Backspace,
       ZOperand(
@@ -1253,9 +1251,7 @@ and syn_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zopB) =>
-    mk_success_zseq(
-      spacebuster(opA, opB, prefix, suffix, Backspace, ctx, u_gen),
-    )
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, Backspace, u_gen))
   | (
       Delete,
       ZOperand(
@@ -1264,9 +1260,7 @@ and syn_perform_opseq =
       ),
     )
       when ZExp.is_after_zoperand(zop) =>
-    mk_success_zseq(
-      spacebuster(opA, opB, prefix, suffix, Delete, ctx, u_gen),
-    )
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, Delete, u_gen))
 
   /* Construction */
 
@@ -2588,7 +2582,7 @@ and ana_perform_opseq =
         (A(Space, S(opA, prefix)), E as suffix),
       ),
     ) =>
-    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, ctx, u_gen))
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, a, u_gen))
   | (
       Backspace,
       ZOperand(
@@ -2597,9 +2591,7 @@ and ana_perform_opseq =
       ),
     )
       when ZExp.is_before_zoperand(zopB) =>
-    mk_success_zseq(
-      spacebuster(opA, opB, prefix, suffix, Backspace, ctx, u_gen),
-    )
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, Backspace, u_gen))
   | (
       Delete,
       ZOperand(
@@ -2608,9 +2600,7 @@ and ana_perform_opseq =
       ),
     )
       when ZExp.is_after_zoperand(zop) =>
-    mk_success_zseq(
-      spacebuster(opA, opB, prefix, suffix, Delete, ctx, u_gen),
-    )
+    mk_success_zseq(spacebuster(opA, opB, prefix, suffix, Delete, u_gen))
 
   /* Construction */
 

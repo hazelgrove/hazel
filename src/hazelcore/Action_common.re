@@ -41,7 +41,7 @@ let shape_to_string = (shape: shape): string => {
 type merge_class('a) =
   | Empty
   | Merge(string)
-  | AbsorbLeft((string, Contexts.t, MetaVarGen.t) => ('a, MetaVarGen.t))
+  | AbsorbLeft((string, MetaVarGen.t) => ('a, MetaVarGen.t))
   | Inert;
 
 type delete_action =
@@ -353,13 +353,12 @@ let spacebuster =
       ~after_: 'operand => 'zoperand,
       ~at_index: ('operand, int) => 'zoperand,
       ~mk_operand_of_string:
-         (Contexts.t, MetaVarGen.t, string) => ('operand, MetaVarGen.t),
+         (MetaVarGen.t, string) => ('operand, MetaVarGen.t),
       opA: 'operand,
       opB: 'operand,
       prefix: Seq.affix('operand, 'operator),
       suffix: Seq.affix('operand, 'operator),
       a: Action.t,
-      ctx: Contexts.t,
       u_gen: MetaVarGen.t,
     )
     : (ZSeq.t('operand, 'operator, 'zoperand, _), MetaVarGen.t) => {
@@ -414,12 +413,12 @@ let spacebuster =
     mono(after_(opA))
   | (Merge(sa), _, AbsorbLeft(absorb_op)) =>
     // This case exists to support type annotations in patterns
-    let (zop, u_gen) = absorb_op(sa, ctx, u_gen);
+    let (zop, u_gen) = absorb_op(sa, u_gen);
     (ZSeq.ZOperand(zop, (prefix, suffix)), u_gen);
   | (Merge(sa), _, Merge(sb)) =>
     //  A| B   B=>  **    D=>   A|B
     //  A |B   B=>  A|B   D=>   **
-    let (op, u_gen) = mk_operand_of_string(ctx, u_gen, sa ++ sb);
+    let (op, u_gen) = mk_operand_of_string(u_gen, sa ++ sb);
     let zop = at_index(op, String.length(sa));
     (ZSeq.ZOperand(zop, (prefix, suffix)), u_gen);
   // If we can't delete anything, we try to move in the relevant direction
