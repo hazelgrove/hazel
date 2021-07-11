@@ -295,6 +295,21 @@ let delete_group =
       );
     };
   };
+
+let is_syntax_same_ignoring_holes = (zexp1, zexp2) => {
+  let after =
+    zexp1
+    |> ZExp.erase
+    |> Statics_Exp.syn_fix_holes(Contexts.empty, 0)
+    |> (((a, _, _)) => a);
+  let before =
+    zexp2
+    |> ZExp.erase
+    |> Statics_Exp.syn_fix_holes(Contexts.empty, 0)
+    |> (((a, _, _)) => a);
+  after == before;
+};
+
 let delim_edge_handle =
     (
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
@@ -304,9 +319,11 @@ let delim_edge_handle =
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo_common.is_empty_hole(
-               new_cursor_term_info.cursor_term_before,
-             )) {
+  } else if (!
+               is_syntax_same_ignoring_holes(
+                 new_cursor_term_info.zexp_after,
+                 new_cursor_term_info.zexp_before,
+               )) {
     /* delete space */
     Some(DeleteEdit(Space));
   } else {

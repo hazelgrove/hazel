@@ -1306,10 +1306,16 @@ and extend_let_body_ctx =
 };
 
 let syn_fix_holes_z =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+    (
+      ~renumber_empty_holes=false,
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ze: ZExp.t,
+    )
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
-  let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
+  let (e, ty, u_gen) =
+    syn_fix_holes(~renumber_empty_holes, ctx, u_gen, ZExp.erase(ze));
   let ze =
     CursorPath_Exp.follow(path, e)
     |> OptUtil.get(() =>

@@ -273,8 +273,10 @@ and mk_inconsistent_operand = (u_gen, operand) =>
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+  // TODO: this function and its pattern equivalent are morally
+  // redundant to operand_of_string; refactor
   switch (shape) {
-  | Underscore => (var("_"), u_gen)
+  | Underscore => new_InvalidText(u_gen, "_")
   | IntLit(n) => (intlit(n), u_gen)
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
@@ -342,4 +344,31 @@ and is_complete_operand = (operand: 'operand): bool => {
 }
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
+};
+
+let string_of_operand = (o: operand): string =>
+  switch (o) {
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | BoolLit(_, b) => string_of_bool(b)
+  | EmptyHole(_) => ""
+  | _ => ""
+  };
+
+/* Callers are expected to renumber and fix holes
+   on the result given the appropriate u_gen and ctx */
+let operand_of_string = (text: string): operand => {
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape("") => EmptyHole(0)
+  | InvalidTextShape(s) => InvalidText(0, s)
+  | IntLit(s) => IntLit(NotInHole, s)
+  | FloatLit(s) => FloatLit(NotInHole, s)
+  | BoolLit(b) => BoolLit(NotInHole, b)
+  | ExpandingKeyword(Let) => Var(NotInHole, NotInVarHole, "let")
+  | ExpandingKeyword(Case) => Var(NotInHole, NotInVarHole, "case")
+  | Underscore => InvalidText(0, "_")
+  | Var(s) => Var(NotInHole, NotInVarHole, s)
+  };
 };
