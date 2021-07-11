@@ -221,6 +221,18 @@ body {
   background-color: #239d60; 
 }
 
+#error-message {
+  position: sticky;
+  bottom: 0;
+  width: auto;
+  height: fit-content;
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: red;
+  color: white;
+}
+
 #cardstack-controls {
   margin-top: 10px;
   display: flex;
