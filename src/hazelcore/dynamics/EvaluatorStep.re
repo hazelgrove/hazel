@@ -624,7 +624,7 @@ let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
     | ListNil(_)
     | BoundVar(_)
     | Keyword(_, _, _, _)
-    | Triv
+    | Triv => [] //[EvalObj.mk(Mark, d)]
     | FixF(_, _, _) => [EvalObj.mk(Mark, d)]
     | Ap(d1, d2) =>
       if (is_final(d1, opt) && is_final(d2, opt)) {
