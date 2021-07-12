@@ -12,11 +12,6 @@ let to_operand = (text: string): UHExp.operand =>
   | InvalidTextShape(s) => UHExp.InvalidText(0, s)
   };
 
-let split_string_at = (s: string, i: int): (string, string) => {
-  let len = String.length(s);
-  (String.sub(s, 0, i), String.sub(s, i, len - i));
-};
-
 type assistant_action_categories =
   | InsertLit
   | InsertVar
@@ -46,7 +41,7 @@ type exp_zseq =
     (CursorPosition.t, Operators_Exp.t),
   );
 
-let lit_to_string = (operand: UHExp.operand): string => {
+let rec lit_to_string = (operand: UHExp.operand): string => {
   switch (operand) {
   | ListNil(_) => "[]"
   | InvalidText(_, s)
@@ -57,7 +52,13 @@ let lit_to_string = (operand: UHExp.operand): string => {
   | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
   | Lam(_) => "\\"
   | Case(_, _, _) => "case"
-  | Parenthesized(_) => "()"
+  | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
+    lit_to_string(operandA) // HACK
+  //| Parenthesized([ExpLine(OpSeq(_, S(operandA, A(_, S(operandB, _)))))]) =>
+  //  lit_to_string(operandA) ++ lit_to_string(operandB)
+  | Parenthesized(_) =>
+    //P.p("lit_to_string parens: %s\n", UHExp.sexp_of_operand(operand));
+    "()";
   | EmptyHole(_)
   | ApPalette(_) => ""
   };
@@ -422,7 +423,7 @@ let get_guy_from = (pos: CursorPosition.t, operand) => {
   switch (pos, lit_to_string(operand)) {
   | (_, "") => operand
   | (OnText(i), guy) =>
-    let (_pre, suf) = split_string_at(guy, i);
+    let (_pre, suf) = StringUtil.split_string(i, guy);
     to_operand(suf);
   | _ => operand
   };
@@ -459,7 +460,7 @@ let mk_wrap_action = ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
     switch (term) {
     | Exp(pos, operand) =>
       // TODO: ??????????????????????????????????
-      print_endline("666 mk_wrap_action");
+      //print_endline("666 mk_wrap_action");
       let guy = get_guy_from(pos, operand);
       mk_ap(name, S(guy, E));
     | _ => failwith("mk_basic_wrap_action impossible")
@@ -476,22 +477,32 @@ let mk_wrap_action = ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
 // ie we want to know why this is being suggested
 // TODO: mode toggle for favoring simplifying versus complexifying actions?
 // TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
-
+//open Sexplib.Std;
 let wrap_actions =
     ({ctx, expected_ty, actual_ty, term, _} as ci: CursorInfo.pro) => {
   // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
+  //print_endline("666 wrap_actions");
+  //P.p("actual_ty: %s\n", sexp_of_option(HTyp.sexp_of_t, actual_ty));
   switch (actual_ty, term) {
-  | (None, _)
+  //| (None, _)
   | (_, Exp(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
-  | (Some(_actual_ty), _) =>
-    print_endline("666 wrap_actions");
+  | (None, _) =>
+    // hack, maybe, so we get wrappings for caret case
+    let actual_ty = HTyp.Hole;
     Assistant_common.fun_vars(ctx, expected_ty)
-    //|> List.filter(((_, f_ty)) =>
-    //     HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
-    //   )
+    |> List.filter(((_, f_ty)) =>
+         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
+       )
     |> List.map(mk_wrap_action(ci));
+  | (Some(actual_ty), _) =>
+    //print_endline("666 wrap_actions inner");
+    Assistant_common.fun_vars(ctx, expected_ty)
+    |> List.filter(((_, f_ty)) =>
+         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
+       )
+    |> List.map(mk_wrap_action(ci))
   };
 };
 

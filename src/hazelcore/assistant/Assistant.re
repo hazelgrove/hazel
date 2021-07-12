@@ -1,15 +1,10 @@
 //open OptUtil.Syntax;
 open Assistant_Exp;
 
-let split_string_at = (s: string, i: int): (string, string) => {
-  let len = String.length(s);
-  (String.sub(s, 0, i), String.sub(s, i, len - i));
-};
-
 let sort_by_prefix =
     ((prefix: string, index: int), actions: list(assistant_action))
     : list(assistant_action) => {
-  let (a, b) = split_string_at(prefix, index);
+  let (a, b) = StringUtil.split_string(index, prefix);
   print_endline("sort by prefix:");
   Printf.printf("aaaaaa: %s\n", a);
   Printf.printf("bbbbbb: %s\n", b);
@@ -75,7 +70,7 @@ let get_actions =
       {term, syntactic_context, mode, expected_ty, actual_ty, opParent, _} as ci: CursorInfo.pro,
     )
     : list(assistant_action) => {
-  if (true) {
+  if (false) {
     //print_endline("ASSISTANT DEBUG:");
     switch (opParent) {
     | None => print_endline("TRAD opParent: None")

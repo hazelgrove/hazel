@@ -20,6 +20,7 @@ let mk_editor = (exp: UHExp.t): Program.exp =>
 
 let action_view =
     (
+      ~ci: CursorInfo.pro,
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -45,8 +46,17 @@ let action_view =
   let label = action_abbreviation(category);
   let category_view =
     div([Attr.classes(["category", label])], [text(label)]);
+  let index =
+    switch (ci.term) {
+    | Exp(OnText(i), _) => i
+    | _ => String.length(search_string)
+    };
+  let (search_string, _) = StringUtil.split_string(index, search_string);
   let match_string =
     StringUtil.match_prefix(search_string, act_str) ? search_string : "";
+  //Printf.printf("match_string: %s\n", match_string);
+  //Printf.printf("act_str: %s\n", act_str);
+  //Printf.printf("search_string: %s\n", search_string);
   let overlay_view =
     div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =
@@ -106,6 +116,14 @@ let view =
     CursorInfo_common.string_and_index_of_cursor_term(ci.term);
   let actions = AssistantModel.get_display_actions(ci, assistant);
   let action_view = (i, a) =>
-    action_view(~inject, ~settings, ~font_metrics, a, i == 0, filter_string);
+    action_view(
+      ~ci,
+      ~inject,
+      ~settings,
+      ~font_metrics,
+      a,
+      i == 0,
+      filter_string,
+    );
   div([Attr.id("assistant")], List.mapi(action_view, actions));
 };
