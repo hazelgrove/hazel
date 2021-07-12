@@ -74,6 +74,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
+  | Lam => Construct(SLam)
   };
 
 //TBD
@@ -232,6 +233,8 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_SynExpandsToLam = (~u_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  SynExpands({kw: Lam, u_gen, prefix, suffix, subject: param});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -246,6 +249,8 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_AnaExpandsToLam = (~u_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  AnaExpands({kw: Let, u_gen, prefix, suffix, subject: param});
 let wrap_in_AnaDone:
   ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
@@ -415,6 +420,7 @@ let syn_split_text =
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
+      | Lam => mk_SynExpandsToLam(~u_gen, ~param=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -455,6 +461,7 @@ let ana_split_text =
       switch (kw) {
       | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
+      | Lam => mk_AnaExpandsToLam(~u_gen, ~param=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -607,6 +614,11 @@ let rec syn_perform =
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  | Succeeded(SynExpands({kw: Lam, prefix: _, subject, suffix: _, u_gen})) =>
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let new_ze =
+      ZExp.ZBlock.wrap(LamZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
@@ -2229,6 +2241,11 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+  | Succeeded(AnaExpands({kw: Lam, prefix: _, subject, suffix: _, u_gen})) =>
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let new_ze =
+      ZExp.ZBlock.wrap(LamZP(NotInHole, ZOpSeq.wrap(zhole), subject));
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
   }
 and ana_perform_block =
     (

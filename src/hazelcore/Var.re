@@ -24,6 +24,8 @@ let is_false = eq("false");
 
 let is_let = eq("let");
 
+let is_lam = eq("fun");
+
 let is_case = eq("case");
 
 let is_wild = eq("_");
