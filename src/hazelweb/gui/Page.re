@@ -1,3 +1,4 @@
+open Js_of_ocaml.Js;
 open Virtual_dom.Vdom;
 open Node;
 let logo_panel =
@@ -86,6 +87,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
 };
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
+  let program = Model.get_program(model);
   let settings = model.settings;
   TimeUtil.measure_time(
     "Page.view",
@@ -119,6 +121,30 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                           Cell.view(~inject, model),
                           cell_status,
                         ],
+                      ),
+                      button(
+                        [
+                          Attr.on_click(_ => {
+                            let e = program |> Program.get_uhexp;
+                            JSUtil.log(
+                              string(Serialization.string_of_exp(e)),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [text("Serialize to console")],
+                      ),
+                      button(
+                        [
+                          Attr.on_click(_ => {
+                            let e = program |> Program.get_zexp;
+                            JSUtil.log(
+                              string(Serialization.string_of_zexp(e)),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [text("Serialize Zexp to console")],
                       ),
                       div(
                         [
