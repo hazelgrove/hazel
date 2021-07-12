@@ -17,6 +17,18 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   );
 };
 
+let prev_eva_button = (~inject, model: Model.t) => {
+  let show_button = model.result_states == [] ? [Attr.disabled] : [];
+  Node.button(
+    [
+      Attr.id("step-mode-prev-button"),
+      Attr.on_click(_ => inject(ModelAction.PrevEvaluate)),
+      ...show_button,
+    ],
+    [Node.text("Previous Evaluation")],
+  );
+};
+
 let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
   let selected_instance = Model.get_selected_hole_instance(model);
@@ -24,7 +36,9 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let result =
     settings.evaluation.show_unevaluated_expansion
       ? program |> Program.get_expansion
-      : program |> Program.get_result |> Result.get_dhexp;
+      : settings.evaluation.evaluator_type == Evaluator
+          ? program |> Program.get_result |> Result.get_dhexp
+          : Model.get_result_state(model);
   div(
     [],
     [
@@ -43,20 +57,54 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
           ),
         ],
       ),
-      div(
+      Node.div(
         [Attr.classes(["result-view"])],
         [
           DHCode.view(
             ~inject,
             ~selected_instance,
             ~settings=settings.evaluation,
+            ~show_steppable=true,
             ~width=80,
             ~font_metrics=model.font_metrics,
             result,
           ),
         ],
       ),
-    ],
+      Node.div(
+        [Attr.classes(["step-evaluate-control"])],
+        settings.evaluation.evaluator_type != Evaluator
+        && settings.evaluation.stepper_mode
+          ? [prev_eva_button(~inject, model)] : [],
+      ),
+    ]
+    @ (
+      if (settings.evaluation.show_evaluate_steps) {
+        List.map(
+          d =>
+            Node.div(
+              [Attr.classes(["step-view"])],
+              [
+                DHCode.view(
+                  ~inject,
+                  ~selected_instance,
+                  ~settings=settings.evaluation,
+                  ~width=80,
+                  ~font_metrics=model.font_metrics,
+                  d,
+                ),
+              ],
+            ),
+          program
+          |> Program.get_evaluate_steps(
+               _,
+               settings.evaluation.step_evaluator_option,
+             ),
+        );
+      } else {
+        [];
+      }
+    ),
   );
 };
 

@@ -15,6 +15,7 @@ type t = {
    */
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  result_states: list(DHExp.t),
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -89,3 +90,9 @@ let load_cardstack: (t, int) => t;
  * movements.
  */
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
+
+/* These two functions can update result_state by stepper*/
+
+let get_result_state: t => DHExp.t;
+
+let evaluate_step: (t, int) => t;

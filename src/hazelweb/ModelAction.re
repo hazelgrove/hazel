@@ -40,4 +40,6 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
+  | StepEvaluate(int)
+  | PrevEvaluate
   | SerializeToConsole;

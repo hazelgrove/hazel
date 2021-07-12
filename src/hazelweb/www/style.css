@@ -22,6 +22,7 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
+  --step-hole-color: green;
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
@@ -812,6 +813,11 @@ body {
   position: relative;
   left: 2.5ch;
 }
+#SettingsPanel .twice-indented-option {
+  position: relative;
+  left: 5.0ch;
+}
+
 #SettingsPanel label[disabled] {
   opacity: 0.5;
 }
@@ -852,6 +858,19 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
+}
+
+.step-evaluate-control {
+  padding-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  background-color: #EEE;
+}
+
+.step-view {
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #eff1e1;
 }
 
 .type-indicator {
@@ -1111,6 +1130,20 @@ h1 {
   50% {
     background-color: transparent;
   }
+}
+
+.Steppable {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(231, 255, 186);
+  margin: -1px;
+  cursor: pointer;
+}
+
+.Paused {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(255, 254, 186);
+  margin: -1px;
+  cursor: pointer;
 }
 
 .InHole {

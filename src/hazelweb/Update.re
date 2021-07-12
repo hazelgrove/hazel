@@ -62,6 +62,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
+  | StepEvaluate(_)
+  | PrevEvaluate
   | SerializeToConsole =>
     Logger.append(
       Sexp.to_string(
@@ -197,6 +199,11 @@ let apply_action =
       | UpdateSettings(u) => {
           ...model,
           settings: Settings.apply_update(u, model.settings),
+        }
+      | StepEvaluate(index) => Model.evaluate_step(model, index)
+      | PrevEvaluate => {
+          ...model,
+          result_states: List.tl(model.result_states),
         }
       | SerializeToConsole =>
         model

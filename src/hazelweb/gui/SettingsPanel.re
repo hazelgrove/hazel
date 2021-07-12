@@ -62,6 +62,51 @@ let view =
             evaluation.evaluate,
           ),
           labeled_checkbox(
+            ~id="use_step_evaluator",
+            ~classes=["indented-option"],
+            ~label="Use step evaluator",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_use_step_evaluator)),
+                ),
+            ~disabled=!evaluation.evaluate,
+            evaluation.evaluator_type == StepEvaluator,
+          ),
+          labeled_checkbox(
+            ~id="show_evaluate_steps",
+            ~classes=["twice-indented-option"],
+            ~label="Show evaluate steps",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_show_evaluate_steps)),
+                ),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.show_evaluate_steps,
+          ),
+          labeled_checkbox(
+            ~id="pause_subexpression",
+            ~classes=["twice-indented-option"],
+            ~label="Pause subexpression",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Evaluation(Toggle_pause_subexpression)),
+                ),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.step_evaluator_option.pause_subexpression,
+          ),
+          labeled_checkbox(
+            ~id="stepper_mode",
+            ~classes=["twice-indented-option"],
+            ~label="Stepper mode",
+            ~on_change=
+              () => inject(UpdateSettings(Evaluation(Toggle_stepper_mode))),
+            ~disabled=!(evaluation.evaluator_type == StepEvaluator),
+            evaluation.stepper_mode,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",
@@ -200,6 +245,18 @@ let view =
                 ),
             ~disabled=!performance.measure,
             performance.update_apply_action,
+          ),
+          labeled_checkbox(
+            ~id="measure_program_evaluate",
+            ~classes=["indented-option"],
+            ~label="update_program_evaluate",
+            ~on_change=
+              () =>
+                inject(
+                  UpdateSettings(Performance(Toggle_program_evaluate)),
+                ),
+            ~disabled=!performance.measure,
+            performance.program_evaluate,
           ),
           //
           labeled_checkbox(

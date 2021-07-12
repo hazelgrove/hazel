@@ -97,6 +97,7 @@ let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
+          ~check_step=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
           d: DHExp.t,
@@ -118,20 +119,30 @@ let rec mk =
     | _ => doc
     };
   let rec go =
-          (~parenthesize=false, ~enforce_inline, d: DHExp.t)
+          (
+            ~parenthesize=false,
+            ~check_step=false,
+            ~enforce_inline,
+            d: DHExp.t,
+          )
           : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
-    let go' = go(~enforce_inline);
+    let go' = go(~check_step, ~enforce_inline);
     let go_case = (dscrut, drs) =>
       if (enforce_inline) {
         fail();
       } else {
         let scrut_doc =
           choices([
-            hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+            hcats([
+              space(),
+              mk_cast(go(~check_step, ~enforce_inline=true, dscrut)),
+            ]),
             hcats([
               linebreak(),
-              indent_and_align(mk_cast(go(~enforce_inline=false, dscrut))),
+              indent_and_align(
+                mk_cast(go(~check_step, ~enforce_inline=false, dscrut)),
+              ),
             ]),
           ]);
         vseps(
@@ -155,7 +166,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let fdoc = (~enforce_inline) =>
+    let fdoc = (~check_step, ~enforce_inline) =>
       switch (d) {
       | EmptyHole(u, i, _sigma) =>
         let selected =
@@ -165,8 +176,10 @@ let rec mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, _sigma, d) =>
-        go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-
+        d
+        |> go(~check_step=false, ~enforce_inline)
+        |> mk_cast
+        |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
@@ -216,7 +229,7 @@ let rec mk =
         doc;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef));
+          mk_cast(go(~check_step, ~enforce_inline, ddef));
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
@@ -233,7 +246,7 @@ let rec mk =
                ),
             DHDoc_common.Delim.mk("in"),
           ]),
-          mk_cast(go(~enforce_inline=false, dbody)),
+          mk_cast(go(~check_step=false, ~enforce_inline=false, dbody)),
         ]);
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
@@ -282,7 +295,7 @@ let rec mk =
       | Lam(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody));
+            mk_cast(go(~check_step=false, ~enforce_inline, dbody));
           hcats([
             DHDoc_common.Delim.sym_Lam,
             DHDoc_Pat.mk(~enforce_inline=true, dp),
@@ -298,7 +311,7 @@ let rec mk =
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
+            go(~check_step=false, ~enforce_inline, dbody) |> mk_cast;
           hcats([
             DHDoc_common.Delim.fix_FixF,
             space(),
@@ -313,22 +326,40 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       };
-    let doc =
+    let parenthesize_doc =
       parenthesize
         ? hcats([
             DHDoc_common.Delim.open_Parenthesized,
-            fdoc |> DHDoc_common.pad_child(~enforce_inline),
+            fdoc(~check_step) |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Parenthesized,
           ])
-        : fdoc(~enforce_inline);
+        : fdoc(~check_step, ~enforce_inline);
+    let doc =
+      check_step
+        //open EvaluatorStep;
+        ? {
+          let eva_objs =
+            EvaluatorStep.decompose_all(d, EvaluatorStep.evaluate_all_option);
+          if (eva_objs == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
+            let obj = EvaluatorStep.EvalObj.mk(Mark, d);
+            annot(
+              DHAnnot.Steppable(-1, obj.typ),
+              fdoc(~check_step=false, ~enforce_inline),
+            );
+          } else {
+            parenthesize_doc;
+          };
+        }
+        : parenthesize_doc;
+
     (doc, cast);
   };
-  mk_cast(go(~parenthesize, ~enforce_inline, d));
+  mk_cast(go(~parenthesize, ~check_step, ~enforce_inline, d));
 }
 and mk_rule =
     (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance);
+  let mk' = mk(~settings, ~check_step=false, ~selected_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses

@@ -19,6 +19,7 @@ let view:
     ~inject: ModelAction.t => Vdom.Event.t,
     ~settings: Settings.Evaluation.t,
     ~selected_instance: option(HoleInstance.t),
+    ~show_steppable: bool=?,
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,
