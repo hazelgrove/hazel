@@ -51,6 +51,4 @@ type t =
   | Init
   | FillExpHole(MetaVar.t, UHExp.t)
   | ReplaceAtCursor(UHExp.operand, option(UHExp.t => ZExp.t))
-  | ReplaceOpSeqAroundCursor(
-      ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator),
-    );
+  | ReplaceOpSeqAroundCursor(ZExp.zseq);

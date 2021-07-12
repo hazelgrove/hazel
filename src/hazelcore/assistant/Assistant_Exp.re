@@ -24,7 +24,7 @@ type assistant_action_categories =
 
 type assistant_action = {
   category: assistant_action_categories,
-  text: string,
+  result_text: string,
   action: Action.t,
   result: UHExp.t,
   res_ty: HTyp.t,
@@ -32,18 +32,8 @@ type assistant_action = {
   score: int,
 };
 
-type exp_seq = Seq.t(UHExp.operand, Operators_Exp.t);
-type exp_zseq =
-  ZSeq.t(
-    UHExp.operand,
-    Operators_Exp.t,
-    ZExp.zoperand,
-    (CursorPosition.t, Operators_Exp.t),
-  );
-
 let rec lit_to_string = (operand: UHExp.operand): string => {
   switch (operand) {
-  | ListNil(_) => "[]"
   | InvalidText(_, s)
   | Var(_, _, s)
   | IntLit(_, s)
@@ -54,11 +44,8 @@ let rec lit_to_string = (operand: UHExp.operand): string => {
   | Case(_, _, _) => "case"
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
     lit_to_string(operandA) // HACK
-  //| Parenthesized([ExpLine(OpSeq(_, S(operandA, A(_, S(operandB, _)))))]) =>
-  //  lit_to_string(operandA) ++ lit_to_string(operandB)
-  | Parenthesized(_) =>
-    //P.p("lit_to_string parens: %s\n", UHExp.sexp_of_operand(operand));
-    "()";
+  | ListNil(_)
+  | Parenthesized(_)
   | EmptyHole(_)
   | ApPalette(_) => ""
   };
@@ -93,15 +80,15 @@ let rule = UHExp.Rule(hole_pat, hole_exp);
 let mk_case = scrut => UHExp.case(scrut, [rule]);
 let case_operand = mk_case(hole_exp);
 let mk_inj = side => UHExp.inj(side, hole_exp);
-let ap_seq = (operand: UHExp.operand, seq: exp_seq): exp_seq =>
+let ap_seq = (operand: UHExp.operand, seq: UHExp.seq): UHExp.seq =>
   Seq.S(operand, A(Space, seq));
-let mk_ap = (f_name: string, seq: exp_seq): UHExp.t =>
+let mk_ap = (f_name: string, seq: UHExp.seq): UHExp.t =>
   ap_seq(UHExp.var(f_name), seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 let mk_bin_seq = (operand1, operator, operand2) =>
   Seq.seq_op_seq(Seq.wrap(operand1), operator, Seq.wrap(operand2));
 
 let rec mk_ap_iter_seq =
-        (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, exp_seq)) => {
+        (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, UHExp.seq)) => {
   switch (f_ty) {
   | Arrow(_, out_ty) when HTyp.consistent(out_ty, hole_ty) =>
     Some((out_ty, Seq.wrap(hole_operand)))
@@ -276,16 +263,18 @@ let check_action =
       context_consistent_before,
     );
     Printf.printf("context_consistent after: %b\n", context_consistent_after);
-    P.p("old_zexp: %s\n", ZExp.sexp_of_t(old_zexp));
-    P.p("new_zexp AFTER: %s\n", ZExp.sexp_of_t(new_zexp));
-    P.p(
-      "err_paths_before %s\n",
-      CursorPath.sexp_of_hole_list(err_paths_before),
-    );
-    P.p(
-      "err_paths_after: %s\n",
-      CursorPath.sexp_of_hole_list(err_paths_after),
-    );
+    /*
+     P.p("old_zexp: %s\n", ZExp.sexp_of_t(old_zexp));
+     P.p("new_zexp AFTER: %s\n", ZExp.sexp_of_t(new_zexp));
+     P.p(
+       "err_paths_before %s\n",
+       CursorPath.sexp_of_hole_list(err_paths_before),
+     );
+     P.p(
+       "err_paths_after: %s\n",
+       CursorPath.sexp_of_hole_list(err_paths_after),
+     );
+     */
     Printf.printf("internal_errors: %d\n", internal_errors);
     print_endline("END check_action");
   };
@@ -293,9 +282,9 @@ let check_action =
 };
 
 let mk_action =
-    (~category, ~text, ~action, ~result, ~res_ty): assistant_action => {
+    (~category, ~result_text, ~action, ~result, ~res_ty): assistant_action => {
   category,
-  text,
+  result_text,
   action,
   result,
   res_ty,
@@ -307,7 +296,7 @@ let mk_operand_action' =
     (
       ~ci: CursorInfo.pro,
       ~category: assistant_action_categories,
-      ~text: string,
+      ~result_text: string,
       ~operand: UHExp.operand,
       ~result,
       ~action: Action.t,
@@ -324,7 +313,7 @@ let mk_operand_action' =
     | Some(res) => res
     };
   {
-    ...mk_action(~category, ~text, ~action, ~result, ~res_ty),
+    ...mk_action(~category, ~result_text, ~action, ~result, ~res_ty),
     delta_errors,
     score,
   };
@@ -336,7 +325,7 @@ let mk_operand_action =
     ~ci,
     ~category,
     ~operand,
-    ~text=lit_to_string(operand),
+    ~result_text=lit_to_string(operand),
     ~action=ReplaceAtCursor(operand, None),
     ~result,
   );
@@ -404,7 +393,7 @@ let mk_app_action =
     mk_ap_iter(ci, name, f_ty) |> OptUtil.get(_ => failwith("mk_app_action"));
   mk_action(
     ~category=InsertApp,
-    ~text=name,
+    ~result_text=name,
     //TODO(andrew): this should probably actually be an opseq-level action
     ~action=ReplaceAtCursor(UHExp.Parenthesized(e), None),
     ~res_ty,
@@ -450,7 +439,7 @@ let mk_operand_wrap_action = (~ci: CursorInfo.pro, ~category, ~operand) =>
     ~ci,
     ~category,
     ~operand,
-    ~text=lit_to_string(operand),
+    ~result_text=lit_to_string(operand),
     ~action=ReplaceAtCursor(operand, None),
   );
 
@@ -555,7 +544,7 @@ let operand_actions = (ci: CursorInfo.pro): list(assistant_action) =>
 let mk_replace_operator_action =
     (
       seq_ty: HTyp.t,
-      zseq: exp_zseq,
+      zseq: ZExp.zseq,
       ctx: Contexts.t,
       new_operator: Operators_Exp.t,
     )
@@ -575,7 +564,7 @@ let mk_replace_operator_action =
   let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
   mk_action(
     ~category=ReplaceOperator,
-    ~text=Operators_Exp.to_string(new_operator),
+    ~result_text=Operators_Exp.to_string(new_operator),
     ~action=ReplaceOpSeqAroundCursor(new_zseq),
     ~res_ty=seq_ty,
     ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
@@ -596,7 +585,7 @@ let actual_ty_operand = (~ctx, operand) =>
   };
 
 let replace_operator_actions =
-    (ctx: Contexts.t, seq_ty: HTyp.t, zseq: exp_zseq, _err: ErrStatus.t) => {
+    (ctx: Contexts.t, seq_ty: HTyp.t, zseq: ZExp.zseq, _err: ErrStatus.t) => {
   //TODO(andrew): unhardcode from binops
   switch (ZExp.erase_zseq(zseq)) {
   | S(operand1, A(_operator, S(operand2, E))) =>
@@ -638,7 +627,7 @@ let replace_operator_actions =
 let _mk_seq_wrap_action =
     (
       seq_ty: HTyp.t,
-      zseq: exp_zseq,
+      zseq: ZExp.zseq,
       ctx: Contexts.t,
       new_operator: Operators_Exp.t,
     )
@@ -658,7 +647,7 @@ let _mk_seq_wrap_action =
   let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
   mk_action(
     ~category=ReplaceOperator,
-    ~text=Operators_Exp.to_string(new_operator),
+    ~result_text=Operators_Exp.to_string(new_operator),
     ~action=ReplaceOpSeqAroundCursor(new_zseq),
     ~res_ty=seq_ty,
     ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),

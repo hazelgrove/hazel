@@ -24,16 +24,7 @@ let action_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {
-        action,
-        result,
-        res_ty,
-        category,
-        text: act_str,
-        delta_errors,
-        score,
-        _,
-      }: Assistant_Exp.assistant_action,
+      {action, result, res_ty, category, result_text, delta_errors, score, _}: Assistant_Exp.assistant_action,
       is_selected: bool,
       search_string: string,
     ) => {
@@ -51,12 +42,10 @@ let action_view =
     | Exp(OnText(i), _) => i
     | _ => String.length(search_string)
     };
+  // split string at caret, only use before caret portion to search
   let (search_string, _) = StringUtil.split_string(index, search_string);
   let match_string =
-    StringUtil.match_prefix(search_string, act_str) ? search_string : "";
-  //Printf.printf("match_string: %s\n", match_string);
-  //Printf.printf("act_str: %s\n", act_str);
-  //Printf.printf("search_string: %s\n", search_string);
+    StringUtil.match_prefix(search_string, result_text) ? search_string : "";
   let overlay_view =
     div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =

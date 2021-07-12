@@ -32,6 +32,7 @@ and zrule =
 
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
+[@deriving sexp]
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
 let line_can_be_swapped = (line: zline): bool =>

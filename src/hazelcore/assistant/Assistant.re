@@ -4,18 +4,20 @@ open Assistant_Exp;
 let sort_by_prefix =
     ((prefix: string, index: int), actions: list(assistant_action))
     : list(assistant_action) => {
-  let (a, b) = StringUtil.split_string(index, prefix);
-  print_endline("sort by prefix:");
-  Printf.printf("aaaaaa: %s\n", a);
-  Printf.printf("bbbbbb: %s\n", b);
-  let prefix = a;
+  let (prefix, _) = StringUtil.split_string(index, prefix);
   let matches =
-    List.filter(a => StringUtil.match_prefix(prefix, a.text), actions);
-  let compare = (a1, a2) => String.compare(a1.text, a2.text);
+    List.filter(
+      a => StringUtil.match_prefix(prefix, a.result_text),
+      actions,
+    );
+  let compare = (a1, a2) => String.compare(a1.result_text, a2.result_text);
   // NOTE: sort gooduns if they are nontrivial matches
   let matches = prefix == "" ? matches : List.sort(compare, matches);
   let nonmatches =
-    List.filter(a => !StringUtil.match_prefix(prefix, a.text), actions);
+    List.filter(
+      a => !StringUtil.match_prefix(prefix, a.result_text),
+      actions,
+    );
   matches @ nonmatches;
 };
 

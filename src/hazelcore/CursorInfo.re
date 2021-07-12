@@ -133,11 +133,7 @@ type cursor_term =
 [@deriving sexp]
 type syntactic_context =
   // zseq containing the selected operand and the expected type of the whole opseq
-  | ExpSeq(
-      HTyp.t,
-      ZSeq.t(UHExp.operand, UHExp.operator, ZExp.zoperand, ZExp.zoperator),
-      ErrStatus.t,
-    )
+  | ExpSeq(HTyp.t, ZExp.zseq, ErrStatus.t)
   | NoSeq;
 
 [@deriving sexp]
