@@ -667,10 +667,18 @@ let summary_bar =
             ? novice_summary(ci.typed, ci.cursor_term, tag_type)
             : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
+  let images_dir = "imgs/";
+  let images_name = "boost3.png";
+  let set_img = path =>
+    Node.create(
+      "img",
+      [Attr.create("src", path), Attr.create("style", "width: 20px")],
+      [],
+    );
   let fill_icon = symbol =>
     Node.div(
       [
-        Attr.classes(["clickable-help"]),
+        Attr.classes(["clickable-help-icon"]),
         Attr.create("title", "Click to toggle strategy guide"),
         Attr.on_click(_ =>
           Event.Many([
@@ -699,7 +707,13 @@ let summary_bar =
           ])
         ),
       ],
-      [Node.text(symbol)],
+      [
+        if (symbol == Unicode.robot_arm) {
+          set_img(images_dir ++ images_name);
+        } else {
+          Node.text(symbol);
+        },
+      ],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
@@ -709,7 +723,8 @@ let summary_bar =
         ? [
           fill_space,
           fill_icon(
-            show_strategy_guide ? Unicode.light_bulb : Unicode.robot_arm,
+            show_strategy_guide && !assistant_enabled
+              ? Unicode.light_bulb : Unicode.robot_arm,
           ),
         ]
         : []

@@ -42,19 +42,30 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   };
 };
 
-let string_of_cursor_term = (term: CursorInfo.cursor_term): string => {
+let string_and_index_of_cursor_term =
+    (term: CursorInfo.cursor_term): (string, int) => {
   switch (term) {
-  | Pat(_, Var(_, _, s))
-  | Pat(_, InvalidText(_, s))
-  | Pat(_, IntLit(_, s))
-  | Pat(_, FloatLit(_, s))
-  | Exp(_, Var(_, _, s))
-  | Exp(_, InvalidText(_, s))
-  | Exp(_, IntLit(_, s))
-  | Exp(_, FloatLit(_, s)) => s
-  | Exp(_, BoolLit(_, b))
-  | Pat(_, BoolLit(_, b)) => string_of_bool(b)
-  | _ => ""
+  | Pat(OnText(i), Var(_, _, s))
+  | Pat(OnText(i), InvalidText(_, s))
+  | Pat(OnText(i), IntLit(_, s))
+  | Pat(OnText(i), FloatLit(_, s))
+  | Exp(OnText(i), Var(_, _, s))
+  | Exp(OnText(i), InvalidText(_, s))
+  | Exp(OnText(i), IntLit(_, s))
+  | Exp(OnText(i), FloatLit(_, s)) => (s, i)
+  | Exp(OnText(i), BoolLit(_, b))
+  | Pat(OnText(i), BoolLit(_, b)) => (string_of_bool(b), i)
+  | _ => ("", 0)
+  };
+};
+
+let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
+  switch (term) {
+  | Exp(OnText(i), _) => i
+  | Pat(OnText(i), _) => i
+  | _ =>
+    print_endline("TODO(andrew): index_of_cursor_term fallthough");
+    0;
   };
 };
 

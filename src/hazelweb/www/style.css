@@ -622,6 +622,10 @@ body {
   cursor: help;
 }
 
+.clickable-help-icon {
+  line-height: 0; /* HACK */
+}
+
 .HTypCode .Diff {
   text-decoration: underline;
 }
@@ -722,7 +726,7 @@ body {
   background-color: #0000;
   outline: none;
   border-radius: 0 0.5em 0.5em 0.5em;
-  overflow: hidden;
+  /*overflow: hidden;*/
   filter: drop-shadow(0 4px 4px #1114);
 }
 
@@ -732,7 +736,7 @@ body {
 
 .assistant-active .type-info-summary {
   border-radius: 0 0.5em 0 0;
-  padding: 0.3em 0.5em 0.3em 0.5em !important;
+  padding: 0.3em 0.4em 0.3em 0.4em !important;
   font-weight: 100;
   color: #c4fdc5 !important;
 }
@@ -763,12 +767,14 @@ body {
 
 #assistant > .selected  {
   color: #383838;
+  left: -0.35em;
+  width: 104%;
+  /* z-index: 0; */
+  /* border-right: solid 3px #45b445; */
+  border-radius: 0.5em;
   background-color: rgb(197, 253, 197) !important;
 }
-#assistant > .choice:hover {
-  z-index: 1000000;
-  outline: solid 2px rgb(197, 253, 197);
-}
+
 
 #assistant > .choice > .type {
   color: #e5e3e3;
@@ -800,21 +806,42 @@ body {
 #assistant > .choice > .delta-errors {
   position: absolute;
   top: 2px;
-  left: 2px;
+  right: 44px;
   font-size: 0.5em;
 } 
 
-#assistant > .choice:hover > .category  {
-  color: #666 !important;
-  background-color: rgb(170 243 170);
+#assistant > .choice:hover:not(.selected)  {
+  z-index: 1000000;
+  background-color: #8ab38b;
+  color: #c4fdc5;
+}
+#assistant > .choice:hover:not(.selected) > .category  {
+  background-color: #93d895;
+  color: #b9ffb9 !important;
+}
+#assistant > .choice:hover:not(.selected)  > .type {
+  color: #226744 !important;
+}
+#assistant > .selected.choice:hover  {
+  z-index: 1000000;
+  background-color: #e8ffe8 !important;
+  color: #000;
+}
+#assistant > .selected.choice:hover > .category  {
+  background-color: #c2fec4;
+  color: #000 !important;
+}
+#assistant > .selected.choice:hover > .type {
+  color: #000 !important;
 }
 
-#assistant > .choice:hover > .type,
+
 #assistant > .selected > .type  {
   color: #3ba270 !important;
 }
 
 #assistant > .choice > .category {
+  margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -827,6 +854,7 @@ body {
 
 #assistant > .selected > .category  {
   color: #666 !important;
+  border-radius: 0.5em;
   background-color: rgb(170 243 170);
 }
 

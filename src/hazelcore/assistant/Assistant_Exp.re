@@ -1,5 +1,22 @@
 open OptUtil.Syntax;
 
+let to_operand = (text: string): UHExp.operand =>
+  switch (TextShape.of_text(text)) {
+  | IntLit(s) => UHExp.intlit(s)
+  | FloatLit(s) => UHExp.floatlit(s)
+  | BoolLit(s) => UHExp.boollit(s)
+  | ExpandingKeyword(Let) => UHExp.var("let")
+  | ExpandingKeyword(Case) => UHExp.var("case")
+  | Underscore => UHExp.var("_")
+  | Var(s) => UHExp.var(s)
+  | InvalidTextShape(s) => UHExp.InvalidText(0, s)
+  };
+
+let split_string_at = (s: string, i: int): (string, string) => {
+  let len = String.length(s);
+  (String.sub(s, 0, i), String.sub(s, i, len - i));
+};
+
 type assistant_action_categories =
   | InsertLit
   | InsertVar
@@ -401,10 +418,22 @@ let app_actions =
   |> List.map(mk_app_action(ci));
 };
 
+let get_guy_from = (pos: CursorPosition.t, operand) => {
+  switch (pos, lit_to_string(operand)) {
+  | (_, "") => operand
+  | (OnText(i), guy) =>
+    let (_pre, suf) = split_string_at(guy, i);
+    to_operand(suf);
+  | _ => operand
+  };
+};
+
 let mk_wrap_case_action = ({term, _} as ci: CursorInfo.pro): assistant_action => {
   let operand =
     switch (term) {
-    | Exp(_, operand) => operand |> UHExp.Block.wrap |> mk_case
+    | Exp(pos, operand) =>
+      let guy = get_guy_from(pos, operand);
+      guy |> UHExp.Block.wrap |> mk_case;
     | _ => failwith("mk_wrap_case_action impossible")
     };
   mk_operand_action(~category=Wrap, ~operand, ci);
@@ -423,11 +452,16 @@ let mk_operand_wrap_action = (~ci: CursorInfo.pro, ~category, ~operand) =>
     ~text=lit_to_string(operand),
     ~action=ReplaceAtCursor(operand, None),
   );
+
 let mk_wrap_action = ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
   //TODO(andrew): considering splicing into opseq context
   let result =
     switch (term) {
-    | Exp(_, operand) => mk_ap(name, S(operand, E))
+    | Exp(pos, operand) =>
+      // TODO: ??????????????????????????????????
+      print_endline("666 mk_wrap_action");
+      let guy = get_guy_from(pos, operand);
+      mk_ap(name, S(guy, E));
     | _ => failwith("mk_basic_wrap_action impossible")
     };
   mk_operand_action(
@@ -451,12 +485,13 @@ let wrap_actions =
   | (None, _)
   | (_, Exp(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
-  | (Some(actual_ty), _) =>
+  | (Some(_actual_ty), _) =>
+    print_endline("666 wrap_actions");
     Assistant_common.fun_vars(ctx, expected_ty)
-    |> List.filter(((_, f_ty)) =>
-         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
-       )
-    |> List.map(mk_wrap_action(ci))
+    //|> List.filter(((_, f_ty)) =>
+    //     HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
+    //   )
+    |> List.map(mk_wrap_action(ci));
   };
 };
 
@@ -470,24 +505,27 @@ let virtual_actions =
   (
     switch (term) {
     | Exp(_, IntLit(_, s)) when s != "0" => [
-        mk_int_lit_action(ci, s),
+        //mk_int_lit_action(ci, s),
         mk_float_lit_action(ci, s ++ "."),
         mk_int_lit_action(ci, "0"),
       ]
     | Exp(_, IntLit(_, s)) when s == "0" => [
-        mk_int_lit_action(ci, "0"),
+        //mk_int_lit_action(ci, "0"),
         mk_float_lit_action(ci, str_int_to_float(s)),
       ]
     | Exp(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
       s |> float_of_string |> Float.is_integer
         ? [
-          mk_float_lit_action(ci, s),
+          //mk_float_lit_action(ci, s),
           mk_int_lit_action(ci, str_float_to_int(s)),
           mk_float_lit_action(ci, "0."),
         ]
-        : [mk_float_lit_action(ci, s), mk_int_lit_action(ci, "0.")]
+        : [
+          //mk_float_lit_action(ci, s),
+          mk_int_lit_action(ci, "0"),
+        ]
     | Exp(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
-        mk_float_lit_action(ci, "0."),
+        //mk_float_lit_action(ci, "0."),
         mk_int_lit_action(ci, "0"),
       ]
     | _ => [mk_float_lit_action(ci, "0."), mk_int_lit_action(ci, "0")]

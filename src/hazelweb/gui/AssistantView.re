@@ -77,7 +77,6 @@ let action_view =
       Attr.on_click(perform_action),
     ],
     [
-      category_view,
       div(
         [Attr.classes(["delta-errors"])],
         [text(error_str), text(string_of_int(score))],
@@ -89,6 +88,7 @@ let action_view =
       ),
       div([Attr.classes(["type-ann"])], [text(" : ")]),
       div([Attr.classes(["type"])], [HTypCode.view(res_ty)]),
+      category_view,
     ],
   );
 };
@@ -102,7 +102,8 @@ let view =
       ci: CursorInfo.pro,
     )
     : Node.t => {
-  let filter_string = CursorInfo_common.string_of_cursor_term(ci.term);
+  let (filter_string, _) =
+    CursorInfo_common.string_and_index_of_cursor_term(ci.term);
   let actions = AssistantModel.get_display_actions(ci, assistant);
   let action_view = (i, a) =>
     action_view(~inject, ~settings, ~font_metrics, a, i == 0, filter_string);

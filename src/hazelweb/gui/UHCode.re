@@ -162,7 +162,7 @@ let assistant_key_action =
     (~assistant_action: option(Action.t), ~cursor_info: CursorInfo.t, evt)
     : option(ModelAction.t) => {
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
-  let is_on_hole =
+  let _is_on_hole =
     CursorInfo_common.is_empty_hole(cursor_info.cursor_term)
     || CursorInfo_common.is_op(cursor_info.cursor_term)
     || CursorInfo_common.is_empty_line(cursor_info.cursor_term)
@@ -172,8 +172,8 @@ let assistant_key_action =
   //  Some(
   //    Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
   //  )
-  | (Combo(Backspace), _) when !is_on_hole =>
-    Some(EditAction(ReplaceAtCursor(Assistant_Exp.hole_operand, None)))
+  //| (Combo(Backspace), _) when !_is_on_hole =>
+  //  Some(EditAction(ReplaceAtCursor(Assistant_Exp.hole_operand, None)))
   | (Move(ArrowDown), Some(_)) =>
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
