@@ -223,7 +223,20 @@ let assistant_summary =
       ~is_mac,
       ~settings,
     ) => {
-  let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
+  let term_tag =
+    switch (term) {
+    | Exp(_, operand) =>
+      let editor = operand |> UHExp.Block.wrap |> AssistantView.mk_editor;
+      UHCode.codebox_view(
+        ~font_metrics,
+        ~is_focused=false,
+        ~settings,
+        editor,
+      );
+    | _ => [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])]
+    };
+
+  //TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
@@ -369,7 +382,7 @@ let assistant_summary =
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
   };
-  List.cons(term_tag, message(typed));
+  term_tag @ message(typed);
 };
 
 let novice_summary =
