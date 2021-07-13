@@ -960,8 +960,9 @@ let view =
           ~inject,
           ~font_metrics,
           ~settings,
-          assistant_model,
-          CursorInfo.promote_cursor_info(u_gen, cursor_info),
+          ~u_gen,
+          ~assistant_model,
+          ~ci=cursor_info,
         ),
       ];
     } else if (cursor_inspector.type_assist) {

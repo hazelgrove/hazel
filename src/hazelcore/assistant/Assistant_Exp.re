@@ -83,7 +83,7 @@ let rec mk_ap_iter_seq =
 };
 
 let mk_ap_iter =
-    ({expected_ty, _}: CursorInfo.pro, f: Var.t, f_ty: HTyp.t)
+    ({expected_ty, _}: CursorInfo.t, f: Var.t, f_ty: HTyp.t)
     : option((HTyp.t, UHExp.t)) => {
   let+ (output_ty, holes_seq) = mk_ap_iter_seq(f_ty, expected_ty);
   (output_ty, mk_ap(f, holes_seq));
@@ -182,7 +182,7 @@ let check_suggestion =
     (
       action: Action.t,
       res_ty: HTyp.t,
-      {ctx, syntactic_context, opParent, expected_ty, _}: CursorInfo.pro,
+      {ctx, syntactic_context, opParent, expected_ty, _}: CursorInfo.t,
     )
     : option((int, int)) => {
   let* (opseq_expected_ty, old_zexp, context_consistent_before) =
@@ -277,7 +277,7 @@ let mk_suggestion =
 
 let mk_operand_suggestion' =
     (
-      ~ci: CursorInfo.pro,
+      ~ci: CursorInfo.t,
       ~category: Suggestion.category,
       ~result_text: string,
       ~operand: UHExp.operand,
@@ -317,42 +317,42 @@ let mk_lit_suggestion = mk_operand_suggestion(~category=InsertLit);
 
 // INTROS  -----------------------------------------------------------------
 
-let mk_bool_lit_suggestion = (ci: CursorInfo.pro, b: bool): suggestion =>
+let mk_bool_lit_suggestion = (ci: CursorInfo.t, b: bool): suggestion =>
   mk_lit_suggestion(~operand=UHExp.boollit(b), ci);
 
-let mk_int_lit_suggestion = (ci: CursorInfo.pro, s: string): suggestion =>
+let mk_int_lit_suggestion = (ci: CursorInfo.t, s: string): suggestion =>
   mk_lit_suggestion(~operand=UHExp.intlit(s), ci);
 
-let mk_float_lit_suggestion = (ci: CursorInfo.pro, s: string): suggestion =>
+let mk_float_lit_suggestion = (ci: CursorInfo.t, s: string): suggestion =>
   mk_lit_suggestion(~operand=UHExp.floatlit(s), ci);
 
-let mk_nil_list_suggestion = (ci: CursorInfo.pro): suggestion =>
+let mk_nil_list_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_lit_suggestion(~operand=UHExp.listnil(), ci);
 
-let mk_var_suggestion = (ci: CursorInfo.pro, (s: string, _)): suggestion =>
+let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): suggestion =>
   mk_operand_suggestion(~category=InsertVar, ~operand=UHExp.var(s), ci);
 
-let mk_empty_hole_suggestion = (ci: CursorInfo.pro): suggestion =>
+let mk_empty_hole_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(~category=Delete, ~operand=hole_operand, ci);
 
-let mk_inj_suggestion = (ci: CursorInfo.pro, side: InjSide.t): suggestion =>
+let mk_inj_suggestion = (ci: CursorInfo.t, side: InjSide.t): suggestion =>
   mk_operand_suggestion(
     ~category=InsertConstructor,
     ~operand=mk_inj(side),
     ci,
   );
 
-let mk_case_suggestion = (ci: CursorInfo.pro): suggestion =>
+let mk_case_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(~category=InsertElim, ~operand=case_operand, ci);
 
-let mk_lambda_suggestion = (ci: CursorInfo.pro): suggestion =>
+let mk_lambda_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(
     ~category=InsertConstructor,
     ~operand=lambda_operand,
     ci,
   );
 
-let mk_intro_suggestions = (ci: CursorInfo.pro): list(suggestion) => [
+let mk_intro_suggestions = (ci: CursorInfo.t): list(suggestion) => [
   mk_empty_hole_suggestion(ci),
   mk_bool_lit_suggestion(ci, true),
   mk_bool_lit_suggestion(ci, false),
@@ -363,7 +363,7 @@ let mk_intro_suggestions = (ci: CursorInfo.pro): list(suggestion) => [
 ];
 
 let intro_suggestions =
-    ({expected_ty, _} as ci: CursorInfo.pro): list(suggestion) =>
+    ({expected_ty, _} as ci: CursorInfo.t): list(suggestion) =>
   ci
   |> mk_intro_suggestions
   |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
@@ -371,7 +371,7 @@ let intro_suggestions =
 //----------------------------------------------------------------------------
 
 let var_suggestions =
-    ({ctx, expected_ty, _} as ci: CursorInfo.pro): list(suggestion) =>
+    ({ctx, expected_ty, _} as ci: CursorInfo.t): list(suggestion) =>
   expected_ty
   |> Assistant_common.extract_vars(ctx)
   |> List.map(mk_var_suggestion(ci));
@@ -379,7 +379,7 @@ let var_suggestions =
 //----------------------------------------------------------------------------
 
 let mk_app_suggestion =
-    (ci: CursorInfo.pro, (name: string, f_ty: HTyp.t)): suggestion => {
+    (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)): suggestion => {
   let (res_ty, e) =
     mk_ap_iter(ci, name, f_ty)
     |> OptUtil.get(_ => failwith("mk_app_suggestion"));
@@ -394,7 +394,7 @@ let mk_app_suggestion =
 };
 
 let app_suggestions =
-    ({ctx, expected_ty, _} as ci: CursorInfo.pro): list(suggestion) => {
+    ({ctx, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
   expected_ty
   |> Assistant_common.fun_vars(ctx)
   |> List.map(mk_app_suggestion(ci));
@@ -410,9 +410,10 @@ let get_guy_from = (pos: CursorPosition.t, operand) => {
   };
 };
 
-let mk_wrap_case_suggestion = ({term, _} as ci: CursorInfo.pro): suggestion => {
+let mk_wrap_case_suggestion =
+    ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
   let operand =
-    switch (term) {
+    switch (cursor_term) {
     | Exp(pos, operand) =>
       let guy = get_guy_from(pos, operand);
       guy |> UHExp.Block.wrap |> mk_case;
@@ -421,12 +422,12 @@ let mk_wrap_case_suggestion = ({term, _} as ci: CursorInfo.pro): suggestion => {
   mk_operand_suggestion(~category=Wrap, ~operand, ci);
 };
 
-let elim_suggestions = (ci: CursorInfo.pro): list(suggestion) =>
+let elim_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   app_suggestions(ci) @ [mk_wrap_case_suggestion(ci)];
 
 //----------------------------------------------------------------------------
 
-let mk_operand_wrap_suggestion = (~ci: CursorInfo.pro, ~category, ~operand) =>
+let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
   mk_operand_suggestion'(
     ~ci,
     ~category,
@@ -436,10 +437,10 @@ let mk_operand_wrap_suggestion = (~ci: CursorInfo.pro, ~category, ~operand) =>
   );
 
 let mk_wrap_suggestion =
-    ({term, _} as ci: CursorInfo.pro, (name: string, _)) => {
+    ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
   //TODO(andrew): considering splicing into opseq context
   let result =
-    switch (term) {
+    switch (cursor_term) {
     | Exp(pos, operand) =>
       // TODO: ??????????????????????????????????
       //print_endline("666 mk_wrap_suggestion");
@@ -461,12 +462,12 @@ let mk_wrap_suggestion =
 // TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
 //open Sexplib.Std;
 let wrap_suggestions =
-    ({ctx, expected_ty, actual_ty, term, _} as ci: CursorInfo.pro) => {
+    ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {
   // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
   //print_endline("666 wrap_suggestions");
   //P.p("actual_ty: %s\n", sexp_of_option(HTyp.sexp_of_t, actual_ty));
-  switch (actual_ty, term) {
+  switch (actual_ty, cursor_term) {
   //| (None, _)
   | (_, Exp(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
@@ -494,9 +495,9 @@ let str_int_to_float = s =>
   s |> int_of_string |> Float.of_int |> string_of_float;
 
 let virtual_suggestions =
-    ({term, expected_ty, _} as ci: CursorInfo.pro): list(suggestion) => {
+    ({cursor_term, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
   (
-    switch (term) {
+    switch (cursor_term) {
     | Exp(_, IntLit(_, s)) when s != "0" => [
         //mk_int_lit_suggestion(ci, s),
         mk_float_lit_suggestion(ci, s ++ "."),
@@ -530,7 +531,7 @@ let virtual_suggestions =
   |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
 };
 
-let operand_suggestions = (ci: CursorInfo.pro): list(suggestion) =>
+let operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   virtual_suggestions(ci)
   @ wrap_suggestions(ci)
   @ intro_suggestions(ci)
@@ -651,7 +652,7 @@ let _mk_seq_wrap_suggestion =
 };
 
 let operator_suggestions =
-    ({syntactic_context, ctx, _}: CursorInfo.pro): list(suggestion) =>
+    ({syntactic_context, ctx, _}: CursorInfo.t): list(suggestion) =>
   switch (syntactic_context) {
   | ExpSeq(seq_ty, zseq, err) =>
     replace_operator_suggestions(ctx, seq_ty, zseq, err)

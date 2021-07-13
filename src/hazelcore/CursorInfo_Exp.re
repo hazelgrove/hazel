@@ -1267,7 +1267,21 @@ and syn_cursor_info_rule =
       | (true, Some({typed, ctx, uses, _})) =>
         let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
         let cursor_term = extract_from_zrule(zrule);
-        Some({cursor_term, typed, ctx, uses, syntactic_context, opParent});
+        switch (uses) {
+        | None => None
+        | Some(uses) =>
+          //TODO(andrew):added this switch while refactoring, dunno if makes sense?
+          Some(
+            CursorInfo_common.mk(
+              ~uses,
+              ~syntactic_context,
+              ~opParent,
+              typed,
+              ctx,
+              cursor_term,
+            ),
+          )
+        };
       };
     }
   }

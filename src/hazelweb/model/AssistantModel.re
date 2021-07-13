@@ -82,14 +82,14 @@ let sort_by_prefix =
   matches @ nonmatches;
 };
 
-let get_operand_suggestions = (ci: CursorInfo.pro): list(suggestion) =>
-  switch (ci.term) {
+let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
+  switch (ci.cursor_term) {
   | Exp(_) => Assistant_Exp.operand_suggestions(ci)
   | _ => []
   };
 
-let get_operator_suggestions = (ci: CursorInfo.pro): list(suggestion) =>
-  switch (ci.term) {
+let get_operator_suggestions = (ci: CursorInfo.t): list(suggestion) =>
+  switch (ci.cursor_term) {
   | ExpOp(_) => Assistant_Exp.operator_suggestions(ci)
   | _ => []
   };
@@ -128,45 +128,48 @@ let renumber_suggestion_holes =
 
 let get_suggestions =
     (
-      {term, syntactic_context, mode, expected_ty, actual_ty, opParent, _} as ci: CursorInfo.pro,
+      {cursor_term, _ /*syntactic_context, expected_ty, actual_ty, opParent,*/} as ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t,
     )
     : list(suggestion) => {
-  if (false) {
-    //print_endline("ASSISTANT DEBUG:");
-    switch (opParent) {
-    | None => print_endline("TRAD opParent: None")
-    | Some(opp) => P.p("TRAD opParent: %s\n", ZExp.sexp_of_zoperand(opp))
-    };
-    P.p("TRAD expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
-    switch (actual_ty) {
-    | None => print_endline("TRAD actual_ty: None")
-    | Some(ty) => P.p("TRAD actual_ty: %s\n", HTyp.sexp_of_t(ty))
-    };
-
-    P.p("  mode: %s\n", CursorInfo.sexp_of_mode(mode));
-    P.p(
-      "TRAD nearest zopseq: %s\n",
-      CursorInfo.sexp_of_syntactic_context(syntactic_context),
-    );
-  };
+  /*
+   if (false) {
+     //print_endline("ASSISTANT DEBUG:");
+     switch (opParent) {
+     | None => print_endline("TRAD opParent: None")
+     | Some(opp) => P.p("TRAD opParent: %s\n", ZExp.sexp_of_zoperand(opp))
+     };
+     P.p("TRAD expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
+     switch (actual_ty) {
+     | None => print_endline("TRAD actual_ty: None")
+     | Some(ty) => P.p("TRAD actual_ty: %s\n", HTyp.sexp_of_t(ty))
+     };
+   };
+   */
   get_operand_suggestions(ci)
   @ get_operator_suggestions(ci)
-  |> List.map(renumber_suggestion_holes(ci.ctx, ci.u_gen))
+  |> List.map(renumber_suggestion_holes(ci.ctx, u_gen))
   |> sort_suggestions
-  |> sort_by_prefix(CursorInfo_common.string_and_index_of_cursor_term(term));
+  |> sort_by_prefix(
+       CursorInfo_common.string_and_index_of_cursor_term(cursor_term),
+     );
 };
 
 let get_suggestions_of_ty =
-    (ci: CursorInfo.pro, ty: HTyp.t): list(suggestion) =>
+    (ci: CursorInfo.t, ~u_gen: MetaVarGen.t, ty: HTyp.t): list(suggestion) =>
   ci
-  |> get_suggestions
+  |> get_suggestions(~u_gen)
   |> List.filter((s: suggestion) => HTyp.consistent(s.res_ty, ty));
 
 let get_action =
-    ({selection_index, filter_editor, _}: t, ci: CursorInfo.pro)
+    (
+      {selection_index, filter_editor, _}: t,
+      ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t,
+    )
     : option(Action.t) => {
   let filter_ty = Program.get_ty(filter_editor);
-  let suggestions = get_suggestions_of_ty(ci, filter_ty);
+  let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
   let selection_index = wrap_index(selection_index, suggestions);
   let+ selection = List.nth_opt(suggestions, selection_index);
   selection.action;
@@ -174,12 +177,13 @@ let get_action =
 
 let get_display_suggestions =
     (
-      ci: CursorInfo.pro,
+      ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t,
       {selection_index, choice_display_limit, filter_editor, _}: t,
     )
     : list(suggestion) => {
   let filter_ty = Program.get_ty(filter_editor);
-  let suggestions = get_suggestions_of_ty(ci, filter_ty);
+  let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
   let selection_index = wrap_index(selection_index, suggestions);
   suggestions
   |> ListUtil.rotate_n(selection_index)

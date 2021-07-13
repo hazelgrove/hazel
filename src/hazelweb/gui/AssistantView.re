@@ -3,7 +3,7 @@ open Node;
 
 let suggestion_view =
     (
-      ~ci: CursorInfo.pro,
+      ~ci: CursorInfo.t,
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -21,7 +21,7 @@ let suggestion_view =
   let category_view =
     div([Attr.classes(["category", label])], [text(label)]);
   let index =
-    switch (ci.term) {
+    switch (ci.cursor_term) {
     | Exp(OnText(i), _) => i
     | _ => String.length(search_string)
     };
@@ -79,13 +79,15 @@ let view =
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
-      assistant: AssistantModel.t,
-      ci: CursorInfo.pro,
+      ~u_gen: MetaVarGen.t,
+      ~assistant_model: AssistantModel.t,
+      ~ci: CursorInfo.t,
     )
     : Node.t => {
   let (filter_string, _) =
-    CursorInfo_common.string_and_index_of_cursor_term(ci.term);
-  let suggestions = AssistantModel.get_display_suggestions(ci, assistant);
+    CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
+  let suggestions =
+    AssistantModel.get_display_suggestions(~u_gen, ci, assistant_model);
   let suggestion_view = (i, a) =>
     suggestion_view(
       ~ci,

@@ -78,9 +78,7 @@ let code_view =
       let cursor_info = Program.Exp.get_cursor_info(program);
       let ci_settings = settings.cursor_inspector;
       let assistant_action =
-        cursor_info
-        |> CursorInfo.promote_cursor_info(u_gen)
-        |> AssistantModel.get_action(assistant_model);
+        AssistantModel.get_action(~u_gen, assistant_model, cursor_info);
       let key_handlers =
         main_editor_is_focused
           ? UHCode.key_handlers(

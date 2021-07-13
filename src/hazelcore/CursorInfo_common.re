@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 open CursorInfo;
 
 type zoperand =
@@ -108,6 +109,111 @@ let is_comment_line = (cursor_term): bool => {
   };
 };
 
+let rec get_types_and_mode = (typed: typed) => {
+  switch (typed) {
+  | AnaAnnotatedLambda(expected, actual)
+  | AnaTypeInconsistent(expected, actual)
+  | AnaSubsumed(expected, actual) => (
+      Some(expected),
+      Some(actual),
+      Analytic,
+    )
+
+  | AnaWrongLength(_, _, expected)
+  | AnaFree(expected)
+  | AnaInvalid(expected)
+  | AnaKeyword(expected, _)
+  | Analyzed(expected) => (Some(expected), None, Analytic)
+
+  | SynErrorArrow(_expected, actual)
+  | SynMatchingArrow(_expected, actual) => (
+      Some(Arrow(Hole, Hole)),
+      Some(actual),
+      Synthetic,
+    )
+
+  | SynFreeArrow(actual)
+  | SynKeywordArrow(actual, _)
+  | SynInvalidArrow(actual)
+  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+
+  | SynInvalid
+  | SynFree
+  | SynKeyword(_) => (Some(Hole), None, Synthetic)
+
+  | SynBranchClause(join, typed, _) =>
+    switch (join, typed) {
+    | (JoinTy(ty), Synthesized(got_ty)) =>
+      switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+      | (true, _) => (Some(Hole), None, Synthetic)
+      | _ => (None, None, Synthetic)
+      }
+    | (NoBranches, _) => get_types_and_mode(typed)
+    | _ => (None, None, Synthetic)
+    }
+
+  | _ => (None, None, UnknownMode)
+  };
+};
+/**
+   * Gets the type of the expression at the cursor.
+   * Return HTyp.t
+   */
+let get_type = (cursor_info: t): option(HTyp.t) => {
+  let (expected_ty, _, _) = get_types_and_mode(cursor_info.typed);
+  let+ expected_ty = expected_ty;
+  expected_ty;
+};
+
+let get_mode = (cursor_info: t) => {
+  let (_, _, mode) = get_types_and_mode(cursor_info.typed);
+  mode;
+};
+
+/*
+ let promote_cursor_info =
+     (
+       u_gen: MetaVarGen.t,
+       {cursor_term, typed, ctx, uses, syntactic_context, opParent}: t,
+     )
+     : pro => {
+   let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
+   // TODO(andrew): handle more cases in get_types_and_mode
+   let expected_ty =
+     switch (expected_ty) {
+     | None => HTyp.Hole
+     | Some(ty) => ty
+     };
+   {
+     expected_ty,
+     actual_ty,
+     typed,
+     mode,
+     u_gen,
+     term: cursor_term,
+     ctx,
+     uses,
+     syntactic_context,
+     opParent,
+   };
+ };*/
+
+let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
+  switch (CursorFrame.mk(zexp)) {
+  | [{slice: Line(CursorL(c, s)), _}, ..._] => Line(c, s)
+  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
+  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
+  | [{slice: Rule(CursorR(c, s)), _}, ..._] => Rule(c, s)
+  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => Pat(c, s)
+  | [{slice: PatOperator((c, s)), _}, ..._] => PatOp(c, s)
+  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => Typ(c, s)
+  | [{slice: TypOperator((c, s)), _}, ..._] => TypOp(c, s)
+  | frame =>
+    print_endline(Sexplib.Sexp.to_string_hum(CursorFrame.sexp_of_t(frame)));
+    failwith("INVALID FRAME (extract_cursor_term)");
+  };
+};
+
 let mk =
     (
       ~uses=?,
@@ -118,12 +224,22 @@ let mk =
       cursor_term,
     )
     : CursorInfo.t => {
-  typed,
-  ctx,
-  uses,
-  cursor_term,
-  syntactic_context,
-  opParent,
+  let (expected_ty, actual_ty, _mode) = get_types_and_mode(typed);
+  let expected_ty =
+    switch (expected_ty) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
+    };
+  {
+    typed,
+    ctx,
+    uses,
+    cursor_term,
+    expected_ty,
+    actual_ty,
+    syntactic_context,
+    opParent,
+  };
 };
 let get_ctx = (ci: CursorInfo.t) => ci.ctx;
 
