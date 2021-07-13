@@ -3,11 +3,11 @@ open Node;
 
 let suggestion_view =
     (
-      ~ci: CursorInfo.t,
+      ~ci as {cursor_term, _}: CursorInfo.t,
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, result_text, delta_errors, score, _}: Assistant_Exp.suggestion,
+      {action, result, res_ty, category, result_text, score, _}: Assistant_Exp.suggestion,
       is_selected: bool,
       search_string: string,
     ) => {
@@ -21,7 +21,7 @@ let suggestion_view =
   let category_view =
     div([Attr.classes(["category", label])], [text(label)]);
   let index =
-    switch (ci.cursor_term) {
+    switch (cursor_term) {
     | Exp(OnText(i), _) => i
     | _ => String.length(search_string)
     };
@@ -39,7 +39,7 @@ let suggestion_view =
       Program.mk_exp_editor(result),
     );
   let error_str =
-    switch (delta_errors) {
+    switch (score.delta_errors) {
     | 1 => "+"
     | 2 => "++"
     | n when n > 2 => "+++"
@@ -48,20 +48,25 @@ let suggestion_view =
     | n when n < (-2) => "---"
     | _ => ""
     };
+  let color_score =
+    score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
   div(
     [
       Attr.classes(
         ["choice"]
         @ (is_selected ? ["selected"] : [])
-        @ (delta_errors > 0 ? ["errors-less"] : [])
-        @ (delta_errors < 0 ? ["errors-more"] : []),
+        @ (color_score > 0 ? ["errors-less"] : [])
+        @ (color_score < 0 ? ["errors-more"] : []),
       ),
       Attr.on_click(perform_action),
     ],
     [
       div(
         [Attr.classes(["delta-errors"])],
-        [text(error_str), text(string_of_int(score))],
+        [
+          text(error_str),
+          text(string_of_int(score.idiomaticity + score.type_specificity)),
+        ],
       ),
       div(
         [Attr.classes(["code-container"])],

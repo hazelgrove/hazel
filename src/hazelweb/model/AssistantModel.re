@@ -96,7 +96,10 @@ let get_operator_suggestions = (ci: CursorInfo.t): list(suggestion) =>
 
 let sort_suggestions = (suggestions: list(suggestion)): list(suggestion) => {
   let compare = (a1: suggestion, a2: suggestion) =>
-    Int.compare(a2.delta_errors + a2.score, a1.delta_errors + a1.score);
+    Int.compare(
+      a2.score.delta_errors + a2.score.idiomaticity + a2.score.type_specificity,
+      a1.score.delta_errors + a1.score.idiomaticity + a1.score.type_specificity,
+    );
   List.sort(compare, suggestions);
 };
 
@@ -132,20 +135,6 @@ let get_suggestions =
       ~u_gen: MetaVarGen.t,
     )
     : list(suggestion) => {
-  /*
-   if (false) {
-     //print_endline("ASSISTANT DEBUG:");
-     switch (opParent) {
-     | None => print_endline("TRAD opParent: None")
-     | Some(opp) => P.p("TRAD opParent: %s\n", ZExp.sexp_of_zoperand(opp))
-     };
-     P.p("TRAD expected_ty: %s\n", HTyp.sexp_of_t(expected_ty));
-     switch (actual_ty) {
-     | None => print_endline("TRAD actual_ty: None")
-     | Some(ty) => P.p("TRAD actual_ty: %s\n", HTyp.sexp_of_t(ty))
-     };
-   };
-   */
   get_operand_suggestions(ci)
   @ get_operator_suggestions(ci)
   |> List.map(renumber_suggestion_holes(ci.ctx, u_gen))

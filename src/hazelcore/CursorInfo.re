@@ -8,12 +8,6 @@ type join_of_branches =
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
-type mode =
-  | Analytic
-  | Synthetic
-  | UnknownMode;
-
-[@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -129,16 +123,16 @@ type cursor_term =
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
+/* the zseq most immediately containing the cursor_term */
 [@deriving sexp]
 type syntactic_context =
-  // zseq containing the selected operand and the expected type of the whole opseq
   | ExpSeq(HTyp.t, ZExp.zseq, ErrStatus.t)
   | NoSeq;
 
 [@deriving sexp]
+/* the operand (if any) most immediately containing the cursor_term */
 type opParent = option(ZExp.zoperand);
-// TODO refactor into variants
-// based on term sort and shape
+
 [@deriving sexp]
 type t = {
   cursor_term,
@@ -151,17 +145,3 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
-
-/*
- type pro = {
-   expected_ty: HTyp.t,
-   actual_ty: option(HTyp.t),
-   mode,
-   typed,
-   term: cursor_term,
-   ctx: Contexts.t,
-   uses: option(UsageAnalysis.uses_list),
-   u_gen: MetaVarGen.t,
-   syntactic_context,
-   opParent,
- };*/

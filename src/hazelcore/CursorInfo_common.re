@@ -109,6 +109,12 @@ let is_comment_line = (cursor_term): bool => {
   };
 };
 
+[@deriving sexp]
+type mode =
+  | Analytic
+  | Synthetic
+  | UnknownMode;
+
 let rec get_types_and_mode = (typed: typed) => {
   switch (typed) {
   | AnaAnnotatedLambda(expected, actual)
@@ -164,39 +170,6 @@ let get_type = (cursor_info: t): option(HTyp.t) => {
   let+ expected_ty = expected_ty;
   expected_ty;
 };
-
-let get_mode = (cursor_info: t) => {
-  let (_, _, mode) = get_types_and_mode(cursor_info.typed);
-  mode;
-};
-
-/*
- let promote_cursor_info =
-     (
-       u_gen: MetaVarGen.t,
-       {cursor_term, typed, ctx, uses, syntactic_context, opParent}: t,
-     )
-     : pro => {
-   let (expected_ty, actual_ty, mode) = get_types_and_mode(typed);
-   // TODO(andrew): handle more cases in get_types_and_mode
-   let expected_ty =
-     switch (expected_ty) {
-     | None => HTyp.Hole
-     | Some(ty) => ty
-     };
-   {
-     expected_ty,
-     actual_ty,
-     typed,
-     mode,
-     u_gen,
-     term: cursor_term,
-     ctx,
-     uses,
-     syntactic_context,
-     opParent,
-   };
- };*/
 
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
   switch (CursorFrame.mk(zexp)) {

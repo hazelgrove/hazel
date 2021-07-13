@@ -32,7 +32,6 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 };
 
 let get_type = CursorInfo_common.get_type;
-let get_mode = CursorInfo_common.get_mode;
 
 /**
    * Gets the type in string format.

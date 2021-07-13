@@ -89,17 +89,6 @@ let mk_ap_iter =
   (output_ty, mk_ap(f, holes_seq));
 };
 
-type context_status = {
-  ty: HTyp.t,
-  errors: list(CursorPath.hole_info),
-};
-
-type suggestion_report = {
-  before: context_status,
-  after: context_status,
-  delta_errors: int,
-};
-
 let hole_not_empty = (hi: CursorPath.hole_info) =>
   switch (hi.sort) {
   | ExpHole(_, TypeErr | VarErr)
@@ -107,47 +96,14 @@ let hole_not_empty = (hi: CursorPath.hole_info) =>
   | _ => false
   };
 
-let err_holes = ze =>
+let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
-let _idomaticity_score = (operand: UHExp.operand): int => {
-  // this doesn't work if the cursor is already on the case scrut or fexpr in app
-  // assume aps are parenthesized for now
-  UHExp.(
-    switch (operand) {
-    | Case(_, [ExpLine(OpSeq(_, S(operand, E)))], _) =>
-      switch (operand) {
-      | Case(_) => (-3)
-      | Lam(_) => (-3) // idea: addn cursorinfo case type check for non-enum types?
-      | Inj(_) => (-1)
-      | IntLit(_)
-      | BoolLit(_)
-      | FloatLit(_)
-      | ListNil(_) => (-1)
-      | _ => 0
-      }
-    | Parenthesized([
-        ExpLine(OpSeq(_, S(operand, A(Operators_Exp.Space, _)))),
-      ]) =>
-      // lits/inj don't really matter as the type will never match
-      switch (operand) {
-      | Case(_) => (-3)
-      | Lam(_) => (-2)
-      | Parenthesized(_) => (-1)
-      | _ => 0
-      // lits/inj don't really matter as the type will never match
-      }
-    | _ => 0
-    }
-  );
-};
-
 let idomaticity_score_parent =
-    (operand: UHExp.operand, opParent: CursorInfo.opParent): int => {
-  switch (opParent) {
-  | None => 0
-  | Some(parent_operand) =>
+    (action: Action.t, opParent: CursorInfo.opParent): int => {
+  switch (action, opParent) {
+  | (ReplaceAtCursor(operand, None), Some(parent_operand)) =>
     switch (parent_operand) {
     | CaseZE(_) =>
       switch (operand) {
@@ -175,16 +131,23 @@ let idomaticity_score_parent =
       }
     | _ => 0
     }
+  | _ => 0
   };
 };
 
-let check_suggestion =
-    (
-      action: Action.t,
-      res_ty: HTyp.t,
-      {ctx, syntactic_context, opParent, expected_ty, _}: CursorInfo.t,
-    )
-    : option((int, int)) => {
+let type_specificity_score = (expected_ty: HTyp.t, res_ty: HTyp.t) =>
+  // TODO: 'if res_ty is less specific then expected_ty, -1'
+  switch (expected_ty) {
+  | Hole => 0
+  | _ =>
+    switch (res_ty) {
+    | Hole => (-1)
+    | _ => 0
+    }
+  };
+
+let opseq_report =
+    (action: Action.t, {ctx, syntactic_context, _}: CursorInfo.t) => {
   let* (opseq_expected_ty, old_zexp, context_consistent_before) =
     switch (syntactic_context) {
     | ExpSeq(expected_ty, zseq, err) =>
@@ -212,56 +175,41 @@ let check_suggestion =
     };
   let context_consistent_after =
     HTyp.consistent(opseq_expected_ty, actual_ty);
-  let err_paths_before = err_holes(old_zexp);
-  let err_paths_after = err_holes(new_zexp);
-  let internal_errors =
-    List.length(err_paths_before) - List.length(err_paths_after);
+  let internal_errors_before = old_zexp |> err_holes |> List.length;
+  let internal_errors_after = new_zexp |> err_holes |> List.length;
+  (
+    context_consistent_before,
+    context_consistent_after,
+    internal_errors_before,
+    internal_errors_after,
+  );
+};
+
+let check_suggestion =
+    (
+      action: Action.t,
+      res_ty: HTyp.t,
+      {opParent, expected_ty, _} as ci: CursorInfo.t,
+    )
+    : option(Suggestion.score) => {
+  let+ (
+    context_consistent_before,
+    context_consistent_after,
+    internal_errors_before,
+    internal_errors_after,
+  ) =
+    opseq_report(action, ci);
   let context_errors =
     switch (context_consistent_before, context_consistent_after) {
     | (true, false) => (-1)
     | (false, true) => 1
     | _ => 0
     };
+  let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
-  let score =
-    switch (action) {
-    | ReplaceAtCursor(operand, None) =>
-      idomaticity_score_parent(operand, opParent)
-    | _ => 0 // TODO (log)
-    };
-  // TODO: 'if res_ty is less specific then expected_ty, -1'
-  let type_specificity_score =
-    switch (expected_ty) {
-    | Hole => 0
-    | _ =>
-      switch (res_ty) {
-      | Hole => (-1)
-      | _ => 0
-      }
-    };
-  if (false) {
-    print_endline("START check_suggestion");
-    Printf.printf(
-      "context_consistent before: %b\n",
-      context_consistent_before,
-    );
-    Printf.printf("context_consistent after: %b\n", context_consistent_after);
-    /*
-     P.p("old_zexp: %s\n", ZExp.sexp_of_t(old_zexp));
-     P.p("new_zexp AFTER: %s\n", ZExp.sexp_of_t(new_zexp));
-     P.p(
-       "err_paths_before %s\n",
-       CursorPath.sexp_of_hole_list(err_paths_before),
-     );
-     P.p(
-       "err_paths_after: %s\n",
-       CursorPath.sexp_of_hole_list(err_paths_after),
-     );
-     */
-    Printf.printf("internal_errors: %d\n", internal_errors);
-    print_endline("END check_suggestion");
-  };
-  (delta_errors, score + type_specificity_score);
+  let idiomaticity = idomaticity_score_parent(action, opParent);
+  let type_specificity = type_specificity_score(expected_ty, res_ty);
+  Suggestion.{idiomaticity, type_specificity, delta_errors};
 };
 
 let mk_suggestion =
@@ -271,8 +219,7 @@ let mk_suggestion =
   action,
   result,
   res_ty,
-  delta_errors: 0,
-  score: 0,
+  score: Suggestion.blank_score,
 };
 
 let mk_operand_suggestion' =
@@ -290,14 +237,13 @@ let mk_operand_suggestion' =
     | None => HTyp.Hole
     | Some(ty) => ty
     };
-  let (delta_errors, score) =
+  let score: Suggestion.score =
     switch (check_suggestion(action, res_ty, ci)) {
-    | None => (0, 0) //TODO(andrew): do properly or at least log
+    | None => Suggestion.blank_score //TODO(andrew): do properly or at least log
     | Some(res) => res
     };
   {
     ...mk_suggestion(~category, ~result_text, ~action, ~result, ~res_ty),
-    delta_errors,
     score,
   };
 };
@@ -465,10 +411,7 @@ let wrap_suggestions =
     ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {
   // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
-  //print_endline("666 wrap_suggestions");
-  //P.p("actual_ty: %s\n", sexp_of_option(HTyp.sexp_of_t, actual_ty));
   switch (actual_ty, cursor_term) {
-  //| (None, _)
   | (_, Exp(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
   | (None, _) =>
@@ -480,7 +423,6 @@ let wrap_suggestions =
        )
     |> List.map(mk_wrap_suggestion(ci));
   | (Some(actual_ty), _) =>
-    //print_endline("666 wrap_suggestions inner");
     Assistant_common.fun_vars(ctx, expected_ty)
     |> List.filter(((_, f_ty)) =>
          HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))

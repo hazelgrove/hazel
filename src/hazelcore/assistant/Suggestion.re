@@ -1,5 +1,4 @@
 open Sexplib.Std;
-//open OptUtil.Syntax;
 
 [@deriving sexp]
 type category =
@@ -13,14 +12,26 @@ type category =
   | Delete;
 
 [@deriving sexp]
+type score = {
+  idiomaticity: int,
+  type_specificity: int,
+  delta_errors: int,
+};
+
+let blank_score: score = {
+  idiomaticity: 0,
+  type_specificity: 0,
+  delta_errors: 0,
+};
+
+[@deriving sexp]
 type t('a) = {
   category,
+  score,
   action: Action.t,
   result: 'a,
   res_ty: HTyp.t,
   result_text: string,
-  delta_errors: int,
-  score: int,
 };
 
 let string_of_category: category => string =
