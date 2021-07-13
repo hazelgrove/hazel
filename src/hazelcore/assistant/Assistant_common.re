@@ -1,5 +1,3 @@
-//open OptUtil.Syntax;
-
 /**
  * Extract from the context the variables that are consistent with the type that
  * we are looking for.

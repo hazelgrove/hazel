@@ -80,7 +80,7 @@ let code_view =
       let assistant_action =
         cursor_info
         |> CursorInfo.promote_cursor_info(u_gen)
-        |> AssistantModel.select_action(assistant_model);
+        |> AssistantModel.get_action(assistant_model);
       let key_handlers =
         main_editor_is_focused
           ? UHCode.key_handlers(

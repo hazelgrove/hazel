@@ -1,30 +1,13 @@
 open Virtual_dom.Vdom;
 open Node;
 
-let action_abbreviation: Assistant_Exp.assistant_action_categories => string =
-  fun
-  | InsertVar => "var"
-  | InsertApp => "app"
-  | InsertLit => "lit"
-  | InsertConstructor => "con"
-  | InsertElim => "eli"
-  | ReplaceOperator => "opr"
-  | Wrap => "wra"
-  | Delete => "del";
-
-let mk_editor = (exp: UHExp.t): Program.exp =>
-  exp
-  |> ZExp.place_before
-  |> Program.EditState_Exp.mk
-  |> Program.Exp.mk(~width=80);
-
-let action_view =
+let suggestion_view =
     (
       ~ci: CursorInfo.pro,
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, result_text, delta_errors, score, _}: Assistant_Exp.assistant_action,
+      {action, result, res_ty, category, result_text, delta_errors, score, _}: Assistant_Exp.suggestion,
       is_selected: bool,
       search_string: string,
     ) => {
@@ -34,7 +17,7 @@ let action_view =
       Event.Stop_propagation,
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
-  let label = action_abbreviation(category);
+  let label = Suggestion.string_of_category(category);
   let category_view =
     div([Attr.classes(["category", label])], [text(label)]);
   let index =
@@ -53,7 +36,7 @@ let action_view =
       ~is_focused=false,
       ~settings,
       ~font_metrics,
-      mk_editor(result),
+      Program.mk_exp_editor(result),
     );
   let error_str =
     switch (delta_errors) {
@@ -80,7 +63,6 @@ let action_view =
         [Attr.classes(["delta-errors"])],
         [text(error_str), text(string_of_int(score))],
       ),
-      //div([], [context_consistent |> string_of_bool |> text]),
       div(
         [Attr.classes(["code-container"])],
         [div([Attr.classes(["code"])], [overlay_view] @ result_view)],
@@ -103,9 +85,9 @@ let view =
     : Node.t => {
   let (filter_string, _) =
     CursorInfo_common.string_and_index_of_cursor_term(ci.term);
-  let actions = AssistantModel.get_display_actions(ci, assistant);
-  let action_view = (i, a) =>
-    action_view(
+  let suggestions = AssistantModel.get_display_suggestions(ci, assistant);
+  let suggestion_view = (i, a) =>
+    suggestion_view(
       ~ci,
       ~inject,
       ~settings,
@@ -114,5 +96,5 @@ let view =
       i == 0,
       filter_string,
     );
-  div([Attr.id("assistant")], List.mapi(action_view, actions));
+  div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
 };

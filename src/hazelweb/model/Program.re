@@ -435,3 +435,11 @@ type exp = t(EditState_Exp.t);
 module Exp = Make(EditState_Exp);
 type typ = t(EditState_Typ.t);
 module Typ = Make(EditState_Typ);
+
+let mk_typ_editor = ty => ty |> ZTyp.place_before |> Typ.mk(~width=80);
+
+let get_ty = (editor: typ): HTyp.t =>
+  editor |> get_edit_state |> EditState_Typ.get_uhstx |> UHTyp.expand;
+
+let mk_exp_editor = (exp: UHExp.t): exp =>
+  exp |> ZExp.place_before |> EditState_Exp.mk |> Exp.mk(~width=80);
