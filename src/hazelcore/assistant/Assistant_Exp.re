@@ -55,9 +55,9 @@ let operator_of_ty =
  *   Make syntax without proper hole numbering, then
  *   renumber holes at assistant boundary */
 
-let hole_operand = UHExp.new_EmptyHole(0) |> fst;
+let hole_operand = UHExp.EmptyHole(0);
 let hole_exp = UHExp.Block.wrap(hole_operand);
-let hole_pat = UHPat.new_EmptyHole(0) |> fst |> OpSeq.wrap;
+let hole_pat = UHPat.EmptyHole(0) |> OpSeq.wrap;
 let lambda_operand = UHExp.lam(hole_pat, hole_exp);
 let rule = UHExp.Rule(hole_pat, hole_exp);
 let mk_case = scrut => UHExp.case(scrut, [rule]);
