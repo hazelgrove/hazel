@@ -21,4 +21,4 @@ let rules_view: CursorInfo.t => option(Vdom.Node.t);
 /**
  * Strategy Guide at the cursor for lines.
  */
-let lines_view: unit => Vdom.Node.t;
+let lines_view: bool => Vdom.Node.t;

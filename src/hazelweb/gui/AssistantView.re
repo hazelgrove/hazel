@@ -22,7 +22,7 @@ let suggestion_view =
     div([Attr.classes(["category", label])], [text(label)]);
   let index =
     switch (cursor_term) {
-    | Exp(OnText(i), _) => i
+    | ExpOperand(OnText(i), _) => i
     | _ => String.length(search_string)
     };
   // split string at caret, only use before caret portion to search

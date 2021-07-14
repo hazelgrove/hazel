@@ -409,6 +409,13 @@ let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
     )
   };
 
+let is_empty_hole_line = (zli: zline): bool =>
+  switch (zli) {
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))) =>
+    true
+  | _ => false
+  };
+
 let rec erase = (ze: t): UHExp.t => ze |> erase_zblock
 and erase_zblock = ((prefix, zline, suffix): zblock): UHExp.block =>
   prefix @ [zline |> erase_zline] @ suffix

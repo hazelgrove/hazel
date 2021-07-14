@@ -1,4 +1,3 @@
-// warning: compiler will not error on htyp extensions here
 let rec mk =
         (ty1: HTyp.t, ty2: HTyp.t)
         : (list(CursorPath.steps), list(CursorPath.steps)) =>
@@ -33,5 +32,11 @@ let rec mk =
     }
   | (List(ty), List(ty')) =>
     TupleUtil.map2(List.map(List.cons(0)), mk(ty, ty'))
-  | _ => ([[]], [[]])
+  | (Int, _)
+  | (Float, _)
+  | (Bool, _)
+  | (Arrow(_), _)
+  | (Sum(_), _)
+  | (Prod(_), _)
+  | (List(_), _) => ([[]], [[]])
   };

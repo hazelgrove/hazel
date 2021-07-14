@@ -360,7 +360,7 @@ let mk_wrap_case_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
   let operand =
     switch (cursor_term) {
-    | Exp(pos, operand) =>
+    | ExpOperand(pos, operand) =>
       let guy = get_guy_from(pos, operand);
       guy |> UHExp.Block.wrap |> mk_case;
     | _ => failwith("mk_wrap_case_suggestion impossible")
@@ -387,7 +387,7 @@ let mk_wrap_suggestion =
   //TODO(andrew): considering splicing into opseq context
   let result =
     switch (cursor_term) {
-    | Exp(pos, operand) =>
+    | ExpOperand(pos, operand) =>
       // TODO: ??????????????????????????????????
       //print_endline("666 mk_wrap_suggestion");
       let guy = get_guy_from(pos, operand);
@@ -412,7 +412,7 @@ let wrap_suggestions =
   // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
   switch (actual_ty, cursor_term) {
-  | (_, Exp(_, EmptyHole(_))) => []
+  | (_, ExpOperand(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
   | (None, _) =>
     // hack, maybe, so we get wrappings for caret case
@@ -440,16 +440,16 @@ let virtual_suggestions =
     ({cursor_term, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
   (
     switch (cursor_term) {
-    | Exp(_, IntLit(_, s)) when s != "0" => [
+    | ExpOperand(_, IntLit(_, s)) when s != "0" => [
         //mk_int_lit_suggestion(ci, s),
         mk_float_lit_suggestion(ci, s ++ "."),
         mk_int_lit_suggestion(ci, "0"),
       ]
-    | Exp(_, IntLit(_, s)) when s == "0" => [
+    | ExpOperand(_, IntLit(_, s)) when s == "0" => [
         //mk_int_lit_suggestion(ci, "0"),
         mk_float_lit_suggestion(ci, str_int_to_float(s)),
       ]
-    | Exp(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
+    | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
       s |> float_of_string |> Float.is_integer
         ? [
           //mk_float_lit_suggestion(ci, s),
@@ -460,7 +460,7 @@ let virtual_suggestions =
           //mk_float_lit_suggestion(ci, s),
           mk_int_lit_suggestion(ci, "0"),
         ]
-    | Exp(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
+    | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
         //mk_float_lit_suggestion(ci, "0."),
         mk_int_lit_suggestion(ci, "0"),
       ]

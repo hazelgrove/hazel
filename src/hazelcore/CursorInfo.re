@@ -108,18 +108,17 @@ type typed =
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
-  | OnLetLine(HTyp.t)
-  | OnLine
+  | OnNonLetLine
   | OnRule;
 
 [@deriving sexp]
 type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
+  | ExpOperand(CursorPosition.t, UHExp.operand)
+  | PatOperand(CursorPosition.t, UHPat.operand)
+  | TypOperand(CursorPosition.t, UHTyp.operand)
+  | ExpOperator(CursorPosition.t, UHExp.operator)
+  | PatOperator(CursorPosition.t, UHPat.operator)
+  | TypOperator(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
@@ -134,6 +133,12 @@ type syntactic_context =
 type opParent = option(ZExp.zoperand);
 
 [@deriving sexp]
+type parent_info =
+  | EndBranchClause
+  | EmptyHoleLine
+  | NoParentInfo;
+
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,
@@ -144,4 +149,5 @@ type t = {
   opParent,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  parent_info,
 };

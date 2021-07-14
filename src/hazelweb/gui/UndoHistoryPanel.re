@@ -248,12 +248,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
-    | Exp(_, exp) => exp_view(exp, show_indicate_word)
-    | Pat(_, pat) => pat_view(pat, show_indicate_word)
-    | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
+    | ExpOperand(_, exp) => exp_view(exp, show_indicate_word)
+    | PatOperand(_, pat) => pat_view(pat, show_indicate_word)
+    | TypOperand(_, typ) => typ_view(typ)
+    | ExpOperator(_, op) => code_view(Operators_Exp.to_string(op))
+    | PatOperator(_, op) => code_view(Operators_Pat.to_string(op))
+    | TypOperator(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")

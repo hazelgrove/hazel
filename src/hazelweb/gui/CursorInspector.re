@@ -8,10 +8,19 @@ type err_state_b =
 let inconsistent_symbol =
   Node.div(
     [
-      Attr.classes(["consistency-symbol", "inconsistent-symbol"]),
+      Attr.classes(["consistency-symbol", "inconsistent"]),
       Attr.create("title", "Inconsistent"),
     ],
     [Node.text(Unicode.inconsistent)],
+  );
+
+let consistent_symbol =
+  Node.div(
+    [
+      Attr.classes(["consistency-symbol", "consistent"]),
+      Attr.create("title", "Consistent"),
+    ],
+    [Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
@@ -47,23 +56,12 @@ let any_typ_msg =
     ],
   );
 
-let is_end_keyword =
-    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
-  switch (term) {
-  | Exp(OnText(index), _) =>
-    index == String.length(ExpandingKeyword.to_string(keyword))
-  | _ => false
-  };
-/* TODO: don't just copy and paste functions like this from Strategy Guide*/
-let shortcut_node = text =>
-  Node.div([Attr.classes(["code-font", "shortcut"])], [Node.text(text)]);
-
 let keyword_msg = (term, keyword, main_msg) =>
-  if (is_end_keyword(term, keyword)) {
+  if (CursorInfo_common.is_end_keyword(term, keyword)) {
     main_msg
     @ [
       Node.text("("),
-      shortcut_node("Space"),
+      AssistantView_common.shortcut_node("Space"),
       Node.text(" to expand keyword)"),
     ];
   } else {
@@ -83,19 +81,23 @@ let advanced_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | PatSynthesized(ty)
-    | OnLetLine(ty) =>
-      switch (ty) {
-      | HTyp.Hole => [syn, any_typ_msg]
+    | PatSynthesized(ty) =>
+      switch (term) {
+      | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    /* Use the got type if not just Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty) {
-      | HTyp.Hole => [ana, HTypCode.view(expected_ty)]
-      | _ => [ana, HTypCode.view(got_ty)]
+      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+        [ana, HTypCode.view(expected_ty)];
+      } else {
+        [
+          ana,
+          HTypCode.view(expected_ty),
+          consistent_symbol,
+          HTypCode.view(got_ty),
+        ];
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
@@ -186,9 +188,6 @@ let advanced_summary =
             HTypCode.view(~diff_steps=got_diff, got_ty),
           ];
         }
-      /*| (InconsistentBranchTys(_), _) => [
-          emphasize_text("Inconsistent Branch Types"),
-        ]*/
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => [
@@ -202,11 +201,14 @@ let advanced_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => []
-    | OnLine => /* TODO */ [emphasize_text("Line")]
+    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
   };
-  List.cons(term_tag, message(typed));
+  switch (typed) {
+  | OnNonLetLine => message(typed) /* Don't display the term tag for empty and comment lines */
+  | _ => List.cons(term_tag, message(typed))
+  };
 };
 
 //TODO(andrew): this is mostly copy-pasted from advanced summary...
@@ -225,7 +227,7 @@ let assistant_summary =
     ) => {
   let term_tag =
     switch (term) {
-    | Exp(_, operand) =>
+    | ExpOperand(_, operand) =>
       let editor = operand |> UHExp.Block.wrap |> Program.mk_exp_editor;
       UHCode.codebox_view(
         ~font_metrics,
@@ -243,8 +245,8 @@ let assistant_summary =
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
-    | PatSynthesized(ty)
-    | OnLetLine(ty) =>
+    | PatSynthesized(ty) =>
+      //| OnLetLine(ty) =>
       let any_typ_msg =
         Node.div(
           [Attr.classes(["compressed"])],
@@ -378,7 +380,7 @@ let assistant_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => []
-    | OnLine => /* TODO */ [emphasize_text("Line")]
+    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
   };
@@ -403,25 +405,24 @@ let novice_summary =
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    /* Use the got type if not just a Hole */
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty) {
-      | HTyp.Hole => expecting_of_type @ [HTypCode.view(expected_ty)]
-      | _ => [
-          Node.text("Got " ++ article),
-          term_tag,
-          Node.text("of type"),
+      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+        expecting_of_type @ [HTypCode.view(expected_ty)];
+      } else {
+        expecting_of_type
+        @ [
+          HTypCode.view(expected_ty),
+          Node.text("and got consistent type"),
           HTypCode.view(got_ty),
-        ]
+        ];
       }
     | Synthesized(ty)
-    | PatSynthesized(ty)
-    | OnLetLine(ty) =>
-      switch (ty) {
-      | HTyp.Hole => [
-          Node.text("Expecting " ++ article),
+    | PatSynthesized(ty) =>
+      switch (term) {
+      | ExpOperand(_, EmptyHole(_)) => [
+          Node.text("Got " ++ article),
           term_tag,
           Node.text("of"),
           any_typ_msg,
@@ -442,7 +443,6 @@ let novice_summary =
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
-
       expecting_of_type
       @ [
         HTypCode.view(~diff_steps=expected_diff, expected_ty),
@@ -563,11 +563,6 @@ let novice_summary =
             HTypCode.view(~diff_steps=got_diff, got_ty),
           ];
         }
-      /*| (InconsistentBranchTys(_), _) => [
-          Node.text("Got " ++ article),
-          term_tag,
-          emphasize_text("Inconsistent Branch Types"),
-        ]*/
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => [
@@ -584,9 +579,9 @@ let novice_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
-    | OnLine => /* TODO */ [
-        Node.text("Got " ++ article),
-        term_tag,
+    | OnNonLetLine => /* TODO */ [
+        Node.text("Got a "),
+        /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
     | OnRule => /* TODO */ [
@@ -603,10 +598,11 @@ let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
       ci: CursorInfo.t,
-      show: bool,
+      show_expansion_arrow: bool,
       show_expanded: bool,
       novice_mode: bool,
-      show_strategy_guide: bool,
+      show_strategy_guide_icon: bool,
+      _on_empty_hole: bool,
       assistant_enabled: bool,
       type_editor_is_focused,
       assistant_model,
@@ -684,8 +680,10 @@ let summary_bar =
           Event.Many([
             Event.Prevent_default,
             Event.Stop_propagation,
-            show_strategy_guide
-              ? inject(UpdateSettings(CursorInspector(Toggle_type_assist)))
+            show_strategy_guide_icon
+              ? inject(
+                  UpdateSettings(CursorInspector(Toggle_strategy_guide)),
+                )
               : inject(
                   Chain([
                     UpdateSettings(CursorInspector(Set_type_assist(false))),
@@ -717,13 +715,13 @@ let summary_bar =
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
-    (show ? [summary, fill_space, arrow] : [summary])
+    (show_expansion_arrow ? [summary, fill_space, arrow] : [summary])
     @ (
-      show_strategy_guide || assistant_enabled
+      show_strategy_guide_icon || assistant_enabled
         ? [
           fill_space,
           fill_icon(
-            show_strategy_guide && !assistant_enabled
+            show_strategy_guide_icon && !assistant_enabled
               ? Unicode.light_bulb : Unicode.robot_arm,
           ),
         ]
@@ -826,7 +824,7 @@ let view =
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
     );
 
-  let expanded =
+  let expanded_msg =
     switch (cursor_info.typed) {
     | SynBranchClause(
         InconsistentBranchTys(rule_types, path_to_case),
@@ -892,8 +890,7 @@ let view =
     | PatAnaKeyword(_) => BindingError
     | PatSynthesized(_) => OK
     | PatSynKeyword(_) => BindingError
-    | OnLine => OK
-    | OnLetLine(_) => OK
+    | OnNonLetLine => OK
     | OnRule => OK
     };
 
@@ -916,13 +913,35 @@ let view =
     );
   let above_or_below =
     switch (cursor_info.cursor_term) {
-    | Exp(OnDelim(0, _), Case(_)) => "above"
+    | ExpOperand(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
   let on_empty_hole =
     CursorInfo_common.is_empty_hole(cursor_info.cursor_term);
-  let show =
-    switch (expanded) {
+  let (show_strategy_guide_icon, strategy_guide) =
+    switch (cursor_info.cursor_term, cursor_info.parent_info) {
+    | (ExpOperand(_, EmptyHole(_)), _) => (
+        true,
+        Some(
+          StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
+        ),
+      )
+    | (Rule(_), _)
+    | (ExpOperand(_, Case(_)), _)
+    | (_, EndBranchClause) =>
+      switch (StrategyGuide.rules_view(cursor_info)) {
+      | None => (false, None)
+      | Some(sg_rules) => (true, Some(sg_rules))
+      }
+    | (Line(_, EmptyLine), _) => (
+        true,
+        Some(StrategyGuide.lines_view(true)),
+      )
+    | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
+    | _ => (false, None)
+    };
+  let show_expansion_arrow =
+    switch (expanded_msg) {
     | Some(_) => true
     | None => false
     };
@@ -930,9 +949,10 @@ let view =
     summary_bar(
       ~inject,
       cursor_info,
-      show,
+      show_expansion_arrow,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
+      show_strategy_guide_icon,
       on_empty_hole,
       assistant_model.active,
       type_editor_is_focused,
@@ -943,8 +963,9 @@ let view =
       ~settings,
     );
   let content =
-    switch (cursor_inspector.show_expanded, expanded) {
-    | (true, Some(ind)) => [summary, ...ind]
+    switch (cursor_inspector.strategy_guide, strategy_guide) {
+    | (true, Some(strategy_guide)) =>
+      List.append([summary], [strategy_guide])
     | _ => [summary]
     };
   /* TODO need to make sure lightbulb shows up when needs to */
@@ -954,7 +975,7 @@ let view =
   //);
   let content =
     if (assistant_model.active) {
-      content
+      [summary]
       @ [
         AssistantView.view(
           ~inject,
@@ -965,33 +986,10 @@ let view =
           ~ci=cursor_info,
         ),
       ];
-    } else if (cursor_inspector.type_assist) {
-      switch (cursor_info.cursor_term) {
-      | Exp(_, EmptyHole(_)) =>
-        List.append(
-          content,
-          [
-            StrategyGuide.exp_hole_view(
-              ~inject,
-              cursor_inspector,
-              cursor_info,
-            ),
-          ],
-        )
-      | Rule(_)
-      | Exp(_, Case(_)) =>
-        switch (StrategyGuide.rules_view(cursor_info)) {
-        | None => content
-        | Some(sg_rules) => List.append(content, [sg_rules])
-        }
-      | Line(_) =>
-        /* TODO: Make work in general? */
-        List.append(content, [StrategyGuide.lines_view()])
-      | _ => content
-      };
     } else {
       content;
     };
+
   Node.div(
     [
       Attr.id("cursor-inspector"),

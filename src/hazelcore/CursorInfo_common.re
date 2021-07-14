@@ -8,7 +8,7 @@ type zoperand =
 
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, exp) =>
+  | ExpOperand(_, exp) =>
     switch (exp) {
     | EmptyHole(_)
     | Var(_, _, _)
@@ -18,7 +18,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     | _ => false
     }
-  | Pat(_, pat) =>
+  | PatOperand(_, pat) =>
     switch (pat) {
     | EmptyHole(_)
     | Wild(_)
@@ -28,10 +28,10 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | BoolLit(_, _) => true
     | _ => false
     }
-  | Typ(_, _)
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => false
+  | TypOperand(_, _)
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _) => false
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
@@ -46,24 +46,24 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
 let string_and_index_of_cursor_term =
     (term: CursorInfo.cursor_term): (string, int) => {
   switch (term) {
-  | Pat(OnText(i), Var(_, _, s))
-  | Pat(OnText(i), InvalidText(_, s))
-  | Pat(OnText(i), IntLit(_, s))
-  | Pat(OnText(i), FloatLit(_, s))
-  | Exp(OnText(i), Var(_, _, s))
-  | Exp(OnText(i), InvalidText(_, s))
-  | Exp(OnText(i), IntLit(_, s))
-  | Exp(OnText(i), FloatLit(_, s)) => (s, i)
-  | Exp(OnText(i), BoolLit(_, b))
-  | Pat(OnText(i), BoolLit(_, b)) => (string_of_bool(b), i)
+  | PatOperand(OnText(i), Var(_, _, s))
+  | PatOperand(OnText(i), InvalidText(_, s))
+  | PatOperand(OnText(i), IntLit(_, s))
+  | PatOperand(OnText(i), FloatLit(_, s))
+  | ExpOperand(OnText(i), Var(_, _, s))
+  | ExpOperand(OnText(i), InvalidText(_, s))
+  | ExpOperand(OnText(i), IntLit(_, s))
+  | ExpOperand(OnText(i), FloatLit(_, s)) => (s, i)
+  | ExpOperand(OnText(i), BoolLit(_, b))
+  | PatOperand(OnText(i), BoolLit(_, b)) => (string_of_bool(b), i)
   | _ => ("", 0)
   };
 };
 
 let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
   switch (term) {
-  | Exp(OnText(i), _) => i
-  | Pat(OnText(i), _) => i
+  | ExpOperand(OnText(i), _) => i
+  | PatOperand(OnText(i), _) => i
   | _ =>
     print_endline("TODO(andrew): index_of_cursor_term fallthough");
     0;
@@ -72,15 +72,15 @@ let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
 
 let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, EmptyHole(_)) => true
-  | Exp(_, _) => false
-  | Pat(_, EmptyHole(_)) => true
-  | Pat(_, _) => false
-  | Typ(_, Hole) => true
-  | Typ(_, _) => false
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
+  | ExpOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_, _) => false
+  | PatOperand(_, EmptyHole(_)) => true
+  | PatOperand(_, _) => false
+  | TypOperand(_, Hole) => true
+  | TypOperand(_, _) => false
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
   | Line(_, _)
   | Rule(_, _) => false
   };
@@ -88,9 +88,9 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
 
 let is_op = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => true
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _) => true
   | _ => false
   };
 };
@@ -174,22 +174,51 @@ let get_type = (cursor_info: t): option(HTyp.t) => {
 let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
   switch (CursorFrame.mk(zexp)) {
   | [{slice: Line(CursorL(c, s)), _}, ..._] => Line(c, s)
-  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => Exp(c, s)
-  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOp(c, s)
+  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => ExpOperand(c, s)
+  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOperator(c, s)
   | [{slice: Rule(CursorR(c, s)), _}, ..._] => Rule(c, s)
-  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => Pat(c, s)
-  | [{slice: PatOperator((c, s)), _}, ..._] => PatOp(c, s)
-  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => Typ(c, s)
-  | [{slice: TypOperator((c, s)), _}, ..._] => TypOp(c, s)
+  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => PatOperand(c, s)
+  | [{slice: PatOperator((c, s)), _}, ..._] => PatOperator(c, s)
+  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => TypOperand(c, s)
+  | [{slice: TypOperator((c, s)), _}, ..._] => TypOperator(c, s)
   | frame =>
     print_endline(Sexplib.Sexp.to_string_hum(CursorFrame.sexp_of_t(frame)));
     failwith("INVALID FRAME (extract_cursor_term)");
   };
 };
 
+let on_empty_expr_hole: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_, _) => false
+  | PatOperand(_, EmptyHole(_)) => false
+  | PatOperand(_, _) => false
+  | TypOperand(_, Hole) => false
+  | TypOperand(_, _) => false
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
+  | Line(_, _)
+  | Rule(_, _) => false;
+
+let on_expr_var: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, Var(_)) => true
+  | ExpOperand(_, _) => false
+  | _ => false;
+
+let is_end_keyword =
+    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
+  switch (term) {
+  | ExpOperand(OnText(index), _) =>
+    index == String.length(ExpandingKeyword.to_string(keyword))
+  | _ => false
+  };
+
 let mk =
     (
       ~uses=?,
+      ~parent_info=NoParentInfo,
       ~syntactic_context=CursorInfo.NoSeq,
       ~opParent=None,
       typed,
@@ -212,9 +241,24 @@ let mk =
     actual_ty,
     syntactic_context,
     opParent,
+    parent_info,
   };
 };
 let get_ctx = (ci: CursorInfo.t) => ci.ctx;
+
+let set_end_branch_clause = (ci, is_end_branch_clause) =>
+  if (is_end_branch_clause) {
+    {...ci, parent_info: EndBranchClause};
+  } else {
+    ci;
+  };
+
+let set_is_empty_hole_line = (ci, is_empty_hole_line) =>
+  if (is_empty_hole_line) {
+    {...ci, parent_info: EmptyHoleLine};
+  } else {
+    ci;
+  };
 
 /*
  * there are cases we can't determine where to find the uses of a variable

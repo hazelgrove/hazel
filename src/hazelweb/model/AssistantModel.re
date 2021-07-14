@@ -84,13 +84,13 @@ let sort_by_prefix =
 
 let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   switch (ci.cursor_term) {
-  | Exp(_) => Assistant_Exp.operand_suggestions(ci)
+  | ExpOperand(_) => Assistant_Exp.operand_suggestions(ci)
   | _ => []
   };
 
 let get_operator_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   switch (ci.cursor_term) {
-  | ExpOp(_) => Assistant_Exp.operator_suggestions(ci)
+  | ExpOperator(_) => Assistant_Exp.operator_suggestions(ci)
   | _ => []
   };
 

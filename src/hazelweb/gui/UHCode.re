@@ -196,6 +196,9 @@ let main_key_action =
     // TODO(andrew): this is brittle as these can get out of sync
     Some(Chain([UpdateAssistant(Toggle), update_ci(Toggle_visible)]))
   | Move(k) => Some(MoveAction(Key(k)))
+  | Combo(Ctrl_Space) =>
+    //TODO(andrew): this was preven-stop-injected... make sure it's still good
+    Some(ModelAction.UpdateSettings(CursorInspector(Toggle_visible)))
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
