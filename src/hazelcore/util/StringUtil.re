@@ -39,3 +39,10 @@ let match_prefix = (prefix: string, target: string): bool => {
   let re = Str.regexp(prefix);
   Str.string_match(re, target, 0);
 };
+
+let match_prefix_subs = (prefix: string, target: string): (bool, string) => {
+  let re = Str.regexp(prefix);
+  let res = Str.string_match(re, target, 0);
+  let subs = Str.matched_string(target);
+  (res, subs);
+};

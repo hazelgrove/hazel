@@ -807,7 +807,7 @@ body {
 
 /*#assistant > .errors-less:hover,*/
 #assistant > .errors-less.selected   {
-  color: #0c5b64;
+  color: black;
   background-color: rgb(197, 235, 253);
 }
 
@@ -843,6 +843,19 @@ body {
   color: #000 !important;
 }
 
+#assistant > .selected.choice > .code-container .overlay {
+  position: absolute;
+  z-index: 9000; /* hack */
+  color:  #0088ff;
+  text-decoration: underline;
+}
+
+#assistant > .choice:not(.selected) > .code-container .overlay {
+  position: absolute;
+  z-index: 9000; /* hack */
+  color: #b9ffb9;
+  text-decoration: underline;
+}
 
 #assistant > .selected > .type  {
   color: #3ba270 !important;
@@ -889,13 +902,6 @@ body {
   align-items: center;
 }
 
-#assistant > .choice > .code-container .overlay {
-  position: absolute;
-  z-index: 9000; /* hack */
-  color: #24b834;
-  text-decoration: underline;
-}
-
 #assistant > .choice .code .HoleLabel {
   background-color: #0d0a051b;
   border-radius: 4px;
@@ -907,7 +913,12 @@ body {
   font-weight: normal;
 }
 
-#assistant > .choice:hover .code .HoleLabel,
+#assistant > .choice:hover:not(.selected) .code .HoleLabel{
+  background-color: #79a279;
+  color: rgb(148, 216, 141);
+  border-radius: 4px;
+  box-shadow: inset 1px 1px 0 rgb(104 201 92);
+}
 #assistant > .selected .code .HoleLabel  {
   background-color: #94f893;
   color: rgb(90 182 79);
@@ -924,7 +935,7 @@ body {
 #assistant > .choice > .type {
   display: flex;
   padding-right: 0.4em;
-  color: rgb(205 203 203);
+  color: #d6d6d6;
 }
 
 #assistant > .selected > .type {

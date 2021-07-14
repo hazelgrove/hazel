@@ -26,9 +26,21 @@ let suggestion_view =
     | _ => String.length(search_string)
     };
   // split string at caret, only use before caret portion to search
-  let (search_string, _) = StringUtil.split_string(index, search_string);
+  let (before_caret, after_caret) =
+    StringUtil.split_string(index, search_string);
   let match_string =
-    StringUtil.match_prefix(search_string, result_text) ? search_string : "";
+    StringUtil.match_prefix(before_caret, result_text) ? before_caret : "";
+  let match_len = String.length(match_string);
+  let unmatched_remainder =
+    String.sub(
+      result_text,
+      match_len,
+      String.length(result_text) - match_len,
+    );
+  let match_string2 =
+    StringUtil.match_prefix(after_caret, unmatched_remainder)
+      ? after_caret : "";
+  let match_string = match_string ++ match_string2;
   let overlay_view =
     div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =

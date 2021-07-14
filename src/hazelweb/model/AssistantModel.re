@@ -64,19 +64,22 @@ let wrap_index = (index: int, xs: list('a)): int =>
 let sort_by_prefix =
     ((prefix: string, index: int), suggestions: list(suggestion))
     : list(suggestion) => {
-  let (prefix, _) = StringUtil.split_string(index, prefix);
+  let (before_caret, _) = StringUtil.split_string(index, prefix);
   let matches =
     List.filter(
-      (s: suggestion) => StringUtil.match_prefix(prefix, s.result_text),
+      (s: suggestion) => {
+        StringUtil.match_prefix(before_caret, s.result_text)
+      },
       suggestions,
     );
   let compare = (a1: suggestion, a2: suggestion) =>
     String.compare(a1.result_text, a2.result_text);
   // NOTE: sort gooduns if they are nontrivial matches
-  let matches = prefix == "" ? matches : List.sort(compare, matches);
+  let matches = before_caret == "" ? matches : List.sort(compare, matches);
   let nonmatches =
     List.filter(
-      (a: suggestion) => !StringUtil.match_prefix(prefix, a.result_text),
+      (a: suggestion) =>
+        !StringUtil.match_prefix(before_caret, a.result_text),
       suggestions,
     );
   matches @ nonmatches;

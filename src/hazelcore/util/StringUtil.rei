@@ -22,3 +22,4 @@ let delete: (int, string) => string;
 let utf8_length: CamomileLibrary.UTF8.t => int;
 
 let match_prefix: (string, string) => bool;
+let match_prefix_subs: (string, string) => (bool, string);
