@@ -873,7 +873,7 @@ h1 {
 
 .result-view {
   padding-left: 25px;
-  padding-bottom: 18px;
+  padding-bottom: 10px;
   background-color: #EEE;
 }
 
@@ -977,7 +977,6 @@ h1 {
 
 #code-root,
 .DHCode {
-  line-height: 0; /* hack, prevents undesired scroll bars */
   position: relative;
 }
 #code-root:focus {

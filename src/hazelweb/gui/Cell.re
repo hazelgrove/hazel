@@ -18,7 +18,7 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
       let e = Program.get_uhexp(program);
       let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
       Node.div(
-        [Attr.id(cell_id)],
+        [Attr.id(cell_id), Attr.classes(["the-context-scroll-container"])],
         [
           /* font-specimen used to gather font metrics for caret positioning and other things */
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
