@@ -17,6 +17,7 @@ type hole_shape =
   | TypeErr
   | VarErr
   | LabelErr
+  | PrjErr
   | Empty;
 
 [@deriving sexp]

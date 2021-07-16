@@ -28,7 +28,6 @@ and syn_skel =
            syn_skel(ctx, skel, seq) |> Option.map(TupleUtil.swap),
          ctx,
        )
-    // ECD You are here: Need to figure out how to refactor this to work with new def of prod
     |> Option.map(((ctx, tys)) => {
          (HTyp.Prod(tys |> HTyp.flatten_prod), ctx)
        })

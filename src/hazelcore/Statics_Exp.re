@@ -93,7 +93,7 @@ and syn_skel =
       | Label(NotInLabelHole, l)
       | Label(InLabelHole(Standalone, _), l) =>
         switch (syn_skel(ctx, skel2, seq)) {
-        | Some(ty) => Some(Prod([Some(l), ty]))
+        | Some(ty) => Some(Prod([(Some(l), ty)]))
         | None => None
         }
       | Label(InLabelHole(_), _) => Some(Hole)
@@ -1484,8 +1484,6 @@ let syn_fix_holes_z =
   );
   let _ =
     CursorPath_Exp.follow(path, ZExp.erase(ze))
-    // ECD: You are here.  Currently failing on projection creation
-    // Need to dig into follow to find the error case.
     |> OptUtil.get(() =>
          failwith(
            "original z exp does not preserve path "

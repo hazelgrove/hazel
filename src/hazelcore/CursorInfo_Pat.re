@@ -81,7 +81,7 @@ and syn_cursor_info_zopseq =
     |> Option.map(((rev_tys, _)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
-             PatSynthesized(Prod(rev_tys |> List.rev)),
+             PatSynthesized(Prod(rev_tys |> List.rev |> HTyp.flatten_prod)),
              ctx,
              extract_cursor_pat_zseq(zseq),
            ),

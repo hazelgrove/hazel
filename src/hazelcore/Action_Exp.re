@@ -1725,8 +1725,6 @@ and syn_perform_operand =
     let new_ze =
       ZExp.ZBlock.wrap(CursorE(OnText(0), UHExp.prj(operand, "")));
     let fix_holes_result = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
-    // ECD: You are here: fixed the path follow issue (did not have the right cursors expected for prj)
-    // Prj still results in a failed action, but we get past syn_fix_holes_z
     print_endline("after fix holes result");
     Succeeded(SynDone(fix_holes_result));
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>

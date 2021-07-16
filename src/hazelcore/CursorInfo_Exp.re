@@ -177,8 +177,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
         | Case(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
-        | Label(InLabelHole(reason), l) => LabelErr(reason, l)
-        | Prj(InPrjHole(reason), _, _) => PrjErr(reason)
+        | Label(InLabelHole(reason, _), l) => LabelErr(reason, l)
+        | Prj(InPrjHole(reason, _), _, _) => PrjErr(reason)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -456,7 +456,8 @@ and syn_cursor_info_skel =
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
-        | Some(LabelErr(reason, l)) => Some(mk(SynLabelErr(Reason, l)))
+        | Some(LabelErr(reason, l)) => Some(mk(SynLabelErr(reason, l)))
+        | Some(PrjErr(reason)) => Some(mk(SynPrjErr(reason)))
         | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand
@@ -932,6 +933,8 @@ and ana_cursor_info_zoperand =
     } /* zipper cases */
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
+  | PrjZE(InPrjHole(_, _), _, _) =>
+    Some(CursorInfo_common.mk(AnaPrjErr(ty), ctx, cursor_term))
   | LamZP(InHole(WrongLength, _), _, _, _)
   | LamZA(InHole(WrongLength, _), _, _, _)
   | LamZE(InHole(WrongLength, _), _, _, _)
@@ -947,12 +950,7 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _)
-  | PrjZE(
-      StandardErrStatus(InHole(WrongLength, _)) | InPrjHole(_, _),
-      _,
-      _,
-    ) =>
-    None
+  | PrjZE(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -1024,8 +1022,6 @@ and ana_cursor_info_zoperand =
     }
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | PrjZE(InPrjHole(_, _), _, _) =>
-    Some(CursorInfo_common.mk(AnaPrjErr(ty), ctx, cursor_term))
   | PrjZE(StandardErrStatus(NotInHole), zoperand_, _) =>
     syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand_)
   };

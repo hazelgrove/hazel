@@ -126,7 +126,11 @@ and follow_operand =
     | ListNil(_)
     | Label(_, _) => None
     // ECD TODO: Does this need a recursive call?
-    | Prj(_, _, _) =>
+    // ECD: You are here, need to refactor cursorpath with a better understanding of the on delim for prj
+    // [] (.a 1, .b 2).a OnDelim(0)
+    // (.a 1, .b 2)[].a OnDelim(1)
+    // (.a 1, .b 2).a[] OnDelim(2)
+    | Prj(err, exp, _) =>
       print_endline("In Prj case");
       None;
     | Parenthesized(body) =>
@@ -661,6 +665,7 @@ and holes_zopseq =
 and holes_zoperand =
     (zoperand: ZExp.zoperand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
+  // ECD: You are here, need to add support ofr Prj here for on Text
   switch (zoperand) {
   | CursorE(OnOp(_), _) => CursorPath_common.no_holes
   | CursorE(_, EmptyHole(u)) =>
@@ -704,8 +709,7 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
-  | CursorE(_, ListNil(err))
-  | CursorE(OnText(_), Prj(StandardErrStatus(err), _, _)) =>
+  | CursorE(_, ListNil(err)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -820,17 +824,31 @@ and holes_zoperand =
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
-      | StandardErrStatus(InHole(_, u))
-      | InPrjHole(_, u) =>
+      | StandardErrStatus(InHole(_, u)) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+      | InPrjHole(_, u) =>
+        Some({sort: ExpHole(u, PrjErr), steps: List.rev(rev_steps)})
       };
     let holes_exp = holes_operand(exp, [0, ...rev_steps], []);
-    // ECD TODO: Check if this is using the right delim indexing
     switch (k) {
     | 0 =>
       CursorPath_common.mk_zholes(~hole_selected, ~holes_after=holes_exp, ())
+    | 1
+    | 2 =>
+      CursorPath_common.mk_zholes(~holes_before=holes_exp, ~hole_selected, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnText(_), Prj(err, exp, _)) =>
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u)) =>
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+      | InPrjHole(_, u) =>
+        Some({sort: ExpHole(u, PrjErr), steps: List.rev(rev_steps)})
+      };
+    let holes_exp = holes_operand(exp, [0, ...rev_steps], []);
+    CursorPath_common.mk_zholes(~holes_before=holes_exp, ~hole_selected, ());
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, ann, body) =>
     let holes_err: list(CursorPath.hole_info) =
