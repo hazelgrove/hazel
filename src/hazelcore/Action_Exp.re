@@ -632,6 +632,11 @@ and syn_perform_block =
   /* Backspace & Delete */
   // Handle 2 special cases for CommentLines
   // Case 1
+  // e.g., 
+  //  #  comment 1
+  //  #| comment 2
+  //    =( Backspace )=>
+  //  #  comment 1|comment 2
   | Backspace when ZExp.is_begin_of_comment(zblock) =>
     switch (prefix |> ListUtil.split_last_opt) {
     | Some((new_prefix, pre_zline)) =>
@@ -650,6 +655,11 @@ and syn_perform_block =
     }
 
   // Case 2
+  // e.g., 
+  //  # comment 1|
+  //  # comment 2
+  //    =( Delete )=>
+  //  # comment 1|comment 2
   | Delete when ZExp.is_end_of_comment(zblock) =>
     switch (suffix, zline) {
     | (
@@ -917,10 +927,19 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
+  /* #| some comment => | */
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
     mk_result(u_gen, new_zblock);
 
+  /* 
+    # some comment| 
+    _ 
+      =( Delete )=> 
+    # some comment
+    |_
+  */
+  /* # some co|mment => # some co|ment */
   | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == String.length(comment)) {
       escape(u_gen, After);
@@ -933,6 +952,14 @@ and syn_perform_line =
       mk_result(u_gen, new_zblock);
     }
 
+  /*
+    x
+    |# some comment
+      =( Backspace )=>
+    x|
+    # some comment
+  */
+  /* # some co|mment => # some c|mment */
   | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == 0) {
       escape(u_gen, Before);
