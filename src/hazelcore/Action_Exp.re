@@ -966,9 +966,18 @@ and syn_perform_line =
     );
     mk_result(u_gen, new_zblock);
 
-  | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
+  // Operators as valid text in comment lines
+  // e.g., 
+  //   # |
+  //    =( ; )=>
+  //   # ::
+  | (
+      Construct((SChar(_) | SOp(_)) as char),
+      CursorL(OnText(j), CommentLine(comment)),
+    ) =>
+    let new_comment =
+      comment |> StringUtil.insert(j, Action_common.shape_to_string(char));
     let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, s);
       let new_line: UHExp.line = CommentLine(new_comment);
       ([], ZExp.CursorL(OnText(j + 1), new_line), []);
     };
