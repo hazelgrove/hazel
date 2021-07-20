@@ -783,10 +783,7 @@ and syn_perform_operand =
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
-  | (Construct(SDeferral), CursorP(_, EmptyHole(_))) =>
-    let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Hole), ctx, u_gen));
-  | (Construct(SDeferral), CursorP(_, _)) => Failed
+  | (Construct(SDeferral), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
     mk_syn_result(
