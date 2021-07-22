@@ -323,7 +323,8 @@ and ana_operand =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Prj(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | Prj(InPrjHole(_, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -832,7 +833,7 @@ and syn_fix_holes_skel =
         (
           BinOp(NotInHole, Space, skel1, skel2),
           seq,
-          Label_Elt(l, ty2'),
+          Prod([(Some(l), ty2')]),
           u_gen,
         );
       | Label(InLabelHole(Standalone, _), l) =>
@@ -843,7 +844,7 @@ and syn_fix_holes_skel =
         (
           BinOp(NotInHole, Space, skel1, skel2),
           seq,
-          Label_Elt(l, ty2'),
+          Prod([(Some(l), ty2')]),
           u_gen,
         );
       | Label(InLabelHole(_, _), _) =>

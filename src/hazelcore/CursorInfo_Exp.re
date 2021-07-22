@@ -167,7 +167,7 @@ type err_status_result =
   | VarErr(VarErrStatus.HoleReason.t)
   | InconsistentBranchesErr(list(HTyp.t))
   | LabelErr(LabelErrStatus.HoleReason.t, Label.t)
-  | PrjErr(PrjErrStatus.HoleReason.t);
+  | PrjErr(PrjErrStatus.HoleReason.t, Label.t);
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -178,7 +178,7 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
         | Case(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
         | Label(InLabelHole(reason, _), l) => LabelErr(reason, l)
-        | Prj(InPrjHole(reason, _), _, _) => PrjErr(reason)
+        | Prj(InPrjHole(reason, _), _, label) => PrjErr(reason, label)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -457,7 +457,8 @@ and syn_cursor_info_skel =
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
         | Some(LabelErr(reason, l)) => Some(mk(SynLabelErr(reason, l)))
-        | Some(PrjErr(reason)) => Some(mk(SynPrjErr(reason)))
+        | Some(PrjErr(reason, label)) =>
+          Some(mk(SynPrjErr(reason, label)))
         | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand

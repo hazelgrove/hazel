@@ -74,7 +74,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | Empty => None
            | VarErr
            | TypeErr
-           | LabelErr => Some((shape, steps))
+           | LabelErr
+           | PrjErr => Some((shape, steps))
            }
          }
        )

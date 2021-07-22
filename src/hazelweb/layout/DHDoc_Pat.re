@@ -12,11 +12,9 @@ let precedence = (dp: DHPat.t) =>
   | FloatLit(_)
   | BoolLit(_)
   | Inj(_)
-  | Triv
   | ListNil
   | Pair(_)
-  | Label(_)
-  | Label_Elt(_, _) => DHDoc_common.precedence_const // ECD TODO: check if the label_elt should have precedence label
+  | Label(_) => DHDoc_common.precedence_const // ECD TODO: check if the label should have precedence label
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   };

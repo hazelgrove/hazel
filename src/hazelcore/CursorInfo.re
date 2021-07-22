@@ -72,7 +72,7 @@ type typed =
   // cursor is on err label
   | SynLabelErr(LabelErrStatus.HoleReason.t, Label.t)
   // cursor is on a projection in error status
-  | SynPrjErr(PrjErrStatus.HoleReason.t)
+  | SynPrjErr(PrjErrStatus.HoleReason.t, Label.t)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword

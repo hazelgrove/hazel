@@ -125,6 +125,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_label_indicator =
     got_indicator("Got a label ", typebar(HTyp.Hole));
 
+  let got_prj_err_indicator =
+    got_indicator("Got projection error", typebar(HTyp.Hole));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -190,6 +193,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_label_indicator;
       (ind1, ind2, BindingError);
+    | AnaPrjErr(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_prj_err_indicator;
+      (ind1, ind2, BindingError);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -198,7 +205,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
       (ind1, ind2, BindingError);
-    | SynLabel(l) =>
+    | SynLabel(_) =>
       let ind1 = expected_label;
       let ind2 = got_label_indicator;
       (ind1, ind2, OK);
@@ -227,6 +234,21 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       //   let ind1 = expected_any_indicator;
       //   let ind2 = got_indicator("Got Invalid Label", typebar(HTyp.Hole));
       //   (ind1, ind2, BindingError);
+      }
+    | SynPrjErr(reason, l) =>
+      switch (reason) {
+      | DoesNotAppear =>
+        let ind1 =
+          expected_indicator(
+            "Expecting ",
+            special_msg_bar("an existing label"),
+          );
+        let ind2 =
+          got_indicator(
+            "Got label not appearing in prod,  " ++ l,
+            typebar(HTyp.Hole),
+          );
+        (ind1, ind2, BindingError);
       }
     | SynFree =>
       let ind1 = expected_any_indicator;

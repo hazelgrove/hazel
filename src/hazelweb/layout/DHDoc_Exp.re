@@ -39,12 +39,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ListNil(_)
   | Inj(_)
   | EmptyHole(_)
-  | Triv
   | FailedCast(_)
   | InvalidOperation(_)
   | Lam(_)
-  | Label(_)
-  | Label_Elt(_) => DHDoc_common.precedence_const
+  | Label(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)

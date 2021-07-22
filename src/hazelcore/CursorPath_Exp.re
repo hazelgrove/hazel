@@ -125,13 +125,13 @@ and follow_operand =
     | BoolLit(_, _)
     | ListNil(_)
     | Label(_, _) => None
-    // ECD TODO: What does follow do? 
+    // ECD TODO: What does follow do?
     // ECD: You are here, need to refactor cursorpath with a better understanding of the on delim for prj
     // [] (.a 1, .b 2).a OnDelim(0)
     // (.a 1, .b 2)[].a OnDelim(1)
     // (.a 1, .b 2).a[] OnDelim(2)
     // (.a 1, .b 2).[]a OnText(0)
-    | Prj(err, exp, _) =>
+    | Prj(_, _, _) =>
       print_endline("In Prj case");
       None;
     | Parenthesized(body) =>
@@ -416,8 +416,11 @@ let holes_case_err =
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 let holes_lerr =
   CursorPath_common.holes_lerr(~hole_sort=hole_sort(LabelErr));
-let holes_perr = 
-  CursorPath_common.holes_perr(~hole_sort=hole_sort(PrjErr));
+let holes_perr =
+  CursorPath_common.holes_perr(
+    ~hole_sort=hole_sort(PrjErr),
+    ~standard_hole_sort=hole_sort(TypeErr),
+  );
 
 let rec holes =
         (
@@ -527,7 +530,11 @@ and holes_operand =
       hs,
     )
     |> holes_err(err, rev_steps);
-  | Prj(perr, body, _) => hs |> holes(body) |> holes_perr(perr, rev_steps)
+  | Prj(perr, body, _) =>
+    // ECD TODO: Double check if the 0 should preceed the rev_steps
+    hs
+    |> holes_operand(body, [0, ...rev_steps])
+    |> holes_perr(perr, rev_steps)
   }
 and holes_rule =
     (
@@ -1027,8 +1034,7 @@ and holes_zoperand =
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u)) =>
-        [
+      | StandardErrStatus(InHole(_, u)) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       | InPrjHole(_, u) => [
