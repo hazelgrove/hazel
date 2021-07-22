@@ -13,7 +13,8 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
+let grounded_Sum = (tymap: TagMap.t(option(HTyp.t))): ground_cases =>
+  NotGroundOrHole(Sum(TagMap.map(Option.map(_ => HTyp.Hole), tymap)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
 let grounded_List = NotGroundOrHole(List(Hole));
@@ -25,7 +26,6 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Int
   | Float
   | Arrow(Hole, Hole)
-  | Sum(Hole, Hole)
   | List(Hole) => Ground
   | Prod(tys) =>
     if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
@@ -34,7 +34,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
       tys |> List.length |> grounded_Prod;
     }
   | Arrow(_, _) => grounded_Arrow
-  | Sum(_, _) => grounded_Sum
+  | Sum(tymap) => grounded_Sum(tymap)
   | List(_) => grounded_List
   };
 
@@ -188,11 +188,51 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
-  | Inj(ty, side, d1) =>
+  // VInjNull
+  | Inj((_, Tag(_), None)) => BoxedValue(d)
+  | Inj((tymap, Tag(_) as tag, Some(d1))) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
-    | Indet(d1') => Indet(Inj(ty, side, d1'))
+    // VInj, BVInj
+    | BoxedValue(d1') => BoxedValue(Inj((tymap, tag, Some(d1'))))
+    // IInj
+    | Indet(d1') => Indet(Inj((tymap, tag, Some(d1'))))
+    }
+  // IInjNull
+  | Inj((_, TagHole(_), None))
+  | InjError(_, _, _, _, (_, _, None)) => Indet(d)
+  | Inj((tymap, TagHole(_) as tag, Some(d1))) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    // IInjTag
+    | BoxedValue(d1')
+    | Indet(d1') => Indet(Inj((tymap, tag, Some(d1'))))
+    }
+  | InjError(reason, u, i, sigma, (tymap, tag, Some(d1))) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    // IInjTag
+    | BoxedValue(d1')
+    | Indet(d1') =>
+      Indet(InjError(reason, u, i, sigma, (tymap, tag, Some(d1'))))
+    }
+  | Cast(d1, Sum(_) as ty, Sum(_) as ty') =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    // BVSumCast
+    | BoxedValue(d1') as result =>
+      if (HTyp.eq(ty, ty')) {
+        result;
+      } else {
+        BoxedValue(Cast(d1', ty, ty'));
+      }
+    // ICastSum
+    | Indet(d1') as result =>
+      if (HTyp.eq(ty, ty')) {
+        result;
+      } else {
+        Indet(Cast(d1', ty, ty'));
+      }
     }
   | Pair(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {

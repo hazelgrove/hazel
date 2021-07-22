@@ -70,3 +70,9 @@ let find_opt = (key: key, map: t('a)): option('a) => {
   let+ binding = List.find_opt(((k, _)) => UHTag.eq(key, k), map);
   snd(binding);
 };
+
+let map = (f: 'a => 'b, m: t('a)): t('b) => {
+  let (keys, vals) = List.split(m);
+  let vals = List.map(f, vals);
+  List.combine(keys, vals);
+};
