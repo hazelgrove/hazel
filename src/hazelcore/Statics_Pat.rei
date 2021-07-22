@@ -27,6 +27,13 @@ let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
  */
 let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
 let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
+
+/**
+ * `inj_body_valid ctx p_opt` returns `Some(ctx)` if `p_opt` is `None`
+ * or `Some(p)` that analyzes against `Hole` under context `ctx`
+ */
+let inj_body_valid: (Contexts.t, option(UHPat.t)) => option(Contexts.t);
+
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);
 

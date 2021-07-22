@@ -226,7 +226,8 @@ and syn_cursor_info_zoperand =
   | InjZT(_, ztag, _) =>
     let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
     CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
-  | InjZP(_, _, zpat) => syn_cursor_info(~steps=steps @ [1], ctx, zpat)
+  | InjZP(_, _, zpat) =>
+    ana_cursor_info(~steps=steps @ [1], ctx, zpat, HTyp.Hole)
   | TypeAnnZP(_, zop, ty) =>
     ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
   | TypeAnnZA(_, _, zann) =>
@@ -445,8 +446,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
-    | TypeAnn(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(_, _), _, _) =>
+    | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -461,6 +461,39 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
+    | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
+      Some(
+        CursorInfo_common.CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(
+            PatAnaInjExpectedTypeNotConsistentWithSums(ty),
+            ctx,
+            cursor_term,
+          ),
+        ),
+      )
+    | Inj(InHole(UnexpectedBody, _), _, _) =>
+      Some(
+        CursorInfo_common.CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaInjUnexpectedBody, ctx, cursor_term),
+        ),
+      )
+    | Inj(InHole(ExpectedBody, _), tag, _) =>
+      switch (ty) {
+      | Sum(tymap) =>
+        let* ty_opt = TagMap.find_opt(tag, tymap);
+        let+ ty = ty_opt;
+        CursorInfo_common.CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaInjExpectedBody(ty), ctx, cursor_term),
+        );
+      | _ => None
+      }
+    | Inj(InHole(BadTag, _), _, _) =>
+      Some(
+        CursorInfo_common.CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaInjBadTag, ctx, cursor_term),
+        ),
+      )
+    | Inj(InHole(_, _), _, _)
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
@@ -514,12 +547,7 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
         ),
       )
-    | Inj(NotInHole, _, _) =>
-      Some(
-        CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
-        ),
-      )
+    | Inj(NotInHole, _, _) => None
     | Parenthesized(body) =>
       Statics_Pat.ana(ctx, body, ty)
       |> Option.map(_ =>
@@ -527,6 +555,7 @@ and ana_cursor_info_zoperand =
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )
          )
+    //  TODO: report bugfix off of dev
     | TypeAnn(NotInHole, op, _) =>
       Statics_Pat.ana_operand(ctx, op, ty)
       |> Option.map(_ =>
@@ -535,24 +564,16 @@ and ana_cursor_info_zoperand =
            )
          )
     }
-  | InjZT(err, ztag, _) =>
-    switch (err) {
-    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
-    | NotInHole =>
-      let+ x = CursorInfo_Tag.cursor_info(ctx, ztag);
-      CursorInfo_common.CursorNotOnDeferredVarPat(x);
-    }
-  | InjZP(err, tag, zpat) =>
-    switch (err) {
-    | InHole(_, _) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
-    | NotInHole =>
-      let* ty_pat =
-        switch (ty) {
-        | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
-        | _ => None
-        };
-      ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_pat);
-    }
+  | InjZT(_, ztag, _) =>
+    let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
+    CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
+  | InjZP(_, tag, zpat) =>
+    let* ty_pat =
+      switch (ty) {
+      | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
+      | _ => None
+      };
+    ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_pat);
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
   | TypeAnnZP(err, zop, ann) =>

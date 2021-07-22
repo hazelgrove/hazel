@@ -30,9 +30,7 @@ type typed =
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
-  // cursor is on an injection and expected type is hole
-  | AnaInjHole
-  // cursor is on an injection, but expected type is not a sum
+  // cursor is on an injection and expected type is not a sum
   | AnaInjExpectedTypeNotConsistenWithSums(HTyp.t)
   // cursor is on an injection with a bad tag
   | AnaInjBadTag
@@ -40,8 +38,6 @@ type typed =
   | AnaInjExpectedBody(HTyp.t)
   // cursor is on a nullary injection with body
   | AnaInjUnexpectedBody
-  // none of the above and didn't go through subsumption
-  | AnalyzedInjBody(option(HTyp.t))
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -95,6 +91,14 @@ type typed =
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
+  // cursor is on an inj pattern and expected type is not a sum
+  | PatAnaInjExpectedTypeNotConsistentWithSums(HTyp.t)
+  // cursor is on an injection pattern with a bad tag
+  | PatAnaInjBadTag
+  // cursor is on a unary injection pattern with no body
+  | PatAnaInjExpectedBody(HTyp.t)
+  // cursor is on a nullary injection pattern with body
+  | PatAnaInjUnexpectedBody
   // cursor is on a tuple pattern of the wrong length
   | PatAnaWrongLength
       // expected length
