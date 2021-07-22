@@ -32,6 +32,15 @@ let rec get_annotated_prod_elements: annotated_skel => list(annotated_skel) =
     get_annotated_prod_elements(skel1) @ get_annotated_prod_elements(skel2)
   | skel => [skel];
 
+let rec get_prod_indices = (annot_skel: annotated_skel): list(int) =>
+  switch (annot_skel) {
+  | BinOp(Prod, _, skel1, skel2) =>
+    get_prod_indices(skel1)
+    @ [AnnotatedSkel.get_root_num(annot_skel)]
+    @ get_prod_indices(skel2)
+  | _ => []
+  };
+
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole

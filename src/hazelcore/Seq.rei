@@ -116,6 +116,8 @@ type operator_surround('operand, 'operator) = (
   t('operand, 'operator),
   t('operand, 'operator),
 );
+[@deriving sexp]
+type pieces('operand, 'operator) = list(t('operand, 'operator));
 
 let opt_split_nth_operand:
   (int, t('operand, 'operator)) =>
@@ -124,6 +126,12 @@ let opt_split_nth_operand:
 let opt_split_nth_operator:
   (int, t('operand, 'operator)) =>
   option(('operator, operator_surround('operand, 'operator)));
+
+let split_nth_operator:
+  (int, t('operand, 'operator)) =>
+  ('operator, operator_surround('operand, 'operator));
+let split_on_operators:
+  (list(int), t('operand, 'operator)) => pieces('operand, 'operator);
 
 let split_first_and_suffix:
   t('operand, 'operator) => ('operand, affix('operand, 'operator));

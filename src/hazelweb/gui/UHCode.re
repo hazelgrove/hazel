@@ -6,6 +6,8 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+/*open Sexplib;*/
+
 let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
@@ -69,6 +71,8 @@ let decoration_views =
       go'(~tl=mid_tl, dpaths, m1);
     | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
     | Annot(annot, m) =>
+      /*print_endline(Sexp.to_string(UHAnnot.sexp_of_t(annot)));*/
+
       switch (annot) {
       | Step(step) =>
         let stepped = UHDecorationPaths.take_step(step, dpaths);

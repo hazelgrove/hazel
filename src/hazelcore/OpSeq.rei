@@ -49,3 +49,19 @@ let mk_inconsistent:
  * completeness of operands.
  */
 let is_complete: ('operand => bool, t('operand, 'operator)) => bool;
+
+let get_sub_parts_comma:
+  (
+    AnnotatedSkel.t('operator) => list(int),
+    Seq.t('operand, 'operator) => t('operand, 'operator),
+    t('operand, 'operator)
+  ) =>
+  list(t('operand, 'operator));
+
+let get_sub_parts_binop:
+  (
+    int,
+    Seq.t('operand, 'operator) => t('operand, 'operator),
+    Seq.t('operand, 'operator)
+  ) =>
+  (t('operand, 'operator), t('operand, 'operator));

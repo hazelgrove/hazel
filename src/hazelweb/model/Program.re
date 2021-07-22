@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Sexplib;
 
 module Memo = Core_kernel.Memo;
 
@@ -88,7 +89,22 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
+  let {cursor_term, _}: CursorInfo.t = get_cursor_info(program);
+  print_endline(
+    "Cursor Term: "
+    ++ Sexp.to_string(CursorInfo.sexp_of_cursor_term(cursor_term)),
+  );
+  print_endline(
+    "Explanation Info: "
+    ++ Sexp.to_string(
+         ExplanationInfo.sexp_of_explanation_info(
+           ExplanationInfo.mk_explanation_info(cursor_term),
+         ),
+       ),
+  );
   /* TODO: Hannah - probably unnecessary to highlight when exactly the same as the current term path */
+  //print_endline(Sexp.to_string(UHExp.sexp_of_t(get_uhexp(program))));
+
   let explanation_elems =
     ExplanationInfo.explanation_paths(get_zexp(program));
 

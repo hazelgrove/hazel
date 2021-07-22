@@ -24,6 +24,8 @@ let get_prod_elements: skel => list(skel);
 
 let get_annotated_prod_elements: annotated_skel => list(annotated_skel);
 
+let get_prod_indices: annotated_skel => list(int);
+
 let unwrap_parentheses: operand => t;
 
 let associate: seq => Skel.t(Operators_Typ.t);

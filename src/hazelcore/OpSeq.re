@@ -91,3 +91,30 @@ and is_complete =
   | OpSeq(sk, sq) => is_complete_skel(is_complete_operand, sk, sq)
   };
 };
+
+let get_sub_parts_comma =
+    (
+      get_indices: AnnotatedSkel.t('operator) => list(int),
+      mk_OpSeq: Seq.t('operand, 'operator) => t('operand, 'operator),
+      OpSeq(skel, seq): t('operand, 'operator),
+    )
+    : list(t('operand, 'operator)) => {
+  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+  let comma_indices = get_indices(annotated_skel);
+  let shift = Seq.length(seq);
+  let indices = List.map(comma_index => comma_index - shift, comma_indices);
+  let sub_seqs = Seq.split_on_operators(indices, seq);
+  List.map(sub_seq => mk_OpSeq(sub_seq), sub_seqs);
+};
+let get_sub_parts_binop =
+    (
+      index: int,
+      mk_OpSeq: Seq.t('operand, 'operator) => t('operand, 'operator),
+      seq: Seq.t('operand, 'operator),
+    )
+    : (t('operand, 'operator), t('operand, 'operator)) => {
+  let shift = Seq.length(seq);
+  let index = index - shift;
+  let (_, (surround1, surround2)) = Seq.split_nth_operator(index, seq);
+  (mk_OpSeq(surround1), mk_OpSeq(surround2));
+};

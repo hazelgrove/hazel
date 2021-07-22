@@ -44,6 +44,8 @@ let get_tuple_elements: skel => list(skel);
 
 let get_annotated_tuple_elements: annotated_skel => list(annotated_skel);
 
+let get_tuple_indices: annotated_skel => list(int);
+
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
 let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);

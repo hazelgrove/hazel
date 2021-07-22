@@ -409,35 +409,11 @@ module ExplanationTerm = {
     "rgb(167, 84, 235)",
     "rgb(235, 200, 84)",
   ];
-  /*let inline_open_child_border_height = 0.1; // y units*/
-
-  /*let inline_open_child_rects =
-        (start: MeasuredPosition.t, m: UHMeasuredLayout.t)
-        : list(SvgUtil.Rect.t) => {
-      // TODO relax assumption
-      assert(MeasuredLayout.height(m) == 1);
-      // make singleton skinny rect along bottom
-      [
-        SvgUtil.Rect.{
-          min: {
-            x: Float.of_int(start.col),
-            y:
-              Float.of_int(start.row)
-              +. 1.
-              -. inline_open_child_border_height
-              -. tessera_margin,
-          },
-          height: inline_open_child_border_height,
-          width: Float.of_int(MeasuredLayout.width(m)),
-        },
-      ];
-    };*/
 
   let multiline_open_child_rects =
       (~vtrim_bot=false, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
       : list(SvgUtil.Rect.t) => {
     [
-      // make singleton skinny rect
       SvgUtil.Rect.{
         min: {
           x: Float.of_int(start.col),

@@ -1,3 +1,260 @@
+open Sexplib.Std;
+
+[@deriving sexp]
+type pattern_info =
+  | Operand(UHPat.operand, option(UHTyp.t))
+  | CommaOperator(list(UHPat.t), option(UHTyp.t))
+  | BinOperator(UHPat.operator, UHPat.t, UHPat.t, option(UHTyp.t));
+
+[@deriving sexp]
+type type_info =
+  | Operand(UHTyp.operand)
+  | CommaOperator(list(UHTyp.t))
+  | BinOperator(UHTyp.operator, UHTyp.t, UHTyp.t);
+
+[@deriving sexp]
+type explanation_info =
+  | EmptyLine
+  | CommentLine
+  | LetLine(pattern_info, UHExp.t, UHExp.t)
+  | ExpBaseOperand(UHExp.operand)
+  | Lambda(pattern_info, UHExp.t)
+  | Rule(int, UHExp.t, pattern_info, UHExp.t)
+  | ExpCommaOperator(list(UHExp.opseq))
+  | ExpBinOperator(UHExp.operator, UHExp.opseq, UHExp.opseq)
+  | Pattern(pattern_info)
+  | Typ(type_info) /* Things need to handle here:   - parenthesis (I think this might be one of the trickiest parts to handle)   - type annotations of patterns   - pulling out opseq children (including in case of pattern)   */;
+
+let rec mk_explanation_info =
+        (cursor_term: CursorInfo.cursor_term): explanation_info => {
+  switch (cursor_term) {
+  | Exp(_, operand) => extract_exp_operand_info(operand)
+  | Pat(_, operand) => Pattern(extract_pat_operand_info(operand))
+  | Typ(_, operand) => Typ(extract_typ_operand_info(operand))
+  | ExpOp(_, operator, op_index, parent_opseq) =>
+    extract_exp_opseq_info(parent_opseq, Some((op_index, operator)))
+  | PatOp(_, operator, op_index, parent_opseq) =>
+    Pattern(
+      extract_pat_opseq_info(parent_opseq, Some((op_index, operator))),
+    )
+  | TypOp(_, operator, op_index, parent_opseq) =>
+    Typ(extract_typ_opseq_info(parent_opseq, Some((op_index, operator))))
+  | Line(_, line, opt_body) =>
+    switch (line) {
+    | EmptyLine => EmptyLine
+    | CommentLine(_) => CommentLine
+    | LetLine(pat, def) =>
+      switch (opt_body) {
+      | Some(body) =>
+        let pattern_info = extract_pat_opseq_info(pat, None);
+        LetLine(pattern_info, def, body);
+      | None => failwith("Missing body info for let line")
+      }
+    | ExpLine(opseq) =>
+      /*TODO: Hannah this one hasn't really been checked (does this case ever actually happen with how the cursor info is now?) */
+      print_endline("This case has been executed");
+      extract_exp_opseq_info(opseq, None);
+    }
+  | Rule(_, Rule(pat, clause), index, scrut) =>
+    Rule(index, scrut, extract_pat_opseq_info(pat, None), clause)
+  };
+}
+and extract_exp_operand_info = (exp: UHExp.operand): explanation_info => {
+  switch (exp) {
+  | Lam(_, pat, body) => Lambda(extract_pat_opseq_info(pat, None), body)
+  | Parenthesized(_exp) =>
+    /* TODO: Hannah - what should be happening here? maybe highlight block except for last line with an expression and then the last expresssion line separately to to explain that the other lines will be evaluated but the whole expression evaluates to the last expression line */ failwith(
+      "Not yet implemented",
+    )
+  | Case(_)
+  | EmptyHole(_)
+  | InvalidText(_)
+  | Var(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_)
+  | Inj(_) => ExpBaseOperand(exp)
+  | ApPalette(_) => failwith("ApPalette not implemented")
+  };
+}
+and extract_pat_operand_info = (pat: UHPat.operand): pattern_info => {
+  switch (pat) {
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_)
+  | InvalidText(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_)
+  | Inj(_) => Operand(pat, None)
+  | TypeAnn(_, operand, typ) =>
+    let pat_info = extract_pat_operand_info(operand);
+    switch (pat_info) {
+    | Operand(pat, None) => Operand(pat, Some(typ))
+    | CommaOperator(pats, None) => CommaOperator(pats, Some(typ))
+    | BinOperator(op, left, right, None) =>
+      BinOperator(op, left, right, Some(typ))
+    | _ => pat_info
+    };
+  | Parenthesized(pat) => extract_pat_opseq_info(pat, None)
+  };
+}
+and extract_typ_operand_info = (typ: UHTyp.operand): type_info => {
+  switch (typ) {
+  | Parenthesized(typ) => extract_typ_opseq_info(typ, None)
+  | Hole
+  | Unit
+  | Int
+  | Float
+  | Bool
+  | List(_) => Operand(typ)
+  };
+}
+and extract_pat_opseq_info =
+    (
+      OpSeq(skel, seq) as opseq: UHPat.opseq,
+      operator_info: option((int, UHPat.operator)),
+    )
+    : pattern_info => {
+  switch (operator_info) {
+  | Some((operator_index, operator)) =>
+    switch (operator) {
+    | Comma =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHPat.get_tuple_indices,
+          UHPat.mk_OpSeq,
+          opseq,
+        );
+      CommaOperator(subparts, None);
+    | Space
+    | Cons =>
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(operator_index, UHPat.mk_OpSeq, seq);
+      BinOperator(operator, subpart1, subpart2, None);
+    }
+  | None =>
+    switch (skel) {
+    | Placeholder(n) =>
+      let pn = Seq.nth_operand(n, seq);
+      extract_pat_operand_info(pn);
+    | BinOp(_, Comma, _, _) =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHPat.get_tuple_indices,
+          UHPat.mk_OpSeq,
+          opseq,
+        );
+      CommaOperator(subparts, None);
+    | BinOp(_, operator, _skel1, _skel2) =>
+      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(
+          AnnotatedSkel.get_root_num(annotated_skel),
+          UHPat.mk_OpSeq,
+          seq,
+        );
+      BinOperator(operator, subpart1, subpart2, None);
+    }
+  };
+}
+and extract_exp_opseq_info =
+    (
+      OpSeq(skel, seq) as opseq: UHExp.opseq,
+      operator_info: option((int, UHExp.operator)),
+    )
+    : explanation_info => {
+  switch (operator_info) {
+  | Some((operator_index, operator)) =>
+    switch (operator) {
+    | Comma =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHExp.get_tuple_indices,
+          UHExp.mk_OpSeq,
+          opseq,
+        );
+      ExpCommaOperator(subparts);
+    | _ =>
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(operator_index, UHExp.mk_OpSeq, seq);
+      ExpBinOperator(operator, subpart1, subpart2);
+    }
+  | None =>
+    switch (skel) {
+    | Placeholder(n) =>
+      let pn = Seq.nth_operand(n, seq);
+      extract_exp_operand_info(pn);
+    | BinOp(_, Comma, _, _) =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHExp.get_tuple_indices,
+          UHExp.mk_OpSeq,
+          opseq,
+        );
+      ExpCommaOperator(subparts);
+    | BinOp(_, operator, _skel1, _skel2) =>
+      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(
+          AnnotatedSkel.get_root_num(annotated_skel),
+          UHExp.mk_OpSeq,
+          seq,
+        );
+      ExpBinOperator(operator, subpart1, subpart2);
+    }
+  };
+}
+and extract_typ_opseq_info =
+    (
+      OpSeq(skel, seq) as opseq: UHTyp.opseq,
+      operator_info: option((int, UHTyp.operator)),
+    )
+    : type_info => {
+  switch (operator_info) {
+  | Some((operator_index, operator)) =>
+    switch (operator) {
+    | Prod =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHTyp.get_prod_indices,
+          UHTyp.mk_OpSeq,
+          opseq,
+        );
+      CommaOperator(subparts);
+    | _ =>
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(operator_index, UHTyp.mk_OpSeq, seq);
+      BinOperator(operator, subpart1, subpart2);
+    }
+  | None =>
+    switch (skel) {
+    | Placeholder(n) =>
+      let pn = Seq.nth_operand(n, seq);
+      extract_typ_operand_info(pn);
+    | BinOp(_, Prod, _, _) =>
+      let subparts =
+        OpSeq.get_sub_parts_comma(
+          UHTyp.get_prod_indices,
+          UHTyp.mk_OpSeq,
+          opseq,
+        );
+      CommaOperator(subparts);
+    | BinOp(_, operator, _skel1, _skel2) =>
+      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+      let (subpart1, subpart2) =
+        OpSeq.get_sub_parts_binop(
+          AnnotatedSkel.get_root_num(annotated_skel),
+          UHTyp.mk_OpSeq,
+          seq,
+        );
+      BinOperator(operator, subpart1, subpart2);
+    }
+  };
+};
+
 let cons_all =
     (step: int, steps: list(CursorPath.steps)): list(CursorPath.steps) => {
   List.map(steps => [step, ...steps], steps);
@@ -12,7 +269,7 @@ and explanation_pathsblock = (zblock: ZExp.zblock): list(CursorPath.steps) => {
 }
 and explanation_paths_zline = (zline: ZExp.zline): list(CursorPath.steps) =>
   switch (zline) {
-  | CursorL(_, line) => explanation_paths_line(line)
+  | CursorL(_, line) => explanation_paths_line(line) /* I think this is where I would need to check for a let line and get the body which would just be all the rest of the lines in the block */
   | LetLineZP(zp, _) => cons_all(0, pattern_paths(zp))
   | LetLineZE(_, zdef) => cons_all(1, explanation_paths(zdef))
   | ExpLineZ(zopseq) => explanation_paths_zopseq(zopseq)
@@ -169,7 +426,37 @@ and child_pattern_paths =
   | BinOp(_, Cons, _, _) =>
     switch (annotated_skel) {
     | Placeholder(_) => failwith("Can I reach here?")
-    | BinOp(_, _, skel1, skel2) => [
+    | BinOp(_, _, skel1, skel2) =>
+      /*let root1 = AnnotatedSkel.get_root_num(skel1);
+        print_endline("Root: " ++ string_of_int(root1));
+        print_endline(
+          "Root of annotated: "
+          ++ string_of_int(
+               AnnotatedSkel.get_root_num(annotated_skel) - Seq.length(seq),
+             ),
+        );
+        switch (
+          Seq.opt_split_nth_operand(1, seq),
+          Seq.opt_split_nth_operator(0, seq),
+        ) {
+        | (None, None) => print_endline("Here 1")
+        | (_, Some((_, (surround1, surround2)))) =>
+          print_endline(
+            "Surround 1: " ++ Sexp.to_string(UHPat.sexp_of_seq(surround1)),
+          );
+          print_endline(
+            "Surround 2: " ++ Sexp.to_string(UHPat.sexp_of_seq(surround2)),
+          );
+        | (Some((_, (surround1, surround2))), _) =>
+          print_endline(
+            "Surround 1: " ++ Sexp.to_string(UHPat.sexp_of_affix(surround1)),
+          );
+          print_endline(
+            "Surround 2: " ++ Sexp.to_string(UHPat.sexp_of_affix(surround2)),
+          );
+          print_endline("Here 2");
+        };*/
+      [
         [AnnotatedSkel.get_root_num(skel1)],
         [AnnotatedSkel.get_root_num(skel2)],
       ]

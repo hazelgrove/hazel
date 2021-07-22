@@ -144,6 +144,15 @@ let rec get_annotated_tuple_elements: annotated_skel => list(annotated_skel) =
     get_annotated_tuple_elements(skel1) @ get_annotated_tuple_elements(skel2)
   | skel => [skel];
 
+let rec get_tuple_indices = (annot_skel: annotated_skel): list(int) =>
+  switch (annot_skel) {
+  | BinOp(Comma, _, skel1, skel2) =>
+    get_tuple_indices(skel1)
+    @ [AnnotatedSkel.get_root_num(annot_skel)]
+    @ get_tuple_indices(skel2)
+  | _ => []
+  };
+
 let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
   | [] => failwith("mk_tuple: expected at least 1 element")

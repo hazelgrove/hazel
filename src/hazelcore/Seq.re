@@ -1,3 +1,4 @@
+open Sexplib.Std;
 [@deriving sexp]
 type t('operand, 'operator) =
   | S('operand, affix('operand, 'operator))
@@ -153,6 +154,8 @@ type operator_surround('operand, 'operator) = (
   t('operand, 'operator),
   t('operand, 'operator),
 );
+[@deriving sexp]
+type pieces('operand, 'operator) = list(t('operand, 'operator));
 
 let rec opt_split_nth_operand =
         (n: int, seq: t('operand, 'operator))
@@ -191,6 +194,30 @@ let rec opt_split_nth_operator =
          (found, (seq_affix(prefix, A(op, S(hd, E))), suffix))
        )
   };
+
+let split_nth_operator =
+    (n: int, seq: t('operand, 'operator))
+    : ('operator, operator_surround('operand, 'operator)) =>
+  switch (opt_split_nth_operator(n, seq)) {
+  | None => raise(Invalid_argument("Seq.split_nth_operator"))
+  | Some(result) => result
+  };
+
+let rec split_on_operators =
+        (op_indices: list(int), seq: t('operand, 'operator))
+        : pieces('operand, 'operator) => {
+  switch (op_indices) {
+  | [] => [seq]
+  | [index] =>
+    let (_, (surround1, surround2)) = split_nth_operator(index, seq);
+    [surround1, surround2];
+  | [index, ...rest] =>
+    let (_, (surround1, surround2)) = split_nth_operator(index, seq);
+    let shift = length(surround1);
+    let new_indices = List.map(index => index - shift, rest);
+    [surround1, ...split_on_operators(new_indices, surround2)];
+  };
+};
 
 let split_first_and_suffix = seq => {
   let (first, (_, suffix)) = split_nth_operand(0, seq);
