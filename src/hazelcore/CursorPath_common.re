@@ -155,6 +155,21 @@ let holes_lerr =
     ]
   };
 
+let holse_perr = 
+  (
+    ~hole_sort: MetaVar.t => hole_sort,
+    perr: PrjErrStatus.t,
+    rev_steps: rev_steps,
+    hs: hole_list,
+  ) =>
+  switch (perr) {
+    | StandardErrStatus(err) => holes_err(~hole_sort=hole_sort(TypeErr), err, rev_steps, hs)
+    | InPrjHole(_, u) => [
+      {sort: hole_sort(u), steps:List.rev(rev_steps)},
+      ...hs,
+    ]
+  }
+
 let holes_case_err =
     (
       ~hole_sort: MetaVar.t => hole_sort,
@@ -168,7 +183,7 @@ let holes_case_err =
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
-  };
+  }; 
 
 let holes_skel_ =
     (
