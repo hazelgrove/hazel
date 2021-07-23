@@ -878,7 +878,7 @@ and syn_fix_holes_skel =
       UHExp.find_and_clear_dupe_holes_labels_tuple(skels, tys, seq, u_gen);
     let (seq, tys) =
       UHExp.find_and_set_dupe_labels_tuple(skels, tys, seq, u_gen);
-    (UHExp.mk_tuple(skels), seq, Prod(tys), u_gen);
+    (UHExp.mk_tuple(skels), seq, Prod(HTyp.flatten_prod(tys)), u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
     let (skel1, seq, ty_elt, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -1359,7 +1359,7 @@ and ana_fix_holes_operand =
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_operand(InPrjHole(DoesNotAppear, u), e), u_gen);
+      (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
     };
   | ListNil(_) =>
     switch (HTyp.matched_list(ty)) {

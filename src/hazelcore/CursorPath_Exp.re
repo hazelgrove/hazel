@@ -125,15 +125,22 @@ and follow_operand =
     | BoolLit(_, _)
     | ListNil(_)
     | Label(_, _) => None
-    // ECD TODO: What does follow do?
-    // ECD: You are here, need to refactor cursorpath with a better understanding of the on delim for prj
     // [] (.a 1, .b 2).a OnDelim(0)
     // (.a 1, .b 2)[].a OnDelim(1)
     // (.a 1, .b 2).a[] OnDelim(2)
     // (.a 1, .b 2).[]a OnText(0)
-    | Prj(_, _, _) =>
-      print_endline("In Prj case");
-      None;
+    // Takes in a path and a UHExp, gives a corresponding ZExp
+    // Path + UHExp is anotheway to represent a ZExp
+    // Follow is the inverse of an of function
+    // Integers are the list of child positions to take, releative to the top of a given exp
+    // Prj does have a child, but the only possible child index is 0
+    // Double check that follow is inverse of the "of" function, keep indexing consistent
+    // Child indexing goes left to right
+    | Prj(err, body, label) =>
+      switch (x) {
+        | 0 => body |> follow_operand((xs, cursor)) |> Option.map(zbody => ZExp.PrjZE(err, zbody, label))
+        | _ => None
+      }
     | Parenthesized(body) =>
       print_endline("In paren case");
       switch (x) {
@@ -532,6 +539,7 @@ and holes_operand =
     |> holes_err(err, rev_steps);
   | Prj(perr, body, _) =>
     // ECD TODO: Double check if the 0 should preceed the rev_steps
+    // Yes, because the body is the 0 position child of the Prj
     hs
     |> holes_operand(body, [0, ...rev_steps])
     |> holes_perr(perr, rev_steps)

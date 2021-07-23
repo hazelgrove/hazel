@@ -56,14 +56,16 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         d2,
       ]);
     | Prod([]) => text("()")
-    | Prod([head, ...tail]) =>
+    // ECD: You are here, trying to figure out how to combine the Prod case with the label_elt case
+    // Likely need case statement to check if a given element is labeled or not
+    | Prod([(label_hd, ty_hd), ...tail]) =>
       [
         mk'(
-          ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
-          head,
+          ~parenthesize=HTyp.precedence(elt_hd) <= HTyp.precedence_Prod,
+          ty_hd,
         ),
         ...List.map(
-             ty =>
+             (_, ty) =>
                mk'(
                  ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
                  ty,
