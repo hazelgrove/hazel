@@ -249,7 +249,7 @@ let rec evaluate = (d: DHExp.t): result =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
         | Cast(ctx, d1'', ty'', Hole | TyVarHole(_)) =>
-          if (Construction.HTyp.equiv(ctx, ty'', ty')) {
+          if (Construction.HTyp.consistent(ctx, ty'', ty')) {
             BoxedValue(d1'');
           } else {
             Indet(FailedCast(ctx, d1', ty, ty'));
