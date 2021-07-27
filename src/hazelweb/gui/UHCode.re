@@ -103,8 +103,7 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
-let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -112,22 +111,22 @@ let key_handlers =
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
       let model_action: option(ModelAction.t) = {
-        let move_key = MoveKey.of_key(Key.get_key(evt));
         let key_combo = HazelKeyCombos.of_evt(evt);
         let single_key = JSUtil.is_single_key(evt);
-        switch (move_key, key_combo, single_key) {
-        | (Some(move_key), _, _) => Some(MoveAction(Key(move_key)))
-        | (_, Some(key_combo), _) =>
-          KeyComboAction.get_model_action(cursor_info, key_combo, is_mac)
-        | (_, _, Some(single_key)) =>
+
+        switch (key_combo, single_key) {
+        | (Some(key_combo), _) =>
+          KeyComboAction.get_model_action(cursor_info, key_combo)
+        | (_, Some(single_key)) =>
           Some(
             EditAction(
               Construct(SChar(JSUtil.single_key_string(single_key))),
             ),
           )
-        | (None, None, None) => None
+        | (None, None) => None
         };
       };
+
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
       | None => Event.Ignore
@@ -191,7 +190,6 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
       program: Program.t,
     )
@@ -219,7 +217,6 @@ let view =
         program.is_focused
           ? key_handlers(
               ~inject,
-              ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];
