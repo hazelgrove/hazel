@@ -1,6 +1,10 @@
 type t('op, 'pre, 'post, 'bin) =
-  | Op('op) // _op_erand
-  | Pre('pre) // unary _pre_fix operator
-  | Post('post) // unary _post_fix operator
-  | Bin('bin); // _bin_ary infix operator
+  | Op('op) // operand
+  | Pre('pre) // unary prefix operator
+  | Post('post) // unary postfix operator
+  | Bin('bin); // binary infix operator
 
+let get_op: t('op, _, _, _) => 'op;
+let get_pre: t(_, 'pre, _, _) => 'pre;
+let get_post: t(_, _, 'post, _) => 'post;
+let get_bin: t(_, _, _, 'bin) => 'bin;

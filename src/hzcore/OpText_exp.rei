@@ -3,7 +3,7 @@ type t =
   | IntLit(IntLit.t)
   | FloatLit(FloatLit.t)
   | BoolLit(bool)
-  | ExpandingKeyword(ExpandingKeyword.t)
+  | Keyword(Keyword.t)
   | Var(VarId.t)
   | Invalid(string);
 
