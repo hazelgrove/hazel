@@ -1,7 +1,2 @@
-type elem('tile) =
-  | Tile('tile)
-  | Grout(Grout.t);
-
-type t('tile) = list(elem('tile));
-
-include List;
+type t = Tiles_base.t(Tile.t);
+type frame = Tiles_base.frame(Tile.t);

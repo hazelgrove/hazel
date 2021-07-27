@@ -1,6 +1,6 @@
-type t = (ChildStep.t, Path.caret_step, Tile.t);
+type t = ((ChildStep.t, Path.caret_step), Tile.t);
 
-let get = (get_typ, get_pat, get_exp, ztile) =>  {
+let get = (get_typ, get_pat, get_exp, ztile) => {
   let (child, caret, tile) = ztile;
   switch (tile) {
   | Typ(tile) => get_typ((child, caret, tile))
@@ -10,8 +10,4 @@ let get = (get_typ, get_pat, get_exp, ztile) =>  {
 };
 
 let delete = d =>
-  get(
-    ZTile_typ.delete(d),
-    ZTile_pat.delete(d),
-    ZTile_exp.delete(d),
-  );
+  get(ZTile_typ.delete(d), ZTile_pat.delete(d), ZTile_exp.delete(d));

@@ -1,3 +1,6 @@
+// TODO add either a comment or add a dummy function
+// that make it clear how to extend / add cases to use sites
+
 [@deriving sexp]
 type t = int;
 

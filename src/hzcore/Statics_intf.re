@@ -1,6 +1,8 @@
 module type SUBJECT_EXP = {
   // MetaVarGen used to number type errors
-  let elab: (FrameInfo_exp.t, Term_exp.t, MetaVarGen.t) => (SubjectInfo_exp.t, MetaVarGen.t);
+  let elab:
+    (FrameInfo_exp.t, Term_exp.t, MetaVarGen.t) =>
+    (SubjectInfo_exp.t, MetaVarGen.t);
 
   let syn: (FrameInfo_exp.t, Term_exp.t) => Type.t;
 };
@@ -19,7 +21,7 @@ module type FRAME_EXP = {
   let case_scrut: (FrameInfo_exp.t as 'f) => 'f;
   let case_clause: (Term_exp.t, Term_pat.t, FrameInfo_exp.t as 'f) => 'f;
 
-  let mk: (~init: (FrameInfo_exp.t as 'f)=?, Frame_exp.t) => 'f;
+  let mk: (~init: FrameInfo_exp.t as 'f=?, Frame_exp.t) => 'f;
 };
 
 module type FRAME_PAT = {
@@ -30,7 +32,7 @@ module type FRAME_PAT = {
   let case_pat: (Term_exp.t, FrameInfo_exp.t) => FrameInfo_pat.t;
 
   let mk: (~init: FrameInfo_exp.t=?, Frame_pat.t) => FrameInfo_pat.t;
-}
+};
 
 module type SUBJECT = {
   module Pat: SUBJECT_PAT;
@@ -39,4 +41,4 @@ module type SUBJECT = {
 module type FRAME = {
   module Exp: FRAME_EXP;
   module Pat: FRAME_PAT;
-}
+};
