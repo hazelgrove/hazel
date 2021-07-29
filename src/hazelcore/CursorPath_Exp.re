@@ -138,8 +138,11 @@ and follow_operand =
     // Child indexing goes left to right
     | Prj(err, body, label) =>
       switch (x) {
-        | 0 => body |> follow_operand((xs, cursor)) |> Option.map(zbody => ZExp.PrjZE(err, zbody, label))
-        | _ => None
+      | 0 =>
+        body
+        |> follow_operand((xs, cursor))
+        |> Option.map(zbody => ZExp.PrjZE(err, zbody, label))
+      | _ => None
       }
     | Parenthesized(body) =>
       print_endline("In paren case");

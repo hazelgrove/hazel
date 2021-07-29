@@ -27,6 +27,7 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
+  // ECD YOU ARE HERE: Working on adding new DHExp forms ot the DHDoc
   let precedence' = precedence(~show_casts);
   switch (d) {
   | BoundVar(_)
@@ -42,7 +43,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Lam(_)
-  | Label(_) => DHDoc_common.precedence_const
+  | ErrLabel(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)

@@ -56,20 +56,46 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         d2,
       ]);
     | Prod([]) => text("()")
-    // ECD: You are here, trying to figure out how to combine the Prod case with the label_elt case
-    // Likely need case statement to check if a given element is labeled or not
     | Prod([(label_hd, ty_hd), ...tail]) =>
       [
-        mk'(
-          ~parenthesize=HTyp.precedence(elt_hd) <= HTyp.precedence_Prod,
-          ty_hd,
-        ),
+        switch (label_hd) {
+        | Some(l) =>
+          hcats([
+            text(l),
+            text(" "),
+            mk'(
+              ~parenthesize=HTyp.precedence(elt_hd) <= HTyp.precedence_Prod,
+              ty_hd,
+            )
+            |> pad_child(~enforce_inline),
+          ])
+        | None =>
+          mk'(
+            ~parenthesize=HTyp.precedence(elt_hd) <= HTyp.precedence_Prod,
+            ty_hd,
+          )
+        },
         ...List.map(
-             (_, ty) =>
-               mk'(
-                 ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
-                 ty,
-               ),
+             (label, ty) => {
+               switch (label) {
+               | Some(l) =>
+                 hcats([
+                   text(l),
+                   text(" "),
+                   mk'(
+                     ~parenthesize=
+                       HTyp.precedence(ty_hd) <= HTyp.precedence_Prod,
+                     ty,
+                   )
+                   |> pad_child(~enforce_inline),
+                 ])
+               | None =>
+                 mk'(
+                   ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                   ty,
+                 )
+               }
+             },
              tail,
            ),
       ]
@@ -86,8 +112,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         d2,
       ]);
     | Label(label) => text(label)
-    | Label_Elt(l, ty) =>
-      hcats([text(l), text(" "), mk(ty) |> pad_child(~enforce_inline)])
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

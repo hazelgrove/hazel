@@ -13,7 +13,6 @@ let precedence = (dp: DHPat.t) =>
   | BoolLit(_)
   | Inj(_)
   | ListNil
-  | Pair(_)
   | Label(_) => DHDoc_common.precedence_const // ECD TODO: check if the label should have precedence label
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
