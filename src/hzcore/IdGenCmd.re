@@ -1,23 +1,14 @@
-module Meta = {
-  type t = {
-    next_hole: MetaVar.t,
-    next_tile: MetaVar.t,
-  };
-
-  let init = {next_hole: 0, next_tile: 0};
-};
-
 module T = {
-  type t('a) = Meta.t => ('a, Meta.t);
+  type t('a) = IdGen.t => ('a, IdGen.t);
   let return = a =>
     fun
-    | meta => (a, meta);
+    | id_gen => (a, id_gen);
   let map = Monads.MapDefinition.Define_using_bind;
-  let bind = (edit_state, f) =>
+  let bind = (cmd: t('a), f: 'a => t('b)): t('b) =>
     fun
-    | meta => {
-        let (a, meta') = edit_state(meta);
-        f(a, meta');
+    | id_gen => {
+        let (a, id_gen') = cmd(id_gen);
+        f(a, id_gen');
       };
 };
 include T;

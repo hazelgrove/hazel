@@ -1,50 +1,97 @@
 open OptUtil.Syntax;
 
+type construct_shape =
+  | Newline
+  | Text(string)
+  | Shard(Shard.t);
+
 type t =
   // TODO Mark
   | Move(Path.t)
   | Delete({
       dir: Direction.t,
-      into_whitespace: bool,
+      crossing_whitespace: bool,
     })
-  | Construct(unit); // TODO
+  | Construct(construct_shape);
 
-let perform = (a: t, (cursor, term): EditState.t): option(EditState.t) =>
+module Error = {
+  type t = unit;
+};
+
+module Success = {
+  type t = (EditState.t, list(Effect.t));
+};
+
+let rec perform =
+    (a: t, (cursor, term): EditState.t)
+    : IdGenCmd.t(Result.t(Success.t, Error.t)) => {
+  open IdGenCmd.Syntax;
+
+  let move = path => {
+    let edit_state = EditState.mk(Pointing(path), term);
+    let effects = [Effect.Move(path)];
+    IdGenCmd.return(Ok((edit_state, effects)));
+  };
+
   switch (a) {
-  | Move(path) =>
-    let cursor =
-      switch (cursor) {
-      | Pointing(_) => Pointing(path)
-      };
-    Some(EditState.mk(cursor, term));
+  | Move(path) => move(path)
+
   | Delete({dir, into_whitespace}) =>
     if (into_whitespace) {
-      // handle by moving or whatever
+      move(Path.next(dir, path, term));
     } else {
       let (subject, frame) = Path.to_zipper(cursor, term);
+      let Pointing(path) = cursor;
       switch (subject) {
       | Pointing(ztile, (prefix, suffix)) =>
         let (child_step, caret_step, tile) = ztile;
-        // check tile
-        // if it's a text token, then do the regular text operation
-        // otherwise, `let (pre, suf) = ZTile.get_same_sort_children(ztile)`
-
-        // `let (prefix, suffix) = Parser.fix_holes(ltip, prefix, suffix, rtip)`
-        //
-
-
-
-        switch (tile) {
-        | Exp(OpText(text)) =>
-          let+ text = OpText_exp.delete(d, caret_step, text);
-          // TODO handle empty result
-
+        switch (Tile.is_text_lit(tile)) {
+        | Some(s) =>
+          failwith("todo")
+        | None =>
+          if (Path.escapes(dir, path, term)) {
+            // unregistered move
+            let next_path = Path.next(dir, path, term);
+            let edit_state = EditState.mk(Pointing(next_path), term);
+            perform(Delete({dir, into_whitespace: false}), edit_state);
+          } else {
+            let id = Tile.id(tile);
+            let (children_pre, children_suf) = ZTile.same_sort_children(ztile);
+            let* (prefix, suffix) =
+              Parser.fix_holes(ltip, children_pre @ [prefix], children_suf @ [suffix], rtip);
+            let (ztile, (prefix, suffix)) =
+              switch (prefix, suffix) {
+              | (_, [tile, ...suffix]) =>
+                (ZTile.cursor_before(tile), (prefix, suffix))
+              | ([tile, ...prefix], _) =>
+                (ZTile.cursor_after(tile), (prefix, suffix))
+              | ([], []) =>
+                failwith("todo")
+              }
+          }
         }
-
-        let+ ((cursor, tile), (ts_pre, ts_suf)) = ZTile.(d, ztile);
-        let ()
-
       }
-    } else {
     };
+
+  | Construct(shape) =>
+    let (subject, frame) = Path.to_zipper(cursor, term);
+    switch (subject) {
+    | Pointing(ztile, (prefix, suffix)) =>
+      // should be able to customize on a per shard(?) basis
+      // how much to wrap, eg let line default should wrap up
+      // to nearest line, while...
+      // well I was gonna say parentheses should only default
+      // wrap nearest operand but these are gonna enter
+      // restructuring anyway... so the default only matters
+      // for the
+
+      // if cursor before ztile
+      //   put any matching shards to the right on the other side of ztile
+      // else if cursor after ztile
+      //   put any matching shards to the left on the other side of ztile
+      // else (cursor on the interior of ztile)
+      //   silently move cursor and re-perform construct
+    }
+
   };
+};
