@@ -22,6 +22,7 @@ and t'('annot) =
   | Text(string) // Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // associative
   | Linebreak
+  | ExternalLinebreak
   | Align(t('annot))
   | Annot('annot, t('annot)) // Annotations
   | Fail // identity for `Choice`
@@ -31,6 +32,7 @@ let t_of_t' = (t': t'('annot)): t('annot) => {mem: M.create(0), doc: t'};
 
 let text = (s: string) => t_of_t'(Text(s));
 let linebreak = () => t_of_t'(Linebreak);
+let external_linebreak = () => t_of_t'(ExternalLinebreak);
 let align = doc => t_of_t'(Align(doc));
 let annot = (annot, doc) => t_of_t'(Annot(annot, doc));
 let fail = () => t_of_t'(Fail);
@@ -53,6 +55,8 @@ let hseps: list(t('annot)) => t('annot) =
   | [] => empty()
   | [doc, ...docs] => List.fold_left(hsep, doc, docs);
 
+let ext_vsep = (x, y) =>
+  t_of_t'(Cat(x, t_of_t'(Cat(external_linebreak(), y))));
 let vsep = (x, y) => t_of_t'(Cat(x, t_of_t'(Cat(linebreak(), y))));
 let vseps: list(t('annot)) => t('annot) =
   fun
@@ -74,7 +78,7 @@ let rec map_annot: 'a 'b. ('a => 'b, t('a)) => t('b) =
     d
     |> map_t'(
          fun
-         | (Text(_) | Linebreak | Fail) as d' => d'
+         | (Text(_) | ExternalLinebreak | Linebreak | Fail) as d' => d'
          | Annot(annot, d) => Annot(f(annot), map_annot(f, d))
          | Align(d) => Align(map_annot(f, d))
          | Cat(d1, d2) => Cat(map_annot(f, d1), map_annot(f, d2))

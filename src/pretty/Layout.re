@@ -6,6 +6,7 @@ type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // Associative
   | Linebreak
+  | ExternalLinebreak
   | Align(t('annot))
   | Annot('annot, t('annot)); // Annotations
 
@@ -18,6 +19,7 @@ let rec remove_annots = (layout: t('annot)): t('annot) => {
   | Text(string) => Text(string)
   | Cat(l1, l2) => Cat(remove_annots(l1), remove_annots(l2))
   | Linebreak => Linebreak
+  | ExternalLinebreak => ExternalLinebreak
   | Align(l) => Align(remove_annots(l))
   };
 };
@@ -54,6 +56,9 @@ let mk_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
           // TODO: no indent if on final line break
           column := indent;
           text.imp_newline(indent);
+        | ExternalLinebreak =>
+          // TODO: no indent if on final line break
+          text.imp_of_string("hello")
         | Align(l) => go(column^, l)
         | Annot(annot, l) => text.imp_of_annot(annot, go(indent, l))
         };

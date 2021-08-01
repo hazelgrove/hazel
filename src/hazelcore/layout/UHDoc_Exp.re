@@ -97,8 +97,8 @@ module Make = (Memo: Memo.S) => {
         ((i, (hd, hd_doc)), tl_doc) =>
           switch ((hd: UHExp.line)) {
           | EmptyLine
-          | CommentLine(_)
-          | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+          | CommentLine(_) => Doc.vsep(hd_doc, tl_doc)
+          | ExpLine(_) => Doc.ext_vsep(hd_doc, tl_doc)
           | LetLine(_) =>
             annot_SubBlock(
               ~hd_index=offset + i,
