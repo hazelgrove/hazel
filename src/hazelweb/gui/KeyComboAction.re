@@ -43,6 +43,7 @@ let get_model_action =
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
   | Ctrl_S => Some(SerializeToConsole)
+  | Ctrl_Shift_S => Some(SerializeZexpToConsole)
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)
   | Up => Some(MoveAction(Key(ArrowUp)))

@@ -40,4 +40,5 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole;
+  | SerializeToConsole
+  | SerializeZexpToConsole;

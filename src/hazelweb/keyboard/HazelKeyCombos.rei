@@ -31,6 +31,7 @@ type t =
   | Alt_C
   | Pound
   | Ctrl_S
+  | Ctrl_Shift_S
   | CtrlOrCmd_Z
   | CtrlOrCmd_Shift_Z
   | Up
