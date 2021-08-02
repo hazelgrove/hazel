@@ -632,7 +632,7 @@ and syn_perform_block =
   /* Backspace & Delete */
   // Handle 2 special cases for CommentLines
   // Case 1
-  // e.g., 
+  // e.g.,
   //  #  comment 1
   //  #| comment 2
   //    =( Backspace )=>
@@ -655,7 +655,7 @@ and syn_perform_block =
     }
 
   // Case 2
-  // e.g., 
+  // e.g.,
   //  # comment 1|
   //  # comment 2
   //    =( Delete )=>
@@ -932,13 +932,13 @@ and syn_perform_line =
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
     mk_result(u_gen, new_zblock);
 
-  /* 
-    # some comment| 
-    _ 
-      =( Delete )=> 
-    # some comment
-    |_
-  */
+  /*
+     # some comment|
+     _
+       =( Delete )=>
+     # some comment
+     |_
+   */
   /* # some co|mment => # some co|ment */
   | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == String.length(comment)) {
@@ -953,12 +953,12 @@ and syn_perform_line =
     }
 
   /*
-    x
-    |# some comment
-      =( Backspace )=>
-    x|
-    # some comment
-  */
+     x
+     |# some comment
+       =( Backspace )=>
+     x|
+     # some comment
+   */
   /* # some co|mment => # some c|mment */
   | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == 0) {
@@ -994,16 +994,12 @@ and syn_perform_line =
     mk_result(u_gen, new_zblock);
 
   // Operators as valid text in comment lines
-  // e.g., 
+  // e.g.,
   //   # |
   //    =( ; )=>
   //   # ::
-  | (
-      Construct((SChar(_) | SOp(_)) as char),
-      CursorL(OnText(j), CommentLine(comment)),
-    ) =>
-    let new_comment =
-      comment |> StringUtil.insert(j, Action_common.shape_to_string(char));
+  | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
+    let new_comment = comment |> StringUtil.insert(j, s);
     let new_zblock = {
       let new_line: UHExp.line = CommentLine(new_comment);
       ([], ZExp.CursorL(OnText(j + 1), new_line), []);
