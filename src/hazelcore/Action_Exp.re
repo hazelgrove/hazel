@@ -625,8 +625,18 @@ let rec syn_perform =
         ZTPat.place_before(EmptyHole),
         OpSeq.wrap(UHTyp.Hole(u)),
       );
+
+    // Special case: If the subject is a blank line, then we don't want to
+    // insert it above the suffix
+    let subject' =
+      switch (subject) {
+      | [UHExp.ExpLine(OpSeq(Placeholder(_), Seq.(S(EmptyHole(_), E))))] =>
+        []
+      | ys => ys
+      };
+
     let new_ze =
-      (prefix, zalias, subject @ suffix) |> ZExp.prune_empty_hole_lines;
+      (prefix, zalias, subject' @ suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
@@ -938,15 +948,20 @@ and syn_perform_line =
     }
 
   | (Backspace, CursorL(OnDelim(k, After), TyAliasLine(p, ty))) =>
-    if (k == 1) {
+    switch (k) {
+    | 0 =>
+      let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+      mk_result(u_gen, new_zblock);
+    | 1 =>
       /* type x<| = Int   ==>   type x| = 2 */
       let zp = p |> ZTPat.place_after;
       let new_zblock = ([], ZExp.TyAliasLineP(zp, ty), []);
       fix_and_mk_result(u_gen, new_zblock);
-    } else {
-      let zty = k == 2 ? ty |> ZTyp.place_after : ty |> ZTyp.place_before;
+    | 2 =>
+      let zty = ty |> ZTyp.place_after;
       let new_zblock = ([], ZExp.TyAliasLineT(p, zty), []);
       fix_and_mk_result(u_gen, new_zblock);
+    | _ => failwith(Printf.sprintf("Delim too large: %d\n", k))
     }
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
@@ -1655,7 +1670,6 @@ and syn_perform_operand =
         (),
       ),
     )
-  // TODO: move the current expression to the next line
   | (Construct(STyAlias), CursorE(_, operand)) =>
     Succeeded(
       mk_SynExpandsToTyAlias(
