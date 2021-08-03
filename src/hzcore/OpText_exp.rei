@@ -1,5 +1,4 @@
 type t =
-  | Underscore
   | IntLit(IntLit.t)
   | FloatLit(FloatLit.t)
   | BoolLit(bool)

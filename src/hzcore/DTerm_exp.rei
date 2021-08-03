@@ -2,7 +2,7 @@ type t =
   | OpHole(closure)
   | TypeErr(closure, t)
   | Var(option(closure), VarId.t)
-  | NTuple(list(t))
+  | Tuple(list(t))
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -19,8 +19,9 @@ type t =
   | ListNil(Type.t)
   | Cons(t, t)
   | Inj(Type.t, InjSide.t, t)
-  | Case(option(closure), case, int)
+  | Case(option(closure), t, list(rules), int)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+and rule = (DTerm_pat.t, t);
 and closure = (MetaVar.t, MetaVarInst.t, VarMap.t_(t));

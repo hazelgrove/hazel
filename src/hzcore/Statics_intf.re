@@ -19,7 +19,7 @@ module type FRAME_EXP = {
   let ap_arg: (Term_exp.t, FrameInfo_exp.t as 'f) => 'f;
 
   let case_scrut: (FrameInfo_exp.t as 'f) => 'f;
-  let case_clause: (Term_exp.t, Term_pat.t, FrameInfo_exp.t as 'f) => 'f;
+  let case_clauses: (Term_exp.t, list(Term_exp.rule), FrameInfo_exp.t as 'f) => list('f);
 
   let mk: (~init: FrameInfo_exp.t as 'f=?, Frame_exp.t) => 'f;
 };
