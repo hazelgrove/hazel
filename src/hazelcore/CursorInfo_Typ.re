@@ -14,19 +14,19 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
-  | SumZ(zsumty) => extract_from_zsumtyp(zsumty)
+  | SumZ(zsumty) => extract_from_zsumbody(zsumty)
   };
 }
-and extract_from_zsumtyp = (ZOpSeq(_, zseq): ZTyp.zsumtyp): cursor_term =>
+and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
   switch (zseq) {
   | ZOperand(zsumty_operand, _) =>
-    extract_from_zsumtyp_operand(zsumty_operand)
+    extract_from_zsumbody_operand(zsumty_operand)
   | ZOperator(zsumty_operator, _) =>
     let (cursor_pos, uop) = zsumty_operator;
     SumTypOp(cursor_pos, uop);
   }
-and extract_from_zsumtyp_operand =
-    (zsumty_operand: ZTyp.zsumtyp_operand): cursor_term =>
+and extract_from_zsumbody_operand =
+    (zsumty_operand: ZTyp.zsumbody_operand): cursor_term =>
   switch (zsumty_operand) {
   | CursorTS(cursor_pos, sumty_operand) => SumTyp(cursor_pos, sumty_operand)
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)

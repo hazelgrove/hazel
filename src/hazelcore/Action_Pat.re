@@ -715,11 +715,11 @@ and syn_perform_operand =
 
   /* _ ( _ )<|  ==>  _| */
   /* _ (<| _ )  ==>  _| */
-  | (Backspace, CursorP(OnDelim(k, After), Inj(, _, Some(_)))) =>
-  Succeeded()
+  | (Backspace, CursorP(OnDelim(k, After), Inj(_, _, Some(_)))) =>
+    // Succeeded()
+    (??)
 
   /* _<|  ==>  |? */
-
 
   /* Construction */
 
@@ -1024,8 +1024,8 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(u_gen, a, zann)) {
+        | Succeeded((new_zann, u_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           let ty' = UHTyp.expand(ZTyp.erase(new_zann));
@@ -1236,7 +1236,10 @@ and ana_perform_operand =
   /* (<| _ )  ==>  |_ */
   | (
       Backspace,
-      CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
+      CursorP(
+        OnDelim(k, After),
+        Parenthesized(body) | Inj(_, _, Some(body)),
+      ),
     ) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
     Succeeded(
