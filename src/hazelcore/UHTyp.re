@@ -1,10 +1,8 @@
-// TODO: move sumtyp_* into UHSumBody.re
-
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
-type sumtyp_operator = Operators_SumTyp.t;
+type sumtyp_operator = Operators_SumBody.t;
 
 [@deriving sexp]
 type t = opseq
@@ -63,7 +61,7 @@ let associate =
   Skel.mk(Operators_Typ.precedence, Operators_Typ.associativity);
 
 let associate_sumtyp =
-  Skel.mk(Operators_SumTyp.precedence, Operators_SumTyp.associativity);
+  Skel.mk(Operators_SumBody.precedence, Operators_SumBody.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
@@ -123,7 +121,7 @@ let contract = (ty: HTyp.t): t => {
             |> List.map(binding_to_seq)
             |> List.fold_left(
                  (seq1, seq2) =>
-                   Seq.seq_op_seq(seq1, Operators_SumTyp.Plus, seq2),
+                   Seq.seq_op_seq(seq1, Operators_SumBody.Plus, seq2),
                  binding_to_seq(head),
                );
           Seq.wrap(Sum(mk_OpSeq_sumtyp(sumty_bindings)));

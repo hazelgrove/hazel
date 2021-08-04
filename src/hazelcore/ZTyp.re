@@ -1,7 +1,7 @@
 open OptUtil.Syntax;
 
 [@deriving sexp]
-type zsumtyp_operator = (CursorPosition.t, Operators_SumTyp.t);
+type zsumtyp_operator = (CursorPosition.t, Operators_SumBody.t);
 
 [@deriving sexp]
 type t = zopseq
@@ -180,7 +180,7 @@ let is_after_zsumtyp_operand =
   fun
   | CursorTS(cursor, ConstTag(_)) => cursor == OnDelim(0, After)
   | CursorTS(cursor, ArgTag(_, _)) => cursor == OnDelim(1, After)
-  | ConstTagZ(_) => ZTag.is_after(??)
+  | ConstTagZ(_) => /* ZTag.is_after */ (??)
   | ArgTagZT(_, _)
   | ArgTagZA(_, _) => false;
 

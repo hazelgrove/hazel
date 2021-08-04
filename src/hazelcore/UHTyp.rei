@@ -2,7 +2,7 @@
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
-type sumtyp_operator = Operators_SumTyp.t;
+type sumtyp_operator = Operators_SumBody.t;
 
 [@deriving sexp]
 type t = opseq
@@ -36,7 +36,7 @@ let get_prod_elements: skel => list(skel);
 let unwrap_parentheses: operand => t;
 
 let associate: seq => Skel.t(Operators_Typ.t);
-let associate_sumtyp: sumtyp_seq => Skel.t(Operators_SumTyp.t);
+let associate_sumtyp: sumtyp_seq => Skel.t(Operators_SumBody.t);
 
 let mk_OpSeq: seq => opseq;
 let mk_OpSeq_sumtyp: sumtyp_seq => sumtyp;
