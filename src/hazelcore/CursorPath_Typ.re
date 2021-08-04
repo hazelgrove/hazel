@@ -183,7 +183,7 @@ and of_steps_operator =
     };
   }
 and of_steps_sumtyp =
-    (steps: CursorPath.steps, ~side: Side.t, sumty: UHTyp.sumtyp)
+    (steps: CursorPath.steps, ~side: Side.t=Before, sumty: UHTyp.sumtyp)
     : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand=of_steps_sumtyp_operand,

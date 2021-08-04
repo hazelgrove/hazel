@@ -1,3 +1,5 @@
+// TODO: move sumtyp_* into UHSumBody.re
+
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
@@ -29,9 +31,9 @@ type skel = OpSeq.skel(operator);
 type seq = OpSeq.seq(operand, operator);
 
 [@deriving sexp]
-type skel_sumtyp = OpSeq.skel(sumtyp_operator);
+type sumtyp_skel = OpSeq.skel(sumtyp_operator);
 [@deriving sexp]
-type seq_sumtyp = OpSeq.seq(sumtyp_operand, sumtyp_operator);
+type sumtyp_seq = OpSeq.seq(sumtyp_operand, sumtyp_operator);
 
 let rec get_prod_elements: skel => list(skel) =
   fun
@@ -65,7 +67,7 @@ let associate_sumtyp =
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-// let mk_OpSeq_sumtyp = OpSeq.mk(~associate=associate_sumtyp);
+let mk_OpSeq_sumtyp = OpSeq.mk(~associate=associate_sumtyp);
 
 let contract = (ty: HTyp.t): t => {
   let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
@@ -116,7 +118,7 @@ let contract = (ty: HTyp.t): t => {
             | Some(ty1) =>
               Seq.wrap(ArgTag(tag1, mk_OpSeq(contract_to_seq(ty1))))
             };
-          let sumtyp =
+          let sumty_bindings =
             tail
             |> List.map(binding_to_seq)
             |> List.fold_left(
@@ -124,9 +126,8 @@ let contract = (ty: HTyp.t): t => {
                    Seq.seq_op_seq(seq1, Operators_SumTyp.Plus, seq2),
                  binding_to_seq(head),
                );
-          Seq.wrap(Sum(OpSeq.mk(~associate=associate_sumtyp, sumtyp)));
+          Seq.wrap(Sum(mk_OpSeq_sumtyp(sumty_bindings)));
         }
-      // | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       };
@@ -169,10 +170,6 @@ and expand_skel = (skel, seq) =>
       Sum(sumtyp);
     | _ => failwith("cannot expand malformed sum")
     };
-  // | BinOp(_, Sum, skel1, skel2) =>
-  //   let ty1 = expand_skel(skel1, seq);
-  //   let ty2 = expand_skel(skel2, seq);
-  //   Sum(ty1, ty2);
   }
 and expand_operand =
   fun
@@ -200,14 +197,19 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
-  // XXX
-  | Sum(sumtype) => is_complete_sumtype(sumtype)
+  | Sum(sumty) => is_complete_sumtyp(sumty)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
 }
-// XXX
-and is_complete_sumtype = _ => false
+and is_complete_sumtyp_operand = (sumty_operand: sumtyp_operand) => {
+  switch (sumty_operand) {
+  | ConstTag(TagHole(_))
+  | ArgTag(TagHole(_), _) => false
+  | ConstTag(Tag(_)) => true
+  | ArgTag(Tag(_), ty) => is_complete(ty)
+  };
+}
 and is_complete_skel = (sk: skel, sq: seq) => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
@@ -216,6 +218,18 @@ and is_complete_skel = (sk: skel, sq: seq) => {
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
   };
 }
+and is_complete_sumtyp_skel = (sk: sumtyp_skel, sq: sumtyp_seq) => {
+  switch (sk) {
+  | Placeholder(n) as _skel =>
+    is_complete_sumtyp_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_sumtyp_skel(skel1, sq) && is_complete_sumtyp_skel(skel2, sq)
+  };
+}
+and is_complete_sumtyp =
+  fun
+  | OpSeq(skel, seq) => is_complete_sumtyp_skel(skel, seq)
 and is_complete = (ty: t) => {
   switch (ty) {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)

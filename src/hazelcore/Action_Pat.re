@@ -520,8 +520,8 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(u_gen, a, zann)) {
+        | Succeeded((new_zann, u_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
@@ -706,12 +706,20 @@ and syn_perform_operand =
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
-  | (
-      Backspace,
-      CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
-    ) =>
+  | (Backspace, CursorP(OnDelim(k, After), Parenthesized(body))) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor));
+
+  | (Backspace, CursorP(OnDelim(0, After), Inj(_, _, _))) =>
+    CursorEscaped(Before)
+
+  /* _ ( _ )<|  ==>  _| */
+  /* _ (<| _ )  ==>  _| */
+  | (Backspace, CursorP(OnDelim(k, After), Inj(, _, Some(_)))) =>
+  Succeeded()
+
+  /* _<|  ==>  |? */
+
 
   /* Construction */
 

@@ -9,11 +9,7 @@ let shape_to_string = (shape: shape): string => {
   | SAnn => "type annotation"
   | SLam => "function"
   | SListNil => "empty list"
-  | SInj(side) =>
-    switch (side) {
-    | L => "left injection"
-    | R => "right injection"
-    }
+  | SInj => "injection"
   | SLet => "let binding"
   | SLine => "new line"
   | SCommentLine => "comment line"
@@ -34,6 +30,10 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
+    }
+  | SSumOp(sumty_operator_shape) =>
+    switch (sumty_operator_shape) {
+    | SPlus => "+"
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };

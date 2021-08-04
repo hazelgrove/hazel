@@ -19,6 +19,7 @@ and zsumtyp =
     zsumtyp_operand,
     zsumtyp_operator,
   )
+// TODO: replace CursorTS with base case for ArgTag delims
 and zsumtyp_operand =
   | CursorTS(CursorPosition.t, UHTyp.sumtyp_operand)
   | ConstTagZ(ZTag.t)
@@ -33,7 +34,7 @@ type sumtyp_operand_surround =
   Seq.operand_surround(UHTyp.sumtyp_operand, UHTyp.sumtyp_operator);
 type sumtyp_operator_surround =
   Seq.operator_surround(UHTyp.sumtyp_operand, UHTyp.sumtyp_operator);
-type zseq_sumtyp =
+type sumtyp_zseq =
   ZSeq.t(
     UHTyp.sumtyp_operand,
     UHTyp.sumtyp_operator,
@@ -114,7 +115,7 @@ and erase_zsumtyp_operand =
 let mk_ZOpSeq: zseq => zopseq =
   ZOpSeq.mk(~associate=UHTyp.associate, ~erase_zoperand, ~erase_zoperator);
 
-let mk_ZOpSeq_sumtyp: zseq_sumtyp => zsumtyp =
+let mk_sumtyp_ZOpSeq: sumtyp_zseq => zsumtyp =
   ZOpSeq.mk(
     ~associate=UHTyp.associate_sumtyp,
     ~erase_zoperand=erase_zsumtyp_operand,
@@ -144,6 +145,17 @@ let is_before_zoperator: zoperator => bool =
   | (OnOp(Before), _) => true
   | _ => false;
 
+let is_before_zsumtyp_operand =
+  fun
+  | CursorTS(cursor, ConstTag(_) | ArgTag(_, _)) =>
+    cursor == OnDelim(0, Before)
+  | ConstTagZ(_)
+  | ArgTagZT(_, _)
+  | ArgTagZA(_, _) => false;
+
+let is_before_zsumtyp = (zsumty: zsumtyp): bool =>
+  ZOpSeq.is_before(~is_before_zoperand=is_before_zsumtyp_operand, zsumty);
+
 let rec is_after = (zty: t): bool => zty |> is_after_zopseq
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
@@ -163,6 +175,17 @@ let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
   | _ => false;
+
+let is_after_zsumtyp_operand =
+  fun
+  | CursorTS(cursor, ConstTag(_)) => cursor == OnDelim(0, After)
+  | CursorTS(cursor, ArgTag(_, _)) => cursor == OnDelim(1, After)
+  | ConstTagZ(_) => ZTag.is_after(??)
+  | ArgTagZT(_, _)
+  | ArgTagZA(_, _) => false;
+
+let is_after_zsumtyp = (zsumty: zsumtyp): bool =>
+  ZOpSeq.is_after(~is_after_zoperand=is_after_zsumtyp_operand, zsumty);
 
 let rec place_before = (ty: UHTyp.t): t => ty |> place_before_opseq
 and place_before_opseq = opseq =>
