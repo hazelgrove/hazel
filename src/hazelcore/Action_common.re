@@ -31,8 +31,8 @@ let shape_to_string = (shape: shape): string => {
     | SAnd => "&&"
     | SOr => "||"
     }
-  | SSumOp(sumty_operator_shape) =>
-    switch (sumty_operator_shape) {
+  | SSumOp(sumbody_operator_shape) =>
+    switch (sumbody_operator_shape) {
     | SPlus => "+"
     }
   | SApPalette(_) => failwith("ApPalette not implemented")

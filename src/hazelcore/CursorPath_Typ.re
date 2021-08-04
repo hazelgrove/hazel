@@ -6,13 +6,13 @@ and of_zoperand =
   fun
   | CursorT(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
-  | SumZ(zsumty) => CursorPath_common.cons'(0, of_zsumbody(zsumty))
+  | SumZ(zsumbody) => CursorPath_common.cons'(0, of_zsumbody(zsumbody))
   | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor)
-and of_zsumbody = zsumty =>
-  CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumty)
+and of_zsumbody = zsumbody =>
+  CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumbody)
 and of_zsumbody_operand =
   fun
   | CursorTS(cursor, _) => ([], cursor)
@@ -52,12 +52,12 @@ and follow_operand =
         |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
       | _ => None
       }
-    | Sum(sumty) =>
+    | Sum(sumbody) =>
       switch (x) {
       | 0 =>
-        sumty
+        sumbody
         |> follow_sumbody((xs, cursor))
-        |> Option.map(zsumty => ZTyp.SumZ(zsumty))
+        |> Option.map(zsumbody => ZTyp.SumZ(zsumbody))
       | _ => None
       }
     | List(body) =>
@@ -78,20 +78,20 @@ and follow_operator =
   | [_, ..._] => None
   }
 and follow_sumbody =
-    (path: CursorPath.t, sumty: UHTyp.sumbody): option(ZTyp.zsumbody) =>
+    (path: CursorPath.t, sumbody: UHTyp.sumbody): option(ZTyp.zsumbody) =>
   CursorPath_common.follow_opseq_(
     ~follow_operand=follow_sumbody_operand,
     ~follow_operator=follow_sumbody_operator,
     path,
-    sumty,
+    sumbody,
   )
 and follow_sumbody_operand =
-    ((steps, cursor): CursorPath.t, sumty_operand: UHTyp.sumbody_operand)
+    ((steps, cursor): CursorPath.t, sumbody_operand: UHTyp.sumbody_operand)
     : option(ZTyp.zsumbody_operand) =>
   switch (steps) {
-  | [] => sumty_operand |> ZTyp.place_cursor_sumbody_operand(cursor)
+  | [] => sumbody_operand |> ZTyp.place_cursor_sumbody_operand(cursor)
   | [x, ...xs] =>
-    switch (sumty_operand) {
+    switch (sumbody_operand) {
     | ConstTag(_) => None
     | ArgTag(tag, ty) =>
       switch (x) {
@@ -103,10 +103,10 @@ and follow_sumbody_operand =
     }
   }
 and follow_sumbody_operator =
-    ((steps, cursor): CursorPath.t, sumty_operator: UHTyp.sumbody_operator)
+    ((steps, cursor): CursorPath.t, sumbody_operator: UHTyp.sumbody_operator)
     : option(ZTyp.zsumbody_operator) =>
   switch (steps) {
-  | [] => sumty_operator |> ZTyp.place_cursor_sumbody_operator(cursor)
+  | [] => sumbody_operator |> ZTyp.place_cursor_sumbody_operator(cursor)
   | [_, ..._] => None
   };
 
@@ -149,10 +149,10 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
-    | Sum(sumty) =>
+    | Sum(sumbody) =>
       switch (x) {
       | 0 =>
-        let+ path = of_steps_sumbody(xs, ~side, sumty);
+        let+ path = of_steps_sumbody(xs, ~side, sumbody);
         CursorPath_common.cons'(0, path);
       | _ => None
       }
@@ -183,20 +183,20 @@ and of_steps_operator =
     };
   }
 and of_steps_sumbody =
-    (steps: CursorPath.steps, ~side: Side.t=Before, sumty: UHTyp.sumbody)
+    (steps: CursorPath.steps, ~side: Side.t=Before, sumbody: UHTyp.sumbody)
     : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand=of_steps_sumbody_operand,
     ~of_steps_operator=of_steps_sumbody_operator,
     steps,
     ~side,
-    sumty,
+    sumbody,
   )
 and of_steps_sumbody_operand =
     (
       steps: CursorPath.steps,
       ~side: Side.t,
-      sumty_operand: UHTyp.sumbody_operand,
+      sumbody_operand: UHTyp.sumbody_operand,
     )
     : option(CursorPath.t) =>
   switch (steps) {
@@ -206,9 +206,9 @@ and of_steps_sumbody_operand =
       | Before => ZTyp.place_before_sumbody_operand
       | After => ZTyp.place_after_sumbody_operand
       };
-    Some(of_zsumbody_operand(place_cursor(sumty_operand)));
+    Some(of_zsumbody_operand(place_cursor(sumbody_operand)));
   | [x, ...xs] =>
-    switch (sumty_operand) {
+    switch (sumbody_operand) {
     | ConstTag(_) => None
     | ArgTag(_, ty) =>
       switch (x) {
@@ -223,7 +223,7 @@ and of_steps_sumbody_operator =
     (
       steps: CursorPath.steps,
       ~side: Side.t,
-      sumty_operator: UHTyp.sumbody_operator,
+      sumbody_operator: UHTyp.sumbody_operator,
     )
     : option(CursorPath.t) =>
   switch (steps) {
@@ -234,8 +234,9 @@ and of_steps_sumbody_operator =
       | Before => ZTyp.place_before_sumbody_operator
       | After => ZTyp.place_after_sumbody_operator
       };
-    switch (place_cursor(sumty_operator)) {
-    | Some(zsumty_operator) => Some(of_zsumbody_operator(zsumty_operator))
+    switch (place_cursor(sumbody_operator)) {
+    | Some(zsumbody_operator) =>
+      Some(of_zsumbody_operator(zsumbody_operator))
     | _ => None
     };
   };
@@ -271,13 +272,13 @@ and holes_operand =
   | Int
   | Float
   | Bool => hs
-  | Sum(sumty) => hs |> holes_sumbody(sumty, [0, ...rev_steps])
+  | Sum(sumbody) => hs |> holes_sumbody(sumbody, [0, ...rev_steps])
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   }
 and holes_sumbody =
     (
-      sumty: UHTyp.sumbody,
+      sumbody: UHTyp.sumbody,
       rev_steps: CursorPath.rev_steps,
       hs: CursorPath.hole_list,
     )
@@ -288,16 +289,16 @@ and holes_sumbody =
        ~hole_sort,
        ~is_space,
        ~rev_steps,
-       sumty,
+       sumbody,
      )
 and holes_sumbody_operand =
     (
-      sumty_operand: UHTyp.sumbody_operand,
+      sumbody_operand: UHTyp.sumbody_operand,
       rev_steps: CursorPath.rev_steps,
       hs: CursorPath.hole_list,
     )
     : CursorPath.hole_list =>
-  switch (sumty_operand) {
+  switch (sumbody_operand) {
   | ConstTag(tag) => CursorPath_Tag.holes(tag, [0, ...rev_steps], hs)
   | ArgTag(tag, ty) =>
     let hs = CursorPath_Tag.holes(tag, [0, ...rev_steps], hs);
@@ -336,8 +337,8 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(OnDelim(k, _), Sum(sumty)) =>
-    let holes = holes_sumbody(sumty, [0, ...rev_steps], []);
+  | CursorT(OnDelim(k, _), Sum(sumbody)) =>
+    let holes = holes_sumbody(sumbody, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
@@ -346,12 +347,12 @@ and holes_zoperand =
   | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_) | Sum(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | SumZ(zsumty) => holes_zsumbody(zsumty, [0, ...rev_steps])
+  | SumZ(zsumbody) => holes_zsumbody(zsumbody, [0, ...rev_steps])
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   }
 and holes_zsumbody =
-    (zsumty: ZTyp.zsumbody, rev_steps: CursorPath.rev_steps)
+    (zsumbody: ZTyp.zsumbody, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   CursorPath_common.holes_zopseq_(
     ~holes_operand=holes_sumbody_operand,
@@ -360,12 +361,12 @@ and holes_zsumbody =
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zsumbody,
-    zsumty,
+    zsumbody,
   )
 and holes_zsumbody_operand =
-    (zsumty_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
+    (zsumbody_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
-  switch (zsumty_operand) {
+  switch (zsumbody_operand) {
   | CursorTS(OnDelim(k, _), ConstTag(tag)) =>
     let holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     switch (k) {

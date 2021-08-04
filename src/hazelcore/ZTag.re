@@ -13,43 +13,14 @@ let is_valid_cursor = (cursor: CursorPosition.t, tag: UHTag.t): bool =>
 
 let is_before = (ztag: t): bool =>
   switch (ztag) {
-  | CursorTag(cursor, Tag(_) | TagHole(_)) => cursor == OnDelim(0, Before)
+  | CursorTag(cursor, Tag(_)) => cursor == OnText(0)
+  | CursorTag(cursor, TagHole(_)) => cursor == OnDelim(0, Before)
   };
 
 let is_after = (ztag: t): bool =>
   switch (ztag) {
-  | CursorTag(cursor, Tag(_) | TagHole(_)) => cursor == OnDelim(1, After)
-  };
-
-let erase = (CursorTag(_, tag): t): UHTag.t => tag;
-
-let move_cursor_left = (CursorTag(pos, tag): t): option(t) =>
-  switch (pos) {
-  | OnText(0) => None
-  | OnText(n) => Some(CursorTag(OnText(n - 1), tag))
-  | OnDelim(_0, After) =>
-    switch (tag) {
-    | TagHole(_) => Some(CursorTag(OnDelim(0, Before), tag))
-    | Tag(_) => None
-    }
-  | OnDelim(_, Before)
-  | OnOp(_) => None
-  };
-
-let move_cursor_right = (CursorTag(pos, tag): t): option(t) =>
-  switch (pos, tag) {
-  | (OnText(n), Tag(id)) =>
-    if (n < String.length(id) - 1) {
-      Some(CursorTag(OnText(n + 1), tag));
-    } else {
-      None;
-    }
-  | (OnText(_), TagHole(_)) => None
-  | (OnDelim(_0, Before), TagHole(_)) =>
-    Some(CursorTag(OnDelim(0, After), tag))
-  | (OnDelim(_, After), TagHole(_))
-  | (OnDelim(_, Before | After), Tag(_))
-  | (OnOp(_), _) => None
+  | CursorTag(cursor, Tag(t)) => cursor == OnText(String.length(t))
+  | CursorTag(cursor, TagHole(_)) => cursor == OnDelim(1, After)
   };
 
 let place_before = (tag: UHTag.t): t =>
@@ -61,13 +32,29 @@ let place_before = (tag: UHTag.t): t =>
 let place_after = (tag: UHTag.t): t =>
   switch (tag) {
   | TagHole(_) => CursorTag(OnDelim(0, After), tag)
-  | Tag(id) => CursorTag(OnText(String.length(id) - 1), tag)
+  | Tag(t) => CursorTag(OnText(String.length(t)), tag)
   };
+
+let place_cursor = (cursor: CursorPosition.t, tag: UHTag.t): option(t) =>
+  is_valid_cursor(cursor, tag) ? Some(CursorTag(cursor, tag)) : None;
+
+let erase = (CursorTag(_, tag): t): UHTag.t => tag;
 
 let new_TagHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
   let (hole, u_gen) = UHTag.new_TagHole(u_gen);
   (place_before(hole), u_gen);
 };
 
-let is_after_zoperand = (CursorTag(cursor, _): zoperand): bool =>
-  cursor == OnDelim(0, After);
+let move_cursor_left: t => option(t) =
+  fun
+  | CursorTag(OnText(j), tag) => Some(CursorTag(OnText(j - 1), tag))
+  | CursorTag(OnDelim(_0, After), tag) =>
+    Some(CursorTag(OnDelim(0, Before), tag))
+  | CursorTag(OnDelim(_, Before) | OnOp(_), _) => None;
+
+let move_cursor_right: t => option(t) =
+  fun
+  | CursorTag(OnText(j), tag) => Some(CursorTag(OnText(j + 1), tag))
+  | CursorTag(OnDelim(_0, Before), tag) =>
+    Some(CursorTag(OnDelim(0, After), tag))
+  | CursorTag(OnDelim(_, After) | OnOp(_), _) => None;

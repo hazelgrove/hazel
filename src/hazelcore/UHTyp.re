@@ -116,7 +116,7 @@ let contract = (ty: HTyp.t): t => {
             | Some(ty1) =>
               Seq.wrap(ArgTag(tag1, mk_OpSeq(contract_to_seq(ty1))))
             };
-          let sumty_bindings =
+          let sumbody_bindings =
             tail
             |> List.map(binding_to_seq)
             |> List.fold_left(
@@ -124,7 +124,7 @@ let contract = (ty: HTyp.t): t => {
                    Seq.seq_op_seq(seq1, Operators_SumBody.Plus, seq2),
                  binding_to_seq(head),
                );
-          Seq.wrap(Sum(mk_OpSeq_sumbody(sumty_bindings)));
+          Seq.wrap(Sum(mk_OpSeq_sumbody(sumbody_bindings)));
         }
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
@@ -195,13 +195,13 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
-  | Sum(sumty) => is_complete_sumbody(sumty)
+  | Sum(sumbody) => is_complete_sumbody(sumbody)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
 }
-and is_complete_sumbody_operand = (sumty_operand: sumbody_operand) => {
-  switch (sumty_operand) {
+and is_complete_sumbody_operand = (sumbody_operand: sumbody_operand) => {
+  switch (sumbody_operand) {
   | ConstTag(TagHole(_))
   | ArgTag(TagHole(_), _) => false
   | ConstTag(Tag(_)) => true
