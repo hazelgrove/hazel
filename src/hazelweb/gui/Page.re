@@ -56,6 +56,22 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
           ),
         ],
       ),
+      div(
+        [Attr.classes(["result-control"])],
+        [
+          {
+            Node.button(
+              [
+                Attr.id("serialize-DHExp"),
+                Attr.on_click(_ =>
+                  inject(SerializeToConsole(DHExp(result)))
+                ),
+              ],
+              [Node.text("Serialize result to console")],
+            );
+          },
+        ],
+      ),
     ],
   );
 };
