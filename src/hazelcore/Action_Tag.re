@@ -53,39 +53,38 @@ let backspace_text =
     mk_text(u_gen, caret_index - 1, new_text);
   };
 
-// TODO: redo this with escapes
-let rec move =
-        (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
-        : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
+let move =
+    (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
+    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
   switch (a) {
   | MoveTo(path) =>
-    switch (CursorPath_Tag.follow(path, ztag |> ZTag.erase)) {
+    switch (CursorPath_Tag.follow(path, ZTag.erase(ztag))) {
     | None => Failed
     | Some(ztag) => Succeeded((ztag, u_gen))
     }
 
-  | MoveToPrevHole =>
-    switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Tag.holes_z(ztag, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Tag.of_steps(steps, ztag |> ZTag.erase)) {
-      | None => Failed
-      | Some(path) => move(u_gen, MoveTo(path), ztag)
-      }
-    }
-  | MoveToNextHole =>
-    switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Tag.holes_z(ztag, [])))
-    ) {
-    | None => Failed
-    | Some(steps) =>
-      switch (CursorPath_Tag.of_steps(steps, ztag |> ZTag.erase)) {
-      | None => Failed
-      | Some(path) => move(u_gen, MoveTo(path), ztag)
-      }
-    }
+  | MoveToPrevHole => CursorEscaped(Before)
+  // switch (
+  //   CursorPath_common.(prev_hole_steps(CursorPath_Tag.holes_z(ztag, [])))
+  // ) {
+  // | None => Failed
+  // | Some(steps) =>
+  //   switch (CursorPath_Tag.of_steps(steps, ztag |> ZTag.erase)) {
+  //   | None => Failed
+  //   | Some(path) => move(u_gen, MoveTo(path), ztag)
+  //   }
+  // }
+  | MoveToNextHole => CursorEscaped(After)
+  // switch (
+  //   CursorPath_common.(next_hole_steps(CursorPath_Tag.holes_z(ztag, [])))
+  // ) {
+  // | None => Failed
+  // | Some(steps) =>
+  //   switch (CursorPath_Tag.of_steps(steps, ztag |> ZTag.erase)) {
+  //   | None => Failed
+  //   | Some(path) => move(u_gen, MoveTo(path), ztag)
+  //   }
+  // }
   | MoveLeft =>
     switch (ZTag.move_cursor_left(ztag)) {
     | None => ActionOutcome.CursorEscaped(Before)
@@ -112,9 +111,9 @@ let rec move =
     )
   };
 
-let rec perform =
-        (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
-        : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
+let perform =
+    (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
+    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
   switch (a, ztag) {
   /* Invalid actions */
   | (
@@ -136,9 +135,11 @@ let rec perform =
     Failed
 
   /* Invalid cursor positions */
-  | (_, CursorTag(OnOp(_), _)) => Failed
   | (_, CursorTag(cursor, tag)) when !ZTag.is_valid_cursor(cursor, tag) =>
     Failed
+  | (_, CursorTag(OnOp(_), _))
+  | (_, CursorTag(OnDelim(_), Tag(_)))
+  | (_, CursorTag(OnText(_), TagHole(_))) => Failed
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -146,28 +147,17 @@ let rec perform =
 
   /* Backspace and Delete */
 
-  | (Backspace, CursorTag(_, TagHole(_) as operand)) =>
-    let ztag = operand |> ZTag.place_before;
-    ztag |> ZTag.is_after ? Succeeded((ztag, u_gen)) : CursorEscaped(Before);
-  | (Delete, CursorTag(_, TagHole(_) as operand)) =>
+  | (Backspace, CursorTag(OnDelim(_0, After), TagHole(_) as operand)) =>
+    let ztag = ZTag.place_before(operand);
+    ZTag.is_after(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(Before);
+  | (Delete, CursorTag(OnDelim(_0, Before), TagHole(_) as operand)) =>
     let ztag = operand |> ZTag.place_after;
-    ztag |> ZTag.is_before ? Succeeded((ztag, u_gen)) : CursorEscaped(After);
+    ZTag.is_before(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(After);
 
-  // TODO: redo this for text cursors
-  /* ( _ <|)   ==>   ( _| ) */
-  | (Backspace, CursorTag(OnDelim(_, Before), _)) =>
-    perform(u_gen, MoveLeft, ztag)
-  /* (|> _ )   ==>   ( |_ ) */
-  | (Delete, CursorTag(OnDelim(_, After), _)) =>
-    perform(u_gen, MoveRight, ztag)
-
-  | (Backspace, CursorTag(OnDelim(_, After), Tag(_))) =>
-    let (hole, u_gen) = UHTag.new_TagHole(u_gen);
-    Succeeded((ZTag.place_after(hole), u_gen));
-
-  /* Delete before delimiter == Backspace after delimiter */
-  | (Delete, CursorTag(OnDelim(k, Before), tag)) =>
-    perform(u_gen, Backspace, CursorTag(OnDelim(k, After), tag))
+  | (Backspace, CursorTag(OnDelim(_0, Before), TagHole(_))) =>
+    CursorEscaped(Before)
+  | (Delete, CursorTag(OnDelim(_0, After), TagHole(_))) =>
+    CursorEscaped(After)
 
   | (Delete, CursorTag(OnText(j), Tag(t))) => delete_text(u_gen, j, t)
   | (Backspace, CursorTag(OnText(j), Tag(t))) => backspace_text(u_gen, j, t)
