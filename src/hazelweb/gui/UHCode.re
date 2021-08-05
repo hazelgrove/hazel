@@ -132,63 +132,34 @@ let view_of_cursor_inspector =
   );
 };
 
-let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Space) =>
-          prevent_stop_inject(
-            ModelAction.UpdateCursorInspector(Toggle_visible),
+      let model_action: option(ModelAction.t) = {
+        let key_combo = HazelKeyCombos.of_evt(evt);
+        let single_key = JSUtil.is_single_key(evt);
+
+        switch (key_combo, single_key) {
+        | (Some(key_combo), _) =>
+          KeyComboAction.get_model_action(cursor_info, key_combo)
+        | (_, Some(single_key)) =>
+          Some(
+            EditAction(
+              Construct(SChar(JSUtil.single_key_string(single_key))),
+            ),
           )
-        | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-          )
-        | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | None => Event.Ignore
-          | Some(single_key) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
-              ),
-            )
-          }
-        }
-      }
+        | (None, None) => None
+        };
+      };
+
+      switch (model_action) {
+      | Some(model_action) => prevent_stop_inject(model_action)
+      | None => Event.Ignore
+      };
     }),
   ];
 };
@@ -247,7 +218,6 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
@@ -293,7 +263,6 @@ let view =
         program.is_focused
           ? key_handlers(
               ~inject,
-              ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];

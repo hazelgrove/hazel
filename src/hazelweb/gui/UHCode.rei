@@ -10,7 +10,6 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~font_metrics: FontMetrics.t,
-    ~is_mac: bool,
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,
     Program.t

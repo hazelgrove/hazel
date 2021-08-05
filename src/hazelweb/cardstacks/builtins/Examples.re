@@ -1,6 +1,3 @@
-module StringMap = Map.Make(String);
-open Sexplib.Std;
-
 let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 
 let holey_lambda: UHExp.t = {
@@ -381,20 +378,33 @@ let inconsistent_branches: UHExp.t =
     )
   );
 
-[@deriving sexp]
-type id = string;
-let examples =
-  StringMap.(
-    empty
-    |> add("just_hole", just_hole)
-    |> add("holey_lambda", holey_lambda)
-    |> add("let_line", let_line)
-    |> add("map_example", map_example)
-    |> add("qsort_example", qsort_example)
-    |> add("qsort_example_3", qsort_n(3))
-    |> add("qsort_example_10", qsort_n(10))
-    |> add("qsort_example_30", qsort_n(30))
-    |> add("qsort_example_100", qsort_n(100))
-    |> add("inconsistent_branches", inconsistent_branches)
-  );
-let get = id => StringMap.find(id, examples);
+let examples = [
+  ("hole", just_hole),
+  ("lambda", holey_lambda),
+  ("let", let_line),
+  ("map", map_example),
+  ("quicksort", qsort_example),
+  ("inconsistent_branches", inconsistent_branches),
+];
+
+let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
+  name,
+  caption: Virtual_dom.Vdom.Node.div([], []),
+  init_zexp: ZExp.place_before(e),
+};
+
+let cardstack: CardstackInfo.t = {
+  title: "examples",
+  cards: List.map(example_to_card, examples),
+};
+
+let tests = [
+  ("quicksort x1", qsort_n(1)),
+  ("quicksort x10", qsort_n(10)),
+  ("quicksort x100", qsort_n(100)),
+];
+
+let teststack: CardstackInfo.t = {
+  title: "tests",
+  cards: List.map(example_to_card, tests),
+};
