@@ -6,7 +6,7 @@ open Virtual_dom;
 let exp_hole_view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    Settings.CursorInspector.t,
+    CursorInspectorModel.t,
     CursorInfo.t
   ) =>
   Vdom.Node.t;

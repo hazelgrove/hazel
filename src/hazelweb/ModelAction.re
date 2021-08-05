@@ -29,6 +29,7 @@ type t =
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)

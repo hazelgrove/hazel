@@ -108,7 +108,7 @@ let view_of_cursor_inspector =
       ~inject,
       ~font_metrics: FontMetrics.t,
       (steps, cursor): CursorPath.t,
-      cursor_inspector: Settings.CursorInspector.t,
+      cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
       l: UHLayout.t,
     ) => {
@@ -126,7 +126,7 @@ let view_of_cursor_inspector =
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
     ~inject,
-    (cursor_x, cursor_y),
+    ~loc=(cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
   );
@@ -171,7 +171,7 @@ let key_handlers =
           }
         | Some(Ctrl_Space) =>
           prevent_stop_inject(
-            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+            ModelAction.UpdateCursorInspector(Toggle_visible),
           )
         | Some(kc) =>
           prevent_stop_inject(
@@ -249,6 +249,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
+      ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -271,7 +272,7 @@ let view =
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        if (program.is_focused && settings.cursor_inspector.visible) {
+        if (program.is_focused && cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [
@@ -279,7 +280,7 @@ let view =
               ~inject,
               ~font_metrics,
               path,
-              settings.cursor_inspector,
+              cursor_inspector,
               ci,
               l,
             ),

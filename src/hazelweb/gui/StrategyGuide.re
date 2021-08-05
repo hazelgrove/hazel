@@ -223,7 +223,7 @@ let type_driven = body => Node.div([Attr.classes(["type-driven"])], body);
 let exp_hole_view =
     (
       ~inject: ModelAction.t => Event.t,
-      cursor_inspector: Settings.CursorInspector.t,
+      cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     ) => {
   let lit_open = cursor_inspector.strategy_guide_lit;
@@ -246,7 +246,7 @@ let exp_hole_view =
       )
     };
 
-  let subsection_header = (setting, text, open_section) => {
+  let subsection_header = (toggle, text, open_section) => {
     let subsection_arrow =
       if (open_section) {
         Icons.down_arrow(["fill-arrow"]);
@@ -260,7 +260,7 @@ let exp_hole_view =
           Event.Many([
             Event.Prevent_default,
             Event.Stop_propagation,
-            inject(ModelAction.UpdateSettings(CursorInspector(setting))),
+            inject(ModelAction.UpdateCursorInspector(toggle)),
           ])
         }),
       ],
@@ -445,6 +445,9 @@ let exp_hole_view =
     switch (cursor_info.parent_info) {
     | EndBranchClause =>
       List.append(other_main_options, [add_rule_after_option])
+    /* TODO: Hannah - only comment if at the beginning of empty hole ~line~ */
+    /* File bug report for not being able to add comment to empty line within subexpressions like clause of case
+       should be able to on any empty line */
     | EmptyHoleLine => List.append(other_main_options, [comment_line_option])
     | NoParentInfo => other_main_options
     };

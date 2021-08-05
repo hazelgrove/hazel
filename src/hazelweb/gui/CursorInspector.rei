@@ -6,8 +6,8 @@ open Virtual_dom;
 let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    (float, float),
-    Settings.CursorInspector.t,
+    ~loc: (float, float),
+    CursorInspectorModel.t,
     CursorInfo.t
   ) =>
   Vdom.Node.t;

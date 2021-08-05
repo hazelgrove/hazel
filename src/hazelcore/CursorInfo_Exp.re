@@ -277,19 +277,10 @@ and syn_cursor_info_line =
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
-    switch (Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix])) {
-    | None => None
-    | Some(ty) =>
-      Some(
-        CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(
-            Synthesized(ty),
-            ctx,
-            extract_from_zline(zline),
-          ),
-        ),
-      )
-    }
+    let+ ty = Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix]);
+    CursorInfo_common.CursorNotOnDeferredVarPat(
+      CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
+    );
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
@@ -631,7 +622,7 @@ and ana_cursor_info_zblock =
       ty: HTyp.t,
     )
     : option(CursorInfo.t) => {
-  let ci =
+  let+ ci =
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
     | None => None
     | Some(ctx) =>
@@ -687,16 +678,10 @@ and ana_cursor_info_zblock =
         }
       }
     };
-  switch (ci) {
-  | None => None
-  | Some(ci) =>
-    Some(
-      CursorInfo_common.set_is_empty_hole_line(
-        ci,
-        ZExp.is_empty_hole_line(zline),
-      ),
-    )
-  };
+  CursorInfo_common.set_is_empty_hole_line(
+    ci,
+    ZExp.is_empty_hole_line(zline),
+  );
 }
 and ana_cursor_info_zopseq =
     (
@@ -1078,17 +1063,11 @@ and ana_cursor_info_rule =
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
-      let cursor_info =
+      let+ cursor_info =
         ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty);
-      switch (cursor_info) {
-      | None => None
-      | Some(cursor_info) =>
-        Some(
-          CursorInfo_common.set_end_branch_clause(
-            cursor_info,
-            ZExp.is_after(zclause),
-          ),
-        )
-      };
+      CursorInfo_common.set_end_branch_clause(
+        cursor_info,
+        ZExp.is_after(zclause),
+      );
     }
   };

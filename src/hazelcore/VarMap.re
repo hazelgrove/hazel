@@ -23,7 +23,7 @@ let contains = (ctx, x) => List.mem_assoc(x, ctx);
 
 let map = (f, xs) => List.map(((x, _) as xa) => (x, f(xa)), xs);
 
-let filter = (f, xs) => List.filter(f, xs);
+let filter = List.filter;
 
 let length = List.length;
 

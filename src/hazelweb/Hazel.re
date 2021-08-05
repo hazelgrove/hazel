@@ -138,7 +138,7 @@ let create =
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
 
-            if (model.settings.cursor_inspector.visible) {
+            if (model.cursor_inspector.visible) {
               let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
               move_cursor_inspector_in_view(ci_elem);
             };

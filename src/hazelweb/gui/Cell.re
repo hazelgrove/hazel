@@ -8,6 +8,7 @@ open ViewUtil;
 
 let view = (~inject, model: Model.t) => {
   let settings = model.settings;
+  let cursor_inspector = model.cursor_inspector;
   let performance = settings.performance;
   TimeUtil.measure_time(
     "Cell.view",
@@ -28,6 +29,7 @@ let view = (~inject, model: Model.t) => {
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
                 ~settings,
+                ~cursor_inspector,
                 program,
               ),
             ],
