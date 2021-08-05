@@ -8,7 +8,6 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
-  | Tag(string)
   | InvalidTextShape(string);
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
