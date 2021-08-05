@@ -544,7 +544,10 @@ and perform_zsumbody =
       when ZTyp.is_after_zsumbody_operand(zoperand) =>
     perform_zsumbody(u_gen, MoveRight, zsumbody)
 
-  | (Construct(SSumOp(sos)), ZOperand(CursorTS(_) as zoperand, surround)) =>
+  | (
+      Construct(SSumOp(sos)),
+      ZOperand(ArgTagZ(_, _, _) as zoperand, surround),
+    ) =>
     switch (sumbody_operator_of_shape(sos)) {
     | None => Failed
     | Some(op) =>
@@ -556,22 +559,22 @@ and perform_zsumbody =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (SwapLeft, ZOperand(CursorTS(_), (E, _))) => Failed
+  | (SwapLeft, ZOperand(ArgTagZ(_, _, _), (E, _))) => Failed
   | (
       SwapLeft,
       ZOperand(
-        CursorTS(_) as zoperand,
+        ArgTagZ(_) as zoperand,
         (A(operator, S(operand, new_prefix)), suffix),
       ),
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
-  | (SwapRight, ZOperand(CursorTS(_), (_, E))) => Failed
+  | (SwapRight, ZOperand(ArgTagZ(_), (_, E))) => Failed
   | (
       SwapRight,
       ZOperand(
-        CursorTS(_) as zoperand,
+        ArgTagZ(_) as zoperand,
         (prefix, A(operator, S(operand, new_suffix))),
       ),
     ) =>
@@ -632,9 +635,9 @@ and perform_zsumbody_operand =
     Failed
 
   /* Invalid cursor positions */
-  | (_, CursorTS(OnText(_) | OnOp(_), _)) => Failed
-  | (_, CursorTS(cursor, operand))
-      when !ZTyp.is_valid_cursor_sumbody_operand(cursor, operand) =>
+  | (_, ArgTagZ(OnText(_) | OnOp(_), _, _)) => Failed
+  | (_, ArgTagZ(cursor, tag, ty))
+      when !ZTyp.is_valid_cursor_sumbody_operand(cursor, ArgTag(tag, ty)) =>
     Failed
 
   /* Movement handled at top level */
@@ -646,41 +649,41 @@ and perform_zsumbody_operand =
   /* _ <|( _ )   ==>   _| ( _ ) */
   /* _ ( _ <|)   ==>   _ ( _| ) */
   /* _ <|   ==>   _| */
-  | (Backspace, CursorTS(OnDelim(_, Before), _)) =>
+  | (Backspace, ArgTagZ(OnDelim(_, Before), _, _)) =>
     zoperand |> ZTyp.is_before_zsumbody_operand
       ? CursorEscaped(Before)
       : perform_zsumbody_operand(u_gen, MoveLeft, zoperand)
   /* |> _ ( _ )   ==>   |_ ( _ ) */
   /* _ (|> _ )   ==>   _ ( |_ ) */
   /* |> _   ==>   |_ */
-  | (Delete, CursorTS(OnDelim(_, After), _)) =>
+  | (Delete, ArgTagZ(OnDelim(_, After), _, _)) =>
     zoperand |> ZTyp.is_after_zsumbody_operand
       ? CursorEscaped(After)
       : perform_zsumbody_operand(u_gen, MoveRight, zoperand)
 
   /* Delete before delimiter == Backspace after delimiter */
-  | (Delete, CursorTS(OnDelim(k, Before), operand)) =>
+  | (Delete, ArgTagZ(OnDelim(k, Before), tag, ty)) =>
     perform_zsumbody_operand(
       u_gen,
       Backspace,
-      CursorTS(OnDelim(k, After), operand),
+      ArgTagZ(OnDelim(k, After), tag, ty),
     )
 
   /* _ ( _ )<|   ==>   _ | */
   /* _ (<| _ )   ==>   _ | */
-  | (Backspace, CursorTS(OnDelim(_, After), ArgTag(tag, _))) =>
+  | (Backspace, ArgTagZ(OnDelim(_, After), tag, _)) =>
     Succeeded((
       ZOpSeq.wrap(ZTyp.place_after_sumbody_operand(ConstTag(tag))),
       u_gen,
     ))
 
-  | (Backspace, CursorTS(OnDelim(_, After), ConstTag(_))) => Failed
+  // | (Backspace, ArgTagZ(OnDelim(_, After), ConstTag(_), _)) => Failed
 
   /* Construction */
 
-  | (Construct(SSumOp(SPlus)), CursorTS(OnDelim(_, After), _)) =>
+  | (Construct(SSumOp(SPlus)), ArgTagZ(OnDelim(_, After), _, _)) =>
     perform_zsumbody_operand(u_gen, MoveRight, zoperand)
-  | (Construct(_), CursorTS(OnDelim(_, side), _))
+  | (Construct(_), ArgTagZ(OnDelim(_, side), _, _))
       when
         !ZTyp.is_before_zsumbody_operand(zoperand)
         && !ZTyp.is_after_zsumbody_operand(zoperand) =>
@@ -691,7 +694,7 @@ and perform_zsumbody_operand =
     | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
     }
 
-  | (Construct(SSumOp(sos)), CursorTS(_)) =>
+  | (Construct(SSumOp(sos)), ArgTagZ(_, _, _)) =>
     switch (sumbody_operator_of_shape(sos)) {
     | None => Failed
     | Some(sop) =>
@@ -699,7 +702,7 @@ and perform_zsumbody_operand =
     }
 
   /* Invalid SwapLeft and SwapRight actions */
-  | (SwapLeft | SwapRight, CursorTS(_)) => Failed
+  | (SwapLeft | SwapRight, ArgTagZ(_, _, _)) => Failed
 
   /* Zipper Cases */
   | (_, ConstTagZ(ztag)) =>

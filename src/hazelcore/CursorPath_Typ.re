@@ -15,10 +15,10 @@ and of_zsumbody = zsumbody =>
   CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumbody)
 and of_zsumbody_operand =
   fun
-  | CursorTS(cursor, _) => ([], cursor)
   | ConstTagZ(ztag)
   | ArgTagZT(ztag, _) => of_ztag(ztag)
   | ArgTagZA(_, zty) => of_z(zty)
+  | ArgTagZ(cursor, _, _) => ([], cursor)
 and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
 and of_ztag = (CursorTag(cursor, _)) => ([], cursor);
 
@@ -367,13 +367,8 @@ and holes_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zsumbody_operand) {
-  | CursorTS(OnDelim(k, _), ConstTag(tag)) =>
-    let holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
-    switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_after=holes, ())
-    | _ => CursorPath_common.no_holes
-    };
-  | CursorTS(OnDelim(k, _), ArgTag(tag, ty)) =>
+  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, rev_steps)
+  | ArgTagZ(OnDelim(k, _), tag, ty) =>
     let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let ty_holes = holes(ty, [1, ...rev_steps], []);
     switch (k) {
@@ -384,18 +379,16 @@ and holes_zsumbody_operand =
         ~holes_after=ty_holes,
         (),
       )
+    | 2 => CursorPath_common.mk_zholes(~holes_before=tag_holes @ ty_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorTS(OnOp(_) | OnText(_), _) =>
-    /* invalid cursor position */
-    CursorPath_common.no_holes
-  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, [0, ...rev_steps])
+  | ArgTagZ(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
   | ArgTagZT(ztag, ty) =>
+    let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     let ty_holes = holes(ty, [1, ...rev_steps], []);
-    let holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
-    {...holes, holes_after: ty_holes @ holes.holes_after};
+    {...tag_holes, holes_after: tag_holes.holes_after @ ty_holes};
   | ArgTagZA(tag, zty) =>
     let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
-    let holes = holes_z(zty, [1, ...rev_steps]);
-    {...holes, holes_before: tag_holes @ holes.holes_before};
+    let ty_holes = holes_z(zty, [1, ...rev_steps]);
+    {...ty_holes, holes_before: tag_holes @ ty_holes.holes_before};
   };
