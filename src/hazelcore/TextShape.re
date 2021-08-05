@@ -29,36 +29,6 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
     };
   };
 
-let is_majuscule = (c: char): bool => {
-  let code = Char.code(c);
-  Char.code('A') <= code && code <= Char.code('Z');
-};
-
-let is_minuscule = (c: char): bool => {
-  let code = Char.code(c);
-  Char.code('a') <= code && code <= Char.code('z');
-};
-
-let is_numeric_digit = (c: char): bool => {
-  let code = Char.code(c);
-  Char.code('0') <= code && code <= Char.code('9');
-};
-
-let is_tag_char = (c: char): bool => {
-  is_majuscule(c) || is_minuscule(c) || is_numeric_digit(c);
-};
-
-let is_tag_chars = (cs: list(char)): bool => List.for_all(is_tag_char, cs);
-
-let is_tag_name = (str: string): bool => {
-  let chars = str |> String.to_seq |> List.of_seq;
-  switch (chars) {
-  | [] => false
-  | [c] => is_majuscule(c)
-  | [c, ...cs] => is_majuscule(c) && is_tag_chars(cs)
-  };
-};
-
 let of_text = (text: string): t =>
   switch (
     int_of_string_opt(text),
@@ -71,9 +41,7 @@ let of_text = (text: string): t =>
   | (_, _, Some(b), _) => BoolLit(b)
   | (_, _, _, Some(k)) => ExpandingKeyword(k)
   | (None, None, None, None) =>
-    if (is_tag_name(text)) {
-      Tag(text);
-    } else if (text |> String.equal("_")) {
+    if (text |> String.equal("_")) {
       Underscore;
     } else if (text |> Var.is_valid) {
       Var(text);

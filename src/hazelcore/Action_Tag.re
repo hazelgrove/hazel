@@ -10,7 +10,7 @@ let mk_text =
     } else {
       Failed;
     }
-  | Tag(str) => Succeeded((CursorTag(text_cursor, UHTag.Tag(str)), u_gen))
+  | Tag(t) => Succeeded((CursorTag(text_cursor, UHTag.Tag(t)), u_gen))
   | ExpandingKeyword(_)
   | IntLit(_)
   | FloatLit(_)
@@ -170,19 +170,19 @@ let rec perform =
     perform(u_gen, Backspace, CursorTag(OnDelim(k, After), tag))
 
   | (Delete, CursorTag(OnText(j), Tag(t))) => delete_text(u_gen, j, t)
-
   | (Backspace, CursorTag(OnText(j), Tag(t))) => backspace_text(u_gen, j, t)
 
-  /* Const  ruction */
+  /* Construction */
   | (Construct(SChar(s)), CursorTag(_, TagHole(_)))
-      when TextShape.is_tag_name(s) =>
+      when UHTag.is_tag_name(s) =>
     insert_text(u_gen, (0, s), "")
 
   | (Construct(SChar(s)), CursorTag(OnText(0), Tag(t)))
-      when TextShape.is_tag_name(s) =>
+      when UHTag.is_tag_name(s) =>
     insert_text(u_gen, (0, s), t)
   | (Construct(SChar(s)), CursorTag(OnText(j), Tag(t)))
-      when TextShape.is_tag_chars(s |> String.to_seq |> List.of_seq) =>
+      when
+        s |> String.to_seq |> List.of_seq |> List.for_all(UHTag.is_tag_char) =>
     insert_text(u_gen, (j, s), t)
 
   | (Construct(SChar(_)), CursorTag(_, _)) => Failed
