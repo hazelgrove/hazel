@@ -23,7 +23,7 @@ and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
     extract_from_zsumbody_operand(zsumbody_operand)
   | ZOperator(zsumbody_operator, _) =>
     let (cursor_pos, uop) = zsumbody_operator;
-    SumTypOp(cursor_pos, uop);
+    SumBodyOp(cursor_pos, uop);
   }
 and extract_from_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand): cursor_term =>
