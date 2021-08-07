@@ -271,6 +271,18 @@ let load_cardstack = (model, idx) => {
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
 };
 
+let load_uhexp = (model: t, e: UHExp.t): t =>
+  model
+  |> put_program(
+       Program.mk(
+         ~width=model.cell_width,
+         Statics_Exp.fix_and_renumber_holes_z(
+           Contexts.empty,
+           ZExp.place_before(e),
+         ),
+       ),
+     );
+
 let load_undo_history =
     (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {
   let new_cardstacks =

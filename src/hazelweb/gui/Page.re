@@ -121,64 +121,63 @@ let get_ast = l =>
     }
   };
 
-let parse_test = (~inject: ModelAction.t => Vdom.Event.t) =>
-  Vdom.(
-    Node.div(
-      [],
-      [
-        Node.textarea(
-          [
-            Attr.id("parse_test"),
-            Attr.classes(["page"]),
-            Attr.value(""),
-            Attr.on_change((_, s) => {
-              let t = JSUtil.force_get_elem_by_id("parse_test");
-              t##setAttribute(
-                Js_of_ocaml.Js.string("value"),
-                JSUtil.Js.string(s),
-              );
+let parse_test = (~inject: ModelAction.t => Event.t) => {
+  div(
+    [],
+    [
+      Node.textarea(
+        [
+          Attr.id("parse_test"),
+          Attr.classes(["page"]),
+          Attr.value(""),
+          Attr.on_change((_, s) => {
+            let t = JSUtil.force_get_elem_by_id("parse_test");
+            t##setAttribute(
+              Js_of_ocaml.Js.string("value"),
+              JSUtil.Js.string(s),
+            );
+            Event.Ignore;
+          }),
+        ],
+        [],
+      ),
+      Node.button(
+        [
+          Attr.on_click(_ => {
+            let e = JSUtil.force_get_elem_by_id("parse_test");
+            let s = JSUtil.force_get_attr("value", e);
+
+            let l = Lexing.from_string(s);
+            switch (get_ast(l)) {
+            | Some(ast) =>
+              let (ast, _, _) =
+                Statics_Exp.syn_fix_holes(
+                  Contexts.empty,
+                  MetaVarGen.init,
+                  ast,
+                );
+              JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
               Event.Ignore;
-            }),
-          ],
-          [],
-        ),
-        Node.button(
-          [
-            Attr.on_click(_ => {
-              let e = JSUtil.force_get_elem_by_id("parse_test");
-              let s = JSUtil.force_get_attr("value", e);
+            | None => Event.Ignore
+            };
+          }),
+        ],
+        [Node.text("Parse to Console")],
+      ),
+      Node.button(
+        [
+          Attr.on_click(_ => {
+            let e = JSUtil.force_get_elem_by_id("parse_test");
+            let s = JSUtil.force_get_attr("value", e);
 
-              let l = Lexing.from_string(s);
-              switch (get_ast(l)) {
-              | Some(ast) =>
-                let (ast, _, _) =
-                  Statics_Exp.syn_fix_holes(
-                    Contexts.empty,
-                    MetaVarGen.init,
-                    ast,
-                  );
-                JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
-                Event.Ignore;
-              | None => Event.Ignore
-              };
-            }),
-          ],
-          [Node.text("Parse to Console")],
-        ),
-        Node.button(
-          [
-            Attr.on_click(_ => {
-              let e = JSUtil.force_get_elem_by_id("parse_test");
-              let s = JSUtil.force_get_attr("value", e);
-
-              inject(ModelAction.Import(s));
-            }),
-          ],
-          [Node.text("Import")],
-        ),
-      ],
-    )
+            inject(ModelAction.Import(s));
+          }),
+        ],
+        [Node.text("Import")],
+      ),
+    ],
   );
+};
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
@@ -215,10 +214,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                           cell_status,
                         ],
                       ),
-                      parse_test,
                       Node.button(
                         [
                           Attr.on_click(_ => {
+                            let program = Model.get_program(model);
                             let e = program |> Program.get_uhexp;
                             JSUtil.log(
                               Js.string(Serialization.string_of_exp(e)),
@@ -231,7 +230,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                       Node.button(
                         [
                           Attr.on_click(_ => {
-                            let p = program;
+                            let p = Model.get_program(model);
                             let l =
                               Program.get_layout(~settings=Settings.init, p);
                             // Place the text into the text area

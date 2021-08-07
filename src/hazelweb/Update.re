@@ -154,7 +154,7 @@ let apply_action =
         | Some(ast) =>
           let (ast, _, _) =
             Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
-          Model.load_example(model, ast);
+          Model.load_uhexp(model, ast);
         | None => model
         };
       | FocusCell => model |> Model.focus_cell

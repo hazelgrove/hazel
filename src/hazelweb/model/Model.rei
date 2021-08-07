@@ -75,6 +75,8 @@ let toggle_right_sidebar: t => t;
  */
 let load_cardstack: (t, int) => t;
 
+let load_uhexp: (t, UHExp.t) => t;
+
 /**
  * load_undo_history(model, undo_history, ~is_after_move)
  * updates the model's undo history with undo_history and
