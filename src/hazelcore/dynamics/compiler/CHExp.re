@@ -3,6 +3,7 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
+  | Rectangle(t, t)
   | BuiltIn(builtin)
   | Meta(MetaVar.t, MetaVarInst.t, VarMap.t_(t), meta_exp)
   | BoundVar(Var.t)
@@ -31,7 +32,6 @@ and meta_exp =
   | EmptyHole
   | NonEmptyHole(ErrStatus.HoleReason.t, t)
 and builtin =
-  | Rectangle(t, t)
   | DoesNotMatch
   | Indet
   | UnpackSum(InjSide.t)
