@@ -100,7 +100,6 @@
 %left BAR
 %right TARROW
 %left COMMA
-%nonassoc LET LPAREN LAMBDA INT IDENT IN
 
 %start main
 %type <UHExp.t> main
