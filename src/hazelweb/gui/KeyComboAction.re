@@ -36,7 +36,7 @@ let get_model_action_from_kc =
   | Asterisk => construct(SOp(STimes))
   | Slash => construct(SOp(SDivide))
   | LT => construct(SOp(SLessThan))
-  | Space when cursor_on_comment => construct(SChar(" ")) //
+  | Space when cursor_on_comment => construct(SChar(" "))
   | Space => construct(SOp(SSpace))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
@@ -64,20 +64,34 @@ let get_model_action_from_kc =
 };
 
 let get_model_action =
-    // use cursor_info's cursor_term to match with commentline
-    // make sure only single character keys/keycombos are "printed"
     (cursor_info: CursorInfo.t, evt: Js.t(Dom_html.keyboardEvent))
     : option(ModelAction.t) => {
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let key_combo = HazelKeyCombos.of_evt(evt);
-  let single_key = JSUtil.is_single_key(evt);
+  let (_cursor_on_type, cursor_on_comment) =
+    switch (cursor_info) {
+    | {typed: OnType, _} => (true, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
+    | _ => (false, false)
+    };
 
-  switch (key_combo, single_key) {
-  | (Some(key_combo), _) => get_model_action_from_kc(cursor_info, key_combo)
-  | (_, Some(single_key)) =>
+  let key_combo = HazelKeyCombos.of_evt(evt);
+
+  let alpha_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+  // add edge cases to regexp
+  let char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
+  let single_key = JSUtil.is_single_key(evt, alpha_regexp);
+  let single_key_in_comment = JSUtil.is_single_key(evt, char_regexp);
+
+  switch (key_combo, single_key, single_key_in_comment) {
+  | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
+    JSUtil.log(JSUtil.single_key_string(single_key_in_comment));
+    construct(SChar(JSUtil.single_key_string(single_key_in_comment)));
+  | (Some(key_combo), _, _) =>
+    get_model_action_from_kc(cursor_info, key_combo)
+  | (_, Some(single_key), _) =>
     construct(SChar(JSUtil.single_key_string(single_key)))
-  | (None, None) => None
+  | (None, None, _) => None
   };
 };
