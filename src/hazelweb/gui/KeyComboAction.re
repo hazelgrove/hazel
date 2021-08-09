@@ -1,5 +1,9 @@
-let get_model_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(ModelAction.t) => {
+module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
+
+let get_model_action_from_kc =
+    (cursor_info: CursorInfo.t, key_combo: HazelKeyCombos.t)
+    : option(ModelAction.t) => {
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
@@ -10,7 +14,7 @@ let get_model_action =
     | _ => (false, false)
     };
 
-  switch (kc) {
+  switch (key_combo) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
   | Delete => Some(EditAction(Delete))
@@ -32,7 +36,7 @@ let get_model_action =
   | Asterisk => construct(SOp(STimes))
   | Slash => construct(SOp(SDivide))
   | LT => construct(SOp(SLessThan))
-  | Space when cursor_on_comment => construct(SChar(" "))
+  | Space when cursor_on_comment => construct(SChar(" ")) //
   | Space => construct(SOp(SSpace))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
@@ -56,5 +60,24 @@ let get_model_action =
   | Alt_Down => Some(EditAction(SwapDown))
   | Alt_Left => Some(EditAction(SwapLeft))
   | Alt_Right => Some(EditAction(SwapRight))
+  };
+};
+
+let get_model_action =
+    // use cursor_info's cursor_term to match with commentline
+    // make sure only single character keys/keycombos are "printed"
+    (cursor_info: CursorInfo.t, evt: Js.t(Dom_html.keyboardEvent))
+    : option(ModelAction.t) => {
+  let construct = (shape: Action.shape): option(ModelAction.t) =>
+    Some(EditAction(Construct(shape)));
+
+  let key_combo = HazelKeyCombos.of_evt(evt);
+  let single_key = JSUtil.is_single_key(evt);
+
+  switch (key_combo, single_key) {
+  | (Some(key_combo), _) => get_model_action_from_kc(cursor_info, key_combo)
+  | (_, Some(single_key)) =>
+    construct(SChar(JSUtil.single_key_string(single_key)))
+  | (None, None) => None
   };
 };

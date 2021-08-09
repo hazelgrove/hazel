@@ -110,22 +110,9 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      let model_action: option(ModelAction.t) = {
-        let key_combo = HazelKeyCombos.of_evt(evt);
-        let single_key = JSUtil.is_single_key(evt);
-
-        switch (key_combo, single_key) {
-        | (Some(key_combo), _) =>
-          KeyComboAction.get_model_action(cursor_info, key_combo)
-        | (_, Some(single_key)) =>
-          Some(
-            EditAction(
-              Construct(SChar(JSUtil.single_key_string(single_key))),
-            ),
-          )
-        | (None, None) => None
-        };
-      };
+      // remove below, move key determination to later
+      let model_action: option(ModelAction.t) =
+        KeyComboAction.get_model_action(cursor_info, evt);
 
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
