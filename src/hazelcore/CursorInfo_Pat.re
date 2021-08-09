@@ -487,10 +487,10 @@ and ana_cursor_info_zoperand =
         );
       | _ => None
       }
-    | Inj(InHole(BadTag, _), _, _) =>
+    | Inj(InHole(BadTag, _), tag, _) =>
       Some(
         CursorInfo_common.CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaInjBadTag, ctx, cursor_term),
+          CursorInfo_common.mk(PatAnaInjBadTag(tag), ctx, cursor_term),
         ),
       )
     | Inj(InHole(_, _), _, _)

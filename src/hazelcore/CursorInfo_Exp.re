@@ -865,8 +865,8 @@ and ana_cursor_info_zoperand =
       | _ => None
       }
     // AInjBadTag
-    | Inj(InHole(BadTag, _), _, _) =>
-      Some(CursorInfo_common.mk(AnaInjBadTag, ctx, cursor_term))
+    | Inj(InHole(BadTag, _), tag, _) =>
+      Some(CursorInfo_common.mk(AnaInjBadTag(tag), ctx, cursor_term))
     | Inj(InHole(_, _), _, _) => None
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),

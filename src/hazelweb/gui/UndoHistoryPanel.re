@@ -116,12 +116,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | ListNil(_) => indicate_words_view("empty list")
     | Lam(_) => indicate_words_view("function")
-
-    | Inj(_, side, _) =>
-      switch (side) {
-      | L => indicate_words_view("left injection")
-      | R => indicate_words_view("right injection")
-      }
+    | Inj(_, _, _) => indicate_words_view("injection")
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
@@ -195,11 +190,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | ListNil(_) => indicate_words_view("empty list")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | Inj(_, side, _) =>
-      switch (side) {
-      | L => indicate_words_view("left injection")
-      | R => indicate_words_view("right injection")
-      }
+    | Inj(_, _, _) => indicate_words_view("injection")
     | TypeAnn(_, _, _) => indicate_words_view("type annotation")
     };
   };
@@ -244,8 +235,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
+    | Sum(_) => indicate_words_view("sum")
     };
   };
+
+  let tag_view = (tag: UHTag.t) =>
+    switch (tag) {
+    | Tag(t) =>
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("tag: "), code_keywords_view(t)],
+        )
+      )
+    | TagHole(_) => Vdom.(Node.span([], [indicate_words_view("tag hole")]))
+    };
 
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
@@ -287,17 +291,22 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" rule")],
         )
       )
+    | SumBody(_, _) =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("sum"), indicate_words_view(" body")],
+        )
+      )
+    | SumBodyOp(_, op) => code_view(Operators_SumBody.to_string(op))
+    | Tag(_, tag) => tag_view(tag)
     };
   };
 
   let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
-    | SInj(side) =>
-      switch (side) {
-      | L => indicate_words_view("left injection")
-      | R => indicate_words_view("right injection")
-      }
+    | SInj => indicate_words_view("injection")
     | SLet =>
       Vdom.(
         Node.span(
@@ -317,8 +326,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SCommentLine
     | SAnn
-    | SParenthesized =>
-      indicate_words_view(Action_common.shape_to_string(shape))
+    | SParenthesized
+    | SSum => indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {
@@ -326,6 +335,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | _ => code_view(Action_common.shape_to_string(shape))
       }
     | SApPalette(_) => failwith("ApPalette not implemented")
+    | SSumOp(_) => code_view(Action_common.shape_to_string(shape))
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
@@ -434,6 +444,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | TypOp(_, _) => Typ
     | Line(_, _)
     | Rule(_, _) => Exp
+    | SumBody(_, _)
+    | SumBodyOp(_, _)
+    | Tag(_, _) => Typ
     };
   };
   let display_tag_typ =

@@ -24,7 +24,6 @@ type sumbody_operator_shape =
 [@deriving sexp]
 type shape =
   | SCommentLine
-  | SSum
   | SList
   | SParenthesized
   | SChar(string)
@@ -36,8 +35,9 @@ type shape =
   | SLine
   | SCase
   | SOp(operator_shape)
-  | SSumOp(sumbody_operator_shape)
-  | SApPalette(PaletteName.t);
+  | SApPalette(PaletteName.t)
+  | SSum
+  | SSumOp(sumbody_operator_shape);
 
 [@deriving sexp]
 type t =

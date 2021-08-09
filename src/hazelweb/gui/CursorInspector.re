@@ -8,6 +8,8 @@ type err_state_b =
 let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let typebar = ty =>
     Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
+  let tagbar = tag =>
+    Node.div([Attr.classes(["infobar", "tagbar"])], [HTagCode.view(tag)]);
   let matched_ty_bar = (ty1, ty2) =>
     Node.div(
       [Attr.classes(["infobar", "matched-type-bar"])],
@@ -77,6 +79,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
   let expected_a_type_indicator =
     expected_indicator("Expecting ", special_msg_bar("a type"));
+  let expected_a_tag_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a tag"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
@@ -91,6 +95,21 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
         Some(skipped_index),
       ),
     );
+  let expected_nothing_indicator = expected_msg_indicator("nothing");
+  let expected_type_consistent_with_sums_indicator =
+    expected_msg_indicator("a type consistent with sums");
+  let expected_member_of_sumtype_indicator =
+    expected_msg_indicator("a member of the expected sum type");
+  let expected_injection_body_indicator = ty =>
+    expected_indicator(
+      "Expecting an injection body expression of ",
+      typebar(ty),
+    );
+  let expected_injection_body_indicator_pat = ty =>
+    expected_indicator(
+      "Expecting an injection body pattern of ",
+      typebar(ty),
+    );
 
   let got_indicator = (title_text, type_div) =>
     Node.div(
@@ -98,6 +117,11 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
+  let got_tag_indicator = t => got_indicator("Got tag", tagbar(t));
+  let got_nothing_indicator =
+    got_indicator("Got nothing", typebar(HTyp.Hole));
+  let got_something_indicator =
+    got_indicator("Got something", typebar(HTyp.Hole));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
   let got_inconsistent_indicator = got_ty =>
@@ -122,6 +146,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
+  let got_a_tag_indicator = got_indicator("Got", special_msg_bar("a tag"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
@@ -180,6 +205,22 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | AnaInjExpectedTypeNotConsistenWithSums(expected_ty) =>
+      let ind1 = expected_type_consistent_with_sums_indicator;
+      let ind2 = got_ty_indicator(expected_ty);
+      (ind1, ind2, TypeInconsistency);
+    | AnaInjBadTag(got_tag) =>
+      let ind1 = expected_member_of_sumtype_indicator;
+      let ind2 = got_tag_indicator(got_tag);
+      (ind1, ind2, TypeInconsistency);
+    | AnaInjExpectedBody(expected_ty) =>
+      let ind1 = expected_injection_body_indicator(expected_ty);
+      let ind2 = got_nothing_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | AnaInjUnexpectedBody =>
+      let ind1 = expected_nothing_indicator;
+      let ind2 = got_something_indicator;
+      (ind1, ind2, TypeInconsistency);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -323,6 +364,43 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    // | AnaInjExpectedTypeNotConsistenWithSums(got_ty) =>
+    //   let ind1 = expected_type_consistent_with_sums_indicator;
+    //   let ind2 = got_ty_indicator(got_ty);
+    //   (ind1, ind2, TypeInconsistency);
+    // | AnaInjBadTag(got_tag) =>
+    //   let ind1 = expected_member_of_sumtype_indicator;
+    //   let ind2 = got_tag_indicator(got_tag);
+    //   (ind1, ind2, TypeInconsistency);
+    // | AnaInjExpectedBody(expected_ty) =>
+    //   let ind1 = expected_member_of_sumtype_indicator;
+    //   let ind2 = got_tag_indicator(got_tag);
+    //   (ind1, ind2, TypeInconsistency);
+    // | AnaInjUnexpectedBody =>
+    //   let ind1 = expected_injection_no_body_indicator;
+    //   let ind2 = got_something_indicator;
+    //   (ind1, ind2, TypeInconsistency);
+
+    | PatAnaInjExpectedTypeNotConsistentWithSums(expected_ty) =>
+      let ind1 = expected_type_consistent_with_sums_indicator;
+      let ind2 = got_ty_indicator(expected_ty);
+      (ind1, ind2, TypeInconsistency);
+    | PatAnaInjBadTag(got_tag) =>
+      let ind1 = expected_member_of_sumtype_indicator;
+      let ind2 = got_tag_indicator(got_tag);
+      (ind1, ind2, TypeInconsistency);
+    | PatAnaInjExpectedBody(expected_ty) =>
+      let ind1 = expected_injection_body_indicator_pat(expected_ty);
+      let ind2 = got_nothing_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | PatAnaInjUnexpectedBody =>
+      let ind1 = expected_nothing_indicator;
+      let ind2 = got_something_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | OnTag =>
+      let ind1 = expected_a_tag_indicator;
+      let ind2 = got_a_tag_indicator;
+      (ind1, ind2, OK);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;

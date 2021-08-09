@@ -62,7 +62,10 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | PatOp(cursor_pos, _)
   | TypOp(cursor_pos, _)
   | Line(cursor_pos, _)
-  | Rule(cursor_pos, _) => cursor_pos
+  | Rule(cursor_pos, _)
+  | SumBody(cursor_pos, _)
+  | SumBodyOp(cursor_pos, _)
+  | Tag(cursor_pos, _) => cursor_pos
   };
 };
 
@@ -173,7 +176,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Float
     | Bool
     | Parenthesized(_)
-    | List(_) => MaxLen
+    | List(_)
+    | Sum(_) => MaxLen
     }
   | ExpOp(_, _)
   | PatOp(_, _)
@@ -185,6 +189,13 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_)
     | ExpLine(_) => MaxLen
+    }
+  | SumBody(_, _) => MaxLen
+  | SumBodyOp(_, _) => Len(1)
+  | Tag(_, tag) =>
+    switch (tag) {
+    | Tag(t) => Len(String.length(t))
+    | TagHole(_) => MinLen
     }
   };
 };

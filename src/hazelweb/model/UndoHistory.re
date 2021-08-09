@@ -499,9 +499,11 @@ let get_new_action_group =
       | SAnn
       | SLam
       | SListNil
-      | SInj(_)
+      | SInj
       | SLet
-      | SCase => Some(ConstructEdit(shape))
+      | SCase
+      | SSum
+      | SSumOp(_) => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
               ~prev_group,

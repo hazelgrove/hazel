@@ -33,7 +33,7 @@ type typed =
   // cursor is on an injection and expected type is not a sum
   | AnaInjExpectedTypeNotConsistenWithSums(HTyp.t)
   // cursor is on an injection with a bad tag
-  | AnaInjBadTag
+  | AnaInjBadTag(UHTag.t)
   // cursor is on a unary injection with no body
   | AnaInjExpectedBody(HTyp.t)
   // cursor is on a nullary injection with body
@@ -94,7 +94,7 @@ type typed =
   // cursor is on an inj pattern and expected type is not a sum
   | PatAnaInjExpectedTypeNotConsistentWithSums(HTyp.t)
   // cursor is on an injection pattern with a bad tag
-  | PatAnaInjBadTag
+  | PatAnaInjBadTag(UHTag.t)
   // cursor is on a unary injection pattern with no body
   | PatAnaInjExpectedBody(HTyp.t)
   // cursor is on a nullary injection pattern with body
