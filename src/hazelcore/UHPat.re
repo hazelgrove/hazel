@@ -212,6 +212,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, None) => true
-  | Inj(NotInHole, _, Some(body)) => is_complete(body)
+  | Inj(NotInHole, tag, Some(body)) =>
+    UHTag.is_complete(tag) && is_complete(body)
   };
 };

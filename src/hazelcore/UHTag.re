@@ -47,3 +47,8 @@ let of_text = (text: string): option(t) =>
   } else {
     None;
   };
+
+let is_complete: t => bool =
+  fun
+  | Tag(_) => true
+  | TagHole(_) => false;
