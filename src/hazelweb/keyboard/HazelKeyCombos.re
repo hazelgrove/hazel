@@ -26,8 +26,7 @@ type t =
   | Comma
   | LeftBracket
   | Semicolon
-  | Alt_L
-  | Alt_R
+  | Alt_I
   | Alt_C
   | Pound
   | Ctrl_Z
@@ -65,8 +64,7 @@ let get_details =
   | Comma => KeyCombo.comma
   | LeftBracket => KeyCombo.left_bracket
   | Semicolon => KeyCombo.semicolon
-  | Alt_L => KeyCombo.alt_L
-  | Alt_R => KeyCombo.alt_R
+  | Alt_I => KeyCombo.alt_I
   | Alt_C => KeyCombo.alt_C
   | Ctrl_Z => KeyCombo.ctrl_z
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
@@ -135,10 +133,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(LeftBracket);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
-  } else if (evt_matches(KeyCombo.alt_L)) {
-    Some(Alt_L);
-  } else if (evt_matches(KeyCombo.alt_R)) {
-    Some(Alt_R);
+  } else if (evt_matches(KeyCombo.alt_I)) {
+    Some(Alt_I);
   } else if (evt_matches(KeyCombo.alt_C)) {
     Some(Alt_C);
   } else if (evt_matches(KeyCombo.ctrl_alt_i)) {

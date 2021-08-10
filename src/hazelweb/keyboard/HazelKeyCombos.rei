@@ -26,8 +26,7 @@ type t =
   | Comma
   | LeftBracket
   | Semicolon
-  | Alt_L
-  | Alt_R
+  | Alt_I
   | Alt_C
   | Pound
   | Ctrl_Z

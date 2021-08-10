@@ -381,8 +381,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     section(
       "Sum Types",
       [
-        combo(Alt_L, simple("Left injection")),
-        combo(Alt_R, simple("Right injection")),
+        combo(Alt_I, simple("Injection")),
         combo(VBar, simple("Insert | type operator")),
       ],
     ),
@@ -476,12 +475,13 @@ let _check_actions = (a: Action.t) =>
   | Construct(SList) => Added
   | Construct(SListNil) => Added
   | Construct(SOp(SCons)) => Added
-  | Construct(SInj(L)) => Added
-  | Construct(SInj(R)) => Added
+  | Construct(SInj) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
+  | Construct(SSum) => Added
+  | Construct(SSumOp(_)) => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added
