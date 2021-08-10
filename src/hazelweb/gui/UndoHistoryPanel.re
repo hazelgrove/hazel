@@ -6,7 +6,9 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 type tag_typ =
   | Exp
   | Pat
-  | Typ;
+  | Typ
+  | SumBody
+  | Tag;
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
@@ -603,6 +605,20 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
             [Node.text("TYP")],
+          )
+        )
+      | SumBody =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-sum"])],
+            [Node.text("SUM")],
+          )
+        )
+      | Tag =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-tag"])],
+            [Node.text("TAG")],
           )
         )
       }

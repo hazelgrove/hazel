@@ -36,6 +36,8 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
+    | SumBody({plus_indices, _}) =>
+      List.exists(n => steps == [n], plus_indices)
     | BinOp({op_index, _}) => steps == [op_index]
     | Operand
     | Case

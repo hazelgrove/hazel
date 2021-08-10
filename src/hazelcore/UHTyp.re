@@ -39,11 +39,11 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-// let rec get_sum_elements: skel => list(skel) =
-//   fun
-//   | BinOp(_, Sum, skel1, skel2) =>
-//     get_sum_elements(skel1) @ get_sum_elements(skel2)
-//   | skel => [skel];
+let rec get_sumbody_elements: sumbody_skel => list(sumbody_skel) =
+  fun
+  | BinOp(_, Plus, skel1, skel2) =>
+    get_sumbody_elements(skel1) @ get_sumbody_elements(skel2)
+  | skel => [skel];
 
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {

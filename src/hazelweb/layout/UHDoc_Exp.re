@@ -32,8 +32,11 @@ let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
-let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
-  UHDoc_common.mk_Inj(~sort=Exp);
+let mk_Inj =
+    (tag: UHTag.t, body_opt: option(UHDoc_common.formatted_child)): UHDoc.t => {
+  let tag_doc = UHDoc_Tag.mk(tag);
+  UHDoc_common.mk_Inj(~sort=Exp, tag_doc, body_opt);
+};
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
@@ -182,9 +185,17 @@ and mk_operand =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
           UHDoc_common.mk_Lam(p, body);
-        | Inj(_, inj_side, body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Inj(~inj_side, body);
+        | Inj(_, tag, body_opt) =>
+          let body_opt =
+            switch (body_opt) {
+            | Some(body) =>
+              Some(mk_child(~memoize, ~enforce_inline, ~child_step=0, body))
+            | None => None
+            };
+          mk_Inj(tag, body_opt);
+        // | Inj(_, inj_side, body) =>
+        //   let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+        //   mk_Inj(~inj_side, body);
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);

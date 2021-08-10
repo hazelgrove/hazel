@@ -38,6 +38,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FloatLit(_)
   | ListNil(_)
   | Inj(_)
+  | InjError(_, _, _, _, _)
   | EmptyHole(_)
   | Triv
   | FailedCast(_)
@@ -178,12 +179,19 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
-      | Inj(_, inj_side, d) =>
-        let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
-        DHDoc_common.mk_Inj(
-          inj_side,
-          child |> DHDoc_common.pad_child(~enforce_inline),
-        );
+      | Inj((_, tag, body_opt)) =>
+        let tag_doc = DHDoc_Tag.mk(tag);
+        let padded_child_opt =
+          switch (body_opt) {
+          | Some(body) =>
+            let child = (~enforce_inline) =>
+              mk_cast(go(~enforce_inline, body));
+            Some(DHDoc_common.pad_child(~enforce_inline, child));
+          | None => None
+          };
+        DHDoc_common.mk_Inj(tag_doc, padded_child_opt);
+      | InjError(reason, u, i, _sigma, inj) =>
+        go'(Inj(inj)) |> mk_cast |> annot(DHAnnot.InjHole(reason, (u, i)))
       | Ap(d1, d2) =>
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);

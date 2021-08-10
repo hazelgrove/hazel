@@ -11,10 +11,11 @@ let precedence = (dp: DHPat.t) =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | Inj(_)
   | Triv
   | ListNil
-  | Pair(_) => DHDoc_common.precedence_const
+  | Pair(_)
+  | Inj(_)
+  | InjError(_) => DHDoc_common.precedence_const
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   };
@@ -43,11 +44,17 @@ let rec mk =
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | Inj(inj_side, dp) =>
-      DHDoc_common.mk_Inj(
-        inj_side,
-        mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
-      )
+    | Inj((tag, body_opt)) =>
+      let tag_doc = DHDoc_Tag.mk(tag);
+      let padded_child_opt =
+        switch (body_opt) {
+        | Some(body) =>
+          Some(DHDoc_common.pad_child(~enforce_inline, mk(body)))
+        | None => None
+        };
+      DHDoc_common.mk_Inj(tag_doc, padded_child_opt);
+    | InjError(reason, u, i, inj) =>
+      mk'(Inj(inj)) |> Doc.annot(DHAnnot.InjHole(reason, (u, i)))
     | ListNil => DHDoc_common.Delim.list_nil
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =

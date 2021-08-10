@@ -32,6 +32,7 @@ type sumbody_skel = OpSeq.skel(sumbody_operator);
 type sumbody_seq = OpSeq.seq(sumbody_operand, sumbody_operator);
 
 let get_prod_elements: skel => list(skel);
+let get_sumbody_elements: sumbody_skel => list(sumbody_skel);
 
 let unwrap_parentheses: operand => t;
 

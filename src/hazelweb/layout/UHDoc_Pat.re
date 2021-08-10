@@ -14,8 +14,11 @@ let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Pat);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Pat);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Pat);
-let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
-  UHDoc_common.mk_Inj(~sort=Pat);
+let mk_Inj =
+    (tag: UHTag.t, body_opt: option(UHDoc_common.formatted_child)): UHDoc.t => {
+  let tag_doc = UHDoc_Tag.mk(tag);
+  UHDoc_common.mk_Inj(~sort=Pat, tag_doc, body_opt);
+};
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
@@ -74,9 +77,14 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Inj(_, inj_side, body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Inj(~inj_side, body);
+        | Inj(_, tag, body_opt) =>
+          let body_opt =
+            switch (body_opt) {
+            | Some(body) =>
+              Some(mk_child(~memoize, ~enforce_inline, ~child_step=0, body))
+            | None => None
+            };
+          mk_Inj(tag, body_opt);
         | TypeAnn(_, op, ann) =>
           let ann_child =
             UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann);

@@ -79,9 +79,23 @@ module Delim = {
   let open_Parenthesized = (): t => mk(~index=0, "(");
   let close_Parenthesized = (): t => mk(~index=1, ")");
 
-  let open_Inj = (inj_side: InjSide.t): t =>
-    mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
-  let close_Inj = (): t => mk(~index=1, ")");
+  let open_TagArg = (): t => mk(~index=1, "(");
+  let close_TagArg = (): t => mk(~index=2, ")");
+
+  let open_Sum = (): t => mk(~index=0, "sum {");
+  let close_Sum = (): t => mk(~index=1, "}");
+
+  let open_Inj = (): t => mk(~index=0, "inj[");
+  let body_Inj = (body_opt: option('a)): option(t) =>
+    switch (body_opt) {
+    | Some(_) => Some(mk(~index=1, "]("))
+    | None => None
+    };
+  let close_Inj = (body_opt: option('a)): t =>
+    switch (body_opt) {
+    | Some(_) => mk(~index=2, ")")
+    | None => mk(~index=1, "]")
+    };
 
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
@@ -293,6 +307,19 @@ let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
+let mk_Tag = (t: string): t =>
+  mk_text(t) |> annot_Tessera |> annot_Operand(~sort=Tag);
+
+let mk_TagHole = (hole_lbl: string): t =>
+  Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort=Tag);
+
+let mk_ArgTag = (tag_doc: t, ty_doc: t): t => {
+  let open_group = Delim.open_TagArg() |> annot_Tessera;
+  let close_group = Delim.close_TagArg() |> annot_Tessera;
+  Doc.hcats([tag_doc, open_group, ty_doc, close_group])
+  |> annot_Operand(~sort=SumBody);
+};
+
 let mk_Wild = (): t =>
   Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
 
@@ -321,6 +348,13 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_Sum = (sumbody: formatted_child): t => {
+  let open_group = Delim.open_Sum() |> annot_Tessera;
+  let close_group = Delim.close_Sum() |> annot_Tessera;
+  Doc.hcats([open_group, sumbody |> pad_bidelimited_open_child, close_group])
+  |> annot_Operand(~sort=SumBody);
+};
+
 let mk_List = (body: formatted_child): t => {
   let open_group = Delim.open_List() |> annot_Tessera;
   let close_group = Delim.close_List() |> annot_Tessera;
@@ -329,10 +363,20 @@ let mk_List = (body: formatted_child): t => {
 };
 
 let mk_Inj =
-    (~sort: TermSort.t, ~inj_side: InjSide.t, body: formatted_child): t => {
-  let open_group = Delim.open_Inj(inj_side) |> annot_Tessera;
-  let close_group = Delim.close_Inj() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
+    (~sort: TermSort.t, tag_doc: UHDoc.t, body_opt: option(formatted_child))
+    : t => {
+  let open_group = Delim.open_Inj() |> annot_Tessera;
+  let close_group = Delim.close_Inj(body_opt) |> annot_Tessera;
+  let maybe_body =
+    switch (body_opt, Delim.body_Inj(body_opt)) {
+    | (Some(body), Some(body_group)) => [
+        body |> pad_bidelimited_open_child,
+        body_group,
+      ]
+    | (None, _)
+    | (_, None) => []
+    };
+  Doc.hcats([open_group, tag_doc] @ maybe_body @ [close_group])
   |> annot_Operand(~sort);
 };
 
@@ -578,6 +622,93 @@ let mk_NTuple =
       UHAnnot.mk_Term(
         ~sort,
         ~shape=NTuple({comma_indices: comma_indices}),
+        (),
+      ),
+      choices,
+    );
+  };
+};
+
+let mk_SumBody =
+    (
+      ~get_sumbody_elements: Skel.t('operator) => list(Skel.t('operator)),
+      ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+      ~mk_operator: 'operator => t,
+      ~inline_padding_of_operator: 'operator => (t, t),
+      ~enforce_inline: bool,
+      OpSeq(skel, seq): OpSeq.t('operand, 'operator),
+    )
+    : t => {
+  let mk_BinOp =
+    mk_BinOp(
+      ~sort=SumBody,
+      ~mk_operand,
+      ~mk_operator,
+      ~inline_padding_of_operator,
+      ~seq,
+    );
+
+  switch (get_sumbody_elements(skel)) {
+  | [] => failwith(__LOC__ ++ ": found empty sum")
+  | [singleton] => mk_BinOp(~enforce_inline, singleton)
+  | [hd, ...tl] =>
+    let hd_doc = (~enforce_inline: bool) =>
+      // TODO need to relax is_inline
+      Doc.annot(
+        UHAnnot.OpenChild(enforce_inline ? InlineWithBorder : Multiline),
+        mk_BinOp(~enforce_inline, hd),
+      );
+    let plus_doc = (step: int) => annot_Step(step, mk_op("+"));
+    let (inline_choice, plus_indices) =
+      tl
+      |> List.fold_left(
+           ((sumbody, plus_indices), elem) => {
+             let plus_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=true, elem);
+             let doc =
+               Doc.hcats([
+                 sumbody,
+                 annot_Tessera(plus_doc(plus_index)),
+                 Doc.annot(
+                   UHAnnot.OpenChild(InlineWithBorder),
+                   Doc.hcat(space_, elem_doc),
+                 ),
+               ]);
+             (doc, [plus_index, ...plus_indices]);
+           },
+           (hd_doc(~enforce_inline=true), []),
+         );
+    let multiline_choice =
+      tl
+      |> List.fold_left(
+           (sumbody, elem) => {
+             let plus_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=false, elem);
+             Doc.(
+               vsep(
+                 sumbody,
+                 hcat(
+                   annot_Tessera(plus_doc(plus_index)),
+                   // TODO need to have a choice here for multiline vs not
+                   annot(
+                     UHAnnot.OpenChild(Multiline),
+                     hcat(space_, align(elem_doc)),
+                   ),
+                 ),
+               )
+             );
+           },
+           hd_doc(~enforce_inline=false),
+         );
+    let choices =
+      enforce_inline
+        ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+    Doc.annot(
+      UHAnnot.mk_Term(
+        ~sort=SumBody,
+        ~shape=SumBody({plus_indices: plus_indices}),
         (),
       ),
       choices,

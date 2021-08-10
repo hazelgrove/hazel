@@ -66,9 +66,15 @@ module Delim = {
   let open_FixF = mk(".{");
   let close_FixF = mk("}");
 
-  let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
-  let close_Inj = mk(")");
+  let open_Inj = mk("inj[");
+  let body_Inj =
+    fun
+    | Some(_) => Some(mk("]("))
+    | None => None;
+  let close_Inj =
+    fun
+    | Some(_) => mk(")")
+    | None => mk("]");
 
   let open_Case = mk("case");
   let close_Case = mk("end");
@@ -110,8 +116,18 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_Inj = (inj_side, padded_child) =>
-  Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
+let mk_Inj = (tag_doc, padded_child_opt) => {
+  let maybe_body_delim =
+    switch (Delim.body_Inj(padded_child_opt)) {
+    | Some(delim) => [delim]
+    | None => []
+    };
+  Doc.hcats(
+    [Delim.open_Inj, tag_doc]
+    @ maybe_body_delim
+    @ [Delim.close_Inj(padded_child_opt)],
+  );
+};
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
