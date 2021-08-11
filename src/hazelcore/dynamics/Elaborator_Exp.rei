@@ -1,6 +1,6 @@
 type elab_result_lines =
-  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotExpand;
+  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotElaborate;
 
 module ElaborationResult: {
   type t =

@@ -1,6 +1,6 @@
 type elab_result_lines =
-  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotExpand;
+  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotElaborate;
 
 module ElaborationResult = {
   type t =
@@ -35,8 +35,8 @@ and syn_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaborate(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -47,15 +47,15 @@ and syn_elab_lines =
     (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
   switch (lines) {
-  | [] => LinesExpand(d => d, ctx, delta)
+  | [] => LinesElaborate(d => d, ctx, delta)
   | [line, ...lines] =>
     switch (syn_elab_line(ctx, delta, line)) {
-    | LinesDoNotExpand => LinesDoNotExpand
-    | LinesExpand(prelude_line, ctx, delta) =>
+    | LinesDoNotElaborate => LinesDoNotElaborate
+    | LinesElaborate(prelude_line, ctx, delta) =>
       switch (syn_elab_lines(ctx, delta, lines)) {
-      | LinesDoNotExpand => LinesDoNotExpand
-      | LinesExpand(prelude_lines, ctx, delta) =>
-        LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
+      | LinesDoNotElaborate => LinesDoNotElaborate
+      | LinesElaborate(prelude_lines, ctx, delta) =>
+        LinesElaborate(d => prelude_line(prelude_lines(d)), ctx, delta)
       }
     }
   }
@@ -64,20 +64,20 @@ and syn_elab_line =
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
-    | DoesNotElaborate => LinesDoNotExpand
+    | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
-      LinesExpand(prelude, ctx, delta);
+      LinesElaborate(prelude, ctx, delta);
     }
   | EmptyLine
-  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
+  | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
-    | None => LinesDoNotExpand
+    | None => LinesDoNotElaborate
     | Some((ty1, _)) =>
       let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
-      | DoesNotElaborate => LinesDoNotExpand
+      | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1', delta) =>
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
@@ -95,10 +95,10 @@ and syn_elab_line =
           };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
+        | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
+          LinesElaborate(prelude, ctx, delta);
         };
       };
     }
@@ -482,8 +482,8 @@ and ana_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaborate(prelude, ctx, delta) =>
       switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
