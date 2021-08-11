@@ -19,10 +19,9 @@ and zsumbody =
     zsumbody_operand,
     zsumbody_operator,
   )
-// TODO: rename ArgTagZ to CursorAT
 and zsumbody_operand =
+  | CursorATag(CursorPosition.t, UHTag.t, UHTyp.t)
   | ConstTagZ(ZTag.t)
-  | ArgTagZ(CursorPosition.t, UHTag.t, UHTyp.t)
   | ArgTagZT(ZTag.t, UHTyp.t)
   | ArgTagZA(UHTag.t, t);
 
@@ -108,7 +107,7 @@ and erase_zsumbody = zsumbody =>
 and erase_zsumbody_operand =
   fun
   | ConstTagZ(ztag) => UHTyp.ConstTag(ZTag.erase(ztag))
-  | ArgTagZ(_, tag, ty) => UHTyp.ArgTag(tag, ty)
+  | CursorATag(_, tag, ty) => UHTyp.ArgTag(tag, ty)
   | ArgTagZT(ztag, ty) => UHTyp.ArgTag(ZTag.erase(ztag), ty)
   | ArgTagZA(tag, zty) => UHTyp.ArgTag(tag, erase(zty));
 
@@ -147,7 +146,7 @@ let is_before_zoperator: zoperator => bool =
 
 let is_before_zsumbody_operand =
   fun
-  | ArgTagZ(cursor, _, _) => cursor == OnDelim(0, Before)
+  | CursorATag(cursor, _, _) => cursor == OnDelim(0, Before)
   | ConstTagZ(ztag)
   | ArgTagZT(ztag, _) => ZTag.is_before(ztag)
   | ArgTagZA(_, _) => false;
@@ -177,7 +176,7 @@ let is_after_zoperator: zoperator => bool =
 
 let is_after_zsumbody_operand =
   fun
-  | ArgTagZ(cursor, _, _) => cursor == OnDelim(2, After)
+  | CursorATag(cursor, _, _) => cursor == OnDelim(2, After)
   | ArgTagZT(_, _) => false
   | ArgTagZA(_, zty) => is_after(zty)
   | ConstTagZ(ztag) => ZTag.is_after(ztag);
@@ -249,7 +248,7 @@ let place_cursor_sumbody_operand =
   is_valid_cursor_sumbody_operand(cursor, operand)
     ? switch (operand) {
       | ConstTag(tag) => Some(ConstTagZ(ZTag.CursorTag(cursor, tag)))
-      | ArgTag(tag, ty) => Some(ArgTagZ(cursor, tag, ty))
+      | ArgTag(tag, ty) => Some(CursorATag(cursor, tag, ty))
       }
     : None;
 let place_cursor_sumbody_operator =
@@ -332,10 +331,10 @@ and move_cursor_left_zsumbody_operand =
       let+ ztag = ZTag.move_cursor_left(ztag);
       ConstTagZ(ztag);
     }
-  | ArgTagZ(OnOp(_) | OnText(_), _, _) => None
-  | ArgTagZ(OnDelim(k, After), tag, ty) =>
-    Some(ArgTagZ(OnDelim(k, Before), tag, ty))
-  | ArgTagZ(OnDelim(k, Before), tag, ty) =>
+  | CursorATag(OnOp(_) | OnText(_), _, _) => None
+  | CursorATag(OnDelim(k, After), tag, ty) =>
+    Some(CursorATag(OnDelim(k, Before), tag, ty))
+  | CursorATag(OnDelim(k, Before), tag, ty) =>
     switch (k) {
     | 1 => Some(ArgTagZT(ZTag.place_after(tag), ty))
     | 2 => Some(ArgTagZA(tag, place_after(ty)))
@@ -344,12 +343,12 @@ and move_cursor_left_zsumbody_operand =
   | ArgTagZT(ztag, ty) =>
     switch (ZTag.move_cursor_left(ztag)) {
     | Some(ztag) => Some(ArgTagZT(ztag, ty))
-    | None => Some(ArgTagZ(OnDelim(0, Before), ZTag.erase(ztag), ty))
+    | None => Some(CursorATag(OnDelim(0, Before), ZTag.erase(ztag), ty))
     }
   | ArgTagZA(tag, zty) =>
     switch (move_cursor_left(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
-    | None => Some(ArgTagZ(OnDelim(1, After), tag, erase(zty)))
+    | None => Some(CursorATag(OnDelim(1, After), tag, erase(zty)))
     };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
@@ -426,10 +425,10 @@ and move_cursor_right_zsumbody_operand =
       let+ ztag = ZTag.move_cursor_right(ztag);
       ConstTagZ(ztag);
     }
-  | ArgTagZ(OnOp(_) | OnText(_), _, _) => None
-  | ArgTagZ(OnDelim(k, Before), tag, ty) =>
-    Some(ArgTagZ(OnDelim(k, After), tag, ty))
-  | ArgTagZ(OnDelim(k, After), tag, ty) =>
+  | CursorATag(OnOp(_) | OnText(_), _, _) => None
+  | CursorATag(OnDelim(k, Before), tag, ty) =>
+    Some(CursorATag(OnDelim(k, After), tag, ty))
+  | CursorATag(OnDelim(k, After), tag, ty) =>
     switch (k) {
     | 0 => Some(ArgTagZT(ZTag.place_before(tag), ty))
     | 1 => Some(ArgTagZA(tag, place_before(ty)))
@@ -438,10 +437,10 @@ and move_cursor_right_zsumbody_operand =
   | ArgTagZT(ztag, ty) =>
     switch (ZTag.move_cursor_right(ztag)) {
     | Some(ztag) => Some(ArgTagZT(ztag, ty))
-    | None => Some(ArgTagZ(OnDelim(1, Before), ZTag.erase(ztag), ty))
+    | None => Some(CursorATag(OnDelim(1, Before), ZTag.erase(ztag), ty))
     }
   | ArgTagZA(tag, zty) =>
     switch (move_cursor_right(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
-    | None => Some(ArgTagZ(OnDelim(2, Before), tag, erase(zty)))
+    | None => Some(CursorATag(OnDelim(2, Before), tag, erase(zty)))
     };

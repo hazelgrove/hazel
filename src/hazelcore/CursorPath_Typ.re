@@ -18,7 +18,7 @@ and of_zsumbody_operand =
   | ConstTagZ(ztag)
   | ArgTagZT(ztag, _) => of_ztag(ztag)
   | ArgTagZA(_, zty) => of_z(zty)
-  | ArgTagZ(cursor, _, _) => ([], cursor)
+  | CursorATag(cursor, _, _) => ([], cursor)
 and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
 and of_ztag = (CursorTag(cursor, _)) => ([], cursor);
 
@@ -368,7 +368,7 @@ and holes_zsumbody_operand =
     : CursorPath.zhole_list =>
   switch (zsumbody_operand) {
   | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, rev_steps)
-  | ArgTagZ(OnDelim(k, _), tag, ty) =>
+  | CursorATag(OnDelim(k, _), tag, ty) =>
     let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let ty_holes = holes(ty, [1, ...rev_steps], []);
     switch (k) {
@@ -382,7 +382,7 @@ and holes_zsumbody_operand =
     | 2 => CursorPath_common.mk_zholes(~holes_before=tag_holes @ ty_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | ArgTagZ(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
+  | CursorATag(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
   | ArgTagZT(ztag, ty) =>
     let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     let ty_holes = holes(ty, [1, ...rev_steps], []);

@@ -28,7 +28,7 @@ and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
 and extract_from_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand): cursor_term =>
   switch (zsumbody_operand) {
-  | ArgTagZ(cursor, tag, ty) => SumBody(cursor, ArgTag(tag, ty))
+  | CursorATag(cursor, tag, ty) => SumBody(cursor, ArgTag(tag, ty))
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
