@@ -2,7 +2,6 @@ open Action;
 
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
-  | SSum => "sum type"
   | SList => "list type"
   | SParenthesized => "parentheses"
   | SChar(str) => str
@@ -30,10 +29,6 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
-    }
-  | SSumOp(sumbody_operator_shape) =>
-    switch (sumbody_operator_shape) {
-    | SPlus => "+"
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };

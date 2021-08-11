@@ -329,7 +329,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SCommentLine
     | SAnn
     | SParenthesized
-    | SSum => indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {
@@ -337,7 +336,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | _ => code_view(Action_common.shape_to_string(shape))
       }
     | SApPalette(_) => failwith("ApPalette not implemented")
-    | SSumOp(_) => code_view(Action_common.shape_to_string(shape))
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {

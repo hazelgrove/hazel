@@ -153,21 +153,6 @@ and expand_skel = (skel, seq) =>
     Prod(
       skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
     )
-  | BinOp(_, Sum, _, _) =>
-    let sumbody_operand_to_binding = (
-      fun
-      | ConstTag(tag) => (tag, None)
-      | ArgTag(tag, ty) => (tag, Some(expand(ty)))
-    );
-    switch (seq) {
-    | S(Sum(OpSeq(_, seq1)), E) =>
-      let sumbody =
-        Seq.operands(seq1)
-        |> List.map(sumbody_operand_to_binding)
-        |> TagMap.of_list;
-      Sum(sumbody);
-    | _ => failwith("cannot expand malformed sum")
-    };
   }
 and expand_operand =
   fun

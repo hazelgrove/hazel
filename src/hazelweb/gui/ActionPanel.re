@@ -480,8 +480,6 @@ let _check_actions = (a: Action.t) =>
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
-  | Construct(SSum) => Added
-  | Construct(SSumOp(_)) => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added

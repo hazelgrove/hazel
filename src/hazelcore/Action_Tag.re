@@ -78,12 +78,11 @@ let perform =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SList | SListNil | SSum | SInj | SCase |
+        SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
         SParenthesized |
         SOp(_) |
         SApPalette(_) |
-        SCommentLine |
-        SSumOp(_),
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown |

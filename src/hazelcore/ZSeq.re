@@ -118,3 +118,17 @@ let move_cursor_right =
     | (Some(zop), _) => Some(ZOperator(zop, surround))
     }
   };
+
+let insert =
+    (zseq: t('operand, 'operator, 'zoperand, 'zoperator), (prefix, suffix))
+    : t('operand, 'operator, 'zoperand, 'zoperator) =>
+  switch (zseq) {
+  | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
+    let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+    let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+    ZOperand(zoperand, (new_prefix, new_suffix));
+  | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
+    let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+    let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+    ZOperator(zoperator, (new_prefix, new_suffix));
+  };

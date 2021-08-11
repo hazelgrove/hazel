@@ -187,12 +187,13 @@ let%test "holey operator precedence test" = {
 };
 
 let%test "type precedence test" = {
-  // Int + Int -> Int || Int -> Int
+  // Int , Int -> Int, Int -> Int
+  // (Int , (Int -> Int)), (Int -> Int)
   let second_half =
     Seq.S(
       UHTyp.Int,
       Seq.A(
-        Operators_Typ.Sum,
+        Operators_Typ.Prod,
         Seq.S(
           UHTyp.Int,
           Seq.A(Operators_Typ.Arrow, Seq.S(UHTyp.Int, Seq.E)),
@@ -223,7 +224,7 @@ let%test "type precedence test" = {
           Operators_Typ.Arrow,
           Skel.BinOp(
             NotInHole,
-            Operators_Typ.Sum,
+            Operators_Typ.Prod,
             Skel.Placeholder(2),
             Skel.Placeholder(3),
           ),

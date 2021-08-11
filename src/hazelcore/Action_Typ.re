@@ -2,7 +2,7 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
-  | SPlus => Some(Sum)
+  | SPlus
   | SVBar
   | SMinus
   | STimes
@@ -20,17 +20,29 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   switch (op) {
   | Arrow => SArrow
   | Prod => SComma
-  | Sum => SVBar
   };
 
 let sumbody_operator_of_shape =
-    (sos: Action.sumbody_operator_shape): option(UHTyp.sumbody_operator) =>
-  switch (sos) {
+    (os: Action.operator_shape): option(UHTyp.sumbody_operator) =>
+  switch (os) {
   | SPlus => Some(Plus)
+  | SArrow
+  | SComma
+  | SVBar
+  | SMinus
+  | STimes
+  | SDivide
+  | SAnd
+  | SOr
+  | SLessThan
+  | SGreaterThan
+  | SEquals
+  | SSpace
+  | SCons => None
   };
 
 let shape_of_sumbody_operator =
-    (op: UHTyp.sumbody_operator): Action.sumbody_operator_shape =>
+    (op: UHTyp.sumbody_operator): Action.operator_shape =>
   switch (op) {
   | Plus => SPlus
   };
@@ -276,6 +288,15 @@ and perform_opseq =
       when ZTyp.is_after_zoperand(zoperand) =>
     perform_opseq(u_gen, MoveRight, zopseq)
 
+  | (Construct(SOp(SPlus)), ZOperand(CursorT(_) as zoperand, surround)) =>
+    switch (perform_operand(u_gen, a, zoperand)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      perform_opseq(u_gen, Action_common.escape(side), zopseq)
+    | Succeeded((ZOpSeq(_, zseq), u_gen)) =>
+      Succeeded((ZTyp.mk_ZOpSeq(ZSeq.insert(zseq, surround)), u_gen))
+    }
+
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
@@ -312,28 +333,13 @@ and perform_opseq =
     Succeeded((ZTyp.mk_ZOpSeq(new_zseq), u_gen));
 
   /* Zipper */
-  | (_, ZOperand(zoperand, (prefix, suffix))) =>
+  | (_, ZOperand(zoperand, surround)) =>
     switch (perform_operand(u_gen, a, zoperand)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       perform_opseq(u_gen, Action_common.escape(side), zopseq)
     | Succeeded((ZOpSeq(_, zseq), u_gen)) =>
-      switch (zseq) {
-      | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.affix_affix(inner_prefix, prefix);
-        let new_suffix = Seq.affix_affix(inner_suffix, suffix);
-        Succeeded((
-          ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
-          u_gen,
-        ));
-      | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.seq_affix(inner_prefix, prefix);
-        let new_suffix = Seq.seq_affix(inner_suffix, suffix);
-        Succeeded((
-          ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
-          u_gen,
-        ));
-      }
+      Succeeded((ZTyp.mk_ZOpSeq(ZSeq.insert(zseq, surround)), u_gen))
     }
   | (Init, _) => failwith("Init action should not be performed.")
   }
@@ -346,8 +352,7 @@ and perform_operand =
       UpdateApPalette(_) |
       Construct(
         SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SApPalette(_) |
-        SCommentLine |
-        SSumOp(_),
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown,
@@ -426,12 +431,12 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded((ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))), u_gen))
 
-  | (Construct(SSum), CursorT(_, Hole)) =>
+  | (Construct(SOp(SPlus)), CursorT(_, Hole)) =>
     let ztag = ZTag.place_before(UHTag.TagHole(0));
     let zsumbody = ZTyp.mk_sumbody_ZOpSeq(ZSeq.wrap(ZTyp.ConstTagZ(ztag)));
     Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen));
 
-  | (Construct(SSum), CursorT(_, _)) => Failed
+  | (Construct(SOp(SPlus)), CursorT(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded((
@@ -544,11 +549,8 @@ and perform_zsumbody =
       when ZTyp.is_after_zsumbody_operand(zoperand) =>
     perform_zsumbody(u_gen, MoveRight, zsumbody)
 
-  | (
-      Construct(SSumOp(sos)),
-      ZOperand(ArgTagZ(_, _, _) as zoperand, surround),
-    ) =>
-    switch (sumbody_operator_of_shape(sos)) {
+  | (Construct(SOp(os)), ZOperand(ArgTagZ(_, _, _) as zoperand, surround)) =>
+    switch (sumbody_operator_of_shape(os)) {
     | None => Failed
     | Some(op) =>
       Succeeded((construct_zsumbody_operator(op, zoperand, surround), u_gen))
@@ -622,7 +624,6 @@ and perform_zsumbody_operand =
       Construct(
         SAnn | SLet | SLine | SLam | SList | SParenthesized | SChar(_) | SOp(_) |
         SListNil |
-        SSum |
         SInj |
         SCase |
         SApPalette(_) |
@@ -681,25 +682,25 @@ and perform_zsumbody_operand =
 
   /* Construction */
 
-  | (Construct(SSumOp(SPlus)), ArgTagZ(OnDelim(_, After), _, _)) =>
-    perform_zsumbody_operand(u_gen, MoveRight, zoperand)
-  | (Construct(_), ArgTagZ(OnDelim(_, side), _, _))
-      when
-        !ZTyp.is_before_zsumbody_operand(zoperand)
-        && !ZTyp.is_after_zsumbody_operand(zoperand) =>
-    switch (
-      perform_zsumbody_operand(u_gen, Action_common.escape(side), zoperand)
-    ) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
-    }
+  // | (Construct(SOp(SPlus)), ArgTagZ(OnDelim(_, After), _, _)) =>
+  //   perform_zsumbody_operand(u_gen, MoveRight, zoperand)
+  // | (Construct(_), ArgTagZ(OnDelim(_, side), _, _))
+  //     when
+  //       !ZTyp.is_before_zsumbody_operand(zoperand)
+  //       && !ZTyp.is_after_zsumbody_operand(zoperand) =>
+  //   switch (
+  //     perform_zsumbody_operand(u_gen, Action_common.escape(side), zoperand)
+  //   ) {
+  //   | (Failed | CursorEscaped(_)) as err => err
+  //   | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
+  //   }
 
-  | (Construct(SSumOp(sos)), ArgTagZ(_, _, _)) =>
-    switch (sumbody_operator_of_shape(sos)) {
-    | None => Failed
-    | Some(sop) =>
-      Succeeded((construct_zsumbody_operator(sop, zoperand, (E, E)), u_gen))
-    }
+  // | (Construct(SOp(sos)), ArgTagZ(_, _, _)) =>
+  //   switch (sumbody_operator_of_shape(sos)) {
+  //   | None => Failed
+  //   | Some(sop) =>
+  //     Succeeded((construct_zsumbody_operator(sop, zoperand, (E, E)), u_gen))
+  //   }
 
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, ArgTagZ(_, _, _)) => Failed

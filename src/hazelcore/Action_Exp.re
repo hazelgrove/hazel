@@ -1410,8 +1410,7 @@ and syn_perform_operand =
 
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
-  | (Construct(SList), CursorE(_))
-  | (Construct(SSum | SSumOp(_)), CursorE(_)) => Failed
+  | (Construct(SList), CursorE(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2860,7 +2859,7 @@ and ana_perform_operand =
     ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), u_gen), ty)
 
   /* Invalid actions at the expression level */
-  | (Construct(SList | SSum | SSumOp(_)), CursorE(_)) => Failed
+  | (Construct(SList), CursorE(_)) => Failed
 
   /* Backspace & Delete */
 

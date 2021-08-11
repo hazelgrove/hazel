@@ -18,10 +18,6 @@ type operator_shape =
   | SOr;
 
 [@deriving sexp]
-type sumbody_operator_shape =
-  | SPlus;
-
-[@deriving sexp]
 type shape =
   | SCommentLine
   | SList
@@ -35,9 +31,7 @@ type shape =
   | SLine
   | SCase
   | SOp(operator_shape)
-  | SApPalette(PaletteName.t)
-  | SSum
-  | SSumOp(sumbody_operator_shape);
+  | SApPalette(PaletteName.t);
 
 [@deriving sexp]
 type t =

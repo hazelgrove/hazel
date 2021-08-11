@@ -17,7 +17,6 @@ type join =
   | GLB
   | LUB;
 
-let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
 let precedence_const = Operators_Typ.precedence_const;
@@ -28,9 +27,9 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
+  | Sum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  | Sum(_) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 

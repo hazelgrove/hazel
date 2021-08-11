@@ -1,8 +1,8 @@
 let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
   fun
   | Prod => (UHDoc_common.empty_, UHDoc_common.space_)
-  | Arrow
-  | Sum => (UHDoc_common.space_, UHDoc_common.space_);
+  | Arrow => (UHDoc_common.space_, UHDoc_common.space_);
+
 let inline_padding_of_sumbody_operator:
   UHTyp.sumbody_operator => (UHDoc.t, UHDoc.t) =
   fun
