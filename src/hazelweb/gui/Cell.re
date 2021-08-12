@@ -26,7 +26,6 @@ let view = (~inject, model: Model.t) => {
               UHCode.view(
                 ~inject,
                 ~font_metrics=model.font_metrics,
-                ~is_mac=model.is_mac,
                 ~settings,
                 program,
               ),

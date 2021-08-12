@@ -5,7 +5,6 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   /**
    * Preview on undo history entry mainly implemented by
    * on_mouseenter/leave will not work when scrolling
@@ -31,6 +30,7 @@ let get_edit_state: t => Statics.edit_state;
 
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;
+let get_cards_info: t => list(CardInfo.t);
 
 let get_cursor_info: t => CursorInfo.t;
 
@@ -50,6 +50,7 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 
 let prev_card: t => t;
 let next_card: t => t;
+let nth_card: (int, t) => t;
 
 let perform_edit_action: (Action.t, t) => t;
 
@@ -65,11 +66,6 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  * Show/hide sidebars
  */
 let toggle_left_sidebar: t => t;
-
-/**
- * Load an expression into the editor
- */
-let load_example: (t, UHExp.t) => t;
 
 /**
  * Load a selected cardstack into view
