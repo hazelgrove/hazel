@@ -124,8 +124,8 @@ type cursor_term =
 
 [@deriving sexp]
 type parent_info =
-  | EndBranchClause
-  | EmptyHoleLine
+  | AfterBranchClause
+  | BeforeEmptyHoleLine
   | NoParentInfo;
 
 // TODO refactor into variants

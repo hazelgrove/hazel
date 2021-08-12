@@ -293,9 +293,9 @@ and syn_cursor_info_line =
     | Some(ci) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.set_is_empty_hole_line(
+          CursorInfo_common.set_is_before_empty_hole_line(
             ci,
-            ZExp.is_empty_hole_line(zline),
+            ZExp.is_before_empty_hole_line(zline),
           ),
         ),
       )
@@ -678,9 +678,9 @@ and ana_cursor_info_zblock =
         }
       }
     };
-  CursorInfo_common.set_is_empty_hole_line(
+  CursorInfo_common.set_is_before_empty_hole_line(
     ci,
-    ZExp.is_empty_hole_line(zline),
+    ZExp.is_before_empty_hole_line(zline),
   );
 }
 and ana_cursor_info_zopseq =
@@ -1024,7 +1024,7 @@ and syn_cursor_info_rule =
       | (_, None) => None
       | (false, Some(cursor_info)) =>
         Some(
-          CursorInfo_common.set_end_branch_clause(
+          CursorInfo_common.set_after_branch_clause(
             cursor_info,
             ZExp.is_after(zclause),
           ),
@@ -1032,7 +1032,7 @@ and syn_cursor_info_rule =
       | (true, Some({cursor_term, typed, ctx, uses, parent_info})) =>
         let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
         let parent_info =
-          ZExp.is_after(zclause) ? CursorInfo.EndBranchClause : parent_info;
+          ZExp.is_after(zclause) ? CursorInfo.AfterBranchClause : parent_info;
         Some({cursor_term, typed, ctx, uses, parent_info});
       };
     }
@@ -1065,7 +1065,7 @@ and ana_cursor_info_rule =
     | Some(ctx) =>
       let+ cursor_info =
         ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty);
-      CursorInfo_common.set_end_branch_clause(
+      CursorInfo_common.set_after_branch_clause(
         cursor_info,
         ZExp.is_after(zclause),
       );

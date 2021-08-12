@@ -37,31 +37,32 @@ let lit_msg = (ty: HTyp.t) => {
       example_lit_node("true"),
       Node.text(")"),
     ]);
+  /* TODO: Hannah - these shortcut nodes are getting out of sync with the actual shortcuts...*/
   let fun_lit =
     option([
       Node.text("Enter a Function Literal"),
       fill_space,
-      AssistantView_common.shortcut_node("\\"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Backslash),
     ]);
   let sum_lit =
     option([
       Node.text("Enter an Injection Literal"),
       fill_space,
-      AssistantView_common.shortcut_node("Alt+l"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_L),
       Node.text("or"),
-      AssistantView_common.shortcut_node("Alt+r"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_R),
     ]);
   let prod_lit =
     option([
       Node.text("Enter a Tuple Literal"),
       fill_space,
-      AssistantView_common.shortcut_node("("),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftParen),
     ]);
   let list_lit =
     option([
       Node.text("Enter an Empty List Literal"),
       fill_space,
-      AssistantView_common.shortcut_node("["),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
   switch (ty) {
   | Hole => [
@@ -107,26 +108,26 @@ let list_vars_view = (vars: VarCtx.t) => {
  */
 let operator_options = cursor_info => {
   let int_options = [
-    AssistantView_common.shortcut_node("+"),
-    AssistantView_common.shortcut_node("-"),
-    AssistantView_common.shortcut_node("*"),
-    AssistantView_common.shortcut_node("/"),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Plus),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Minus),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Asterisk),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Slash),
   ];
   let int_to_bool_options = [
-    AssistantView_common.shortcut_node("<"),
-    AssistantView_common.shortcut_node(">"),
-    AssistantView_common.shortcut_node("="),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.LT),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.GT),
+    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Equals),
   ];
   let float_options = [
-    AssistantView_common.shortcut_node("+."),
-    AssistantView_common.shortcut_node("-."),
-    AssistantView_common.shortcut_node("*."),
-    AssistantView_common.shortcut_node("/."),
+    AssistantView_common.text_shortcut_node("+."),
+    AssistantView_common.text_shortcut_node("-."),
+    AssistantView_common.text_shortcut_node("*."),
+    AssistantView_common.text_shortcut_node("/."),
   ];
   let float_to_bool_options = [
-    AssistantView_common.shortcut_node("<."),
-    AssistantView_common.shortcut_node(">."),
-    AssistantView_common.shortcut_node("=."),
+    AssistantView_common.text_shortcut_node("<."),
+    AssistantView_common.text_shortcut_node(">."),
+    AssistantView_common.text_shortcut_node("=."),
   ];
 
   let int_operators_wrapper = options =>
@@ -156,8 +157,8 @@ let operator_options = cursor_info => {
       [
         Node.text("Boolean Operation"),
         fill_space,
-        AssistantView_common.shortcut_node("&&"),
-        AssistantView_common.shortcut_node("||"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Ampersand),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.VBar),
       ],
     );
 
@@ -167,7 +168,7 @@ let operator_options = cursor_info => {
       [
         Node.text("List Operation"),
         fill_space,
-        AssistantView_common.shortcut_node(";"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Semicolon),
       ],
     );
 
@@ -204,7 +205,7 @@ let add_rule_after_option =
     [
       Node.text("Add rule after"),
       fill_space,
-      AssistantView_common.shortcut_node("Enter"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
     ],
   );
 
@@ -214,7 +215,9 @@ let comment_line_option =
     [
       Node.text("Create new comment line"),
       fill_space,
-      AssistantView_common.shortcut_node("#"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Pound),
+      Node.text(" or "),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Shift_Enter),
     ],
   );
 
@@ -324,7 +327,7 @@ let exp_hole_view =
     option([
       Node.text("Apply a Function"),
       fill_space,
-      AssistantView_common.shortcut_node("Space"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Space),
     ]);
   let fun_view =
     if (VarMap.is_empty(fun_ctx)) {
@@ -369,7 +372,7 @@ let exp_hole_view =
             fill_space,
             example_lit_node("\"case \""),
             Node.text(" or "),
-            AssistantView_common.shortcut_node("Alt+c"),
+            AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_C),
           ],
         ),
       ],
@@ -410,7 +413,7 @@ let exp_hole_view =
       [
         Node.text("Parenthesize"),
         fill_space,
-        AssistantView_common.shortcut_node("("),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftParen),
       ],
     ),
     Node.div(
@@ -418,8 +421,8 @@ let exp_hole_view =
       [
         Node.text("Move to next/previous hole"),
         fill_space,
-        AssistantView_common.shortcut_node("Tab"),
-        AssistantView_common.shortcut_node("Shift+Tab"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Tab),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.ShiftTab),
       ],
     ),
     Node.div(
@@ -427,8 +430,8 @@ let exp_hole_view =
       [
         Node.text("Swap line up/down"),
         fill_space,
-        AssistantView_common.shortcut_node("Ctrl+Alt+i"),
-        AssistantView_common.shortcut_node("Ctrl+Alt+k"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Up),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Down),
       ],
     ),
     Node.div(
@@ -436,19 +439,20 @@ let exp_hole_view =
       [
         Node.text("Swap operand left/right"),
         fill_space,
-        AssistantView_common.shortcut_node("Ctrl+Alt+j"),
-        AssistantView_common.shortcut_node("Ctrl+Alt+l"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Left),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Right),
       ],
     ),
   ];
   let other_options =
     switch (cursor_info.parent_info) {
-    | EndBranchClause =>
+    | AfterBranchClause =>
       List.append(other_main_options, [add_rule_after_option])
     /* TODO: Hannah - only comment if at the beginning of empty hole ~line~ */
     /* File bug report for not being able to add comment to empty line within subexpressions like clause of case
-       should be able to on any empty line */
-    | EmptyHoleLine => List.append(other_main_options, [comment_line_option])
+       Should be able to on any empty line */
+    | BeforeEmptyHoleLine =>
+      List.append(other_main_options, [comment_line_option])
     | NoParentInfo => other_main_options
     };
   let other_body =
@@ -509,7 +513,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
               [
                 Node.text("Add rule before"),
                 fill_space,
-                AssistantView_common.shortcut_node("Enter"),
+                AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
               ],
             ),
           ],
@@ -517,7 +521,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
       ]),
     )
   | (Rule(OnDelim(1, Before), _), _)
-  | (_, EndBranchClause) =>
+  | (_, AfterBranchClause) =>
     Some(
       type_driven([
         Node.div(
@@ -530,6 +534,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   };
 };
 
+/* TODO: Hannah - There isn't any space between the text and the shortcut in this case...*/
 let lines_view = (suggest_comment: bool) => {
   let new_line =
     Node.div(
@@ -537,7 +542,7 @@ let lines_view = (suggest_comment: bool) => {
       [
         Node.text("Create new line"),
         fill_space,
-        AssistantView_common.shortcut_node("Enter"),
+        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
       ],
     );
   let body = suggest_comment ? [new_line, comment_line_option] : [new_line];

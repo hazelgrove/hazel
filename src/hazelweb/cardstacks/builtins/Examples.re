@@ -353,25 +353,24 @@ let rec qsort_n = (n: int): UHExp.t =>
     ];
   };
 
-/* TODO: Hannah - flesh out a little more and put in new examples category */
 let inconsistent_branches: UHExp.t =
   UHExp.(
     Block.wrap(
       case(
-        ~err=InconsistentBranches([Bool, Int, Hole], 0),
-        Block.wrap(UHExp.EmptyHole(1)),
+        ~err=InconsistentBranches([Bool, Float, Float], 0),
+        Block.wrap(UHExp.IntLit(NotInHole, "1")),
         [
           Rule(
-            OpSeq.wrap(UHPat.EmptyHole(2)),
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "0")),
             Block.wrap(UHExp.BoolLit(NotInHole, true)),
           ),
           Rule(
-            OpSeq.wrap(UHPat.EmptyHole(3)),
-            Block.wrap(UHExp.IntLit(NotInHole, "1")),
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "1")),
+            Block.wrap(UHExp.FloatLit(NotInHole, "1.")),
           ),
           Rule(
-            OpSeq.wrap(UHPat.EmptyHole(4)),
-            Block.wrap(UHExp.EmptyHole(5)),
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "2")),
+            Block.wrap(UHExp.FloatLit(NotInHole, "2.")),
           ),
         ],
       ),
@@ -384,7 +383,7 @@ let examples = [
   ("let", let_line),
   ("map", map_example),
   ("quicksort", qsort_example),
-  ("inconsistent_branches", inconsistent_branches),
+  ("inconsistent branches", inconsistent_branches),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {

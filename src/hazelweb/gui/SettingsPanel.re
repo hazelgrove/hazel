@@ -208,7 +208,7 @@ let view =
             ~on_change=() => inject(UpdateSettings(Toggle_memoize_doc)),
             memoize_doc,
           ),
-          /* TODO: Hannah - Make a bug report about the weird moving red box and the other thing I was supposed to report and made a note on the sticky note for */
+          /* TODO: Hannah - Make a bug report about the weird moving red box and separate report for incorrect highlighting for lambda that goes over multiple lines */
         ],
       )
     );

@@ -60,8 +60,8 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
   if (CursorInfo_common.is_end_keyword(term, keyword)) {
     main_msg
     @ [
-      Node.text("("),
-      AssistantView_common.shortcut_node("Space"),
+      Node.text("("), /* TODO: Hannah - Maybe the keyword is laid out a little weird... */
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Space),
       Node.text(" to expand keyword)"),
     ];
   } else {
@@ -473,10 +473,15 @@ let summary_bar =
       [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  let body = show_expansion_arrow ? [summary, fill_space, arrow] : [summary];
+  /* TODO: Hannah - I don't think the (true, false) case ever happens... maybe
+     this can be written in a better way then... */
   let body =
-    show_strategy_guide_icon
-      ? List.append(body, [fill_space, fill_icon]) : body;
+    switch (show_expansion_arrow, show_strategy_guide_icon) {
+    | (true, true) => [summary, fill_space, arrow, fill_icon]
+    | (true, false) => [summary, fill_space, arrow]
+    | (false, true) => [summary, fill_space, fill_icon]
+    | (false, false) => [summary]
+    };
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
@@ -625,7 +630,7 @@ let view =
         } else {
           TypeInconsistency;
         }
-      | (InconsistentBranchTys(_), _) => TypeInconsistency /* TODO: Hannah - the spacing of the expanded message error for this case is weirdly placed */
+      | (InconsistentBranchTys(_), _) => TypeInconsistency
       | _ => get_err_state_b(typed)
       }
     };
@@ -662,7 +667,7 @@ let view =
       )
     | (Rule(_), _)
     | (ExpOperand(_, Case(_)), _)
-    | (_, EndBranchClause) =>
+    | (_, AfterBranchClause) =>
       switch (StrategyGuide.rules_view(cursor_info)) {
       | None => (false, None)
       | Some(sg_rules) => (true, Some(sg_rules))

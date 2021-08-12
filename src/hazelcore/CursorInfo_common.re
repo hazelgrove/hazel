@@ -108,14 +108,15 @@ let mk = (~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
 
 let get_ctx = ci => ci.ctx;
 
-let set_end_branch_clause = (ci, is_end_branch_clause) => {
+let set_after_branch_clause = (ci, is_after_branch_clause) => {
   ...ci,
-  parent_info: is_end_branch_clause ? EndBranchClause : ci.parent_info,
+  parent_info: is_after_branch_clause ? AfterBranchClause : ci.parent_info,
 };
 
-let set_is_empty_hole_line = (ci, is_empty_hole_line) => {
+let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
   ...ci,
-  parent_info: is_empty_hole_line ? EmptyHoleLine : ci.parent_info,
+  parent_info:
+    is_before_empty_hole_line ? BeforeEmptyHoleLine : ci.parent_info,
 };
 
 /*
