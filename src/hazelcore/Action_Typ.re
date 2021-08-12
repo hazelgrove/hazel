@@ -400,12 +400,29 @@ and perform_operand =
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
     Succeeded((body |> place_cursor, u_gen));
 
-  /* { _ }<|  ==>  _| */
-  /* {<| _ }  ==>  |_ */
-  | (Backspace, CursorT(OnDelim(k, After), Sum(sumbody))) =>
-    let place_cursor =
-      k == 0 ? ZTyp.place_before_sumbody : ZTyp.place_after_sumbody;
-    Succeeded((ZOpSeq.wrap(ZTyp.SumZ(sumbody |> place_cursor)), u_gen));
+  | (Backspace, CursorT(OnDelim(k, After), EmptySum as operand)) =>
+    switch (k) {
+    /* sum {<| }  ==>  ? */
+    | 0 => Succeeded((ZTyp.place_before(UHTyp.contract(Hole)), u_gen))
+    /* sum { }<|  ==>  sum { |} */
+    | _1 =>
+      switch (ZTyp.place_cursor_operand(OnDelim(k, Before), operand)) {
+      | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
+      | None => Failed
+      }
+    }
+
+  | (Backspace, CursorT(OnDelim(k, After), Sum(_) as operand)) =>
+    switch (k) {
+    /* sum {<| _ }  ==>  |? */
+    | 0 => Succeeded((ZTyp.place_before(UHTyp.contract(Hole)), u_gen))
+    /* sum { _ }<|  ==>  sum { _ |} */
+    | _1 =>
+      switch (ZTyp.place_cursor_operand(OnDelim(k, Before), operand)) {
+      | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
+      | None => Failed
+      }
+    }
 
   /* Construction */
 

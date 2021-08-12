@@ -78,6 +78,7 @@ and mk_operand =
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           UHDoc_common.mk_List(body);
+        | EmptySum => UHDoc_common.mk_EmptySum()
         | Sum(sumbody) =>
           let sumbody =
             mk_sumbody(~memoize, ~enforce_inline, ~child_step=0, sumbody);

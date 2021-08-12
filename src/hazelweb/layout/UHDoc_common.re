@@ -348,6 +348,12 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_EmptySum = (): t => {
+  let open_group = Delim.open_Sum() |> annot_Tessera;
+  let close_group = Delim.close_Sum() |> annot_Tessera;
+  Doc.hcats([open_group, close_group]) |> annot_Operand(~sort=Typ);
+};
+
 let mk_Sum = (sumbody: formatted_child): t => {
   let open_group = Delim.open_Sum() |> annot_Tessera;
   let close_group = Delim.close_Sum() |> annot_Tessera;

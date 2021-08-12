@@ -52,6 +52,11 @@ and follow_operand =
         |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
       | _ => None
       }
+    | EmptySum =>
+      switch (x, xs) {
+      | (0, []) => ZTyp.place_cursor_operand(cursor, operand)
+      | (_, _) => None
+      }
     | Sum(sumbody) =>
       switch (x) {
       | 0 =>
@@ -126,15 +131,14 @@ and of_steps_opseq =
   )
 and of_steps_operand =
     (steps: CursorPath.steps, ~side: Side.t, operand: UHTyp.operand)
-    : option(CursorPath.t) =>
+    : option(CursorPath.t) => {
+  let place_cursor =
+    switch (side) {
+    | Before => ZTyp.place_before_operand
+    | After => ZTyp.place_after_operand
+    };
   switch (steps) {
-  | [] =>
-    let place_cursor =
-      switch (side) {
-      | Before => ZTyp.place_before_operand
-      | After => ZTyp.place_after_operand
-      };
-    Some(of_zoperand(place_cursor(operand)));
+  | [] => Some(of_zoperand(place_cursor(operand)))
   | [x, ...xs] =>
     switch (operand) {
     | Hole
@@ -148,6 +152,11 @@ and of_steps_operand =
         of_steps(xs, ~side, body)
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
+      }
+    | EmptySum =>
+      switch (x, xs) {
+      | (0, []) => Some(of_zoperand(place_cursor(operand)))
+      | (_, _) => None
       }
     | Sum(sumbody) =>
       switch (x) {
@@ -165,7 +174,8 @@ and of_steps_operand =
       | _ => None
       }
     }
-  }
+  };
+}
 and of_steps_operator =
     (steps: CursorPath.steps, ~side: Side.t, operator: UHTyp.operator)
     : option(CursorPath.t) =>
@@ -271,7 +281,8 @@ and holes_operand =
   | Unit
   | Int
   | Float
-  | Bool => hs
+  | Bool
+  | EmptySum => hs
   | Sum(sumbody) => hs |> holes_sumbody(sumbody, [0, ...rev_steps])
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
@@ -337,6 +348,7 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorT(OnDelim(_, _), EmptySum) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Sum(sumbody)) =>
     let holes = holes_sumbody(sumbody, [0, ...rev_steps], []);
     switch (k) {
@@ -344,7 +356,10 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_) | Sum(_)) =>
+  | CursorT(
+      OnOp(_) | OnText(_),
+      Parenthesized(_) | List(_) | EmptySum | Sum(_),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | SumZ(zsumbody) => holes_zsumbody(zsumbody, [0, ...rev_steps])

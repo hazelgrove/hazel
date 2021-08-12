@@ -13,6 +13,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | EmptySum
   | Sum(sumbody)
   | Parenthesized(t)
   | List(t)
@@ -52,6 +53,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
+  | EmptySum
   | Sum(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
@@ -108,7 +110,7 @@ let contract = (ty: HTyp.t): t => {
            )
       | Sum(tymap) =>
         switch (TagMap.bindings(tymap)) {
-        | [] => failwith("cannot contract an empty sum")
+        | [] => Seq.wrap(EmptySum)
         | [head, ...tail] =>
           let binding_to_seq = ((tag1, ty1_opt)) =>
             switch (ty1_opt) {
@@ -161,6 +163,7 @@ and expand_operand =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  | EmptySum => Sum(TagMap.empty)
   | Sum(opseq) => Sum(expand_sumbody(opseq))
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq))
@@ -180,6 +183,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
+  | EmptySum => true
   | Sum(sumbody) => is_complete_sumbody(sumbody)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)

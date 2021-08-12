@@ -13,6 +13,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | EmptySum
   | Sum(sumbody)
   | Parenthesized(t)
   | List(t)
