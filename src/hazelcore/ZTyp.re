@@ -49,7 +49,6 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Float
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | EmptySum
   | Sum(_)
   | List(_) => CursorPosition.delim_cursors(2);
 
@@ -97,7 +96,7 @@ and erase_zoperand =
   fun
   | CursorT(_, operand) => operand
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
-  | SumZ(zsumbody) => Sum(erase_zsumbody(zsumbody))
+  | SumZ(zsumbody) => Sum(Some(erase_zsumbody(zsumbody)))
   | ListZ(zty) => List(erase(zty))
 and erase_zsumbody = zsumbody =>
   ZOpSeq.erase(
@@ -135,7 +134,6 @@ and is_before_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, EmptySum)
   | CursorT(cursor, Sum(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_)
@@ -166,7 +164,6 @@ and is_after_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, EmptySum)
   | CursorT(cursor, Sum(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_)
@@ -192,10 +189,7 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (
-      Hole | Unit | Int | Float | Bool | Parenthesized(_) | EmptySum | Sum(_) |
-      List(_)
-    ) as operand =>
+  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | Sum(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
@@ -220,7 +214,7 @@ and place_after_operand =
   fun
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
-  | (Parenthesized(_) | EmptySum | Sum(_) | List(_)) as operand =>
+  | (Parenthesized(_) | Sum(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
@@ -299,10 +293,10 @@ and move_cursor_left_zoperand =
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
 
-  | CursorT(OnDelim(_1, Before), EmptySum as operand) =>
-    Some(place_after_operand(operand))
-  | CursorT(OnDelim(_1, Before), Sum(ty1)) =>
-    Some(SumZ(place_after_sumbody(ty1)))
+  | CursorT(OnDelim(_1, Before), Sum(None) as operand) =>
+    place_cursor_operand(OnDelim(0, Before), operand)
+  | CursorT(OnDelim(_1, Before), Sum(Some(sumbody))) =>
+    Some(SumZ(place_after_sumbody(sumbody)))
 
   | CursorT(OnDelim(_k, Before), List(ty1)) =>
     // _k == 1
@@ -316,7 +310,8 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left_zsumbody(zsumbody)) {
     | Some(zsumbody) => Some(SumZ(zsumbody))
     | None =>
-      Some(CursorT(OnDelim(0, After), Sum(erase_zsumbody(zsumbody))))
+      let sumbody = erase_zsumbody(zsumbody);
+      Some(CursorT(OnDelim(0, After), Sum(Some(sumbody))));
     }
   | ListZ(zty1) =>
     switch (move_cursor_left(zty1)) {
@@ -395,9 +390,9 @@ and move_cursor_right_zoperand =
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))
 
-  | CursorT(OnDelim(_0, After), EmptySum as operand) =>
-    Some(place_before_operand(operand))
-  | CursorT(OnDelim(_0, After), Sum(sumbody)) =>
+  | CursorT(OnDelim(_0, After), Sum(None) as operand) =>
+    place_cursor_operand(OnDelim(1, After), operand)
+  | CursorT(OnDelim(_0, After), Sum(Some(sumbody))) =>
     Some(SumZ(place_before_sumbody(sumbody)))
 
   | CursorT(OnDelim(_k, After), List(ty1)) =>
@@ -413,7 +408,8 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right_zsumbody(zsumbody)) {
     | Some(zsumbody) => Some(SumZ(zsumbody))
     | None =>
-      Some(CursorT(OnDelim(1, Before), Sum(erase_zsumbody(zsumbody))))
+      let sumbody = erase_zsumbody(zsumbody);
+      Some(CursorT(OnDelim(1, Before), Sum(Some(sumbody))));
     }
   | ListZ(zty1) =>
     switch (move_cursor_right(zty1)) {

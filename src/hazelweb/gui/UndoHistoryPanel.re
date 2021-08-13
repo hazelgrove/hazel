@@ -237,7 +237,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
-    | EmptySum
     | Sum(_) => indicate_words_view("sum")
     };
   };

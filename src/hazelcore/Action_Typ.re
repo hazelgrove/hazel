@@ -70,23 +70,22 @@ let construct_operator =
 
 let construct_zsumbody_operator =
     (
+      u_gen: MetaVarGen.t,
       operator: UHTyp.sumbody_operator,
       zoperand: ZTyp.zsumbody_operand,
       (prefix, suffix): ZTyp.sumbody_operand_surround,
     )
-    : ZTyp.zsumbody => {
+    : (ZTyp.zsumbody, MetaVarGen.t) => {
+  let (tag, u_gen) = UHTag.new_TagHole(u_gen);
+  let ztag = ZTyp.ConstTagZ(ZTag.place_before(tag));
   let operand = zoperand |> ZTyp.erase_zsumbody_operand;
-  let (zoperand, surround) =
+  let surround =
     if (ZTyp.is_before_zsumbody_operand(zoperand)) {
-      let zoperand = ZTyp.ConstTagZ(UHTag.TagHole(0) |> ZTag.place_before);
-      let new_suffix = Seq.A(operator, S(operand, suffix));
-      (zoperand, (prefix, new_suffix));
+      (prefix, Seq.A(operator, S(operand, suffix)));
     } else {
-      let zoperand = ZTyp.ConstTagZ(UHTag.TagHole(0) |> ZTag.place_before);
-      let new_prefix = Seq.A(operator, S(operand, prefix));
-      (zoperand, (new_prefix, suffix));
+      (Seq.A(operator, S(operand, prefix)), suffix);
     };
-  ZTyp.mk_sumbody_ZOpSeq(ZOperand(zoperand, surround));
+  (ZTyp.mk_sumbody_ZOpSeq(ZOperand(ztag, surround)), u_gen);
 };
 
 let rec move =
@@ -370,6 +369,109 @@ and perform_operand =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     move(u_gen, a, ZOpSeq.wrap(zoperand))
 
+  /* Actions on empty sums */
+
+  // sum {<| }  ==>  ?|
+  | (Backspace, CursorT(OnDelim(0, After), Sum(None))) =>
+    let ty_hole = OpSeq.wrap(UHTyp.Hole);
+    Succeeded((ZTyp.place_after(ty_hole), u_gen));
+
+  // sum { <|}  ==>  sum {<| }
+  | (Backspace, CursorT(OnDelim(1, Before), Sum(None) as operand)) =>
+    perform_operand(u_gen, a, CursorT(OnDelim(0, After), operand))
+
+  // sum { }<|  ==>  sum { |}
+  | (Backspace, CursorT(OnDelim(1, After), Sum(None) as operand)) =>
+    switch (ZTyp.place_cursor_operand(OnDelim(1, Before), operand)) {
+    | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
+    | None => Failed
+    }
+
+  // |>sum { }  ==>  |?
+  | (Delete, CursorT(OnDelim(0, Before), Sum(None))) =>
+    let ty_hole = OpSeq.wrap(UHTyp.Hole);
+    Succeeded((ZTyp.place_before(ty_hole), u_gen));
+
+  // sum {|> }  ==>  sum { |>}
+  | (Delete, CursorT(OnDelim(0, After), Sum(None) as operand)) =>
+    perform_operand(u_gen, a, CursorT(OnDelim(1, Before), operand))
+
+  // sum { |>}  ==>  sum { }|
+  | (Delete, CursorT(OnDelim(1, Before), Sum(None) as operand)) =>
+    Succeeded((ZTyp.place_after(OpSeq.wrap(operand)), u_gen))
+
+  | (
+      Construct(SChar(c)),
+      CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)),
+    ) =>
+    if (UHTag.is_majuscule_letter(c.[0])) {
+      print_endline("MAJ");
+      let ztag = ZTag.place_after(UHTag.Tag(c));
+      let zsum = ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag)));
+      Succeeded((ZOpSeq.wrap(zsum), u_gen));
+    } else {
+      print_endline("NOT MAJ");
+      Failed;
+    }
+  // switch (a) {
+  // // | Backspace => (??)
+  // // | Delete => (??)
+  // | Construct(SChar(c)) =>
+  //   print_endline("XXX");
+  //   if (UHTag.is_majuscule_letter(c.[0])) {
+  //     print_endline("MAJ");
+  //     let ztag = ZTag.place_after(UHTag.Tag(c));
+  //     let zsum = ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag)));
+  //     Succeeded((ZOpSeq.wrap(zsum), u_gen));
+  //   } else {
+  //     print_endline("NOT MAJ");
+  //     Failed;
+  //   };
+  // // TODO: replace catch-all with cases
+  // | _ => Failed
+  // };
+
+  | (_, CursorT(cursor, Sum(None))) =>
+    print_endline("ZZZ");
+    print_endline(Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(cursor)));
+    Failed;
+
+  /* Actions on non-empty sums */
+
+  // sum {<| _ }  ==>  ?|
+  | (Backspace, CursorT(OnDelim(0, After), Sum(Some(_)))) =>
+    let ty_hole = OpSeq.wrap(UHTyp.Hole);
+    Succeeded((ZTyp.place_after(ty_hole), u_gen));
+
+  // sum { _ <|}  ==>  sum { _| }
+  | (Backspace, CursorT(OnDelim(1, Before), Sum(Some(sumbody)))) =>
+    let zsumbody = ZTyp.place_after_sumbody(sumbody);
+    Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen));
+
+  // sum { _ }<|  ==>  sum { _ |}
+  | (Backspace, CursorT(OnDelim(_1, After), Sum(Some(_)) as operand)) =>
+    switch (ZTyp.place_cursor_operand(OnDelim(1, Before), operand)) {
+    | Some(zoperand) => Succeeded((ZOpSeq.wrap(zoperand), u_gen))
+    | None => Failed
+    }
+
+  // |>sum { _ }  ==>  |?
+  | (Delete, CursorT(OnDelim(0, Before), Sum(Some(_)))) =>
+    let ty_hole = OpSeq.wrap(UHTyp.Hole);
+    Succeeded((ZTyp.place_before(ty_hole), u_gen));
+
+  // sum {|> _ }  ==>  sum { |_ }
+  | (Delete, CursorT(OnDelim(0, After), Sum(Some(sumbody)))) =>
+    let zsumbody = ZTyp.place_before_sumbody(sumbody);
+    Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen));
+
+  // sum { _ |>}  ==>  sum { _ }|
+  | (Delete, CursorT(OnDelim(1, Before), Sum(Some(_)) as operand)) =>
+    switch (ZTyp.place_cursor_operand(OnDelim(1, After), operand)) {
+    | Some(zoperand) => Succeeded((ZOpSeq.wrap(zoperand), u_gen))
+    | None => Failed
+    }
+
   /* Backspace and Delete */
 
   /* ( _ <|)   ==>   ( _| ) */
@@ -400,30 +502,6 @@ and perform_operand =
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
     Succeeded((body |> place_cursor, u_gen));
 
-  | (Backspace, CursorT(OnDelim(k, After), EmptySum as operand)) =>
-    switch (k) {
-    /* sum {<| }  ==>  ? */
-    | 0 => Succeeded((ZTyp.place_before(UHTyp.contract(Hole)), u_gen))
-    /* sum { }<|  ==>  sum { |} */
-    | _1 =>
-      switch (ZTyp.place_cursor_operand(OnDelim(k, Before), operand)) {
-      | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
-      | None => Failed
-      }
-    }
-
-  | (Backspace, CursorT(OnDelim(k, After), Sum(_) as operand)) =>
-    switch (k) {
-    /* sum {<| _ }  ==>  |? */
-    | 0 => Succeeded((ZTyp.place_before(UHTyp.contract(Hole)), u_gen))
-    /* sum { _ }<|  ==>  sum { _ |} */
-    | _1 =>
-      switch (ZTyp.place_cursor_operand(OnDelim(k, Before), operand)) {
-      | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
-      | None => Failed
-      }
-    }
-
   /* Construction */
 
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
@@ -448,12 +526,19 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded((ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))), u_gen))
 
+  // |?  ==>  sum {| }
   | (Construct(SOp(SPlus)), CursorT(_, Hole)) =>
-    let ztag = ZTag.place_before(UHTag.TagHole(0));
-    let zsumbody = ZTyp.mk_sumbody_ZOpSeq(ZSeq.wrap(ZTyp.ConstTagZ(ztag)));
-    Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen));
+    switch (ZTyp.place_cursor_operand(OnDelim(0, After), Sum(None))) {
+    | Some(zty) => Succeeded((ZOpSeq.wrap(zty), u_gen))
+    | None => Failed
+    }
 
-  | (Construct(SOp(SPlus)), CursorT(_, _)) => Failed
+  /* |ty  ==>  sum { ?(| ty ) } */
+  | (Construct(SOp(SPlus)), CursorT(_, operand)) =>
+    let (tag, u_gen) = UHTag.new_TagHole(u_gen);
+    let zoperand = ZTyp.place_before_operand(operand);
+    let zsumbody = ZOpSeq.wrap(ZTyp.ArgTagZA(tag, ZOpSeq.wrap(zoperand)));
+    Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen));
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded((
@@ -496,6 +581,7 @@ and perform_operand =
     | Succeeded((zsumbody, u_gen)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.SumZ(zsumbody)), u_gen))
     }
+
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_zsumbody =
@@ -573,7 +659,9 @@ and perform_zsumbody =
     switch (sumbody_operator_of_shape(os)) {
     | None => Failed
     | Some(op) =>
-      Succeeded((construct_zsumbody_operator(op, zoperand, surround), u_gen))
+      let (zty, u_gen) =
+        construct_zsumbody_operator(u_gen, op, zoperand, surround);
+      Succeeded((zty, u_gen));
     }
 
   /* SwapLeft and SwapRight is handled at block level */

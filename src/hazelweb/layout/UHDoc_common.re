@@ -354,11 +354,18 @@ let mk_EmptySum = (): t => {
   Doc.hcats([open_group, close_group]) |> annot_Operand(~sort=Typ);
 };
 
-let mk_Sum = (sumbody: formatted_child): t => {
+let mk_Sum = (sumbody_opt: option(formatted_child)): t => {
   let open_group = Delim.open_Sum() |> annot_Tessera;
   let close_group = Delim.close_Sum() |> annot_Tessera;
-  Doc.hcats([open_group, sumbody |> pad_bidelimited_open_child, close_group])
-  |> annot_Operand(~sort=SumBody);
+  Doc.hcats(
+    switch (sumbody_opt) {
+    | None => [open_group, close_group]
+    | Some(sumbody) =>
+      let body = pad_bidelimited_open_child(sumbody);
+      [open_group, body, close_group];
+    },
+  )
+  |> annot_Operand(~sort=Typ);
 };
 
 let mk_List = (body: formatted_child): t => {

@@ -13,8 +13,7 @@ and operand =
   | Int
   | Float
   | Bool
-  | EmptySum
-  | Sum(sumbody)
+  | Sum(option(sumbody))
   | Parenthesized(t)
   | List(t)
 and sumbody = OpSeq.t(sumbody_operand, sumbody_operator)

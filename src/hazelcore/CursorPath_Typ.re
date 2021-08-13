@@ -52,12 +52,12 @@ and follow_operand =
         |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
       | _ => None
       }
-    | EmptySum =>
+    | Sum(None) =>
       switch (x, xs) {
       | (0, []) => ZTyp.place_cursor_operand(cursor, operand)
       | (_, _) => None
       }
-    | Sum(sumbody) =>
+    | Sum(Some(sumbody)) =>
       switch (x) {
       | 0 =>
         sumbody
@@ -153,12 +153,12 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
-    | EmptySum =>
+    | Sum(None) =>
       switch (x, xs) {
       | (0, []) => Some(of_zoperand(place_cursor(operand)))
       | (_, _) => None
       }
-    | Sum(sumbody) =>
+    | Sum(Some(sumbody)) =>
       switch (x) {
       | 0 =>
         let+ path = of_steps_sumbody(xs, ~side, sumbody);
@@ -282,8 +282,8 @@ and holes_operand =
   | Int
   | Float
   | Bool
-  | EmptySum => hs
-  | Sum(sumbody) => hs |> holes_sumbody(sumbody, [0, ...rev_steps])
+  | Sum(None) => hs
+  | Sum(Some(sumbody)) => hs |> holes_sumbody(sumbody, [0, ...rev_steps])
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   }
@@ -348,18 +348,15 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(OnDelim(_, _), EmptySum) => CursorPath_common.no_holes
-  | CursorT(OnDelim(k, _), Sum(sumbody)) =>
+  | CursorT(OnDelim(_, _), Sum(None)) => CursorPath_common.no_holes
+  | CursorT(OnDelim(k, _), Sum(Some(sumbody))) =>
     let holes = holes_sumbody(sumbody, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(
-      OnOp(_) | OnText(_),
-      Parenthesized(_) | List(_) | EmptySum | Sum(_),
-    ) =>
+  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_) | Sum(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | SumZ(zsumbody) => holes_zsumbody(zsumbody, [0, ...rev_steps])

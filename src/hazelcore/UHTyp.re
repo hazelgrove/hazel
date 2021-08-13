@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
@@ -13,8 +15,7 @@ and operand =
   | Int
   | Float
   | Bool
-  | EmptySum
-  | Sum(sumbody)
+  | Sum(option(sumbody))
   | Parenthesized(t)
   | List(t)
 and sumbody = OpSeq.t(sumbody_operand, sumbody_operator)
@@ -53,7 +54,6 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
-  | EmptySum
   | Sum(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
@@ -110,7 +110,7 @@ let contract = (ty: HTyp.t): t => {
            )
       | Sum(tymap) =>
         switch (TagMap.bindings(tymap)) {
-        | [] => Seq.wrap(EmptySum)
+        | [] => Seq.wrap(Sum(None))
         | [head, ...tail] =>
           let binding_to_seq = ((tag1, ty1_opt)) =>
             switch (ty1_opt) {
@@ -126,7 +126,7 @@ let contract = (ty: HTyp.t): t => {
                    Seq.seq_op_seq(seq1, Operators_SumBody.Plus, seq2),
                  binding_to_seq(head),
                );
-          Seq.wrap(Sum(mk_OpSeq_sumbody(sumbody_bindings)));
+          Seq.wrap(Sum(Some(mk_OpSeq_sumbody(sumbody_bindings))));
         }
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
@@ -163,8 +163,8 @@ and expand_operand =
   | Int => Int
   | Float => Float
   | Bool => Bool
-  | EmptySum => Sum(TagMap.empty)
-  | Sum(opseq) => Sum(expand_sumbody(opseq))
+  | Sum(None) => Sum(TagMap.empty)
+  | Sum(Some(opseq)) => Sum(expand_sumbody(opseq))
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq))
 and expand_sumbody = (OpSeq(_skel, seq)) =>
@@ -183,8 +183,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
-  | EmptySum => true
-  | Sum(sumbody) => is_complete_sumbody(sumbody)
+  | Sum(None) => true
+  | Sum(Some(sumbody)) => is_complete_sumbody(sumbody)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
