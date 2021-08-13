@@ -153,17 +153,23 @@ let get_suggestions_of_ty =
   |> get_suggestions(~u_gen)
   |> List.filter((s: suggestion) => HTyp.consistent(s.res_ty, ty));
 
-let get_action =
+let get_suggestion =
     (
       {selection_index, filter_editor, _}: t,
       ci: CursorInfo.t,
       ~u_gen: MetaVarGen.t,
     )
-    : option(Action.t) => {
+    : option(Suggestion.t(UHExp.t)) => {
   let filter_ty = Program.get_ty(filter_editor);
   let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
   let selection_index = wrap_index(selection_index, suggestions);
-  let+ selection = List.nth_opt(suggestions, selection_index);
+  List.nth_opt(suggestions, selection_index);
+};
+
+let get_action =
+    (assistant_model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+    : option(Action.t) => {
+  let+ selection = get_suggestion(assistant_model, ci, ~u_gen);
   selection.action;
 };
 

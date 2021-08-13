@@ -1,6 +1,67 @@
 open Virtual_dom.Vdom;
 open Node;
 
+let category_view = category => {
+  let label = Suggestion.string_of_category(category);
+  div([Attr.classes(["category", label])], [text(label)]);
+};
+
+let delta_errors_info_view = (delta_errors: int) => {
+  let str =
+    switch (delta_errors) {
+    | 0 => "Results in no change in the number of errors"
+    | (-1) => "Results in one more error"
+    | 1 => "Results in one fewer error"
+    | n when n < 0 => "Results in " ++ string_of_int(- n) ++ " more errors"
+    | n => "Results in " ++ string_of_int(n) ++ " fewer errors"
+    };
+  switch (delta_errors) {
+  | 0 => []
+  | _ => [div([], [text(str)])]
+  };
+};
+
+let type_specificity_info_view = (type_specificity: int) => {
+  let str =
+    switch (type_specificity) {
+    | 0 => "Results in no change in type specificity"
+    | n when n < 0 => "Results in a less specific type"
+    | _ => "Results in a more specific type"
+    };
+  switch (type_specificity) {
+  | 0 => []
+  | _ => [div([], [text(str)])]
+  };
+};
+
+let idiomaticity_info_view = (idiomaticity: int) => {
+  let str =
+    switch (idiomaticity) {
+    | 0 => "Results in no change in idiomaticity"
+    | (-1) => "Result is less idiomatic"
+    | 1 => "Results is more idiomatic"
+    | n when n < 0 => "Results is much less idiomatic"
+    | _ => "Results is much more idiomatic"
+    };
+  switch (idiomaticity) {
+  | 0 => []
+  | _ => [div([], [text(str)])]
+  };
+};
+
+let suggestion_info_view = ({category, score, _}: Assistant_Exp.suggestion) => {
+  div(
+    [Attr.classes(["suggestion-info"])],
+    [
+      category_view(category),
+      span([], [text(Suggestion.description_of_category(category))]),
+    ]
+    @ delta_errors_info_view(score.delta_errors)
+    @ idiomaticity_info_view(score.idiomaticity)
+    @ type_specificity_info_view(score.type_specificity),
+  );
+};
+
 let suggestion_view =
     (
       ~ci as {cursor_term, _}: CursorInfo.t,
@@ -17,9 +78,7 @@ let suggestion_view =
       Event.Stop_propagation,
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
-  let label = Suggestion.string_of_category(category);
-  let category_view =
-    div([Attr.classes(["category", label])], [text(label)]);
+
   let index =
     switch (cursor_term) {
     | ExpOperand(OnText(i), _) => i
@@ -86,12 +145,12 @@ let suggestion_view =
       ),
       div([Attr.classes(["type-ann"])], [text(" : ")]),
       div([Attr.classes(["type"])], [HTypCode.view(res_ty)]),
-      category_view,
+      category_view(category),
     ],
   );
 };
 
-let view =
+let suggestions_view =
     (
       ~inject: ModelAction.t => Event.t,
       ~font_metrics: FontMetrics.t,
@@ -116,4 +175,36 @@ let view =
       filter_string,
     );
   div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
+};
+
+let view =
+    (
+      ~inject: ModelAction.t => Event.t,
+      ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
+      ~u_gen: MetaVarGen.t,
+      ~assistant_model: AssistantModel.t,
+      ~ci: CursorInfo.t,
+    )
+    : Node.t => {
+  let suggestions_view =
+    suggestions_view(
+      ~inject,
+      ~font_metrics,
+      ~settings,
+      ~u_gen,
+      ~assistant_model,
+      ~ci,
+    );
+  let suggestion_info_view = {
+    let s = AssistantModel.get_suggestion(~u_gen, assistant_model, ci);
+    switch (s) {
+    | Some(s) => suggestion_info_view(s)
+    | None => Node.text("SDf")
+    };
+  };
+  div(
+    [Attr.id("assistant-wrapper")],
+    [suggestions_view, suggestion_info_view],
+  );
 };

@@ -44,3 +44,14 @@ let string_of_category: category => string =
   | ReplaceOperator => "opr"
   | Wrap => "wra"
   | Delete => "del";
+
+let description_of_category: category => string =
+  fun
+  | InsertVar => "Inserts a variable"
+  | InsertApp => "Inserts an application"
+  | InsertLit => "Inserts a literal"
+  | InsertConstructor => "Inserts a contructor"
+  | InsertElim => "Inserts an eliminator"
+  | ReplaceOperator => "Replaces an operator"
+  | Wrap => "Wraps an existing form"
+  | Delete => "Deletes the current form";

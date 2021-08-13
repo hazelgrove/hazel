@@ -954,6 +954,33 @@ body {
   box-shadow: none;
 }
 
+#assistant-wrapper {
+  position: relative;
+}
+
+#assistant-wrapper .suggestion-info {
+  background-color: #555c;
+    color: #ccc;
+    position: absolute;
+    top: 0;
+    left: 106%;
+    border-radius: 0.4em;
+    padding: 0.5em;
+}
+
+#assistant-wrapper .suggestion-info .category {
+  /*TODO: this is effectively duplicated from above */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: #888;
+  font-weight:600;
+  text-transform: uppercase;
+  font-size: 0.6em;
+}
+
 /* action panel */
 
 .action-panel {
