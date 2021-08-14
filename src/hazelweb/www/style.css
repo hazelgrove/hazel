@@ -854,13 +854,6 @@ h1 {
   background-color: #EEE;
 }
 
-.result-control {
-  padding-right: 25px;
-  padding-bottom: 5px;
-  text-align: right;
-  background-color: #EEE;
-}
-
 .type-indicator {
   width: 100%;
   font-size: 12pt;
@@ -1182,11 +1175,6 @@ h1 {
 
 .result-view {
   font-size: 125%;
-}
-
-#serialize-DHExp {
-  height: 1.3rem;
-  cursor: pointer;
 }
 
 

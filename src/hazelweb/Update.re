@@ -207,12 +207,13 @@ let apply_action =
           |> Serialization.string_of_exp
           |> Js.string
           |> JSUtil.log
-        | DHExp(d) =>
+        | DHExp =>
+          let (d, _, _) = model |> Model.get_program |> Program.get_result;
           d
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
-          |> JSUtil.log
+          |> JSUtil.log;
         };
         model;
       };
