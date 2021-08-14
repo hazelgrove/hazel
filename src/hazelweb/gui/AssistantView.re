@@ -6,46 +6,58 @@ let category_view = category => {
   div([Attr.classes(["category", label])], [text(label)]);
 };
 
-let delta_errors_info_view = (delta_errors: int) => {
-  let str =
-    switch (delta_errors) {
-    | 0 => "Results in no change in the number of errors"
-    | (-1) => "Results in one more error"
-    | 1 => "Results in one fewer error"
-    | n when n < 0 => "Results in " ++ string_of_int(- n) ++ " more errors"
-    | n => "Results in " ++ string_of_int(n) ++ " fewer errors"
-    };
+let sign_icon = n =>
+  text(
+    switch (n) {
+    | n when n < 0 => "-"
+    | n when n > 0 => "+"
+    | _ => ""
+    },
+  );
+let sign_label = n =>
+  switch (n) {
+  | n when n < 0 => "minus"
+  | n when n > 0 => "plus"
+  | _ => ""
+  };
+
+let delta_errors_string = (delta_errors: int): string =>
   switch (delta_errors) {
-  | 0 => []
-  | _ => [div([], [text(str)])]
+  | 0 => "Same number of errors"
+  | (-1) => "One more error"
+  | 1 => "One fewer error"
+  | n when n < 0 => "" ++ string_of_int(- n) ++ " more errors"
+  | n => "" ++ string_of_int(n) ++ " fewer errors"
   };
-};
 
-let type_specificity_info_view = (type_specificity: int) => {
-  let str =
-    switch (type_specificity) {
-    | 0 => "Results in no change in type specificity"
-    | n when n < 0 => "Results in a less specific type"
-    | _ => "Results in a more specific type"
-    };
+let type_specificity_string = (type_specificity: int) =>
   switch (type_specificity) {
-  | 0 => []
-  | _ => [div([], [text(str)])]
+  | 0 => "Same type specificity"
+  | n when n < 0 => "Less specific type"
+  | _ => "More specific type"
   };
+let idiomaticity_string = (idiomaticity: int) =>
+  switch (idiomaticity) {
+  | 0 => "Same idiomaticity"
+  | (-1) => "Less idiomatic"
+  | 1 => "More idiomatic"
+  | n when n < 0 => "Much less idiomatic"
+  | _ => "Much more idiomatic"
+  };
+
+let sign_view = n => {
+  div([Attr.classes([sign_label(n)])], [sign_icon(n)]);
 };
 
-let idiomaticity_info_view = (idiomaticity: int) => {
-  let str =
-    switch (idiomaticity) {
-    | 0 => "Results in no change in idiomaticity"
-    | (-1) => "Result is less idiomatic"
-    | 1 => "Results is more idiomatic"
-    | n when n < 0 => "Results is much less idiomatic"
-    | _ => "Results is much more idiomatic"
-    };
-  switch (idiomaticity) {
+let subscore_view = (score_string: int => string, subscore: int) => {
+  switch (subscore) {
   | 0 => []
-  | _ => [div([], [text(str)])]
+  | _ => [
+      div(
+        [Attr.classes(["subscore"])],
+        [sign_view(subscore), text(score_string(subscore))],
+      ),
+    ]
   };
 };
 
@@ -53,12 +65,15 @@ let suggestion_info_view = ({category, score, _}: Assistant_Exp.suggestion) => {
   div(
     [Attr.classes(["suggestion-info"])],
     [
-      category_view(category),
-      span([], [text(Suggestion.description_of_category(category))]),
+      span([], [category_view(category)]),
+      span(
+        [Attr.classes(["suggestion-description"])],
+        [text(Suggestion.description_of_category(category))],
+      ),
     ]
-    @ delta_errors_info_view(score.delta_errors)
-    @ idiomaticity_info_view(score.idiomaticity)
-    @ type_specificity_info_view(score.type_specificity),
+    @ subscore_view(delta_errors_string, score.delta_errors)
+    @ subscore_view(idiomaticity_string, score.idiomaticity)
+    @ subscore_view(type_specificity_string, score.type_specificity),
   );
 };
 
@@ -96,10 +111,10 @@ let suggestion_view =
       match_len,
       String.length(result_text) - match_len,
     );
-  let match_string2 =
+  let match_string_after =
     StringUtil.match_prefix(after_caret, unmatched_remainder)
       ? after_caret : "";
-  let match_string = match_string ++ match_string2;
+  let match_string = match_string ++ match_string_after;
   let overlay_view =
     div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =
@@ -109,16 +124,18 @@ let suggestion_view =
       ~font_metrics,
       Program.mk_exp_editor(result),
     );
-  let error_str =
-    switch (score.delta_errors) {
-    | 1 => "+"
-    | 2 => "++"
-    | n when n > 2 => "+++"
-    | (-1) => "-"
-    | (-2) => "--"
-    | n when n < (-2) => "---"
-    | _ => ""
-    };
+  /*
+   let error_str =
+     switch (score.delta_errors) {
+     | 1 => "+"
+     | 2 => "++"
+     | n when n > 2 => "+++"
+     | (-1) => "-"
+     | (-2) => "--"
+     | n when n < (-2) => "---"
+     | _ => ""
+     };
+     */
   let color_score =
     score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
   div(
@@ -132,13 +149,14 @@ let suggestion_view =
       Attr.on_click(perform_action),
     ],
     [
-      div(
-        [Attr.classes(["delta-errors"])],
-        [
-          text(error_str),
-          text(string_of_int(score.idiomaticity + score.type_specificity)),
-        ],
-      ),
+      /*
+       div(
+         [Attr.classes(["delta-errors"])],
+         [
+           text(error_str),
+           text(string_of_int(score.idiomaticity + score.type_specificity)),
+         ],
+       ),*/
       div(
         [Attr.classes(["code-container"])],
         [div([Attr.classes(["code"])], [overlay_view] @ result_view)],

@@ -135,15 +135,14 @@ let idomaticity_score_parent =
   };
 };
 
-let type_specificity_score = (expected_ty: HTyp.t, res_ty: HTyp.t) =>
-  // TODO: 'if res_ty is less specific then expected_ty, -1'
-  switch (expected_ty) {
-  | Hole => 0
-  | _ =>
-    switch (res_ty) {
-    | Hole => (-1)
-    | _ => 0
-    }
+let type_specificity_score =
+    (expected_ty: HTyp.t, res_ty: HTyp.t, actual_ty: option(HTyp.t)) =>
+  // TODO: implement order relation on types
+  switch (expected_ty, res_ty, actual_ty) {
+  | (Hole, _, _) => 0
+  | (_, Hole, Some(Hole) | None) => 0
+  | (_, Hole, _) => (-1)
+  | _ => 0
   };
 
 let opseq_report =
@@ -189,7 +188,7 @@ let check_suggestion =
     (
       action: Action.t,
       res_ty: HTyp.t,
-      {opParent, expected_ty, _} as ci: CursorInfo.t,
+      {opParent, expected_ty, actual_ty, _} as ci: CursorInfo.t,
     )
     : option(Suggestion.score) => {
   let+ (
@@ -208,7 +207,8 @@ let check_suggestion =
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
   let idiomaticity = idomaticity_score_parent(action, opParent);
-  let type_specificity = type_specificity_score(expected_ty, res_ty);
+  let type_specificity =
+    type_specificity_score(expected_ty, res_ty, actual_ty);
   Suggestion.{idiomaticity, type_specificity, delta_errors};
 };
 

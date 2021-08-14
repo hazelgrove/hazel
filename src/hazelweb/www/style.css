@@ -752,13 +752,17 @@ body {
 .assistant-active .type-info-summary .HTypCode {
   border-radius: 0.3em;
   padding: 0 0.3em 0 0.3em;
-  background-color: rgb(101 101 101);
+  background-color: rgb(68 68 68);
 }
 
 .assistant-active .emphasize-text {
   background-color: #0000;
   font-weight: lighter;
   text-transform: lowercase;
+}
+
+.assistant-active .HTypCode .Diff {
+  text-decoration: none;
 }
 
 #assistant {
@@ -776,11 +780,13 @@ body {
 #assistant > .selected  {
   color: #383838;
   left: -0.35em;
-  width: 104%;
-  /* z-index: 0; */
-  /* border-right: solid 3px #45b445; */
+  width: 105%;
+  /* z-index: -1; */
+  border-bottom: solid 1px #2c372c;
+  border-top: solid 1px #444444;
   border-radius: 0.5em;
   background-color: rgb(197, 253, 197) !important;
+  box-sizing: border-box;
 }
 
 
@@ -875,7 +881,7 @@ body {
 
 #assistant > .selected > .category  {
   color: #666 !important;
-  border-radius: 0.5em;
+  border-radius: 0.75em;
   background-color: rgb(170 243 170);
 }
 
@@ -960,12 +966,15 @@ body {
 
 #assistant-wrapper .suggestion-info {
   background-color: #555c;
+    display: grid;
+    grid-template-columns: 1.85em 1fr;
     color: #ccc;
     position: absolute;
     top: 0;
     left: 106%;
     border-radius: 0.4em;
     padding: 0.5em;
+    padding-right: 2em;
 }
 
 #assistant-wrapper .suggestion-info .category {
@@ -973,12 +982,30 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
   background-color: #888;
   font-weight:600;
   text-transform: uppercase;
-  font-size: 0.6em;
+  font-size: 0.4em;
+}
+
+#assistant-wrapper .suggestion-info .suggestion-description {
+  color: white;
+}
+
+#assistant-wrapper .suggestion-info .subscore {
+  grid-column-start: 2;
+  display: flex;
+}
+
+#assistant-wrapper .suggestion-info .plus {
+  padding-right: 0.5em;
+  color: rgb(0, 205, 116);
+}
+#assistant-wrapper .suggestion-info .minus {
+  padding-right: 0.5em;
+  color: rgb(247, 0, 0);
 }
 
 /* action panel */
