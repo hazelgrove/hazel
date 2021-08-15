@@ -116,36 +116,38 @@ let code_view =
       let on_click = evt =>
         inject(
           Chain([
-            UpdateAssistant(Turn_off),
+            //UpdateAssistant(Turn_off),
             UHCode.click_to_move(editor_id, font_metrics, evt),
           ]),
         );
 
-      let on_contextmenu = evt => {
-        let ty =
-          switch (Assistant_common.get_type(cursor_info)) {
-          | None => UHTyp.contract(HTyp.Hole)
-          | Some(ty) => UHTyp.contract(ty)
-          };
-        Event.Many([
-          Event.Prevent_default,
-          inject(
-            Chain([
-              UpdateAssistant(Set_type_editor(ty)),
-              UpdateAssistant(Turn_on),
-              UpdateSettings(CursorInspector(Set_visible(true))),
-              UHCode.click_to_move(editor_id, font_metrics, evt),
-            ]),
-          ),
-        ]);
-      };
+      /*
+       let on_contextmenu = evt => {
+         let ty =
+           switch (Assistant_common.get_type(cursor_info)) {
+           | None => UHTyp.contract(HTyp.Hole)
+           | Some(ty) => UHTyp.contract(ty)
+           };
+         Event.Many([
+           Event.Prevent_default,
+           inject(
+             Chain([
+               UpdateAssistant(Set_type_editor(ty)),
+               UpdateAssistant(Turn_on),
+               UpdateSettings(CursorInspector(Set_visible(true))),
+               UHCode.click_to_move(editor_id, font_metrics, evt),
+             ]),
+           ),
+         ]);
+       };
+       */
 
       Node.div(
         [
           Attr.id(editor_id),
           Attr.classes(["code", "presentation"]),
           Attr.on_click(on_click),
-          Attr.on_contextmenu(on_contextmenu),
+          //Attr.on_contextmenu(on_contextmenu),
           Attr.create("tabindex", "0"), // necessary to make cell focusable
           Attr.on_focus(_ => inject(FocusCell(this_editor))),
           Attr.on_blur(_ => inject(BlurCell)),

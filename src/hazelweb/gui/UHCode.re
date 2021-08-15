@@ -194,11 +194,14 @@ let main_key_action =
   switch (key_of(evt)) {
   | Combo(Escape) =>
     // TODO(andrew): this is brittle as these can get out of sync
-    Some(Chain([UpdateAssistant(Toggle), update_ci(Toggle_visible)]))
+    Some(
+      Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
+    )
   | Move(k) => Some(MoveAction(Key(k)))
   | Combo(Ctrl_Space) =>
     //TODO(andrew): this was preven-stop-injected... make sure it's still good
-    Some(ModelAction.UpdateSettings(CursorInspector(Toggle_visible)))
+    //TODO(andrew): make this a three-way toggle assistant->plainCI->tutor
+    Some(Chain([UpdateAssistant(Turn_on), update_ci(Set_visible(true))]))
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))

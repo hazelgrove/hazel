@@ -692,18 +692,19 @@ let summary_bar =
                 ),
           ])
         ),
-        Attr.on_contextmenu(_ =>
-          Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(
-              Chain([
-                UpdateSettings(CursorInspector(Set_type_assist(false))),
-                UpdateAssistant(Toggle),
-              ]),
-            ),
-          ])
-        ),
+        /*
+         Attr.on_contextmenu(_ =>
+           Event.Many([
+             Event.Prevent_default,
+             Event.Stop_propagation,
+             inject(
+               Chain([
+                 UpdateSettings(CursorInspector(Set_type_assist(false))),
+                 UpdateAssistant(Toggle),
+               ]),
+             ),
+           ])
+         ),*/
       ],
       [
         if (symbol == Unicode.robot_arm) {
