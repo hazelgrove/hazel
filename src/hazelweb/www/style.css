@@ -783,6 +783,9 @@ body {
   position: relative;
   align-items: stretch;
   min-height: 2.25rem;
+  /* the following properties are set for transsition animation */
+  width: 100%;
+  border-radius: 0;
 }
 
 #assistant > .hovered  {
@@ -795,6 +798,8 @@ body {
   border-radius: 0.5em;
   background-color: rgb(197, 253, 197) !important;
   box-sizing: border-box;
+  transition-property: width, border-radius;
+  transition-duration: 0.2s, 0.5s;
 }
 
 
