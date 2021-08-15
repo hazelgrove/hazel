@@ -140,10 +140,12 @@ let rec apply_action =
         Model.put_focal_editor(editor, model)
 
       | BlurCell =>
+      /*
         P.p(
           "BLURCELL current: %s\n",
           Model.sexp_of_editor(model.focal_editor),
         );
+        */
         model |> Model.blur_cell;
       | Undo =>
         let new_history =
