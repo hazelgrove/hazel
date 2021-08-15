@@ -171,13 +171,15 @@ let get_suggestions_of_ty' =
   (suggestions, selection_index);
 };
 
-let get_suggestion =
-    (model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
-    : option(Suggestion.t(UHExp.t)) => {
-  let (suggestions, selection_index) =
-    get_suggestions_of_ty'(model, ci, ~u_gen);
-  List.nth_opt(suggestions, selection_index);
-};
+/*
+ let get_suggestion =
+     (model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+     : option(Suggestion.t(UHExp.t)) => {
+   let (suggestions, selection_index) =
+     get_suggestions_of_ty'(model, ci, ~u_gen);
+   List.nth_opt(suggestions, selection_index);
+ };
+ */
 
 let get_display_suggestions =
     (
@@ -216,3 +218,9 @@ let set_hover_index = (hover_index: option(int), model: t): t => {
   ...model,
   hover_index,
 };
+
+let is_active_suggestion_index = (model: t, i: int) =>
+  switch (model.hover_index) {
+  | None => i == 0 // select first by default
+  | Some(hover_index) => hover_index == i
+  };

@@ -785,7 +785,7 @@ body {
   min-height: 2.25rem;
 }
 
-#assistant > .selected  {
+#assistant > .hovered  {
   color: #383838;
   left: -0.35em;
   width: 105%;
@@ -809,7 +809,7 @@ body {
   background-color: rgb(203 164 164)
 }
 /*#assistant > .errors-more:hover,*/
-#assistant > .errors-more.selected   {
+#assistant > .errors-more.hovered   {
   color: #b00b0b;
   background-color: rgb(253, 217, 197);
 }
@@ -820,7 +820,7 @@ body {
 }
 
 /*#assistant > .errors-less:hover,*/
-#assistant > .errors-less.selected   {
+#assistant > .errors-less.hovered   {
   color: black;
   background-color: rgb(197, 235, 253);
 }
@@ -832,10 +832,7 @@ body {
   font-size: 0.5em;
 } 
 
-#assistant > .choice.hovered {
-  background-color: #66f !important;
-}
-
+/*
 #assistant > .choice:hover:not(.selected)  {
   z-index: 1000000;
   background-color: #8ab38b;
@@ -860,22 +857,23 @@ body {
 #assistant > .selected.choice:hover > .type {
   color: #000 !important;
 }
+*/
 
-#assistant > .selected.choice > .code-container .overlay {
+#assistant > .hovered.choice > .code-container .overlay {
   position: absolute;
   z-index: 9000; /* hack */
   color:  #0088ff;
   text-decoration: underline;
 }
 
-#assistant > .choice:not(.selected) > .code-container .overlay {
+#assistant > .choice:not(.hovered) > .code-container .overlay {
   position: absolute;
   z-index: 9000; /* hack */
   color: #b9ffb9;
   text-decoration: underline;
 }
 
-#assistant > .selected > .type  {
+#assistant > .hovered > .type  {
   color: #3ba270 !important;
 }
 
@@ -892,7 +890,7 @@ body {
   color:#babbbb;
 }
 
-#assistant > .selected > .category  {
+#assistant > .hovered > .category  {
   color: #666 !important;
   border-radius: 0.75em;
   background-color: rgb(170 243 170);
@@ -934,13 +932,15 @@ body {
   font-weight: normal;
 }
 
+/*
 #assistant > .choice:hover:not(.selected) .code .HoleLabel{
   background-color: #79a279;
   color: rgb(148, 216, 141);
   border-radius: 4px;
   box-shadow: inset 1px 1px 0 rgb(104 201 92);
 }
-#assistant > .selected .code .HoleLabel  {
+*/
+#assistant > .hovered .code .HoleLabel  {
   background-color: #94f893;
   color: rgb(90 182 79);
   border-radius: 4px;
@@ -964,7 +964,7 @@ body {
   position: absolute;
 }*/
 
-#assistant > .selected > .type {
+#assistant > .hovered > .type {
   color: #3ba270;
 }
 
@@ -973,8 +973,8 @@ body {
   color: #ccc;
   box-shadow: none;
 }
-#assistant > .choice:hover > .type  .HoleLabel,
-#assistant > .selected > .type .HoleLabel  {
+/*#assistant > .choice:hover > .type  .HoleLabel,*/
+#assistant > .hovered > .type .HoleLabel  {
   background-color: #0000;
   color: rgb(120 120 120);
   box-shadow: none;

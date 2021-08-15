@@ -198,11 +198,7 @@ let suggestions_view =
     CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
   let suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant_model);
-  let is_hovered = i =>
-    switch (assistant_model.hover_index) {
-    | None => false
-    | Some(hover_index) => hover_index == i
-    };
+  let is_hovered = AssistantModel.is_active_suggestion_index(assistant_model);
   let suggestion_view = (i, a) =>
     suggestion_view(
       ~ci,
@@ -238,10 +234,11 @@ let view =
       ~ci,
     );
   let suggestion_info_view = {
-    let s = AssistantModel.get_suggestion(~u_gen, assistant_model, ci);
+    let s =
+      AssistantModel.get_indicated_suggestion(~u_gen, assistant_model, ci);
     switch (s) {
     | Some(s) => suggestion_info_view(s)
-    | None => Node.text("SDf")
+    | None => Node.text("")
     };
   };
   div(
