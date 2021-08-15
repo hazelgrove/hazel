@@ -1,8 +1,10 @@
 open OptUtil.Syntax;
+open Sexplib.Std;
 
 type t = {
   active: bool,
   selection_index: int,
+  hover_index: option(int),
   choice_display_limit: int,
   filter_editor: Program.typ,
 };
@@ -15,7 +17,8 @@ type update =
   | Set_type_editor(UHTyp.t)
   | Reset
   | Increment_selection_index
-  | Decrement_selection_index;
+  | Decrement_selection_index
+  | Set_hover_index(option(int));
 
 [@deriving sexp]
 type suggestion = Assistant_Exp.suggestion;
@@ -23,6 +26,7 @@ type suggestion = Assistant_Exp.suggestion;
 let init = {
   active: false,
   selection_index: 0,
+  hover_index: None,
   choice_display_limit: 6,
   filter_editor: Program.mk_typ_editor(OpSeq.wrap(UHTyp.Hole)),
 };
@@ -56,6 +60,7 @@ let apply_update = (u: update, model: t) =>
     }
   | Set_type_editor(uty) =>
     put_filter_editor(model, Program.mk_typ_editor(uty))
+  | Set_hover_index(n) => {...model, hover_index: n}
   };
 
 let wrap_index = (index: int, xs: list('a)): int =>
@@ -153,37 +158,61 @@ let get_suggestions_of_ty =
   |> get_suggestions(~u_gen)
   |> List.filter((s: suggestion) => HTyp.consistent(s.res_ty, ty));
 
-let get_suggestion =
+let get_suggestions_of_ty' =
     (
-      {selection_index, filter_editor, _}: t,
+      {filter_editor, selection_index, _}: t,
       ci: CursorInfo.t,
       ~u_gen: MetaVarGen.t,
     )
-    : option(Suggestion.t(UHExp.t)) => {
+    : (list(Suggestion.t(UHExp.t)), int) => {
   let filter_ty = Program.get_ty(filter_editor);
   let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
   let selection_index = wrap_index(selection_index, suggestions);
-  List.nth_opt(suggestions, selection_index);
+  (suggestions, selection_index);
 };
 
-let get_action =
-    (assistant_model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
-    : option(Action.t) => {
-  let+ selection = get_suggestion(assistant_model, ci, ~u_gen);
-  selection.action;
+let get_suggestion =
+    (model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+    : option(Suggestion.t(UHExp.t)) => {
+  let (suggestions, selection_index) =
+    get_suggestions_of_ty'(model, ci, ~u_gen);
+  List.nth_opt(suggestions, selection_index);
 };
 
 let get_display_suggestions =
     (
       ci: CursorInfo.t,
       ~u_gen: MetaVarGen.t,
-      {selection_index, choice_display_limit, filter_editor, _}: t,
+      {choice_display_limit, _} as model: t,
     )
     : list(suggestion) => {
-  let filter_ty = Program.get_ty(filter_editor);
-  let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
-  let selection_index = wrap_index(selection_index, suggestions);
+  let (suggestions, selection_index) =
+    get_suggestions_of_ty'(model, ci, ~u_gen);
   suggestions
   |> ListUtil.rotate_n(selection_index)
   |> ListUtil.trim(choice_display_limit);
+};
+
+let get_indicated_suggestion =
+    ({hover_index, _} as model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t) => {
+  let (suggestions, selection_index) =
+    get_suggestions_of_ty'(model, ci, ~u_gen);
+  let index =
+    switch (hover_index) {
+    | None => selection_index
+    | Some(hover_index) => selection_index + hover_index
+    };
+  List.nth_opt(suggestions, index);
+};
+
+let get_action =
+    (assistant_model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+    : option(Action.t) => {
+  let+ selection = get_indicated_suggestion(assistant_model, ci, ~u_gen);
+  selection.action;
+};
+
+let set_hover_index = (hover_index: option(int), model: t): t => {
+  ...model,
+  hover_index,
 };

@@ -85,6 +85,8 @@ let suggestion_view =
       ~font_metrics: FontMetrics.t,
       {action, result, res_ty, category, result_text, score, _}: Assistant_Exp.suggestion,
       is_selected: bool,
+      is_hovered: bool,
+      my_index: int,
       search_string: string,
     ) => {
   let perform_action = _ =>
@@ -124,6 +126,15 @@ let suggestion_view =
       ~font_metrics,
       Program.mk_exp_editor(result),
     );
+  let on_mouseenter = _x => {
+    print_endline("setting focus to: Some(");
+    print_endline(string_of_int(my_index));
+    inject(ModelAction.UpdateAssistant(Set_hover_index(Some(my_index))));
+  };
+  let on_mouseleave = _x => {
+    print_endline("setting focus to: None");
+    inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
+  };
   /*
    let error_str =
      switch (score.delta_errors) {
@@ -140,13 +151,18 @@ let suggestion_view =
     score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
   div(
     [
+      Attr.id(string_of_int(my_index)),
       Attr.classes(
         ["choice"]
         @ (is_selected ? ["selected"] : [])
+        @ (is_hovered ? ["hovered"] : [])
         @ (color_score > 0 ? ["errors-less"] : [])
         @ (color_score < 0 ? ["errors-more"] : []),
       ),
+      Attr.create("tabindex", "0"), // necessary to make cell focusable
       Attr.on_click(perform_action),
+      Attr.on_mouseenter(on_mouseenter),
+      Attr.on_mouseleave(on_mouseleave),
     ],
     [
       /*
@@ -182,6 +198,11 @@ let suggestions_view =
     CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
   let suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant_model);
+  let is_hovered = i =>
+    switch (assistant_model.hover_index) {
+    | None => false
+    | Some(hover_index) => hover_index == i
+    };
   let suggestion_view = (i, a) =>
     suggestion_view(
       ~ci,
@@ -190,6 +211,8 @@ let suggestions_view =
       ~font_metrics,
       a,
       i == 0,
+      is_hovered(i),
+      i,
       filter_string,
     );
   div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));

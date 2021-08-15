@@ -664,11 +664,11 @@ let summary_bar =
             : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
   let images_dir = "imgs/";
-  let images_name = "boost3.png";
+  let images_name = "boost-pixel.png";
   let set_img = path =>
     Node.create(
       "img",
-      [Attr.create("src", path), Attr.create("style", "width: 20px")],
+      [Attr.create("src", path), Attr.create("style", "height:1.1em")],
       [],
     );
   let fill_icon = symbol =>
