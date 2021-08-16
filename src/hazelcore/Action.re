@@ -19,7 +19,7 @@ type operator_shape =
 
 [@deriving sexp]
 type shape =
-  | SCommentLine
+  | SStringCommentLine
   | SList
   | SParenthesized
   | SChar(string)

@@ -59,7 +59,7 @@ and syn_lines =
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | EmptyLine
-  | CommentLine(_) => Some(ctx)
+  | StringCommentLine(_) => Some(ctx)
   | ExpLine(opseq) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
@@ -572,7 +572,7 @@ and syn_fix_holes_line =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
-  | CommentLine(_) => (line, ctx, u_gen)
+  | StringCommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, def) =>
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);

@@ -171,7 +171,9 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             ),
           ];
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | StringCommentLine => [
+            Node.span([Attr.classes(["StringCommentLine"])], vs),
+          ]
         | _ => vs
         };
       }

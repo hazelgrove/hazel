@@ -8,7 +8,7 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
-  | CommentLine(string)
+  | StringCommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
@@ -76,7 +76,7 @@ module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
-    | CommentLine(_)
+    | StringCommentLine(_)
     | ExpLine(_)
     | EmptyLine
     | LetLine(_) => line
@@ -85,7 +85,7 @@ module Line = {
   let get_opseq =
     fun
     | EmptyLine
-    | CommentLine(_)
+    | StringCommentLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -296,7 +296,7 @@ let mk_OpSeq = OpSeq.mk(~associate);
 let rec is_complete_line = (l: line): bool => {
   switch (l) {
   | EmptyLine
-  | CommentLine(_) => true
+  | StringCommentLine(_) => true
   | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   };

@@ -6,7 +6,7 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
-  | CommentLine(string)
+  | StringCommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)

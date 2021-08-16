@@ -6,7 +6,7 @@ let get_model_action =
   let (cursor_on_type, cursor_on_comment) =
     switch (cursor_info) {
     | {typed: OnType, _} => (true, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
+    | {cursor_term: Line(_, StringCommentLine(_)), _} => (false, true)
     | _ => (false, false)
     };
 
@@ -25,7 +25,7 @@ let get_model_action =
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)
-  | Shift_Enter => construct(SCommentLine)
+  | Shift_Enter => construct(SStringCommentLine)
   | Backslash => construct(SLam)
   | Plus => construct(SOp(SPlus))
   | Minus => construct(SOp(SMinus))
@@ -41,7 +41,7 @@ let get_model_action =
   | Alt_L => construct(SInj(L))
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
-  | Pound => construct(SCommentLine)
+  | Pound => construct(SStringCommentLine)
   | Ctrl_S => Some(SerializeToConsole)
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)

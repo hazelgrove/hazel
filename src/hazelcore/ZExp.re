@@ -51,7 +51,7 @@ let line_can_be_swapped = (line: zline): bool =>
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
-  | CommentLine(comment) =>
+  | StringCommentLine(comment) =>
     CursorPosition.[OnDelim(0, Before), OnDelim(0, After)]
     @ (
       ListUtil.range(String.length(comment) + 1)
@@ -125,7 +125,7 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   }
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
-  | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
+  | CursorL(cursor, StringCommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
@@ -157,7 +157,7 @@ and is_before_zoperand =
   | ApPaletteZ(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
-// Check if the cursor at "OnDelim(After)" in a "CommentLine"
+// Check if the cursor at "OnDelim(After)" in a "StringCommentLine"
 /* For example:
            # Comment1
            #| Comment2
@@ -165,14 +165,14 @@ and is_before_zoperand =
    */
 let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
   switch (zline) {
-  | CursorL(cursor, CommentLine(_)) =>
+  | CursorL(cursor, StringCommentLine(_)) =>
     switch (prefix |> ListUtil.split_last_opt) {
-    | Some((_, CommentLine(_))) => cursor == OnDelim(0, After)
+    | Some((_, StringCommentLine(_))) => cursor == OnDelim(0, After)
     | _ => false
     }
   | _ => false
   };
-// Check if the cursor at the end of a "CommentLine"
+// Check if the cursor at the end of a "StringCommentLine"
 /* For example:
            # Comment1|
            # Comment2
@@ -180,9 +180,10 @@ let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
    */
 let is_end_of_comment = ((_, zline, suffix): zblock): bool =>
   switch (zline) {
-  | CursorL(cursor, CommentLine(comment)) =>
+  | CursorL(cursor, StringCommentLine(comment)) =>
     switch (suffix) {
-    | [CommentLine(_), ..._] => cursor == OnText(String.length(comment))
+    | [StringCommentLine(_), ..._] =>
+      cursor == OnText(String.length(comment))
     | _ => false
     }
   | _ => false
@@ -205,7 +206,7 @@ and is_after_zblock = ((_, zline, suffix): zblock): bool =>
   }
 and is_after_zline =
   fun
-  | CursorL(cursor, CommentLine(comment)) =>
+  | CursorL(cursor, StringCommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
@@ -255,7 +256,7 @@ and is_outer_zblock = ((_, zline, suffix): zblock): bool =>
 and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
-  | CursorL(_, CommentLine(_))
+  | CursorL(_, StringCommentLine(_))
   | CursorL(_, LetLine(_)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
@@ -297,7 +298,7 @@ and place_before_block =
   | [first, ...rest] => ([], first |> place_before_line, rest)
 and place_before_line =
   fun
-  | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
+  | StringCommentLine(_) as line => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
@@ -334,7 +335,7 @@ and place_after_block = (block: UHExp.block): zblock =>
   }
 and place_after_line =
   fun
-  | CommentLine(comment) as line =>
+  | StringCommentLine(comment) as line =>
     CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(2, After), line)
@@ -381,7 +382,7 @@ let place_cursor_line =
     // encoded in steps, not CursorPosition.t
     None
   | EmptyLine
-  | CommentLine(_)
+  | StringCommentLine(_)
   | LetLine(_) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
@@ -588,13 +589,13 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnOp(_), _) => None
 
   | CursorL(OnText(_), EmptyLine) => None
-  | CursorL(OnText(0), CommentLine(_) as line) =>
+  | CursorL(OnText(0), StringCommentLine(_) as line) =>
     Some(CursorL(OnDelim(0, After), line))
-  | CursorL(OnText(k), CommentLine(_) as line) =>
+  | CursorL(OnText(k), StringCommentLine(_) as line) =>
     Some(CursorL(OnText(k - 1), line))
   | CursorL(OnText(_), ExpLine(_) | LetLine(_)) => None
 
-  | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
+  | CursorL(OnDelim(_), EmptyLine | StringCommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(k, Before), LetLine(p, def)) =>
@@ -768,13 +769,13 @@ and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
   | CursorL(OnOp(_), _) => None
-  | CursorL(OnText(k), CommentLine(_) as line) =>
+  | CursorL(OnText(k), StringCommentLine(_) as line) =>
     Some(CursorL(OnText(k + 1), line))
   | CursorL(OnText(_), EmptyLine | ExpLine(_) | LetLine(_)) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
 
-  | CursorL(OnDelim(_, After), CommentLine(_) as line) =>
+  | CursorL(OnDelim(_, After), StringCommentLine(_) as line) =>
     Some(CursorL(OnText(0), line))
 
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None

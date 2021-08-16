@@ -47,7 +47,7 @@ and find_uses_block =
 }
 and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
   switch (line) {
-  | CommentLine(_) => ([], false)
+  | StringCommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_uses_opseq(~steps, x, opseq), false)
   | EmptyLine => ([], false)
   | LetLine(p, def) => (

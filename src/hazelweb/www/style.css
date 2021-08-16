@@ -1,15 +1,15 @@
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-style: normal;
   font-weight: normal;
-  src: url('fonts/FiraCode-Regular.woff2') format('woff2');
+  src: url("fonts/FiraCode-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-style: normal;
   font-weight: bold;
-  src: url('fonts/FiraCode-SemiBold.woff2') format('woff2');
+  src: url("fonts/FiraCode-SemiBold.woff2") format("woff2");
 }
 
 :root {
@@ -57,17 +57,18 @@ div {
 
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
-    -webkit-user-select: none; /* Safari */
-     -khtml-user-select: none; /* Konqueror HTML */
-       -moz-user-select: none; /* Firefox */
-        -ms-user-select: none; /* Internet Explorer/Edge */
-            user-select: none; /* Non-prefixed version, currently
+  -webkit-user-select: none; /* Safari */
+  -khtml-user-select: none; /* Konqueror HTML */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+  user-select: none; /* Non-prefixed version, currently
                                   supported by Chrome and Opera */
 }
 
 /* top level */
 
-html, body {
+html,
+body {
   margin: 0px;
   padding: 0px;
   font-family: Montserrat, sans-serif;
@@ -120,17 +121,16 @@ body {
   text-decoration: none;
 }
 
-
 /* menu panel */
 
 .dropdown {
   margin-left: auto;
-  color:#239d60;
+  color: #239d60;
   display: inline-block;
   position: relative;
 }
 .dropdown:hover {
-  color:#40cb85;
+  color: #40cb85;
 }
 
 .dropdown details {
@@ -160,7 +160,7 @@ body {
 .dropdown .shortcut {
   font-size: 0.7em;
   font-style: italic;
-  color:#7f8b85;
+  color: #7f8b85;
 }
 
 .dropdown summary {
@@ -199,7 +199,6 @@ body {
   z-index: 10000;
 }
 
-
 #card-controls {
   display: flex;
   gap: 0.26em;
@@ -207,7 +206,8 @@ body {
   align-items: center;
 }
 
-#card-controls select, #card-controls button {
+#card-controls select,
+#card-controls button {
   background-color: #187346;
   color: #94deba;
   border-width: 0;
@@ -216,9 +216,10 @@ body {
   box-shadow: 0 3px #020;
 }
 
-#card-controls select:hover, #card-controls button:hover {
+#card-controls select:hover,
+#card-controls button:hover {
   color: #d7ffec;
-  background-color: #239d60; 
+  background-color: #239d60;
 }
 
 #cardstack-controls {
@@ -232,11 +233,13 @@ body {
   direction: row;
 }
 
-#cardstack-prev-button, #cardstack-next-button {
+#cardstack-prev-button,
+#cardstack-next-button {
   cursor: pointer;
 }
 
-#cardstack-prev-button:disabled, #cardstack-next-button:disabled {
+#cardstack-prev-button:disabled,
+#cardstack-next-button:disabled {
   cursor: not-allowed;
 }
 
@@ -387,22 +390,22 @@ body {
 
 .question-mark-circle {
   color: #fff;
-  background-color:#000;
-  width:14px;
-  height:14px;
-  display:inline-block;
-  font-size:12px;
+  background-color: #000;
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  font-size: 12px;
   font-family: var(--code-font-family);
-  text-align:center;
-  text-decoration:none;
-  border-radius:100%;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 100%;
 }
 
 /* panels */
 
 .panel {
   outline: 1px solid var(--title-bar-color);
-  background-color: #FEFEEA;
+  background-color: #fefeea;
   /* box-shadow: 2px 2px 0px 0px #af8e63; */
   margin-bottom: 7px;
   display: flex;
@@ -459,10 +462,11 @@ body {
 }
 
 .cursor-Keyword .titlebar {
-	background-color: #ce5f00;
+  background-color: #ce5f00;
 }
 
-.typebar, .infobar {
+.typebar,
+.infobar {
   font-size: 125%;
   padding: 5px;
   min-height: 38px;
@@ -480,19 +484,23 @@ body {
   min-height: 38px;
 }
 
-.cursor-OK .typebar, .cursor-OK .infobar {
-  background-color: #FEFEEA;
+.cursor-OK .typebar,
+.cursor-OK .infobar {
+  background-color: #fefeea;
 }
 
-.cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
+.cursor-TypeInconsistency .typebar,
+.cursor-TypeInconsistency .infobar {
   background-color: #ffe0e0;
 }
 
-.cursor-BindingError .typebar, .cursor-BindingError .infobar {
+.cursor-BindingError .typebar,
+.cursor-BindingError .infobar {
   background-color: #fef6ea;
 }
 
-.cursor-Keyword .typebar, .cursor-Keyword .infobar {
+.cursor-Keyword .typebar,
+.cursor-Keyword .infobar {
   background-color: #fef6ea;
 }
 
@@ -594,7 +602,7 @@ body {
 .action-disabled .keyboard-shortcut {
   /* background-color: #888; */
   /* border: 1px outset #999; */
-  color: #BBB;
+  color: #bbb;
 }
 
 .action-label-with-input {
@@ -623,7 +631,7 @@ body {
   box-sizing: border-box;
   border: 0px;
   border-bottom: 1px solid #ffffff47;
-  background-color: rgba(0,0,0,0);
+  background-color: rgba(0, 0, 0, 0);
   color: white;
   font-family: var(--code-font-family);
   font-style: italic;
@@ -660,7 +668,7 @@ body {
 
 .context-is-empty-msg {
   margin-top: 10px;
-  opacity: 0.50;
+  opacity: 0.5;
   text-align: center;
   /* text-transform: uppercase; */
   font-size: 75%;
@@ -712,8 +720,7 @@ body {
 .path-item,
 .path-item .inst,
 .path-item .inst-var-separator,
-.path-item .path-var
-{
+.path-item .path-var {
   display: inline-block;
 }
 
@@ -728,7 +735,7 @@ body {
   margin-left: 5px;
   margin-right: 5px;
   font-weight: bold;
-  color: #CCC;
+  color: #ccc;
 }
 
 .trailing-inst {
@@ -841,17 +848,17 @@ h1 {
 }
 
 .cell-status {
-  background-color: #EEE;
+  background-color: #eee;
 }
 
 .result-label {
-  padding: 3px
+  padding: 3px;
 }
 
 .result-view {
   padding-left: 25px;
   padding-bottom: 5px;
-  background-color: #EEE;
+  background-color: #eee;
 }
 
 .type-indicator {
@@ -860,7 +867,7 @@ h1 {
 }
 
 .type-label {
-  background-color: #EEE;
+  background-color: #eee;
   padding: 3px;
   display: inline-block;
   padding-right: 5px;
@@ -872,7 +879,7 @@ h1 {
 
 .htype-view {
   padding: 3px;
-  background-color: #EEE;
+  background-color: #eee;
   display: inline-block;
 }
 
@@ -881,11 +888,11 @@ h1 {
   font-size: 12pt;
 }
 
-.HZElem{
+.HZElem {
   float: left;
 }
 
-.HZElem img{
+.HZElem img {
   float: left;
 }
 
@@ -1073,7 +1080,8 @@ h1 {
   animation: 1s blink step-end infinite;
 }
 @keyframes "blink" {
-  from, to {
+  from,
+  to {
     background-color: var(--caret-color);
   }
   50% {
@@ -1081,7 +1089,8 @@ h1 {
   }
 }
 @-moz-keyframes blink {
-  from, to {
+  from,
+  to {
     background-color: var(--caret-color);
   }
   50% {
@@ -1089,7 +1098,8 @@ h1 {
   }
 }
 @-webkit-keyframes "blink" {
-  from, to {
+  from,
+  to {
     background-color: var(--caret-color);
   }
   50% {
@@ -1097,7 +1107,8 @@ h1 {
   }
 }
 @-ms-keyframes "blink" {
-  from, to {
+  from,
+  to {
     background-color: var(--caret-color);
   }
   50% {
@@ -1105,7 +1116,8 @@ h1 {
   }
 }
 @-o-keyframes "blink" {
-  from, to {
+  from,
+  to {
     background-color: var(--caret-color);
   }
   50% {
@@ -1159,18 +1171,18 @@ h1 {
   margin-top: 20px;
   background-color: white;
   padding: 10px;
-  border: 2px solid #CCC;
+  border: 2px solid #ccc;
 }
 #cell:focus {
   outline: 0px;
 }
 
 .InVarHole.Keyword {
-	font-weight: bold;
+  font-weight: bold;
 }
 
 .Keyword .var {
-	font-style: normal;
+  font-style: normal;
 }
 
 .result-view {
@@ -1192,7 +1204,7 @@ h1 {
 }
 
 .HoleLabel {
-  color: #BBB;
+  color: #bbb;
   display: inline-block;
   text-align: center;
   /* border-bottom: 1px solid var(--empty-hole-color); */
@@ -1211,7 +1223,7 @@ h1 {
   color: #777;
 }
 
-.CommentLine {
+.StringCommentLine {
   color: #777;
   font-style: italic;
 }
@@ -1219,7 +1231,7 @@ h1 {
 .UserNewline {
   vertical-align: middle;
   font-size: 60%;
-  color: #BBB;
+  color: #bbb;
 }
 
 .hide-hole-names .holeName {
@@ -1231,7 +1243,7 @@ h1 {
 }
 
 .elided {
-  color: #AAA;
+  color: #aaa;
   font-size: 80%;
 }
 
@@ -1255,7 +1267,7 @@ h1 {
 }
 
 .palette-view {
-  background-color: #EEE;
+  background-color: #eee;
   border: 1px solid #444;
   padding: 4px;
   margin-left: 5px;
@@ -1275,7 +1287,7 @@ h1 {
   position: relative;
 }
 
-.history-entry-txt{
+.history-entry-txt {
   width: 80%;
   float: left;
   height: 100%;
@@ -1284,24 +1296,24 @@ h1 {
   padding-left: 10px;
 }
 
-.history-type-tag{
+.history-type-tag {
   display: inline;
   border-radius: 10%;
   color: black;
-  margin-right:10px;
+  margin-right: 10px;
   font-size: 11px;
-  padding:5px;
+  padding: 5px;
   font-weight: bolder;
   float: left;
 }
-.history-type-tag-typ{
-  background-color:rgb(233, 221, 253);
+.history-type-tag-typ {
+  background-color: rgb(233, 221, 253);
 }
-.history-type-tag-pat{
-  background-color:#baf1fe;
+.history-type-tag-pat {
+  background-color: #baf1fe;
 }
-.history-type-tag-exp{
-  background-color:rgb(197, 253, 197);
+.history-type-tag-exp {
+  background-color: rgb(197, 253, 197);
 }
 
 .the-prev-history {
@@ -1317,7 +1329,7 @@ h1 {
   background-color: lightgoldenrodyellow;
 }
 
-.timestamp-txt{
+.timestamp-txt {
   float: right;
   text-align: center;
   position: absolute;
@@ -1325,13 +1337,13 @@ h1 {
   right: 35px;
   color: white;
 }
-.timestamp-txt span{
+.timestamp-txt span {
   visibility: hidden;
   background-color: gray;
   padding: 0px 3px 0px 3px;
   border-radius: 5px;
 }
-.timestamp-txt:hover span{
+.timestamp-txt:hover span {
   visibility: visible;
 }
 
@@ -1345,7 +1357,7 @@ h1 {
   float: right;
   font-size: 16px;
 }
-.history-tab-icon:hover{
+.history-tab-icon:hover {
   border-radius: 40%;
   color: white;
   background-color: #073f24;
@@ -1358,7 +1370,7 @@ h1 {
   color: white;
   display: inline-block;
   vertical-align: middle;
-  float:right;
+  float: right;
 }
 
 .all-history-tab-icon-wrapper {
@@ -1381,9 +1393,9 @@ h1 {
   float: right;
   cursor: pointer;
 }
-.history-button[disabled]{
+.history-button[disabled] {
   cursor: not-allowed;
-  color:lightgray;
+  color: lightgray;
 }
 
 #history-panel .labeled-checkbox {
@@ -1393,7 +1405,7 @@ h1 {
   align-items: center;
 }
 
-#preview_on_hover_checkbox{
+#preview_on_hover_checkbox {
   margin-left: 0px;
 }
 .horizontal-flip {
@@ -1410,23 +1422,23 @@ h1 {
   padding-left: 5px;
   padding-right: 5px;
 }
-.redo-undo-icon:hover{
+.redo-undo-icon:hover {
   border-radius: 40%;
   background-color: #073f24;
 }
-.history-button[disabled] .redo-undo-icon:hover{
+.history-button[disabled] .redo-undo-icon:hover {
   border-radius: 40%;
   background-color: dimgray;
 }
-#preview_on_hover{
+#preview_on_hover {
   display: inline-block;
   float: left;
 }
 /* panel keywords css */
-.panel-code-keywords-font{
+.panel-code-keywords-font {
   font-family: var(--code-font-family);
   font-weight: bold;
 }
-.panel-code-font{
+.panel-code-font {
   font-family: var(--code-font-family);
 }

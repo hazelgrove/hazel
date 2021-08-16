@@ -493,7 +493,7 @@ let get_new_action_group =
             }
           }
         }
-      | SCommentLine
+      | SStringCommentLine
       | SParenthesized
       | SList
       | SAnn

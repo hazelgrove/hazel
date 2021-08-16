@@ -31,7 +31,7 @@ type t =
       sort: TermSort.t,
     })
   | Tessera
-  | CommentLine
+  | StringCommentLine
   | Step(int)
   | Term(term_data);
 

@@ -95,7 +95,7 @@ and mk_block =
       ((i, (hd, hd_doc)), tl_doc) =>
         switch ((hd: UHExp.line)) {
         | EmptyLine
-        | CommentLine(_)
+        | StringCommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
         | LetLine(_) =>
           annot_SubBlock(
@@ -119,7 +119,7 @@ and mk_line =
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-        | CommentLine(comment) =>
+        | StringCommentLine(comment) =>
           let comment_doc =
             UHDoc_common.mk_text(comment)
             |> Doc.annot(
@@ -134,7 +134,7 @@ and mk_line =
             UHDoc_common.space_,
             comment_doc,
           ])
-          |> Doc.annot(UHAnnot.CommentLine);
+          |> Doc.annot(UHAnnot.StringCommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, def) =>

@@ -15,7 +15,7 @@ let shape_to_string = (shape: shape): string => {
     }
   | SLet => "let binding"
   | SLine => "new line"
-  | SCommentLine => "comment line"
+  | SStringCommentLine => "comment line"
   | SCase => "case expression"
   | SOp(operator_shape) =>
     switch (operator_shape) {

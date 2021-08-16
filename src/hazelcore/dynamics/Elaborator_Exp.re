@@ -528,7 +528,7 @@ and syn_elab_line =
       LinesExpand(prelude, ctx, delta);
     }
   | EmptyLine
-  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
+  | StringCommentLine(_) => LinesExpand(d => d, ctx, delta)
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotExpand
