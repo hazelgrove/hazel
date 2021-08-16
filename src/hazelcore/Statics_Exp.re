@@ -47,6 +47,15 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
 }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
+/* pass 1: put in typing context */
+  let _ = lines
+    |> List.fold_left(
+       (opt_ctx: option(Contexts.t), line: UHExp.line) => {
+         let* ctx = opt_ctx;
+         syn_line_pass1(ctx, line);
+       },
+     );
+  ;
   lines
   |> List.fold_left(
        (opt_ctx: option(Contexts.t), line: UHExp.line) => {
@@ -56,6 +65,20 @@ and syn_lines =
        Some(ctx),
      );
 }
+
+and syn_line_pass1 = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
+  switch (line) {
+  | EmptyLine
+  | CommentLine(_) => Some(ctx)
+  | ExpLine(opseq) =>
+    let+ _ = syn_opseq(ctx, opseq);
+    ctx;
+  | LetLine(_key, p, def) =>
+    let def_ctx = extend_let_def_ctx(ctx, p, def);
+    let* ty_def = syn(def_ctx, def);  /* use annotation? */
+    Statics_Pat.syn(ctx, p, ty_def); /* use annotation? */
+  }
+
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | EmptyLine
