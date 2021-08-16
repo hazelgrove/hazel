@@ -993,11 +993,6 @@ and syn_perform_line =
     );
     mk_result(u_gen, new_zblock);
 
-  // Operators as valid text in comment lines
-  // e.g.,
-  //   # |
-  //    =( ; )=>
-  //   # ::
   | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
     let new_comment = comment |> StringUtil.insert(j, s);
     let new_zblock = {

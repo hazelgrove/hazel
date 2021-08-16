@@ -291,9 +291,9 @@ let is_single_key:
   option(single_key) =
   (evt, regexp) => {
     let ctrlKey = Js.to_bool(evt##.ctrlKey);
-    let altKey = Js.to_bool(evt##.altKey);
+    // let altKey = Js.to_bool(evt##.altKey);
     let metaKey = Js.to_bool(evt##.metaKey);
-    if (ctrlKey || altKey || metaKey) {
+    if (ctrlKey || metaKey) {
       None;
     } else {
       let key = Key.get_key(evt);
