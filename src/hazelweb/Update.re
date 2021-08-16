@@ -96,27 +96,27 @@ let rec apply_action =
       | EditAction(a) =>
         switch (model |> Model.perform_edit_action(a)) {
         | new_model => new_model
-        | exception Program.FailedAction =>
-          JSUtil.log("[Program.FailedAction]");
+        | exception Editor.FailedAction =>
+          JSUtil.log("[Editor.FailedAction]");
           model;
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
+        | exception Editor.CursorEscaped =>
+          JSUtil.log("[Editor.CursorEscaped]");
           model;
-        | exception Program.MissingCursorInfo =>
-          JSUtil.log("[Program.MissingCursorInfo]");
+        | exception Editor.MissingCursorInfo =>
+          JSUtil.log("[Editor.MissingCursorInfo]");
           model;
-        | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
+        | exception Editor.InvalidInput =>
+          JSUtil.log("[Editor.InvalidInput");
           model;
-        | exception Program.DoesNotElaborate =>
-          JSUtil.log("[Program.DoesNotElaborate]");
+        | exception Editor.DoesNotElaborate =>
+          JSUtil.log("[Editor.DoesNotElaborate]");
           model;
         }
       | MoveAction(Key(move_key)) =>
         switch (model |> Model.move_via_key(move_key)) {
         | new_model => new_model
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
+        | exception Editor.CursorEscaped =>
+          JSUtil.log("[Editor.CursorEscaped]");
           model;
         }
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
@@ -231,8 +231,8 @@ let rec apply_action =
       | SerializeToConsole =>
         model
         |> Model.get_program
-        |> Program.get_edit_state
-        |> Program.EditState_Exp.get_uhstx
+        |> Editor.get_edit_state
+        |> Editor.EditState_Exp.get_uhstx
         |> Serialization.string_of_exp
         |> Js.string
         |> JSUtil.log;

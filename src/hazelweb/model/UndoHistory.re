@@ -93,9 +93,9 @@ let caret_jump =
   let prev_step =
     prev_entry.cardstacks_after_action
     |> ZCardstacks.get_program
-    |> Program.Exp.get_steps;
+    |> Editor.Exp.get_steps;
   let new_step =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.Exp.get_steps;
+    new_cardstacks_before |> ZCardstacks.get_program |> Editor.Exp.get_steps;
   prev_step != new_step;
 };
 
@@ -666,24 +666,24 @@ let get_cursor_term_info =
   let zexp_before =
     new_cardstacks_before
     |> ZCardstacks.get_program
-    |> Program.get_edit_state
-    |> Program.EditState_Exp.get_zstx;
+    |> Editor.get_edit_state
+    |> Editor.EditState_Exp.get_zstx;
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo_Exp.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
     new_cardstacks_before
     |> ZCardstacks.get_program
-    |> Program.Exp.get_cursor_info;
+    |> Editor.Exp.get_cursor_info;
   let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
     new_cardstacks_after
     |> ZCardstacks.get_program
-    |> Program.get_edit_state
-    |> Program.EditState_Exp.get_zstx;
+    |> Editor.get_edit_state
+    |> Editor.EditState_Exp.get_zstx;
   let cursor_info_after =
     new_cardstacks_after
     |> ZCardstacks.get_program
-    |> Program.Exp.get_cursor_info;
+    |> Editor.Exp.get_cursor_info;
   let cursor_term_after = cursor_info_after.cursor_term;
 
   {

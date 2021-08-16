@@ -75,8 +75,8 @@ let init = (): t => {
       settings.evaluation.evaluate,
       cardstacks
       |> ZCardstacks.get_program
-      |> Program.get_edit_state
-      |> Program.EditState_Exp.cursor_on_exp_hole,
+      |> Editor.get_edit_state
+      |> Editor.EditState_Exp.cursor_on_exp_hole,
     ) {
     | (false, _)
     | (_, None) => si
@@ -104,23 +104,23 @@ let init = (): t => {
   };
 };
 
-let get_program = (model: t): Program.exp =>
+let get_program = (model: t): Editor.exp =>
   model.cardstacks |> ZCardstacks.get_program;
 let put_assistant_model = (model, assistant) => {...model, assistant};
 
-let get_edit_state = (model: t): Program.EditState_Exp.t => {
+let get_edit_state = (model: t): Editor.EditState_Exp.t => {
   let program = get_program(model);
   program.edit_state;
 };
 
 let get_cursor_info = (model: t): CursorInfo.t =>
-  model |> get_program |> Program.Exp.get_cursor_info;
+  model |> get_program |> Editor.Exp.get_cursor_info;
 
-let put_program = (program: Program.exp, model: t): t => {
+let put_program = (program: Editor.exp, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> ZCardstacks.put_program(program),
 };
-let map_program = (f: Program.exp => Program.exp, model: t): t => {
+let map_program = (f: Editor.exp => Editor.exp, model: t): t => {
   let new_program = f(model |> get_program);
   model |> put_program(new_program);
 };
@@ -165,8 +165,8 @@ let get_selected_hole_instance = model =>
   switch (
     model
     |> get_program
-    |> Program.get_edit_state
-    |> Program.EditState_Exp.cursor_on_exp_hole
+    |> Editor.get_edit_state
+    |> Editor.EditState_Exp.cursor_on_exp_hole
   ) {
   | None => None
   | Some(u) =>
@@ -180,28 +180,25 @@ let get_selected_hole_instance = model =>
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
-       let action = Program.Exp.move_to_hole(u, program);
+       let action = Editor.Exp.move_to_hole(u, program);
        let edit_state =
-         Program.EditState_Exp.perform_edit_action(
-           action,
-           program.edit_state,
-         );
+         Editor.EditState_Exp.perform_edit_action(action, program.edit_state);
        {...program, edit_state};
      })
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_main_editor;
 
 let update_program = (a: Action.t, new_program, model) => {
-  let edit_state = Program.get_edit_state(new_program);
+  let edit_state = Editor.get_edit_state(new_program);
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
-      Program.EditState_Exp.get_result(old_program.edit_state)
-      == Program.EditState_Exp.get_result(edit_state)
+      Editor.EditState_Exp.get_result(old_program.edit_state)
+      == Editor.EditState_Exp.get_result(edit_state)
         ? si : UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,
-      edit_state |> Program.EditState_Exp.cursor_on_exp_hole,
+      edit_state |> Editor.EditState_Exp.cursor_on_exp_hole,
     ) {
     | (false, _)
     | (_, None) => si
@@ -273,8 +270,8 @@ let perform_edit_action = (a: Action.t, model: t): t => {
       let edit_state =
         model
         |> get_program
-        |> Program.get_edit_state
-        |> Program.EditState_Exp.perform_edit_action(a);
+        |> Editor.get_edit_state
+        |> Editor.EditState_Exp.perform_edit_action(a);
       model |> update_program(a, {...get_program(model), edit_state});
     }
   });
@@ -285,14 +282,14 @@ let move_via_key = (move_key, model) => {
   | AssistantTypeEditor =>
     let (new_editor, action) =
       model.assistant.filter_editor
-      |> Program.Typ.move_via_key(~settings=model.settings, move_key);
+      |> Editor.Typ.move_via_key(~settings=model.settings, move_key);
     update_filter_editor(action, new_editor, model);
   | MainProgram
   | NoFocus =>
     let (new_program, action) =
       model
       |> get_program
-      |> Program.Exp.move_via_key(~settings=model.settings, move_key);
+      |> Editor.Exp.move_via_key(~settings=model.settings, move_key);
     model |> update_program(action, new_program);
   };
 };
@@ -302,14 +299,14 @@ let move_via_click = (row_col, model) => {
   | AssistantTypeEditor =>
     let (new_editor, action) =
       model.assistant.filter_editor
-      |> Program.Typ.move_via_click(~settings=model.settings, row_col);
+      |> Editor.Typ.move_via_click(~settings=model.settings, row_col);
     update_filter_editor(action, new_editor, model);
   | MainProgram
   | NoFocus =>
     let (new_program, action) =
       model
       |> get_program
-      |> Program.Exp.move_via_click(~settings=model.settings, row_col);
+      |> Editor.Exp.move_via_click(~settings=model.settings, row_col);
     model |> update_program(action, new_program);
   };
 };
@@ -317,11 +314,11 @@ let move_via_click = (row_col, model) => {
 let select_case_branch =
     (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
-  let edit_state = Program.get_edit_state(program);
+  let edit_state = Editor.get_edit_state(program);
   let action =
-    Program.EditState_Exp.move_to_case_branch(path_to_case, branch_index);
+    Editor.EditState_Exp.move_to_case_branch(path_to_case, branch_index);
   let new_edit_state =
-    Program.EditState_Exp.perform_edit_action(action, edit_state);
+    Editor.EditState_Exp.perform_edit_action(action, edit_state);
   let new_program = {...program, edit_state: new_edit_state};
   model
   |> put_program(new_program)
@@ -349,10 +346,10 @@ let load_undo_history =
   let new_cardstacks =
     UndoHistory.get_cardstacks(undo_history, ~is_after_move);
   let new_program = ZCardstacks.get_program(new_cardstacks);
-  let edit_state = Program.get_edit_state(new_program);
+  let edit_state = Editor.get_edit_state(new_program);
   let update_selected_instances = _ => {
     let si = UserSelectedInstances.init;
-    switch (Program.EditState_Exp.cursor_on_exp_hole(edit_state)) {
+    switch (Editor.EditState_Exp.cursor_on_exp_hole(edit_state)) {
     | None => si
     | Some(u) => si |> UserSelectedInstances.add(u, 0)
     };

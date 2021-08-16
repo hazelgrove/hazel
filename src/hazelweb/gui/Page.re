@@ -23,12 +23,10 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let (_, ty, _) = program.edit_state;
   let result =
     settings.evaluation.show_unevaluated_expansion
-      ? program
-        |> Program.get_edit_state
-        |> Program.EditState_Exp.get_expansion
+      ? program |> Editor.get_edit_state |> Editor.EditState_Exp.get_expansion
       : program
-        |> Program.get_edit_state
-        |> Program.EditState_Exp.get_result
+        |> Editor.get_edit_state
+        |> Editor.EditState_Exp.get_result
         |> Result.get_dhexp;
   div(
     [],

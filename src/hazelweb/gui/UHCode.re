@@ -294,11 +294,11 @@ let codebox_view =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       ~is_focused: bool,
-      program: Program.exp,
+      program: Editor.exp,
     )
     : list(Node.t) => {
   /*
-   let zexp = Program.EditState_Exp.get_zstx(Program.get_edit_state(program));
+   let zexp = Editor.EditState_Exp.get_zstx(Editor.get_edit_state(program));
    //let frame = CursorFrame.frame(zexp);
 
        print_endline("FRAME: cursortermNew ");
@@ -343,11 +343,11 @@ let codebox_view =
      ),
    );
    */
-  let layout = Program.Exp.get_layout(~settings, program);
+  let layout = Editor.Exp.get_layout(~settings, program);
   let code_text = layout |> UHBox.mk |> view_of_box;
-  let dpaths = Program.Exp.get_decoration_paths(program, is_focused);
+  let dpaths = Editor.Exp.get_decoration_paths(program, is_focused);
   let decorations = decoration_views(~font_metrics, dpaths, layout);
-  let caret_pos = Program.Exp.get_caret_position(~settings, program);
+  let caret_pos = Editor.Exp.get_caret_position(~settings, program);
   let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
@@ -358,13 +358,13 @@ let typebox_view =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       ~is_focused: bool,
-      editor: Program.typ,
+      editor: Editor.typ,
     ) => {
-  let layout = Program.Typ.get_layout(~settings, editor);
+  let layout = Editor.Typ.get_layout(~settings, editor);
   let code_text = layout |> UHBox.mk |> view_of_box;
-  let dpaths = Program.Typ.get_decoration_paths(editor, is_focused);
+  let dpaths = Editor.Typ.get_decoration_paths(editor, is_focused);
   let decorations = decoration_views(~font_metrics, dpaths, layout);
-  let caret_pos = Program.Typ.get_caret_position(~settings, editor);
+  let caret_pos = Editor.Typ.get_caret_position(~settings, editor);
   let caret =
     is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
@@ -377,12 +377,12 @@ let typebox =
       ~is_mac: bool,
       ~settings: Settings.t,
       ~is_focused: bool,
-      editor: Program.typ,
+      editor: Editor.typ,
       _u_gen,
     ) => {
   let this_editor = Model.AssistantTypeEditor;
   let editor_id = Model.editor_id(this_editor);
-  let cursor_info = Program.Typ.get_cursor_info(editor);
+  let cursor_info = Editor.Typ.get_cursor_info(editor);
   let key_handlers =
     is_focused
       ? key_handlers(

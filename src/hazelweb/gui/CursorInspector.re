@@ -228,7 +228,7 @@ let assistant_summary =
   let term_tag =
     switch (term) {
     | ExpOperand(_, operand) =>
-      let editor = operand |> UHExp.Block.wrap |> Program.mk_exp_editor;
+      let editor = operand |> UHExp.Block.wrap |> Editor.mk_exp_editor;
       UHCode.codebox_view(
         ~font_metrics,
         ~is_focused=false,

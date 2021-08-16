@@ -36,7 +36,7 @@ let cardstack_info: list(CardstackInfo.t);
 let cutoff: (t, t) => bool;
 let init: unit => t;
 
-let get_program: t => Program.exp;
+let get_program: t => Editor.exp;
 
 let get_edit_state: t => Statics.edit_state;
 
@@ -70,7 +70,7 @@ let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
 
 /**
- * See `Program.move_to_case_branch`
+ * See `Editor.move_to_case_branch`
  */
 let select_case_branch: (CursorPath.steps, int, t) => t;
 
@@ -101,5 +101,5 @@ let load_cardstack: (t, int) => t;
  */
 let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
-let update_program: (Action.t, Program.exp, t) => t;
+let update_program: (Action.t, Editor.exp, t) => t;
 let put_assistant_model: (t, AssistantModel.t) => t;

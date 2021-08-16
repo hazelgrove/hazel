@@ -33,7 +33,7 @@ let codebox_view:
     ~settings: Settings.t,
     ~font_metrics: FontMetrics.t,
     ~is_focused: bool,
-    Program.exp
+    Editor.exp
   ) =>
   list(Vdom.Node.t);
 let typebox:
@@ -43,7 +43,7 @@ let typebox:
     ~is_mac: bool,
     ~settings: Settings.t,
     ~is_focused: bool,
-    Program.Typ.t,
+    Editor.Typ.t,
     MetaVarGen.t
   ) =>
   list(Vdom.Node.t);

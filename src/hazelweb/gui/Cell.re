@@ -17,7 +17,7 @@ let view_of_cursor_inspector =
       (steps, cursor): CursorPath.t,
       cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
-      program: Program.exp,
+      program: Editor.exp,
       u_gen: MetaVarGen.t,
     ) => {
   let cursor =
@@ -26,7 +26,7 @@ let view_of_cursor_inspector =
     | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
     | OnOp(_) => CursorPosition.OnOp(Before)
     };
-  let m = program |> Program.Exp.get_layout(~settings) |> UHMeasuredLayout.mk;
+  let m = program |> Editor.Exp.get_layout(~settings) |> UHMeasuredLayout.mk;
   let cursor_pos =
     UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
     |> OptUtil.get(() => failwith("could not find caret"));
@@ -52,7 +52,7 @@ let code_view =
       ~font_metrics: FontMetrics.t,
       ~is_mac: bool,
       ~settings: Settings.t,
-      program: Program.exp,
+      program: Editor.exp,
       focal_editor: Model.editor,
       assistant_model: AssistantModel.t,
     )
@@ -65,7 +65,7 @@ let code_view =
 
       let main_editor_is_focused = focal_editor == Model.MainProgram;
       let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
-      let u_gen = Program.EditState_Exp.get_ugen(program.edit_state);
+      let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
 
       let codebox =
         UHCode.codebox_view(
@@ -75,7 +75,7 @@ let code_view =
           program,
         );
 
-      let cursor_info = Program.Exp.get_cursor_info(program);
+      let cursor_info = Editor.Exp.get_cursor_info(program);
       let ci_settings = settings.cursor_inspector;
       let assistant_action =
         AssistantModel.get_action(~u_gen, assistant_model, cursor_info);
@@ -99,7 +99,7 @@ let code_view =
               ~settings,
               type_editor_is_focused,
               assistant_model,
-              Program.Exp.get_path(program),
+              Editor.Exp.get_path(program),
               ci_settings,
               cursor_info,
               program,

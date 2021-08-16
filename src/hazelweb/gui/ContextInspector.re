@@ -7,7 +7,7 @@ let view =
       ~selected_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
-      program: Program.exp,
+      program: Editor.exp,
     )
     : Vdom.Node.t => {
   open Vdom;
@@ -279,13 +279,13 @@ let view =
   let context_view = {
     let ctx =
       program
-      |> Program.Exp.get_cursor_info
+      |> Editor.Exp.get_cursor_info
       |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) =
-          program |> Program.get_edit_state |> Program.EditState_Exp.get_result;
+          program |> Editor.get_edit_state |> Editor.EditState_Exp.get_result;
         switch (selected_instance) {
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
@@ -326,19 +326,19 @@ let view =
     if (settings.evaluate) {
       let ctx =
         program
-        |> Program.Exp.get_cursor_info
+        |> Editor.Exp.get_cursor_info
         |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) =
-        program |> Program.get_edit_state |> Program.EditState_Exp.get_result;
+        program |> Editor.get_edit_state |> Editor.EditState_Exp.get_result;
       if (VarMap.is_empty(ctx)) {
         Node.div([], []);
       } else {
         let children =
           switch (
             program
-            |> Program.get_edit_state
-            |> Program.EditState_Exp.cursor_on_exp_hole
+            |> Editor.get_edit_state
+            |> Editor.EditState_Exp.cursor_on_exp_hole
           ) {
           | None => [
               instructional_msg(

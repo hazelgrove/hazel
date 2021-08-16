@@ -6,7 +6,7 @@ type t = {
   selection_index: int,
   hover_index: option(int),
   choice_display_limit: int,
-  filter_editor: Program.typ,
+  filter_editor: Editor.typ,
 };
 
 [@deriving sexp]
@@ -28,7 +28,7 @@ let init = {
   selection_index: 0,
   hover_index: None,
   choice_display_limit: 6,
-  filter_editor: Program.mk_typ_editor(OpSeq.wrap(UHTyp.Hole)),
+  filter_editor: Editor.mk_typ_editor(OpSeq.wrap(UHTyp.Hole)),
 };
 
 let put_filter_editor = (assistant_model, filter_editor) => {
@@ -39,8 +39,8 @@ let put_filter_editor = (assistant_model, filter_editor) => {
 let update_filter_editor = (a: Action.t, new_editor, assistant_model: t): t => {
   let edit_state =
     new_editor
-    |> Program.get_edit_state
-    |> Program.EditState_Typ.perform_edit_action(a);
+    |> Editor.get_edit_state
+    |> Editor.EditState_Typ.perform_edit_action(a);
   put_filter_editor(assistant_model, {...new_editor, edit_state});
 };
 
@@ -59,7 +59,7 @@ let apply_update = (u: update, model: t) =>
       selection_index: model.selection_index - 1,
     }
   | Set_type_editor(uty) =>
-    put_filter_editor(model, Program.mk_typ_editor(uty))
+    put_filter_editor(model, Editor.mk_typ_editor(uty))
   | Set_hover_index(n) => {...model, hover_index: n}
   };
 
@@ -165,7 +165,7 @@ let get_suggestions_of_ty' =
       ~u_gen: MetaVarGen.t,
     )
     : (list(Suggestion.t(UHExp.t)), int) => {
-  let filter_ty = Program.get_ty(filter_editor);
+  let filter_ty = Editor.get_ty(filter_editor);
   let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
   let selection_index = wrap_index(selection_index, suggestions);
   (suggestions, selection_index);

@@ -5,12 +5,12 @@
 [@deriving sexp]
 type t = {
   info: CardInfo.t,
-  program: Program.exp,
+  program: Editor.exp,
 };
 
 let mk: (~width: int, Card.t) => t;
 
 let erase: t => Card.t;
 
-let get_program: t => Program.exp;
-let put_program: (Program.exp, t) => t;
+let get_program: t => Editor.exp;
+let put_program: (Editor.exp, t) => t;

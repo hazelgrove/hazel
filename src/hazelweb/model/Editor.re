@@ -207,7 +207,7 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
 
   let get_doc = (~settings: Settings.t, program: t) => {
     TimeUtil.measure_time(
-      "Program.get_doc",
+      "Editor.get_doc",
       settings.performance.measure && settings.performance.program_get_doc,
       () => {
       Lazy.force(

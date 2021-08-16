@@ -124,7 +124,7 @@ let suggestion_view =
       ~is_focused=false,
       ~settings,
       ~font_metrics,
-      Program.mk_exp_editor(result),
+      Editor.mk_exp_editor(result),
     );
   let on_mouseenter = _x => {
     print_endline("setting focus to: Some(");
