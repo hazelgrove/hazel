@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =

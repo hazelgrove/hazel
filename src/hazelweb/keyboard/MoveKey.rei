@@ -1,7 +1,7 @@
 /**
  * Move keys handled by `CursorMap`
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | ArrowLeft
   | ArrowRight

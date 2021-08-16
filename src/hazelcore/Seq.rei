@@ -5,7 +5,7 @@
  * cases such that the head operand neighbors
  * the selected operator.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('operand, 'operator) =
   /* Seq */
   | S('operand, affix('operand, 'operator))
@@ -106,12 +106,12 @@ let operators: t(_, 'operator) => list('operator);
 let update_nth_operand:
   (int, 'operand, t('operand, 'operator)) => t('operand, 'operator);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operand_surround('operand, 'operator) = (
   affix('operand, 'operator),
   affix('operand, 'operator),
 );
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator_surround('operand, 'operator) = (
   t('operand, 'operator),
   t('operand, 'operator),

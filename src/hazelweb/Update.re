@@ -4,7 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type timestamp = {
   year: int,
   month: int,
@@ -15,7 +15,7 @@ type timestamp = {
   milliseconds: int,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type timestamped_action = (timestamp, ModelAction.t);
 
 let get_current_timestamp = (): timestamp => {

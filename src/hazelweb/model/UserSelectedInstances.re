@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = MetaVarMap.t(MetaVarInst.t);
 
 let init = MetaVarMap.empty;

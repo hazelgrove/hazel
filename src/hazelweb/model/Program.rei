@@ -4,7 +4,7 @@
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   pri {
     edit_state: Statics.edit_state,

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 module BinBoolOp = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t =
     | And
     | Or;
@@ -37,7 +37,7 @@ module BinBoolOp = {
 };
 
 module BinIntOp = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t =
     | Minus
     | Plus
@@ -83,7 +83,7 @@ module BinIntOp = {
 };
 
 module BinFloatOp = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t =
     | FPlus
     | FMinus
@@ -128,7 +128,7 @@ module BinFloatOp = {
     };
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
   | NonEmptyHole(

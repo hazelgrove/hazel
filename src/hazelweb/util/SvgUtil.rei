@@ -1,5 +1,5 @@
 module Point: {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t = {
     x: float,
     y: float,
@@ -7,7 +7,7 @@ module Point: {
 };
 
 module Rect: {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t = {
     min: Point.t,
     width: float,

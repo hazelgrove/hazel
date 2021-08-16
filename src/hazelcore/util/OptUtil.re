@@ -1,7 +1,7 @@
 open Sexplib.Conv;
 
 module T = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t('a) = option('a);
   let map = Monads.MapDefinition.Custom((x, f) => Option.map(f, x));
   let bind = Option.bind;

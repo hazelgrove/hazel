@@ -19,7 +19,7 @@ module Evaluation = {
     show_unevaluated_expansion: false,
   };
 
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type update =
     | Toggle_evaluate
     | Toggle_show_case_clauses
@@ -74,7 +74,7 @@ module Performance = {
     update_apply_action: true,
   };
 
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type update =
     | Toggle_measure
     | Toggle_model_perform_edit_action
@@ -127,7 +127,7 @@ let init: t = {
   memoize_doc: true,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type update =
   | Toggle_memoize_doc
   | Evaluation(Evaluation.update)

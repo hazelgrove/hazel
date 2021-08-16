@@ -2,7 +2,7 @@
  * The most recently selected instance for each hole for which a selection
  * has been made.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t;
 
 let init: t;

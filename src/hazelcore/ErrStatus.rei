@@ -1,6 +1,6 @@
 module HoleReason: {
   /* Variable: `reason` */
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t =
     | TypeInconsistent
     | WrongLength;
@@ -9,7 +9,7 @@ module HoleReason: {
 };
 
 /* Variable: `err` */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | NotInHole
   | InHole(HoleReason.t, MetaVar.t);

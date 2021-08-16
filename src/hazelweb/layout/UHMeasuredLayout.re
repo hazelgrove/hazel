@@ -1,7 +1,7 @@
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = MeasuredLayout.t(UHAnnot.t);
 type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 include MeasuredLayout.Make(WeakMap);

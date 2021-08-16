@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   title: string,
   cards: list(CardInfo.t),

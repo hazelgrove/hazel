@@ -1,6 +1,9 @@
+open Sexplib.Std;
 // Maps keyed by an end position
 // Invarient: keys are ascending and unique
+[@deriving (sexp, show)]
 type key = int;
+[@deriving (sexp, show)]
 type t('a) = list((key, 'a));
 let empty: 'a. t('a) = [];
 let singleton: 'a. (key, 'a) => t('a) = (pos, x) => [(pos, x)];

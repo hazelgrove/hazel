@@ -9,13 +9,13 @@
      7 = boxed value not a float literal 1
      8 = boxed value not a float literal 2 */
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type result =
   | InvalidInput(int)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type ground_cases =
   | Hole
   | Ground

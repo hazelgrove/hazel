@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = zblock
 and zblock = ZList.t(zline, UHExp.line)
 and zline =

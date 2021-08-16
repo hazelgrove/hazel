@@ -1,15 +1,15 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type term_data = {
   shape: TermShape.t,
   sort: TermSort.t,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type token_shape =
   | Text
   | Op
   | Delim(DelimIndex.t);
-[@deriving sexp]
+[@deriving (sexp, show)]
 type token_data = {
   shape: token_shape,
   len: int,
@@ -20,7 +20,7 @@ type open_child_format =
   | InlineWithBorder
   | Multiline;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | HoleLabel({len: int})
   | Token(token_data)

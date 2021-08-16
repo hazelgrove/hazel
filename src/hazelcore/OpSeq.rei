@@ -4,7 +4,7 @@
  * the association of `seq`. `seq` is useful for editing,
  * `skel` is necessary for typechecking and evaluation.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('operand, 'operator) =
   | OpSeq(skel('operator), seq('operand, 'operator))
 and skel('operator) = Skel.t('operator)

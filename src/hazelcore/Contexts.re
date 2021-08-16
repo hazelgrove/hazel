@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = (VarCtx.t, PaletteCtx.t);
 let empty = (VarCtx.empty, PaletteCtx.empty);
 

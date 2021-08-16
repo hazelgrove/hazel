@@ -1,7 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | Escape
   | Backspace

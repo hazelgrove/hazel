@@ -15,7 +15,7 @@
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
+  (pps ppx_deriving.show js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
 
 (executable
  (name main)
@@ -26,7 +26,7 @@
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
+  (pps ppx_deriving.show js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))

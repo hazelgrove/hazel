@@ -2,10 +2,10 @@ open Sexplib.Std;
 
 exception FreeVarInPat;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator = Operators_Pat.t;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -21,9 +21,9 @@ and operand =
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel = OpSeq.skel(operator);
-[@deriving sexp]
+[@deriving (sexp, show)]
 type seq = OpSeq.seq(operand, operator);
 
 let var =

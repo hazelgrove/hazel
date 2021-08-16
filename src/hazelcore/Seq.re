@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('operand, 'operator) =
   | S('operand, affix('operand, 'operator))
 and affix('operand, 'operator) =
@@ -143,12 +143,12 @@ let update_last_operand =
   update_nth_operand(length(seq), f(nth_operand(length(seq), seq)), seq);
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operand_surround('operand, 'operator) = (
   affix('operand, 'operator),
   affix('operand, 'operator),
 );
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator_surround('operand, 'operator) = (
   t('operand, 'operator),
   t('operand, 'operator),

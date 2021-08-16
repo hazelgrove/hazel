@@ -1,7 +1,7 @@
 /**
  * An unselected card in a Cardstack.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   info: CardInfo.t,
   edit_state: Statics.edit_state,

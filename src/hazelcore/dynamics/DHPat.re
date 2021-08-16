@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)

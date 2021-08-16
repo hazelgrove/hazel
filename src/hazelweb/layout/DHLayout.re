@@ -1,4 +1,4 @@
 open Pretty;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = Layout.t(DHAnnot.t);

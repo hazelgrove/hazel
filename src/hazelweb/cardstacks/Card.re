@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   info: CardInfo.t,
   edit_state: Statics.edit_state,

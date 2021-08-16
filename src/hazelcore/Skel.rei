@@ -1,7 +1,7 @@
 /**
  * The associated structure of a `Seq.t`.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('op) =
   // `Placeholder(n)` refers to the `n`th operand in the corresponding seq
   | Placeholder(int)

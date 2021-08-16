@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('success) =
   | Succeeded('success)
   | CursorEscaped(Side.t)

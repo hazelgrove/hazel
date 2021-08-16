@@ -5,20 +5,20 @@ module EditAction = {
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type move_input =
   | Key(MoveKey.t)
   | Click(Pretty.MeasuredPosition.t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type shift_history_info = {
   group_id: int,
   elt_id: int,
   call_by_mouseenter: bool,
 };
-[@deriving sexp]
+[@deriving (sexp, show)]
 type group_id = int;
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)

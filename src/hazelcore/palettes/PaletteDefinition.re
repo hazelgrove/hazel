@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   expansion_ty: HTyp.t,
   init_model: SpliceGenMonad.t(SerializedModel.t),

@@ -1,8 +1,8 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type zsplice_map('exp, 'zexp) = ZIntMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('exp, 'zexp) = {
   next: SpliceInfo.splice_name,
   zsplice_map: zsplice_map('exp, 'zexp),

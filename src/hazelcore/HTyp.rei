@@ -1,5 +1,5 @@
 /* types with holes */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | Hole
   | Int

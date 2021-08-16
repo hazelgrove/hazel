@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('z, 'a) = (list('a), 'z, list('a));
 
 let singleton: 'z => t('z, 'a);

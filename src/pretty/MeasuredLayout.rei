@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type box = {
   height: int,
   width: int,
@@ -26,7 +26,7 @@ type box = {
  *   x + 1
  * ) in _
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('annot) = {
   layout: t'('annot),
   metrics: list(box),

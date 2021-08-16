@@ -1,7 +1,7 @@
 /**
  * A collection of paths to decorations in a given UH-term
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),

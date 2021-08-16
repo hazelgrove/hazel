@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 /* types with holes */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | Hole
   | Int
@@ -12,7 +12,7 @@ type t =
   | Prod(list(t))
   | List(t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type join =
   | GLB
   | LUB;

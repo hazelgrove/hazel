@@ -1,9 +1,9 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator = Operators_Exp.t;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = block
 and block = list(line)
 and line =
@@ -31,9 +31,9 @@ and rule =
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel = OpSeq.skel(operator);
-[@deriving sexp]
+[@deriving (sexp, show)]
 type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);

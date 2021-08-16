@@ -1,13 +1,13 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type join_of_branches =
   | NoBranches
   // steps to the case
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -111,7 +111,7 @@ type typed =
   | OnLine
   | OnRule;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
@@ -124,7 +124,7 @@ type cursor_term =
 
 // TODO refactor into variants
 // based on term sort and shape
-//[@deriving sexp]
+//[@deriving (sexp, show)]
 type t = {
   cursor_term,
   typed,

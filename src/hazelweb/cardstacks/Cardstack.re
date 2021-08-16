@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   info: CardstackInfo.t,
   zcards: ZList.t(ZCard.t, Card.t),

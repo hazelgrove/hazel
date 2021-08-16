@@ -5,7 +5,7 @@ module Memo = Core_kernel.Memo;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   edit_state: Statics.edit_state,
   width: int,

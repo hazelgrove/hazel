@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('annot) =
   | Text(string)
   | HBox(list(t('annot)))

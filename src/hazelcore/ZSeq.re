@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('operand, 'operator, 'zoperand, 'zoperator) =
   | ZOperand('zoperand, Seq.operand_surround('operand, 'operator))
   | ZOperator('zoperator, Seq.operator_surround('operand, 'operator));

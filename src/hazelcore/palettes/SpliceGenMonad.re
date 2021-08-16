@@ -1,5 +1,5 @@
 module T = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t('a) = SpliceInfo.t(UHExp.t) => ('a, SpliceInfo.t(UHExp.t));
   let return = (x, psi) => (x, psi);
   let bind = (cmd, f, psi) => {

@@ -1,7 +1,7 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator = Operators_Typ.t;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -13,9 +13,9 @@ and operand =
   | Parenthesized(t)
   | List(t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel = OpSeq.skel(operator);
-[@deriving sexp]
+[@deriving (sexp, show)]
 type seq = OpSeq.seq(operand, operator);
 
 let rec get_prod_elements: skel => list(skel) =

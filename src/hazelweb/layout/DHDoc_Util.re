@@ -1,6 +1,6 @@
 module Doc = Pretty.Doc;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;

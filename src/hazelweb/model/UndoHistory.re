@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
   cardstacks_after_action: ZCardstacks.t,
@@ -13,13 +13,13 @@ type undo_history_entry = {
   timestamp: UndoHistoryCore.timestamp,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,

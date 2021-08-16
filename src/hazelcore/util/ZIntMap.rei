@@ -1,6 +1,6 @@
 /* Zippered finite map over nats, used with Z expressions
  * i.e. there is a selected element of type Z and the rest is a int map of type A */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('a, 'z) = (IntMap.t('a), (int, 'z));
 let mk: (IntMap.t('a), (int, 'z)) => option(t('a, 'z));
 let erase: (t('a, 'z), 'z => 'a) => IntMap.t('a);

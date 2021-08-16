@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type box = {
   height: int,
   width: int,
 };
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('annot) = {
   layout: t'('annot),
   metrics: list(box),

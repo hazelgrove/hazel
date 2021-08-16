@@ -1,3 +1,5 @@
+open Sexplib.Std;
+[@deriving (sexp, show)]
 type t = {
   // Sum of the square of how much each line extends beyond max width.  Usually zero.
   overflow_cost: int,

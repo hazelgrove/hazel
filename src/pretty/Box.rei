@@ -22,7 +22,7 @@
  * where each of the three depicted boxes is annotated with the
  * same annotation as the original layout node.
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('annot) =
   | Text(string)
   | HBox(list(t('annot)))

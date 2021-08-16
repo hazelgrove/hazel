@@ -1,5 +1,5 @@
 open OptUtil.Syntax;
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
 and zoperand =

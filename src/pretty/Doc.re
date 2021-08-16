@@ -1,6 +1,7 @@
 open Sexplib.Std;
 
 module WidthPosKey = {
+  [@deriving (sexp, show)]
   type t = (int, int);
   let hash = ((width, pos)) => 256 * 256 * width + pos;
   let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
@@ -9,15 +10,17 @@ module WidthPosKey = {
 module M = Hashtbl.Make(WidthPosKey);
 
 // NOTE: pos is relative to most recent `Align`
+[@deriving show]
 type m'('a) = PosMap.t((Cost.t, 'a));
+[@deriving show]
 type m('a) = (~width: int, ~pos: int) => m'('a);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('annot) = {
-  mem: [@sexp.opaque] M.t(m'(Layout.t('annot))),
+  mem: [@sexp.opaque] [@show.opaque] M.t(m'(Layout.t('annot))),
   doc: t'('annot),
 }
-[@deriving sexp]
+[@deriving (sexp, show)]
 and t'('annot) =
   | Text(string) // Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // associative

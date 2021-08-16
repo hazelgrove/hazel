@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type operator_shape =
   | SMinus
   | SPlus
@@ -17,7 +17,7 @@ type operator_shape =
   | SAnd
   | SOr;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type shape =
   | SCommentLine
   | SList
@@ -33,7 +33,7 @@ type shape =
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | MoveTo(CursorPath.t)
   | MoveLeft

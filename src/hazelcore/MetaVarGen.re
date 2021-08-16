@@ -1,5 +1,5 @@
 /* A simple metavariable generator */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = MetaVar.t;
 let init = 0;
 let next = x => {

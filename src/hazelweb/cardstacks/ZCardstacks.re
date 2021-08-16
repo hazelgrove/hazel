@@ -2,7 +2,7 @@
  * All cardstacks along with current cardstack,
  * current cardstack contains current `Program`
  */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t = ZList.t(Cardstack.t, Cardstack.t);
 
 let mk = (~width, info: list(CardstackInfo.t)): t => {

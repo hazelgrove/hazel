@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 /* Zippered finite map over nats, used with Z expressions
  * i.e. there is a selected element of type Z and the rest is a int map of type A */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('a, 'z) = (IntMap.t('a), (int, 'z));
 let mk = (m: IntMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>
   switch (IntMap.find_opt(n, m)) {

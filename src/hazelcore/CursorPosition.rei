@@ -2,7 +2,7 @@
 // (including updating all variable
 // naming that assumed cursor position).
 // Talk to @d before starting.
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | OnText(CharIndex.t)
   | OnDelim(DelimIndex.t, Side.t)

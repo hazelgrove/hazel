@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type result =
   | InvalidInput(int)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type ground_cases =
   | Hole
   | Ground

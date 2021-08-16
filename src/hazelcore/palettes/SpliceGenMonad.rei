@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('a);
 
 include Monads.MONAD with type t('a) := t('a);

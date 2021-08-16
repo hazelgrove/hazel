@@ -2,7 +2,7 @@ open Sexplib.Std;
 open Virtual_dom.Vdom;
 
 module Point = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t = {
     x: float,
     y: float,
@@ -10,7 +10,7 @@ module Point = {
 };
 
 module Rect = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t = {
     min: Point.t,
     width: float,
@@ -79,7 +79,7 @@ module Path = {
 module OrthogonalPolygon = {
   type t = Path.t;
 
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type linked_edge = {
     src: Point.t,
     dst: Point.t,

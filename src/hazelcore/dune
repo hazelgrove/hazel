@@ -9,7 +9,7 @@
    (:include js-of-ocaml-flags-%{profile})))
  (inline_tests)
  (preprocess
-  (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
+  (pps ppx_deriving.show ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))

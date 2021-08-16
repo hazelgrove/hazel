@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type uses_list = list(CursorPath.steps);
 
 let rec binds_var = (x: Var.t, p: UHPat.t): bool => binds_var_opseq(x, p)
