@@ -91,16 +91,21 @@ and follow_sumbody =
     sumbody,
   )
 and follow_sumbody_operand =
-    ((steps, cursor): CursorPath.t, sumbody_operand: UHTyp.sumbody_operand)
+    ((steps, cursor): CursorPath.t, operand: UHTyp.sumbody_operand)
     : option(ZTyp.zsumbody_operand) =>
   switch (steps) {
-  | [] => sumbody_operand |> ZTyp.place_cursor_sumbody_operand(cursor)
+  | [] => ZTyp.place_cursor_sumbody_operand(cursor, operand)
   | [x, ...xs] =>
-    switch (sumbody_operand) {
-    | ConstTag(_) => None
+    switch (operand) {
+    | ConstTag(tag) =>
+      let+ ztag = CursorPath_Tag.follow((xs, cursor), tag);
+      ZTyp.ConstTagZ(ztag);
     | ArgTag(tag, ty) =>
       switch (x) {
       | 0 =>
+        let+ ztag = CursorPath_Tag.follow((xs, cursor), tag);
+        ZTyp.ArgTagZT(ztag, ty);
+      | 1 =>
         let+ zty = follow((xs, cursor), ty);
         ZTyp.ArgTagZA(tag, zty);
       | _ => None
@@ -108,10 +113,10 @@ and follow_sumbody_operand =
     }
   }
 and follow_sumbody_operator =
-    ((steps, cursor): CursorPath.t, sumbody_operator: UHTyp.sumbody_operator)
+    ((steps, cursor): CursorPath.t, operator: UHTyp.sumbody_operator)
     : option(ZTyp.zsumbody_operator) =>
   switch (steps) {
-  | [] => sumbody_operator |> ZTyp.place_cursor_sumbody_operator(cursor)
+  | [] => ZTyp.place_cursor_sumbody_operator(cursor, operator)
   | [_, ..._] => None
   };
 
