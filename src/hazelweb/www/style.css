@@ -808,7 +808,7 @@ body {
   width: 105%;
   /* z-index: -1; */
   border-bottom: solid 1px #2c372c;
-  border-top: solid 1px #444444;
+  border-top: solid 1px white;
   border-radius: 0.5em;
   background-color: rgb(197, 253, 197) !important;
   box-sizing: border-box;
