@@ -736,7 +736,8 @@ body {
   outline: none;
   border-radius: 0 0.5em 0.5em 0.5em;
   /*overflow: hidden;*/
-  filter: drop-shadow(0 4px 12px #4447);
+  filter: drop-shadow(6px 6px 12px #6667);
+  /*filter: drop-shadow(0 4px 12px #4447);*/
 }
 
 .assistant-active .term-tag {
