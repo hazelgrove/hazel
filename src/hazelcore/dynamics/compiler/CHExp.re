@@ -7,8 +7,8 @@ type t =
   | BuiltIn(builtin)
   | Meta(MetaVar.t, MetaVarInst.t, VarMap.t_(t), meta_exp)
   | BoundVar(Var.t)
-  | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | FixF(Var.t, option(HTyp.t), t)
+  | Lam(DHPat.t, option(HTyp.t), t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -35,8 +35,7 @@ and builtin =
   | DoesNotMatch
   | Indet
   | UnpackSum(InjSide.t)
-  | UnpackPair(int)
-  | UnpackTriv
+  | UnpackProd(int)
   | UnpackCons
   | UnpackNil
   | Select(int)

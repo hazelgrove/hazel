@@ -16,9 +16,10 @@ let rec trans_DHExp = (d: DHExp.t): CHExp.t => {
   | InvalidText(metavar, metavarinst, varmap, string) =>
     Meta(metavar, metavarinst, trans_VarMap(varmap), InvalidText(string))
   | BoundVar(v) => BoundVar(v)
-  //   | Let(DHPat.t, t, t)
-  //   | FixF(Var.t, HTyp.t, t)
-  //   | Lam(DHPat.t, HTyp.t, t)
+  | Let(dp, d1, d2) =>
+    Ap(trans_CHExp(CHExp.Lam(dp, None, trans_DHExp(d2))), trans_DHExp(d1))
+  | FixF(var, ty, d1) => FixF(var, Some(ty), trans_DHExp(d1))
+  | Lam(dp, ty, d1) => trans_CHExp(Lam(dp, Some(ty), trans_DHExp(d1)))
   | Ap(d1, d2) => Ap(trans_DHExp(d1), trans_DHExp(d2))
   | BoolLit(b) => BoolLit(b)
   | IntLit(i) => IntLit(i)
@@ -43,4 +44,9 @@ let rec trans_DHExp = (d: DHExp.t): CHExp.t => {
 }
 and trans_VarMap = (varmap: VarMap.t_(DHExp.t)): VarMap.t_(CHExp.t) => {
   List.map(((v, e)) => (v, trans_DHExp(e)), varmap);
+}
+and trans_CHExp = (d: CHExp.t): CHExp.t => {
+  switch (d) {
+  | _ => BuiltIn(Indet)
+  };
 };
