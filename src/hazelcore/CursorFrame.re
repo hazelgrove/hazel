@@ -187,12 +187,8 @@ let get_ctx_for_child =
   | ExpBlock((prefix, _zline, _suffix)) =>
     //print_endline("get_ctx: calculating context for zline");
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
-    | None =>
-      //P.p("new ctx (none): %s\n", Contexts.sexp_of_t(ctx));
-      ctx
-    | Some(ctx) =>
-      //P.p("new ctx (some): %s\n", Contexts.sexp_of_t(ctx));
-      ctx
+    | None => ctx
+    | Some(ctx) => ctx
     }
   | Line(LetLineZE(p, zblock)) =>
     zblock |> ZExp.erase |> Statics_Exp.extend_let_def_ctx(ctx, p)
@@ -230,7 +226,7 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | Line(LetLineZP(zopseq, _)) => [PatSeq(zopseq)]
   | ExpSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [ExpOperand(zoperand)]
   | ExpSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [ExpOperator(zoperator)]
-  | ExpOperator(_zoperator) => [] // TODO(andrew)
+  | ExpOperator(_zoperator) => []
   | ExpOperand(CursorE(_)) => []
   | ExpOperand(ApPaletteZ(_)) => []
   | ExpOperand(ParenthesizedZ(zblock))
@@ -245,7 +241,7 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | Rule(RuleZE(_, zblock)) => [ExpBlock(zblock)]
   | PatSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [PatOperand(zoperand)]
   | PatSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [PatOperator(zoperator)]
-  | PatOperator(_zop) => [] // TODO(andrew)
+  | PatOperator(_zop) => []
   | PatOperand(CursorP(_)) => []
   | PatOperand(ParenthesizedZ(zopseq))
   | PatOperand(InjZ(_, _, zopseq)) => [PatSeq(zopseq)]
@@ -253,8 +249,8 @@ let get_zchild_slice = (slice: slice): list(slice) => {
   | PatOperand(TypeAnnZP(_, zoperand, _)) => [PatOperand(zoperand)]
   | TypSeq(ZOpSeq(_, ZOperand(zoperand, _))) => [TypOperand(zoperand)]
   | TypSeq(ZOpSeq(_, ZOperator(zoperator, _))) => [TypOperator(zoperator)]
-  | TypOperand(_tyoperand) => [] // TODO(andrew)
-  | TypOperator(_tyoperator) => [] // TODO(andrew)
+  | TypOperand(_tyoperand) => []
+  | TypOperator(_tyoperator) => []
   };
 };
 

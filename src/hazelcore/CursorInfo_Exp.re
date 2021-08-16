@@ -378,7 +378,6 @@ and syn_cursor_info_zopseq =
   // show the complete product type
 
   // NOTE(andrew): overwrite existing syntactic context
-  // TODO(andrew): does this actually need err status?
   let opseq = ZExp.erase_zopseq(zopseq);
   let err = UHExp.get_err_status_opseq(opseq);
   let syntactic_context = CursorInfo.ExpSeq(Hole, zseq, err);
@@ -1312,7 +1311,6 @@ and syn_cursor_info_rule =
         switch (uses) {
         | None => None
         | Some(uses) =>
-          //TODO(andrew):added this switch while refactoring, dunno if makes sense?
           Some(
             CursorInfo_common.mk(
               ~uses,

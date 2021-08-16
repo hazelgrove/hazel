@@ -45,7 +45,7 @@ let intro_init_zexp =
 let intro_card: CardInfo.t = {
   name: "intro",
   caption: div([], []),
-  // TODO(andrew): restore default
+  // TODO(andrew): restore default when merging
   init_zexp: ZExp.place_before(Examples.assistant_test),
   //init_zexp: intro_init_zexp,
 };

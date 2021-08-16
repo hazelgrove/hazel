@@ -1030,9 +1030,7 @@ and syn_perform_line =
   | (SwapRight, CursorL(_)) => Failed
 
   | (FillExpHole(_), CursorL(_)) => Failed
-  | (ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_), CursorL(_)) =>
-    //TODO(andrew): handle this case
-    Failed
+  | (ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_), CursorL(_)) => Failed
 
   /* Zipper */
 
@@ -1332,7 +1330,6 @@ and syn_perform_opseq =
       ReplaceOpSeqAroundCursor(new_zseq),
       ZOperator(_) | ZOperand(CursorE(_), _),
     ) =>
-    // TODO(andrew): find way to ensure this is localmost zopseq around cursor
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)))
 
   /* Zipper */
@@ -1471,14 +1468,6 @@ and syn_perform_operand =
         UHExp.Block.wrap(new_operand),
       );
     let ze = fz_proj(e);
-    // TODO(andrew): remove
-    // Advance to next INTERNAL hole
-    /*
-     let ze =
-       switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
-       | ActionOutcome.Succeeded((ze, _, _)) => ze
-       | _ => ze
-       };*/
     switch (Statics_Exp.syn(ctx, ZExp.erase(ze))) {
     | None => Failed
     | Some(ty) => Succeeded(SynDone((ze, ty, u_gen)))
@@ -2734,7 +2723,6 @@ and ana_perform_opseq =
     |> wrap_in_AnaDone;
 
   | (ReplaceOpSeqAroundCursor(new_zseq), _) =>
-    // TODO(andrew): find way to ensure this is localmost zopseq around cursor
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)))
 
   /* Zipper */
@@ -2926,25 +2914,7 @@ and ana_perform_operand =
         UHExp.Block.wrap(new_operand),
       );
     let ze = fz_proj(e);
-    // TODO(andrew): remove
-    /*
-     let ze =
-       switch (syn_perform(ctx, MoveToNextHole, (ze, ty, u_gen))) {
-       | ActionOutcome.Succeeded((ze, _, _)) => ze
-       | _ => ze
-       };*/
     Succeeded(AnaDone((ze, u_gen)));
-  //TODO(andrew): remove
-  /*
-   let zoperand = new_operand |> ZExp.place_after_operand;
-   switch (
-     ana_perform_operand(ctx, MoveToNextHole, (zoperand, u_gen), Hole)
-   ) {
-   | Failed =>
-     let ze = UHExp.Block.wrap(new_operand) |> ZExp.place_after;
-     Succeeded(AnaDone((ze, u_gen)));
-   | success => success
-   };*/
 
   /* Backspace & Delete */
 

@@ -193,13 +193,11 @@ let main_key_action =
     (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
   switch (key_of(evt)) {
   | Combo(Escape) =>
-    // TODO(andrew): this is brittle as these can get out of sync
     Some(
       Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
     )
   | Move(k) => Some(MoveAction(Key(k)))
   | Combo(Ctrl_Space) =>
-    //TODO(andrew): this was preven-stop-injected... make sure it's still good
     //TODO(andrew): make this a three-way toggle assistant->plainCI->tutor
     Some(Chain([UpdateAssistant(Turn_on), update_ci(Set_visible(true))]))
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
@@ -391,7 +389,6 @@ let typebox =
           ~inject,
           ~is_mac,
           ~cursor_info,
-          //TODO(andrew): factor these out?
           ~assistant_active=false,
           ~assistant_action=None,
         )

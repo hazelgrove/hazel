@@ -89,7 +89,7 @@ let init = (): t => {
     selected_instances,
     undo_history,
     left_sidebar_open: false,
-    right_sidebar_open: false, // TODO(andrew): restore default
+    right_sidebar_open: false, // TODO(andrew): restore default when merging
     font_metrics:
       FontMetrics.{
         // to be set on display

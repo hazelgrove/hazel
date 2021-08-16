@@ -50,7 +50,7 @@ let on_startup = (~schedule_action, _) => {
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
 
-  //TODO(andrew): remove this (loads assistant example by default)
+  //TODO(andrew): remove when merging (loads assistant example by default)
   schedule_action(LoadCard(5));
 
   /* preserve editor focus across window focus/blur */
@@ -134,7 +134,6 @@ let create =
           switch (Model.get_focal_editor(model)) {
           | MainProgram =>
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
-            //TODO(andrew): ask david why this is necessary
             | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
             | _ => UHCode.focus(MainProgram)
             };

@@ -219,10 +219,7 @@ let rec apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
-      | AcceptSuggestion(action) =>
-        //TODO(andrew): betterize this garbagio
-        // right now this loses cursor position
-        Model.perform_edit_action(action, model)
+      | AcceptSuggestion(action) => Model.perform_edit_action(action, model)
       | UpdateAssistant(u) => {
           ...model,
           assistant: AssistantModel.apply_update(u, model.assistant),

@@ -64,9 +64,7 @@ let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
   switch (term) {
   | ExpOperand(OnText(i), _) => i
   | PatOperand(OnText(i), _) => i
-  | _ =>
-    print_endline("TODO(andrew): index_of_cursor_term fallthough");
-    0;
+  | _ => 0
   };
 };
 

@@ -265,32 +265,6 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
     |> OptUtil.get(() => raise(MissingCursorInfo));
   };
 
-  // TODO(andrew): delete? confusing merge situation
-  /*
-   let get_err_holes_decoration_paths =
-       (program: t): (list(CursorPath.steps), list(CursorPath.steps)) => {
-     EditState.holes(program |> get_edit_state |> EditState.get_uhstx, [], [])
-     |> List.filter_map((CursorPath.{sort, _} as hole_info) =>
-          switch (sort) {
-          | TypHole => None
-          | PatHole(_, shape)
-          | ExpHole(_, shape) =>
-            switch (shape) {
-            | Empty => None
-            | VarErr
-            | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
-            }
-          }
-        )
-     |> List.partition(
-          fun
-          | (CursorPath.TypeErr, _) => true
-          | (_var_err, _) => false,
-        )
-     |> TupleUtil.map2(List.map(snd));
-   };
-   */
-
   let get_decoration_paths =
       (program: t, is_focused: bool): UHDecorationPaths.t => {
     let current_term = is_focused ? Some(get_path(program)) : None;

@@ -26,7 +26,7 @@ let rec operand_of_string = (operand: UHExp.operand): string => {
   | Lam(_) => "\\"
   | Case(_, _, _) => "case"
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
-    operand_of_string(operandA) // HACK
+    operand_of_string(operandA) // HACK(andrew) for apps
   | ListNil(_)
   | Parenthesized(_)
   | EmptyHole(_)
@@ -36,7 +36,6 @@ let rec operand_of_string = (operand: UHExp.operand): string => {
 
 let operator_of_ty =
     (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>
-  //TODO(andrew): Add Comma, Cons, Space ops (requires a bit more deconstruction)
   List.concat([
     HTyp.consistent_all([l, r, out, HTyp.Bool])
       ? Operators_Exp.[And, Or] : [],
@@ -89,129 +88,6 @@ let mk_ap_iter =
   (output_ty, mk_ap(f, holes_seq));
 };
 
-let hole_not_empty = (hi: CursorPath.hole_info) =>
-  switch (hi.sort) {
-  | ExpHole(_, TypeErr | VarErr)
-  | PatHole(_, TypeErr | VarErr) => true
-  | _ => false
-  };
-
-let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
-  CursorPath_Exp.holes(ZExp.erase(ze), [], [])
-  |> List.filter(hole_not_empty);
-
-let idomaticity_score_parent =
-    (action: Action.t, opParent: CursorInfo.opParent): int => {
-  switch (action, opParent) {
-  | (ReplaceAtCursor(operand, None), Some(parent_operand)) =>
-    switch (parent_operand) {
-    | CaseZE(_) =>
-      switch (operand) {
-      | Case(_) => (-2)
-      | Lam(_) => (-3) // idea: addn cursorinfo case type check for non-enum types?
-      | Inj(_) => (-1)
-      | IntLit(_)
-      | BoolLit(_)
-      | FloatLit(_)
-      | ListNil(_) => (-1)
-      | _ => 0
-      }
-    // as this only handles operands, it only handles parenthesized apps
-    | ParenthesizedZ((
-        [],
-        ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), (E, A(Space, _))))),
-        [],
-      )) =>
-      // lits/inj don't really matter as the type will never match
-      switch (operand) {
-      | Case(_) => (-3)
-      | Lam(_) => (-2)
-      | Parenthesized(_) => (-1)
-      | _ => 0
-      }
-    | _ => 0
-    }
-  | _ => 0
-  };
-};
-
-let type_specificity_score =
-    (expected_ty: HTyp.t, res_ty: HTyp.t, actual_ty: option(HTyp.t)) =>
-  // TODO: implement order relation on types
-  switch (expected_ty, res_ty, actual_ty) {
-  | (Hole, _, _) => 0
-  | (_, Hole, Some(Hole) | None) => 0
-  | (_, Hole, _) => (-1)
-  | _ => 0
-  };
-
-let opseq_report =
-    (action: Action.t, {ctx, syntactic_context, _}: CursorInfo.t) => {
-  let* (opseq_expected_ty, old_zexp, context_consistent_before) =
-    switch (syntactic_context) {
-    | ExpSeq(expected_ty, zseq, err) =>
-      Some((
-        expected_ty,
-        zseq |> ZExp.mk_ZOpSeq |> ZExp.ZBlock.wrap',
-        switch (err) {
-        | NotInHole => true
-        | _ => false
-        },
-      ))
-    | _ => None
-    };
-  let+ (actual_ty, new_zexp) =
-    switch (
-      Action_Exp.syn_perform(
-        ctx,
-        action,
-        (old_zexp, opseq_expected_ty, MetaVarGen.init),
-      )
-    ) {
-    | Failed
-    | CursorEscaped(_) => None
-    | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
-    };
-  let context_consistent_after =
-    HTyp.consistent(opseq_expected_ty, actual_ty);
-  let internal_errors_before = old_zexp |> err_holes |> List.length;
-  let internal_errors_after = new_zexp |> err_holes |> List.length;
-  (
-    context_consistent_before,
-    context_consistent_after,
-    internal_errors_before,
-    internal_errors_after,
-  );
-};
-
-let check_suggestion =
-    (
-      action: Action.t,
-      res_ty: HTyp.t,
-      {opParent, expected_ty, actual_ty, _} as ci: CursorInfo.t,
-    )
-    : option(Suggestion.score) => {
-  let+ (
-    context_consistent_before,
-    context_consistent_after,
-    internal_errors_before,
-    internal_errors_after,
-  ) =
-    opseq_report(action, ci);
-  let context_errors =
-    switch (context_consistent_before, context_consistent_after) {
-    | (true, false) => (-1)
-    | (false, true) => 1
-    | _ => 0
-    };
-  let internal_errors = internal_errors_before - internal_errors_after;
-  let delta_errors = internal_errors + context_errors;
-  let idiomaticity = idomaticity_score_parent(action, opParent);
-  let type_specificity =
-    type_specificity_score(expected_ty, res_ty, actual_ty);
-  Suggestion.{idiomaticity, type_specificity, delta_errors};
-};
-
 let mk_suggestion =
     (~category, ~result_text, ~action, ~result, ~res_ty): suggestion => {
   category,
@@ -222,6 +98,7 @@ let mk_suggestion =
   score: Suggestion.blank_score,
 };
 
+/* returns a blank score if there is an error */
 let mk_operand_suggestion' =
     (
       ~ci: CursorInfo.t,
@@ -238,8 +115,8 @@ let mk_operand_suggestion' =
     | Some(ty) => ty
     };
   let score: Suggestion.score =
-    switch (check_suggestion(action, res_ty, ci)) {
-    | None => Suggestion.blank_score //TODO(andrew): do properly or at least log
+    switch (SuggestionScore.check_suggestion(action, res_ty, ci)) {
+    | None => Suggestion.blank_score
     | Some(res) => res
     };
   {
@@ -332,7 +209,6 @@ let mk_app_suggestion =
   mk_suggestion(
     ~category=InsertApp,
     ~result_text=name,
-    //TODO(andrew): this should probably actually be an opseq-level action
     ~action=ReplaceAtCursor(UHExp.Parenthesized(e), None),
     ~res_ty,
     ~result=e,
@@ -347,6 +223,7 @@ let app_suggestions =
 };
 
 let get_guy_from = (pos: CursorPosition.t, operand) => {
+  // TODO: ??????????????????????????????????
   switch (pos, operand_of_string(operand)) {
   | (_, "") => operand
   | (OnText(i), guy) =>
@@ -406,10 +283,9 @@ let mk_wrap_suggestion =
 // ie we want to know why this is being suggested
 // TODO: mode toggle for favoring simplifying versus complexifying suggestions?
 // TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
-//open Sexplib.Std;
+
 let wrap_suggestions =
     ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {
-  // TODO(andrew): decide if want to limit options for synthetic mode
   // TODO(andrew): non-unary wraps
   switch (actual_ty, cursor_term) {
   | (_, ExpOperand(_, EmptyHole(_))) => []
@@ -436,32 +312,25 @@ let str_float_to_int = s =>
 let str_int_to_float = s =>
   s |> int_of_string |> Float.of_int |> string_of_float;
 
-let virtual_suggestions =
+let int_float_suggestions =
     ({cursor_term, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
   (
     switch (cursor_term) {
     | ExpOperand(_, IntLit(_, s)) when s != "0" => [
-        //mk_int_lit_suggestion(ci, s),
         mk_float_lit_suggestion(ci, s ++ "."),
         mk_int_lit_suggestion(ci, "0"),
       ]
     | ExpOperand(_, IntLit(_, s)) when s == "0" => [
-        //mk_int_lit_suggestion(ci, "0"),
         mk_float_lit_suggestion(ci, str_int_to_float(s)),
       ]
     | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
       s |> float_of_string |> Float.is_integer
         ? [
-          //mk_float_lit_suggestion(ci, s),
           mk_int_lit_suggestion(ci, str_float_to_int(s)),
           mk_float_lit_suggestion(ci, "0."),
         ]
-        : [
-          //mk_float_lit_suggestion(ci, s),
-          mk_int_lit_suggestion(ci, "0"),
-        ]
+        : [mk_int_lit_suggestion(ci, "0")]
     | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
-        //mk_float_lit_suggestion(ci, "0."),
         mk_int_lit_suggestion(ci, "0"),
       ]
     | _ => [
@@ -474,7 +343,7 @@ let virtual_suggestions =
 };
 
 let operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
-  virtual_suggestions(ci)
+  int_float_suggestions(ci)
   @ wrap_suggestions(ci)
   @ intro_suggestions(ci)
   @ var_suggestions(ci)
@@ -488,7 +357,8 @@ let mk_replace_operator_suggestion =
       new_operator: Operators_Exp.t,
     )
     : suggestion => {
-  // TODO(andrew): this is hardcoded for binops, and resets cursor pos. rewrite!
+  /* only support binary operators */
+  /* TODO(andrew): bug: resets cursor position */
   let fix_holes_local = (ctx: Contexts.t, exp: UHExp.t): UHExp.t =>
     exp
     |> Statics_Exp.syn_fix_holes(ctx, MetaVarGen.init)
@@ -497,7 +367,7 @@ let mk_replace_operator_suggestion =
     switch (ZExp.erase_zseq(zseq)) {
     | S(operand1, A(_operator, S(operand2, E))) =>
       Seq.S(operand1, A(new_operator, S(operand2, E)))
-    | _ => failwith("TODO(andrew) mk_replace_operator_suggestion")
+    | _ => failwith("mk_replace_operator_suggestion impossible case")
     };
   let new_opseq = new_seq |> UHExp.mk_OpSeq;
   let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
@@ -517,80 +387,21 @@ let actual_ty_operand = (~ctx, operand) =>
       UHExp.set_err_status_operand(NotInHole, operand),
     )
   ) {
-  | None =>
-    print_endline("TODO(andrew): WARNING actual_ty_operand");
-    HTyp.Hole;
+  | None => HTyp.Hole
   | Some(ty) => ty
   };
 
 let replace_operator_suggestions =
     (ctx: Contexts.t, seq_ty: HTyp.t, zseq: ZExp.zseq, _err: ErrStatus.t) => {
-  //TODO(andrew): unhardcode from binops
+  /* only supports binary operators */
   switch (ZExp.erase_zseq(zseq)) {
   | S(operand1, A(_operator, S(operand2, E))) =>
     let in1_ty = actual_ty_operand(~ctx, operand1);
     let in2_ty = actual_ty_operand(~ctx, operand2);
     operator_of_ty(in1_ty, in2_ty, seq_ty)
     |> List.map(mk_replace_operator_suggestion(seq_ty, zseq, ctx));
-  | _ =>
-    print_endline("TODO(andrew): WARNING replace_operator_suggestions");
-    [];
+  | _ => []
   };
-};
-
-/*
- case 1v1:
- given opseq: prefix Zoperand| <o1>s1 <o2>s2 ... <on>sn
- suggest:
- prefix Zoperand| (f <o1>s1) <o2>s2 ... <on>sn
- prefix Zoperand| (f <o1>s1 <o2>s2) ... <on>sn
- prefix Zoperand| (f <o1>s1 <o2>s2 ... <on>sn)
- iff the types work
- case 1v2: above, but splice in without parens if possible
-
- case 2v1:
- given opseq: preseq Zoperator| s1<o1> s2<o2> ... sn
- suggest:
- preseq Zoperator| (f s1)<o1> s2<o2> ... sn
- preseq Zoperator| (f s1<o1> s2)<o2> ... sn
- preseq Zoperator| (f s1<o1> s2<o2> ... sn)
-
-
- possible helpers:
- 1. predicate to tell if parens are necessary
-   when pointed at a parensthesized operand in an opseq
-
- 2. function that when, pointed at an operator, gives
-    the subprefix and subsuffic which are that operator's operands
-  */
-let _mk_seq_wrap_suggestion =
-    (
-      seq_ty: HTyp.t,
-      zseq: ZExp.zseq,
-      ctx: Contexts.t,
-      new_operator: Operators_Exp.t,
-    )
-    : suggestion => {
-  // TODO(andrew): this is hardcoded for binops, and resets cursor pos. rewrite!
-  let fix_holes_local = (ctx: Contexts.t, exp: UHExp.t): UHExp.t =>
-    exp
-    |> Statics_Exp.syn_fix_holes(ctx, MetaVarGen.init)
-    |> (((x, _, _)) => x);
-  let new_seq =
-    switch (ZExp.erase_zseq(zseq)) {
-    | S(operand1, A(_operator, S(operand2, E))) =>
-      Seq.S(operand1, A(new_operator, S(operand2, E)))
-    | _ => failwith("TODO(andrew) mk_replace_operator_suggestion")
-    };
-  let new_opseq = new_seq |> UHExp.mk_OpSeq;
-  let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
-  mk_suggestion(
-    ~category=ReplaceOperator,
-    ~result_text=Operators_Exp.to_string(new_operator),
-    ~action=ReplaceOpSeqAroundCursor(new_zseq),
-    ~res_ty=seq_ty,
-    ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
-  );
 };
 
 let operator_suggestions =
