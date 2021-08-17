@@ -177,7 +177,7 @@ let suggestion_view =
         [Attr.classes(["code-container"])],
         [div([Attr.classes(["code"])], [overlay_view] @ result_view)],
       ),
-      div([Attr.classes(["type-ann"])], [text(" : ")]),
+      div([Attr.classes(["type-ann"])], [text(":")]),
       div([Attr.classes(["type"])], [HTypCode.view(res_ty)]),
       category_view(category),
     ],

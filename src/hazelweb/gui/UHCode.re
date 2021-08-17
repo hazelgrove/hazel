@@ -198,7 +198,14 @@ let main_key_action =
     )
   | Move(k) => Some(MoveAction(Key(k)))
   | Combo(Ctrl_Space) =>
+    // always set_visible CI
+    // if assistant active, set tutor active
+    // if tutor active, set not visible (so only CI active)
+    // if if neither active, set assistant active
     //TODO(andrew): make this a three-way toggle assistant->plainCI->tutor
+    //Some(Chain([update_ci(Set_visible(true)),
+    //  if()
+    //]))
     Some(Chain([UpdateAssistant(Turn_on), update_ci(Set_visible(true))]))
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>

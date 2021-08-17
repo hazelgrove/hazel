@@ -48,6 +48,46 @@
   --verr-hole-z: 1;
   --code-text-z: 2;
   --caret-z: 5;
+
+
+  /* ASSISTANT */
+
+  --ci-type-info: #c4fdc5;
+  --ci-type-code: rgb(70 70 70);
+  --ci-type-bidi-arrow: #ccc;
+  --ci-type-inconsistent: #f88;
+
+  --assistant-background-color: #aaa;
+  --assistant-text-color: rgb(46, 46, 46);
+  --assistant-shadow-color: #6667;
+
+  --suggestion-selected-background: rgb(200, 255, 200);
+  --suggestion-selected-top: white;
+  --suggestion-selected-bottom: #242;
+
+  --suggestion-less-errors-text: #0c5b64;
+  --suggestion-more-errors-text: #b00;
+  --suggestion-less-errors-background: rgb(140, 180, 190);
+  --suggestion-more-errors-background: rgb(200, 160, 160);
+  
+  --suggestion-selected-hole-text: rgb(90 182 79);
+  --suggestion-selected-type-text: #3ba270;
+  
+  --suggestion-type-text: #ccc;
+  --suggestion-type-ann-colon: #999;
+  --suggestion-type-hole-text: #ccc;
+  --suggestion-selected-type-hole-text: #888;
+
+  --suggestion-category-background: #888;
+  --suggestion-category-text: #bbbbbb;
+  --suggestion-selected-category-background: rgb(170, 240, 170);
+  --suggestion-selected-category-text: #666;
+
+  --suggestion-info-background: #555c;
+  --suggestion-info-text: #ccc;
+  --suggestion-info-good-text: rgb(0, 200, 120);
+  --suggestion-info-bad-text: red;
+
 }
 
 /* general */
@@ -726,18 +766,16 @@ body {
   background-color: #8e000014;
 }
 
-/* assistant */
+/* ASSISTANT */
 
-/* the following several styles are overwrites for
-   experimenting with cursor inspector styles */
+/* the following several styles are
+   overrides for cursor inspector styles */
 
 .assistant-active .panel {
   background-color: #0000;
   outline: none;
   border-radius: 0 0.5em 0.5em 0.5em;
-  /*overflow: hidden;*/
-  filter: drop-shadow(6px 6px 12px #6667);
-  /*filter: drop-shadow(0 4px 12px #4447);*/
+  filter: drop-shadow(6px 6px 12px var(--assistant-shadow-color));
 }
 
 .assistant-active .term-tag {
@@ -754,22 +792,20 @@ body {
   border-radius: 3px 0.6em 0 0;
   padding: 0.3em 0.4em 0.3em 0.4em !important;
   font-weight: 100;
-  
-  color: #c4fdc5 !important;
+  color: var(--ci-type-info) !important;
 }
 
 .assistant-active .type-info-summary .HTypCode {
   border-radius: 0.3em;
-  /*padding: 0 0 0 0.3em;*/
-  background-color: rgb(68 68 68);
+  background-color: var(--ci-type-code);
 }
 
 .assistant-active .type-info-summary .bidirectional {
-  color: #ccc;
+  color: var(--ci-type-bidi-arrow);
 }
 
 .assistant-active .type-info-summary .consistency-symbol.inconsistent {
-  color: #f88;
+  color: var(--ci-type-inconsistent);
   box-shadow: none;
 }
 
@@ -787,62 +823,51 @@ body {
   text-decoration: none;
 }
 
+/* assistant top-level styles */
+
+#assistant-wrapper {
+  position: relative;
+}
+
 #assistant {
-  background-color:rgb(178 178 178);
-  color: rgb(46, 46, 46);
+  background-color: var(--assistant-background-color);
+  color: var(--assistant-text-color);
   border-radius: 3px;
 }
+
+/* styles for assistant suggestions */
 
 #assistant > .choice  {
   display: flex;
   position: relative;
   align-items: stretch;
+  gap: 0.5em;
   min-height: 2.25rem;
-  /* the following properties are set for transsition animation */
-  width: 100%;
-  border-radius: 0;
+  width: 100%; /* for transition animation */
+  border-radius: 0; /* for transition animation */
 }
 
-#assistant > .hovered  {
-  color: #383838;
+#assistant > .choice.hovered  {
+  box-sizing: border-box;
   left: -0.35em;
   width: 105%;
-  /* z-index: -1; */
-  border-bottom: solid 1px #2c372c;
-  border-top: solid 1px white;
+  background-color: var(--suggestion-selected-background) !important;
+  color: #383838;
+  border-bottom: solid 1px var(--suggestion-selected-bottom);
+  border-top: solid 1px var(--suggestion-selected-top);
   border-radius: 0.5em;
-  background-color: rgb(197, 253, 197) !important;
-  box-sizing: border-box;
   transition-property: width, border-radius;
   transition-duration: 0.2s;
 }
 
-
-#assistant > .choice > .type {
-  color: #e5e3e3;
-  display: flex;
-  align-items: center;
-}
-
 #assistant .errors-more   {
-  color: #b00b0b;
-  background-color: rgb(203 164 164)
-}
-/*#assistant > .errors-more:hover,*/
-#assistant > .errors-more.hovered   {
-  color: #b00b0b;
-  background-color: rgb(253, 217, 197);
+  color: var(--suggestion-more-errors-text);
+  background-color: var(--suggestion-more-errors-background);
 }
 
 #assistant .errors-less   {
-  color: #0c5b64;
-  background-color: rgb(144 177 193);
-}
-
-/*#assistant > .errors-less:hover,*/
-#assistant > .errors-less.hovered   {
-  color: black;
-  background-color: rgb(197, 235, 253);
+  color: var(--suggestion-less-errors-text);
+  background-color: var(--suggestion-less-errors-background);
 }
 
 #assistant > .choice > .delta-errors {
@@ -852,87 +877,40 @@ body {
   font-size: 0.5em;
 } 
 
-/*
-#assistant > .choice:hover:not(.selected)  {
-  z-index: 1000000;
-  background-color: #8ab38b;
-  color: #c4fdc5;
-}
-#assistant > .choice:hover:not(.selected) > .category  {
-  background-color: #93d895;
-  color: #b9ffb9 !important;
-}
-#assistant > .choice:hover:not(.selected)  > .type {
-  color: #226744 !important;
-}
-#assistant > .selected.choice:hover  {
-  z-index: 1000000;
-  background-color: #e8ffe8 !important;
-  color: #000;
-}
-#assistant > .selected.choice:hover > .category  {
-  background-color: #c2fec4;
-  color: #000 !important;
-}
-#assistant > .selected.choice:hover > .type {
-  color: #000 !important;
-}
-*/
-
-#assistant > .hovered.choice > .code-container .overlay {
+#assistant > .choice > .code-container .overlay {
   position: absolute;
-  z-index: 9000; /* hack */
-  color:  #0088ff;
-  text-decoration: underline;
-}
-
-#assistant > .choice:not(.hovered) > .code-container .overlay {
-  position: absolute;
-  z-index: 9000; /* hack */
+  z-index: 9000; 
   color: #b9ffb9;
   text-decoration: underline;
 }
 
-#assistant > .hovered > .type  {
-  color: #3ba270 !important;
+#assistant > .choice.hovered > .code-container .overlay {
+  color:  #0088ff;
+}
+
+#assistant > .choice .code .code-delim {
+  /* HACK: override bold to align with completion overlay */
+  font-weight: normal;
 }
 
 #assistant > .choice > .category {
-  margin-left: auto;
+  width: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  background-color: #888;
+  margin-left: auto;
+  background-color: var(--suggestion-category-background);
+  color:var(--suggestion-category-text);
+  font-size: 0.6em;
   font-weight:600;
   text-transform: uppercase;
-  font-size: 0.6em;
-  color:#babbbb;
 }
 
-#assistant > .hovered > .category  {
-  color: #666 !important;
+#assistant > .choice.hovered > .category  {
+  color: var(--suggestion-selected-category-text);
   border-radius: 0.75em;
-  background-color: rgb(170 243 170);
+  background-color: var(--suggestion-selected-category-background);
 }
-
-/*
-#assistant > .choice > .category.var  {
-  color:#babbbb;
-}
-
-#assistant > .choice > .category.app  {
-  color:#e4c173;
-}
-
-#assistant > .choice > .category.lit  {
-  color:#ff9898;
-}
-
-#assistant > .choice > .category.con  {
-  color:#86cbff;
-}
-*/
 
 #assistant > .choice > .code-container {
   min-height: 2.25em;
@@ -942,98 +920,71 @@ body {
 }
 
 #assistant > .choice .code .HoleLabel {
-  background-color: #0d0a051b;
+  background-color: rgb(0, 0, 0, 0.10);
   border-radius: 4px;
-  box-shadow: inset -1px -1px 0 rgba(255,255,255,0.4);
+  box-shadow: inset -1px -1px 0 rgba(255,255,255,0.5);
 }
 
-#assistant > .choice .code .code-delim {
-  /* HACK: override bold, mostly for completion overlay */
-  font-weight: normal;
+#assistant > .choice.hovered .code .HoleLabel  {
+  background-color: var(--suggestion-selected-category-background);
+  color: var(--suggestion-selected-hole-text);
+  border-radius: 4px;
+  box-shadow: inset 1px 1px 0 rgb(104, 201, 92);
 }
 
-/*
-#assistant > .choice:hover:not(.selected) .code .HoleLabel{
-  background-color: #79a279;
-  color: rgb(148, 216, 141);
-  border-radius: 4px;
-  box-shadow: inset 1px 1px 0 rgb(104 201 92);
+#assistant > .choice > .type {
+  display: flex;
+  align-items: center;
+  color: var(--suggestion-type-text);
 }
-*/
-#assistant > .hovered .code .HoleLabel  {
-  background-color: #94f893;
-  color: rgb(90 182 79);
-  border-radius: 4px;
-  box-shadow: inset 1px 1px 0 rgb(104 201 92);
+
+#assistant > .choice.hovered > .type  {
+  color: var(--suggestion-selected-type-text);
+}
+
+#assistant > .choice > .type .HoleLabel {
+  background-color: #0000;
+  color: var( --suggestion-type-hole-text);
+  box-shadow: none;
+}
+
+#assistant > .choice.hovered > .type .HoleLabel  {
+  background-color: #0000;
+  color: var(--suggestion-selected-type-hole-text);
+  box-shadow: none;
 }
 
 #assistant > .choice > .type-ann {
   display: flex;
   align-items: center;
-  color: rgb(130 130 130);
+  color: var(--suggestion-type-ann-colon);
 }
 
-#assistant > .choice > .type {
-  display: flex;
-  padding-right: 0.4em;
-  color: #d6d6d6;
-}
-
-/*
-#assistant > .selected {
-  position: absolute;
-}*/
-
-#assistant > .hovered > .type {
-  color: #3ba270;
-}
-
-#assistant > .choice > .type .HoleLabel {
-  background-color: #0000;
-  color: #ccc;
-  box-shadow: none;
-}
-/*#assistant > .choice:hover > .type  .HoleLabel,*/
-#assistant > .hovered > .type .HoleLabel  {
-  background-color: #0000;
-  color: rgb(120 120 120);
-  box-shadow: none;
-}
-
-#assistant-wrapper {
-  position: relative;
-  /*overflow: hidden;
-  border-radius: 3px;*/
-}
-
-#assistant-wrapper .clickable-help-icon {
-  height: 1em;
-}
+/* assistant suggestion meta-info popup */
 
 #assistant-wrapper .suggestion-info {
-  background-color: #555c;
-    display: grid;
-    grid-template-columns: 1.85em 1fr;
-    color: #ccc;
-    position: absolute;
-    top: 0;
-    left: 106%;
-    border-radius: 0.4em;
-    padding: 0.5em;
-    padding-right: 2em;
+  position: absolute;
+  top: 0;
+  left: 106%;
+  display: grid;
+  grid-template-columns: 1.85em 1fr;
+  padding: 0.5em;
+  padding-right: 2em;
+  border-radius: 0.4em;
+  background-color: var(--suggestion-info-background);
+  color: var(--suggestion-info-text);
 }
 
 #assistant-wrapper .suggestion-info .category {
-  /*TODO: this is effectively duplicated from above */
+  width: 1.5rem;
+  height: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  background-color: #888;
-  font-weight:600;
-  text-transform: uppercase;
+  background-color: var(--suggestion-category-background);
   font-size: 0.4em;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 #assistant-wrapper .suggestion-info .suggestion-description {
@@ -1047,12 +998,14 @@ body {
 
 #assistant-wrapper .suggestion-info .plus {
   padding-right: 0.5em;
-  color: rgb(0, 205, 116);
+  color: var(--suggestion-info-good-text);
 }
+
 #assistant-wrapper .suggestion-info .minus {
   padding-right: 0.5em;
-  color: rgb(247, 0, 0);
+  color: var(--suggestion-info-bad-text);
 }
+
 
 /* action panel */
 
