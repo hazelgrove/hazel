@@ -233,6 +233,10 @@ let view =
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
+        print_endline("VIEW");
+        print_endline(
+          Sexplib.Sexp.to_string_hum(Program.sexp_of_t(program)),
+        );
         let caret_pos = Program.get_caret_position(~settings, program);
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];

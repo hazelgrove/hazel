@@ -1471,7 +1471,7 @@ let ana_fix_holes_z =
     CursorPath_Exp.follow(path, e)
     |> OptUtil.get(() =>
          failwith(
-           "ana_fix_holes did not preserve path "
+           "E ana_fix_holes did not preserve path "
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );

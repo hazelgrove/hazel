@@ -844,13 +844,17 @@ let syn_fix_holes_z =
 let ana_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+  print_endline("ANA_FIX_HOLES_Z");
+  print_endline(Sexplib.Sexp.to_string_hum(ZPat.sexp_of_t(zp)));
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   let path = CursorPath_Pat.of_z(zp);
   let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, ZPat.erase(zp), ty);
+  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
   let zp =
     CursorPath_Pat.follow(path, p)
     |> OptUtil.get(() =>
          failwith(
-           "ana_fix_holes did not preserve path "
+           "P ana_fix_holes did not preserve path "
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );

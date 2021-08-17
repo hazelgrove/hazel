@@ -153,6 +153,8 @@ let get_measured_layout = (~settings: Settings.t, program): UHMeasuredLayout.t =
 let get_caret_position = (~settings: Settings.t, program): MeasuredPosition.t => {
   let m = get_measured_layout(~settings, program);
   let path = get_path(program);
+  print_endline("PROGRAM PATH");
+  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
   UHMeasuredLayout.caret_position_of_path(path, m)
   |> OptUtil.get(() => failwith("could not find caret"));
 };
@@ -212,6 +214,8 @@ let move_via_click =
 
 let move_via_key =
     (~settings: Settings.t, move_key: MoveKey.t, program): (t, Action.t) => {
+  print_endline("MOVE_VIA_KEY");
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(program)));
   let caret_position = get_caret_position(~settings, program);
   let m = get_measured_layout(~settings, program);
   let (from_col, put_col_on_start) =

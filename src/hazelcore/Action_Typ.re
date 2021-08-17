@@ -362,7 +362,12 @@ and perform_opseq =
   }
 and perform_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zoperand)
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
+  print_endline("PERFORM_OPERAND");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(zoperand)),
+  );
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -423,6 +428,7 @@ and perform_operand =
       Construct(SChar(c)),
       CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)),
     ) =>
+    print_endline("CONSTRUCT CHAR");
     if (UHTag.is_majuscule_letter(c.[0])) {
       print_endline("MAJ");
       let ztag = ZTag.place_after(UHTag.Tag(c));
@@ -431,7 +437,7 @@ and perform_operand =
     } else {
       print_endline("NOT MAJ");
       Failed;
-    }
+    };
   // switch (a) {
   // // | Backspace => (??)
   // // | Delete => (??)
@@ -639,14 +645,20 @@ and perform_operand =
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and perform_zsumbody =
     (
       u_gen: MetaVarGen.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zsumbody: ZTyp.zsumbody,
     )
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
+  print_endline("PERFORM_ZSUMBODY");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody(zsumbody)),
+  );
   switch (a, zseq) {
   /* Invalid actions at the top level */
   | (
@@ -777,17 +789,22 @@ and perform_zsumbody =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and perform_zsumbody_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zsumbody_operand)
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
+  print_endline("PERFORM_ZSUMBODY_OPERAND");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)),
+  );
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
       UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SList | SParenthesized | SChar(_) | SOp(_) |
-        SListNil |
+        SAnn | SLet | SLine | SLam | SList | SParenthesized | SOp(_) | SListNil |
         SInj |
         SCase |
         SApPalette(_) |
@@ -846,6 +863,17 @@ and perform_zsumbody_operand =
 
   /* Construction */
 
+  | (Construct(SChar(_)), ConstTagZ(ztag)) =>
+    switch (Action_Tag.perform(u_gen, a, ztag)) {
+    | Failed
+    | CursorEscaped(_) => Failed
+    | Succeeded((ztag, u_gen)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.ConstTagZ(ztag)), u_gen))
+    }
+  | (Construct(SChar(_s)), ArgTagZT(_ztag, _ty)) => Failed
+  | (Construct(_), ArgTagZA(_tag, _zty)) => Failed
+  | (Construct(_), CursorATag(_cursor, _tag, _ty)) => Failed
+
   // | (Construct(SOp(SPlus)), CursorATag(OnDelim(_, After), _, _)) =>
   //   perform_zsumbody_operand(u_gen, MoveRight, zoperand)
   // | (Construct(_), CursorATag(OnDelim(_, side), _, _))
@@ -897,3 +925,4 @@ and perform_zsumbody_operand =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

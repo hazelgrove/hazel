@@ -9,8 +9,8 @@ and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
   | CursorT(CursorPosition.t, UHTyp.operand)
   | ParenthesizedZ(t)
-  | SumZ(zsumbody)
   | ListZ(t)
+  | SumZ(zsumbody)
 and zoperator = (CursorPosition.t, UHTyp.operator)
 and zsumbody =
   ZOpSeq.t(
@@ -244,13 +244,24 @@ let place_cursor_operator =
 
 let place_cursor_sumbody_operand =
     (cursor: CursorPosition.t, operand: UHTyp.sumbody_operand)
-    : option(zsumbody_operand) =>
+    : option(zsumbody_operand) => {
+  print_endline("PLACE_CURSOR_SUMBODY_OPERAND");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(CursorPosition.sexp_of_t(cursor)),
+  );
+  print_endline(
+    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operand(operand)),
+  );
+  print_endline(
+    Bool.to_string(is_valid_cursor_sumbody_operand(cursor, operand)),
+  );
   is_valid_cursor_sumbody_operand(cursor, operand)
     ? switch (operand) {
       | ConstTag(tag) => Some(ConstTagZ(ZTag.CursorTag(cursor, tag)))
       | ArgTag(tag, ty) => Some(CursorATag(cursor, tag, ty))
       }
     : None;
+};
 let place_cursor_sumbody_operator =
     (cursor: CursorPosition.t, sumbody_operator: UHTyp.sumbody_operator)
     : option(zsumbody_operator) =>
