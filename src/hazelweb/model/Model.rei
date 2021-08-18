@@ -4,6 +4,12 @@ type editor =
   | AssistantTypeEditor
   | NoFocus;
 
+[@deriving sexp]
+type cursor_inspector_mode =
+  | Simple
+  | Tutor
+  | Assistant;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -24,6 +30,7 @@ type t = {
   settings: Settings.t,
   focal_editor: editor,
   assistant: AssistantModel.t,
+  cursor_inspector_mode: option(cursor_inspector_mode),
 };
 
 let editor_id: editor => string;
@@ -103,3 +110,5 @@ let load_undo_history: (t, UndoHistory.t, ~is_after_move: bool) => t;
 
 let update_program: (Action.t, Editor.exp, t) => t;
 let put_assistant_model: (t, AssistantModel.t) => t;
+
+let get_cursor_inspector_mode: t => option(cursor_inspector_mode);

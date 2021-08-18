@@ -159,21 +159,14 @@ let update_ci = (x: Settings.CursorInspector.update): ModelAction.t =>
   UpdateSettings(CursorInspector(x));
 
 let assistant_key_action =
-    (~assistant_action: option(Action.t), ~cursor_info: CursorInfo.t, evt)
+    (
+      ~assistant_action: option(Action.t),
+      ~cursor_info as _: CursorInfo.t,
+      evt,
+    )
     : option(ModelAction.t) => {
   // NOTE(andrew): assistant_action should be None IFF the actions menu is empty
-  let _is_on_hole =
-    CursorInfo_common.is_empty_hole(cursor_info.cursor_term)
-    || CursorInfo_common.is_op(cursor_info.cursor_term)
-    || CursorInfo_common.is_empty_line(cursor_info.cursor_term)
-    || CursorInfo_common.is_comment_line(cursor_info.cursor_term);
   switch (key_of(evt), assistant_action) {
-  //| (Combo(Escape), _) =>
-  //  Some(
-  //    Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
-  //  )
-  //| (Combo(Backspace), _) when !_is_on_hole =>
-  //  Some(EditAction(ReplaceAtCursor(Assistant_Exp.hole_operand, None)))
   | (Move(ArrowDown), Some(_)) =>
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
@@ -197,16 +190,7 @@ let main_key_action =
       Chain([UpdateAssistant(Turn_off), update_ci(Set_visible(false))]),
     )
   | Move(k) => Some(MoveAction(Key(k)))
-  | Combo(Ctrl_Space) =>
-    // always set_visible CI
-    // if assistant active, set tutor active
-    // if tutor active, set not visible (so only CI active)
-    // if if neither active, set assistant active
-    //TODO(andrew): make this a three-way toggle assistant->plainCI->tutor
-    //Some(Chain([update_ci(Set_visible(true)),
-    //  if()
-    //]))
-    Some(Chain([UpdateAssistant(Turn_on), update_ci(Set_visible(true))]))
+  | Combo(Ctrl_Space) => Some(ToggleCursorInspectorMode)
   | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))

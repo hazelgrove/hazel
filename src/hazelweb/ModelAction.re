@@ -44,5 +44,7 @@ type t =
   | UpdateIsMac(bool)
   | AcceptSuggestion(Action.t)
   | UpdateAssistant(AssistantModel.update)
+  | SetCursorInspectorMode(option(Model.cursor_inspector_mode))
+  | ToggleCursorInspectorMode
   | Chain(list(t))
   | SerializeToConsole;

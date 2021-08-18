@@ -4,6 +4,12 @@ type editor =
   | AssistantTypeEditor
   | NoFocus;
 
+[@deriving sexp]
+type cursor_inspector_mode =
+  | Simple
+  | Tutor
+  | Assistant;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -17,6 +23,7 @@ type t = {
   settings: Settings.t,
   focal_editor: editor,
   assistant: AssistantModel.t,
+  cursor_inspector_mode: option(cursor_inspector_mode),
 };
 
 let editor_id = (editor: editor): string =>
@@ -101,6 +108,7 @@ let init = (): t => {
     settings,
     focal_editor: MainProgram,
     assistant: AssistantModel.init,
+    cursor_inspector_mode: None,
   };
 };
 
@@ -359,3 +367,15 @@ let load_undo_history =
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances);
 };
+
+let get_cursor_inspector_mode = (model: t): option(cursor_inspector_mode) =>
+  if (model.settings.cursor_inspector.visible && model.assistant.active) {
+    Some(Assistant);
+  } else if (model.settings.cursor_inspector.visible
+             && model.settings.cursor_inspector.strategy_guide) {
+    Some(Tutor);
+  } else if (model.settings.cursor_inspector.visible) {
+    Some(Simple);
+  } else {
+    None;
+  };

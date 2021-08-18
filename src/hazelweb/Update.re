@@ -66,7 +66,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateAssistant(_)
   | AcceptSuggestion(_)
   | Chain(_)
-  | SerializeToConsole =>
+  | SerializeToConsole
+  | SetCursorInspectorMode(_)
+  | ToggleCursorInspectorMode =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -84,6 +86,7 @@ let rec apply_action =
         )
         : Model.t => {
   let settings = model.settings;
+  let apply = (a, m) => apply_action(m, a, state, ~schedule_action);
   if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
   };
@@ -237,6 +240,39 @@ let rec apply_action =
         |> Js.string
         |> JSUtil.log;
         model;
+      | SetCursorInspectorMode(cursor_inspector_mode) =>
+        let model = {...model, cursor_inspector_mode};
+        switch (cursor_inspector_mode) {
+        | None =>
+          model
+          |> apply(UpdateSettings(CursorInspector(Set_visible(false))))
+          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateAssistant(Turn_off))
+        | Some(Simple) =>
+          model
+          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
+          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateAssistant(Turn_off))
+        | Some(Tutor) =>
+          model
+          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
+          |> apply(UpdateSettings(CursorInspector(Set_guide(true))))
+          |> apply(UpdateAssistant(Turn_off))
+        | Some(Assistant) =>
+          model
+          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
+          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateAssistant(Turn_on))
+        };
+      | ToggleCursorInspectorMode =>
+        let cursor_inspector_mode: option(Model.cursor_inspector_mode) =
+          switch (Model.get_cursor_inspector_mode(model)) {
+          | None => Some(Assistant)
+          | Some(Assistant) => Some(Tutor)
+          | Some(Tutor) => Some(Simple)
+          | Some(Simple) => None
+          };
+        apply(SetCursorInspectorMode(cursor_inspector_mode), model);
       };
     },
   );

@@ -686,7 +686,7 @@ let summary_bar =
                 )
               : inject(
                   Chain([
-                    UpdateSettings(CursorInspector(Set_type_assist(false))),
+                    UpdateSettings(CursorInspector(Set_guide(false))),
                     UpdateAssistant(Toggle),
                   ]),
                 ),
@@ -699,7 +699,7 @@ let summary_bar =
              Event.Stop_propagation,
              inject(
                Chain([
-                 UpdateSettings(CursorInspector(Set_type_assist(false))),
+                 UpdateSettings(CursorInspector(Set_guide(false))),
                  UpdateAssistant(Toggle),
                ]),
              ),

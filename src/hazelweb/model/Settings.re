@@ -152,7 +152,7 @@ module CursorInspector = {
     | Set_visible(bool)
     | Toggle_show_expanded
     | Toggle_novice_mode
-    | Set_type_assist(bool)
+    | Set_guide(bool)
     | Toggle_strategy_guide
     | Toggle_strategy_guide_lit
     | Toggle_strategy_guide_var
@@ -170,7 +170,7 @@ module CursorInspector = {
         show_expanded: !settings.show_expanded,
       }
     | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
-    | Set_type_assist(b) => {...settings, strategy_guide: b}
+    | Set_guide(b) => {...settings, strategy_guide: b}
     | Toggle_strategy_guide => {
         ...settings,
         strategy_guide: !settings.strategy_guide,
