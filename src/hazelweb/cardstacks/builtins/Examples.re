@@ -110,6 +110,16 @@ let fibo_example: UHExp.t = {
   s |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
 };
 
+let stepping_multiple_choices_example: UHExp.t = {
+  let s = "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole fibo)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(BinOp NotInHole LessThan(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A LessThan(S(IntLit NotInHole 3)E))))))((Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole false)E))((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Plus(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(BinOp NotInHole Space(Placeholder 2)(Placeholder 3)))(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 1)E)))))))(A Plus(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 2)E)))))))E)))))))))))E)))))))E)))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole complicate)E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(BinOp NotInHole Plus(BinOp NotInHole Divide(Placeholder 0)(Placeholder 1))(BinOp NotInHole Times(BinOp NotInHole Space(Placeholder 2)(Placeholder 3))(Placeholder 4)))(S(Var NotInHole NotInVarHole x)(A Divide(S(IntLit NotInHole 6)(A Plus(S(Var NotInHole NotInVarHole fibo)(A Space(S(Var NotInHole NotInVarHole x)(A Times(S(IntLit NotInHole 2)E)))))))))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Plus(BinOp NotInHole Plus(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(BinOp NotInHole Space(Placeholder 3)(Placeholder 4)))(S(Var NotInHole NotInVarHole fibo)(A Space(S(IntLit NotInHole 2)(A Plus(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Times(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 6)(A Times(S(IntLit NotInHole 8)E)))))))(A Plus(S(Var NotInHole NotInVarHole complicate)(A Space(S(IntLit NotInHole 6)E))))))))))))";
+  s |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+};
+
+let paused_evaluation_example: UHExp.t = {
+  let s = "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole fibo)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(BinOp NotInHole LessThan(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A LessThan(S(IntLit NotInHole 3)E))))))((Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(BoolLit NotInHole false)E))((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Plus(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(BinOp NotInHole Space(Placeholder 2)(Placeholder 3)))(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 1)E)))))))(A Plus(S(Var NotInHole NotInVarHole fibo)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 2)E)))))))E)))))))))))E)))))))E)))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole fibo)(A Space(S(EmptyHole 0)E))))))";
+  s |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+};
+
 let qsort_example: UHExp.t = {
   let append_case =
     UHExp.(
@@ -361,10 +371,12 @@ let rec qsort_n = (n: int): UHExp.t =>
 let examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
-  ("let", let_line),
-  ("fibo_example", fibo_example),
+  //("let", let_line),
+  ("fibo", fibo_example),
   ("map", map_example),
-  ("quicksort", qsort_example),
+  ("paused evaluation", paused_evaluation_example),
+  ("step with multiple choices", stepping_multiple_choices_example),
+  //("quicksort", qsort_example),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {

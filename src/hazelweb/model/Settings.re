@@ -23,9 +23,9 @@ module Evaluation = {
 
   let init = {
     evaluate: true,
-    evaluator_type: Evaluator,
+    evaluator_type: StepEvaluator,
     step_evaluator_option: EvaluatorStep.default_option,
-    stepper_mode: false,
+    stepper_mode: true,
     show_evaluate_steps: false,
     show_case_clauses: false,
     show_fn_bodies: false,
