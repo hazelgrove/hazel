@@ -452,6 +452,10 @@ body {
   padding: 3px;
 }
 
+.cursor-inspector .shortcut {
+  align-self: center;
+}
+
 .code.presentation .type-info-summary {
   display: flex;
   align-items: flex-start;
@@ -524,6 +528,7 @@ body {
 }
 
 .body-bar .option .filler {
+  min-width: 5px;
   flex-grow: 1;
 }
 

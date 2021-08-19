@@ -60,7 +60,7 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
   if (CursorInfo_common.is_end_keyword(term, keyword)) {
     main_msg
     @ [
-      Node.text("("), /* TODO: Hannah - Maybe the keyword is laid out a little weird... */
+      Node.text("("),
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.Space),
       Node.text(" to expand keyword)"),
     ];
@@ -473,8 +473,6 @@ let summary_bar =
       [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  /* TODO: Hannah - I don't think the (true, false) case ever happens... maybe
-     this can be written in a better way then... */
   let body =
     switch (show_expansion_arrow, show_strategy_guide_icon) {
     | (true, true) => [summary, fill_space, arrow, fill_icon]

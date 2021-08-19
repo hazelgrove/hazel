@@ -37,7 +37,6 @@ let lit_msg = (ty: HTyp.t) => {
       example_lit_node("true"),
       Node.text(")"),
     ]);
-  /* TODO: Hannah - these shortcut nodes are getting out of sync with the actual shortcuts...*/
   let fun_lit =
     option([
       Node.text("Enter a Function Literal"),
@@ -448,9 +447,6 @@ let exp_hole_view =
     switch (cursor_info.parent_info) {
     | AfterBranchClause =>
       List.append(other_main_options, [add_rule_after_option])
-    /* TODO: Hannah - only comment if at the beginning of empty hole ~line~ */
-    /* File bug report for not being able to add comment to empty line within subexpressions like clause of case
-       Should be able to on any empty line */
     | BeforeEmptyHoleLine =>
       List.append(other_main_options, [comment_line_option])
     | NoParentInfo => other_main_options
@@ -534,7 +530,6 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   };
 };
 
-/* TODO: Hannah - There isn't any space between the text and the shortcut in this case...*/
 let lines_view = (suggest_comment: bool) => {
   let new_line =
     Node.div(

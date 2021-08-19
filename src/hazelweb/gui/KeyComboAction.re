@@ -10,6 +10,8 @@ let get_model_action =
     | _ => (false, false)
     };
 
+  /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */
   switch (kc) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
