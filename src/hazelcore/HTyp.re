@@ -3,7 +3,7 @@ open Sexplib.Std;
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole
+  | Hole(InfVar.t)
   | Int
   | Float
   | Bool
