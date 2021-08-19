@@ -265,6 +265,7 @@ let rec apply_action =
           |> apply(UpdateAssistant(Turn_on))
         };
       | ToggleCursorInspectorMode =>
+        //TODO(andrew): make this skip strategy guide if not on appropriate syntax
         let cursor_inspector_mode: option(Model.cursor_inspector_mode) =
           switch (Model.get_cursor_inspector_mode(model)) {
           | None => Some(Assistant)

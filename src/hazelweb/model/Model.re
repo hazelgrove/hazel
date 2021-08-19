@@ -370,12 +370,13 @@ let load_undo_history =
 
 let get_cursor_inspector_mode = (model: t): option(cursor_inspector_mode) =>
   if (model.settings.cursor_inspector.visible && model.assistant.active) {
-    Some(Assistant);
-  } else if (model.settings.cursor_inspector.visible
-             && model.settings.cursor_inspector.strategy_guide) {
-    Some(Tutor);
-  } else if (model.settings.cursor_inspector.visible) {
-    Some(Simple);
+    if (model.assistant.active) {
+      Some(Assistant);
+    } else if (model.settings.cursor_inspector.strategy_guide) {
+      Some(Tutor);
+    } else {
+      Some(Simple);
+    };
   } else {
     None;
   };

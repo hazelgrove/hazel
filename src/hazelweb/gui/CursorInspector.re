@@ -1,5 +1,62 @@
 open Virtual_dom.Vdom;
 
+let string_of_cursor_inspector_mode =
+    (mode: option(Model.cursor_inspector_mode)) =>
+  switch (mode) {
+  | Some(Simple) => "inspector"
+  | Some(Assistant) => "assistant"
+  | Some(Tutor) => "tutor"
+  | None => "close"
+  };
+
+let radio = (str, checked) =>
+  Node.input(
+    [
+      Attr.id(str ++ "-radio"),
+      Attr.type_("radio"),
+      Attr.name("mode"),
+      Attr.value(str),
+    ]
+    @ (checked ? [Attr.checked] : []),
+    [],
+  );
+
+let ci_mode_radio = (mode, current_mode, ~inject: ModelAction.t => Event.t) => {
+  let mode_str = string_of_cursor_inspector_mode(mode);
+  Node.div(
+    [
+      Attr.classes(["mode"]),
+      Attr.on_click(_ => inject(SetCursorInspectorMode(mode))),
+    ],
+    [
+      radio(mode_str, mode == current_mode),
+      Node.label(
+        [Attr.for_(mode_str ++ "-radio")],
+        [Node.text(mode_str)],
+      ),
+    ],
+  );
+};
+
+let ci_control_pane =
+    (curent_mode: option(Model.cursor_inspector_mode), ~inject) => {
+  let mode_radio = mode => ci_mode_radio(mode, curent_mode, ~inject);
+  Node.div(
+    [Attr.classes(["ci-control-pane-wrapper"])],
+    [
+      Node.div(
+        [Attr.classes(["ci-control-pane"])],
+        [
+          mode_radio(Some(Assistant)),
+          mode_radio(Some(Tutor)),
+          mode_radio(Some(Simple)),
+          mode_radio(None),
+        ],
+      ),
+    ],
+  );
+};
+
 type err_state_b =
   | TypeInconsistency
   | BindingError
@@ -606,6 +663,7 @@ let summary_bar =
       assistant_enabled: bool,
       type_editor_is_focused,
       assistant_model,
+      cursor_inspector_mode,
       u_gen,
       ~font_metrics,
       ~is_mac,
@@ -725,6 +783,7 @@ let summary_bar =
             show_strategy_guide_icon && !assistant_enabled
               ? Unicode.light_bulb : Unicode.robot_arm,
           ),
+          ci_control_pane(cursor_inspector_mode, ~inject),
         ]
         : []
     );
@@ -749,17 +808,17 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Event.t,
-      ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
-      ~settings: Settings.t,
-      type_editor_is_focused: bool,
-      assistant_model: AssistantModel.t,
+      {settings, font_metrics, is_mac, focal_editor, assistant, _} as model: Model.t,
       loc: (float, float),
-      cursor_inspector: Settings.CursorInspector.t,
-      cursor_info: CursorInfo.t,
-      u_gen: MetaVarGen.t,
     )
     : Node.t => {
+  let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
+  let cursor_inspector_mode = Model.get_cursor_inspector_mode(model);
+  let program = Model.get_program(model);
+  let cursor_info = Editor.Exp.get_cursor_info(program);
+  let cursor_inspector = settings.cursor_inspector;
+  let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
+
   let inconsistent_branches_ty_bar =
       (branch_types, path_to_case, skipped_index) =>
     Node.div(
@@ -955,9 +1014,10 @@ let view =
       cursor_inspector.novice_mode,
       show_strategy_guide_icon,
       on_empty_hole,
-      assistant_model.active,
+      assistant.active,
       type_editor_is_focused,
-      assistant_model,
+      assistant,
+      cursor_inspector_mode,
       u_gen,
       ~font_metrics,
       ~is_mac,
@@ -969,22 +1029,19 @@ let view =
       List.append([summary], [strategy_guide])
     | _ => [summary]
     };
-  /* TODO need to make sure lightbulb shows up when needs to */
-  //print_endline("cursorinfo: ");
-  //print_endline(
-  //  Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_t(cursor_info)),
-  //);
+
   let content =
-    if (assistant_model.active) {
+    if (assistant.active) {
       [summary]
       @ [
         AssistantView.view(
+          assistant,
           ~inject,
           ~font_metrics,
           ~settings,
           ~u_gen,
-          ~assistant_model,
           ~ci=cursor_info,
+          //~cursor_inspector_mode,
         ),
       ];
     } else {
@@ -996,7 +1053,7 @@ let view =
       Attr.id("cursor-inspector"),
       Attr.classes(
         ["cursor-inspector-outer", above_or_below]
-        @ (assistant_model.active ? ["assistant-active"] : []),
+        @ (assistant.active ? ["assistant-active"] : []),
       ),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),

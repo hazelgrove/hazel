@@ -190,15 +190,15 @@ let suggestions_view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~u_gen: MetaVarGen.t,
-      ~assistant_model: AssistantModel.t,
+      ~assistant: AssistantModel.t,
       ~ci: CursorInfo.t,
     )
     : Node.t => {
   let (filter_string, _) =
     CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
   let suggestions =
-    AssistantModel.get_display_suggestions(~u_gen, ci, assistant_model);
-  let is_hovered = AssistantModel.is_active_suggestion_index(assistant_model);
+    AssistantModel.get_display_suggestions(~u_gen, ci, assistant);
+  let is_hovered = AssistantModel.is_active_suggestion_index(assistant);
   let suggestion_view = (i, a) =>
     suggestion_view(
       ~ci,
@@ -220,8 +220,9 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~u_gen: MetaVarGen.t,
-      ~assistant_model: AssistantModel.t,
       ~ci: CursorInfo.t,
+      //~cursor_inspector_mode: option(Model.cursor_inspector_mode),
+      assistant: AssistantModel.t,
     )
     : Node.t => {
   let suggestions_view =
@@ -230,17 +231,17 @@ let view =
       ~font_metrics,
       ~settings,
       ~u_gen,
-      ~assistant_model,
+      ~assistant,
       ~ci,
     );
   let suggestion_info_view = {
-    let s =
-      AssistantModel.get_indicated_suggestion(~u_gen, assistant_model, ci);
+    let s = AssistantModel.get_indicated_suggestion(~u_gen, assistant, ci);
     switch (s) {
     | Some(s) => suggestion_info_view(s)
     | None => Node.text("")
     };
   };
+
   div(
     [Attr.id("assistant-wrapper")],
     [suggestions_view, suggestion_info_view],

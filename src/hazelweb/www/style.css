@@ -52,7 +52,9 @@
 
   /* ASSISTANT */
 
-  --ci-type-info: #c4fdc5;
+  --exp_accent: rgb(200, 255, 200);
+
+  --ci-type-info: var(--exp_accent);
   --ci-type-code: rgb(70 70 70);
   --ci-type-bidi-arrow: #ccc;
   --ci-type-inconsistent: #f88;
@@ -61,7 +63,7 @@
   --assistant-text-color: rgb(46, 46, 46);
   --assistant-shadow-color: #6667;
 
-  --suggestion-selected-background: rgb(200, 255, 200);
+  --suggestion-selected-background: var(--exp_accent);
   --suggestion-selected-top: white;
   --suggestion-selected-bottom: #242;
 
@@ -671,10 +673,6 @@ body {
   cursor: help;
 }
 
-.clickable-help-icon {
-  line-height: 0; /* HACK */
-}
-
 .HTypCode .Diff {
   text-decoration: underline;
 }
@@ -784,6 +782,7 @@ body {
 
 .assistant-active .clickable-help-icon {
   padding-right: 0.2em;
+  line-height: 0; /* HACK */
 }
 
 .assistant-active .type-info-summary {
@@ -960,9 +959,63 @@ body {
   color: var(--suggestion-type-ann-colon);
 }
 
+
+/* cursor inspector control pane */
+
+#cursor-inspector .clickable-help-icon:hover+.ci-control-pane-wrapper {
+  display:block;
+}
+
+#cursor-inspector .ci-control-pane-wrapper:hover{
+  display:block;
+}
+
+#cursor-inspector .ci-control-pane-wrapper {
+  padding-left:2em;
+  display: none;
+  z-index:101; /* HACK */
+  position: absolute;
+  top: 0;
+  left: 92%;
+}
+
+#cursor-inspector .ci-control-pane {
+  /*display: grid;
+  grid-template-columns: 1.85em 1fr;*/
+  /*padding: 0.5em;
+  padding-right: 2em;*/
+  overflow: hidden;
+  border-radius: 0.4em;
+  background-color: var(--suggestion-info-background);
+  color: var(--suggestion-info-text);
+}
+
+#cursor-inspector .ci-control-pane .mode{
+  height: 2em;
+  padding-left: 0.5em;
+  padding-right: 2em;
+  display: flex;
+  align-items: center;
+}
+
+/*
+#cursor-inspector .ci-control-pane .mode:first-child{
+  padding-top:0.5em;
+}
+
+#cursor-inspector .ci-control-pane .mode:last-child{
+  padding-bottom:0.5em;
+}*/
+
+#cursor-inspector .ci-control-pane .mode:hover {
+  background-color: var(--exp_accent);
+  color: black;
+}
+
 /* assistant suggestion meta-info popup */
 
 #assistant-wrapper .suggestion-info {
+  z-index:100;
   position: absolute;
   top: 0;
   left: 106%;
