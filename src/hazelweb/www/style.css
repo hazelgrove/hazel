@@ -973,44 +973,66 @@ body {
 #cursor-inspector .ci-control-pane-wrapper {
   padding-left:2em;
   display: none;
-  z-index:101; /* HACK */
+  z-index:100;
   position: absolute;
   top: 0;
   left: 92%;
+  cursor: default;
 }
 
 #cursor-inspector .ci-control-pane {
-  /*display: grid;
-  grid-template-columns: 1.85em 1fr;*/
-  /*padding: 0.5em;
-  padding-right: 2em;*/
   overflow: hidden;
   border-radius: 0.4em;
-  background-color: var(--suggestion-info-background);
+  background-color: #868686e6;
   color: var(--suggestion-info-text);
 }
 
 #cursor-inspector .ci-control-pane .mode{
   height: 2em;
   padding-left: 0.5em;
-  padding-right: 2em;
+  padding-right: 0.5em;
   display: flex;
+  gap: 0.3em;
   align-items: center;
-}
-
-/*
-#cursor-inspector .ci-control-pane .mode:first-child{
-  padding-top:0.5em;
+  cursor: pointer;
 }
 
 #cursor-inspector .ci-control-pane .mode:last-child{
-  padding-bottom:0.5em;
-}*/
+  background-color: #3339;
+}
+
+#cursor-inspector .ci-control-pane .mode:last-child:hover{
+  background-color: #f99;
+}
 
 #cursor-inspector .ci-control-pane .mode:hover {
   background-color: var(--exp_accent);
   color: black;
 }
+
+#cursor-inspector #ci-control-pane-mode-switch {
+  font-size: 0.85em;
+  height: 2rem;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  color: #333;
+}
+
+#cursor-inspector .key {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: bold;
+  padding: 0.3em;
+  border-radius: 0.3em;
+  border-top: 1px solid #adadad;
+  border-bottom: 1px solid #464646;
+  background-color: #7b7b7b;
+  color: var(--suggestion-info-text);
+}
+
 
 /* assistant suggestion meta-info popup */
 

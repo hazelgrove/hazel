@@ -224,3 +224,9 @@ let is_active_suggestion_index = (model: t, i: int) =>
   | None => i == 0 // select first by default
   | Some(hover_index) => hover_index == i
   };
+
+let is_hovering = (model: t) =>
+  switch (model.hover_index) {
+  | None => false
+  | Some(_) => true
+  };

@@ -369,14 +369,16 @@ let load_undo_history =
 };
 
 let get_cursor_inspector_mode = (model: t): option(cursor_inspector_mode) =>
-  if (model.settings.cursor_inspector.visible && model.assistant.active) {
-    if (model.assistant.active) {
-      Some(Assistant);
-    } else if (model.settings.cursor_inspector.strategy_guide) {
-      Some(Tutor);
-    } else {
-      Some(Simple);
-    };
+  if (model.settings.cursor_inspector.visible) {
+    Some(
+      if (model.assistant.active) {
+        Assistant;
+      } else if (model.settings.cursor_inspector.strategy_guide) {
+        Tutor;
+      } else {
+        Simple;
+      },
+    );
   } else {
     None;
   };

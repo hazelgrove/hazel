@@ -235,10 +235,12 @@ let view =
       ~ci,
     );
   let suggestion_info_view = {
-    let s = AssistantModel.get_indicated_suggestion(~u_gen, assistant, ci);
-    switch (s) {
-    | Some(s) => suggestion_info_view(s)
-    | None => Node.text("")
+    let suggestion =
+      AssistantModel.get_indicated_suggestion(~u_gen, assistant, ci);
+    switch (suggestion) {
+    | Some(suggestion) when AssistantModel.is_hovering(assistant) =>
+      suggestion_info_view(suggestion)
+    | _ => Node.text("")
     };
   };
 

@@ -3,7 +3,7 @@ open Virtual_dom.Vdom;
 let string_of_cursor_inspector_mode =
     (mode: option(Model.cursor_inspector_mode)) =>
   switch (mode) {
-  | Some(Simple) => "inspector"
+  | Some(Simple) => "inspector only"
   | Some(Assistant) => "assistant"
   | Some(Tutor) => "tutor"
   | None => "close"
@@ -21,7 +21,13 @@ let radio = (str, checked) =>
     [],
   );
 
-let ci_mode_radio = (mode, current_mode, ~inject: ModelAction.t => Event.t) => {
+let ci_mode_radio =
+    (
+      mode,
+      current_mode,
+      ~body: list(Node.t)=[],
+      ~inject: ModelAction.t => Event.t,
+    ) => {
   let mode_str = string_of_cursor_inspector_mode(mode);
   Node.div(
     [
@@ -34,23 +40,43 @@ let ci_mode_radio = (mode, current_mode, ~inject: ModelAction.t => Event.t) => {
         [Attr.for_(mode_str ++ "-radio")],
         [Node.text(mode_str)],
       ),
-    ],
+    ]
+    @ body,
   );
 };
 
 let ci_control_pane =
     (curent_mode: option(Model.cursor_inspector_mode), ~inject) => {
-  let mode_radio = mode => ci_mode_radio(mode, curent_mode, ~inject);
+  let mode_radio = (~body=[], mode) =>
+    ci_mode_radio(mode, curent_mode, ~body, ~inject);
   Node.div(
     [Attr.classes(["ci-control-pane-wrapper"])],
     [
       Node.div(
         [Attr.classes(["ci-control-pane"])],
         [
+          Node.div(
+            [Attr.id("ci-control-pane-mode-switch")],
+            [
+              Node.text("cycle inspector mode"),
+              Node.div(
+                [Attr.classes(["key"])],
+                [Node.text("CTRL-SPACE")],
+              ),
+            ],
+          ),
           mode_radio(Some(Assistant)),
           mode_radio(Some(Tutor)),
           mode_radio(Some(Simple)),
-          mode_radio(None),
+          mode_radio(
+            None,
+            ~body=[
+              Node.div(
+                [Attr.id("ci-control-pane-close"), Attr.classes(["key"])],
+                [Node.text("ESC")],
+              ),
+            ],
+          ),
         ],
       ),
     ],
