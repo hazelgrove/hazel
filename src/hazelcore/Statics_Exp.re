@@ -233,6 +233,7 @@ and ana_block =
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) =>
+  //if the skel and ty have the same num of args, skel is of 1, or if ty is a hole, some; else none
   switch (tuple_zip(skel, ty)) {
   | None =>
     switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {

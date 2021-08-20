@@ -17,6 +17,8 @@ type join =
   | GLB
   | LUB;
 
+type inf_constraint = (t, t);
+
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
 let precedence_Sum = Operators_Typ.precedence(Sum);
@@ -26,7 +28,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole
+  | Hole(_)
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -42,8 +44,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Hole, _)
-  | (_, Hole) => true
+  | (Hole(_), _)
+  | (_, Hole(_)) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -77,11 +79,26 @@ let rec consistent_all = (types: list(t)): bool =>
   };
 
 /* matched arrow types */
-let matched_arrow =
-  fun
-  | Hole => Some((Hole, Hole))
-  | Arrow(ty1, ty2) => Some((ty1, ty2))
-  | _ => None;
+/* if two versions desired
+     (one that simply returns the type and the other that returns constraints too)
+     use this
+   let matched_arrow =
+     (ty: t) => {
+     let (ma_tys, _) = matched_arrow_(ty);
+     ma_tys
+   };*/
+
+let matched_arrow: t => (option((t, t)), list(inf_constraint)) =
+  (typ: t) =>
+    switch (typ) {
+    | Hole(_) =>
+      let var_in = InfVar.gen_new_type_var();
+      let var_out = InfVar.gen_new_type_var();
+      let arrow_typ = Arrow(Hole(var_in), Hole(var_out));
+      (Some((Hole(var_in), Hole(var_out))), [(typ, arrow_typ)]);
+    | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
+    | _ => (None, [])
+    };
 
 let get_prod_elements: t => list(t) =
   fun
@@ -91,23 +108,66 @@ let get_prod_elements: t => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 /* matched sum types */
-let matched_sum =
-  fun
-  | Hole => Some((Hole, Hole))
-  | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
+/*
+ let matched_sum =
+   fun
+   | Hole => Some((Hole, Hole))
+   | Sum(tyL, tyR) => Some((tyL, tyR))
+   | _ => None;
+ */
+
+let matched_sum: t => (option((t, t)), list(inf_constraint)) =
+  (typ: t) =>
+    switch (typ) {
+    | Hole(_) =>
+      let var_in = InfVar.gen_new_type_var();
+      let var_out = InfVar.gen_new_type_var();
+      let sum_typ = Sum(Hole(var_in), Hole(var_out));
+      (Some((Hole(var_in), Hole(var_out))), [(typ, sum_typ)]);
+    | Sum(ty1, ty2) => (Some((ty1, ty2)), [])
+    | _ => (None, [])
+    };
 
 /* matched list types */
-let matched_list =
-  fun
-  | Hole => Some(Hole)
-  | List(ty) => Some(ty)
-  | _ => None;
+/*
+ let matched_list =
+   fun
+   | Hole => Some(Hole)
+   | List(ty) => Some(ty)
+   | _ => None;
+ */
+
+/*returns the type contained within the list type */
+let matched_list: t => (option(t), list(inf_constraint)) =
+  (typ: t) =>
+    switch (typ) {
+    | Hole(_) =>
+      let var_list = InfVar.gen_new_type_var();
+      (Some(Hole(var_list)), [(typ, List(Hole(var_list)))]);
+    | List(ty_ls) => (Some(ty_ls), [])
+    | _ => (None, [])
+    };
+
+let rec load_type_variable = (typ: t) => {
+  switch (typ) {
+  | Hole(id) =>
+    InfVar.type_variable := InfVar.recent(id + 1, InfVar.type_variable^)
+  | Bool
+  | Int
+  | Float => ()
+  | Arrow(ty1, ty2)
+  | Sum(ty1, ty2) =>
+    load_type_variable(ty1);
+    load_type_variable(ty2);
+  | Prod(tys) => List.iter(load_type_variable, tys)
+  | List(ty) => load_type_variable(typ)
+  };
+};
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole => false
+  | Hole(_) => false
   | Int => true
   | Float => true
   | Bool => true
@@ -118,14 +178,14 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole(_) as hole) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole(_) as hole, _) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(hole)
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)
