@@ -176,6 +176,13 @@ let znumlit_to_zunop = (znumlit: ZExp.zoperand): option(ZExp.zoperand) => {
   };
 };
 
+let user_wants_negative_exponent = (zoperand: ZExp.zoperand) =>
+  switch (zoperand) {
+  | CursorE(OnText(j), FloatLit(_, t) | InvalidText(_, t)) =>
+    j != 0 && t.[j - 1] == 'e'
+  | _ => false
+  };
+
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq
@@ -1437,7 +1444,8 @@ and syn_perform_opseq =
       when
         ZExp.is_before_zoperand(zoperand)
         && !shape_is_of_unop(os)
-        || ZExp.is_after_zoperand(zoperand) =>
+        || ZExp.is_after_zoperand(zoperand)
+        && !user_wants_negative_exponent(zoperand) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -1803,6 +1811,12 @@ and syn_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
+  | (
+      Construct(SOp(SMinus)),
+      CursorE(OnText(j), FloatLit(_, t) | InvalidText(_, t)),
+    )
+      when user_wants_negative_exponent(zoperand) =>
+    syn_insert_text(ctx, u_gen, (j, "-"), t)
   | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -1975,6 +1989,7 @@ and syn_perform_operand =
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
 
   | (Construct(SOp(os)), CursorE(_)) =>
+    print_endline("hit the case further down...\n");
     switch (os) {
     | SMinus =>
       let unop = Unops_Exp.Negate;
@@ -2007,7 +2022,7 @@ and syn_perform_operand =
           construct_operator(u_gen, operator, zoperand, (E, E));
         Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
       }
-    }
+    };
 
   | (Construct(_), CursorE(OnDelim(_, side), _))
       when
@@ -3064,7 +3079,8 @@ and ana_perform_opseq =
       when
         ZExp.is_before_zoperand(zoperand)
         && !shape_is_of_unop(os)
-        || ZExp.is_after_zoperand(zoperand) =>
+        || ZExp.is_after_zoperand(zoperand)
+        && !user_wants_negative_exponent(zoperand) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -3497,6 +3513,12 @@ and ana_perform_operand =
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
     )
 
+  | (
+      Construct(SOp(SMinus)),
+      CursorE(OnText(j), FloatLit(_, t) | InvalidText(_, t)),
+    )
+      when user_wants_negative_exponent(zoperand) =>
+    ana_insert_text(ctx, u_gen, (j, "-"), t, ty)
   // TODO consider relaxing guards and
   // merging with regular op construction
   | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
