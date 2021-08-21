@@ -1001,8 +1001,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let undo_button = (disabled, is_mac) => {
-    let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
+  let undo_button = disabled => {
+    let title = "Undo (" ++ HazelKeyCombos.name(CtrlOrCmd_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1026,9 +1026,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let redo_button = (disabled, is_mac) => {
-    let title =
-      if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
+  let redo_button = disabled => {
+    let title = "Redo (" ++ HazelKeyCombos.name(CtrlOrCmd_Shift_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1096,15 +1095,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let button_bar_view = (undo_history: UndoHistory.t, is_mac: bool) =>
+  let button_bar_view = (undo_history: UndoHistory.t) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history-button-bar"])],
         [
           preview_on_hover_checkbox(undo_history.preview_on_hover),
           expand_button(undo_history.all_hidden_history_expand),
-          redo_button(UndoHistory.disable_redo(undo_history), is_mac),
-          undo_button(UndoHistory.disable_undo(undo_history), is_mac),
+          redo_button(UndoHistory.disable_redo(undo_history)),
+          undo_button(UndoHistory.disable_undo(undo_history)),
         ],
       )
     );
@@ -1131,7 +1130,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       ],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.undo_history, model.is_mac),
+        button_bar_view(model.undo_history),
         Node.div(
           if (model.undo_history.preview_on_hover) {
             [
