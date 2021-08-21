@@ -78,23 +78,16 @@ let suggestion_info_view = ({category, score, _}: Assistant_Exp.suggestion) => {
 };
 
 let mk_offset_string = (pre: string, suf: string, target: string): string => {
-  let hits = AssistantModel.submatches_and_offsets(pre, suf, target);
-  switch (hits) {
-  | [] =>
-    print_endline("mk_offset_string case 0");
-    "";
-  | [(s, n)] =>
-    print_endline("mk_offset_string case 1");
-    String.make(n, ' ') ++ s;
-  | [(s0, n0), (s1, n1)] =>
-    print_endline("mk_offset_string case 2");
+  let (hit0, hit1) = AssistantModel.submatches_and_offsets(pre, suf, target);
+  switch (hit0, hit1) {
+  | (None, None) => ""
+  | (Some((s0, n0)), Some((s1, n1))) =>
     let n1' = n1 - (n0 + String.length(s0));
     let m0 = String.make(n0, ' ') ++ s0;
     let m1 = String.make(n1', ' ') ++ s1;
     m0 ++ m1;
-  | _ =>
-    print_endline("mk_offset_string case 4");
-    "";
+  | (Some((s, n)), _)
+  | (_, Some((s, n))) => String.make(n, ' ') ++ s
   };
 };
 
@@ -122,26 +115,9 @@ let suggestion_view =
     | ExpOperand(OnText(i), _) => i
     | _ => String.length(search_string)
     };
-
-  // split string at caret, only use before caret portion to search
   let (before_caret, after_caret) =
     StringUtil.split_string(index, search_string);
   let match_string = mk_offset_string(before_caret, after_caret, result_text);
-  Printf.printf("match_string: %s\n", match_string);
-  /*
-   let match_string =
-     StringUtil.match_prefix(before_caret, result_text) ? before_caret : "";
-   let match_len = String.length(match_string);
-   let unmatched_remainder =
-     String.sub(
-       result_text,
-       match_len,
-       String.length(result_text) - match_len,
-     );
-   let match_string_after =
-     StringUtil.match_prefix(after_caret, unmatched_remainder)
-       ? after_caret : "";
-   let match_string = match_string ++ match_string_after;*/
   let overlay_view =
     div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =

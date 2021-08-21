@@ -18,6 +18,7 @@ let string_of_operand = (text: string): UHExp.operand =>
 
 let rec operand_of_string = (operand: UHExp.operand): string => {
   // NOTE: should be replaced with proper to_string when parser is ready
+  // right now it special-cases case and binary apps
   switch (operand) {
   | InvalidText(_, s)
   | Var(_, _, s)
@@ -32,10 +33,9 @@ let rec operand_of_string = (operand: UHExp.operand): string => {
   | Parenthesized([
       ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
     ]) =>
-    operand_of_string(operandA) ++ " " ++ operand_of_string(operandB) // HACK(andrew) for apps
+    operand_of_string(operandA) ++ " " ++ operand_of_string(operandB)
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
-    operand_of_string(operandA) // HACK(andrew) for apps
-
+    operand_of_string(operandA)
   | ListNil(_)
   | Parenthesized(_)
   | EmptyHole(_)

@@ -89,47 +89,44 @@ let mog = (n: int, target: string): option((string, int)) => {
   (m, i);
 };
 let submatches_and_offsets =
-    (pre: string, suf: string, target: string): list((string, int)) => {
-  // let r = Str.regexp(".*((pre).*(suf))|(pre)|(suf).*")
-  // TODO: sanitize. (escape chars which are regexpy)
-  // need to sanitize: $^\.*+?[]
+    (pre: string, suf: string, target: string)
+    : (option((string, int)), option((string, int))) => {
+  // TODO(andrew): sanitize. (escape chars which are regexpy)
+  // IE need to sanitize: $^\.*+?[]
+  // TODO(andrew): handle cases of either pre or suf empty
   let g3 = ".*\\(" ++ pre ++ "\\).*";
   let g4 = ".*\\(" ++ suf ++ "\\).*";
   let g0g1g2 = ".*\\(" ++ g3 ++ ".*" ++ g4 ++ "\\).*";
-  let rs = "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ "$";
-  let a_ = Str.string_match(Str.regexp(rs), target, 0);
-  Printf.printf("is match: %b\n", a_);
-  //print_endline("submatches_and_offsets");
-  //print_endline(rs);
-  //print_endline(target);
+  // the below switch is necessary to prevent false matches
+  // for empty pre. suf... maybe can refactor regex to avoid this?
+  let rs =
+    switch (pre, suf) {
+    | ("", "") => "^$"
+    | ("", _) => "^" ++ g0g1g2 ++ "\\|" ++ g4 ++ "$"
+    | (_, "") => "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "$"
+    | _ => "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ "$"
+    };
+  let _ = Str.string_match(Str.regexp(rs), target, 0);
   switch (mog(1, target)) {
   | Some(_) =>
     switch (mog(2, target), mog(3, target)) {
-    | (Some(p0), Some(p1)) =>
-      //print_endline("111111");
-      [p0, p1]
-    | _ =>
-      //print_endline("222222");
-      []
+    | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
+    | _ => (None, None)
     }
   | None =>
     switch (mog(4, target), mog(5, target)) {
-    | (Some(p), _)
-    | (_, Some(p)) =>
-      //print_endline("333333");
-      [p]
-    | _ =>
-      //print_endline("444444");
-      []
+    | (Some(p), _) => (Some(p), None)
+    | (_, Some(p)) => (None, Some(p))
+
+    | _ => (None, None)
     }
   };
 };
 
 let is_filter_match = (pre: string, suf: string, target: string): bool =>
   switch (submatches_and_offsets(pre, suf, target)) {
-  | [_]
-  | [_, _] => true
-  | _ => false
+  | (None, None) => false
+  | _ => true
   };
 
 let sort_by_prefix =
@@ -139,24 +136,32 @@ let sort_by_prefix =
   let matches =
     List.filter(
       (s: suggestion) => {
-        //TODO(andrew): replace with is_filter_match
-        is_filter_match(
-          before_caret,
-          after_caret,
-          s.result_text,
-        )
+        is_filter_match(before_caret, after_caret, s.result_text)
       },
       suggestions,
     );
-  let compare = (a1: suggestion, a2: suggestion) =>
-    String.compare(a1.result_text, a2.result_text);
-  // NOTE: sort gooduns if they are nontrivial matches
+  let compare = (a1: suggestion, a2: suggestion) => {
+    let s1 = a1.result_text;
+    let s2 = a2.result_text;
+    let m1 = submatches_and_offsets(before_caret, after_caret, s1);
+    let m2 = submatches_and_offsets(before_caret, after_caret, s2);
+    // TODO(andrew) : review this logic
+    switch (m1, m2) {
+    | ((Some(_), _), (None, _))
+    | ((Some(_), Some(_)), (Some(_), None))
+    | ((None, Some(_)), (None, None)) => (-1)
+
+    | ((None, _), (Some(_), _))
+    | ((Some(_), None), (Some(_), Some(_)))
+    | ((None, None), (None, Some(_))) => 1
+
+    | _ => String.compare(s1, s2)
+    };
+  };
   let matches = List.sort(compare, matches);
-  //let matches = before_caret == "" ? matches : List.sort(compare, matches);
   let nonmatches =
     List.filter(
       (s: suggestion) =>
-        //TODO(andrew): replace with is_filter_match
         !is_filter_match(before_caret, after_caret, s.result_text),
       suggestions,
     );
