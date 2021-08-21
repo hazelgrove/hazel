@@ -107,6 +107,7 @@ let submatches_and_offsets =
     | _ => "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ "$"
     };
   let _ = Str.string_match(Str.regexp(rs), target, 0);
+  // TODO(andrew): extend below logic to new regexps
   switch (mog(1, target)) {
   | Some(_) =>
     switch (mog(2, target), mog(3, target)) {

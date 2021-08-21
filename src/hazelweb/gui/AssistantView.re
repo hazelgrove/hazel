@@ -91,9 +91,27 @@ let mk_offset_string = (pre: string, suf: string, target: string): string => {
   };
 };
 
+let overlay_view =
+    (
+      {cursor_term, _}: CursorInfo.t,
+      search_string: string,
+      result_text: string,
+    ) => {
+  let index =
+    switch (cursor_term) {
+    | ExpOperand(OnText(i), _) => i
+    | _ => String.length(search_string)
+    };
+  let (before_caret, after_caret) =
+    StringUtil.split_string(index, search_string);
+  let overlay_string =
+    mk_offset_string(before_caret, after_caret, result_text);
+  div([Attr.classes(["overlay"])], [text(overlay_string)]);
+};
+
 let suggestion_view =
     (
-      ~ci as {cursor_term, _}: CursorInfo.t,
+      ~ci: CursorInfo.t,
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -103,23 +121,6 @@ let suggestion_view =
       my_index: int,
       search_string: string,
     ) => {
-  let perform_action = _ =>
-    Event.Many([
-      Event.Prevent_default,
-      Event.Stop_propagation,
-      inject(ModelAction.AcceptSuggestion(action)),
-    ]);
-
-  let index =
-    switch (cursor_term) {
-    | ExpOperand(OnText(i), _) => i
-    | _ => String.length(search_string)
-    };
-  let (before_caret, after_caret) =
-    StringUtil.split_string(index, search_string);
-  let match_string = mk_offset_string(before_caret, after_caret, result_text);
-  let overlay_view =
-    div([Attr.classes(["overlay"])], [text(match_string)]);
   let result_view =
     UHCode.codebox_view(
       ~is_focused=false,
@@ -127,23 +128,19 @@ let suggestion_view =
       ~font_metrics,
       Editor.mk_exp_editor(result),
     );
-  let on_mouseenter = _x =>
+  let overlay_view = overlay_view(ci, search_string, result_text);
+  let perform_action = _ =>
+    Event.Many([
+      Event.Prevent_default,
+      Event.Stop_propagation,
+      inject(ModelAction.AcceptSuggestion(action)),
+    ]);
+  let set_hover = _ =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(Some(my_index))));
-  let on_mouseleave = _x =>
+  let unset_hover = _ =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
-  /*
-   let error_str =
-     switch (score.delta_errors) {
-     | 1 => "+"
-     | 2 => "++"
-     | n when n > 2 => "+++"
-     | (-1) => "-"
-     | (-2) => "--"
-     | n when n < (-2) => "---"
-     | _ => ""
-     };
-     */
   let color_score =
+    // TODO(andrew): figure out why i'm doing with this
     score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
   div(
     [
@@ -157,18 +154,10 @@ let suggestion_view =
       ),
       Attr.create("tabindex", "0"), // necessary to make cell focusable
       Attr.on_click(perform_action),
-      Attr.on_mouseenter(on_mouseenter),
-      Attr.on_mouseleave(on_mouseleave),
+      Attr.on_mouseenter(set_hover),
+      Attr.on_mouseleave(unset_hover),
     ],
     [
-      /*
-       div(
-         [Attr.classes(["delta-errors"])],
-         [
-           text(error_str),
-           text(string_of_int(score.idiomaticity + score.type_specificity)),
-         ],
-       ),*/
       div(
         [Attr.classes(["code-container"])],
         [div([Attr.classes(["code"])], [overlay_view] @ result_view)],
@@ -217,7 +206,6 @@ let view =
       ~settings: Settings.t,
       ~u_gen: MetaVarGen.t,
       ~ci: CursorInfo.t,
-      //~cursor_inspector_mode: option(Model.cursor_inspector_mode),
       assistant: AssistantModel.t,
     )
     : Node.t => {
