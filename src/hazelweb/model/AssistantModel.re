@@ -66,25 +66,98 @@ let apply_update = (u: update, model: t) =>
 let wrap_index = (index: int, xs: list('a)): int =>
   IntUtil.wrap(index, List.length(xs));
 
+let matched_group_opt = (n: int, s: string): option(string) =>
+  try(Some(Str.matched_group(n, s))) {
+  | Not_found => None
+  | Invalid_argument(s) =>
+    print_endline("invalid_arg: matched_group_opt:");
+    print_endline(s);
+    None;
+  };
+
+let group_beginning_opt = (n: int): option(int) =>
+  try(Some(Str.group_beginning(n))) {
+  | Not_found => None
+  | Invalid_argument(s) =>
+    print_endline("invalid_arg: group_beginning_opt:");
+    print_endline(s);
+    None;
+  };
+let mog = (n: int, target: string): option((string, int)) => {
+  let* m = matched_group_opt(n, target);
+  let+ i = group_beginning_opt(n);
+  (m, i);
+};
+let submatches_and_offsets =
+    (pre: string, suf: string, target: string): list((string, int)) => {
+  // let r = Str.regexp(".*((pre).*(suf))|(pre)|(suf).*")
+  // TODO: sanitize. (escape chars which are regexpy)
+  // need to sanitize: $^\.*+?[]
+  let g3 = "\\(" ++ pre ++ "\\)";
+  let g4 = "\\(" ++ suf ++ "\\)";
+  let g0g1g2 = "\\(" ++ g3 ++ ".*" ++ g4 ++ "\\)";
+  let rs = ".*" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ ".*";
+  let a_ = Str.string_match(Str.regexp(rs), target, 0);
+  Printf.printf("is match: %b\n", a_);
+  //print_endline("submatches_and_offsets");
+  //print_endline(rs);
+  //print_endline(target);
+  switch (mog(1, target)) {
+  | Some(_) =>
+    switch (mog(2, target), mog(3, target)) {
+    | (Some(p0), Some(p1)) =>
+      //print_endline("111111");
+      [p0, p1]
+    | _ =>
+      //print_endline("222222");
+      []
+    }
+  | None =>
+    switch (mog(4, target), mog(5, target)) {
+    | (Some(p), _)
+    | (_, Some(p)) =>
+      //print_endline("333333");
+      [p]
+    | _ =>
+      //print_endline("444444");
+      []
+    }
+  };
+};
+
+let is_filter_match = (pre: string, suf: string, target: string): bool =>
+  switch (submatches_and_offsets(pre, suf, target)) {
+  | [_]
+  | [_, _] => true
+  | _ => false
+  };
+
 let sort_by_prefix =
     ((prefix: string, index: int), suggestions: list(suggestion))
     : list(suggestion) => {
-  let (before_caret, _) = StringUtil.split_string(index, prefix);
+  let (before_caret, after_caret) = StringUtil.split_string(index, prefix);
   let matches =
     List.filter(
       (s: suggestion) => {
-        StringUtil.match_prefix(before_caret, s.result_text)
+        //TODO(andrew): replace with is_filter_match
+        is_filter_match(
+          before_caret,
+          after_caret,
+          s.result_text,
+        )
       },
       suggestions,
     );
   let compare = (a1: suggestion, a2: suggestion) =>
     String.compare(a1.result_text, a2.result_text);
   // NOTE: sort gooduns if they are nontrivial matches
-  let matches = before_caret == "" ? matches : List.sort(compare, matches);
+  let matches = List.sort(compare, matches);
+  //let matches = before_caret == "" ? matches : List.sort(compare, matches);
   let nonmatches =
     List.filter(
-      (a: suggestion) =>
-        !StringUtil.match_prefix(before_caret, a.result_text),
+      (s: suggestion) =>
+        //TODO(andrew): replace with is_filter_match
+        !is_filter_match(before_caret, after_caret, s.result_text),
       suggestions,
     );
   matches @ nonmatches;
