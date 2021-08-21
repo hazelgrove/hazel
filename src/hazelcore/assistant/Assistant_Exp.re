@@ -4,6 +4,7 @@ open OptUtil.Syntax;
 type suggestion = Suggestion.t(UHExp.t);
 
 let string_of_operand = (text: string): UHExp.operand =>
+  // NOTE: should be replaced when parser is ready
   switch (TextShape.of_text(text)) {
   | IntLit(s) => UHExp.intlit(s)
   | FloatLit(s) => UHExp.floatlit(s)
@@ -16,6 +17,7 @@ let string_of_operand = (text: string): UHExp.operand =>
   };
 
 let rec operand_of_string = (operand: UHExp.operand): string => {
+  // NOTE: should be replaced with proper to_string when parser is ready
   switch (operand) {
   | InvalidText(_, s)
   | Var(_, _, s)
@@ -24,9 +26,16 @@ let rec operand_of_string = (operand: UHExp.operand): string => {
   | BoolLit(_, b) => string_of_bool(b)
   | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
   | Lam(_) => "\\"
+  | Case(_, [ExpLine(OpSeq(_, S(operandA, _)))], _) =>
+    "case " ++ operand_of_string(operandA)
   | Case(_, _, _) => "case"
+  | Parenthesized([
+      ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
+    ]) =>
+    operand_of_string(operandA) ++ " " ++ operand_of_string(operandB) // HACK(andrew) for apps
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
     operand_of_string(operandA) // HACK(andrew) for apps
+
   | ListNil(_)
   | Parenthesized(_)
   | EmptyHole(_)

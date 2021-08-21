@@ -93,10 +93,10 @@ let submatches_and_offsets =
   // let r = Str.regexp(".*((pre).*(suf))|(pre)|(suf).*")
   // TODO: sanitize. (escape chars which are regexpy)
   // need to sanitize: $^\.*+?[]
-  let g3 = "\\(" ++ pre ++ "\\)";
-  let g4 = "\\(" ++ suf ++ "\\)";
-  let g0g1g2 = "\\(" ++ g3 ++ ".*" ++ g4 ++ "\\)";
-  let rs = ".*" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ ".*";
+  let g3 = ".*\\(" ++ pre ++ "\\).*";
+  let g4 = ".*\\(" ++ suf ++ "\\).*";
+  let g0g1g2 = ".*\\(" ++ g3 ++ ".*" ++ g4 ++ "\\).*";
+  let rs = "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ "$";
   let a_ = Str.string_match(Str.regexp(rs), target, 0);
   Printf.printf("is match: %b\n", a_);
   //print_endline("submatches_and_offsets");
