@@ -185,7 +185,6 @@ let get_ctx_for_child =
   //let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, def);
   switch (slice) {
   | ExpBlock((prefix, _zline, _suffix)) =>
-    //print_endline("get_ctx: calculating context for zline");
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
     | None => ctx
     | Some(ctx) => ctx

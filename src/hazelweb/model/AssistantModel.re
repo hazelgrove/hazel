@@ -68,51 +68,53 @@ let wrap_index = (index: int, xs: list('a)): int =>
 
 let matched_group_opt = (n: int, s: string): option(string) =>
   try(Some(Str.matched_group(n, s))) {
-  | Not_found => None
-  | Invalid_argument(s) =>
-    print_endline("invalid_arg: matched_group_opt:");
-    print_endline(s);
-    None;
+  | _ => None
   };
 
 let group_beginning_opt = (n: int): option(int) =>
   try(Some(Str.group_beginning(n))) {
-  | Not_found => None
-  | Invalid_argument(s) =>
-    print_endline("invalid_arg: group_beginning_opt:");
-    print_endline(s);
-    None;
+  | _ => None
   };
+
+let search_forward_opt = (re: Str.regexp, target: string) =>
+  try(Some(Str.search_forward(re, target, 0))) {
+  | _ => None
+  };
+
 let mog = (n: int, target: string): option((string, int)) => {
   let* m = matched_group_opt(n, target);
   let+ i = group_beginning_opt(n);
   (m, i);
 };
+
+let sanitize_string_for_regexp = (s: string): string => {
+  /* Escape regexp special characters */
+  let re = Str.regexp("\\.");
+  let replacer = _ => "\\.";
+  Str.global_substitute(re, replacer, s);
+};
+
 let submatches_and_offsets =
     (pre: string, suf: string, target: string)
     : (option((string, int)), option((string, int))) => {
-  // TODO(andrew): sanitize. (escape chars which are regexpy)
-  // IE need to sanitize: $^\.*+?[]
-  // TODO(andrew): handle cases of either pre or suf empty
-  let pre' = ".*\\(" ++ pre ++ "\\).*";
-  let suf' = ".*\\(" ++ suf ++ "\\).*";
-  let both = ".*\\(" ++ pre' ++ ".*" ++ suf' ++ "\\).*";
-  // the below switch is necessary to prevent false matches
-  // for empty pre. suf... maybe can refactor regex to avoid this?
-
+  let pre = sanitize_string_for_regexp(pre);
+  let suf = sanitize_string_for_regexp(suf);
   switch (pre, suf) {
   | ("", "") => (None, None)
   | ("", _) =>
-    let rs = suf';
-    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    let rs = "\\(" ++ suf ++ "\\)";
+    let _ = search_forward_opt(Str.regexp(rs), target);
     (mog(1, target), None);
   | (_, "") =>
-    let rs = pre';
-    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    let rs = "\\(" ++ pre ++ "\\)";
+    let _ = search_forward_opt(Str.regexp(rs), target);
     (mog(1, target), None);
   | _ =>
+    let pre' = "\\(" ++ pre ++ "\\)";
+    let suf' = "\\(" ++ suf ++ "\\)";
+    let both = "\\(" ++ pre' ++ ".*" ++ suf' ++ "\\)";
     let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
-    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    let _ = search_forward_opt(Str.regexp(rs), target);
     switch (mog(1, target)) {
     | Some(_) =>
       switch (mog(2, target), mog(3, target)) {

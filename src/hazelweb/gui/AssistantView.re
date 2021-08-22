@@ -140,7 +140,7 @@ let suggestion_view =
   let unset_hover = _ =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
   let color_score =
-    // TODO(andrew): figure out why i'm doing with this
+    // TODO(andrew): figure out what i'm doing with this
     score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
   div(
     [
