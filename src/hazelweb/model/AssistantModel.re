@@ -94,33 +94,39 @@ let submatches_and_offsets =
   // TODO(andrew): sanitize. (escape chars which are regexpy)
   // IE need to sanitize: $^\.*+?[]
   // TODO(andrew): handle cases of either pre or suf empty
-  let g3 = ".*\\(" ++ pre ++ "\\).*";
-  let g4 = ".*\\(" ++ suf ++ "\\).*";
-  let g0g1g2 = ".*\\(" ++ g3 ++ ".*" ++ g4 ++ "\\).*";
+  let pre' = ".*\\(" ++ pre ++ "\\).*";
+  let suf' = ".*\\(" ++ suf ++ "\\).*";
+  let both = ".*\\(" ++ pre' ++ ".*" ++ suf' ++ "\\).*";
   // the below switch is necessary to prevent false matches
   // for empty pre. suf... maybe can refactor regex to avoid this?
-  let rs =
-    switch (pre, suf) {
-    | ("", "") => "^$"
-    | ("", _) => "^" ++ g0g1g2 ++ "\\|" ++ g4 ++ "$"
-    | (_, "") => "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "$"
-    | _ => "^" ++ g0g1g2 ++ "\\|" ++ g3 ++ "\\|" ++ g4 ++ "$"
-    };
-  let _ = Str.string_match(Str.regexp(rs), target, 0);
-  // TODO(andrew): extend below logic to new regexps
-  switch (mog(1, target)) {
-  | Some(_) =>
-    switch (mog(2, target), mog(3, target)) {
-    | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
-    | _ => (None, None)
-    }
-  | None =>
-    switch (mog(4, target), mog(5, target)) {
-    | (Some(p), _) => (Some(p), None)
-    | (_, Some(p)) => (None, Some(p))
 
-    | _ => (None, None)
-    }
+  switch (pre, suf) {
+  | ("", "") => (None, None)
+  | ("", _) =>
+    let rs = suf';
+    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    (mog(1, target), None);
+  | (_, "") =>
+    let rs = pre';
+    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    (mog(1, target), None);
+  | _ =>
+    let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
+    let _ = Str.string_match(Str.regexp(rs), target, 0);
+    switch (mog(1, target)) {
+    | Some(_) =>
+      switch (mog(2, target), mog(3, target)) {
+      | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
+      | _ => (None, None)
+      }
+    | None =>
+      switch (mog(4, target), mog(5, target)) {
+      | (Some(p), _) => (Some(p), None)
+      | (_, Some(p)) => (None, Some(p))
+
+      | _ => (None, None)
+      }
+    };
   };
 };
 
