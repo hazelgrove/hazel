@@ -117,15 +117,32 @@ let perform =
   | (Delete, CursorTag(OnDelim(_0, After), TagHole(_))) =>
     CursorEscaped(After)
 
-  | (Delete, CursorTag(OnText(j), Tag(t))) =>
-    switch (delete_text(j, t)) {
-    | Succeeded(ztag) => Succeeded((ztag, u_gen))
-    | (CursorEscaped(_) | Failed) as outcome => outcome
-    }
   | (Backspace, CursorTag(OnText(j), Tag(t))) =>
-    switch (backspace_text(j, t)) {
-    | Succeeded(ztag) => Succeeded((ztag, u_gen))
-    | (CursorEscaped(_) | Failed) as outcome => outcome
+    switch (String.length(t)) {
+    | 1 =>
+      let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+      Succeeded((ZTag.place_before(tag_hole), u_gen));
+    | _ =>
+      switch (backspace_text(j, t)) {
+      | Succeeded(ztag) =>
+        print_endline("BACKSPACE OK " ++ Int.to_string(j) ++ " " ++ t);
+        Succeeded((ztag, u_gen));
+      | (CursorEscaped(_) | Failed) as outcome =>
+        print_endline("BACKSPACE FAIL " ++ Int.to_string(j) ++ " " ++ t);
+        outcome;
+      }
+    }
+
+  | (Delete, CursorTag(OnText(j), Tag(t))) =>
+    switch (String.length(t)) {
+    | 1 =>
+      let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+      Succeeded((ZTag.place_before(tag_hole), u_gen));
+    | _ =>
+      switch (delete_text(j, t)) {
+      | Succeeded(ztag) => Succeeded((ztag, u_gen))
+      | (CursorEscaped(_) | Failed) as outcome => outcome
+      }
     }
 
   /* Construction */

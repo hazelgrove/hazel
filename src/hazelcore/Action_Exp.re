@@ -476,7 +476,11 @@ let rec syn_move =
           a: Action.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
-        : ActionOutcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) => {
+  print_endline("AE SYN_MOVE");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_t(ze)));
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -527,7 +531,7 @@ let rec syn_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
-
+};
 let rec ana_move =
         (
           ctx: Contexts.t,
@@ -535,7 +539,12 @@ let rec ana_move =
           (ze: ZExp.t, u_gen: MetaVarGen.t),
           ty: HTyp.t,
         )
-        : ActionOutcome.t(ana_success) =>
+        : ActionOutcome.t(ana_success) => {
+  print_endline("AE ANA_MOVE");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_t(ze)));
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -586,7 +595,7 @@ let rec ana_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
-
+};
 let rec syn_perform =
         (
           ctx: Contexts.t,

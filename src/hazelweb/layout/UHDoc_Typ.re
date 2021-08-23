@@ -109,7 +109,7 @@ and mk_sumbody =
     Lazy.force(mk_sumbody_opseq, ~memoize, ~enforce_inline, sumbody)
     |> UHDoc_common.annot_Step(child_step);
   enforce_inline
-    ? EnforcedInline(formattable(~enforce_inline=true))
+    ? EnforcedInline(formattable(~enforce_inline))
     : Unformatted(formattable);
 }
 and mk_sumbody_opseq =
@@ -137,8 +137,8 @@ and mk_sumbody_operand =
         | ConstTag(tag) => UHDoc_Tag.mk(tag)
         | ArgTag(tag, ty) =>
           let tag_doc = UHDoc_Tag.mk(tag);
-          let body_doc = Lazy.force(mk, ~memoize, ~enforce_inline, ty);
-          UHDoc_common.mk_ArgTag(tag_doc, body_doc);
+          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, ty);
+          UHDoc_common.mk_ArgTag(tag_doc, body);
         }: UHDoc.t
       )
     )

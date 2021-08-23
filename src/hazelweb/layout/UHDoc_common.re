@@ -79,9 +79,6 @@ module Delim = {
   let open_Parenthesized = (): t => mk(~index=0, "(");
   let close_Parenthesized = (): t => mk(~index=1, ")");
 
-  let open_TagArg = (): t => mk(~index=1, "(");
-  let close_TagArg = (): t => mk(~index=2, ")");
-
   let open_Sum = (): t => mk(~index=0, "sum {");
   let close_Sum = (): t => mk(~index=1, "}");
 
@@ -307,19 +304,6 @@ let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_Tag = (t: string): t =>
-  mk_text(t) |> annot_Tessera |> annot_Operand(~sort=Tag);
-
-let mk_TagHole = (hole_lbl: string): t =>
-  Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort=Tag);
-
-let mk_ArgTag = (tag_doc: t, ty_doc: t): t => {
-  let open_group = Delim.open_TagArg() |> annot_Tessera;
-  let close_group = Delim.close_TagArg() |> annot_Tessera;
-  Doc.hcats([tag_doc, open_group, ty_doc, close_group])
-  |> annot_Operand(~sort=SumBody);
-};
-
 let mk_Wild = (): t =>
   Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
 
@@ -348,6 +332,17 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_Tag = (t: string): t =>
+  mk_text(t) |> annot_Tessera |> annot_Operand(~sort=Tag);
+
+let mk_TagHole = (hole_lbl: string): t =>
+  Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort=Tag);
+
+let mk_ArgTag = (tag_doc: t, body: formatted_child): t => {
+  let body_doc = mk_Parenthesized(~sort=SumBody, body);
+  Doc.hcats([tag_doc, body_doc]);
+};
+
 let mk_EmptySum = (): t => {
   let open_group = Delim.open_Sum() |> annot_Tessera;
   let close_group = Delim.close_Sum() |> annot_Tessera;
@@ -357,15 +352,12 @@ let mk_EmptySum = (): t => {
 let mk_Sum = (sumbody_opt: option(formatted_child)): t => {
   let open_group = Delim.open_Sum() |> annot_Tessera;
   let close_group = Delim.close_Sum() |> annot_Tessera;
-  Doc.hcats(
+  let maybe_sumbody =
     switch (sumbody_opt) {
-    | None => [open_group, close_group]
-    | Some(sumbody) =>
-      let body = pad_bidelimited_open_child(sumbody);
-      [open_group, body, close_group];
-    },
-  )
-  |> annot_Operand(~sort=Typ);
+    | None => []
+    | Some(sumbody) => [pad_bidelimited_open_child(sumbody)]
+    };
+  Doc.hcats([open_group] @ maybe_sumbody @ [close_group]);
 };
 
 let mk_List = (body: formatted_child): t => {

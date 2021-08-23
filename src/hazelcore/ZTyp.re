@@ -49,8 +49,8 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Float
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | Sum(_)
-  | List(_) => CursorPosition.delim_cursors(2);
+  | List(_)
+  | Sum(_) => CursorPosition.delim_cursors(2);
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
@@ -59,7 +59,7 @@ let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
 let valid_cursors_sumbody_operand:
   UHTyp.sumbody_operand => list(CursorPosition.t) =
   fun
-  | ConstTag(_) => CursorPosition.delim_cursors(1)
+  | ConstTag(tag) => ZTag.valid_cursors(tag)
   | ArgTag(_, _) => CursorPosition.delim_cursors(2);
 
 let valid_cursors_sumbody_operator =

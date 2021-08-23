@@ -102,7 +102,12 @@ and follow_operator =
   }
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHExp.operand)
-    : option(ZExp.zoperand) =>
+    : option(ZExp.zoperand) => {
+  print_endline("CPE FOLLOW_OPERAND");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
+  );
+  print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)));
   switch (steps) {
   | [] => operand |> ZExp.place_cursor_operand(cursor)
   | [x, ...xs] =>
@@ -174,7 +179,8 @@ and follow_operand =
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
     }
-  }
+  };
+}
 and follow_rules =
     ((steps, cursor): CursorPath.t, rules: UHExp.rules): option(ZExp.zrules) =>
   switch (steps) {

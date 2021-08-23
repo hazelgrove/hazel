@@ -6,17 +6,10 @@ and of_zoperand = a => {
   // fun
   let path =
     switch (a) {
-    | CursorT(
-        (OnDelim(0, After) | OnDelim(1, Before)) as cursor,
-        Sum(None),
-      ) => (
-        [],
-        cursor,
-      )
     | CursorT(cursor, _) => ([], cursor)
     | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
     | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
-    | SumZ(zsumbody) => of_zsumbody(zsumbody)
+    | SumZ(zsumbody) => CursorPath_common.cons'(0, of_zsumbody(zsumbody))
     };
   print_endline("OF_ZOPERAND");
   print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(a)));
@@ -28,12 +21,12 @@ and of_zoperator =
   | (cursor, _) => ([], cursor)
 and of_zsumbody = zsumbody =>
   CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumbody)
+and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
 and of_zsumbody_operand = a => {
   // fun
   let path =
     switch (a) {
-    | ConstTagZ(ztag) =>
-      CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
+    | ConstTagZ(ztag) => CursorPath_Tag.of_z(ztag)
     | ArgTagZT(ztag, _) =>
       CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
     | ArgTagZA(_, zty) => CursorPath_common.cons'(1, of_z(zty))
@@ -45,8 +38,7 @@ and of_zsumbody_operand = a => {
   );
   print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
   path;
-}
-and of_zsumbody_operator = ((cursor, _)) => ([], cursor);
+};
 
 let rec follow = (path: CursorPath.t, uty: UHTyp.t): option(ZTyp.t) =>
   follow_opseq(path, uty)
@@ -107,7 +99,7 @@ and follow_operand =
       };
     | Sum(Some(sumbody)) =>
       print_endline("NON-EMPTY SUM");
-      let+ zsumbody = follow_sumbody((steps, cursor), sumbody);
+      let+ zsumbody = follow_sumbody((xs, cursor), sumbody);
       ZTyp.SumZ(zsumbody);
     }
   };
@@ -147,16 +139,12 @@ and follow_sumbody_operand =
   );
   switch (operand) {
   | ConstTag(tag) =>
-    switch (steps) {
-    | [0, ...xs] =>
-      print_endline("STEP 0 TAG");
-      print_string("xs = (");
-      print_string(String.concat(" ", List.map(Int.to_string, xs)));
-      print_endline(")");
-      let+ ztag = CursorPath_Tag.follow((xs, cursor), tag);
-      ZTyp.ConstTagZ(ztag);
-    | _ => None
-    }
+    print_endline("STEP 0 TAG");
+    print_string("xs = (");
+    print_string(String.concat(" ", List.map(Int.to_string, steps)));
+    print_endline(")");
+    let+ ztag = CursorPath_Tag.follow((steps, cursor), tag);
+    ZTyp.ConstTagZ(ztag);
   | ArgTag(tag, ty) =>
     switch (steps) {
     | [0, ...xs] =>
@@ -181,7 +169,7 @@ and follow_sumbody_operator =
   );
   switch (steps) {
   | [] => ZTyp.place_cursor_sumbody_operator(cursor, operator)
-  | [_, ..._] => None
+  | _ => None
   };
 };
 
@@ -221,7 +209,8 @@ and of_steps_operand =
     | Unit
     | Int
     | Float
-    | Bool => None
+    | Bool
+    | Sum(None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -237,15 +226,14 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
-    | Sum(None) =>
-      print_endline("EMPTY SUM");
-      switch (steps) {
-      | [] => Some(of_zoperand(place_cursor(operand)))
-      | _ => None
-      };
     | Sum(Some(sumbody)) =>
       print_endline("NON-EMPTY SUM");
-      of_steps_sumbody(xs, ~side, sumbody);
+      switch (x) {
+      | 0 =>
+        let+ path = of_steps_sumbody(xs, ~side, sumbody);
+        CursorPath_common.cons'(0, path);
+      | _ => None
+      };
     }
   };
 }
@@ -463,7 +451,7 @@ and holes_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zsumbody_operand) {
-  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, [0, ...rev_steps])
+  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, rev_steps)
   | CursorATag(OnDelim(k, _), tag, ty) =>
     let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
     let ty_holes = holes(ty, [1, ...rev_steps], []);
