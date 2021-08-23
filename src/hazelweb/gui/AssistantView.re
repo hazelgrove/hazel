@@ -129,6 +129,8 @@ let suggestion_view =
     Event.Many([
       Event.Prevent_default,
       Event.Stop_propagation,
+      /* NOTE: prevent main editor from losing focus */
+      inject(FocusCell(MainProgram)),
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
   let set_hover = _ =>
