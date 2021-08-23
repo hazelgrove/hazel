@@ -23,3 +23,8 @@ let utf8_length: CamomileLibrary.UTF8.t => int;
 
 let match_prefix: (string, string) => bool;
 let match_prefix_subs: (string, string) => (bool, string);
+
+let matched_group_opt: (int, string) => option(string);
+let group_beginning_opt: int => option(int);
+let search_forward_opt: (Str.regexp, string) => option(int);
+let escape_regexp_special_chars: string => string;

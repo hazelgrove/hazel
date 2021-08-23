@@ -46,3 +46,25 @@ let match_prefix_subs = (prefix: string, target: string): (bool, string) => {
   let subs = Str.matched_string(target);
   (res, subs);
 };
+
+let matched_group_opt = (n: int, s: string): option(string) =>
+  try(Some(Str.matched_group(n, s))) {
+  | _ => None
+  };
+
+let group_beginning_opt = (n: int): option(int) =>
+  try(Some(Str.group_beginning(n))) {
+  | _ => None
+  };
+
+let search_forward_opt = (re: Str.regexp, target: string) =>
+  try(Some(Str.search_forward(re, target, 0))) {
+  | _ => None
+  };
+
+let escape_regexp_special_chars = (s: string): string => {
+  /* Escape regexp special characters */
+  let re = Str.regexp("\\.");
+  let replacer = _ => "\\.";
+  Str.global_substitute(re, replacer, s);
+};

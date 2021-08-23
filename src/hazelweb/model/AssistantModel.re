@@ -66,55 +66,33 @@ let apply_update = (u: update, model: t) =>
 let wrap_index = (index: int, xs: list('a)): int =>
   IntUtil.wrap(index, List.length(xs));
 
-let matched_group_opt = (n: int, s: string): option(string) =>
-  try(Some(Str.matched_group(n, s))) {
-  | _ => None
-  };
-
-let group_beginning_opt = (n: int): option(int) =>
-  try(Some(Str.group_beginning(n))) {
-  | _ => None
-  };
-
-let search_forward_opt = (re: Str.regexp, target: string) =>
-  try(Some(Str.search_forward(re, target, 0))) {
-  | _ => None
-  };
-
 let mog = (n: int, target: string): option((string, int)) => {
-  let* m = matched_group_opt(n, target);
-  let+ i = group_beginning_opt(n);
+  let* m = StringUtil.matched_group_opt(n, target);
+  let+ i = StringUtil.group_beginning_opt(n);
   (m, i);
-};
-
-let sanitize_string_for_regexp = (s: string): string => {
-  /* Escape regexp special characters */
-  let re = Str.regexp("\\.");
-  let replacer = _ => "\\.";
-  Str.global_substitute(re, replacer, s);
 };
 
 let submatches_and_offsets =
     (pre: string, suf: string, target: string)
     : (option((string, int)), option((string, int))) => {
-  let pre = sanitize_string_for_regexp(pre);
-  let suf = sanitize_string_for_regexp(suf);
+  let pre = StringUtil.escape_regexp_special_chars(pre);
+  let suf = StringUtil.escape_regexp_special_chars(suf);
   switch (pre, suf) {
   | ("", "") => (None, None)
   | ("", _) =>
     let rs = "\\(" ++ suf ++ "\\)";
-    let _ = search_forward_opt(Str.regexp(rs), target);
+    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
     (mog(1, target), None);
   | (_, "") =>
     let rs = "\\(" ++ pre ++ "\\)";
-    let _ = search_forward_opt(Str.regexp(rs), target);
+    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
     (mog(1, target), None);
   | _ =>
     let pre' = "\\(" ++ pre ++ "\\)";
     let suf' = "\\(" ++ suf ++ "\\)";
     let both = "\\(" ++ pre' ++ ".*" ++ suf' ++ "\\)";
     let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
-    let _ = search_forward_opt(Str.regexp(rs), target);
+    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
     switch (mog(1, target)) {
     | Some(_) =>
       switch (mog(2, target), mog(3, target)) {
@@ -138,6 +116,36 @@ let is_filter_match = (pre: string, suf: string, target: string): bool =>
   | _ => true
   };
 
+let compare_suggestions_by_text_match =
+    (
+      before_caret: string,
+      after_caret: string,
+      a1: suggestion,
+      a2: suggestion,
+    ) => {
+  let s1 = a1.result_text;
+  let s2 = a2.result_text;
+  let m1 = submatches_and_offsets(before_caret, after_caret, s1);
+  let m2 = submatches_and_offsets(before_caret, after_caret, s2);
+  switch (m1, m2) {
+  | ((Some(_), _), (None, _))
+  | ((Some(_), Some(_)), (Some(_), None))
+  | ((None, Some(_)), (None, None)) => (-1)
+
+  | ((None, _), (Some(_), _))
+  | ((Some(_), None), (Some(_), Some(_)))
+  | ((None, None), (None, Some(_))) => 1
+
+  // matches earlier in the string should show up first
+  | ((Some(i0), _), (Some(i1), _)) when i0 < i1 => (-1)
+  | ((_, Some(i0)), (_, Some(i1))) when i0 < i1 => (-1)
+  | ((Some(i0), _), (Some(i1), _)) when i0 > i1 => 1
+  | ((_, Some(i0)), (_, Some(i1))) when i0 > i1 => 1
+
+  | _ => String.compare(s1, s2)
+  };
+};
+
 let sort_by_prefix =
     ((prefix: string, index: int), suggestions: list(suggestion))
     : list(suggestion) => {
@@ -149,31 +157,11 @@ let sort_by_prefix =
       },
       suggestions,
     );
-  let compare = (a1: suggestion, a2: suggestion) => {
-    let s1 = a1.result_text;
-    let s2 = a2.result_text;
-    let m1 = submatches_and_offsets(before_caret, after_caret, s1);
-    let m2 = submatches_and_offsets(before_caret, after_caret, s2);
-    // TODO(andrew) : review this logic
-    switch (m1, m2) {
-    | ((Some(_), _), (None, _))
-    | ((Some(_), Some(_)), (Some(_), None))
-    | ((None, Some(_)), (None, None)) => (-1)
-
-    | ((None, _), (Some(_), _))
-    | ((Some(_), None), (Some(_), Some(_)))
-    | ((None, None), (None, Some(_))) => 1
-
-    // matches earlier in the string should show up first
-    | ((Some(i0), _), (Some(i1), _)) when i0 < i1 => (-1)
-    | ((_, Some(i0)), (_, Some(i1))) when i0 < i1 => (-1)
-    | ((Some(i0), _), (Some(i1), _)) when i0 > i1 => 1
-    | ((_, Some(i0)), (_, Some(i1))) when i0 > i1 => 1
-
-    | _ => String.compare(s1, s2)
-    };
-  };
-  let matches = List.sort(compare, matches);
+  let matches =
+    List.sort(
+      compare_suggestions_by_text_match(before_caret, after_caret),
+      matches,
+    );
   let nonmatches =
     List.filter(
       (s: suggestion) =>
@@ -231,14 +219,11 @@ let renumber_suggestion_holes =
 };
 
 let get_suggestions =
-    (
-      {cursor_term, _ /*syntactic_context, expected_ty, actual_ty, opParent,*/} as ci: CursorInfo.t,
-      ~u_gen: MetaVarGen.t,
-    )
+    ({cursor_term, ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
     : list(suggestion) => {
   get_operand_suggestions(ci)
   @ get_operator_suggestions(ci)
-  |> List.map(renumber_suggestion_holes(ci.ctx, u_gen))
+  |> List.map(renumber_suggestion_holes(ctx, u_gen))
   |> sort_suggestions
   |> sort_by_prefix(
        CursorInfo_common.string_and_index_of_cursor_term(cursor_term),
@@ -263,16 +248,6 @@ let get_suggestions_of_ty' =
   let selection_index = wrap_index(selection_index, suggestions);
   (suggestions, selection_index);
 };
-
-/*
- let get_suggestion =
-     (model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
-     : option(Suggestion.t(UHExp.t)) => {
-   let (suggestions, selection_index) =
-     get_suggestions_of_ty'(model, ci, ~u_gen);
-   List.nth_opt(suggestions, selection_index);
- };
- */
 
 let get_display_suggestions =
     (
