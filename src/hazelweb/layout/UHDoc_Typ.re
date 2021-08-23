@@ -137,7 +137,7 @@ and mk_sumbody_operand =
         | ConstTag(tag) => UHDoc_Tag.mk(tag)
         | ArgTag(tag, ty) =>
           let tag_doc = UHDoc_Tag.mk(tag);
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, ty);
+          let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
           UHDoc_common.mk_ArgTag(tag_doc, body);
         }: UHDoc.t
       )

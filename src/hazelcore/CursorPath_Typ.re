@@ -147,6 +147,7 @@ and follow_sumbody_operand =
     ZTyp.ConstTagZ(ztag);
   | ArgTag(tag, ty) =>
     switch (steps) {
+    | [] => ZTyp.place_cursor_sumbody_operand(cursor, operand)
     | [0, ...xs] =>
       let+ ztag = CursorPath_Tag.follow((xs, cursor), tag);
       ZTyp.ArgTagZT(ztag, ty);
