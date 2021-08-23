@@ -19,4 +19,4 @@ and post =
   | Ap(s)
 and bin =
   | BinHole(MetaVar.t)
-  | BinText(BinText_exp.t);
+  | BinText(BinText_exp.t(Operators_Exp.t));

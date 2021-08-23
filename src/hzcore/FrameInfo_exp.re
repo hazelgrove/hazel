@@ -2,8 +2,7 @@
 type mode =
   | Syn
   | Ana(Type.t)
-  | Fn_pos
-  | Let_def(Type.t);
+  | Fn_pos;
 
 [@deriving sexp]
 type t = {

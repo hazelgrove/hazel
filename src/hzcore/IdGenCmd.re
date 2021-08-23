@@ -16,18 +16,24 @@ include Monads.Make(T);
 
 let next_hole = (): t(MetaVar.t) =>
   fun
-  | {next_hole, _} as id_gen =>
-    (next_hole, {...id_gen, next_hole: next_hole + 1});
+  | {next_hole, _} as id_gen => (
+      next_hole,
+      {...id_gen, next_hole: next_hole + 1},
+    );
 
 let next_err = (): t(MetaVar.t) =>
   fun
-  | {next_err, _} as id_gen =>
-    (next_err, {...id_gen, next_err: next_err + 1});
+  | {next_err, _} as id_gen => (
+      next_err,
+      {...id_gen, next_err: next_err + 1},
+    );
 
 let next_tile = (): t(MetaVar.t) =>
   fun
-  | {next_tile, _} as id_gen =>
-    (next_tile, {...id_gen, next_tile: next_tile + 1});
+  | {next_tile, _} as id_gen => (
+      next_tile,
+      {...id_gen, next_tile: next_tile + 1},
+    );
 
 let sequence = (cmds: list(t('a))): t(list('a)) =>
   cmds
