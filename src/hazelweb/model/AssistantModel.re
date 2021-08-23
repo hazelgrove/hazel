@@ -164,6 +164,12 @@ let sort_by_prefix =
     | ((Some(_), None), (Some(_), Some(_)))
     | ((None, None), (None, Some(_))) => 1
 
+    // matches earlier in the string should show up first
+    | ((Some(i0), _), (Some(i1), _)) when i0 < i1 => (-1)
+    | ((_, Some(i0)), (_, Some(i1))) when i0 < i1 => (-1)
+    | ((Some(i0), _), (Some(i1), _)) when i0 > i1 => 1
+    | ((_, Some(i0)), (_, Some(i1))) when i0 > i1 => 1
+
     | _ => String.compare(s1, s2)
     };
   };
