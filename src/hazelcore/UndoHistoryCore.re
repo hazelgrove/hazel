@@ -38,7 +38,8 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
-  | Init;
+  | Init
+  | AssistantAction;
 
 [@deriving sexp]
 type cursor_term_info = {
@@ -114,7 +115,8 @@ let group_action_group =
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)
   | (SwapEdit(_), _)
-  | (Init, _) => false
+  | (Init, _)
+  | (AssistantAction, _) => false
   };
 
 type comp_len_typ =

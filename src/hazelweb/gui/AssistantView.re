@@ -77,20 +77,6 @@ let suggestion_info_view = ({category, score, _}: Assistant_Exp.suggestion) => {
   );
 };
 
-let mk_offset_string = (pre: string, suf: string, target: string): string => {
-  let (hit0, hit1) = AssistantModel.submatches_and_offsets(pre, suf, target);
-  switch (hit0, hit1) {
-  | (None, None) => ""
-  | (Some((s0, n0)), Some((s1, n1))) =>
-    let n1' = n1 - (n0 + String.length(s0));
-    let m0 = String.make(n0, ' ') ++ s0;
-    let m1 = String.make(n1', ' ') ++ s1;
-    m0 ++ m1;
-  | (Some((s, n)), _)
-  | (_, Some((s, n))) => String.make(n, ' ') ++ s
-  };
-};
-
 let overlay_view =
     (
       {cursor_term, _}: CursorInfo.t,
@@ -102,11 +88,21 @@ let overlay_view =
     | ExpOperand(OnText(i), _) => i
     | _ => String.length(search_string)
     };
-  let (before_caret, after_caret) =
-    StringUtil.split_string(index, search_string);
-  let overlay_string =
-    mk_offset_string(before_caret, after_caret, result_text);
-  div([Attr.classes(["overlay"])], [text(overlay_string)]);
+  let (pre, suf) = StringUtil.split_string(index, search_string);
+  let overlay = (n, s) => [
+    text(String.make(n, ' ')),
+    span([Attr.class_("overlay-text")], [text(s)]),
+  ];
+  let offset_overlay =
+    switch (AssistantModel.submatches_and_offsets(pre, suf, result_text)) {
+    | (None, None) => []
+    | (Some((s0, n0)), Some((s1, n1))) =>
+      let n1' = n1 - (n0 + String.length(s0));
+      overlay(n0, s0) @ overlay(n1', s1);
+    | (Some((s, n)), _)
+    | (_, Some((s, n))) => overlay(n, s)
+    };
+  div([Attr.classes(["overlay"])], offset_overlay);
 };
 
 let suggestion_view =

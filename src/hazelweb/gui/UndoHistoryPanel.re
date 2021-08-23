@@ -419,6 +419,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | Right => indicate_words_view("swap operand right")
       }
     | Init => indicate_words_view("initial state")
+    | AssistantAction => indicate_words_view("assistant insertion")
     };
   };
 
@@ -471,6 +472,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       }
     | Init => None
+    | AssistantAction => Some(Exp)
     };
   };
 

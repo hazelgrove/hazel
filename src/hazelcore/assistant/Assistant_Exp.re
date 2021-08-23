@@ -3,7 +3,7 @@ open OptUtil.Syntax;
 [@deriving sexp]
 type suggestion = Suggestion.t(UHExp.t);
 
-let string_of_operand = (text: string): UHExp.operand =>
+let operand_of_string = (text: string): UHExp.operand =>
   // NOTE: should be replaced when parser is ready
   switch (TextShape.of_text(text)) {
   | IntLit(s) => UHExp.intlit(s)
@@ -16,7 +16,7 @@ let string_of_operand = (text: string): UHExp.operand =>
   | InvalidTextShape(s) => UHExp.InvalidText(0, s)
   };
 
-let rec operand_of_string = (operand: UHExp.operand): string => {
+let rec string_of_operand = (operand: UHExp.operand): string => {
   // NOTE: should be replaced with proper to_string when parser is ready
   // right now it special-cases case and binary apps
   switch (operand) {
@@ -28,14 +28,14 @@ let rec operand_of_string = (operand: UHExp.operand): string => {
   | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
   | Lam(_) => "\\"
   | Case(_, [ExpLine(OpSeq(_, S(operandA, _)))], _) =>
-    "case " ++ operand_of_string(operandA)
+    "case " ++ string_of_operand(operandA)
   | Case(_, _, _) => "case"
   | Parenthesized([
       ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
     ]) =>
-    operand_of_string(operandA) ++ " " ++ operand_of_string(operandB)
+    string_of_operand(operandA) ++ " " ++ string_of_operand(operandB)
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
-    operand_of_string(operandA)
+    string_of_operand(operandA)
   | ListNil(_)
   | Parenthesized(_)
   | EmptyHole(_)
@@ -140,7 +140,7 @@ let mk_operand_suggestion =
     ~ci,
     ~category,
     ~operand,
-    ~result_text=operand_of_string(operand),
+    ~result_text=string_of_operand(operand),
     ~action=ReplaceAtCursor(operand, None),
     ~result,
   );
@@ -231,26 +231,29 @@ let app_suggestions =
   |> List.map(mk_app_suggestion(ci));
 };
 
-let get_guy_from = (pos: CursorPosition.t, operand) => {
-  // TODO: ??????????????????????????????????
-  switch (pos, operand_of_string(operand)) {
-  | (_, "") => operand
-  | (OnText(i), guy) =>
-    let (_pre, suf) = StringUtil.split_string(i, guy);
-    string_of_operand(suf);
-  | _ => operand
+/* If the cursor_term is an operand which admits caret sub-positioning,
+   and the suffix of the operand's text representation wrt the caret
+   is itself a meaningful operand, return the operand resulting from
+   parsing that suffix. Otherwise return the original operand */
+let get_wrap_operand = (cursor_term: CursorInfo.cursor_term) => {
+  switch (cursor_term) {
+  | ExpOperand(pos, operand) =>
+    switch (pos, string_of_operand(operand)) {
+    | (_, "") => operand
+    | (OnText(i), guy) =>
+      switch (StringUtil.split_string(i, guy)) {
+      | (_, "") => operand
+      | (_, suf) => operand_of_string(suf)
+      }
+    | _ => operand
+    }
+  | _ => failwith("get_wrap_operand impossible")
   };
 };
 
 let mk_wrap_case_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
-  let operand =
-    switch (cursor_term) {
-    | ExpOperand(pos, operand) =>
-      let guy = get_guy_from(pos, operand);
-      guy |> UHExp.Block.wrap |> mk_case;
-    | _ => failwith("mk_wrap_case_suggestion impossible")
-    };
+  let operand = cursor_term |> get_wrap_operand |> UHExp.Block.wrap |> mk_case;
   mk_operand_suggestion(~category=Wrap, ~operand, ci);
 };
 
@@ -264,22 +267,13 @@ let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
     ~ci,
     ~category,
     ~operand,
-    ~result_text=operand_of_string(operand),
+    ~result_text=string_of_operand(operand),
     ~action=ReplaceAtCursor(operand, None),
   );
 
 let mk_wrap_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  //TODO(andrew): considering splicing into opseq context
-  let result =
-    switch (cursor_term) {
-    | ExpOperand(pos, operand) =>
-      // TODO(andrew): ??????????????????????????????????
-      //print_endline("mk_wrap_suggestion");
-      let guy = get_guy_from(pos, operand);
-      mk_ap(name, S(guy, E));
-    | _ => failwith("mk_basic_wrap_suggestion impossible")
-    };
+  let result = mk_ap(name, S(get_wrap_operand(cursor_term), E));
   mk_operand_suggestion(
     ~category=Wrap,
     ~operand=UHExp.Parenthesized(result),
@@ -300,7 +294,7 @@ let wrap_suggestions =
   | (_, ExpOperand(_, EmptyHole(_))) => []
   // NOTE: wrapping empty holes redundant to ap
   | (None, _) =>
-    // hack, maybe, so we get wrappings for caret case
+    // TODO(andrew): hack, maybe, so we get wrappings for caret case
     let actual_ty = HTyp.Hole;
     Assistant_common.fun_vars(ctx, expected_ty)
     |> List.filter(((_, f_ty)) =>

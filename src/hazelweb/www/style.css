@@ -879,11 +879,14 @@ body {
 #assistant > .choice > .code-container .overlay {
   position: absolute;
   z-index: 9000; 
+}
+
+#assistant > .choice > .code-container .overlay .overlay-text {
   color: #b9ffb9;
   text-decoration: underline;
 }
 
-#assistant > .choice.hovered > .code-container .overlay {
+#assistant > .choice.hovered > .code-container .overlay .overlay-text {
   color:  #0088ff;
 }
 

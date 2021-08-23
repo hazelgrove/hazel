@@ -36,7 +36,8 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
-  | Init;
+  | Init
+  | AssistantAction;
 
 [@deriving sexp]
 type cursor_term_info = {
