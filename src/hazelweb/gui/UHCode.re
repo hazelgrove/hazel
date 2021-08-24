@@ -288,52 +288,6 @@ let codebox_view =
       program: Editor.exp,
     )
     : list(Node.t) => {
-  /*
-   let zexp = Editor.EditState_Exp.get_zstx(Editor.get_edit_state(program));
-   //let frame = CursorFrame.frame(zexp);
-
-       print_endline("FRAME: cursortermNew ");
-       print_endline(
-         Sexplib.Sexp.to_string_hum(
-           CursorInfo.sexp_of_cursor_term(CursorFrame.extract_cursor_term(zexp)),
-         ),
-       );
-
-        print_endline("FRAME: nearest opParent: ");
-        print_endline(
-          Sexplib.Sexp.to_string_hum(
-            sexp_of_option(ZExp.sexp_of_zoperand, CursorFrame.get_opParent(zexp)),
-          ),
-        );
-
-   P.p(
-     "FRAME cursorterm expected_ty: %s\n",
-     sexp_of_option(
-       HTyp.sexp_of_t,
-       CursorFrame.get_expected_type_cursor_term(zexp),
-     ),
-   );
-
-   P.p(
-     "FRAME cursorterm actual_ty: %s\n",
-     sexp_of_option(
-       HTyp.sexp_of_t,
-       CursorFrame.get_actual_type_cursor_term(zexp),
-     ),
-   );
-
-   P.p(
-     "FRAME nearest zopseq: %s\n",
-     sexp_of_option(ZExp.sexp_of_zopseq, CursorFrame.enclosing_zopseq(zexp)),
-   );
-   P.p(
-     "FRAME: nearest zopseq_ty: %s\n",
-     sexp_of_option(
-       HTyp.sexp_of_t,
-       CursorFrame.enclosing_zopseq_expected_ty(zexp),
-     ),
-   );
-   */
   let layout = Editor.Exp.get_layout(~settings, program);
   let code_text = layout |> UHBox.mk |> view_of_box;
   let dpaths = Editor.Exp.get_decoration_paths(program, is_focused);

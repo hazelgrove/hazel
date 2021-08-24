@@ -22,20 +22,52 @@ type slice_info = {
   slice,
   ty_e: option(HTyp.t),
   ty_a: option(HTyp.t),
+  err: option(ErrStatus.t),
   ctx: Contexts.t,
 };
 
 let mk_si =
-    (~ctx, ~ty_e: option(HTyp.t), ~ty_a: option(HTyp.t), ~slice: slice)
+    (
+      ~ctx,
+      ~ty_e: option(HTyp.t),
+      ~ty_a: option(HTyp.t),
+      ~err: option(ErrStatus.t),
+      ~slice: slice,
+    )
     : slice_info => {
   ctx,
   slice,
   ty_e,
   ty_a,
+  err,
 };
 
 [@deriving sexp]
 type t = list(slice_info);
+
+let err_status = (slice: slice): option(ErrStatus.t) =>
+  switch (slice) {
+  | ExpBlock(zblock) =>
+    Some(zblock |> ZExp.erase |> UHExp.get_err_status_block)
+  | Line(CursorL(_, ExpLine(opseq))) =>
+    Some(opseq |> UHExp.get_err_status_opseq)
+  | Line(_) => None
+  | ExpSeq(zopseq) =>
+    Some(zopseq |> ZExp.erase_zopseq |> UHExp.get_err_status_opseq)
+  | ExpOperand(zoperand) =>
+    Some(zoperand |> ZExp.erase_zoperand |> UHExp.get_err_status_operand)
+  | ExpOperator(_) => None
+  | Rules(_) => None // revisit when ErrStatus+CaseErrStatus refactored
+  | Rule(_) => None
+  | PatSeq(zopseq) =>
+    Some(zopseq |> ZPat.erase_zopseq |> UHPat.get_err_status_opseq)
+  | PatOperand(zoperand) =>
+    Some(zoperand |> ZPat.erase_zoperand |> UHPat.get_err_status_operand)
+  | PatOperator(_) => None
+  | TypSeq(_)
+  | TypOperand(_)
+  | TypOperator(_) => None
+  };
 
 let actual = (~ctx: Contexts.t, slice: slice): option(HTyp.t) =>
   switch (slice) {
@@ -166,8 +198,8 @@ let expected =
     let+ ty_mode_operand =
       Statics_Pat.ana_nth_type_mode(ctx, operand_index, opseq, ty_e');
     expected_ty_from_ty_mode(ty_mode_operand);
-  | ExpSeq(ZOpSeq(_, ZOperator(_zop, _))) =>
-    //TODO(andrew): FIX adapt syn/ana_nth_type_mode to return operator types
+  | ExpSeq(ZOpSeq(_, ZOperator(_, (_prefix, _suffix))) as _zopseq) =>
+    // TODO(andrew): FIX adapt syn/ana_nth_type_mode to return operator types
     None
   | PatSeq(ZOpSeq(_, ZOperator(_))) =>
     // TODO(andrew): FIX adapt syn/ana_nth_type_mode to return operator types
@@ -179,12 +211,11 @@ let expected =
   | TypOperator(_) => None
   };
 
-let get_ctx_for_child =
-    (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): Contexts.t => {
-  // TODO(andrew): does let body ctx get incorporated somewhere?
-  //let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, def);
+/* Determine the context which should be passed to the child slice */
+let child_ctx =
+    (~ctx: Contexts.t, ~ty_e: option(HTyp.t), slice: slice): Contexts.t =>
   switch (slice) {
-  | ExpBlock((prefix, _zline, _suffix)) =>
+  | ExpBlock((prefix, _, _)) =>
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
     | None => ctx
     | Some(ctx) => ctx
@@ -211,12 +242,12 @@ let get_ctx_for_child =
       }
     | _ => ctx
     }
-  //TODO(andrew): pattern cases!!!!
+  // extension: pattern cases
   | _ => ctx
   };
-};
 
-let get_zchild_slice = (slice: slice): list(slice) => {
+let zchild_slice = (slice: slice): list(slice) => {
+  // Note: emits lists as return values will be plural when opseqs are sliced
   switch (slice) {
   | ExpBlock((_, zline, _)) => [Line(zline)]
   | Line(CursorL(_)) => []
@@ -254,7 +285,7 @@ let get_zchild_slice = (slice: slice): list(slice) => {
 };
 
 open Statics;
-let get_child_mode =
+let _get_child_mode =
     (~ctx: Contexts.t, mode: option(Statics.type_mode), slice: slice)
     : option(Statics.type_mode) => {
   // first pass: assuming no error holes
@@ -387,11 +418,18 @@ let get_child_mode =
 let rec mk_frame =
         (slice: slice, ~ctx: Contexts.t, ~ty_e: option(HTyp.t))
         : list(slice_info) => {
-  let head = mk_si(~ctx, ~slice, ~ty_e, ~ty_a=actual(~ctx, slice));
+  let head =
+    mk_si(
+      ~ctx,
+      ~slice,
+      ~ty_e,
+      ~ty_a=actual(~ctx, slice),
+      ~err=err_status(slice),
+    );
   let tail =
-    switch (get_zchild_slice(slice)) {
+    switch (zchild_slice(slice)) {
     | [child_slice] =>
-      let ctx_new = get_ctx_for_child(~ctx, ~ty_e, slice);
+      let ctx_new = child_ctx(~ctx, ~ty_e, slice);
       let ty_e_new = expected(~ctx=ctx_new, ~ty_e, slice);
       // TODO: doublecheck logic about new_ctx getting used for ty_e_new
       // i.e. make sure we dont sometimes have to use ty_e_new for getting ctx_new
@@ -408,8 +446,8 @@ let mk = (zexp: ZExp.t): t =>
 
 // *****************************************************************
 
-let get_cursor_slice = (zexp: ZExp.t): option(slice_info) =>
-  switch (mk(zexp)) {
+let get_cursor_slice = (frame: t): option(slice_info) =>
+  switch (frame) {
   | [si, ..._] => Some(si)
   | [] => None
   };
@@ -417,6 +455,12 @@ let get_cursor_slice = (zexp: ZExp.t): option(slice_info) =>
 let first_exp_operand = si =>
   switch (si.slice) {
   | ExpOperand(zop) => Some(zop)
+  | _ => None
+  };
+
+let first_exp_seq_zopseq_slice_info = si =>
+  switch (si.slice) {
+  | ExpSeq(_) => Some(si)
   | _ => None
   };
 
@@ -450,22 +494,25 @@ let pop_exp_operand = frame =>
   | xs => xs
   };
 
-let get_opParent = (zexp: ZExp.t): option(ZExp.zoperand) =>
+let enclosing_operand = (frame: t): option(ZExp.zoperand) =>
   // skip cursor_term if it's an operand
-  zexp |> mk |> pop_exp_operand |> find_map(first_exp_operand);
+  frame |> pop_exp_operand |> find_map(first_exp_operand);
 
-let enclosing_zopseq = (zexp: ZExp.t): option(ZExp.zopseq) =>
-  zexp |> mk |> find_map(first_exp_seq_zopseq);
+let enclosing_zopseq = (frame: t): option(ZExp.zopseq) =>
+  frame |> find_map(first_exp_seq_zopseq);
 
-let enclosing_zopseq_expected_ty = (zexp: ZExp.t): option(HTyp.t) =>
-  zexp |> mk |> find_map(first_exp_seq_ty_e);
+let enclosing_zopseq_si = (frame: t): option(slice_info) =>
+  frame |> find_map(first_exp_seq_zopseq_slice_info);
 
-let get_expected_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_slice(zexp);
+let enclosing_zopseq_expected_ty = (frame: t): option(HTyp.t) =>
+  frame |> find_map(first_exp_seq_ty_e);
+
+let get_expected_type_cursor_term = (frame: t): option(HTyp.t) => {
+  let* slice = get_cursor_slice(frame);
   slice.ty_e;
 };
 
-let get_actual_type_cursor_term = (zexp: ZExp.t): option(HTyp.t) => {
-  let* slice = get_cursor_slice(zexp);
+let get_actual_type_cursor_term = (frame: t): option(HTyp.t) => {
+  let* slice = get_cursor_slice(frame);
   slice.ty_a;
 };

@@ -841,6 +841,11 @@ let view =
   let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
   let cursor_inspector_mode = Model.get_cursor_inspector_mode(model);
   let program = Model.get_program(model);
+  let cursor_frame =
+    program
+    |> Editor.get_edit_state
+    |> Editor.EditState_Exp.get_zstx
+    |> CursorFrame.mk;
   let cursor_info = Editor.Exp.get_cursor_info(program);
   let cursor_inspector = settings.cursor_inspector;
   let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
@@ -1067,7 +1072,7 @@ let view =
           ~settings,
           ~u_gen,
           ~ci=cursor_info,
-          //~cursor_inspector_mode,
+          ~frame=cursor_frame,
         ),
       ];
     } else {
