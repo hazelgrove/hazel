@@ -747,12 +747,14 @@ let summary_bar =
             ? novice_summary(ci.typed, ci.cursor_term, tag_type)
             : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
-  let images_dir = "imgs/";
-  let images_name = "boost-pixel.png";
-  let set_img = path =>
+  let images_dir = "imgs/assistant/";
+  let boost_icon =
     Node.create(
       "img",
-      [Attr.create("src", path), Attr.create("style", "height:1.1em")],
+      [
+        Attr.create("src", images_dir ++ "boost-0000.png"),
+        Attr.create("style", "height:1.1em"),
+      ],
       [],
     );
   let fill_icon = symbol =>
@@ -776,23 +778,10 @@ let summary_bar =
                 ),
           ])
         ),
-        /*
-         Attr.on_contextmenu(_ =>
-           Event.Many([
-             Event.Prevent_default,
-             Event.Stop_propagation,
-             inject(
-               Chain([
-                 UpdateSettings(CursorInspector(Set_guide(false))),
-                 UpdateAssistant(Toggle),
-               ]),
-             ),
-           ])
-         ),*/
       ],
       [
         if (symbol == Unicode.robot_arm) {
-          set_img(images_dir ++ images_name);
+          boost_icon;
         } else {
           Node.text(symbol);
         },
