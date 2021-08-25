@@ -201,8 +201,7 @@ and move_cursor_right_zoperand =
       switch (move_cursor_right(zty1)) {
       | Some(zty1) => Some(ParenthesizedZ(zty1))
       | None =>
-        //TODO(Yabsra): check if this is appropriate
-        Some(CursorT(OnDelim(1, After), Parenthesized(erase(zty1))))
+        Some(CursorT(OnDelim(1, Before), Parenthesized(erase(zty1))))
       };
     }
   | ListZ(zty1) =>

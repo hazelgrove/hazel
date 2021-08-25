@@ -224,18 +224,12 @@ and perform_operand =
   switch (a, zoperand) {
   | (Construct(SCloseParens), ParenthesizedZ(zopseq))
       when ZTyp.is_after(zopseq) =>
-    switch (ZTyp.move_cursor_right(zopseq)) {
-    | None => ActionOutcome.CursorEscaped(After)
-    | Some(z) => Succeeded(z)
-    }
-  | (Construct(SCloseParens), ParenthesizedZ(zopseq)) =>
-    switch (perform_opseq(a, zopseq)) {
-    | ActionOutcome.CursorEscaped(s) => ActionOutcome.CursorEscaped(s)
-    | Succeeded(z) => Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(z)))
-    | Failed => Failed
-    }
-
-  | (Construct(SCloseParens), _) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (Construct(SCloseParens), CursorT(OnDelim(_, _), _)) =>
     print_endline("Action_Typ perform operand SCloseParens wrong action");
     Failed;
   /* Invalid actions at the type level */
