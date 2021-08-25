@@ -6,7 +6,6 @@ type zoperand =
   | ZPat(ZPat.zoperand)
   | ZTag(ZTag.zoperand);
 
-/* TODO: are these the things that, when you press a key, you edit them as text? */
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>

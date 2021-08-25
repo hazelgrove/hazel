@@ -689,10 +689,6 @@ and perform_operand =
   };
 }
 
-// TODO: add a status to tag holes (later)
-
-// TODO: A|(Int)  == + ==>  A + |?(Int)
-// TODO: + inside tag arg body
 and perform_zsumbody =
     (
       u_gen: MetaVarGen.t,
