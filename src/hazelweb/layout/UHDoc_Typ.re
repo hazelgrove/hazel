@@ -134,9 +134,11 @@ and mk_sumbody_operand =
       (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.sumbody_operand) =>
       (
         switch (operand) {
-        | ConstTag(tag) => UHDoc_Tag.mk(tag)
+        | ConstTag(tag) =>
+          Lazy.force(UHDoc_Tag.mk, ~memoize, ~enforce_inline, tag)
         | ArgTag(tag, ty) =>
-          let tag_doc = UHDoc_Tag.mk(tag);
+          let tag_doc =
+            UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
           UHDoc_common.mk_ArgTag(tag_doc, body);
         }: UHDoc.t

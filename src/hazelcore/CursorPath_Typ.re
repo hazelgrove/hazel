@@ -99,8 +99,12 @@ and follow_operand =
       };
     | Sum(Some(sumbody)) =>
       print_endline("NON-EMPTY SUM");
-      let+ zsumbody = follow_sumbody((xs, cursor), sumbody);
-      ZTyp.SumZ(zsumbody);
+      switch (x) {
+      | 0 =>
+        let+ zsumbody = follow_sumbody((xs, cursor), sumbody);
+        ZTyp.SumZ(zsumbody);
+      | _ => None
+      };
     }
   };
 }
@@ -288,6 +292,7 @@ and of_steps_sumbody_operand =
   | ConstTag(tag) => CursorPath_Tag.of_steps(steps, tag)
   | ArgTag(tag, ty) =>
     switch (steps) {
+    | [] => Some((steps, OnDelim(0, side)))
     | [0, ...xs] =>
       let+ path = CursorPath_Tag.of_steps(xs, ~side, tag);
       CursorPath_common.cons'(0, path);

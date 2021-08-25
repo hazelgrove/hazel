@@ -57,6 +57,7 @@ and get_zoperand_from_ztyp_operand =
   };
 };
 
+// TODO: make a bugfix issue to fix this after the type variables PR is merged
 let cursor_info =
     (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
   Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));

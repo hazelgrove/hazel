@@ -3,6 +3,7 @@ type t =
   | Collapsed
   | HoleLabel
   | Delim
+  | TagHole(MetaVar.t)
   | EmptyHole(bool, HoleInstance.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)

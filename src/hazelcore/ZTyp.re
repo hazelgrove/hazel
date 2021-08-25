@@ -197,7 +197,7 @@ let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
 let place_before_sumbody_operand: UHTyp.sumbody_operand => zsumbody_operand =
   fun
   | UHTyp.ConstTag(tag) => ConstTagZ(ZTag.place_before(tag))
-  | UHTyp.ArgTag(tag, ty) => ArgTagZT(ZTag.place_before(tag), ty);
+  | UHTyp.ArgTag(tag, ty) => CursorATag(OnDelim(0, Before), tag, ty);
 let place_before_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
   ZOpSeq.place_before(
     ~place_before_operand=place_before_sumbody_operand,
@@ -222,7 +222,7 @@ let place_after_sumbody_operand =
     (sumbody_operand: UHTyp.sumbody_operand): zsumbody_operand =>
   switch (sumbody_operand) {
   | UHTyp.ConstTag(tag) => ConstTagZ(ZTag.place_after(tag))
-  | UHTyp.ArgTag(tag, ty) => ArgTagZA(tag, place_after(ty))
+  | UHTyp.ArgTag(tag, ty) => CursorATag(OnDelim(0, After), tag, ty)
   };
 let place_after_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
   ZOpSeq.place_after(
@@ -340,12 +340,17 @@ and move_cursor_left_zsumbody = zsumbody =>
     zsumbody,
   )
 and move_cursor_left_zsumbody_operand =
-  fun
+    // fun
+    (zoperand: zsumbody_operand) => {
+  print_endline("MOVE_CURSOR_LEFT_ZSUMBODY_OPERAND");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(sexp_of_zsumbody_operand(zoperand)),
+  );
+  switch (zoperand) {
   | z when is_before_zsumbody_operand(z) => None
-  | ConstTagZ(ztag) => {
-      let+ ztag = ZTag.move_cursor_left(ztag);
-      ConstTagZ(ztag);
-    }
+  | ConstTagZ(ztag) =>
+    let+ ztag = ZTag.move_cursor_left(ztag);
+    ConstTagZ(ztag);
   | CursorATag(OnOp(_) | OnText(_), _, _) => None
   | CursorATag(OnDelim(k, After), tag, ty) =>
     Some(CursorATag(OnDelim(k, Before), tag, ty))
@@ -356,15 +361,19 @@ and move_cursor_left_zsumbody_operand =
     | _ => None
     }
   | ArgTagZT(ztag, ty) =>
+    print_endline("ArgTagZT");
     switch (ZTag.move_cursor_left(ztag)) {
     | Some(ztag) => Some(ArgTagZT(ztag, ty))
     | None => Some(CursorATag(OnDelim(0, Before), ZTag.erase(ztag), ty))
-    }
+    };
   | ArgTagZA(tag, zty) =>
+    print_endline("ArgTagZA");
     switch (move_cursor_left(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
     | None => Some(CursorATag(OnDelim(1, After), tag, erase(zty)))
     };
+  };
+};
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun

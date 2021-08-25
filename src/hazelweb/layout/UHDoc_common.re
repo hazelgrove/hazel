@@ -332,14 +332,26 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_TagArg = (body: formatted_child): t => {
+  let open_group = Delim.open_Parenthesized() |> annot_Tessera;
+  let close_group = Delim.close_Parenthesized() |> annot_Tessera;
+  Doc.hcats([
+    open_group,
+    body |> pad_delimited_closed_child(~sort=Typ),
+    close_group,
+  ])
+  |> annot_Operand(~sort=SumBody);
+};
+
 let mk_Tag = (t: string): t =>
   mk_text(t) |> annot_Tessera |> annot_Operand(~sort=Tag);
 
 let mk_TagHole = (hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort=Tag);
 
-let mk_ArgTag = (tag_doc: t, body: formatted_child): t => {
-  let body_doc = mk_Parenthesized(~sort=SumBody, body);
+let mk_ArgTag = (tag: formatted_child, body: formatted_child): t => {
+  let tag_doc = pad_closed_child(~sort=Tag, tag);
+  let body_doc = mk_TagArg(body);
   Doc.hcats([tag_doc, body_doc]);
 };
 
@@ -368,7 +380,11 @@ let mk_List = (body: formatted_child): t => {
 };
 
 let mk_Inj =
-    (~sort: TermSort.t, tag_doc: UHDoc.t, body_opt: option(formatted_child))
+    (
+      ~sort: TermSort.t,
+      tag_doc: formatted_child,
+      body_opt: option(formatted_child),
+    )
     : t => {
   let open_group = Delim.open_Inj() |> annot_Tessera;
   let close_group = Delim.close_Inj(body_opt) |> annot_Tessera;
@@ -381,7 +397,11 @@ let mk_Inj =
     | (None, _)
     | (_, None) => []
     };
-  Doc.hcats([open_group, tag_doc] @ maybe_body @ [close_group])
+  Doc.hcats(
+    [open_group, tag_doc |> pad_closed_child(~sort=Tag)]
+    @ maybe_body
+    @ [close_group],
+  )
   |> annot_Operand(~sort);
 };
 
@@ -674,6 +694,7 @@ let mk_SumBody =
              let doc =
                Doc.hcats([
                  sumbody,
+                 Doc.annot(UHAnnot.OpenChild(InlineWithBorder), space_),
                  annot_Tessera(plus_doc(plus_index)),
                  Doc.annot(
                    UHAnnot.OpenChild(InlineWithBorder),

@@ -17,7 +17,7 @@ let precedence_max: int;
 
 let pad_child:
   (
-    ~inline_padding: (Pretty.Doc.t(DHAnnot.t), Pretty.Doc.t(DHAnnot.t))=?,
+    ~inline_padding: (DHDoc.t, DHDoc.t)=?,
     ~enforce_inline: bool,
     formattable_child
   ) =>
@@ -69,19 +69,18 @@ module Delim: {
   let arrow_Cast: DHDoc.t;
   let close_Cast: DHDoc.t;
 
-  let open_FailedCast: Pretty.Doc.t(DHAnnot.t);
-  let arrow_FailedCast: Pretty.Doc.t(DHAnnot.t);
-  let close_FailedCast: Pretty.Doc.t(DHAnnot.t);
+  let open_FailedCast: DHDoc.t;
+  let arrow_FailedCast: DHDoc.t;
+  let close_FailedCast: DHDoc.t;
 };
 
-let mk_EmptyHole:
-  (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
+let mk_EmptyHole: (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => DHDoc.t;
 
-let mk_Keyword:
-  (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
+let mk_TagHole: MetaVar.t => DHDoc.t;
 
-let mk_InvalidText:
-  (string, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
+let mk_Keyword: (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => DHDoc.t;
+
+let mk_InvalidText: (string, (MetaVar.t, MetaVarInst.t)) => DHDoc.t;
 
 let mk_IntLit: int => Pretty.Doc.t('a);
 
@@ -89,8 +88,7 @@ let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
 
-let mk_Inj:
-  (DHDoc.t, option(Pretty.Doc.t(DHAnnot.t))) => Pretty.Doc.t(DHAnnot.t);
+let mk_Inj: (DHDoc.t, option(DHDoc.t)) => DHDoc.t;
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

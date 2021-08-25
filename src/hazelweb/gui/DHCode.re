@@ -39,6 +39,20 @@ let view_of_layout =
                  ],
                  ds,
                )
+             | TagHole(_) => (
+                 [
+                   Node.span(
+                     [
+                       Attr.classes(["TagHole"]),
+                       //  Attr.on_click(_ =>
+                       //    inject(ModelAction.SelectHoleInstance(inst))
+                       //  ),
+                     ],
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],

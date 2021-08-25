@@ -652,6 +652,11 @@ and perform_operand =
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
+
+// TODO: add a status to tag holes (later)
+
+// TODO: A|(Int)  == + ==>  A + |?(Int)
+// TODO: + inside body
 and perform_zsumbody =
     (
       u_gen: MetaVarGen.t,
@@ -726,17 +731,29 @@ and perform_zsumbody =
 
   /* Construction */
 
-  // ... + |_1 + ... ==>  ... + |? + _1 + ...
-  // ... + _1| + ... ==>  ... + _1 + |? + ...
+  // ... + |?1 + ...  ==>  ... + |?2 + ?1 + ...
+  // ... + ?1| + ...  ==>  ... + ?1 + ?2| + ...
+  // ... + _ |( _ ) + ...  ==>  ... + _ ( _ ) + |? + ...
+  // ... + _ (| _ ) + ...  ==>  ... + _ ( _ ) + ?| + ...
+  // ... + _ ( _ |) + ...  ==>  ... + _ ( _ ) + |? + ...
+  // ... + _ ( _ )| + ...  ==>  ... + _ ( _ ) + ?| + ...
   | (
       Construct(SOp(SPlus)),
       ZOperand(
-        ConstTagZ(CursorTag(OnDelim(_0, side), TagHole(_))) as zoperand,
+        (
+          ConstTagZ(CursorTag(OnDelim(_, side), TagHole(_))) |
+          CursorATag(OnDelim(_, side), _, _)
+        ) as zoperand,
         (prefix, suffix),
       ),
     ) =>
     let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
-    let new_zoperand = ZTyp.ConstTagZ(ZTag.place_before(tag_hole));
+    let place_cursor =
+      switch (side) {
+      | Before => ZTag.place_before
+      | After => ZTag.place_after
+      };
+    let new_zoperand = ZTyp.ConstTagZ(place_cursor(tag_hole));
     let operand = ZTyp.erase_zsumbody_operand(zoperand);
     let (new_prefix, new_suffix) =
       switch (side) {
@@ -751,15 +768,49 @@ and perform_zsumbody =
       };
     let zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
+  // ... + |? ( _ ) + ...  ==>  ... + |? + _ ( _ ) + ...
+  // ... + ?| ( _ ) + ...  ==>  ... + _ ( _ ) + |? + ...
   | (
       Construct(SOp(SPlus)),
       ZOperand(
-        ConstTagZ(CursorTag(OnText(j), Tag(_))) as zoperand,
+        ArgTagZT(CursorTag(OnText(j), TagHole(_)), _) as zoperand,
         (prefix, suffix),
       ),
     ) =>
     let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
-    let new_zoperand = ZTyp.ConstTagZ(ZTag.place_before(tag_hole));
+    let place_cursor =
+      switch (j) {
+      | 0 => ZTag.place_after
+      | _ => ZTag.place_before
+      };
+    let new_zoperand = ZTyp.ConstTagZ(place_cursor(tag_hole));
+    let operand = ZTyp.erase_zsumbody_operand(zoperand);
+    let (new_prefix, new_suffix) =
+      switch (j) {
+      | 0 => (prefix, Seq.A(Operators_SumBody.Plus, Seq.S(operand, suffix)))
+      | _ => (Seq.A(Operators_SumBody.Plus, Seq.S(operand, prefix)), suffix)
+      };
+    let zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, new_suffix));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
+  // ... + |_ ( _ ) + ...  ==>  ... + |_ + _ ( _ ) + ...
+  // ... + _| ( _ ) + ...  ==>  ... + _ ( _ ) + _| + ...
+  | (
+      Construct(SOp(SPlus)),
+      ZOperand(
+        (
+          ConstTagZ(CursorTag(OnText(j), Tag(_))) |
+          ArgTagZT(CursorTag(OnText(j), Tag(_)), _)
+        ) as zoperand,
+        (prefix, suffix),
+      ),
+    ) =>
+    let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+    let place_cursor =
+      switch (j) {
+      | 0 => ZTag.place_before
+      | _ => ZTag.place_after
+      };
+    let new_zoperand = ZTyp.ConstTagZ(place_cursor(tag_hole));
     let operand = ZTyp.erase_zsumbody_operand(zoperand);
     let (new_prefix, new_suffix) =
       switch (j) {
@@ -773,16 +824,21 @@ and perform_zsumbody =
   | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
     perform_zsumbody(u_gen, MoveRight, zsumbody)
 
-  /* ...or construction after movement */
-  | (Construct(_), ZOperator((OnOp(side), _), _)) =>
-    switch (perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)) {
-    | Failed
-    | CursorEscaped(_) => Failed
-    | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
-    }
+  // _ |+ _  ==>  _ +| _
+  // _ +| _  ==>  _ + |_
+  | (Construct(SOp(SSpace)), ZOperator((OnOp(side), _), _)) =>
+    perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)
+
+  | (Construct(_), ZOperator(_, _)) => Failed
+
+  // ... + |_ ( _ ) + ...  ==>  ... + _ ( _ ) + |? + ...
+  // ... + _ ( _ )| + ...  ==>  ... + _ ( _ ) + ?| + ...
+
+  // ... + _ |( _ ) + ...  ==>  ... + _ ( _ ) + |? + ...
+  // ... + _ (| _ ) + ...  ==>  ... + _ ( _ ) + |? + ...
+  // ... + _ ( _ |) + ...  ==>  ... + _ ( _ ) + |? + ...
 
   /* SwapLeft and SwapRight is handled at block level */
-
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
@@ -849,11 +905,11 @@ and perform_zsumbody_operand =
     Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)),
   );
   switch (a, zoperand) {
-  /* Invalid actions at the type level */
+  /* Invalid actions */
   | (
       UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
+        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SOp(SPlus) |
         SApPalette(_) |
         SCommentLine,
       ) |
@@ -873,13 +929,6 @@ and perform_zsumbody_operand =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     move_zsumbody(u_gen, a, ZOpSeq.wrap(zoperand))
 
-  // { ?<| }  ==>  {| }
-  // { <|? }  ==>  {| }
-
-  // { |>? }  ==>  { |}
-  // { ?|> }  ==>  { |}
-  // | (Delete, ConstTagZ(CursorTag(OnDelim(_0, _), TagHole(_)))) => (??)
-
   /* Backspace and Delete */
 
   /* _ <|( _ )   ==>   _| ( _ ) */
@@ -889,6 +938,7 @@ and perform_zsumbody_operand =
     zoperand |> ZTyp.is_before_zsumbody_operand
       ? CursorEscaped(Before)
       : perform_zsumbody_operand(u_gen, MoveLeft, zoperand)
+
   /* |> _ ( _ )   ==>   |_ ( _ ) */
   /* _ (|> _ )   ==>   _ ( |_ ) */
   /* |> _   ==>   |_ */
@@ -913,11 +963,18 @@ and perform_zsumbody_operand =
       u_gen,
     ))
 
-  // | (Backspace, CursorATag(OnDelim(_, After), ConstTag(_), _)) => Failed
-
   /* Construction */
 
-  // _|  ==>  _(|?)
+  | (
+      Construct(SOp(SSpace) | SParenthesized),
+      CursorATag(OnDelim(_, _), _, _),
+    ) =>
+    perform_zsumbody_operand(u_gen, MoveRight, zoperand)
+
+  | (Construct(SOp(_)), CursorATag(_, _, _)) => CursorEscaped(After)
+  | (Construct(SChar(_)), CursorATag(_, _, _)) => Failed
+
+  // _|  ==>  _ ( |? )
   | (Construct(SParenthesized), ConstTagZ(ztag)) =>
     let tag = ZTag.erase(ztag);
     let zty = ZTyp.place_before(UHTyp.mk_OpSeq(Seq.wrap(UHTyp.Hole)));
@@ -940,29 +997,8 @@ and perform_zsumbody_operand =
     | Succeeded((ztag, u_gen)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.ConstTagZ(ztag)), u_gen))
     }
-  | (Construct(SChar(_s)), ArgTagZT(_ztag, _ty)) => Failed
-  | (Construct(_), ArgTagZA(_tag, _zty)) => Failed
-  | (Construct(_), CursorATag(_cursor, _tag, _ty)) => Failed
 
-  // | (Construct(SOp(SPlus)), CursorATag(OnDelim(_, After), _, _)) =>
-  //   perform_zsumbody_operand(u_gen, MoveRight, zoperand)
-  // | (Construct(_), CursorATag(OnDelim(_, side), _, _))
-  //     when
-  //       !ZTyp.is_before_zsumbody_operand(zoperand)
-  //       && !ZTyp.is_after_zsumbody_operand(zoperand) =>
-  //   switch (
-  //     perform_zsumbody_operand(u_gen, Action_common.escape(side), zoperand)
-  //   ) {
-  //   | (Failed | CursorEscaped(_)) as err => err
-  //   | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
-  //   }
-
-  // | (Construct(SOp(sos)), CursorATag(_, _, _)) =>
-  //   switch (sumbody_operator_of_shape(sos)) {
-  //   | None => Failed
-  //   | Some(sop) =>
-  //     Succeeded((construct_zsumbody_operator(sop, zoperand, (E, E)), u_gen))
-  //   }
+  | (Construct(_), CursorATag(_, _, _)) => Failed
 
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, CursorATag(_, _, _)) => Failed

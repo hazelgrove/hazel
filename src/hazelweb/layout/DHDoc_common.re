@@ -49,6 +49,12 @@ module Delim = {
     |> Doc.annot(DHAnnot.Delim);
   };
 
+  let tag_hole = (u: MetaVar.t): t => {
+    Doc.text(string_of_int(u + 1))
+    |> Doc.annot(DHAnnot.HoleLabel)
+    |> Doc.annot(DHAnnot.Delim);
+  };
+
   let list_nil = mk("[]");
   let triv = mk("()");
   let wild = mk("_");
@@ -95,6 +101,8 @@ module Delim = {
 let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+
+let mk_TagHole = u => Delim.tag_hole(u) |> Doc.annot(DHAnnot.TagHole(u));
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
