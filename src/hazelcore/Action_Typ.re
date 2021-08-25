@@ -819,29 +819,53 @@ and perform_zsumbody =
 
   | (Construct(_), ZOperator(_, _)) => Failed
 
-  /* SwapLeft and SwapRight is handled at block level */
   | (SwapLeft, ZOperator(_))
-  | (SwapRight, ZOperator(_)) => Failed
+  | (SwapRight, ZOperator(_))
+  | (SwapLeft, ZOperand(CursorATag(_, _, _), (E, _)))
+  | (SwapRight, ZOperand(CursorATag(_), (_, E))) => Failed
 
-  | (SwapLeft, ZOperand(CursorATag(_, _, _), (E, _))) => Failed
   | (
       SwapLeft,
       ZOperand(
-        CursorATag(_) as zoperand,
+        (CursorATag(_) | ConstTagZ(_) | ArgTagZT(_, _)) as zoperand,
         (A(operator, S(operand, new_prefix)), suffix),
       ),
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
-  | (SwapRight, ZOperand(CursorATag(_), (_, E))) => Failed
+
+  | (
+      SwapLeft,
+      ZOperand(
+        ArgTagZA(_, zty) as zoperand,
+        (A(operator, S(operand, new_prefix)), suffix),
+      ),
+    )
+      when ZTyp.is_before(zty) || ZTyp.is_after(zty) =>
+    let new_suffix = Seq.A(operator, S(operand, suffix));
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
+
   | (
       SwapRight,
       ZOperand(
-        CursorATag(_) as zoperand,
+        (CursorATag(_) | ConstTagZ(_) | ArgTagZT(_, _)) as zoperand,
         (prefix, A(operator, S(operand, new_suffix))),
       ),
     ) =>
+    let new_prefix = Seq.A(operator, S(operand, prefix));
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
+
+  | (
+      SwapRight,
+      ZOperand(
+        ArgTagZA(_, zty) as zoperand,
+        (prefix, A(operator, S(operand, new_suffix))),
+      ),
+    )
+      when ZTyp.is_before(zty) || ZTyp.is_after(zty) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
