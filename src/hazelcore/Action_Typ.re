@@ -224,14 +224,17 @@ and perform_operand =
   switch (a, zoperand) {
   | (Construct(SCloseParens), ParenthesizedZ(zopseq))
       when ZTyp.is_after(zopseq) =>
-    print_endline(
-      "Action_Typ perform operand SCloseParens ParenthesizedZ(zopseq) is right before the closing paren",
-    );
     switch (ZTyp.move_cursor_right(zopseq)) {
     | None => ActionOutcome.CursorEscaped(After)
     | Some(z) => Succeeded(z)
-    };
-  // Succeeded(zopseq);
+    }
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq)) =>
+    switch (perform_opseq(a, zopseq)) {
+    | ActionOutcome.CursorEscaped(s) => ActionOutcome.CursorEscaped(s)
+    | Succeeded(z) => Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(z)))
+    | Failed => Failed
+    }
+
   | (Construct(SCloseParens), _) =>
     print_endline("Action_Typ perform operand SCloseParens wrong action");
     Failed;

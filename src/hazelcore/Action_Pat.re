@@ -1120,7 +1120,6 @@ and ana_perform_operand =
     print_endline("Action_Pat ana_perform_operand _");
     Failed;
   /* Invalid cursor positions */
-  
   | (
       _,
       CursorP(
