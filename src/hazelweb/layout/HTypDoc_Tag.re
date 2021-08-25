@@ -6,10 +6,11 @@ let mk = (tag: UHTag.t): t => {
   Doc.(
     switch (tag) {
     | TagHole(u) =>
-      annot(
-        HTypAnnot.Delim,
-        annot(HTypAnnot.HoleLabel, DHDoc_common.mk_TagHole(u)),
-      )
+      u
+      |> Int.to_string
+      |> Doc.text
+      |> Doc.annot(HTypAnnot.HoleLabel)
+      |> Doc.annot(HTypAnnot.Delim)
 
     | Tag(t) => text(t)
     }

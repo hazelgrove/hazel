@@ -80,10 +80,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         switch (ty_opt) {
         | Some(ty) =>
           hcats([
-            HTagDoc.mk(tag),
+            HTypDoc_Tag.mk(tag),
             mk(~enforce_inline, ~parenthesize=true, ty),
           ])
-        | None => hcats([HTagDoc.mk(tag), choices([linebreak(), space()])])
+        | None => HTypDoc_Tag.mk(tag)
         };
       switch (TagMap.bindings(tymap)) {
       | [] => hcat(mk_delim("sum {"), mk_delim("}"))
@@ -92,7 +92,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           bindings
           |> List.map(mk_member)
           |> ListUtil.join(
-               hcats([text("+"), choices([linebreak(), space()])]),
+               hcats([choices([linebreak(), space()]), text("+"), space()]),
              );
         hcats([mk_delim("sum {")] @ new_bindings @ [mk_delim("}")]);
       };

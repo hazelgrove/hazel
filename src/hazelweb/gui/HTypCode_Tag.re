@@ -23,7 +23,7 @@ let view_of_layout =
   );
 
 let view = (~width=30, ~pos=0, tag: UHTag.t): Vdom.Node.t => {
-  let l = tag |> HTagDoc.mk |> LayoutOfDoc.layout_of_doc(~width, ~pos);
+  let l = tag |> HTypDoc_Tag.mk |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_htag on layout failure")
   | Some(l) => view_of_layout(l)

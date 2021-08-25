@@ -72,7 +72,10 @@ let move =
 
 let perform =
     (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
-    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) => {
+  print_endline("AT PERFORM");
+  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
+  print_endline(Sexplib.Sexp.to_string_hum(ZTag.sexp_of_t(ztag)));
   switch (a, ztag) {
   /* Invalid actions */
   | (
@@ -80,7 +83,6 @@ let perform =
       Construct(
         SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
         SParenthesized |
-        SOp(_) |
         SApPalette(_) |
         SCommentLine,
       ) |
@@ -140,34 +142,50 @@ let perform =
       Succeeded((ZTag.place_before(tag_hole), u_gen));
     | _ =>
       switch (delete_text(j, t)) {
-      | Succeeded(ztag) => Succeeded((ztag, u_gen))
       | (CursorEscaped(_) | Failed) as outcome => outcome
+      | Succeeded(ztag) => Succeeded((ztag, u_gen))
       }
     }
 
   /* Construction */
-  | (Construct(SChar(s)), CursorTag(_, TagHole(_)))
+
+  | (Construct(SOp(SSpace)), CursorTag(OnText(j), Tag(_) as tag)) =>
+    switch (j) {
+    | 0 => Succeeded((ZTag.place_after(tag), u_gen))
+    | _ => ZTag.is_after(ztag) ? CursorEscaped(After) : Failed
+    }
+
+  | (Construct(SOp(_)), CursorTag(OnText(_), Tag(_))) => Failed
+
+  | (Construct(SChar(c)), CursorTag(OnText(0), Tag(t)))
+      when UHTag.is_majuscule_letter(c.[0]) =>
+    switch (insert_text((0, c), t)) {
+    | (CursorEscaped(_) | Failed) as outcome => outcome
+    | Succeeded(ztag) => Succeeded((ztag, u_gen))
+    }
+  | (Construct(SChar(c)), CursorTag(OnText(j), Tag(t)))
+      when UHTag.is_tag_char(c.[0]) =>
+    switch (insert_text((j, c), t)) {
+    | (CursorEscaped(_) | Failed) as outcome => outcome
+    | Succeeded(ztag) => Succeeded((ztag, u_gen))
+    }
+
+  | (Construct(SChar(_)), CursorTag(OnText(_), Tag(_))) => Failed
+
+  | (Construct(SOp(SSpace)), CursorTag(OnDelim(_0, _), TagHole(_))) =>
+    move(u_gen, MoveRight, ztag)
+
+  | (Construct(SOp(_)), CursorTag(OnDelim(_, _), TagHole(_))) => Failed
+
+  | (Construct(SChar(s)), CursorTag(OnDelim(_, _), TagHole(_)))
       when UHTag.is_tag_name(s) =>
     switch (insert_text((0, s), "")) {
-    | Succeeded(ztag) => Succeeded((ztag, u_gen))
     | (CursorEscaped(_) | Failed) as outcome => outcome
+    | Succeeded(ztag) => Succeeded((ztag, u_gen))
     }
 
-  | (Construct(SChar(s)), CursorTag(OnText(0), Tag(t)))
-      when UHTag.is_tag_name(s) =>
-    switch (insert_text((0, s), t)) {
-    | Succeeded(ztag) => Succeeded((ztag, u_gen))
-    | (CursorEscaped(_) | Failed) as outcome => outcome
-    }
-  | (Construct(SChar(s)), CursorTag(OnText(j), Tag(t)))
-      when
-        s |> String.to_seq |> List.of_seq |> List.for_all(UHTag.is_tag_char) =>
-    switch (insert_text((j, s), t)) {
-    | Succeeded(ztag) => Succeeded((ztag, u_gen))
-    | (CursorEscaped(_) | Failed) as outcome => outcome
-    }
-
-  | (Construct(SChar(_)), CursorTag(_, _)) => Failed
+  | (Construct(SChar(_)), CursorTag(OnDelim(_, _), TagHole(_))) => Failed
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

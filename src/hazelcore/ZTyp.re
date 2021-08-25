@@ -194,18 +194,18 @@ and place_before_operand =
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
+let place_before_sumbody_operator =
+    (sumbody_op: UHTyp.sumbody_operator): option(zsumbody_operator) =>
+  Some((OnOp(Before), sumbody_op));
 let place_before_sumbody_operand: UHTyp.sumbody_operand => zsumbody_operand =
   fun
-  | UHTyp.ConstTag(tag) => ConstTagZ(ZTag.place_before(tag))
-  | UHTyp.ArgTag(tag, ty) => CursorATag(OnDelim(0, Before), tag, ty);
+  | ConstTag(tag) => ConstTagZ(ZTag.place_before(tag))
+  | ArgTag(tag, ty) => ArgTagZT(ZTag.place_before(tag), ty);
 let place_before_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
   ZOpSeq.place_before(
     ~place_before_operand=place_before_sumbody_operand,
     sumbody,
   );
-let place_before_sumbody_operator =
-    (sumbody_op: UHTyp.sumbody_operator): option(zsumbody_operator) =>
-  Some((OnOp(Before), sumbody_op));
 
 let rec place_after = (ty: UHTyp.t): t => ty |> place_after_opseq
 and place_after_opseq = opseq =>
@@ -447,12 +447,17 @@ and move_cursor_right_zsumbody = zsumbody =>
     zsumbody,
   )
 and move_cursor_right_zsumbody_operand =
-  fun
+    // fun
+    (zoperand: zsumbody_operand) => {
+  print_endline("MOVE_CURSOR_RIGHT_ZSUMBODY_OPERAND");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(sexp_of_zsumbody_operand(zoperand)),
+  );
+  switch (zoperand) {
   | z when is_after_zsumbody_operand(z) => None
-  | ConstTagZ(ztag) => {
-      let+ ztag = ZTag.move_cursor_right(ztag);
-      ConstTagZ(ztag);
-    }
+  | ConstTagZ(ztag) =>
+    let+ ztag = ZTag.move_cursor_right(ztag);
+    ConstTagZ(ztag);
   | CursorATag(OnOp(_) | OnText(_), _, _) => None
   | CursorATag(OnDelim(k, Before), tag, ty) =>
     Some(CursorATag(OnDelim(k, After), tag, ty))
@@ -471,4 +476,22 @@ and move_cursor_right_zsumbody_operand =
     switch (move_cursor_right(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
     | None => Some(CursorATag(OnDelim(2, Before), tag, erase(zty)))
-    };
+    }
+  };
+};
+
+let rec is_cursor_in_sum = (ZOpSeq(_, zseq) as zty: t): bool => {
+  print_endline("IS_CURSOR_IN_SUM");
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(zty)));
+  switch (zseq) {
+  | ZOperator(_, _) => false
+  | ZOperand(zoperand, _) =>
+    switch (zoperand) {
+    | CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)) => true
+    | CursorT(_, _) => false
+    | ParenthesizedZ(zty) => is_cursor_in_sum(zty)
+    | ListZ(zty) => is_cursor_in_sum(zty)
+    | SumZ(_) => true
+    }
+  };
+};

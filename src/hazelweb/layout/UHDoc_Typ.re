@@ -1,16 +1,19 @@
+open UHDoc_common;
+// module Doc = UHDoc_common.Doc;
+
 let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
   fun
-  | Prod => (UHDoc_common.empty_, UHDoc_common.space_)
-  | Arrow => (UHDoc_common.space_, UHDoc_common.space_);
+  | Prod => (empty_, space_)
+  | Arrow => (space_, space_);
 
 let inline_padding_of_sumbody_operator:
   UHTyp.sumbody_operator => (UHDoc.t, UHDoc.t) =
   fun
-  | Plus => (UHDoc_common.space_, UHDoc_common.space_);
+  | Plus => (space_, space_);
 
-let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Typ);
-let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
-  UHDoc_common.mk_Parenthesized(~sort=Typ);
+let mk_EmptyHole: string => UHDoc.t = mk_EmptyHole(~sort=Typ);
+let mk_Parenthesized: formatted_child => UHDoc.t =
+  mk_Parenthesized(~sort=Typ);
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
@@ -25,30 +28,115 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
-let mk_SumBody:
-  (
-    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
-    ~mk_operator: UHTyp.sumbody_operator => UHDoc.t,
-    ~enforce_inline: bool,
-    OpSeq.t('a, UHTyp.sumbody_operator)
-  ) =>
-  UHDoc.t =
-  UHDoc_common.mk_SumBody(
-    ~get_sumbody_elements=UHTyp.get_sumbody_elements,
-    ~inline_padding_of_operator=inline_padding_of_sumbody_operator,
-  );
+let mk_EmptySum = (): UHDoc.t => {
+  let open_group = Delim.open_Sum() |> annot_Tessera;
+  let close_group = Delim.close_Sum() |> annot_Tessera;
+  Doc.hcats([open_group, close_group]) |> annot_Operand(~sort=Typ);
+};
+
+let mk_Sum = (sumbody_opt: option(formatted_child)): UHDoc.t => {
+  let open_group = Delim.open_Sum() |> annot_Tessera;
+  let close_group = Delim.close_Sum() |> annot_Tessera;
+  let maybe_sumbody =
+    switch (sumbody_opt) {
+    | None => []
+    | Some(sumbody) => [pad_bidelimited_open_child(sumbody)]
+    };
+  Doc.hcats([open_group] @ maybe_sumbody @ [close_group])
+  |> annot_Operand(~sort=Typ);
+};
+
+let mk_SumBody =
+    (
+      ~mk_operand: (~enforce_inline: bool, 'operand) => UHDoc.t,
+      ~mk_operator: UHTyp.sumbody_operator => UHDoc.t,
+      ~enforce_inline: bool,
+      OpSeq(skel, seq): OpSeq.t('operand, UHTyp.sumbody_operator),
+    )
+    : UHDoc.t => {
+  let mk_BinOp =
+    UHDoc_common.mk_BinOp(
+      ~sort=SumBody,
+      ~mk_operand,
+      ~mk_operator,
+      ~inline_padding_of_operator=inline_padding_of_sumbody_operator,
+      ~seq,
+    );
+  switch (UHTyp.get_sumbody_elements(skel)) {
+  | [] => failwith(__LOC__ ++ ": found empty sum")
+  | [singleton] => mk_BinOp(~enforce_inline, singleton)
+  | [hd, ...tl] =>
+    let hd_doc = (~enforce_inline: bool) => {
+      let format =
+        UHAnnot.OpenChild(enforce_inline ? InlineWithBorder : Multiline);
+      hd |> mk_BinOp(~enforce_inline) |> Doc.annot(format);
+    };
+    let plus_doc = (step: int) => annot_Step(step, mk_op("+"));
+    let (inline_choice, plus_indices) =
+      tl
+      |> List.fold_left(
+           ((sumbody, plus_indices), elem) => {
+             let plus_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=true, elem);
+             let doc =
+               Doc.(
+                 hcats([
+                   sumbody,
+                   space_ |> annot(UHAnnot.OpenChild(InlineWithBorder)),
+                   plus_doc(plus_index) |> annot_Tessera,
+                   hcat(space_, elem_doc)
+                   |> annot(UHAnnot.OpenChild(InlineWithBorder)),
+                 ])
+               );
+             (doc, [plus_index, ...plus_indices]);
+           },
+           (hd_doc(~enforce_inline=true), []),
+         );
+    let multiline_choice =
+      tl
+      |> List.fold_left(
+           (sumbody, elem) => {
+             let plus_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=false, elem);
+             Doc.(
+               vsep(
+                 sumbody,
+                 hcat(
+                   plus_doc(plus_index) |> annot_Tessera,
+                   // TODO need to have a choice here for multiline vs not
+                   hcat(space_, align(elem_doc))
+                   |> annot(UHAnnot.OpenChild(Multiline)),
+                 ),
+               )
+             );
+           },
+           hd_doc(~enforce_inline=false),
+         );
+    let choices =
+      enforce_inline
+        ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+    choices
+    |> Doc.annot(
+         UHAnnot.mk_Term(
+           ~sort=SumBody,
+           ~shape=SumBody({plus_indices: plus_indices}),
+           (),
+         ),
+       );
+  };
+};
 
 let rec mk =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
+    memoize((~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
       (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
     )
   )
 and mk_opseq =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
+    memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
       (
         mk_NTuple(
           ~mk_operand=Lazy.force(mk_operand, ~memoize),
@@ -60,39 +148,37 @@ and mk_opseq =
     )
   )
 and mk_operator = (op: UHTyp.operator): UHDoc.t =>
-  UHDoc_common.mk_op(Operators_Typ.to_string(op))
+  mk_op(Operators_Typ.to_string(op))
 and mk_operand =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
+    memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
       (
         switch (operand) {
         | Hole => mk_EmptyHole("?")
-        | Unit => UHDoc_common.mk_Unit()
-        | Int => UHDoc_common.mk_Int()
-        | Float => UHDoc_common.mk_Float()
-        | Bool => UHDoc_common.mk_Bool()
+        | Unit => mk_Unit()
+        | Int => mk_Int()
+        | Float => mk_Float()
+        | Bool => mk_Bool()
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          UHDoc_common.mk_List(body);
-        | Sum(None) => UHDoc_common.mk_Sum(None)
+          mk_List(body);
+        | Sum(None) => mk_Sum(None)
         | Sum(Some(sumbody)) =>
           let sumbody =
             mk_sumbody(~memoize, ~enforce_inline, ~child_step=0, sumbody);
-          UHDoc_common.mk_Sum(Some(sumbody));
+          mk_Sum(Some(sumbody));
         }: UHDoc.t
       )
     )
   )
 and mk_child =
     (~memoize: bool, ~enforce_inline: bool, ~child_step: int, uty: UHTyp.t)
-    : UHDoc_common.formatted_child => {
+    : formatted_child => {
   let formattable = (~enforce_inline: bool) =>
-    Lazy.force(mk, ~memoize, ~enforce_inline, uty)
-    |> UHDoc_common.annot_Step(child_step);
+    Lazy.force(mk, ~memoize, ~enforce_inline, uty) |> annot_Step(child_step);
   enforce_inline
     ? EnforcedInline(formattable(~enforce_inline=true))
     : Unformatted(formattable);
@@ -104,18 +190,17 @@ and mk_sumbody =
       ~child_step: int,
       sumbody: UHTyp.sumbody,
     )
-    : UHDoc_common.formatted_child => {
+    : formatted_child => {
   let formattable = (~enforce_inline: bool) =>
     Lazy.force(mk_sumbody_opseq, ~memoize, ~enforce_inline, sumbody)
-    |> UHDoc_common.annot_Step(child_step);
+    |> annot_Step(child_step);
   enforce_inline
     ? EnforcedInline(formattable(~enforce_inline))
     : Unformatted(formattable);
 }
 and mk_sumbody_opseq =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.sumbody) =>
+    memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.sumbody) =>
       (
         mk_SumBody(
           ~mk_operand=Lazy.force(mk_sumbody_operand, ~memoize),
@@ -127,10 +212,10 @@ and mk_sumbody_opseq =
     )
   )
 and mk_sumbody_operator = (op: UHTyp.sumbody_operator): UHDoc.t =>
-  UHDoc_common.mk_op(Operators_SumBody.to_string(op))
+  mk_op(Operators_SumBody.to_string(op))
 and mk_sumbody_operand =
   lazy(
-    UHDoc_common.memoize(
+    memoize(
       (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.sumbody_operand) =>
       (
         switch (operand) {
@@ -140,7 +225,7 @@ and mk_sumbody_operand =
           let tag_doc =
             UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
-          UHDoc_common.mk_ArgTag(tag_doc, body);
+          UHDoc_Tag.mk_ArgTag(tag_doc, body);
         }: UHDoc.t
       )
     )

@@ -9,7 +9,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let typebar = ty =>
     Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
   let tagbar = tag =>
-    Node.div([Attr.classes(["infobar", "tagbar"])], [HTagCode.view(tag)]);
+    Node.div(
+      [Attr.classes(["infobar", "tagbar"])],
+      [HTypCode_Tag.view(tag)],
+    );
   let matched_ty_bar = (ty1, ty2) =>
     Node.div(
       [Attr.classes(["infobar", "matched-type-bar"])],

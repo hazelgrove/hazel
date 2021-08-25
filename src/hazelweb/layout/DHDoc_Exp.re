@@ -180,7 +180,7 @@ let rec mk =
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
       | Inj((_, tag, body_opt)) =>
-        let tag_doc = DHDoc_Tag.mk(tag);
+        let tag_doc = DHDoc_Tag.mk(~enforce_inline, tag);
         let padded_child_opt =
           switch (body_opt) {
           | Some(body) =>
