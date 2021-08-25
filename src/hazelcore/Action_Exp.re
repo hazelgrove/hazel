@@ -1401,6 +1401,7 @@ and syn_perform_operand =
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
+  | (Construct(SCloseParens), _) => Failed
   | (
       _,
       CursorE(
@@ -2760,6 +2761,8 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
+  | (Construct(SCloseParens), _) => Failed
+
   /* Invalid cursor positions */
   | (
       _,

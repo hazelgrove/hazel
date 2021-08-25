@@ -317,6 +317,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SCommentLine
     | SAnn
+    | SCloseParens
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))

@@ -222,6 +222,19 @@ and perform_opseq =
 and perform_operand =
     (a: Action.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
   switch (a, zoperand) {
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    print_endline(
+      "Action_Typ perform operand SCloseParens ParenthesizedZ(zopseq) is right before the closing paren",
+    );
+    switch (ZTyp.move_cursor_right(zopseq)) {
+    | None => ActionOutcome.CursorEscaped(After)
+    | Some(z) => Succeeded(z)
+    };
+  // Succeeded(zopseq);
+  | (Construct(SCloseParens), _) =>
+    print_endline("Action_Typ perform operand SCloseParens wrong action");
+    Failed;
   /* Invalid actions at the type level */
   | (
       UpdateApPalette(_) |

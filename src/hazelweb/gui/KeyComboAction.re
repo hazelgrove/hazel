@@ -22,6 +22,7 @@ let get_model_action =
   | VBar when cursor_on_type => construct(SOp(SVBar))
   | VBar => construct(SOp(SOr))
   | LeftParen => construct(SParenthesized)
+  | RightParen => construct(SCloseParens)
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)

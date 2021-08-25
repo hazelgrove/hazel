@@ -607,6 +607,7 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
+  | (Construct(SCloseParens), _) => Failed
   /* Invalid cursor positions */
   | (
       _,
@@ -1104,8 +1105,22 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
+  | (Construct(SCloseParens), TypeAnnZA(err, operand, zann)) =>
+    switch (Action_Typ.perform(a, zann)) {
+    | Succeeded(new_zann) =>
+      mk_ana_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZPat.TypeAnnZA(err, operand, new_zann)),
+        ty,
+      )
+    | _ => Failed
+    }
+  | (Construct(SCloseParens), _) =>
+    print_endline("Action_Pat ana_perform_operand _");
+    Failed;
   /* Invalid cursor positions */
-
+  
   | (
       _,
       CursorP(
