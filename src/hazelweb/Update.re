@@ -51,6 +51,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | UpdateSettings(_)
+  | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | FocusCell(_)
@@ -62,11 +63,10 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_)
+  | SerializeToConsole
   | UpdateAssistant(_)
   | AcceptSuggestion(_)
   | Chain(_)
-  | SerializeToConsole
   | SetCursorInspectorMode(_)
   | ToggleCursorInspectorMode =>
     Logger.append(
@@ -217,7 +217,6 @@ let rec apply_action =
           },
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
-      | UpdateIsMac(is_mac) => {...model, is_mac}
       | UpdateSettings(u) => {
           ...model,
           settings: Settings.apply_update(u, model.settings),
@@ -231,6 +230,11 @@ let rec apply_action =
       | Chain([x, ...xs]) =>
         let model' = apply_action(model, x, state, ~schedule_action);
         apply_action(model', Chain(xs), state, ~schedule_action);
+      | UpdateCursorInspector(u) => {
+          ...model,
+          cursor_inspector:
+            CursorInspectorModel.apply_update(u, model.cursor_inspector),
+        }
       | SerializeToConsole =>
         model
         |> Model.get_program
@@ -245,23 +249,23 @@ let rec apply_action =
         switch (cursor_inspector_mode) {
         | None =>
           model
-          |> apply(UpdateSettings(CursorInspector(Set_visible(false))))
-          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateCursorInspector(Set_visible(false)))
+          |> apply(UpdateCursorInspector(Set_guide(false)))
           |> apply(UpdateAssistant(Turn_off))
         | Some(Simple) =>
           model
-          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
-          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateCursorInspector(Set_visible(true)))
+          |> apply(UpdateCursorInspector(Set_guide(false)))
           |> apply(UpdateAssistant(Turn_off))
         | Some(Tutor) =>
           model
-          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
-          |> apply(UpdateSettings(CursorInspector(Set_guide(true))))
+          |> apply(UpdateCursorInspector(Set_visible(true)))
+          |> apply(UpdateCursorInspector(Set_guide(true)))
           |> apply(UpdateAssistant(Turn_off))
         | Some(Assistant) =>
           model
-          |> apply(UpdateSettings(CursorInspector(Set_visible(true))))
-          |> apply(UpdateSettings(CursorInspector(Set_guide(false))))
+          |> apply(UpdateCursorInspector(Set_visible(true)))
+          |> apply(UpdateCursorInspector(Set_guide(false)))
           |> apply(UpdateAssistant(Turn_on))
         };
       | ToggleCursorInspectorMode =>

@@ -1,5 +1,6 @@
 //open OptUtil.Syntax;
 //open Sexplib.Std;
+
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -134,14 +135,51 @@ let click_to_move =
   MoveAction(Click(caret_pos));
 };
 
+// TODO(andrew): why does this real
+/*
+ let view_of_cursor_inspector =
+     (
+       ~inject,
+       ~font_metrics: FontMetrics.t,
+       (steps, cursor): CursorPath.t,
+       model: Model.t,
+       l: UHLayout.t,
+     ) => {
+   let cursor =
+     switch (cursor) {
+     | OnText(_) => CursorPosition.OnText(0)
+     | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
+     | OnOp(_) => CursorPosition.OnOp(Before)
+     };
+   let m = UHMeasuredLayout.mk(l);
+   let cursor_pos =
+     UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
+     |> OptUtil.get(() => failwith("could not find caret"));
+   let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
+   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
+   CursorInspector.view(~inject, ~loc=(cursor_x, cursor_y), model);
+ };
+ */
+
 type norm_key =
   | Single(JSUtil.single_key)
   | Combo(HazelKeyCombos.t)
   | Move(MoveKey.t)
   | UnknownKey;
 
+//TODO(andrew): factor this out
+let of_key: string => option(MoveKey.t) =
+  fun
+  | "ArrowLeft" => Some(ArrowLeft)
+  | "ArrowRight" => Some(ArrowRight)
+  | "ArrowDown" => Some(ArrowDown)
+  | "ArrowUp" => Some(ArrowUp)
+  | "Home" => Some(Home)
+  | "End" => Some(End)
+  | _ => None;
+
 let key_of = (evt): norm_key => {
-  switch (evt |> Key.get_key |> MoveKey.of_key) {
+  switch (evt |> Key.get_key |> of_key) {
   | Some(move_key) => Move(move_key)
   | None =>
     switch (HazelKeyCombos.of_evt(evt)) {
@@ -155,8 +193,8 @@ let key_of = (evt): norm_key => {
   };
 };
 
-let update_ci = (x: Settings.CursorInspector.update): ModelAction.t =>
-  UpdateSettings(CursorInspector(x));
+let update_ci = (x: CursorInspectorModel.update): ModelAction.t =>
+  UpdateCursorInspector(x);
 
 let assistant_key_action =
     (
@@ -183,7 +221,7 @@ let assistant_key_action =
 };
 
 let main_key_action =
-    (~is_mac: bool, ~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
+    (~cursor_info: CursorInfo.t, evt): option(ModelAction.t) => {
   switch (key_of(evt)) {
   | Combo(Escape) =>
     Some(
@@ -191,7 +229,7 @@ let main_key_action =
     )
   | Move(k) => Some(MoveAction(Key(k)))
   | Combo(Ctrl_Space) => Some(ToggleCursorInspectorMode)
-  | Combo(k) => KeyComboAction.get_model_action(cursor_info, k, is_mac)
+  | Combo(k) => KeyComboAction.get_model_action(cursor_info, k)
   | Single(k) =>
     Some(EditAction(Construct(SChar(JSUtil.single_key_string(k)))))
   | _ => None
@@ -201,7 +239,6 @@ let main_key_action =
 let key_handlers =
     (
       ~inject: ModelAction.t => Ui_event.t,
-      ~is_mac: bool,
       ~cursor_info: CursorInfo.t,
       ~assistant_action: option(Action.t)=None,
       ~assistant_active: bool,
@@ -219,7 +256,7 @@ let key_handlers =
       switch (assistant_key_action(~assistant_action, ~cursor_info, evt)) {
       | Some(action) when assistant_active => inject_stop_prevent(action)
       | _ =>
-        switch (main_key_action(~is_mac, ~cursor_info, evt)) {
+        switch (main_key_action(~cursor_info, evt)) {
         | Some(action) =>
           inject_stop_prevent(Chain([UpdateAssistant(Reset), action]))
         | _ => Event.Ignore
@@ -228,6 +265,42 @@ let key_handlers =
     }),
   ];
 };
+
+/*
+ TODO(andrew): integrate changes into above
+
+ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+   open Vdom;
+   let prevent_stop_inject = a =>
+     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+   [
+     Attr.on_keypress(_ => Event.Prevent_default),
+     Attr.on_keydown(evt => {
+       let model_action: option(ModelAction.t) = {
+         let key_combo = HazelKeyCombos.of_evt(evt);
+         let single_key = JSUtil.is_single_key(evt);
+
+         switch (key_combo, single_key) {
+         | (Some(key_combo), _) =>
+           KeyComboAction.get_model_action(cursor_info, key_combo)
+         | (_, Some(single_key)) =>
+           Some(
+             EditAction(
+               Construct(SChar(JSUtil.single_key_string(single_key))),
+             ),
+           )
+         | (None, None) => None
+         };
+       };
+
+       switch (model_action) {
+       | Some(model_action) => prevent_stop_inject(model_action)
+       | None => Event.Ignore
+       };
+     }),
+   ];
+ };
+ */
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
@@ -319,7 +392,6 @@ let typebox =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
       ~is_focused: bool,
       editor: Editor.typ,
@@ -332,7 +404,6 @@ let typebox =
     is_focused
       ? key_handlers(
           ~inject,
-          ~is_mac,
           ~cursor_info,
           ~assistant_active=false,
           ~assistant_action=None,
@@ -354,3 +425,99 @@ let typebox =
     ),
   ];
 };
+
+/*
+ TODO(andrew): ??????????????????
+
+       ~cursor_inspector: CursorInspectorModel.t,
+       program: Program.t,
+     )
+     : Vdom.Node.t => {
+   TimeUtil.measure_time(
+     "UHCode.view",
+     settings.performance.measure && settings.performance.uhcode_view,
+     () => {
+       open Vdom;
+
+       let l = Program.get_layout(~settings, program);
+
+       let code_text = view_of_box(UHBox.mk(l));
+       let decorations = {
+         let dpaths = Program.get_decoration_paths(program);
+         decoration_views(~font_metrics, dpaths, l);
+       };
+       let caret = {
+         let caret_pos = Program.get_caret_position(~settings, program);
+         program.is_focused
+           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+       };
+       let cursor_inspector =
+         if (program.is_focused && cursor_inspector.visible) {
+           let path = Program.get_path(program);
+           let ci = Program.get_cursor_info(program);
+           [
+             view_of_cursor_inspector(
+               ~inject,
+               ~font_metrics,
+               path,
+               cursor_inspector,
+               ci,
+               l,
+             ),
+           ];
+         } else {
+           [];
+         };
+
+       let key_handlers =
+         program.is_focused
+           ? key_handlers(
+               ~inject,
+               ~cursor_info=Program.get_cursor_info(program),
+             )
+           : [];
+
+       let click_handler = evt => {
+         let container_rect =
+           JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+         let (target_x, target_y) = (
+           float_of_int(evt##.clientX),
+           float_of_int(evt##.clientY),
+         );
+         let caret_pos =
+           MeasuredPosition.{
+             row:
+               Float.to_int(
+                 (target_y -. container_rect##.top) /. font_metrics.row_height,
+               ),
+             col:
+               Float.to_int(
+                 Float.round(
+                   (target_x -. container_rect##.left) /. font_metrics.col_width,
+                 ),
+               ),
+           };
+         inject(ModelAction.MoveAction(Click(caret_pos)));
+       };
+
+       Node.div(
+         [
+           Attr.id(root_id),
+           Attr.classes(["code", "presentation"]),
+           // need to use mousedown instead of click to fire
+           // (and move caret) before cell focus event handler
+           Attr.on_mousedown(click_handler),
+           // necessary to make cell focusable
+           Attr.create("tabindex", "0"),
+           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+           ...key_handlers,
+         ],
+         caret
+         @ cursor_inspector
+         @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+       );
+     },
+   );
+ };
+ */

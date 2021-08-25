@@ -10,7 +10,6 @@ let decoration_views:
 let key_handlers:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    ~is_mac: bool,
     ~cursor_info: CursorInfo.t,
     ~assistant_action: option(Action.t)=?,
     ~assistant_active: bool
@@ -40,10 +39,11 @@ let typebox:
   (
     ~inject: ModelAction.t => Ui_event.t,
     ~font_metrics: FontMetrics.t,
-    ~is_mac: bool,
     ~settings: Settings.t,
     ~is_focused: bool,
     Editor.Typ.t,
     MetaVarGen.t
   ) =>
+  // TODO(andrew): figure out why this was here from merge
+  //~cursor_inspector: CursorInspectorModel.t
   list(Vdom.Node.t);

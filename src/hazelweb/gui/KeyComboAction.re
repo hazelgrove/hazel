@@ -1,17 +1,20 @@
 let construct = (shape: Action.shape): option(ModelAction.t) =>
   Some(EditAction(Construct(shape)));
-let update_ci = (x: Settings.CursorInspector.update): ModelAction.t =>
-  UpdateSettings(CursorInspector(x));
 
 let get_model_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t, is_mac: bool)
-    : option(ModelAction.t) => {
+    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(ModelAction.t) => {
+  let construct = (shape: Action.shape): option(ModelAction.t) =>
+    Some(EditAction(Construct(shape)));
+
   let (cursor_on_type, cursor_on_comment) =
     switch (cursor_info) {
     | {typed: OnType, _} => (true, false)
     | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
     | _ => (false, false)
     };
+
+  /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */
   switch (kc) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
@@ -44,21 +47,19 @@ let get_model_action =
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
+  | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole)
-  | Ctrl_Z when is_mac => None
-  | Ctrl_Z => Some(Undo)
-  | Ctrl_Shift_Z when is_mac => None
-  | Ctrl_Shift_Z => Some(Redo)
-  | Ctrl_Alt_I => Some(EditAction(SwapUp))
-  | Ctrl_Alt_K => Some(EditAction(SwapDown))
-  | Ctrl_Alt_J => Some(EditAction(SwapLeft))
-  | Ctrl_Alt_L => Some(EditAction(SwapRight))
-  | Meta_Z when is_mac => Some(Undo)
-  | Meta_Z => None
-  | Meta_Shift_Z when is_mac => Some(Redo)
-  | Meta_Shift_Z => None
-  | Ctrl_Space => Some(update_ci(Toggle_visible))
-  | Ctrl_A =>
-    Some(Chain([update_ci(Set_visible(true)), UpdateAssistant(Turn_on)]))
+  | CtrlOrCmd_Z => Some(Undo)
+  | CtrlOrCmd_Shift_Z => Some(Redo)
+  | Up => Some(MoveAction(Key(ArrowUp)))
+  | Down => Some(MoveAction(Key(ArrowDown)))
+  | Left => Some(MoveAction(Key(ArrowLeft)))
+  | Right => Some(MoveAction(Key(ArrowRight)))
+  | Home => Some(MoveAction(Key(Home)))
+  | End => Some(MoveAction(Key(End)))
+  | Alt_Up => Some(EditAction(SwapUp))
+  | Alt_Down => Some(EditAction(SwapDown))
+  | Alt_Left => Some(EditAction(SwapLeft))
+  | Alt_Right => Some(EditAction(SwapRight))
   };
 };

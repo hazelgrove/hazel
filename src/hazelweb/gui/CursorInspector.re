@@ -139,17 +139,52 @@ let any_typ_msg =
     ],
   );
 
-let keyword_msg = (term, keyword, main_msg) =>
+let exp_keyword_msg = (term, keyword, main_msg) =>
   if (CursorInfo_common.is_end_keyword(term, keyword)) {
     main_msg
     @ [
       Node.text("("),
-      AssistantView_common.shortcut_node("Space"),
+      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Space),
       Node.text(" to expand keyword)"),
     ];
   } else {
     main_msg;
   };
+
+let pat_ana_subsumed_msg =
+    (expected_ty, got_ty, expecting_msg, consistency_msg) =>
+  if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+    expecting_msg @ [HTypCode.view(expected_ty)];
+  } else {
+    expecting_msg
+    @ [HTypCode.view(expected_ty), consistency_msg, HTypCode.view(got_ty)];
+  };
+
+let syn_branch_clause_msg =
+    (
+      join,
+      typed,
+      join_type_consistent,
+      join_type_inconsistent_expecting,
+      join_type_inconsistent_msg,
+      other,
+    ) => {
+  switch (join, typed) {
+  | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
+    if (HTyp.consistent(ty, got_ty)) {
+      join_type_consistent @ [HTypCode.view(ty)];
+    } else {
+      let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
+      join_type_inconsistent_expecting
+      @ [
+        HTypCode.view(~diff_steps=ty_diff, ty),
+        join_type_inconsistent_msg,
+        HTypCode.view(~diff_steps=got_diff, got_ty),
+      ];
+    }
+  | _ => other(typed)
+  };
+};
 
 let advanced_summary =
     (
@@ -172,16 +207,7 @@ let advanced_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
-        [ana, HTypCode.view(expected_ty)];
-      } else {
-        [
-          ana,
-          HTypCode.view(expected_ty),
-          consistent_symbol,
-          HTypCode.view(got_ty),
-        ];
-      }
+      pat_ana_subsumed_msg(expected_ty, got_ty, [ana], consistent_symbol)
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
@@ -238,7 +264,7 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) => [
         ana,
         HTypCode.view(expected_ty),
@@ -247,7 +273,7 @@ let advanced_summary =
       ]
     | SynKeyword(keyword) =>
       let main_msg = [syn, emphasize_text("Reserved Keyword")];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatSynKeyword(_) => [syn, emphasize_text("Reserved Keyword")]
     | SynKeywordArrow(_, keyword) =>
       let main_msg = [
@@ -256,23 +282,16 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
-      switch (join, typed) {
-      | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
-          [syn, HTypCode.view(ty)];
-        } else {
-          let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
-          [
-            syn,
-            HTypCode.view(~diff_steps=ty_diff, ty),
-            inconsistent_symbol,
-            HTypCode.view(~diff_steps=got_diff, got_ty),
-          ];
-        }
-      | _ => message(typed)
-      }
+      syn_branch_clause_msg(
+        join,
+        typed,
+        [syn],
+        [syn],
+        inconsistent_symbol,
+        message,
+      )
     | SynInconsistentBranches(_) => [
         syn,
         emphasize_text("Inconsistent Branch Types"),
@@ -305,7 +324,6 @@ let assistant_summary =
       u_gen,
       ~inject,
       ~font_metrics,
-      ~is_mac,
       ~settings,
     ) => {
   let term_tag =
@@ -337,7 +355,6 @@ let assistant_summary =
           @ UHCode.typebox(
               ~inject,
               ~font_metrics,
-              ~is_mac,
               ~settings,
               ~is_focused=type_editor_is_focused,
               assistant_model.filter_editor,
@@ -414,7 +431,7 @@ let assistant_summary =
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) => [
         ana,
         HTypCode.view(expected_ty),
@@ -423,7 +440,7 @@ let assistant_summary =
       ]
     | SynKeyword(keyword) =>
       let main_msg = [syn, emphasize_text("Reserved Keyword")];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatSynKeyword(_) => [syn, emphasize_text("Reserved Keyword")]
     | SynKeywordArrow(_, keyword) =>
       let main_msg = [
@@ -432,7 +449,7 @@ let assistant_summary =
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -477,12 +494,7 @@ let novice_summary =
       tag_typ: TermSort.t,
     ) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
-  let article =
-    switch (tag_typ) {
-    | Exp => "an"
-    | Pat
-    | Typ => "a"
-    };
+  let article = AssistantView_common.article(tag_typ);
   let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
@@ -491,16 +503,12 @@ let novice_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
-        expecting_of_type @ [HTypCode.view(expected_ty)];
-      } else {
-        expecting_of_type
-        @ [
-          HTypCode.view(expected_ty),
-          Node.text("and got consistent type"),
-          HTypCode.view(got_ty),
-        ];
-      }
+      pat_ana_subsumed_msg(
+        expected_ty,
+        got_ty,
+        expecting_of_type,
+        Node.text("and got consistent type"),
+      )
     | Synthesized(ty)
     | PatSynthesized(ty) =>
       switch (term) {
@@ -597,7 +605,7 @@ let novice_summary =
           Node.text("but got a"),
           emphasize_text("Reserved Keyword"),
         ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) =>
       expecting_of_type
       @ [
@@ -611,7 +619,7 @@ let novice_summary =
         term_tag,
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | PatSynKeyword(_) => [
         Node.text("Got " ++ article),
         term_tag,
@@ -626,28 +634,16 @@ let novice_summary =
         Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
       ];
-      keyword_msg(term, keyword, main_msg);
+      exp_keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
-      switch (join, typed) {
-      | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
-          [
-            Node.text("Got " ++ article),
-            term_tag,
-            Node.text("of type"),
-            HTypCode.view(ty),
-          ];
-        } else {
-          let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
-          expecting_of_type
-          @ [
-            HTypCode.view(~diff_steps=ty_diff, ty),
-            Node.text("but got inconsistent type"),
-            HTypCode.view(~diff_steps=got_diff, got_ty),
-          ];
-        }
-      | _ => message(typed)
-      }
+      syn_branch_clause_msg(
+        join,
+        typed,
+        [Node.text("Got " ++ article), term_tag, Node.text("of type")],
+        expecting_of_type,
+        Node.text("but got inconsistent type"),
+        message,
+      )
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
         term_tag,
@@ -692,9 +688,14 @@ let summary_bar =
       cursor_inspector_mode,
       u_gen,
       ~font_metrics,
-      ~is_mac,
       ~settings,
     ) => {
+  let toggle_cursor_inspector_event = toggle =>
+    Event.Many([
+      Event.Prevent_default,
+      Event.Stop_propagation,
+      inject(ModelAction.UpdateCursorInspector(toggle)),
+    ]);
   let arrow_direction =
     if (show_expanded) {
       Icons.down_arrow(["cursor-inspector-arrow"]);
@@ -707,15 +708,7 @@ let summary_bar =
         Attr.classes(["clickable-help"]),
         Attr.create("title", "Click to toggle expanded cursor inspector"),
         Attr.on_click(_ =>
-          Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(
-              ModelAction.UpdateSettings(
-                CursorInspector(Toggle_show_expanded),
-              ),
-            ),
-          ])
+          toggle_cursor_inspector_event(Toggle_show_expanded)
         ),
       ],
       [arrow_direction],
@@ -740,7 +733,6 @@ let summary_bar =
             u_gen,
             ~inject,
             ~font_metrics,
-            ~is_mac,
             ~settings,
           )
         : novice_mode
@@ -767,12 +759,10 @@ let summary_bar =
             Event.Prevent_default,
             Event.Stop_propagation,
             show_strategy_guide_icon
-              ? inject(
-                  UpdateSettings(CursorInspector(Toggle_strategy_guide)),
-                )
+              ? inject(UpdateCursorInspector(Toggle_strategy_guide))
               : inject(
                   Chain([
-                    UpdateSettings(CursorInspector(Set_guide(false))),
+                    UpdateCursorInspector(Set_guide(false)),
                     UpdateAssistant(Toggle),
                   ]),
                 ),
@@ -788,33 +778,41 @@ let summary_bar =
       ],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  let body =
-    (show_expansion_arrow ? [summary, fill_space, arrow] : [summary])
-    @ (
-      show_strategy_guide_icon || assistant_enabled
-        ? [
-          fill_space,
-          fill_icon(
-            show_strategy_guide_icon && !assistant_enabled
-              ? Unicode.light_bulb : Unicode.robot_arm,
-          ),
-          ci_control_pane(cursor_inspector_mode, ~inject),
-        ]
-        : []
+
+  /* TODO(andrew): fix this mess
+     (show_expansion_arrow ? [summary, fill_space, arrow] : [summary])
+      @ (
+        show_strategy_guide_icon || assistant_enabled
+          ? [
+            fill_space,
+            fill_icon(
+              show_strategy_guide_icon && !assistant_enabled
+                ? Unicode.light_bulb : Unicode.robot_arm,
+            ),
+            ci_control_pane(cursor_inspector_mode, ~inject),
+          ]
+          : []
+      );*/
+  let fill_icon =
+    fill_icon(
+      show_strategy_guide_icon && !assistant_enabled
+        ? Unicode.light_bulb : Unicode.robot_arm,
     );
+  let control = ci_control_pane(cursor_inspector_mode, ~inject);
+  let body =
+    switch (show_expansion_arrow, show_strategy_guide_icon, assistant_enabled) {
+    | (true, _, true)
+    | (true, true, _) => [summary, fill_space, arrow, fill_icon, control]
+    | (true, false, _) => [summary, fill_space, arrow, control]
+    | (_, _, true)
+    | (false, true, _) => [summary, fill_space, fill_icon, control]
+    | (false, false, _) => [summary, control]
+    };
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
       Attr.classes(["type-info-summary", "clickable-help"]),
-      Attr.on_click(_ =>
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(
-            ModelAction.UpdateSettings(CursorInspector(Toggle_novice_mode)),
-          ),
-        ])
-      ),
+      Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
     ],
     body,
   );
@@ -823,8 +821,8 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Event.t,
-      {settings, font_metrics, is_mac, focal_editor, assistant, _} as model: Model.t,
-      loc: (float, float),
+      ~loc: (float, float),
+      {settings, font_metrics, focal_editor, assistant, cursor_inspector, _} as model: Model.t,
     )
     : Node.t => {
   let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
@@ -836,7 +834,6 @@ let view =
     |> Editor.EditState_Exp.get_zstx
     |> CursorFrame.mk;
   let cursor_info = Editor.Exp.get_cursor_info(program);
-  let cursor_inspector = settings.cursor_inspector;
   let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
 
   let inconsistent_branches_ty_bar =
@@ -931,23 +928,36 @@ let view =
 
   let rec get_err_state_b = (typed: CursorInfo.typed) =>
     switch (typed) {
-    | Analyzed(_) => OK
-    | AnaAnnotatedLambda(_) => OK
-    | AnaTypeInconsistent(_) => TypeInconsistency
-    | AnaWrongLength(_) => TypeInconsistency
-    | AnaInvalid(_) => BindingError
-    | AnaFree(_) => BindingError
-    | AnaSubsumed(_) => OK
-    | AnaKeyword(_) => BindingError
-    | Synthesized(_) => OK
-    | SynInvalid => BindingError
-    | SynFree => BindingError
-    | SynKeyword(_) => BindingError
-    | SynErrorArrow(_) => TypeInconsistency
-    | SynMatchingArrow(_) => OK
-    | SynKeywordArrow(_) => BindingError
-    | SynInvalidArrow(_) => BindingError
-    | SynFreeArrow(_) => BindingError
+    | Analyzed(_)
+    | AnaAnnotatedLambda(_)
+    | AnaSubsumed(_)
+    | Synthesized(_)
+    | SynMatchingArrow(_)
+    | OnType
+    | PatAnalyzed(_)
+    | PatAnaSubsumed(_)
+    | PatSynthesized(_)
+    | OnNonLetLine
+    | OnRule => OK
+    | AnaTypeInconsistent(_)
+    | AnaWrongLength(_)
+    | SynErrorArrow(_)
+    | SynInconsistentBranches(_)
+    | SynInconsistentBranchesArrow(_)
+    | PatAnaTypeInconsistent(_)
+    | PatAnaWrongLength(_) => TypeInconsistency
+    | AnaInvalid(_)
+    | AnaFree(_)
+    | AnaKeyword(_)
+    | SynInvalid
+    | SynFree
+    | SynKeyword(_)
+    | SynKeywordArrow(_)
+    | SynInvalidArrow(_)
+    | SynFreeArrow(_)
+    | PatAnaInvalid(_)
+    | PatAnaKeyword(_)
+    | PatSynKeyword(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -959,19 +969,6 @@ let view =
       | (InconsistentBranchTys(_), _) => TypeInconsistency
       | _ => get_err_state_b(typed)
       }
-    | SynInconsistentBranches(_) => TypeInconsistency
-    | SynInconsistentBranchesArrow(_) => TypeInconsistency
-    | OnType => OK
-    | PatAnalyzed(_) => OK
-    | PatAnaTypeInconsistent(_) => TypeInconsistency
-    | PatAnaWrongLength(_) => TypeInconsistency
-    | PatAnaInvalid(_) => BindingError
-    | PatAnaSubsumed(_) => OK
-    | PatAnaKeyword(_) => BindingError
-    | PatSynthesized(_) => OK
-    | PatSynKeyword(_) => BindingError
-    | OnNonLetLine => OK
-    | OnRule => OK
     };
 
   let err_state_b = get_err_state_b(cursor_info.typed);
@@ -1008,7 +1005,7 @@ let view =
       )
     | (Rule(_), _)
     | (ExpOperand(_, Case(_)), _)
-    | (_, EndBranchClause) =>
+    | (_, AfterBranchClause) =>
       switch (StrategyGuide.rules_view(cursor_info)) {
       | None => (false, None)
       | Some(sg_rules) => (true, Some(sg_rules))
@@ -1040,7 +1037,6 @@ let view =
       cursor_inspector_mode,
       u_gen,
       ~font_metrics,
-      ~is_mac,
       ~settings,
     );
   let content =

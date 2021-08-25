@@ -41,15 +41,6 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
-  /* need to know whether a Mac is being used to determine certain key
-     combinations, such as Ctrl+Z vs Cmd+Z for undo */
-  let is_mac =
-    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("MAC"),
-    )
-    >= 0;
-  schedule_action(UpdateIsMac(is_mac));
-
   //TODO(andrew): remove when merging (loads assistant example by default)
   schedule_action(LoadCard(5));
 
@@ -140,7 +131,8 @@ let create =
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
-            if (model.settings.cursor_inspector.visible) {
+
+            if (model.cursor_inspector.visible) {
               let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
               move_cursor_inspector_in_view(ci_elem);
             };

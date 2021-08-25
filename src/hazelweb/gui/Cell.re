@@ -22,15 +22,14 @@ let view_of_cursor_inspector =
     |> OptUtil.get(() => failwith("could not find caret"));
   let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
-  CursorInspector.view(~inject, model, (cursor_x, cursor_y));
+  CursorInspector.view(~inject, ~loc=(cursor_x, cursor_y), model);
 };
 
 let code_view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
-      {settings, focal_editor, font_metrics, assistant, is_mac, _} as model: Model.t,
-    )
-    : Vdom.Node.t => {
+      ~inject,
+      {settings, focal_editor, font_metrics, assistant, cursor_inspector, _} as model: Model.t,
+    ) => {
   TimeUtil.measure_time(
     "Cell.view_internal",
     settings.performance.measure && settings.performance.uhcode_view,
@@ -49,13 +48,12 @@ let code_view =
         );
 
       let cursor_info = Editor.Exp.get_cursor_info(program);
-      let ci_settings = settings.cursor_inspector;
       let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
       let assistant_action =
         AssistantModel.get_action(~u_gen, assistant, cursor_info);
 
       let cursor_inspector =
-        if (ci_settings.visible) {
+        if (cursor_inspector.visible) {
           [view_of_cursor_inspector(~inject, model)];
         } else {
           [];
@@ -71,7 +69,6 @@ let code_view =
         main_editor_is_focused
           ? UHCode.key_handlers(
               ~inject,
-              ~is_mac,
               ~cursor_info,
               ~assistant_action,
               ~assistant_active=assistant.active,

@@ -134,8 +134,8 @@ type opParent = option(ZExp.zoperand);
 
 [@deriving sexp]
 type parent_info =
-  | EndBranchClause
-  | EmptyHoleLine
+  | AfterBranchClause
+  | BeforeEmptyHoleLine
   | NoParentInfo;
 
 [@deriving sexp]

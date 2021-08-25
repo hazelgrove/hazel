@@ -363,6 +363,30 @@ let assistant_test_big =
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
 
+let inconsistent_branches: UHExp.t =
+  UHExp.(
+    Block.wrap(
+      case(
+        ~err=InconsistentBranches([Bool, Float, Float], 0),
+        Block.wrap(UHExp.IntLit(NotInHole, "1")),
+        [
+          Rule(
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "0")),
+            Block.wrap(UHExp.BoolLit(NotInHole, true)),
+          ),
+          Rule(
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "1")),
+            Block.wrap(UHExp.FloatLit(NotInHole, "1.")),
+          ),
+          Rule(
+            OpSeq.wrap(UHPat.IntLit(NotInHole, "2")),
+            Block.wrap(UHExp.FloatLit(NotInHole, "2.")),
+          ),
+        ],
+      ),
+    )
+  );
+
 let examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
@@ -371,6 +395,7 @@ let examples = [
   ("quicksort", qsort_example),
   ("assistant", assistant_test),
   ("assistant-big", assistant_test_big),
+  ("inconsistent branches", inconsistent_branches),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {

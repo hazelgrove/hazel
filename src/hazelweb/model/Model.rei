@@ -18,7 +18,6 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   /**
    * Preview on undo history entry mainly implemented by
    * on_mouseenter/leave will not work when scrolling
@@ -30,6 +29,7 @@ type t = {
   settings: Settings.t,
   focal_editor: editor,
   assistant: AssistantModel.t,
+  cursor_inspector: CursorInspectorModel.t,
   cursor_inspector_mode: option(cursor_inspector_mode),
 };
 

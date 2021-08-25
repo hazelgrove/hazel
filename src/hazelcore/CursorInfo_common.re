@@ -70,17 +70,17 @@ let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
 
 let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | ExpOperand(_, EmptyHole(_)) => true
-  | ExpOperand(_, _) => false
+  | ExpOperand(_, EmptyHole(_))
+  | TypOperand(_, Hole)
   | PatOperand(_, EmptyHole(_)) => true
-  | PatOperand(_, _) => false
-  | TypOperand(_, Hole) => true
-  | TypOperand(_, _) => false
-  | ExpOperator(_, _)
-  | PatOperator(_, _)
-  | TypOperator(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false
+  | ExpOperand(_)
+  | PatOperand(_)
+  | TypOperand(_)
+  | ExpOperator(_)
+  | PatOperator(_)
+  | TypOperator(_)
+  | Line(_)
+  | Rule(_) => false
   };
 };
 
@@ -188,16 +188,14 @@ let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
 let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   fun
   | ExpOperand(_, EmptyHole(_)) => true
-  | ExpOperand(_, _) => false
-  | PatOperand(_, EmptyHole(_)) => false
-  | PatOperand(_, _) => false
-  | TypOperand(_, Hole) => false
-  | TypOperand(_, _) => false
-  | ExpOperator(_, _)
-  | PatOperator(_, _)
-  | TypOperator(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false;
+  | ExpOperand(_)
+  | PatOperand(_)
+  | TypOperand(_)
+  | ExpOperator(_)
+  | PatOperator(_)
+  | TypOperator(_)
+  | Line(_)
+  | Rule(_) => false;
 
 let on_expr_var: CursorInfo.cursor_term => bool =
   fun
@@ -244,19 +242,16 @@ let mk =
 };
 let get_ctx = (ci: CursorInfo.t) => ci.ctx;
 
-let set_end_branch_clause = (ci, is_end_branch_clause) =>
-  if (is_end_branch_clause) {
-    {...ci, parent_info: EndBranchClause};
-  } else {
-    ci;
-  };
+let set_after_branch_clause = (ci, is_after_branch_clause) => {
+  ...ci,
+  parent_info: is_after_branch_clause ? AfterBranchClause : ci.parent_info,
+};
 
-let set_is_empty_hole_line = (ci, is_empty_hole_line) =>
-  if (is_empty_hole_line) {
-    {...ci, parent_info: EmptyHoleLine};
-  } else {
-    ci;
-  };
+let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
+  ...ci,
+  parent_info:
+    is_before_empty_hole_line ? BeforeEmptyHoleLine : ci.parent_info,
+};
 
 /*
  * there are cases we can't determine where to find the uses of a variable

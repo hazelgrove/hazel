@@ -30,6 +30,7 @@ type t =
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell(Model.editor)
@@ -41,10 +42,9 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool)
+  | SerializeToConsole
   | AcceptSuggestion(Action.t)
   | UpdateAssistant(AssistantModel.update)
   | SetCursorInspectorMode(option(Model.cursor_inspector_mode))
   | ToggleCursorInspectorMode
-  | Chain(list(t))
-  | SerializeToConsole;
+  | Chain(list(t));

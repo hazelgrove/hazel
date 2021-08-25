@@ -18,11 +18,11 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   focal_editor: editor,
   assistant: AssistantModel.t,
+  cursor_inspector: CursorInspectorModel.t,
   cursor_inspector_mode: option(cursor_inspector_mode),
 };
 
@@ -76,6 +76,7 @@ let init = (): t => {
     };
   };
   let settings = Settings.init;
+  let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -103,12 +104,12 @@ let init = (): t => {
         row_height: 1.0,
         col_width: 1.0,
       },
-    is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     focal_editor: MainProgram,
     assistant: AssistantModel.init,
     cursor_inspector_mode: None,
+    cursor_inspector,
   };
 };
 
@@ -369,11 +370,11 @@ let load_undo_history =
 };
 
 let get_cursor_inspector_mode = (model: t): option(cursor_inspector_mode) =>
-  if (model.settings.cursor_inspector.visible) {
+  if (model.cursor_inspector.visible) {
     Some(
       if (model.assistant.active) {
         Assistant;
-      } else if (model.settings.cursor_inspector.strategy_guide) {
+      } else if (model.cursor_inspector.strategy_guide) {
         Tutor;
       } else {
         Simple;
