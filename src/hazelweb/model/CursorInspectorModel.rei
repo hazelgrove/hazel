@@ -26,6 +26,7 @@ type update =
   | Toggle_strategy_guide_new_var
   | Toggle_strategy_guide_other
   | Set_visible(bool)
-  | Set_guide(bool);
+  | Set_guide(bool)
+  | Set_novice_mode(bool);
 
 let apply_update: (update, t) => t;

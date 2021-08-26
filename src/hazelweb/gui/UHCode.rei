@@ -8,12 +8,7 @@ let decoration_views:
   (~font_metrics: FontMetrics.t, UHDecorationPaths.t, UHLayout.t) =>
   list(Vdom.Node.t);
 let key_handlers:
-  (
-    ~inject: ModelAction.t => Vdom.Event.t,
-    ~cursor_info: CursorInfo.t,
-    ~assistant_action: option(Action.t)=?,
-    ~assistant_active: bool
-  ) =>
+  (~inject: ModelAction.t => Vdom.Event.t, ~model: Model.t) =>
   list(Vdom.Attr.t);
 let click_to_move:
   (
@@ -40,6 +35,7 @@ let typebox:
     ~inject: ModelAction.t => Ui_event.t,
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
+    ~model: Model.t,
     ~is_focused: bool,
     Editor.Typ.t,
     MetaVarGen.t

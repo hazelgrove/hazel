@@ -1,8 +1,14 @@
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 
+type single_key =
+  | Number(int)
+  | Letter(string)
+  | Underscore;
+
 [@deriving sexp]
 type t =
+  | Single(single_key)
   | Escape
   | Backspace
   | Delete

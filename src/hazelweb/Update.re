@@ -266,6 +266,7 @@ let rec apply_action =
           model
           |> apply(UpdateCursorInspector(Set_visible(true)))
           |> apply(UpdateCursorInspector(Set_guide(false)))
+          |> apply(UpdateCursorInspector(Set_novice_mode(false)))
           |> apply(UpdateAssistant(Turn_on))
         };
       | ToggleCursorInspectorMode =>

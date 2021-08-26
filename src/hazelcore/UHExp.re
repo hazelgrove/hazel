@@ -450,3 +450,18 @@ let fill_hole = (u: MetaVar.t, filler: t, e: t) => {
   | Some(filled) => filled
   };
 };
+
+let is_atomic_operand: operand => bool =
+  fun
+  | EmptyHole(_)
+  | InvalidText(_)
+  | Var(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_) => true
+  | Lam(_)
+  | Inj(_)
+  | Case(_)
+  | Parenthesized(_)
+  | ApPalette(_) => false;

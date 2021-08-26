@@ -51,20 +51,6 @@ let alt_R = alt(Key.the_key("R"));
 let alt_C = alt(Key.the_key("C"));
 let alt_PageUp = alt(Key.the_key("PageUp"));
 let alt_PageDown = alt(Key.the_key("PageDown"));
-/*
- TODO(andrew): delete this
- let ctrl_z = ctrl(Key.the_key("z"));
- let ctrl_a = ctrl(Key.the_key("a"));
- let ctrl_space = ctrl(Key.key1("Space", " "));
- let ctrl_s = ctrl(Key.the_key("s"));
- let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
- let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
- let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
- let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
- let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
- let meta_z = meta(Key.the_key("z"));
- let meta_shift_z = meta_shift(Key.the_key("Z"));
- */
 let ctrl_space = ctrl(Key.key1("Space", " "));
 let ctrl_s = ctrl(Key.the_key("S"));
 let ctrlOrCmd_z = ctrlOrCmd(Key.the_key("Z"));
@@ -79,3 +65,4 @@ let alt_up = alt(Key.key1(Unicode.up_arrow_key, "ArrowUp"));
 let alt_down = alt(Key.key1(Unicode.down_arrow_key, "ArrowDown"));
 let alt_left = alt(Key.key1(Unicode.left_arrow_key, "ArrowLeft"));
 let alt_right = alt(Key.key1(Unicode.right_arrow_key, "ArrowRight"));
+let single = key_string => plain(Key.the_key(key_string));

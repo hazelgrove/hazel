@@ -1003,7 +1003,7 @@ body {
   z-index:100;
   position: absolute;
   top: 0;
-  left: 92%;
+  left: calc(100% - 1em);
   cursor: default;
 }
 
@@ -1066,7 +1066,7 @@ body {
 #assistant-wrapper .suggestion-info {
   z-index:100;
   position: absolute;
-  top: 0;
+  top: -2em;
   left: 106%;
   display: grid;
   grid-template-columns: 1.85em 1fr;

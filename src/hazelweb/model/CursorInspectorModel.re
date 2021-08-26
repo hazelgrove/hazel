@@ -39,7 +39,8 @@ type update =
   | Toggle_strategy_guide_new_var
   | Toggle_strategy_guide_other
   | Set_visible(bool)
-  | Set_guide(bool);
+  | Set_guide(bool)
+  | Set_novice_mode(bool);
 
 let apply_update = (u: update, settings: t) =>
   switch (u) {
@@ -50,6 +51,7 @@ let apply_update = (u: update, settings: t) =>
       show_expanded: !settings.show_expanded,
     }
   | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
+  | Set_novice_mode(b) => {...settings, novice_mode: b}
   | Toggle_strategy_guide => {
       ...settings,
       strategy_guide: !settings.strategy_guide,

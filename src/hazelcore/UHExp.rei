@@ -116,3 +116,5 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 let is_complete: t => bool;
 
 let fill_hole: (MetaVar.t, t, t) => t;
+
+let is_atomic_operand: operand => bool;

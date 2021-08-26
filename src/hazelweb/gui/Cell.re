@@ -28,7 +28,7 @@ let view_of_cursor_inspector =
 let code_view =
     (
       ~inject,
-      {settings, focal_editor, font_metrics, assistant, cursor_inspector, _} as model: Model.t,
+      {settings, focal_editor, font_metrics, cursor_inspector, _} as model: Model.t,
     ) => {
   TimeUtil.measure_time(
     "Cell.view_internal",
@@ -47,11 +47,6 @@ let code_view =
           program,
         );
 
-      let cursor_info = Editor.Exp.get_cursor_info(program);
-      let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
-      let assistant_action =
-        AssistantModel.get_action(~u_gen, assistant, cursor_info);
-
       let cursor_inspector =
         if (cursor_inspector.visible) {
           [view_of_cursor_inspector(~inject, model)];
@@ -66,42 +61,13 @@ let code_view =
         inject(UHCode.click_to_move(editor_id, font_metrics, evt));
 
       let key_handlers =
-        main_editor_is_focused
-          ? UHCode.key_handlers(
-              ~inject,
-              ~cursor_info,
-              ~assistant_action,
-              ~assistant_active=assistant.active,
-            )
-          : [];
-
-      /*
-       let on_contextmenu = evt => {
-         let ty =
-           switch (Assistant_common.get_type(cursor_info)) {
-           | None => UHTyp.contract(HTyp.Hole)
-           | Some(ty) => UHTyp.contract(ty)
-           };
-         Event.Many([
-           Event.Prevent_default,
-           inject(
-             Chain([
-               UpdateAssistant(Set_type_editor(ty)),
-               UpdateAssistant(Turn_on),
-               UpdateSettings(CursorInspector(Set_visible(true))),
-               UHCode.click_to_move(editor_id, font_metrics, evt),
-             ]),
-           ),
-         ]);
-       };
-       */
+        main_editor_is_focused ? UHCode.key_handlers(~inject, ~model) : [];
 
       Node.div(
         [
           Attr.id(editor_id),
           Attr.classes(["code", "presentation"]),
           Attr.on_click(on_click),
-          //Attr.on_contextmenu(on_contextmenu),
           Attr.create("tabindex", "0"), // necessary to make cell focusable
           Attr.on_focus(_ => inject(FocusCell(this_editor))),
           Attr.on_blur(_ => inject(BlurCell)),

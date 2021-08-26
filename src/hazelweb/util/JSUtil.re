@@ -278,63 +278,6 @@ let listen_for_key = (kc, f) =>
     }
   );
 
-type single_key =
-  | Number(int)
-  | Letter(string)
-  | Underscore;
-
-let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
-
-let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
-  evt => {
-    let ctrlKey = Js.to_bool(evt##.ctrlKey);
-    let altKey = Js.to_bool(evt##.altKey);
-    let metaKey = Js.to_bool(evt##.metaKey);
-    if (ctrlKey || altKey || metaKey) {
-      None;
-    } else {
-      let key = Key.get_key(evt);
-      switch (int_of_string_opt(key)) {
-      | Some(n) => Some(Number(n))
-      | None =>
-        switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
-        | Some(_) => Some(Letter(key))
-        | None =>
-          /* could be later refactored to a separate regex */
-          switch (key) {
-          | "_" => Some(Underscore)
-          | "." => Some(Letter(key))
-          | _ => None
-          }
-        }
-      };
-    };
-  };
-
-let single_key_string: single_key => string =
-  single_key =>
-    switch (single_key) {
-    | Number(n) => string_of_int(n)
-    | Letter(x) => x
-    | Underscore => "_"
-    };
-
-let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
-  evt => {
-    let key = Key.get_key(evt);
-    switch (key) {
-    | "ArrowLeft"
-    | "ArrowRight"
-    | "ArrowUp"
-    | "ArrowDown"
-    | "PageUp"
-    | "PageDown"
-    | "Home"
-    | "End" => true
-    | _ => false
-    };
-  };
-
 type div_element = Js.t(Dom_html.divElement);
 type node = Js.t(Dom.node);
 let div_contains_node = (parent: div_element, child: node): bool => {

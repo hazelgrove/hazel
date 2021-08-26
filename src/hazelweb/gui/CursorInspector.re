@@ -186,13 +186,35 @@ let syn_branch_clause_msg =
   };
 };
 
+let assistant_term_tag =
+    (
+      ~font_metrics,
+      ~settings,
+      tag_typ: TermSort.t,
+      term: CursorInfo.cursor_term,
+    ) => {
+  /* Display operand instead of tag if it's atomic */
+  switch (term) {
+  | ExpOperand(_, operand) when UHExp.is_atomic_operand(operand) =>
+    let editor = operand |> UHExp.Block.wrap |> Editor.mk_exp_editor;
+    UHCode.codebox_view(~font_metrics, ~is_focused=false, ~settings, editor);
+  | _ => [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])]
+  };
+};
+
 let advanced_summary =
     (
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
+      ~assistant_enabled: bool,
+      ~font_metrics,
+      ~settings,
     ) => {
-  let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
+  let term_tag =
+    assistant_enabled
+      ? assistant_term_tag(~font_metrics, ~settings, tag_typ, term)
+      : [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])];
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
@@ -309,182 +331,8 @@ let advanced_summary =
   };
   switch (typed) {
   | OnNonLetLine => message(typed) /* Don't display the term tag for empty and comment lines */
-  | _ => List.cons(term_tag, message(typed))
+  | _ => term_tag @ message(typed)
   };
-};
-
-//TODO(andrew): this is mostly copy-pasted from advanced summary...
-let assistant_summary =
-    (
-      typed: CursorInfo.typed,
-      term: CursorInfo.cursor_term,
-      tag_typ: TermSort.t,
-      type_editor_is_focused: bool,
-      assistant_model: AssistantModel.t,
-      u_gen,
-      ~inject,
-      ~font_metrics,
-      ~settings,
-    ) => {
-  let term_tag =
-    switch (term) {
-    | ExpOperand(_, operand) =>
-      let editor = operand |> UHExp.Block.wrap |> Editor.mk_exp_editor;
-      UHCode.codebox_view(
-        ~font_metrics,
-        ~is_focused=false,
-        ~settings,
-        editor,
-      );
-    | _ => [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])]
-    };
-
-  //TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
-  let rec message = (typed: CursorInfo.typed) => {
-    switch (typed) {
-    | Analyzed(ty)
-    | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
-    | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
-    | Synthesized(ty)
-    | PatSynthesized(ty) =>
-      //| OnLetLine(ty) =>
-      let any_typ_msg =
-        Node.div(
-          [Attr.classes(["compressed"])],
-          [emphasize_text("Any Type (")]
-          @ UHCode.typebox(
-              ~inject,
-              ~font_metrics,
-              ~settings,
-              ~is_focused=type_editor_is_focused,
-              assistant_model.filter_editor,
-              u_gen,
-            )
-          //HTypCode.view(HTyp.Hole),
-          @ [emphasize_text(")")],
-        );
-      switch (ty) {
-      | HTyp.Hole => [syn, any_typ_msg]
-      | _ => [syn, HTypCode.view(ty)]
-      };
-    /* Use the got type if not just Hole */
-    | AnaAnnotatedLambda(expected_ty, got_ty)
-    | AnaSubsumed(expected_ty, got_ty)
-    | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty) {
-      | HTyp.Hole => [ana, HTypCode.view(expected_ty)]
-      | _ => [ana, HTypCode.view(got_ty)]
-      }
-    | AnaTypeInconsistent(expected_ty, got_ty)
-    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
-      [
-        ana,
-        HTypCode.view(~diff_steps=expected_diff, expected_ty),
-        inconsistent_symbol,
-        HTypCode.view(~diff_steps=got_diff, got_ty),
-      ];
-    | SynErrorArrow(_expected_ty, got_ty) => [
-        syn,
-        emphasize_text("Function Type"),
-        inconsistent_symbol,
-        HTypCode.view(got_ty),
-      ]
-    | AnaWrongLength(expected_len, got_len, _expected_ty)
-    | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
-        ana,
-        emphasize_text(string_of_int(expected_len) ++ "-tuple"),
-        inconsistent_symbol,
-        emphasize_text(string_of_int(got_len) ++ "-tuple"),
-      ]
-    | AnaInvalid(expected_ty)
-    | PatAnaInvalid(expected_ty) => [
-        ana,
-        HTypCode.view(expected_ty),
-        inconsistent_symbol,
-        emphasize_text("Invalid Text"),
-      ]
-    | SynInvalid => [emphasize_text("Invalid Text")]
-    | SynInvalidArrow(_) => [
-        syn,
-        emphasize_text("Function Type"),
-        inconsistent_symbol,
-        emphasize_text("Invalid Text"),
-      ]
-    | AnaFree(expected_ty) => [
-        ana,
-        HTypCode.view(expected_ty),
-        inconsistent_symbol,
-        emphasize_text("Free Variable"),
-      ]
-    | SynFree => [syn, emphasize_text("Free Variable")]
-    | SynFreeArrow(_) => [
-        syn,
-        emphasize_text("Function Type"),
-        inconsistent_symbol,
-        emphasize_text("Free Variable"),
-      ]
-    | AnaKeyword(expected_ty, keyword) =>
-      let main_msg = [
-        ana,
-        HTypCode.view(expected_ty),
-        inconsistent_symbol,
-        emphasize_text("Reserved Keyword"),
-      ];
-      exp_keyword_msg(term, keyword, main_msg);
-    | PatAnaKeyword(expected_ty, _) => [
-        ana,
-        HTypCode.view(expected_ty),
-        inconsistent_symbol,
-        emphasize_text("Reserved Keyword"),
-      ]
-    | SynKeyword(keyword) =>
-      let main_msg = [syn, emphasize_text("Reserved Keyword")];
-      exp_keyword_msg(term, keyword, main_msg);
-    | PatSynKeyword(_) => [syn, emphasize_text("Reserved Keyword")]
-    | SynKeywordArrow(_, keyword) =>
-      let main_msg = [
-        syn,
-        emphasize_text("Function Type"),
-        inconsistent_symbol,
-        emphasize_text("Reserved Keyword"),
-      ];
-      exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _) =>
-      switch (join, typed) {
-      | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
-          [syn, HTypCode.view(ty)];
-        } else {
-          let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
-          [
-            syn,
-            HTypCode.view(~diff_steps=ty_diff, ty),
-            inconsistent_symbol,
-            HTypCode.view(~diff_steps=got_diff, got_ty),
-          ];
-        }
-      /*| (InconsistentBranchTys(_), _) => [
-          emphasize_text("Inconsistent Branch Types"),
-        ]*/
-      | _ => message(typed)
-      }
-    | SynInconsistentBranches(_) => [
-        syn,
-        emphasize_text("Inconsistent Branch Types"),
-      ]
-    | SynInconsistentBranchesArrow(_) => [
-        syn,
-        emphasize_text("Function Type"),
-        inconsistent_symbol,
-        emphasize_text("Inconsistent Branch Types"),
-      ]
-    | OnType => []
-    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
-    | OnRule => /* TODO */ [emphasize_text("Rule")]
-    };
-  };
-  term_tag @ message(typed);
 };
 
 let novice_summary =
@@ -681,12 +529,8 @@ let summary_bar =
       show_expanded: bool,
       novice_mode: bool,
       show_strategy_guide_icon: bool,
-      _on_empty_hole: bool,
       assistant_enabled: bool,
-      type_editor_is_focused,
-      assistant_model,
       cursor_inspector_mode,
-      u_gen,
       ~font_metrics,
       ~settings,
     ) => {
@@ -718,26 +562,20 @@ let summary_bar =
     Node.div(
       [
         Attr.classes(
-          novice_mode && !assistant_enabled
-            //TODO(andrew): dehackify. need this or formatting jumps around
+          novice_mode
             ? ["summary-message", "novice-mode"] : ["summary-message"],
         ),
       ],
-      assistant_enabled
-        ? assistant_summary(
+      novice_mode
+        ? novice_summary(ci.typed, ci.cursor_term, tag_type)
+        : advanced_summary(
             ci.typed,
             ci.cursor_term,
             tag_type,
-            type_editor_is_focused,
-            assistant_model,
-            u_gen,
-            ~inject,
-            ~font_metrics,
+            ~assistant_enabled,
             ~settings,
-          )
-        : novice_mode
-            ? novice_summary(ci.typed, ci.cursor_term, tag_type)
-            : advanced_summary(ci.typed, ci.cursor_term, tag_type),
+            ~font_metrics,
+          ),
     );
   let images_dir = "imgs/assistant/";
   let boost_icon =
@@ -758,14 +596,7 @@ let summary_bar =
           Event.Many([
             Event.Prevent_default,
             Event.Stop_propagation,
-            show_strategy_guide_icon
-              ? inject(UpdateCursorInspector(Toggle_strategy_guide))
-              : inject(
-                  Chain([
-                    UpdateCursorInspector(Set_guide(false)),
-                    UpdateAssistant(Toggle),
-                  ]),
-                ),
+            inject(UpdateCursorInspector(Toggle_strategy_guide)),
           ])
         ),
       ],
@@ -779,20 +610,7 @@ let summary_bar =
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
 
-  /* TODO(andrew): fix this mess
-     (show_expansion_arrow ? [summary, fill_space, arrow] : [summary])
-      @ (
-        show_strategy_guide_icon || assistant_enabled
-          ? [
-            fill_space,
-            fill_icon(
-              show_strategy_guide_icon && !assistant_enabled
-                ? Unicode.light_bulb : Unicode.robot_arm,
-            ),
-            ci_control_pane(cursor_inspector_mode, ~inject),
-          ]
-          : []
-      );*/
+  // TODO(andrew): cleanup below logic
   let fill_icon =
     fill_icon(
       show_strategy_guide_icon && !assistant_enabled
@@ -822,10 +640,9 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
-      {settings, font_metrics, focal_editor, assistant, cursor_inspector, _} as model: Model.t,
+      {settings, font_metrics, assistant, cursor_inspector, _} as model: Model.t,
     )
     : Node.t => {
-  let type_editor_is_focused = focal_editor == Model.AssistantTypeEditor;
   let cursor_inspector_mode = Model.get_cursor_inspector_mode(model);
   let program = Model.get_program(model);
   let cursor_frame =
@@ -993,8 +810,6 @@ let view =
     | ExpOperand(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
-  let on_empty_hole =
-    CursorInfo_common.is_empty_hole(cursor_info.cursor_term);
   let (show_strategy_guide_icon, strategy_guide) =
     switch (cursor_info.cursor_term, cursor_info.parent_info) {
     | (ExpOperand(_, EmptyHole(_)), _) => (
@@ -1030,12 +845,8 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       show_strategy_guide_icon,
-      on_empty_hole,
       assistant.active,
-      type_editor_is_focused,
-      assistant,
       cursor_inspector_mode,
-      u_gen,
       ~font_metrics,
       ~settings,
     );

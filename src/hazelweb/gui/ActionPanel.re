@@ -157,7 +157,8 @@ let action_list =
   );
 };
 
-let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
+let generate_panel_body = (is_action_allowed, model: Model.t, inject) => {
+  let cursor_info = Model.get_cursor_info(model);
   let text = Node.text;
   let simple = desc => [Node.text(desc)];
 
@@ -166,8 +167,8 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let action_of_combo = combo =>
-    switch (KeyComboAction.get_model_action(cursor_info, combo)) {
-    | Some(EditAction(action)) => action
+    switch (KeyComboAction.get_model_action(model, combo)) {
+    | EditAction(action) => action
     | _ =>
       failwith(
         __LOC__
@@ -434,7 +435,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
-  let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
     switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
@@ -444,7 +444,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
     };
   };
 
-  let body = generate_panel_body(is_action_allowed, cursor_info, inject);
+  let body = generate_panel_body(is_action_allowed, model, inject);
 
   action_panel(body);
 };

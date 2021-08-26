@@ -1,8 +1,16 @@
+open Sexplib.Std;
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 
 [@deriving sexp]
+type single_key =
+  | Number(int)
+  | Letter(string)
+  | Underscore;
+
+[@deriving sexp]
 type t =
+  | Single(single_key)
   | Escape
   | Backspace
   | Delete
@@ -45,8 +53,45 @@ type t =
   | Alt_Left
   | Alt_Right;
 
+let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+
+let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
+  evt => {
+    let ctrlKey = Js.to_bool(evt##.ctrlKey);
+    let altKey = Js.to_bool(evt##.altKey);
+    let metaKey = Js.to_bool(evt##.metaKey);
+    if (ctrlKey || altKey || metaKey) {
+      None;
+    } else {
+      let key = Key.get_key(evt);
+      switch (int_of_string_opt(key)) {
+      | Some(n) => Some(Number(n))
+      | None =>
+        switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
+        | Some(_) => Some(Letter(key))
+        | None =>
+          /* could be later refactored to a separate regex */
+          switch (key) {
+          | "_" => Some(Underscore)
+          | "." => Some(Letter(key))
+          | _ => None
+          }
+        }
+      };
+    };
+  };
+
+let string_of_single_key: single_key => string =
+  single_key =>
+    switch (single_key) {
+    | Number(n) => string_of_int(n)
+    | Letter(x) => x
+    | Underscore => "_"
+    };
+
 let get_details =
   fun
+  | Single(k) => k |> string_of_single_key |> KeyCombo.single
   | Pound => KeyCombo.pound
   | Escape => KeyCombo.escape
   | Backspace => KeyCombo.backspace
@@ -91,6 +136,7 @@ let get_details =
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
+  let single_key = is_single_key(evt);
   if (evt_matches(KeyCombo.pound)) {
     Some(Pound);
   } else if (evt_matches(KeyCombo.escape)) {
@@ -173,6 +219,11 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_Left);
   } else if (evt_matches(KeyCombo.alt_right)) {
     Some(Alt_Right);
+  } else if (single_key != None) {
+    switch (single_key) {
+    | None => None
+    | Some(single_key) => Some(Single(single_key))
+    };
   } else {
     None;
   };
