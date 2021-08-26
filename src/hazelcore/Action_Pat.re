@@ -307,8 +307,8 @@ let rec syn_move =
   | SwapLeft
   | SwapRight
   | Init
-  | ReplaceAtCursor(_)
-  | ReplaceOpSeqAroundCursor(_) =>
+  | ReplaceOperand(_)
+  | ReplaceOpSeq(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -373,8 +373,8 @@ let rec ana_move =
   | SwapLeft
   | SwapRight
   | Init
-  | ReplaceAtCursor(_)
-  | ReplaceOpSeqAroundCursor(_) =>
+  | ReplaceOperand(_)
+  | ReplaceOpSeq(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -424,10 +424,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (
-      UpdateApPalette(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
-      ZOperator(_),
-    ) =>
+  | (UpdateApPalette(_) | ReplaceOperand(_) | ReplaceOpSeq(_), ZOperator(_)) =>
     Failed
 
   /* Invalid swap actions */
@@ -642,8 +639,8 @@ and syn_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      ReplaceOperand(_) |
+      ReplaceOpSeq(_),
       CursorP(_),
     ) =>
     Failed
@@ -913,10 +910,7 @@ and ana_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (
-      UpdateApPalette(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
-      ZOperator(_),
-    ) =>
+  | (UpdateApPalette(_) | ReplaceOperand(_) | ReplaceOpSeq(_), ZOperator(_)) =>
     Failed
   | (SwapUp | SwapDown, _) => Failed
 
@@ -1146,8 +1140,8 @@ and ana_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      ReplaceOperand(_) |
+      ReplaceOpSeq(_),
       CursorP(_),
     ) =>
     Failed

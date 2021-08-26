@@ -14,7 +14,7 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
 let idomaticity_score_parent =
     (action: Action.t, opParent: CursorInfo.opParent): int => {
   switch (action, opParent) {
-  | (ReplaceAtCursor(operand, None), Some(parent_operand)) =>
+  | (ReplaceOperand(operand, None), Some(parent_operand)) =>
     switch (parent_operand) {
     | CaseZE(_) =>
       switch (operand) {

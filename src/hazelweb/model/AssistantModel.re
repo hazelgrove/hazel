@@ -203,7 +203,7 @@ let renumber_suggestion_holes =
     );
   let action: Action.t =
     switch (action) {
-    | ReplaceAtCursor(operand, proj_z) =>
+    | ReplaceOperand(operand, proj_z) =>
       let (operand, _, _) =
         Statics_Exp.syn_fix_holes_operand(
           ctx,
@@ -211,8 +211,8 @@ let renumber_suggestion_holes =
           ~renumber_empty_holes=true,
           operand,
         );
-      ReplaceAtCursor(operand, proj_z);
-    // TODO| ReplaceOpSeqAroundCursor(zseq)
+      ReplaceOperand(operand, proj_z);
+    // TODO| ReplaceOpSeq(zseq)
     | _ => action
     };
   {...s, result, action};

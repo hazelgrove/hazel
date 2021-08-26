@@ -521,8 +521,8 @@ let rec syn_move =
   | SwapUp
   | SwapDown
   | Init
-  | ReplaceAtCursor(_)
-  | ReplaceOpSeqAroundCursor(_) =>
+  | ReplaceOperand(_)
+  | ReplaceOpSeq(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -582,8 +582,8 @@ let rec ana_move =
   | SwapUp
   | SwapDown
   | Init
-  | ReplaceAtCursor(_)
-  | ReplaceOpSeqAroundCursor(_) =>
+  | ReplaceOperand(_)
+  | ReplaceOpSeq(_) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -1024,7 +1024,7 @@ and syn_perform_line =
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
-  | (ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_), CursorL(_)) => Failed
+  | (ReplaceOperand(_) | ReplaceOpSeq(_), CursorL(_)) => Failed
 
   /* Zipper */
 
@@ -1100,7 +1100,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | ReplaceOperand(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1319,10 +1319,7 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
-  | (
-      ReplaceOpSeqAroundCursor(new_zseq),
-      ZOperator(_) | ZOperand(CursorE(_), _),
-    ) =>
+  | (ReplaceOpSeq(new_zseq), ZOperator(_) | ZOperand(CursorE(_), _)) =>
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)))
 
   /* Zipper */
@@ -1439,11 +1436,11 @@ and syn_perform_operand =
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
-    // ReplaceOpSeqAroundCursor handled at opseq level
+  | (ReplaceOpSeq(_), CursorE(_)) =>
+    // ReplaceOpSeq handled at opseq level
     Failed
 
-  | (ReplaceAtCursor(new_operand, z_proj), CursorE(_, _operand)) =>
+  | (ReplaceOperand(new_operand, z_proj), CursorE(_, _operand)) =>
     let fz_proj =
       switch (z_proj) {
       | None => ZExp.place_before
@@ -2049,10 +2046,7 @@ and syn_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (
-      SwapLeft | SwapRight | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
-      CursorR(_),
-    ) =>
+  | (SwapLeft | SwapRight | ReplaceOperand(_) | ReplaceOpSeq(_), CursorR(_)) =>
     Failed
 
   /* SwapUp and SwapDown actions */
@@ -2202,10 +2196,7 @@ and ana_perform_rules =
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
-  | (
-      SwapLeft | SwapRight | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
-      CursorR(_),
-    ) =>
+  | (SwapLeft | SwapRight | ReplaceOperand(_) | ReplaceOpSeq(_), CursorR(_)) =>
     Failed
 
   /* SwapUp and SwapDown actions */
@@ -2686,7 +2677,7 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (ReplaceAtCursor(_), ZOperator(_)) => Failed
+  | (ReplaceOperand(_), ZOperator(_)) => Failed
 
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (
@@ -2713,7 +2704,7 @@ and ana_perform_opseq =
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
-  | (ReplaceOpSeqAroundCursor(new_zseq), _) =>
+  | (ReplaceOpSeq(new_zseq), _) =>
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)))
 
   /* Zipper */
@@ -2883,11 +2874,11 @@ and ana_perform_operand =
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
-    // ReplaceOpSeqAroundCursor handled at opseq level
+  | (ReplaceOpSeq(_), CursorE(_)) =>
+    // ReplaceOpSeq handled at opseq level
     Failed
 
-  | (ReplaceAtCursor(new_operand, z_proj), CursorE(_)) =>
+  | (ReplaceOperand(new_operand, z_proj), CursorE(_)) =>
     let fz_proj =
       switch (z_proj) {
       | None => ZExp.place_before

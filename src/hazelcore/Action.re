@@ -49,5 +49,5 @@ type t =
   | SwapUp
   | SwapDown
   | Init
-  | ReplaceAtCursor(UHExp.operand, option(UHExp.t => ZExp.t))
-  | ReplaceOpSeqAroundCursor(ZExp.zseq);
+  | ReplaceOperand(UHExp.operand, option(UHExp.t => ZExp.t))
+  | ReplaceOpSeq(ZExp.zseq);

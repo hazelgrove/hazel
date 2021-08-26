@@ -650,8 +650,8 @@ let get_new_action_group =
     | MoveToNextHole
     | MoveToPrevHole
     | Init
-    | ReplaceAtCursor(_)
-    | ReplaceOpSeqAroundCursor(_) => Some(AssistantAction)
+    | ReplaceOperand(_)
+    | ReplaceOpSeq(_) => Some(AssistantAction)
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     };

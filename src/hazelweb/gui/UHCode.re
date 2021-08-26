@@ -209,10 +209,8 @@ let assistant_key_action =
     Some(UpdateAssistant(Increment_selection_index))
   | (Move(ArrowUp), Some(_)) =>
     Some(UpdateAssistant(Decrement_selection_index))
-  | (Combo(Enter), Some(ReplaceAtCursor(operand, _))) =>
-    Some(
-      AcceptSuggestion(ReplaceAtCursor(operand, Some(ZExp.place_after))),
-    )
+  | (Combo(Enter), Some(ReplaceOperand(operand, _))) =>
+    Some(AcceptSuggestion(ReplaceOperand(operand, Some(ZExp.place_after))))
   | (Combo(Enter), Some(action)) => Some(AcceptSuggestion(action))
   | (Combo(Tab), Some(action)) =>
     Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))

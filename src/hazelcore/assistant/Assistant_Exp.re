@@ -141,7 +141,7 @@ let mk_operand_suggestion =
     ~category,
     ~operand,
     ~result_text=string_of_operand(operand),
-    ~action=ReplaceAtCursor(operand, None),
+    ~action=ReplaceOperand(operand, None),
     ~result,
   );
 
@@ -218,7 +218,7 @@ let mk_app_suggestion =
   mk_suggestion(
     ~category=InsertApp,
     ~result_text=name,
-    ~action=ReplaceAtCursor(UHExp.Parenthesized(e), None),
+    ~action=ReplaceOperand(UHExp.Parenthesized(e), None),
     ~res_ty,
     ~result=e,
   );
@@ -268,7 +268,7 @@ let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
     ~category,
     ~operand,
     ~result_text=string_of_operand(operand),
-    ~action=ReplaceAtCursor(operand, None),
+    ~action=ReplaceOperand(operand, None),
   );
 
 let mk_wrap_suggestion =
@@ -377,7 +377,7 @@ let mk_replace_operator_suggestion =
   mk_suggestion(
     ~category=ReplaceOperator,
     ~result_text=Operators_Exp.to_string(new_operator),
-    ~action=ReplaceOpSeqAroundCursor(new_zseq),
+    ~action=ReplaceOpSeq(new_zseq),
     ~res_ty=seq_ty,
     ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
   );
