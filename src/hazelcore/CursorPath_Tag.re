@@ -1,6 +1,6 @@
 let of_z = (ztag: ZTag.t): CursorPath.t =>
   switch (ztag) {
-  | ZTag.CursorTag(cursor, _) => ([], cursor)
+  | CursorTag(cursor, _) => ([], cursor)
   };
 
 let of_steps =
@@ -32,9 +32,8 @@ let holes =
   };
 
 let holes_z =
-    (CursorTag(_, tag): ZTag.t, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhole_list =>
-  switch (tag) {
+    (ztag: ZTag.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
+  switch (ztag |> ZTag.erase) {
   | Tag(_) => CursorPath.empty_zhole_list
   | TagHole(u) => {
       ...CursorPath.empty_zhole_list,

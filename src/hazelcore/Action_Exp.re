@@ -501,10 +501,17 @@ let rec syn_move =
     switch (CursorPath_Exp.next_hole_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
+      print_endline("MTNH STEPS");
+      print_endline(
+        steps
+        |> List.map(Int.to_string)
+        |> ListUtil.join(" ")
+        |> StringUtil.cat,
+      );
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
       | None => Failed
       | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
-      }
+      };
     }
   | MoveLeft =>
     switch (ZExp.move_cursor_left(ze)) {

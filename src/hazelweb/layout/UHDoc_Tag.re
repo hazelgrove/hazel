@@ -4,7 +4,7 @@ let mk_Tag = (t: string): UHDoc.t =>
   mk_text(t) |> annot_Tessera |> annot_Operand(~sort=Tag);
 
 let mk_TagHole = (u: MetaVar.t): UHDoc.t =>
-  Int.to_string(u)
+  Int.to_string(u + 1)
   |> Delim.empty_hole_doc
   |> annot_Tessera
   |> annot_Operand(~sort=Tag);

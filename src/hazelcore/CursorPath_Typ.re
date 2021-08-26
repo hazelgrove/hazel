@@ -2,19 +2,21 @@ open OptUtil.Syntax;
 
 let rec of_z = (zty: ZTyp.t): CursorPath.t => of_zopseq(zty)
 and of_zopseq = zopseq => CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
-and of_zoperand = a => {
+and of_zoperand = zoperand => {
   // fun
-  let path =
-    switch (a) {
+  let result =
+    switch (zoperand) {
     | CursorT(cursor, _) => ([], cursor)
     | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
     | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
     | SumZ(zsumbody) => CursorPath_common.cons'(0, of_zsumbody(zsumbody))
     };
   print_endline("OF_ZOPERAND");
-  print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
-  path;
+  print_endline(
+    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(zoperand)),
+  );
+  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(result)));
+  result;
 }
 and of_zoperator =
   fun
@@ -22,22 +24,22 @@ and of_zoperator =
 and of_zsumbody = zsumbody =>
   CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumbody)
 and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
-and of_zsumbody_operand = a => {
+and of_zsumbody_operand = zoperand => {
   // fun
-  let path =
-    switch (a) {
+  let result =
+    switch (zoperand) {
+    | CursorATag(cursor, _, _) => ([], cursor)
     | ConstTagZ(ztag) => CursorPath_Tag.of_z(ztag)
     | ArgTagZT(ztag, _) =>
       CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
     | ArgTagZA(_, zty) => CursorPath_common.cons'(1, of_z(zty))
-    | CursorATag(cursor, _, _) => ([], cursor)
     };
   print_endline("OF_ZSUMBODY_OPERAND");
   print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(a)),
+    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)),
   );
-  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)));
-  path;
+  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(result)));
+  result;
 };
 
 let rec follow = (path: CursorPath.t, uty: UHTyp.t): option(ZTyp.t) =>
@@ -233,6 +235,20 @@ and of_steps_operand =
       }
     | Sum(Some(sumbody)) =>
       print_endline("NON-EMPTY SUM");
+      print_endline(Int.to_string(x));
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          Sexplib.Std.sexp_of_list(Sexplib.Std.sexp_of_int, xs),
+        ),
+      );
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          Sexplib.Std.sexp_of_option(
+            CursorPath.sexp_of_t,
+            of_steps_sumbody(xs, ~side, sumbody),
+          ),
+        ),
+      );
       switch (x) {
       | 0 =>
         let+ path = of_steps_sumbody(xs, ~side, sumbody);
@@ -289,7 +305,7 @@ and of_steps_sumbody_operand =
     Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operand(operand)),
   );
   switch (operand) {
-  | ConstTag(tag) => CursorPath_Tag.of_steps(steps, tag)
+  | ConstTag(tag) => CursorPath_Tag.of_steps(steps, ~side, tag)
   | ArgTag(tag, ty) =>
     switch (steps) {
     | [] => Some((steps, OnDelim(0, side)))
@@ -332,6 +348,8 @@ and of_steps_sumbody_operator =
 let hole_sort = _ => CursorPath.TypHole;
 let is_space = _ => false;
 
+let sumbody_hole_sort = (u: MetaVar.t) => CursorPath.TagHole(u);
+
 let rec holes =
         (
           uty: UHTyp.t,
@@ -361,7 +379,7 @@ and holes_operand =
   | Float
   | Bool
   | Sum(None) => hs
-  | Sum(Some(sumbody)) => hs |> holes_sumbody(sumbody, rev_steps)
+  | Sum(Some(sumbody)) => hs |> holes_sumbody(sumbody, [0, ...rev_steps])
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   }
@@ -375,7 +393,7 @@ and holes_sumbody =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand=holes_sumbody_operand,
-       ~hole_sort,
+       ~hole_sort=sumbody_hole_sort,
        ~is_space,
        ~rev_steps,
        sumbody,
@@ -390,8 +408,9 @@ and holes_sumbody_operand =
   switch (sumbody_operand) {
   | ConstTag(tag) => CursorPath_Tag.holes(tag, rev_steps, hs)
   | ArgTag(tag, ty) =>
-    let hs = CursorPath_Tag.holes(tag, [0, ...rev_steps], hs);
-    holes(ty, [1, ...rev_steps], hs);
+    hs
+    |> holes(ty, [1, ...rev_steps])
+    |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
   };
 
 let rec holes_z =
@@ -427,19 +446,20 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorT(OnDelim(_, _), Sum(None)) => CursorPath_common.no_holes
+
   | CursorT(OnDelim(k, _), Sum(Some(sumbody))) =>
-    let holes = holes_sumbody(sumbody, rev_steps, []);
+    let holes = holes_sumbody(sumbody, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
-    | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
+    | 0 => CursorPath_common.mk_zholes(~holes_after=holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | _ => CursorPath_common.no_holes
     };
   | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_) | Sum(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | SumZ(zsumbody) => holes_zsumbody(zsumbody, rev_steps)
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | SumZ(zsumbody) => holes_zsumbody(zsumbody, [0, ...rev_steps])
   }
 and holes_zsumbody =
     (zsumbody: ZTyp.zsumbody, rev_steps: CursorPath.rev_steps)
@@ -447,7 +467,7 @@ and holes_zsumbody =
   CursorPath_common.holes_zopseq_(
     ~holes_operand=holes_sumbody_operand,
     ~holes_zoperand=holes_zsumbody_operand,
-    ~hole_sort,
+    ~hole_sort=sumbody_hole_sort,
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zsumbody,
@@ -457,28 +477,45 @@ and holes_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zsumbody_operand) {
-  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, rev_steps)
-  | CursorATag(OnDelim(k, _), tag, ty) =>
-    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
-    let ty_holes = holes(ty, [1, ...rev_steps], []);
-    switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_after=tag_holes @ ty_holes, ())
-    | 1 =>
-      CursorPath_common.mk_zholes(
-        ~holes_before=tag_holes,
-        ~holes_after=ty_holes,
-        (),
-      )
-    | 2 => CursorPath_common.mk_zholes(~holes_before=tag_holes @ ty_holes, ())
-    | _ => CursorPath_common.no_holes
-    };
   | CursorATag(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
+  | CursorATag(cursor, tag, ty) =>
+    switch (cursor) {
+    | OnText(_)
+    | OnOp(_) => CursorPath_common.no_holes
+    | OnDelim(k, _) =>
+      let tag_holes = [] |> CursorPath_Tag.holes(tag, [0, ...rev_steps]);
+      let ty_holes = [] |> holes(ty, [1, ...rev_steps]);
+      switch (k) {
+      | 0 =>
+        CursorPath_common.mk_zholes(
+          ~holes_before=tag_holes,
+          ~holes_after=ty_holes,
+          (),
+        )
+      | 1 =>
+        CursorPath_common.mk_zholes(~holes_before=tag_holes @ ty_holes, ())
+      | _ => CursorPath_common.no_holes
+      };
+    }
+  | ConstTagZ(ztag) => CursorPath_Tag.holes_z(ztag, rev_steps)
   | ArgTagZT(ztag, ty) =>
-    let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
-    let ty_holes = holes(ty, [1, ...rev_steps], []);
-    {...tag_holes, holes_after: tag_holes.holes_after @ ty_holes};
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
+    let ty_holes = [] |> holes(ty, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ ty_holes,
+      (),
+    );
   | ArgTagZA(tag, zty) =>
-    let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
-    let ty_holes = holes_z(zty, [1, ...rev_steps]);
-    {...ty_holes, holes_before: tag_holes @ ty_holes.holes_before};
+    let tag_holes = [] |> CursorPath_Tag.holes(tag, [0, ...rev_steps]);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zty, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=tag_holes @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   };
