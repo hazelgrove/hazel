@@ -1,4 +1,4 @@
-type t('tile) = (Skel.t, Tiles.t('tile));
+type t('tile) = (Skel.t, list('tile));
 
 exception EmptyTuple;
 
@@ -11,7 +11,7 @@ let get =
       (skel, tiles): t'(Tile_base.t('op, 'pre, 'post, 'bin)) as 't,
     )
     : 'out => {
-  let tile = Tiles.nth(tiles, Skel.root_step(skel'));
+  let tile = List.nth(tiles, Skel.root_step(skel'));
   switch (skel) {
   | Op(n) => get_op(Tile_base.get_op(tile))
   | Pre(n, r) => get_pre(Tile_base.get_pre(tile), (r, tiles))

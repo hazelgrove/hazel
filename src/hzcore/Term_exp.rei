@@ -1,5 +1,5 @@
 type t = Term_base.t(tile)
-and tile = Tile_base.t(op, pre, post, bin) // individual tile
+and tile = Tile_base.t(op, pre, post, bin)
 // TODO add grout to list(t)
 // maybe just list(grout_or(t))
 and op =
@@ -13,9 +13,11 @@ and op =
 and rules = list(rule)
 and rule = (Term_pat.s, t)
 and pre =
+  | CommentPre(option(string))
   | Fun(Term_pat.t)
   | Let(Term_pat.t, t)
 and post =
+  | CommentPost(option(string))
   | Ap(s)
 and bin =
   | BinHole(MetaVar.t)

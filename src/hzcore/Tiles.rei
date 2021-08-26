@@ -1,2 +1,2 @@
-type t = Tiles_base.t(Tile.t);
-type frame = Tiles_base.frame(Tile.t);
+type t = list(Tile.t);
+type frame = ListFrame.t(Tile.t);
