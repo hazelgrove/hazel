@@ -20,7 +20,7 @@ jobs:
         id: opam-cache
         uses: actions/cache@v2
         with:
-          path: './.opam/'
+          path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Install dependencies and build hazel # STEP 3
         run: |
@@ -31,7 +31,7 @@ jobs:
           make deps 
           make release
         working-directory: ./source
-      - name: Checkout the website repo # STEP 4
+      - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
