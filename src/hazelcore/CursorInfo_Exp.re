@@ -240,18 +240,18 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
 let rec syn_cursor_info =
         (
           ~steps=[],
-          ~syntactic_context: CursorInfo.syntactic_context,
+          ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
           ~opParent: CursorInfo.opParent,
           ctx: Contexts.t,
           ze: ZExp.t,
         )
         : option(CursorInfo.t) => {
-  syn_cursor_info_zblock(~steps, ctx, ze, ~syntactic_context, ~opParent);
+  syn_cursor_info_zblock(~steps, ctx, ze, ~enclosing_zopseq, ~opParent);
 }
 and syn_cursor_info_zblock =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
@@ -263,7 +263,7 @@ and syn_cursor_info_zblock =
     switch (
       syn_cursor_info_line(
         ~steps=steps @ [List.length(prefix)],
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
         ctx,
         zline,
@@ -286,24 +286,14 @@ and syn_cursor_info_zblock =
 and syn_cursor_info_line =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       zline: ZExp.zline,
       suffix,
     )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
-  /*let mk = typed =>
-    CursorInfo_common.mk(
-      typed,
-      ctx,
-      cursor_term,
-      ~syntactic_context,
-      ~opParent,
-    );*/
   switch (zline) {
-  //let cursor_term = extract_from_zline(zline);
-
   | CursorL(_, LetLine(p, def)) =>
     let+ ty = Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix]);
     CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -358,7 +348,7 @@ and syn_cursor_info_line =
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     let+ ci =
       ana_cursor_info(
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
         ~steps=steps @ [1],
         def_ctx,
@@ -383,10 +373,8 @@ and syn_cursor_info_zopseq =
   // but we want all comma operators in an opseq to
   // show the complete product type
 
-  // NOTE(andrew): overwrite existing syntactic context
-  let opseq = ZExp.erase_zopseq(zopseq);
-  let err = UHExp.get_err_status_opseq(opseq);
-  let syntactic_context = CursorInfo.ExpSeq(Hole, zseq, err);
+  // NOTE(andrew): overwrite existing enclosing_zopseq
+  let enclosing_zopseq = CursorInfo.ExpSeq(zopseq, None);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -396,7 +384,7 @@ and syn_cursor_info_zopseq =
            Synthesized(ty),
            ctx,
            extract_from_zexp_zseq(zseq),
-           ~syntactic_context,
+           ~enclosing_zopseq,
            ~opParent,
          )
        )
@@ -411,7 +399,7 @@ and syn_cursor_info_zopseq =
       ctx,
       cursor_skel,
       zseq,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   };
@@ -419,7 +407,7 @@ and syn_cursor_info_zopseq =
 and syn_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       skel: UHExp.skel,
@@ -436,7 +424,7 @@ and syn_cursor_info_skel =
         ~steps=steps @ [Seq.length_of_affix(prefix)],
         ctx,
         zoperand,
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
       )
     | ZOperator(_) =>
@@ -446,7 +434,7 @@ and syn_cursor_info_skel =
              Synthesized(ty),
              ctx,
              extract_from_zexp_zseq(zseq),
-             ~syntactic_context,
+             ~enclosing_zopseq,
              ~opParent,
            )
          )
@@ -472,7 +460,7 @@ and syn_cursor_info_skel =
           skel1,
           zseq,
           HTyp.Int,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       ) {
@@ -484,7 +472,7 @@ and syn_cursor_info_skel =
           skel2,
           zseq,
           Int,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       }
@@ -501,7 +489,7 @@ and syn_cursor_info_skel =
           skel1,
           zseq,
           HTyp.Float,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       ) {
@@ -513,7 +501,7 @@ and syn_cursor_info_skel =
           skel2,
           zseq,
           Float,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       }
@@ -525,7 +513,7 @@ and syn_cursor_info_skel =
           skel1,
           zseq,
           Bool,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       ) {
@@ -537,7 +525,7 @@ and syn_cursor_info_skel =
           skel2,
           zseq,
           Bool,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       }
@@ -553,7 +541,7 @@ and syn_cursor_info_skel =
             typed,
             ctx,
             extract_from_zexp_zseq(zseq),
-            ~syntactic_context,
+            ~enclosing_zopseq,
             ~opParent,
           );
         switch (cursor_on_outer_expr(zoperand)) {
@@ -562,7 +550,7 @@ and syn_cursor_info_skel =
             ~steps=steps @ [n],
             ctx,
             zoperand,
-            ~syntactic_context,
+            ~enclosing_zopseq,
             ~opParent,
           )
         | Some(StandardErr(InHole(WrongLength, _))) => None
@@ -611,7 +599,7 @@ and syn_cursor_info_skel =
               skel2,
               zseq,
               ty1,
-              ~syntactic_context,
+              ~enclosing_zopseq,
               ~opParent,
             )
           }
@@ -624,7 +612,7 @@ and syn_cursor_info_skel =
           ctx,
           skel1,
           zseq,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       ) {
@@ -642,7 +630,7 @@ and syn_cursor_info_skel =
               skel2,
               zseq,
               ty1,
-              ~syntactic_context,
+              ~enclosing_zopseq,
               ~opParent,
             )
           }
@@ -655,7 +643,7 @@ and syn_cursor_info_skel =
           ctx,
           skel1,
           zseq,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         )
       ) {
@@ -671,7 +659,7 @@ and syn_cursor_info_skel =
             skel2,
             zseq,
             ty_list,
-            ~syntactic_context,
+            ~enclosing_zopseq,
             ~opParent,
           );
         }
@@ -682,7 +670,7 @@ and syn_cursor_info_skel =
 and syn_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
@@ -695,7 +683,7 @@ and syn_cursor_info_zoperand =
       typed,
       ctx,
       cursor_term,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   let syn_cursor_info_go = (~steps, ctx, zexp) =>
@@ -703,7 +691,7 @@ and syn_cursor_info_zoperand =
       ~steps,
       ctx,
       zexp,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     );
   let ana_cursor_info_go = (~steps, ctx, zexp, ty) =>
@@ -712,7 +700,7 @@ and syn_cursor_info_zoperand =
       ctx,
       zexp,
       ty,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     );
   switch (zoperand) {
@@ -791,7 +779,7 @@ and syn_cursor_info_zoperand =
       | Some(lub) =>
         syn_cursor_info_rule(
           ~steps=steps @ [1 + List.length(prefix)],
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent=opParent_new,
           ctx,
           zrule,
@@ -809,18 +797,18 @@ and syn_cursor_info_zoperand =
 and ana_cursor_info =
     (
       ~steps=[],
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       ze: ZExp.t,
       ty: HTyp.t,
     )
     : option(CursorInfo.t) =>
-  ana_cursor_info_zblock(~steps, ~syntactic_context, ~opParent, ctx, ze, ty)
+  ana_cursor_info_zblock(~steps, ~enclosing_zopseq, ~opParent, ctx, ze, ty)
 and ana_cursor_info_zblock =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
@@ -863,7 +851,7 @@ and ana_cursor_info_zblock =
         | _ =>
           switch (
             syn_cursor_info_line(
-              ~syntactic_context,
+              ~enclosing_zopseq,
               ~opParent,
               ~steps=steps @ [List.length(prefix)],
               ctx,
@@ -903,14 +891,14 @@ and ana_cursor_info_zopseq =
   let cursor_term = extract_from_zexp_zseq(zseq);
   let opseq = ZExp.erase_zopseq(zopseq);
   let err = UHExp.get_err_status_opseq(opseq);
-  // NOTE(andrew): overwrite existing syntactic context
-  let syntactic_context = CursorInfo.ExpSeq(ty, zseq, err);
+  // NOTE(andrew): overwrite existing enclosing_zopseq
+  let enclosing_zopseq = CursorInfo.ExpSeq(zopseq, Some(ty));
   let mk = typed =>
     CursorInfo_common.mk(
       typed,
       ctx,
       cursor_term,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   switch (zseq) {
@@ -945,7 +933,7 @@ and ana_cursor_info_zopseq =
         cursor_skel,
         zseq,
         cursor_skel_ty,
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
       );
     }
@@ -955,7 +943,7 @@ and ana_cursor_info_skel =
     // steps of whole opseq
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       skel: UHExp.skel,
@@ -969,7 +957,7 @@ and ana_cursor_info_skel =
       typed,
       ctx,
       cursor_term,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   let syn_go = skel =>
@@ -978,7 +966,7 @@ and ana_cursor_info_skel =
       ctx,
       skel,
       zseq,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   let ana_go = (skel, ty) =>
@@ -988,7 +976,7 @@ and ana_cursor_info_skel =
       skel,
       zseq,
       ~opParent,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ty,
     );
   let seq = zseq |> ZExp.erase_zseq;
@@ -999,7 +987,7 @@ and ana_cursor_info_skel =
       // skel must be Placeholder
       ana_cursor_info_zoperand(
         ~steps=steps @ [Seq.length_of_affix(prefix)],
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
         ctx,
         zoperand,
@@ -1063,7 +1051,7 @@ and ana_cursor_info_skel =
 and ana_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
@@ -1076,7 +1064,7 @@ and ana_cursor_info_zoperand =
       typed,
       ctx,
       cursor_term,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent,
     );
   let opParent_new = Some(zoperand);
@@ -1085,7 +1073,7 @@ and ana_cursor_info_zoperand =
       ~steps,
       ctx,
       zexp,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     );
   let ana_cursor_info_go = (~steps, ctx, zexp, ty) =>
@@ -1094,7 +1082,7 @@ and ana_cursor_info_zoperand =
       ctx,
       zexp,
       ty,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     );
   switch (zoperand) {
@@ -1183,7 +1171,7 @@ and ana_cursor_info_zoperand =
       ~steps,
       ctx,
       zoperand,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     ) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
@@ -1232,7 +1220,7 @@ and ana_cursor_info_zoperand =
         zrule,
         ty1,
         ty,
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent=opParent_new,
       )
     }
@@ -1241,7 +1229,7 @@ and ana_cursor_info_zoperand =
       ~steps,
       ctx,
       zoperand,
-      ~syntactic_context,
+      ~enclosing_zopseq,
       ~opParent=opParent_new,
     )
   };
@@ -1249,7 +1237,7 @@ and ana_cursor_info_zoperand =
 and syn_cursor_info_rule =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
@@ -1265,7 +1253,7 @@ and syn_cursor_info_rule =
         OnRule,
         ctx,
         extract_from_zrule(zrule),
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
       ),
     )
@@ -1289,7 +1277,7 @@ and syn_cursor_info_rule =
           ~steps=steps @ [1],
           ctx,
           zclause,
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
         );
       /* Check if the cursor is on the outermost form of the clause */
@@ -1315,7 +1303,7 @@ and syn_cursor_info_rule =
             CursorInfo_common.mk(
               ~uses,
               ~parent_info,
-              ~syntactic_context,
+              ~enclosing_zopseq,
               ~opParent,
               typed,
               ctx,
@@ -1329,7 +1317,7 @@ and syn_cursor_info_rule =
 and ana_cursor_info_rule =
     (
       ~steps: CursorPath.steps,
-      ~syntactic_context: CursorInfo.syntactic_context,
+      ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
       ~opParent: CursorInfo.opParent,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
@@ -1344,7 +1332,7 @@ and ana_cursor_info_rule =
         OnRule,
         ctx,
         extract_from_zrule(zrule),
-        ~syntactic_context,
+        ~enclosing_zopseq,
         ~opParent,
       ),
     )
@@ -1364,7 +1352,7 @@ and ana_cursor_info_rule =
     | Some(ctx) =>
       let+ cursor_info =
         ana_cursor_info(
-          ~syntactic_context,
+          ~enclosing_zopseq,
           ~opParent,
           ~steps=steps @ [1],
           ctx,

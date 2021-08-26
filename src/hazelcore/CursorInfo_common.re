@@ -215,7 +215,7 @@ let mk =
     (
       ~uses=?,
       ~parent_info=NoParentInfo,
-      ~syntactic_context=CursorInfo.NoSeq,
+      ~enclosing_zopseq=CursorInfo.NoSeq,
       ~opParent=None,
       typed,
       ctx,
@@ -235,7 +235,7 @@ let mk =
     cursor_term,
     expected_ty,
     actual_ty,
-    syntactic_context,
+    enclosing_zopseq,
     opParent,
     parent_info,
   };

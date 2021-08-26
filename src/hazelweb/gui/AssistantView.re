@@ -203,8 +203,12 @@ let compareMetaData = (frame: CursorFrame.t, ci: CursorInfo.t) => {
   let ci_actual = ci.actual_ty;
   let ci_enclosing_operand = ci.opParent;
   let (ci_enclosing_opseq_ty, ci_enclosing_seq, ci_enclosing_opseq_err) =
-    switch (ci.syntactic_context) {
-    | ExpSeq(ty, zseq, err) => (Some(ty), Some(zseq), Some(err))
+    switch (ci.enclosing_zopseq) {
+    | ExpSeq(zopseq, ty) => (
+        ty,
+        Some(zopseq),
+        Some(ZExp.get_err_status_zopseq(zopseq)),
+      )
     | NoSeq => (None, None, None)
     };
   let fr_expected = CursorFrame.get_expected_type_cursor_term(frame);
@@ -212,15 +216,13 @@ let compareMetaData = (frame: CursorFrame.t, ci: CursorInfo.t) => {
   let fr_enclosing_operand = CursorFrame.enclosing_operand(frame);
   let (fr_enclosing_opseq_ty, fr_enclosing_seq, fr_enclosing_opseq_err) =
     switch (CursorFrame.enclosing_zopseq_si(frame)) {
-    | Some(
-        {slice: ExpSeq(ZOpSeq(_, zseq)), ty_e, err, _}: CursorFrame.slice_info,
-      ) => (
+    | Some({slice: ExpSeq(zopseq), ty_e, err, _}: CursorFrame.slice_info) => (
         //NOTE:
         switch (ty_e) {
         | None => Some(HTyp.Hole)
         | Some(ty) => Some(ty)
         },
-        Some(zseq),
+        Some(zopseq),
         err,
       )
     | _ => (None, None, None)
@@ -247,8 +249,8 @@ let compareMetaData = (frame: CursorFrame.t, ci: CursorInfo.t) => {
   Printf.printf(
     "4. zopseq %b // CI: %s FR: %s \n",
     ci_enclosing_seq == fr_enclosing_seq,
-    p(ZExp.sexp_of_zseq, ci_enclosing_seq),
-    p(ZExp.sexp_of_zseq, fr_enclosing_seq),
+    p(ZExp.sexp_of_zopseq, ci_enclosing_seq),
+    p(ZExp.sexp_of_zopseq, fr_enclosing_seq),
   );
   Printf.printf(
     "5. zopseq_ty: %b // CI: %s FR: %s \n",

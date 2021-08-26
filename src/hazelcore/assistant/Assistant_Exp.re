@@ -355,19 +355,20 @@ let operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
 let mk_replace_operator_suggestion =
     (
       seq_ty: HTyp.t,
-      zseq: ZExp.zseq,
+      zopseq: ZExp.zopseq,
       ctx: Contexts.t,
       new_operator: Operators_Exp.t,
     )
     : suggestion => {
-  /* only support binary operators */
-  /* TODO(andrew): bug: resets cursor position */
+  /* TODO: only support binary operators */
+  /* TODO: retain cursor position */
   let fix_holes_local = (ctx: Contexts.t, exp: UHExp.t): UHExp.t =>
     exp
     |> Statics_Exp.syn_fix_holes(ctx, MetaVarGen.init)
     |> (((x, _, _)) => x);
+  let OpSeq(_, seq) = ZExp.erase_zopseq(zopseq);
   let new_seq =
-    switch (ZExp.erase_zseq(zseq)) {
+    switch (seq) {
     | S(operand1, A(_operator, S(operand2, E))) =>
       Seq.S(operand1, A(new_operator, S(operand2, E)))
     | _ => failwith("mk_replace_operator_suggestion impossible case")
@@ -395,22 +396,27 @@ let actual_ty_operand = (~ctx, operand) =>
   };
 
 let replace_operator_suggestions =
-    (ctx: Contexts.t, seq_ty: HTyp.t, zseq: ZExp.zseq, _err: ErrStatus.t) => {
-  /* only supports binary operators */
-  switch (ZExp.erase_zseq(zseq)) {
+    (ctx: Contexts.t, zopseq: ZExp.zopseq, ty: option(HTyp.t)) => {
+  /* TODO: only supports binary operators */
+  let OpSeq(_, seq) = ZExp.erase_zopseq(zopseq);
+  let ty =
+    switch (ty) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
+    };
+  switch (seq) {
   | S(operand1, A(_operator, S(operand2, E))) =>
     let in1_ty = actual_ty_operand(~ctx, operand1);
     let in2_ty = actual_ty_operand(~ctx, operand2);
-    operator_of_ty(in1_ty, in2_ty, seq_ty)
-    |> List.map(mk_replace_operator_suggestion(seq_ty, zseq, ctx));
+    operator_of_ty(in1_ty, in2_ty, ty)
+    |> List.map(mk_replace_operator_suggestion(ty, zopseq, ctx));
   | _ => []
   };
 };
 
 let operator_suggestions =
-    ({syntactic_context, ctx, _}: CursorInfo.t): list(suggestion) =>
-  switch (syntactic_context) {
-  | ExpSeq(seq_ty, zseq, err) =>
-    replace_operator_suggestions(ctx, seq_ty, zseq, err)
+    ({enclosing_zopseq, ctx, _}: CursorInfo.t): list(suggestion) =>
+  switch (enclosing_zopseq) {
+  | ExpSeq(zopseq, ty) => replace_operator_suggestions(ctx, zopseq, ty)
   | _ => []
   };

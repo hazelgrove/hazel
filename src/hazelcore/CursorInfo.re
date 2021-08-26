@@ -124,8 +124,8 @@ type cursor_term =
 
 /* the zseq most immediately containing the cursor_term */
 [@deriving sexp]
-type syntactic_context =
-  | ExpSeq(HTyp.t, ZExp.zseq, ErrStatus.t)
+type enclosing_zopseq =
+  | ExpSeq(ZExp.zopseq, option(HTyp.t))
   | NoSeq;
 
 [@deriving sexp]
@@ -145,7 +145,7 @@ type t = {
   ctx: Contexts.t,
   expected_ty: HTyp.t,
   actual_ty: option(HTyp.t),
-  syntactic_context,
+  enclosing_zopseq,
   opParent,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),

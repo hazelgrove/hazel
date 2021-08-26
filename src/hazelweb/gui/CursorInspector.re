@@ -58,7 +58,7 @@ let ci_control_pane =
           Node.div(
             [Attr.id("ci-control-pane-mode-switch")],
             [
-              Node.text("cycle inspector mode"),
+              Node.text("Inspector mode"),
               Node.div(
                 [Attr.classes(["key"])],
                 [Node.text("CTRL-SPACE")],

@@ -103,7 +103,7 @@ module EditState_Exp = {
     CursorInfo_Exp.syn_cursor_info(
       ~opParent=None,
       ~steps=[],
-      ~syntactic_context=CursorInfo.NoSeq,
+      ~enclosing_zopseq=CursorInfo.NoSeq,
     );
   let of_steps = CursorPath_Exp.of_steps(~side=Before);
 

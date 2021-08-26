@@ -57,18 +57,16 @@ let type_specificity_score =
   };
 
 let opseq_report =
-    (action: Action.t, {ctx, syntactic_context, _}: CursorInfo.t) => {
-  let* (opseq_expected_ty, old_zexp, context_consistent_before) =
-    switch (syntactic_context) {
-    | ExpSeq(expected_ty, zseq, err) =>
-      Some((
-        expected_ty,
-        zseq |> ZExp.mk_ZOpSeq |> ZExp.ZBlock.wrap',
-        switch (err) {
-        | NotInHole => true
-        | _ => false
-        },
-      ))
+    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
+  let* (opseq_expected_ty, old_zexp) =
+    switch (enclosing_zopseq) {
+    | ExpSeq(zopseq, expected_ty) =>
+      let expected_ty =
+        switch (expected_ty) {
+        | None => HTyp.Hole
+        | Some(ty) => ty
+        };
+      Some((expected_ty, zopseq |> ZExp.ZBlock.wrap'));
     | _ => None
     };
   let+ (actual_ty, new_zexp) =
@@ -87,12 +85,7 @@ let opseq_report =
     HTyp.consistent(opseq_expected_ty, actual_ty);
   let internal_errors_before = old_zexp |> err_holes |> List.length;
   let internal_errors_after = new_zexp |> err_holes |> List.length;
-  (
-    context_consistent_before,
-    context_consistent_after,
-    internal_errors_before,
-    internal_errors_after,
-  );
+  (context_consistent_after, internal_errors_before, internal_errors_after);
 };
 
 let check_suggestion =
@@ -103,17 +96,15 @@ let check_suggestion =
     )
     : option(Suggestion.score) => {
   let+ (
-    context_consistent_before,
     context_consistent_after,
     internal_errors_before,
     internal_errors_after,
   ) =
     opseq_report(action, ci);
   let context_errors =
-    switch (context_consistent_before, context_consistent_after) {
-    | (true, false) => (-1)
-    | (false, true) => 1
-    | _ => 0
+    switch (context_consistent_after) {
+    | false => (-1)
+    | true => 0
     };
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
