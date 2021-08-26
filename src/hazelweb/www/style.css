@@ -42,6 +42,10 @@
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
+  --tag-bg-color: rgb(248, 212, 224);
+  --tag-shadow-color: rgb(248, 192, 224);
+  --tag-bright-shadow-color: rgb(224, 112, 212);
+
   --current-term-z: 0;
   --var-use-z: 0;
   --err-hole-z: 1;
@@ -984,6 +988,9 @@ h1 {
 #code-root .current-term-drop-shadow.Typ {
   flood-color: var(--typ-shadow-color);
 }
+#code-root .current-term-drop-shadow.Tag {
+  flood-color: var(--tag-shadow-color);
+}
 
 #code-root .code-current-term {
   filter: url(#outer-drop-shadow);
@@ -997,6 +1004,9 @@ h1 {
 #code-root .code-current-term.Typ {
   fill: var(--typ-bg-color);
 }
+#code-root .code-current-term.Tag {
+  fill: var(--tag-bg-color);
+}
 
 #code-root .closed-child-inset-shadow.Exp {
   flood-color: var(--exp-shadow-color);
@@ -1006,6 +1016,9 @@ h1 {
 }
 #code-root .closed-child-inset-shadow.Typ {
   flood-color: var(--typ-bright-shadow-color);
+}
+#code-root .closed-child-inset-shadow.Tag {
+  flood-color: var(--tag-bright-shadow-color);
 }
 
 #code-root .closed-child-drop-shadow {
@@ -1019,6 +1032,9 @@ h1 {
 }
 #code-root .code-closed-child.Typ {
   filter: url(#typ-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.Tag {
+  filter: url(#tag-closed-child-drop-shadow);
 }
 
 .code .VBox {

@@ -76,9 +76,9 @@ module CurrentTerm = {
 
   let sort_cls: TermSort.t => string =
     fun
-    | Tag
     | SumBody
     | Typ => "Typ"
+    | Tag => "Tag"
     | Pat => "Pat"
     | Exp => "Exp";
 
