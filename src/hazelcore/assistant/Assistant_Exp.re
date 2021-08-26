@@ -373,11 +373,11 @@ let mk_replace_operator_suggestion =
     | _ => failwith("mk_replace_operator_suggestion impossible case")
     };
   let new_opseq = new_seq |> UHExp.mk_OpSeq;
-  let ZOpSeq(_, new_zseq) = ZExp.place_before_opseq(new_opseq);
+  let new_zopseq = ZExp.place_before_opseq(new_opseq);
   mk_suggestion(
     ~category=ReplaceOperator,
     ~result_text=Operators_Exp.to_string(new_operator),
-    ~action=ReplaceOpSeq(new_zseq),
+    ~action=ReplaceOpSeq(new_zopseq),
     ~res_ty=seq_ty,
     ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
   );

@@ -50,4 +50,4 @@ type t =
   | SwapDown
   | Init
   | ReplaceOperand(UHExp.operand, option(UHExp.t => ZExp.t))
-  | ReplaceOpSeq(ZExp.zseq);
+  | ReplaceOpSeq(ZExp.zopseq);

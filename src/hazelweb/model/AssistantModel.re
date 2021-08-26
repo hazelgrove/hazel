@@ -212,7 +212,6 @@ let renumber_suggestion_holes =
           operand,
         );
       ReplaceOperand(operand, proj_z);
-    // TODO| ReplaceOpSeq(zseq)
     | _ => action
     };
   {...s, result, action};

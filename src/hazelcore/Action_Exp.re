@@ -1319,8 +1319,16 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
-  | (ReplaceOpSeq(new_zseq), ZOperator(_) | ZOperand(CursorE(_), _)) =>
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)))
+  | (ReplaceOpSeq(new_zopseq), ZOperator(_) | ZOperand(CursorE(_), _)) =>
+    Succeeded(
+      SynDone(
+        Statics_Exp.syn_fix_holes_z(
+          ctx,
+          u_gen,
+          ([], ExpLineZ(new_zopseq), []),
+        ),
+      ),
+    )
 
   /* Zipper */
 
@@ -2704,8 +2712,17 @@ and ana_perform_opseq =
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
-  | (ReplaceOpSeq(new_zseq), _) =>
-    Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)))
+  | (ReplaceOpSeq(new_zopseq), _) =>
+    Succeeded(
+      AnaDone(
+        Statics_Exp.ana_fix_holes_z(
+          ctx,
+          u_gen,
+          ([], ExpLineZ(new_zopseq), []),
+          ty,
+        ),
+      ),
+    )
 
   /* Zipper */
 
