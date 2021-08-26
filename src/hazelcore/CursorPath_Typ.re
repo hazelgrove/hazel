@@ -1,5 +1,7 @@
 open OptUtil.Syntax;
 
+let mk_hole_sort = CursorPath.mk_hole_sort;
+
 let rec of_z = (zty: ZTyp.t): CursorPath.t => of_zopseq(zty)
 
 and of_zopseq = zopseq => CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
@@ -275,7 +277,7 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
+  | Hole => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs]
   | Unit
   | Int
   | Float
@@ -336,7 +338,7 @@ and holes_zoperand =
   switch (zoperand) {
   | CursorT(_, Hole) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some({sort: TypHole, steps: List.rev(rev_steps)}),
+      ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes

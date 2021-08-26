@@ -1,5 +1,7 @@
 open OptUtil.Syntax;
 
+let mk_hole_sort = CursorPath.mk_hole_sort;
+
 let rec of_z = (zp: ZPat.t): CursorPath.t => of_zopseq(zp)
 and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
@@ -210,7 +212,7 @@ and holes_operand =
     : CursorPath.hole_list =>
   switch (operand) {
   | EmptyHole(u) => [
-      {sort: PatHole(u, Empty), steps: List.rev(rev_steps)},
+      mk_hole_sort(PatHole(u, Empty), List.rev(rev_steps)),
       ...hs,
     ]
   | Var(err, verr, _) =>
@@ -221,7 +223,7 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | InvalidText(u, _) => [
-      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
+      mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps)),
     ]
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, tag, None) =>
@@ -269,13 +271,13 @@ and holes_zoperand =
   | CursorP(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({sort: PatHole(u, Empty), steps: List.rev(rev_steps)}),
+        Some(mk_hole_sort(PatHole(u, Empty), List.rev(rev_steps))),
       (),
     )
   | CursorP(_, InvalidText(u, _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
+        Some(mk_hole_sort(PatHole(u, VarErr), List.rev(rev_steps))),
       (),
     )
   | CursorP(_, Var(err, verr, _)) =>
@@ -284,13 +286,13 @@ and holes_zoperand =
     | (InHole(_, u), _) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(PatHole(u, VarErr), List.rev(rev_steps))),
         (),
       )
     }
@@ -304,7 +306,7 @@ and holes_zoperand =
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     }
@@ -331,7 +333,8 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)})
+        let steps = List.rev(rev_steps);
+        Some({sort: PatHole(u, TypeErr), steps, ap_steps: steps});
       };
     switch (k) {
     | 0 =>
@@ -347,7 +350,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)})
+        Some(mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps)))
       };
     switch (k) {
     | 0 =>
@@ -379,13 +382,15 @@ and holes_zoperand =
     let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
     switch (err) {
     | NotInHole => tag_holes
-    | InHole(_, u) => {
+    | InHole(_, u) =>
+      let steps = List.rev(rev_steps);
+      {
         ...tag_holes,
         holes_before: [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          {sort: ExpHole(u, TypeErr), steps, ap_steps: steps},
           ...tag_holes.holes_before,
         ],
-      }
+      };
     };
   | InjZT(err, ztag, Some(body)) =>
     let tag_holes = CursorPath_Tag.holes_z(ztag, [0, ...rev_steps]);
@@ -396,13 +401,15 @@ and holes_zoperand =
     };
     switch (err) {
     | NotInHole => all_holes
-    | InHole(_, u) => {
+    | InHole(_, u) =>
+      let steps = List.rev(rev_steps);
+      {
         ...all_holes,
         holes_before: [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          {sort: ExpHole(u, TypeErr), steps, ap_steps: steps},
           ...all_holes.holes_before,
         ],
-      }
+      };
     };
   | InjZP(err, tag, zbody) =>
     let tag_holes = CursorPath_Tag.holes(tag, [0, ...rev_steps], []);
@@ -415,7 +422,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...zbody_holes,
         holes_before: [
-          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps)),
           ...zbody_holes.holes_before,
         ],
       }
@@ -432,7 +439,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...all_holes,
         holes_before: [
-          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps)),
           ...all_holes.holes_before,
         ],
       }
@@ -449,7 +456,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...all_holes,
         holes_before: [
-          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps)),
           ...all_holes.holes_before,
         ],
       }
