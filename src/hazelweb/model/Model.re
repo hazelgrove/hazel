@@ -6,7 +6,6 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
 };
@@ -78,7 +77,6 @@ let init = (): t => {
         row_height: 1.0,
         col_width: 1.0,
       },
-    is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
   };

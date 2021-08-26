@@ -58,7 +58,7 @@ let action_button =
       inject: ModelAction.t => Event.t,
       a: Action.t,
       lbl: list(Node.t),
-      key_combo,
+      key_combo: KeyCombo.t,
     ) => {
   let can_perform = is_action_allowed(a);
   Node.div(
@@ -157,7 +157,7 @@ let action_list =
   );
 };
 
-let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
+let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   let text = Node.text;
   let simple = desc => [Node.text(desc)];
 
@@ -166,13 +166,13 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
   };
 
   let action_of_combo = combo =>
-    switch (KeyComboAction.get_model_action(cursor_info, combo, is_mac)) {
+    switch (KeyComboAction.get_model_action(cursor_info, combo)) {
     | Some(EditAction(action)) => action
     | _ =>
       failwith(
         __LOC__
         ++ ": "
-        ++ (combo |> HazelKeyCombos.get_details |> KeyCombo.name)
+        ++ HazelKeyCombos.name(combo)
         ++ " does not correspond to an EditAction in KeyComboAction.get_model_action",
       )
     };
@@ -275,11 +275,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject, is_mac) => {
         ),
         single_line_multiple_actions(
           "Swap line up / down",
-          [keyboard_button(Ctrl_Alt_I), keyboard_button(Ctrl_Alt_K)],
+          [keyboard_button(Alt_Up), keyboard_button(Alt_Down)],
         ),
         single_line_multiple_actions(
           "Swap operand left / right",
-          [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
+          [keyboard_button(Alt_Left), keyboard_button(Alt_Right)],
         ),
         combo(Enter, simple("Create new line ")),
         single_line_multiple_actions(
@@ -443,8 +443,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
     };
   };
 
-  let body =
-    generate_panel_body(is_action_allowed, cursor_info, inject, model.is_mac);
+  let body = generate_panel_body(is_action_allowed, cursor_info, inject);
 
   action_panel(body);
 };

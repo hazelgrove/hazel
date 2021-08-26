@@ -10,7 +10,7 @@ type menu_entry = {
 let menu_entries: list(menu_entry) = [
   {
     label: "Serialize to console",
-    shortcut: Some("Ctrl-S"),
+    shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
     action: SerializeToConsole,
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
@@ -29,7 +29,7 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
 let dropdown_options = (~inject) =>
   List.map(dropdown_option(~inject), menu_entries);
 
-let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model as _: Model.t) => {
+let dropdown = (~inject: ModelAction.t => Ui_event.t) => {
   create(
     "details",
     [],
@@ -40,5 +40,5 @@ let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model as _: Model.t) => {
   );
 };
 
-let view = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) =>
-  div([Attr.classes(["dropdown"])], [dropdown(~inject, ~model)]);
+let view = (~inject: ModelAction.t => Ui_event.t) =>
+  div([Attr.classes(["dropdown"])], [dropdown(~inject)]);
