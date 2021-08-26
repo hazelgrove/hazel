@@ -72,10 +72,7 @@ let move =
 
 let perform =
     (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
-    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) => {
-  print_endline("AT PERFORM");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(ZTag.sexp_of_t(ztag)));
+    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
   switch (a, ztag) {
   /* Invalid actions */
   | (
@@ -126,12 +123,8 @@ let perform =
       Succeeded((ZTag.place_before(tag_hole), u_gen));
     | _ =>
       switch (backspace_text(j, t)) {
-      | Succeeded(ztag) =>
-        print_endline("BACKSPACE OK " ++ Int.to_string(j) ++ " " ++ t);
-        Succeeded((ztag, u_gen));
-      | (CursorEscaped(_) | Failed) as outcome =>
-        print_endline("BACKSPACE FAIL " ++ Int.to_string(j) ++ " " ++ t);
-        outcome;
+      | (CursorEscaped(_) | Failed) as outcome => outcome
+      | Succeeded(ztag) => Succeeded((ztag, u_gen))
       }
     }
 
@@ -188,4 +181,3 @@ let perform =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
-};

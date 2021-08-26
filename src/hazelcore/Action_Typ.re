@@ -90,10 +90,7 @@ let construct_zsumbody_operator =
 
 let rec move =
         (u_gen: MetaVarGen.t, a: Action.t, zty: ZTyp.t)
-        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
-  print_endline("MOVE");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_t(zty)));
+        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
@@ -146,8 +143,8 @@ let rec move =
       ++ ": expected movement action, got "
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
-  };
-}
+  }
+
 and move_zsumbody =
     (u_gen: MetaVarGen.t, a: Action.t, zsumbody: ZTyp.zsumbody)
     : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
@@ -201,22 +198,10 @@ and move_zsumbody =
     | Some(z) => Succeeded((z, u_gen))
     }
   | MoveRight =>
-    let result' = ZTyp.move_cursor_right_zsumbody(zsumbody);
-    let result =
-      switch (result') {
-      | None => ActionOutcome.CursorEscaped(After)
-      | Some(z) => Succeeded((z, u_gen))
-      };
-    print_endline("MOVE RIGHT ZSUMBODY");
-    print_endline(
-      Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody(zsumbody)),
-    );
-    print_endline(
-      Sexplib.Sexp.to_string_hum(
-        Sexplib.Std.sexp_of_option(ZTyp.sexp_of_zsumbody, result'),
-      ),
-    );
-    result;
+    switch (ZTyp.move_cursor_right_zsumbody(zsumbody)) {
+    | None => ActionOutcome.CursorEscaped(After)
+    | Some(z) => Succeeded((z, u_gen))
+    }
   | UpdateApPalette(_)
   | Delete
   | Backspace
@@ -235,12 +220,9 @@ and move_zsumbody =
 
 let rec perform =
         (u_gen: MetaVarGen.t, a: Action.t, zty: ZTyp.t)
-        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
-  print_endline("PERFORM");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_t(zty)));
-  perform_opseq(u_gen, a, zty);
-}
+        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+  perform_opseq(u_gen, a, zty)
+
 and perform_opseq =
     (
       u_gen: MetaVarGen.t,
@@ -380,14 +362,10 @@ and perform_opseq =
     }
   | (Init, _) => failwith("Init action should not be performed.")
   }
+
 and perform_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zoperand)
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
-  print_endline("PERFORM_OPERAND");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(zoperand)),
-  );
+    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -448,16 +426,14 @@ and perform_operand =
       Construct(SChar(c)),
       CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)),
     ) =>
-    print_endline("CONSTRUCT CHAR");
-    if (UHTag.is_majuscule_letter(c.[0])) {
-      print_endline("MAJ");
-      let ztag = ZTag.place_after(UHTag.Tag(c));
-      let zty = ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
-      Succeeded((zty, u_gen));
-    } else {
-      print_endline("NOT MAJ");
-      Failed;
-    };
+    UHTag.is_majuscule_letter(c.[0])
+      ? {
+        let ztag = ZTag.place_after(UHTag.Tag(c));
+        let zty =
+          ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
+        Succeeded((zty, u_gen));
+      }
+      : Failed
 
   // sum {| }  ==>  sum { ? + ?| }
   // sum { |}  ==>  sum { ? + ?| }
@@ -686,8 +662,7 @@ and perform_operand =
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 
 and perform_zsumbody =
     (
@@ -695,12 +670,7 @@ and perform_zsumbody =
       a: Action.t,
       ZOpSeq(skel, zseq) as zsumbody: ZTyp.zsumbody,
     )
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
-  print_endline("PERFORM_ZSUMBODY");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody(zsumbody)),
-  );
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
   switch (a, zseq) {
   /* Invalid actions at the top level */
   | (
@@ -723,9 +693,7 @@ and perform_zsumbody =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    print_endline("ESCAPED");
-    print_endline(Sexplib.Sexp.to_string_hum(Side.sexp_of_t(side)));
-    perform_zsumbody(u_gen, Action_common.escape(side), zsumbody);
+    perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
@@ -899,16 +867,11 @@ and perform_zsumbody =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
+
 and perform_zsumbody_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zsumbody_operand)
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
-  print_endline("PERFORM_ZSUMBODY_OPERAND");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)),
-  );
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
   switch (a, zoperand) {
   /* Invalid actions */
   | (
@@ -1034,4 +997,3 @@ and perform_zsumbody_operand =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
-};

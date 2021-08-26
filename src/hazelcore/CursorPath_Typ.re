@@ -1,46 +1,30 @@
 open OptUtil.Syntax;
 
 let rec of_z = (zty: ZTyp.t): CursorPath.t => of_zopseq(zty)
+
 and of_zopseq = zopseq => CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
-and of_zoperand = zoperand => {
-  // fun
-  let result =
-    switch (zoperand) {
-    | CursorT(cursor, _) => ([], cursor)
-    | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
-    | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
-    | SumZ(zsumbody) => CursorPath_common.cons'(0, of_zsumbody(zsumbody))
-    };
-  print_endline("OF_ZOPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zoperand(zoperand)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(result)));
-  result;
-}
-and of_zoperator =
+
+and of_zoperand =
   fun
-  | (cursor, _) => ([], cursor)
+  | CursorT(cursor, _) => ([], cursor)
+  | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
+  | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
+  | SumZ(zsumbody) => CursorPath_common.cons'(0, of_zsumbody(zsumbody))
+
+and of_zoperator = ((cursor, _)) => ([], cursor)
+
 and of_zsumbody = zsumbody =>
   CursorPath_common.of_zopseq_(~of_zoperand=of_zsumbody_operand, zsumbody)
+
 and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
-and of_zsumbody_operand = zoperand => {
-  // fun
-  let result =
-    switch (zoperand) {
-    | CursorATag(cursor, _, _) => ([], cursor)
-    | ConstTagZ(ztag) => CursorPath_Tag.of_z(ztag)
-    | ArgTagZT(ztag, _) =>
-      CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
-    | ArgTagZA(_, zty) => CursorPath_common.cons'(1, of_z(zty))
-    };
-  print_endline("OF_ZSUMBODY_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(result)));
-  result;
-};
+
+and of_zsumbody_operand =
+  fun
+  | CursorATag(cursor, _, _) => ([], cursor)
+  | ConstTagZ(ztag) => CursorPath_Tag.of_z(ztag)
+  | ArgTagZT(ztag, _) =>
+    CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
+  | ArgTagZA(_, zty) => CursorPath_common.cons'(1, of_z(zty));
 
 let rec follow = (path: CursorPath.t, uty: UHTyp.t): option(ZTyp.t) =>
   follow_opseq(path, uty)
@@ -54,12 +38,7 @@ and follow_opseq =
   )
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHTyp.operand)
-    : option(ZTyp.zoperand) => {
-  print_endline("FOLLOW_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_operand(operand)));
+    : option(ZTyp.zoperand) =>
   switch (steps) {
   | [] => operand |> ZTyp.place_cursor_operand(cursor)
   | [x, ...xs] =>
@@ -86,45 +65,28 @@ and follow_operand =
       | _ => None
       }
     | Sum(None) =>
-      print_endline("EMPTY SUM");
       switch (steps) {
-      | [] =>
-        let result = ZTyp.place_cursor_operand(cursor, operand);
-        print_endline("XXX");
-        print_endline(
-          Sexplib.Sexp.to_string_hum(
-            Sexplib.Std.sexp_of_option(ZTyp.sexp_of_zoperand, result),
-          ),
-        );
-        result;
+      | [] => ZTyp.place_cursor_operand(cursor, operand)
       | _ => None
-      };
+      }
     | Sum(Some(sumbody)) =>
-      print_endline("NON-EMPTY SUM");
       switch (x) {
       | 0 =>
         let+ zsumbody = follow_sumbody((xs, cursor), sumbody);
         ZTyp.SumZ(zsumbody);
       | _ => None
-      };
+      }
     }
-  };
-}
+  }
+
 and follow_operator =
     ((steps, cursor): CursorPath.t, operator: UHTyp.operator)
-    : option(ZTyp.zoperator) => {
-  print_endline("FOLLOW_OPERATOR");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_operator(operator)),
-  );
+    : option(ZTyp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZTyp.place_cursor_operator(cursor)
   | [_, ..._] => None
-  };
-}
+  }
+
 and follow_sumbody =
     (path: CursorPath.t, sumbody: UHTyp.sumbody): option(ZTyp.zsumbody) =>
   CursorPath_common.follow_opseq_(
@@ -133,22 +95,12 @@ and follow_sumbody =
     path,
     sumbody,
   )
+
 and follow_sumbody_operand =
     ((steps, cursor): CursorPath.t, operand: UHTyp.sumbody_operand)
-    : option(ZTyp.zsumbody_operand) => {
-  print_endline("FOLLOW_SUMBODY_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operand(operand)),
-  );
+    : option(ZTyp.zsumbody_operand) =>
   switch (operand) {
   | ConstTag(tag) =>
-    print_endline("STEP 0 TAG");
-    print_string("xs = (");
-    print_string(String.concat(" ", List.map(Int.to_string, steps)));
-    print_endline(")");
     let+ ztag = CursorPath_Tag.follow((steps, cursor), tag);
     ZTyp.ConstTagZ(ztag);
   | ArgTag(tag, ty) =>
@@ -162,28 +114,21 @@ and follow_sumbody_operand =
       ZTyp.ArgTagZA(tag, zty);
     | _ => None
     }
-  };
-}
+  }
+
 and follow_sumbody_operator =
     ((steps, cursor): CursorPath.t, operator: UHTyp.sumbody_operator)
-    : option(ZTyp.zsumbody_operator) => {
-  print_endline("FOLLOW_SUMBODY_OPERATOR");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operator(operator)),
-  );
+    : option(ZTyp.zsumbody_operator) =>
   switch (steps) {
   | [] => ZTyp.place_cursor_sumbody_operator(cursor, operator)
   | _ => None
   };
-};
 
 let rec of_steps =
         (steps: CursorPath.steps, ~side: Side.t=Before, uty: UHTyp.t)
         : option(CursorPath.t) =>
   of_steps_opseq(steps, ~side, uty)
+
 and of_steps_opseq =
     (steps: CursorPath.steps, ~side: Side.t, opseq: UHTyp.opseq)
     : option(CursorPath.t) =>
@@ -194,15 +139,10 @@ and of_steps_opseq =
     ~side,
     opseq,
   )
+
 and of_steps_operand =
     (steps: CursorPath.steps, ~side: Side.t, operand: UHTyp.operand)
     : option(CursorPath.t) => {
-  print_endline("OF_STEPS_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_steps(steps)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(Side.sexp_of_t(side)));
-  print_endline(Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_operand(operand)));
   let place_cursor =
     switch (side) {
     | Before => ZTyp.place_before_operand
@@ -234,41 +174,19 @@ and of_steps_operand =
       | _ => None
       }
     | Sum(Some(sumbody)) =>
-      print_endline("NON-EMPTY SUM");
-      print_endline(Int.to_string(x));
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          Sexplib.Std.sexp_of_list(Sexplib.Std.sexp_of_int, xs),
-        ),
-      );
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          Sexplib.Std.sexp_of_option(
-            CursorPath.sexp_of_t,
-            of_steps_sumbody(xs, ~side, sumbody),
-          ),
-        ),
-      );
       switch (x) {
       | 0 =>
         let+ path = of_steps_sumbody(xs, ~side, sumbody);
         CursorPath_common.cons'(0, path);
       | _ => None
-      };
+      }
     }
   };
 }
+
 and of_steps_operator =
     (steps: CursorPath.steps, ~side: Side.t, operator: UHTyp.operator)
-    : option(CursorPath.t) => {
-  print_endline("OF_STEPS_OPERATOR");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_steps(steps)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(Side.sexp_of_t(side)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_operator(operator)),
-  );
+    : option(CursorPath.t) =>
   switch (steps) {
   | [_, ..._] => None
   | [] =>
@@ -281,8 +199,8 @@ and of_steps_operator =
     | Some(zty) => Some(of_zoperator(zty))
     | _ => None
     };
-  };
-}
+  }
+
 and of_steps_sumbody =
     (steps: CursorPath.steps, ~side: Side.t=Before, sumbody: UHTyp.sumbody)
     : option(CursorPath.t) =>
@@ -293,17 +211,10 @@ and of_steps_sumbody =
     ~side,
     sumbody,
   )
+
 and of_steps_sumbody_operand =
     (steps: CursorPath.steps, ~side: Side.t, operand: UHTyp.sumbody_operand)
-    : option(CursorPath.t) => {
-  print_endline("OF_STEPS_SUMBODY_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_steps(steps)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(Side.sexp_of_t(side)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operand(operand)),
-  );
+    : option(CursorPath.t) =>
   switch (operand) {
   | ConstTag(tag) => CursorPath_Tag.of_steps(steps, ~side, tag)
   | ArgTag(tag, ty) =>
@@ -317,19 +228,11 @@ and of_steps_sumbody_operand =
       CursorPath_common.cons'(1, path);
     | _ => None
     }
-  };
-}
+  }
+
 and of_steps_sumbody_operator =
     (steps: CursorPath.steps, ~side: Side.t, operator: UHTyp.sumbody_operator)
-    : option(CursorPath.t) => {
-  print_endline("OF_STEPS_SUMBODY_OPERATOR");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_steps(steps)),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(Side.sexp_of_t(side)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_sumbody_operator(operator)),
-  );
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -343,12 +246,11 @@ and of_steps_sumbody_operator =
     };
   | _ => None
   };
-};
 
 let hole_sort = _ => CursorPath.TypHole;
-let is_space = _ => false;
-
 let sumbody_hole_sort = (u: MetaVar.t) => CursorPath.TagHole(u);
+
+let is_space = _ => false;
 
 let rec holes =
         (

@@ -258,10 +258,7 @@ let resurround_z =
 
 let rec syn_move =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) => {
-  print_endline("AP SYN_MOVE");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(ZPat.sexp_of_t(zp)));
+        : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -316,7 +313,6 @@ let rec syn_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
-};
 
 let rec ana_move =
         (
@@ -326,11 +322,7 @@ let rec ana_move =
           zp: ZPat.t,
           ty: HTyp.t,
         )
-        : ActionOutcome.t(ana_success) => {
-  print_endline("AP ANA_MOVE");
-  print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-  print_endline(Sexplib.Sexp.to_string_hum(ZPat.sexp_of_t(zp)));
-  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+        : ActionOutcome.t(ana_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -385,7 +377,7 @@ let rec ana_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
-};
+
 let annotate_last_operand =
     (zseq: ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), ann)
     : ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) => {

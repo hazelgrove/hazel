@@ -29,12 +29,7 @@ and follow_opseq =
   )
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHPat.operand)
-    : option(ZPat.zoperand) => {
-  print_endline("CPP FOLLOW_OPERAND");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_operand(operand)));
+    : option(ZPat.zoperand) =>
   switch (steps) {
   | [] => operand |> ZPat.place_cursor_operand(cursor)
   | [x, ...xs] =>
@@ -85,23 +80,15 @@ and follow_operand =
       | _ => None
       }
     }
-  };
-}
+  }
+
 and follow_operator =
     ((steps, cursor): CursorPath.t, operator: UHPat.operator)
-    : option(ZPat.zoperator) => {
-  print_endline("CPP FOLLOW_OPERATOR");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t((steps, cursor))),
-  );
-  print_endline(
-    Sexplib.Sexp.to_string_hum(UHPat.sexp_of_operator(operator)),
-  );
+    : option(ZPat.zoperator) =>
   switch (steps) {
   | [] => operator |> ZPat.place_cursor_operator(cursor)
   | [_, ..._] => None
   };
-};
 
 let rec of_steps =
         (steps: CursorPath.steps, ~side: Side.t=Before, p: UHPat.t)
