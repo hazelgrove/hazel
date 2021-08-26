@@ -92,7 +92,6 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) =>
     failwith(
@@ -116,7 +115,6 @@ and perform_opseq =
       ) |
       SwapUp |
       SwapDown |
-      FillExpHole(_) |
       ReplaceAtCursor(_) |
       ReplaceOpSeqAroundCursor(_),
       _,
@@ -237,7 +235,6 @@ and perform_operand =
       ) |
       SwapUp |
       SwapDown |
-      FillExpHole(_) |
       ReplaceAtCursor(_) |
       ReplaceOpSeqAroundCursor(_),
       _,

@@ -505,7 +505,6 @@ let _check_actions = (a: Action.t) =>
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) => Added
   };

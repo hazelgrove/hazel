@@ -650,7 +650,6 @@ let get_new_action_group =
     | MoveToNextHole
     | MoveToPrevHole
     | Init
-    | FillExpHole(_)
     | ReplaceAtCursor(_)
     | ReplaceOpSeqAroundCursor(_) => Some(AssistantAction)
     | UpdateApPalette(_) =>

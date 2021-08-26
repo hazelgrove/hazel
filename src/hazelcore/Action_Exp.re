@@ -521,7 +521,6 @@ let rec syn_move =
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) =>
     failwith(
@@ -583,7 +582,6 @@ let rec ana_move =
   | SwapUp
   | SwapDown
   | Init
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) =>
     failwith(
@@ -601,21 +599,6 @@ let rec syn_perform =
         )
         : ActionOutcome.t(syn_done) => {
   switch (a) {
-  | FillExpHole(u, fill_e) =>
-    let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-    let steps_to_this_hole =
-      CursorPath_common.steps_to_hole(holes, u)
-      |> OptUtil.get(_ => failwith("FillExpHole 1"));
-    let e = UHExp.fill_hole(u, fill_e, ZExp.erase(ze));
-    let (e_new, ty, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, e);
-    let new_path =
-      CursorPath_Exp.of_steps(steps_to_this_hole, e_new)
-      |> OptUtil.get(_ => failwith("FillExpHole 2"));
-    let new_ze =
-      CursorPath_Exp.follow(new_path, e_new)
-      |> OptUtil.get(_ => failwith("FillExpHole 3"));
-
-    Succeeded((new_ze, ty, u_gen));
   | _ =>
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -1041,7 +1024,6 @@ and syn_perform_line =
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
-  | (FillExpHole(_), CursorL(_)) => Failed
   | (ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_), CursorL(_)) => Failed
 
   /* Zipper */
@@ -1118,8 +1100,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) =>
-    Failed
+  | (UpdateApPalette(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1457,10 +1438,6 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
-
-  | (FillExpHole(_), CursorE(_)) =>
-    // FillExpHole handled at top level
-    Failed
 
   | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
     // ReplaceOpSeqAroundCursor handled at opseq level
@@ -2073,8 +2050,7 @@ and syn_perform_rules =
 
   /* Invalid swap actions */
   | (
-      SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      SwapLeft | SwapRight | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
       CursorR(_),
     ) =>
     Failed
@@ -2227,8 +2203,7 @@ and ana_perform_rules =
 
   /* Invalid swap actions */
   | (
-      SwapLeft | SwapRight | FillExpHole(_) | ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      SwapLeft | SwapRight | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
       CursorR(_),
     ) =>
     Failed
@@ -2711,7 +2686,7 @@ and ana_perform_opseq =
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
 
-  | (FillExpHole(_) | ReplaceAtCursor(_), ZOperator(_)) => Failed
+  | (ReplaceAtCursor(_), ZOperator(_)) => Failed
 
   | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
   | (
@@ -2907,10 +2882,6 @@ and ana_perform_operand =
 
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
-
-  | (FillExpHole(_), CursorE(_)) =>
-    // FillExpHole handled at top level
-    Failed
 
   | (ReplaceOpSeqAroundCursor(_), CursorE(_)) =>
     // ReplaceOpSeqAroundCursor handled at opseq level

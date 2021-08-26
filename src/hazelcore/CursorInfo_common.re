@@ -169,7 +169,7 @@ let get_type = (cursor_info: t): option(HTyp.t) => {
   expected_ty;
 };
 
-let extract_cursor_term = (zexp: ZExp.t): cursor_term => {
+let _extract_cursor_term = (zexp: ZExp.t): cursor_term => {
   switch (CursorFrame.mk(zexp)) {
   | [{slice: Line(CursorL(c, s)), _}, ..._] => Line(c, s)
   | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => ExpOperand(c, s)

@@ -307,7 +307,6 @@ let rec syn_move =
   | SwapLeft
   | SwapRight
   | Init
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) =>
     failwith(
@@ -374,7 +373,6 @@ let rec ana_move =
   | SwapLeft
   | SwapRight
   | Init
-  | FillExpHole(_)
   | ReplaceAtCursor(_)
   | ReplaceOpSeqAroundCursor(_) =>
     failwith(
@@ -427,8 +425,7 @@ and syn_perform_opseq =
 
   /* Invalid actions */
   | (
-      UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      UpdateApPalette(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
       ZOperator(_),
     ) =>
     Failed
@@ -645,7 +642,6 @@ and syn_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      FillExpHole(_) |
       ReplaceAtCursor(_) |
       ReplaceOpSeqAroundCursor(_),
       CursorP(_),
@@ -918,8 +914,7 @@ and ana_perform_opseq =
 
   /* Invalid actions */
   | (
-      UpdateApPalette(_) | FillExpHole(_) | ReplaceAtCursor(_) |
-      ReplaceOpSeqAroundCursor(_),
+      UpdateApPalette(_) | ReplaceAtCursor(_) | ReplaceOpSeqAroundCursor(_),
       ZOperator(_),
     ) =>
     Failed
@@ -1151,7 +1146,6 @@ and ana_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      FillExpHole(_) |
       ReplaceAtCursor(_) |
       ReplaceOpSeqAroundCursor(_),
       CursorP(_),
