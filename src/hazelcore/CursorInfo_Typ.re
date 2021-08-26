@@ -1,7 +1,13 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (ZOpSeq(_, zseq): ZTyp.t): cursor_term => {
+let rec extract_cursor_term = (ZOpSeq(_, zseq) as zty: ZTyp.t): cursor_term => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXTRACT_CURSOR_TERM");
+      print_endline(to_string_hum(ZTyp.sexp_of_t(zty)));
+    }
+  );
   switch (zseq) {
   | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
   | ZOperator(ztyp_operator, _) =>
@@ -10,6 +16,12 @@ let rec extract_cursor_term = (ZOpSeq(_, zseq): ZTyp.t): cursor_term => {
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXTRACT_FROM_ZTYP_OPERAND");
+      print_endline(to_string_hum(ZTyp.sexp_of_zoperand(ztyp_operand)));
+    }
+  );
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
@@ -17,22 +29,34 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   | SumZ(zsumbody) => extract_from_zsumbody(zsumbody)
   };
 }
-and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
+and extract_from_zsumbody =
+    (ZOpSeq(_, zseq) as zsumbody: ZTyp.zsumbody): cursor_term => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXTRACT_FROM_ZSUMBODY");
+      print_endline(to_string_hum(ZTyp.sexp_of_zsumbody(zsumbody)));
+    }
+  );
   switch (zseq) {
-  | ZOperand(zsumbody_operand, _) =>
-    extract_from_zsumbody_operand(zsumbody_operand)
-  | ZOperator(zsumbody_operator, _) =>
-    let (cursor_pos, uop) = zsumbody_operator;
-    SumBodyOp(cursor_pos, uop);
-  }
+  | ZOperand(zoperand, _) => extract_from_zsumbody_operand(zoperand)
+  | ZOperator((cursor, operator), _) => SumBodyOp(cursor, operator)
+  };
+}
 and extract_from_zsumbody_operand =
-    (zsumbody_operand: ZTyp.zsumbody_operand): cursor_term =>
-  switch (zsumbody_operand) {
+    (zoperand: ZTyp.zsumbody_operand): cursor_term => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXTRACT_FROM_ZSUMBODY_OPERAND");
+      print_endline(to_string_hum(ZTyp.sexp_of_zsumbody_operand(zoperand)));
+    }
+  );
+  switch (zoperand) {
   | CursorATag(cursor, tag, ty) => SumBody(cursor, ArgTag(tag, ty))
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
   };
+};
 
 let rec get_zoperand_from_ztyp = (ztyp: ZTyp.t): option(zoperand) => {
   get_zoperand_from_ztyp_opseq(ztyp);
@@ -59,5 +83,31 @@ and get_zoperand_from_ztyp_operand =
 
 // TODO: make a bugfix issue to fix this after the type variables PR is merged
 let cursor_info =
-    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
-  Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));
+    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) => {
+  let cursor_term = extract_cursor_term(typ);
+  let typed: CursorInfo.typed =
+    switch (cursor_term) {
+    | Exp(_, _)
+    | Pat(_, _)
+    | Typ(_, _)
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | SumBody(_, _)
+    | SumBodyOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => OnType
+    | Tag(_, _) => OnTag
+    };
+  Sexplib.Sexp.(
+    {
+      print_endline("CURSOR_INFO");
+      print_endline(to_string_hum(Contexts.sexp_of_t(ctx)));
+      print_endline(to_string_hum(ZTyp.sexp_of_t(typ)));
+      print_endline(
+        to_string_hum(CursorInfo.sexp_of_cursor_term(cursor_term)),
+      );
+    }
+  );
+  Some(CursorInfo_common.mk(typed, ctx, cursor_term));
+};

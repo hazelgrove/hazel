@@ -134,18 +134,18 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
+  | Tag(CursorPosition.t, UHTag.t)
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | SumBody(CursorPosition.t, UHTyp.sumbody_operand)
   | SumBodyOp(CursorPosition.t, UHTyp.sumbody_operator)
   | Line(CursorPosition.t, UHExp.line)
-  | Rule(CursorPosition.t, UHExp.rule)
-  | Tag(CursorPosition.t, UHTag.t);
+  | Rule(CursorPosition.t, UHExp.rule);
 
 // TODO refactor into variants
 // based on term sort and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,
