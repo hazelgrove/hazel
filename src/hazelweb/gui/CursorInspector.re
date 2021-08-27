@@ -633,11 +633,6 @@ let view =
     : Node.t => {
   let cursor_inspector_mode = Model.get_cursor_inspector_mode(model);
   let program = Model.get_program(model);
-  let cursor_frame =
-    program
-    |> Editor.get_edit_state
-    |> Editor.EditState_Exp.get_zstx
-    |> CursorFrame.mk;
   let cursor_info = Editor.Exp.get_cursor_info(program);
   let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
 
@@ -847,7 +842,6 @@ let view =
       ~settings,
       ~u_gen,
       ~ci=cursor_info,
-      ~frame=cursor_frame,
     );
   let content =
     switch (assistant.active, cursor_inspector.strategy_guide, strategy_guide) {

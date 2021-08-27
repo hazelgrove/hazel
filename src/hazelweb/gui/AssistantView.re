@@ -211,75 +211,6 @@ let suggestions_view =
   div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
 };
 
-open Sexplib.Std;
-let compareMetaData = (frame: CursorFrame.t, ci: CursorInfo.t) => {
-  let ci_expected = Some(ci.expected_ty);
-  let ci_actual = ci.actual_ty;
-  let ci_enclosing_operand = ci.opParent;
-  let (ci_enclosing_opseq_ty, ci_enclosing_seq, ci_enclosing_opseq_err) =
-    switch (ci.enclosing_zopseq) {
-    | ExpSeq(zopseq, ty) => (
-        ty,
-        Some(zopseq),
-        Some(ZExp.get_err_status_zopseq(zopseq)),
-      )
-    | NoSeq => (None, None, None)
-    };
-  let fr_expected = CursorFrame.get_expected_type_cursor_term(frame);
-  let fr_actual = CursorFrame.get_actual_type_cursor_term(frame);
-  let fr_enclosing_operand = CursorFrame.enclosing_operand(frame);
-  let (fr_enclosing_opseq_ty, fr_enclosing_seq, fr_enclosing_opseq_err) =
-    switch (CursorFrame.enclosing_zopseq_si(frame)) {
-    | Some({slice: ExpSeq(zopseq), ty_e, err, _}: CursorFrame.slice_info) => (
-        //NOTE:
-        switch (ty_e) {
-        | None => Some(HTyp.Hole)
-        | Some(ty) => Some(ty)
-        },
-        Some(zopseq),
-        err,
-      )
-    | _ => (None, None, None)
-    };
-  let p = (x, q) => Sexplib.Sexp.to_string_hum(sexp_of_option(x, q));
-  Printf.printf(
-    "1. expected: %b // CI: %s FR: %s \n",
-    ci_expected == fr_expected,
-    p(HTyp.sexp_of_t, ci_expected),
-    p(HTyp.sexp_of_t, fr_expected),
-  );
-  Printf.printf(
-    "2. actual: %b // CI: %s FR: %s \n",
-    ci_actual == fr_actual,
-    p(HTyp.sexp_of_t, ci_actual),
-    p(HTyp.sexp_of_t, fr_actual),
-  );
-  Printf.printf(
-    "3. zoperand: %b // CI: %s FR: %s \n",
-    ci_enclosing_operand == fr_enclosing_operand,
-    p(ZExp.sexp_of_zoperand, ci_enclosing_operand),
-    p(ZExp.sexp_of_zoperand, fr_enclosing_operand),
-  );
-  Printf.printf(
-    "4. zopseq %b // CI: %s FR: %s \n",
-    ci_enclosing_seq == fr_enclosing_seq,
-    p(ZExp.sexp_of_zopseq, ci_enclosing_seq),
-    p(ZExp.sexp_of_zopseq, fr_enclosing_seq),
-  );
-  Printf.printf(
-    "5. zopseq_ty: %b // CI: %s FR: %s \n",
-    ci_enclosing_opseq_ty == fr_enclosing_opseq_ty,
-    p(HTyp.sexp_of_t, ci_enclosing_opseq_ty),
-    p(HTyp.sexp_of_t, fr_enclosing_opseq_ty),
-  );
-  Printf.printf(
-    "6. zopseq_err: %b // CI: %s FR: %s \n",
-    ci_enclosing_opseq_err == fr_enclosing_opseq_err,
-    p(ErrStatus.sexp_of_t, ci_enclosing_opseq_err),
-    p(ErrStatus.sexp_of_t, fr_enclosing_opseq_err),
-  );
-};
-
 let view =
     (
       ~inject: ModelAction.t => Event.t,
@@ -287,11 +218,9 @@ let view =
       ~settings: Settings.t,
       ~u_gen: MetaVarGen.t,
       ~ci: CursorInfo.t,
-      ~frame: CursorFrame.t,
       assistant: AssistantModel.t,
     )
     : Node.t => {
-  let _ = compareMetaData(frame, ci);
   let suggestions_view =
     suggestions_view(
       ~inject,

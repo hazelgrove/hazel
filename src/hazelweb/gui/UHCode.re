@@ -127,8 +127,6 @@ let click_to_move =
           ),
         ),
     };
-  let {row, col}: MeasuredPosition.t = caret_pos;
-  Printf.printf("r: %d, c: %d\n", row, col);
   MoveAction(Click(caret_pos));
 };
 

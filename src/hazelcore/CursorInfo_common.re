@@ -169,22 +169,6 @@ let get_type = (cursor_info: t): option(HTyp.t) => {
   expected_ty;
 };
 
-let _extract_cursor_term = (zexp: ZExp.t): cursor_term => {
-  switch (CursorFrame.mk(zexp)) {
-  | [{slice: Line(CursorL(c, s)), _}, ..._] => Line(c, s)
-  | [{slice: ExpOperand(CursorE(c, s)), _}, ..._] => ExpOperand(c, s)
-  | [{slice: ExpOperator((c, s)), _}, ..._] => ExpOperator(c, s)
-  | [{slice: Rule(CursorR(c, s)), _}, ..._] => Rule(c, s)
-  | [{slice: PatOperand(CursorP(c, s)), _}, ..._] => PatOperand(c, s)
-  | [{slice: PatOperator((c, s)), _}, ..._] => PatOperator(c, s)
-  | [{slice: TypOperand(CursorT(c, s)), _}, ..._] => TypOperand(c, s)
-  | [{slice: TypOperator((c, s)), _}, ..._] => TypOperator(c, s)
-  | frame =>
-    print_endline(Sexplib.Sexp.to_string_hum(CursorFrame.sexp_of_t(frame)));
-    failwith("INVALID FRAME (extract_cursor_term)");
-  };
-};
-
 let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   fun
   | ExpOperand(_, EmptyHole(_)) => true

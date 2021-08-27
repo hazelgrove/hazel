@@ -177,12 +177,6 @@ let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   | _ => []
   };
 
-let get_operator_suggestions = (ci: CursorInfo.t): list(suggestion) =>
-  switch (ci.cursor_term) {
-  | ExpOperator(_) => SuggestionsExpOpseq.mk(ci)
-  | _ => []
-  };
-
 let sort_suggestions = (suggestions: list(suggestion)): list(suggestion) => {
   let compare = (a1: suggestion, a2: suggestion) =>
     Int.compare(
@@ -221,7 +215,6 @@ let get_suggestions =
     ({cursor_term, ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
     : list(suggestion) => {
   get_operand_suggestions(ci)
-  @ get_operator_suggestions(ci)
   |> List.map(renumber_suggestion_holes(ctx, u_gen))
   |> sort_suggestions
   |> sort_by_prefix(
