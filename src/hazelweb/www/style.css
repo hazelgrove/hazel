@@ -46,6 +46,10 @@
   --tag-shadow-color: rgb(248, 192, 224);
   --tag-bright-shadow-color: rgb(224, 112, 212);
 
+  --sum-body-bg-color: rgb(247, 246, 198);
+  --sum-body-shadow-color: rgb(255, 254, 166);
+  --sum-body-bright-shadow-color: rgb(255, 253, 120);
+
   --current-term-z: 0;
   --var-use-z: 0;
   --err-hole-z: 1;
@@ -991,6 +995,9 @@ h1 {
 #code-root .current-term-drop-shadow.Tag {
   flood-color: var(--tag-shadow-color);
 }
+#code-root .current-term-drop-shadow.SumBody {
+  flood-color: var(--sum-body-shadow-color);
+}
 
 #code-root .code-current-term {
   filter: url(#outer-drop-shadow);
@@ -1007,6 +1014,9 @@ h1 {
 #code-root .code-current-term.Tag {
   fill: var(--tag-bg-color);
 }
+#code-root .code-current-term.SumBody {
+  fill: var(--sum-body-bg-color);
+}
 
 #code-root .closed-child-inset-shadow.Exp {
   flood-color: var(--exp-shadow-color);
@@ -1019,6 +1029,9 @@ h1 {
 }
 #code-root .closed-child-inset-shadow.Tag {
   flood-color: var(--tag-bright-shadow-color);
+}
+#code-root .closed-child-inset-shadow.SumBody {
+  flood-color: var(--sum-body-bright-shadow-color);
 }
 
 #code-root .closed-child-drop-shadow {
@@ -1035,6 +1048,9 @@ h1 {
 }
 #code-root .code-closed-child.Tag {
   filter: url(#tag-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.SumBody {
+  filter: url(#sum-body-closed-child-drop-shadow);
 }
 
 .code .VBox {
