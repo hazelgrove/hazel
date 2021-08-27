@@ -22,7 +22,7 @@ and of_zsumbody_operator = ((cursor, _)) => ([], cursor)
 
 and of_zsumbody_operand =
   fun
-  | CursorATag(cursor, _, _) => ([], cursor)
+  | CursorArgTag(cursor, _, _) => ([], cursor)
   | ConstTagZ(ztag) => CursorPath_Tag.of_z(ztag)
   | ArgTagZT(ztag, _) =>
     CursorPath_common.cons'(0, CursorPath_Tag.of_z(ztag))
@@ -381,8 +381,8 @@ and holes_zsumbody_operand =
     (zsumbody_operand: ZTyp.zsumbody_operand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zsumbody_operand) {
-  | CursorATag(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
-  | CursorATag(cursor, tag, ty) =>
+  | CursorArgTag(OnText(_) | OnOp(_), _, _) => CursorPath_common.no_holes
+  | CursorArgTag(cursor, tag, ty) =>
     switch (cursor) {
     | OnText(_)
     | OnOp(_) => CursorPath_common.no_holes

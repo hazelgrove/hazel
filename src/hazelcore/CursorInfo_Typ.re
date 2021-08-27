@@ -51,7 +51,7 @@ and extract_from_zsumbody_operand =
     }
   );
   switch (zoperand) {
-  | CursorATag(cursor, tag, _) => Tag(cursor, tag)
+  | CursorArgTag(cursor, tag, _) => Tag(cursor, tag)
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
