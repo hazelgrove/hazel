@@ -151,6 +151,12 @@ let is_before_zsumbody_operand =
   | ArgTagZT(ztag, _) => ZTag.is_before(ztag)
   | ArgTagZA(_, _) => false;
 
+let is_before_zsumbody_operator = ((cursor, _): zsumbody_operator): bool =>
+  switch (cursor) {
+  | OnOp(Before) => true
+  | _ => false
+  };
+
 let is_before_zsumbody = (zsumbody: zsumbody): bool =>
   ZOpSeq.is_before(~is_before_zoperand=is_before_zsumbody_operand, zsumbody);
 
@@ -180,6 +186,12 @@ let is_after_zsumbody_operand =
   | ArgTagZT(_, _) => false
   | ArgTagZA(_, zty) => is_after(zty)
   | ConstTagZ(ztag) => ZTag.is_after(ztag);
+
+let is_after_zsumbody_operator = ((cursor, _): zsumbody_operator): bool =>
+  switch (cursor) {
+  | OnOp(After) => true
+  | _ => false
+  };
 
 let is_after_zsumbody = (zsumbody: zsumbody): bool =>
   ZOpSeq.is_after(~is_after_zoperand=is_after_zsumbody_operand, zsumbody);
