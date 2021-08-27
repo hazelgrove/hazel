@@ -87,23 +87,29 @@
   --suggestion-selected-category-background: rgb(170, 240, 170);
   --suggestion-selected-category-text: #666;
 
-  --suggestion-info-background: #555c;
-  --suggestion-info-text: #ccc;
-  --suggestion-info-good-text: rgb(0, 200, 120);
-  --suggestion-info-bad-text: red;
-
   --suggestion-overlay-text: #b9ffb9;
   --suggestion-selected-overlay-text: #0088ff;
   --suggestion-selected-hole-shadow: rgb(104, 201, 92);
 
+  /* ASSISTANT suggestion info popup */
+
+  --suggestion-info-background: #666d;
+  --suggestion-info-text: #ccc;
+  --suggestion-info-good-text: rgb(0, 200, 120);
+  --suggestion-info-bad-text: red;
+
+
   /* ASSISTANT control pane */
 
-  --assistant-control-background: #868686e6;
+  --assistant-control-background: var(--suggestion-info-background);
   --assistant-control-background-selected: var(--exp_accent);
   --assistant-control-text-selected:black;
+  --assistant-control-divider: #444;
   --assistant-control-close-background: #3339;
-  --assistant-control-close-background-selected:#f99;
-  --assistant-control-mode-switch-text: #111;
+  --assistant-control-close-text: white;
+  --assistant-control-close-shadow: #222;
+  --assistant-control-close-background-selected: #f99;
+  --assistant-control-mode-switch-text: wheat;
   
   --assistant-control-key-text: var(--suggestion-info-text);
   --assistant-control-key-background: #7b7b7b;
@@ -1016,6 +1022,7 @@ body {
   border-radius: 0.4em;
   background-color: var(--assistant-control-background);
   color: var(--suggestion-info-text);
+  font-weight: normal;
 }
 
 #cursor-inspector .ci-control-pane-wrapper .speech-bubble-wrapper {
@@ -1048,12 +1055,29 @@ body {
   cursor: pointer;
 }
 
+#cursor-inspector .ci-control-pane hr {
+  margin: 0 0.75rem 0 0.75rem;
+  border: none;
+  height: 1px;
+  background-color: var(--assistant-control-divider);
+}
+
 #cursor-inspector .ci-control-pane .mode:last-child{
+  border-top: solid 1px var(--assistant-control-close-shadow);
   background-color: var(--assistant-control-close-background);
+  color: var(--assistant-control-close-text);
 }
 
 #cursor-inspector .ci-control-pane .mode:last-child:hover{
   background-color: var(--assistant-control-close-background-selected);
+}
+
+#cursor-inspector .ci-control-pane .mode:last-child .key{
+  opacity: 0%;
+}
+
+#cursor-inspector .ci-control-pane .mode:last-child:hover .key{
+  opacity: 100%;
 }
 
 #cursor-inspector .ci-control-pane .mode:hover {
@@ -1062,14 +1086,21 @@ body {
 }
 
 #cursor-inspector #ci-control-pane-mode-switch {
-  font-size: 0.85em;
-  height: 2rem;
+  height: 2em;
   padding-left: 0.5em;
   padding-right: 0.5em;
-  align-items: center;
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   color: var(--assistant-control-mode-switch-text);
+}
+
+#cursor-inspector #ci-control-pane-mode-switch .key {
+  opacity:0%;
+}
+
+#cursor-inspector #ci-control-pane-mode-switch:hover .key {
+  opacity:100%;
 }
 
 #cursor-inspector .key {
@@ -1085,7 +1116,7 @@ body {
 }
 
 
-/* assistant suggestion meta-info popup */
+/* assistant suggestion info popup */
 
 #assistant-wrapper .suggestion-info {
   z-index:100;
@@ -1125,11 +1156,13 @@ body {
 
 #assistant-wrapper .suggestion-info .plus {
   padding-right: 0.5em;
+  font-family: var(--code-font-family);
   color: var(--suggestion-info-good-text);
 }
 
 #assistant-wrapper .suggestion-info .minus {
   padding-right: 0.5em;
+  font-family: var(--code-font-family);
   color: var(--suggestion-info-bad-text);
 }
 
@@ -1141,11 +1174,11 @@ body {
   left: 0;
   width: 0;
   height: 0;
-  border: 0.8rem solid transparent;
+  border: 0.75rem solid transparent;
   border-top-color: var(--suggestion-info-background);
   border-bottom: 0;
   border-right: 0;
-  margin-left: -0.8rem;
+  margin-left: -0.75rem;
   margin-bottom: 0;
 }
 

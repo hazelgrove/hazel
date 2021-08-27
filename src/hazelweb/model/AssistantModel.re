@@ -21,7 +21,7 @@ type update =
   | Set_hover_index(option(int));
 
 [@deriving sexp]
-type suggestion = Assistant_Exp.suggestion;
+type suggestion = SuggestionsExp.suggestion;
 
 let init = {
   active: false,
@@ -173,13 +173,13 @@ let sort_by_prefix =
 
 let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   switch (ci.cursor_term) {
-  | ExpOperand(_) => Assistant_Exp.operand_suggestions(ci)
+  | ExpOperand(_) => SuggestionsExpOperand.mk(ci)
   | _ => []
   };
 
 let get_operator_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   switch (ci.cursor_term) {
-  | ExpOperator(_) => Assistant_Exp.operator_suggestions(ci)
+  | ExpOperator(_) => SuggestionsExpOpseq.mk(ci)
   | _ => []
   };
 

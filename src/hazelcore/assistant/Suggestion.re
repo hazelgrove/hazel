@@ -34,6 +34,23 @@ type t('a) = {
   result_text: string,
 };
 
+let mk =
+    (
+      ~category: category,
+      ~result_text: string,
+      ~action: Action.t,
+      ~result: 'a,
+      ~res_ty: HTyp.t,
+    )
+    : t('a) => {
+  category,
+  result_text,
+  action,
+  result,
+  res_ty,
+  score: blank_score,
+};
+
 let string_of_category: category => string =
   fun
   | InsertVar => "var"

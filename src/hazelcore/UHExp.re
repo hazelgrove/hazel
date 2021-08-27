@@ -465,3 +465,60 @@ let is_atomic_operand: operand => bool =
   | Case(_)
   | Parenthesized(_)
   | ApPalette(_) => false;
+
+/* NOTE: Should be replaced when parser is ready */
+let operand_of_string = (text: string): operand =>
+  switch (TextShape.of_text(text)) {
+  | IntLit(s) => intlit(s)
+  | FloatLit(s) => floatlit(s)
+  | BoolLit(s) => boollit(s)
+  | ExpandingKeyword(Let) => var("let")
+  | ExpandingKeyword(Case) => var("case")
+  | Underscore => var("_")
+  | Var(s) => var(s)
+  | InvalidTextShape(s) => InvalidText(0, s)
+  };
+
+/* NOTE: Should be replaced with proper to_string when parser is ready
+   Right now this special-cases case and binary apps for assistant
+   suggestion text-matching purposes. */
+let rec string_of_operand = (operand: operand): string => {
+  switch (operand) {
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | BoolLit(_, b) => string_of_bool(b)
+  | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
+  | Lam(_) => "\\"
+  | Case(_, [ExpLine(OpSeq(_, S(operandA, _)))], _) =>
+    "case " ++ string_of_operand(operandA)
+  | Case(_, _, _) => "case"
+  | Parenthesized([
+      ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
+    ]) =>
+    string_of_operand(operandA) ++ " " ++ string_of_operand(operandB)
+  | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
+    string_of_operand(operandA)
+  | ListNil(_) => "[]"
+  | Parenthesized(_)
+  | EmptyHole(_)
+  | ApPalette(_) => ""
+  };
+};
+
+let operators_of_ty =
+    (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>
+  List.concat([
+    HTyp.consistent_all([l, r, out, HTyp.Bool])
+      ? Operators_Exp.[And, Or] : [],
+    HTyp.consistent_all([l, r, out, HTyp.Int])
+      ? Operators_Exp.[Plus, Minus, Times, Divide] : [],
+    HTyp.consistent_all([l, r, out, HTyp.Float])
+      ? Operators_Exp.[FPlus, FMinus, FTimes, FDivide] : [],
+    HTyp.consistent_all([l, r, HTyp.Int]) && HTyp.consistent(out, HTyp.Bool)
+      ? Operators_Exp.[LessThan, GreaterThan, Equals] : [],
+    HTyp.consistent_all([l, r, HTyp.Float])
+    && HTyp.consistent(out, HTyp.Bool)
+      ? Operators_Exp.[FLessThan, FGreaterThan, FEquals] : [],
+  ]);

@@ -1,82 +1,5 @@
 open OptUtil.Syntax;
-
-[@deriving sexp]
-type suggestion = Suggestion.t(UHExp.t);
-
-let operand_of_string = (text: string): UHExp.operand =>
-  // NOTE: should be replaced when parser is ready
-  switch (TextShape.of_text(text)) {
-  | IntLit(s) => UHExp.intlit(s)
-  | FloatLit(s) => UHExp.floatlit(s)
-  | BoolLit(s) => UHExp.boollit(s)
-  | ExpandingKeyword(Let) => UHExp.var("let")
-  | ExpandingKeyword(Case) => UHExp.var("case")
-  | Underscore => UHExp.var("_")
-  | Var(s) => UHExp.var(s)
-  | InvalidTextShape(s) => UHExp.InvalidText(0, s)
-  };
-
-let rec string_of_operand = (operand: UHExp.operand): string => {
-  // NOTE: should be replaced with proper to_string when parser is ready
-  // right now it special-cases case and binary apps
-  switch (operand) {
-  | InvalidText(_, s)
-  | Var(_, _, s)
-  | IntLit(_, s)
-  | FloatLit(_, s) => s
-  | BoolLit(_, b) => string_of_bool(b)
-  | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
-  | Lam(_) => "\\"
-  | Case(_, [ExpLine(OpSeq(_, S(operandA, _)))], _) =>
-    "case " ++ string_of_operand(operandA)
-  | Case(_, _, _) => "case"
-  | Parenthesized([
-      ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
-    ]) =>
-    string_of_operand(operandA) ++ " " ++ string_of_operand(operandB)
-  | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
-    string_of_operand(operandA)
-  | ListNil(_)
-  | Parenthesized(_)
-  | EmptyHole(_)
-  | ApPalette(_) => ""
-  };
-};
-
-let operator_of_ty =
-    (l: HTyp.t, r: HTyp.t, out: HTyp.t): list(Operators_Exp.t) =>
-  List.concat([
-    HTyp.consistent_all([l, r, out, HTyp.Bool])
-      ? Operators_Exp.[And, Or] : [],
-    HTyp.consistent_all([l, r, out, HTyp.Int])
-      ? Operators_Exp.[Plus, Minus, Times, Divide] : [],
-    HTyp.consistent_all([l, r, out, HTyp.Float])
-      ? Operators_Exp.[FPlus, FMinus, FTimes, FDivide] : [],
-    HTyp.consistent_all([l, r, HTyp.Int]) && HTyp.consistent(out, HTyp.Bool)
-      ? Operators_Exp.[LessThan, GreaterThan, Equals] : [],
-    HTyp.consistent_all([l, r, HTyp.Float])
-    && HTyp.consistent(out, HTyp.Bool)
-      ? Operators_Exp.[FLessThan, FGreaterThan, FEquals] : [],
-  ]);
-
-/* SYNTAX CONSTRUCTION:
- *   Make syntax without proper hole numbering, then
- *   renumber holes at assistant boundary */
-
-let hole_operand = UHExp.EmptyHole(0);
-let hole_exp = UHExp.Block.wrap(hole_operand);
-let hole_pat = UHPat.EmptyHole(0) |> OpSeq.wrap;
-let lambda_operand = UHExp.lam(hole_pat, hole_exp);
-let rule = UHExp.Rule(hole_pat, hole_exp);
-let mk_case = scrut => UHExp.case(scrut, [rule]);
-let case_operand = mk_case(hole_exp);
-let mk_inj = side => UHExp.inj(side, hole_exp);
-let ap_seq = (operand: UHExp.operand, seq: UHExp.seq): UHExp.seq =>
-  Seq.S(operand, A(Space, seq));
-let mk_ap = (f_name: string, seq: UHExp.seq): UHExp.t =>
-  ap_seq(UHExp.var(f_name), seq) |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
-let mk_bin_seq = (operand1, operator, operand2) =>
-  Seq.seq_op_seq(Seq.wrap(operand1), operator, Seq.wrap(operand2));
+open SuggestionsExp;
 
 let rec mk_ap_iter_seq =
         (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, UHExp.seq)) => {
@@ -97,17 +20,7 @@ let mk_ap_iter =
   (output_ty, mk_ap(f, holes_seq));
 };
 
-let mk_suggestion =
-    (~category, ~result_text, ~action, ~result, ~res_ty): suggestion => {
-  category,
-  result_text,
-  action,
-  result,
-  res_ty,
-  score: Suggestion.blank_score,
-};
-
-/* returns a blank score if there is an error */
+/* returns a blank score if there is an error checking a suggestion */
 let mk_operand_suggestion' =
     (
       ~ci: CursorInfo.t,
@@ -129,7 +42,7 @@ let mk_operand_suggestion' =
     | Some(res) => res
     };
   {
-    ...mk_suggestion(~category, ~result_text, ~action, ~result, ~res_ty),
+    ...Suggestion.mk(~category, ~result_text, ~action, ~result, ~res_ty),
     score,
   };
 };
@@ -140,14 +53,14 @@ let mk_operand_suggestion =
     ~ci,
     ~category,
     ~operand,
-    ~result_text=string_of_operand(operand),
+    ~result_text=UHExp.string_of_operand(operand),
     ~action=ReplaceOperand(operand, None),
     ~result,
   );
 
 let mk_lit_suggestion = mk_operand_suggestion(~category=InsertLit);
 
-// INTROS  -----------------------------------------------------------------
+// INTRO SUGGESTIONS  ------------------------------------------------------------
 
 let mk_bool_lit_suggestion = (ci: CursorInfo.t, b: bool): suggestion =>
   mk_lit_suggestion(~operand=UHExp.boollit(b), ci);
@@ -200,7 +113,7 @@ let intro_suggestions =
   |> mk_intro_suggestions
   |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
 
-//----------------------------------------------------------------------------
+// VAR SUGGESTIONS -----------------------------------------------------------
 
 let var_suggestions =
     ({ctx, expected_ty, _} as ci: CursorInfo.t): list(suggestion) =>
@@ -208,14 +121,14 @@ let var_suggestions =
   |> Assistant_common.extract_vars(ctx)
   |> List.map(mk_var_suggestion(ci));
 
-//----------------------------------------------------------------------------
+// ELIM SUGGESTIONS ----------------------------------------------------------
 
 let mk_app_suggestion =
     (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)): suggestion => {
   let (res_ty, e) =
     mk_ap_iter(ci, name, f_ty)
     |> OptUtil.get(_ => failwith("mk_app_suggestion"));
-  mk_suggestion(
+  Suggestion.mk(
     ~category=InsertApp,
     ~result_text=name,
     ~action=ReplaceOperand(UHExp.Parenthesized(e), None),
@@ -238,12 +151,12 @@ let app_suggestions =
 let get_wrap_operand = (cursor_term: CursorInfo.cursor_term) => {
   switch (cursor_term) {
   | ExpOperand(pos, operand) =>
-    switch (pos, string_of_operand(operand)) {
+    switch (pos, UHExp.string_of_operand(operand)) {
     | (_, "") => operand
     | (OnText(i), guy) =>
       switch (StringUtil.split_string(i, guy)) {
       | (_, "") => UHExp.EmptyHole(0)
-      | (_, suf) => operand_of_string(suf)
+      | (_, suf) => UHExp.operand_of_string(suf)
       }
     | _ => operand
     }
@@ -260,14 +173,12 @@ let mk_wrap_case_suggestion =
 let elim_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   app_suggestions(ci) @ [mk_wrap_case_suggestion(ci)];
 
-//----------------------------------------------------------------------------
-
 let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
   mk_operand_suggestion'(
     ~ci,
     ~category,
     ~operand,
-    ~result_text=string_of_operand(operand),
+    ~result_text=UHExp.string_of_operand(operand),
     ~action=ReplaceOperand(operand, None),
   );
 
@@ -340,78 +251,9 @@ let int_float_suggestions =
   |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
 };
 
-let operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
+let mk = (ci: CursorInfo.t): list(suggestion) =>
   int_float_suggestions(ci)
   @ wrap_suggestions(ci)
   @ intro_suggestions(ci)
   @ var_suggestions(ci)
   @ elim_suggestions(ci);
-
-let mk_replace_operator_suggestion =
-    (
-      seq_ty: HTyp.t,
-      zopseq: ZExp.zopseq,
-      ctx: Contexts.t,
-      new_operator: Operators_Exp.t,
-    )
-    : suggestion => {
-  /* TODO: only support binary operators */
-  /* TODO: retain cursor position */
-  let fix_holes_local = (ctx: Contexts.t, exp: UHExp.t): UHExp.t =>
-    exp
-    |> Statics_Exp.syn_fix_holes(ctx, MetaVarGen.init)
-    |> (((x, _, _)) => x);
-  let OpSeq(_, seq) = ZExp.erase_zopseq(zopseq);
-  let new_seq =
-    switch (seq) {
-    | S(operand1, A(_operator, S(operand2, E))) =>
-      Seq.S(operand1, A(new_operator, S(operand2, E)))
-    | _ => failwith("mk_replace_operator_suggestion impossible case")
-    };
-  let new_opseq = new_seq |> UHExp.mk_OpSeq;
-  let new_zopseq = ZExp.place_before_opseq(new_opseq);
-  mk_suggestion(
-    ~category=ReplaceOperator,
-    ~result_text=Operators_Exp.to_string(new_operator),
-    ~action=ReplaceOpSeq(new_zopseq),
-    ~res_ty=seq_ty,
-    ~result=UHExp.Block.wrap'(new_opseq) |> fix_holes_local(ctx),
-  );
-};
-
-let actual_ty_operand = (~ctx, operand) =>
-  switch (
-    Statics_Exp.syn_operand(
-      ctx,
-      UHExp.set_err_status_operand(NotInHole, operand),
-    )
-  ) {
-  | None => HTyp.Hole
-  | Some(ty) => ty
-  };
-
-let replace_operator_suggestions =
-    (ctx: Contexts.t, zopseq: ZExp.zopseq, ty: option(HTyp.t)) => {
-  /* TODO: only supports binary operators */
-  let OpSeq(_, seq) = ZExp.erase_zopseq(zopseq);
-  let ty =
-    switch (ty) {
-    | None => HTyp.Hole
-    | Some(ty) => ty
-    };
-  switch (seq) {
-  | S(operand1, A(_operator, S(operand2, E))) =>
-    let in1_ty = actual_ty_operand(~ctx, operand1);
-    let in2_ty = actual_ty_operand(~ctx, operand2);
-    operator_of_ty(in1_ty, in2_ty, ty)
-    |> List.map(mk_replace_operator_suggestion(ty, zopseq, ctx));
-  | _ => []
-  };
-};
-
-let operator_suggestions =
-    ({enclosing_zopseq, ctx, _}: CursorInfo.t): list(suggestion) =>
-  switch (enclosing_zopseq) {
-  | ExpSeq(zopseq, ty) => replace_operator_suggestions(ctx, zopseq, ty)
-  | _ => []
-  };

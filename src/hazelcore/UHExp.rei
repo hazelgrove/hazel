@@ -118,3 +118,9 @@ let is_complete: t => bool;
 let fill_hole: (MetaVar.t, t, t) => t;
 
 let is_atomic_operand: operand => bool;
+
+let operand_of_string: string => operand;
+
+let string_of_operand: operand => string;
+
+let operators_of_ty: (HTyp.t, HTyp.t, HTyp.t) => list(Operators_Exp.t);

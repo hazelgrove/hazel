@@ -68,6 +68,7 @@ let ci_control_pane =
                   ),
                 ],
               ),
+              Node.hr([]),
               mode_radio(Some(Assistant)),
               mode_radio(Some(Tutor)),
               mode_radio(Some(Simple)),
