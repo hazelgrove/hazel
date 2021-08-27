@@ -84,6 +84,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a tag"));
+  let expected_a_sum_body_element_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a sum body element"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
@@ -150,6 +152,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_tag_indicator = got_indicator("Got", special_msg_bar("a tag"));
+  let got_a_sum_body_element_indicator =
+    got_indicator("Got", special_msg_bar("a sum body element"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
@@ -403,6 +407,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     | OnTag =>
       let ind1 = expected_a_tag_indicator;
       let ind2 = got_a_tag_indicator;
+      (ind1, ind2, OK);
+    | OnSumBody =>
+      let ind1 = expected_a_sum_body_element_indicator;
+      let ind2 = got_a_sum_body_element_indicator;
       (ind1, ind2, OK);
     | OnLine =>
       /* TODO */

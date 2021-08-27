@@ -51,7 +51,7 @@ and extract_from_zsumbody_operand =
     }
   );
   switch (zoperand) {
-  | CursorATag(cursor, tag, ty) => SumBody(cursor, ArgTag(tag, ty))
+  | CursorATag(cursor, tag, _) => Tag(cursor, tag)
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
@@ -93,11 +93,11 @@ let cursor_info =
     | ExpOp(_, _)
     | PatOp(_, _)
     | TypOp(_, _)
-    | SumBody(_, _)
-    | SumBodyOp(_, _)
     | Line(_, _)
     | Rule(_, _) => OnType
     | Tag(_, _) => OnTag
+    | SumBody(_, _)
+    | SumBodyOp(_, _) => OnSumBody
     };
   Sexplib.Sexp.(
     {
