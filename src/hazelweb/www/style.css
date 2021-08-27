@@ -1233,13 +1233,16 @@ h1 {
 #code-container .HoleLabel span {
   font-size: 65%;
 }
-.DHCode .HoleLabel {
-  font-size: 65%;
+.DHCode .HoleLabel,
+.HTypCode .HoleLabel {
+    font-size: 65%;
   padding-left: 2px;
   padding-right: 2px;
 }
 .DHCode .CastDecoration .HoleLabel,
-.DHCode .FailedCastDecoration .HoleLabel {
+.DHCode .FailedCastDecoration .HoleLabel,
+.HTypCode .CastDecoration .HoleLabel,
+.HTypCode .FailedCastDecoration .HoleLabel {
   color: #777;
 }
 
