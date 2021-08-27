@@ -731,22 +731,33 @@ and perform_zsumbody =
 
   /* Construction */
 
+  // ... + |_ ( _ ) + ...  ==>  ... + |? + _ ( _ ) + ...
+  | (
+      Construct(SOp(SPlus)),
+      ZOperand(ArgTagZT(ztag, ty), (prefix, suffix)),
+    )
+      when ZTag.is_before(ztag) =>
+    let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+    let lhs_zoperand = ZTyp.ConstTagZ(ZTag.place_before(tag_hole));
+    let rhs_operand = UHTyp.ArgTag(ZTag.erase(ztag), ty);
+    let new_suffix =
+      Seq.A(Operators_SumBody.Plus, Seq.S(rhs_operand, suffix));
+    let zseq = ZSeq.ZOperand(lhs_zoperand, (prefix, new_suffix));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
+
   // ... + _| ( _ ) + ...  ==>  ... + _ + ?| ( _ ) + ...
   | (
       Construct(SOp(SPlus)),
       ZOperand(ArgTagZT(ztag, ty), (prefix, suffix)),
-    ) =>
-    ZTag.is_after(ztag)
-      ? {
-        let lhs_operand = UHTyp.ConstTag(ZTag.erase(ztag));
-        let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
-        let rhs_zoperand = ZTyp.ArgTagZT(ZTag.place_after(tag_hole), ty);
-        let new_prefix =
-          Seq.A(Operators_SumBody.Plus, Seq.S(lhs_operand, prefix));
-        let zseq = ZSeq.ZOperand(rhs_zoperand, (new_prefix, suffix));
-        Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
-      }
-      : Failed
+    )
+      when ZTag.is_after(ztag) =>
+    let lhs_operand = UHTyp.ConstTag(ZTag.erase(ztag));
+    let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+    let rhs_zoperand = ZTyp.ArgTagZT(ZTag.place_after(tag_hole), ty);
+    let new_prefix =
+      Seq.A(Operators_SumBody.Plus, Seq.S(lhs_operand, prefix));
+    let zseq = ZSeq.ZOperand(rhs_zoperand, (new_prefix, suffix));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
 
   // ... + _ ( _|_ ) + ...  ==>  ... + _ ( _ ) + ?| + ...
   | (
