@@ -9,6 +9,8 @@ let get_main_action =
   switch (kc) {
   | Escape => SetCursorInspectorMode(None)
   | Ctrl_Space => ToggleCursorInspectorMode
+  | Ctrl_Delete =>
+    EditAction(ReplaceOperand(UHExp.EmptyHole(0), Some(ZExp.place_before)))
   | Backspace => EditAction(Backspace)
   | Delete => EditAction(Delete)
   | ShiftTab => EditAction(MoveToPrevHole)

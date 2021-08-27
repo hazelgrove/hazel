@@ -52,6 +52,7 @@ let alt_C = alt(Key.the_key("C"));
 let alt_PageUp = alt(Key.the_key("PageUp"));
 let alt_PageDown = alt(Key.the_key("PageDown"));
 let ctrl_space = ctrl(Key.key1("Space", " "));
+let ctrl_backspace = ctrl(Key.the_key("Backspace"));
 let ctrl_s = ctrl(Key.the_key("S"));
 let ctrlOrCmd_z = ctrlOrCmd(Key.the_key("Z"));
 let ctrlOrCmd_shift_z = ctrlOrCmd_shift(Key.the_key("Z"));

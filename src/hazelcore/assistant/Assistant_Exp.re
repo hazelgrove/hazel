@@ -242,7 +242,7 @@ let get_wrap_operand = (cursor_term: CursorInfo.cursor_term) => {
     | (_, "") => operand
     | (OnText(i), guy) =>
       switch (StringUtil.split_string(i, guy)) {
-      | (_, "") => operand
+      | (_, "") => UHExp.EmptyHole(0)
       | (_, suf) => operand_of_string(suf)
       }
     | _ => operand
@@ -281,11 +281,6 @@ let mk_wrap_suggestion =
     ci,
   );
 };
-
-// TODO(andrew): label replacement suggestions seperately!! for non-empty hole case, categorization MATTERS
-// ie we want to know why this is being suggested
-// TODO: mode toggle for favoring simplifying versus complexifying suggestions?
-// TODO: for simple/complex biasing... maybe closer to root is complex-biased, getting simpler as descends?
 
 let wrap_suggestions =
     ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {

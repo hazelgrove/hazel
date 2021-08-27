@@ -1,6 +1,21 @@
 open Virtual_dom.Vdom;
 open Node;
 
+let icon =
+  Node.div(
+    [Attr.classes(["clickable-help-icon"])],
+    [
+      create(
+        "img",
+        [
+          Attr.create("src", "imgs/assistant/boost-0000.png"),
+          Attr.create("style", "height:1.1em"),
+        ],
+        [],
+      ),
+    ],
+  );
+
 let category_view = category => {
   let label = Suggestion.string_of_category(category);
   div([Attr.classes(["category", label])], [text(label)]);
@@ -296,7 +311,6 @@ let view =
     | _ => Node.text("")
     };
   };
-
   div(
     [Attr.id("assistant-wrapper")],
     [suggestions_view, suggestion_info_view],

@@ -53,27 +53,32 @@ let ci_control_pane =
     [Attr.classes(["ci-control-pane-wrapper"])],
     [
       Node.div(
-        [Attr.classes(["ci-control-pane"])],
+        [Attr.class_("speech-bubble-wrapper")],
         [
           Node.div(
-            [Attr.id("ci-control-pane-mode-switch")],
+            [Attr.class_("ci-control-pane")],
             [
-              Node.text("Inspector mode"),
               Node.div(
-                [Attr.classes(["key"])],
-                [Node.text("CTRL-SPACE")],
+                [Attr.id("ci-control-pane-mode-switch")],
+                [
+                  Node.text("Inspector mode"),
+                  Node.div(
+                    [Attr.classes(["key"])],
+                    [Node.text("CTRL-SPACE")],
+                  ),
+                ],
               ),
-            ],
-          ),
-          mode_radio(Some(Assistant)),
-          mode_radio(Some(Tutor)),
-          mode_radio(Some(Simple)),
-          mode_radio(
-            None,
-            ~body=[
-              Node.div(
-                [Attr.id("ci-control-pane-close"), Attr.classes(["key"])],
-                [Node.text("ESC")],
+              mode_radio(Some(Assistant)),
+              mode_radio(Some(Tutor)),
+              mode_radio(Some(Simple)),
+              mode_radio(
+                None,
+                ~body=[
+                  Node.div(
+                    [Attr.id("ci-control-pane-close"), Attr.class_("key")],
+                    [Node.text("ESC")],
+                  ),
+                ],
               ),
             ],
           ),
@@ -529,6 +534,7 @@ let summary_bar =
       show_expanded: bool,
       novice_mode: bool,
       show_strategy_guide_icon: bool,
+      assistant: AssistantModel.t,
       assistant_enabled: bool,
       cursor_inspector_mode,
       ~font_metrics,
@@ -577,17 +583,7 @@ let summary_bar =
             ~font_metrics,
           ),
     );
-  let images_dir = "imgs/assistant/";
-  let boost_icon =
-    Node.create(
-      "img",
-      [
-        Attr.create("src", images_dir ++ "boost-0000.png"),
-        Attr.create("style", "height:1.1em"),
-      ],
-      [],
-    );
-  let fill_icon = symbol =>
+  let fill_icon =
     Node.div(
       [
         Attr.classes(["clickable-help-icon"]),
@@ -600,36 +596,27 @@ let summary_bar =
           ])
         ),
       ],
-      [
-        if (symbol == Unicode.robot_arm) {
-          boost_icon;
-        } else {
-          Node.text(symbol);
-        },
-      ],
+      [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-
-  // TODO(andrew): cleanup below logic
-  let fill_icon =
-    fill_icon(
-      show_strategy_guide_icon && !assistant_enabled
-        ? Unicode.light_bulb : Unicode.robot_arm,
-    );
   let control = ci_control_pane(cursor_inspector_mode, ~inject);
   let body =
-    switch (show_expansion_arrow, show_strategy_guide_icon, assistant_enabled) {
-    | (true, _, true)
-    | (true, true, _) => [summary, fill_space, arrow, fill_icon, control]
-    | (true, false, _) => [summary, fill_space, arrow, control]
-    | (_, _, true)
-    | (false, true, _) => [summary, fill_space, fill_icon, control]
-    | (false, false, _) => [summary, control]
+    switch (assistant_enabled, show_expansion_arrow, show_strategy_guide_icon) {
+    | (true, _, _) => [summary, fill_space, AssistantView.icon, control]
+    | (_, true, true) => [summary, fill_space, arrow, fill_icon, control]
+    | (_, true, false) => [summary, fill_space, arrow, control]
+    | (_, false, true) => [summary, fill_space, fill_icon, control]
+    | (_, false, false) => [summary, control]
     };
+  let assistant_classes =
+    AssistantModel.num_suggestions(ci, assistant) == 0
+      ? ["no-suggestions"] : [];
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
-      Attr.classes(["type-info-summary", "clickable-help"]),
+      Attr.classes(
+        ["type-info-summary", "clickable-help"] @ assistant_classes,
+      ),
       Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
     ],
     body,
@@ -845,36 +832,28 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       show_strategy_guide_icon,
+      assistant,
       assistant.active,
       cursor_inspector_mode,
       ~font_metrics,
       ~settings,
     );
+  let assistant_view =
+    AssistantView.view(
+      assistant,
+      ~inject,
+      ~font_metrics,
+      ~settings,
+      ~u_gen,
+      ~ci=cursor_info,
+      ~frame=cursor_frame,
+    );
   let content =
-    switch (cursor_inspector.strategy_guide, strategy_guide) {
-    | (true, Some(strategy_guide)) =>
-      List.append([summary], [strategy_guide])
+    switch (assistant.active, cursor_inspector.strategy_guide, strategy_guide) {
+    | (true, _, _) => [summary, assistant_view]
+    | (_, true, Some(strategy_guide)) => [summary, strategy_guide]
     | _ => [summary]
     };
-
-  let content =
-    if (assistant.active) {
-      [summary]
-      @ [
-        AssistantView.view(
-          assistant,
-          ~inject,
-          ~font_metrics,
-          ~settings,
-          ~u_gen,
-          ~ci=cursor_info,
-          ~frame=cursor_frame,
-        ),
-      ];
-    } else {
-      content;
-    };
-
   Node.div(
     [
       Attr.id("cursor-inspector"),

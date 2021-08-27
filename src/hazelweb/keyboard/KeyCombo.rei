@@ -39,6 +39,7 @@ let alt_C: t;
 let alt_PageUp: t;
 let alt_PageDown: t;
 let ctrl_space: t;
+let ctrl_backspace: t;
 let ctrl_s: t;
 let ctrlOrCmd_z: t;
 let ctrlOrCmd_shift_z: t;

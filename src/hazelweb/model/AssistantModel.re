@@ -251,7 +251,7 @@ let get_suggestions_of_ty' =
 let get_display_suggestions =
     (
       ci: CursorInfo.t,
-      ~u_gen: MetaVarGen.t,
+      ~u_gen: MetaVarGen.t=0,
       {choice_display_limit, _} as model: t,
     )
     : list(suggestion) => {
@@ -261,6 +261,9 @@ let get_display_suggestions =
   |> ListUtil.rotate_n(selection_index)
   |> ListUtil.trim(choice_display_limit);
 };
+
+let num_suggestions = (ci: CursorInfo.t, model: t) =>
+  List.length(get_display_suggestions(ci, model));
 
 let get_indicated_suggestion =
     ({hover_index, _} as model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t) => {
