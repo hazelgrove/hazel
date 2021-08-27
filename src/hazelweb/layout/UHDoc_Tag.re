@@ -9,19 +9,6 @@ let mk_TagHole = (u: MetaVar.t): UHDoc.t =>
   |> annot_Tessera
   |> annot_Operand(~sort=Tag);
 
-let mk_TagArg = (body: formatted_child): UHDoc.t => {
-  let open_group = Delim.open_Parenthesized() |> annot_Tessera;
-  let close_group = Delim.close_Parenthesized() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_delimited_open_child, close_group])
-  |> annot_Operand(~sort=Tag);
-};
-
-let mk_ArgTag = (tag: formatted_child, body: formatted_child): UHDoc.t => {
-  let tag_doc = pad_closed_child(~sort=Tag, tag);
-  let body_doc = mk_TagArg(body);
-  Doc.hcats([tag_doc, body_doc]) |> annot_Tessera |> annot_Operand(~sort=Tag);
-};
-
 let mk = {
   lazy(
     memoize((~memoize as _: bool, ~enforce_inline as _: bool, tag: UHTag.t) =>
@@ -31,6 +18,15 @@ let mk = {
       }
     )
   );
+};
+
+let mk_formatted =
+    (~memoize: bool, ~enforce_inline: bool, tag: UHTag.t): formatted_child => {
+  let formattable = (~enforce_inline: bool) =>
+    Lazy.force(mk, ~memoize, ~enforce_inline, tag);
+  enforce_inline
+    ? EnforcedInline(formattable(~enforce_inline))
+    : Unformatted(formattable);
 };
 
 let mk_child =
