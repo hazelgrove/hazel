@@ -200,7 +200,7 @@ let mk =
       ~uses=?,
       ~parent_info=NoParentInfo,
       ~enclosing_zopseq=CursorInfo.NoSeq,
-      ~opParent=None,
+      ~enclosing_zoperand=None,
       typed,
       ctx,
       cursor_term,
@@ -220,7 +220,7 @@ let mk =
     expected_ty,
     actual_ty,
     enclosing_zopseq,
-    opParent,
+    enclosing_zoperand,
     parent_info,
   };
 };

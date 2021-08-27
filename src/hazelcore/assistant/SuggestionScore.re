@@ -12,8 +12,8 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   |> List.filter(hole_not_empty);
 
 let idomaticity_score_parent =
-    (action: Action.t, opParent: CursorInfo.opParent): int => {
-  switch (action, opParent) {
+    (action: Action.t, enclosing_zoperand: CursorInfo.enclosing_zoperand): int => {
+  switch (action, enclosing_zoperand) {
   | (ReplaceOperand(operand, None), Some(parent_operand)) =>
     switch (parent_operand) {
     | CaseZE(_) =>
@@ -92,7 +92,7 @@ let check_suggestion =
     (
       action: Action.t,
       res_ty: HTyp.t,
-      {opParent, expected_ty, actual_ty, _} as ci: CursorInfo.t,
+      {enclosing_zoperand, expected_ty, actual_ty, _} as ci: CursorInfo.t,
     )
     : option(Suggestion.score) => {
   let+ (
@@ -108,7 +108,7 @@ let check_suggestion =
     };
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
-  let idiomaticity = idomaticity_score_parent(action, opParent);
+  let idiomaticity = idomaticity_score_parent(action, enclosing_zoperand);
   let type_specificity =
     type_specificity_score(expected_ty, res_ty, actual_ty);
   Suggestion.{idiomaticity, type_specificity, delta_errors};

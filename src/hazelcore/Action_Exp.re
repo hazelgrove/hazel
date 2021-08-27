@@ -598,23 +598,20 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  switch (a) {
-  | _ =>
-    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
-    | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-      let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
-      let new_ze =
-        (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-        |> ZExp.prune_empty_hole_lines;
-      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-    | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
-      let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
-      let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-    }
+  switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
+  | (Failed | CursorEscaped(_)) as err => err
+  | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
+  | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
+    let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
+    let new_ze =
+      (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+      |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
+    let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
+    let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
 and syn_perform_block =

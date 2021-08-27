@@ -130,7 +130,7 @@ type enclosing_zopseq =
 
 [@deriving sexp]
 /* the operand (if any) most immediately containing the cursor_term */
-type opParent = option(ZExp.zoperand);
+type enclosing_zoperand = option(ZExp.zoperand);
 
 [@deriving sexp]
 type parent_info =
@@ -146,7 +146,7 @@ type t = {
   expected_ty: HTyp.t,
   actual_ty: option(HTyp.t),
   enclosing_zopseq,
-  opParent,
+  enclosing_zoperand,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
   parent_info,

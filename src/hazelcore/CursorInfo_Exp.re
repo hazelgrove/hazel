@@ -241,18 +241,24 @@ let rec syn_cursor_info =
         (
           ~steps=[],
           ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-          ~opParent: CursorInfo.opParent,
+          ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
           ctx: Contexts.t,
           ze: ZExp.t,
         )
         : option(CursorInfo.t) => {
-  syn_cursor_info_zblock(~steps, ctx, ze, ~enclosing_zopseq, ~opParent);
+  syn_cursor_info_zblock(
+    ~steps,
+    ctx,
+    ze,
+    ~enclosing_zopseq,
+    ~enclosing_zoperand,
+  );
 }
 and syn_cursor_info_zblock =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
     )
@@ -264,7 +270,7 @@ and syn_cursor_info_zblock =
       syn_cursor_info_line(
         ~steps=steps @ [List.length(prefix)],
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
         ctx,
         zline,
         suffix,
@@ -287,7 +293,7 @@ and syn_cursor_info_line =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       zline: ZExp.zline,
       suffix,
@@ -306,7 +312,7 @@ and syn_cursor_info_line =
       ),
     )
   | ExpLineZ(ze) =>
-    switch (syn_cursor_info_zopseq(~steps, ctx, ze, ~opParent)) {
+    switch (syn_cursor_info_zopseq(~steps, ctx, ze, ~enclosing_zoperand)) {
     | None => None
     | Some(ci) =>
       Some(
@@ -349,7 +355,7 @@ and syn_cursor_info_line =
     let+ ci =
       ana_cursor_info(
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
         ~steps=steps @ [1],
         def_ctx,
         zdef,
@@ -361,7 +367,7 @@ and syn_cursor_info_line =
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
     )
@@ -385,7 +391,7 @@ and syn_cursor_info_zopseq =
            ctx,
            extract_from_zexp_zseq(zseq),
            ~enclosing_zopseq,
-           ~opParent,
+           ~enclosing_zoperand,
          )
        )
   | _ =>
@@ -400,7 +406,7 @@ and syn_cursor_info_zopseq =
       cursor_skel,
       zseq,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
   };
 }
@@ -408,7 +414,7 @@ and syn_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
@@ -425,7 +431,7 @@ and syn_cursor_info_skel =
         ctx,
         zoperand,
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
       )
     | ZOperator(_) =>
       Statics_Exp.syn_skel(ctx, skel, seq)
@@ -435,7 +441,7 @@ and syn_cursor_info_skel =
              ctx,
              extract_from_zexp_zseq(zseq),
              ~enclosing_zopseq,
-             ~opParent,
+             ~enclosing_zoperand,
            )
          )
     };
@@ -461,7 +467,7 @@ and syn_cursor_info_skel =
           zseq,
           HTyp.Int,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       ) {
       | Some(_) as result => result
@@ -473,7 +479,7 @@ and syn_cursor_info_skel =
           zseq,
           Int,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       }
     | BinOp(
@@ -490,7 +496,7 @@ and syn_cursor_info_skel =
           zseq,
           HTyp.Float,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       ) {
       | Some(_) as result => result
@@ -502,7 +508,7 @@ and syn_cursor_info_skel =
           zseq,
           Float,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       }
     | BinOp(_, And | Or, skel1, skel2) =>
@@ -514,7 +520,7 @@ and syn_cursor_info_skel =
           zseq,
           Bool,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       ) {
       | Some(_) as result => result
@@ -526,7 +532,7 @@ and syn_cursor_info_skel =
           zseq,
           Bool,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       }
     | BinOp(_, Space, Placeholder(n) as skel1, skel2) =>
@@ -542,7 +548,7 @@ and syn_cursor_info_skel =
             ctx,
             extract_from_zexp_zseq(zseq),
             ~enclosing_zopseq,
-            ~opParent,
+            ~enclosing_zoperand,
           );
         switch (cursor_on_outer_expr(zoperand)) {
         | None =>
@@ -551,7 +557,7 @@ and syn_cursor_info_skel =
             ctx,
             zoperand,
             ~enclosing_zopseq,
-            ~opParent,
+            ~enclosing_zoperand,
           )
         | Some(StandardErr(InHole(WrongLength, _))) => None
         | Some(StandardErr(InHole(TypeInconsistent, _))) =>
@@ -600,7 +606,7 @@ and syn_cursor_info_skel =
               zseq,
               ty1,
               ~enclosing_zopseq,
-              ~opParent,
+              ~enclosing_zoperand,
             )
           }
         };
@@ -613,7 +619,7 @@ and syn_cursor_info_skel =
           skel1,
           zseq,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       ) {
       | Some(_) as result => result
@@ -631,7 +637,7 @@ and syn_cursor_info_skel =
               zseq,
               ty1,
               ~enclosing_zopseq,
-              ~opParent,
+              ~enclosing_zoperand,
             )
           }
         }
@@ -644,7 +650,7 @@ and syn_cursor_info_skel =
           skel1,
           zseq,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         )
       ) {
       | Some(_) as result => result
@@ -660,7 +666,7 @@ and syn_cursor_info_skel =
             zseq,
             ty_list,
             ~enclosing_zopseq,
-            ~opParent,
+            ~enclosing_zoperand,
           );
         }
       }
@@ -671,20 +677,20 @@ and syn_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
-  let opParent_new = Some(zoperand);
+  let enclosing_zoperand_new = Some(zoperand);
   let mk = typed =>
     CursorInfo_common.mk(
       typed,
       ctx,
       cursor_term,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
   let syn_cursor_info_go = (~steps, ctx, zexp) =>
     syn_cursor_info(
@@ -692,7 +698,7 @@ and syn_cursor_info_zoperand =
       ctx,
       zexp,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     );
   let ana_cursor_info_go = (~steps, ctx, zexp, ty) =>
     ana_cursor_info(
@@ -701,7 +707,7 @@ and syn_cursor_info_zoperand =
       zexp,
       ty,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     );
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) => Some(mk(SynInvalid))
@@ -780,7 +786,7 @@ and syn_cursor_info_zoperand =
         syn_cursor_info_rule(
           ~steps=steps @ [1 + List.length(prefix)],
           ~enclosing_zopseq,
-          ~opParent=opParent_new,
+          ~enclosing_zoperand=enclosing_zoperand_new,
           ctx,
           zrule,
           pat_ty,
@@ -798,18 +804,25 @@ and ana_cursor_info =
     (
       ~steps=[],
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       ze: ZExp.t,
       ty: HTyp.t,
     )
     : option(CursorInfo.t) =>
-  ana_cursor_info_zblock(~steps, ~enclosing_zopseq, ~opParent, ctx, ze, ty)
+  ana_cursor_info_zblock(
+    ~steps,
+    ~enclosing_zopseq,
+    ~enclosing_zoperand,
+    ctx,
+    ze,
+    ty,
+  )
 and ana_cursor_info_zblock =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
       ty: HTyp.t,
@@ -827,7 +840,7 @@ and ana_cursor_info_zblock =
         | LetLineZE(_) => None
         | ExpLineZ(zopseq) =>
           ana_cursor_info_zopseq(
-            ~opParent,
+            ~enclosing_zoperand,
             ~steps=steps @ [List.length(prefix)],
             ctx,
             zopseq,
@@ -852,7 +865,7 @@ and ana_cursor_info_zblock =
           switch (
             syn_cursor_info_line(
               ~enclosing_zopseq,
-              ~opParent,
+              ~enclosing_zoperand,
               ~steps=steps @ [List.length(prefix)],
               ctx,
               zline,
@@ -882,7 +895,7 @@ and ana_cursor_info_zblock =
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
       ty: HTyp.t,
@@ -899,7 +912,7 @@ and ana_cursor_info_zopseq =
       ctx,
       cursor_term,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
@@ -922,7 +935,12 @@ and ana_cursor_info_zopseq =
       // wrong length, switch to syn
       let zopseq_not_in_hole =
         zopseq |> ZExp.set_err_status_zopseq(NotInHole);
-      syn_cursor_info_zopseq(~steps, ctx, zopseq_not_in_hole, ~opParent);
+      syn_cursor_info_zopseq(
+        ~steps,
+        ctx,
+        zopseq_not_in_hole,
+        ~enclosing_zoperand,
+      );
     | Some(skel_tys) =>
       let (cursor_skel, cursor_skel_ty) =
         skel_tys
@@ -934,7 +952,7 @@ and ana_cursor_info_zopseq =
         zseq,
         cursor_skel_ty,
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
       );
     }
   };
@@ -944,7 +962,7 @@ and ana_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
@@ -958,7 +976,7 @@ and ana_cursor_info_skel =
       ctx,
       cursor_term,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
   let syn_go = skel =>
     syn_cursor_info_skel(
@@ -967,7 +985,7 @@ and ana_cursor_info_skel =
       skel,
       zseq,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
   let ana_go = (skel, ty) =>
     ana_cursor_info_skel(
@@ -975,7 +993,7 @@ and ana_cursor_info_skel =
       ctx,
       skel,
       zseq,
-      ~opParent,
+      ~enclosing_zoperand,
       ~enclosing_zopseq,
       ty,
     );
@@ -988,7 +1006,7 @@ and ana_cursor_info_skel =
       ana_cursor_info_zoperand(
         ~steps=steps @ [Seq.length_of_affix(prefix)],
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
         ctx,
         zoperand,
         ty,
@@ -1052,7 +1070,7 @@ and ana_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
       ty: HTyp.t,
@@ -1065,16 +1083,16 @@ and ana_cursor_info_zoperand =
       ctx,
       cursor_term,
       ~enclosing_zopseq,
-      ~opParent,
+      ~enclosing_zoperand,
     );
-  let opParent_new = Some(zoperand);
+  let enclosing_zoperand_new = Some(zoperand);
   let syn_cursor_info_go = (~steps, ctx, zexp) =>
     syn_cursor_info(
       ~steps,
       ctx,
       zexp,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     );
   let ana_cursor_info_go = (~steps, ctx, zexp, ty) =>
     ana_cursor_info(
@@ -1083,7 +1101,7 @@ and ana_cursor_info_zoperand =
       zexp,
       ty,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     );
   switch (zoperand) {
   | CursorE(_, e) =>
@@ -1172,7 +1190,7 @@ and ana_cursor_info_zoperand =
       ctx,
       zoperand,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     ) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
@@ -1221,7 +1239,7 @@ and ana_cursor_info_zoperand =
         ty1,
         ty,
         ~enclosing_zopseq,
-        ~opParent=opParent_new,
+        ~enclosing_zoperand=enclosing_zoperand_new,
       )
     }
   | ApPaletteZ(NotInHole, _, _, _) =>
@@ -1230,7 +1248,7 @@ and ana_cursor_info_zoperand =
       ctx,
       zoperand,
       ~enclosing_zopseq,
-      ~opParent=opParent_new,
+      ~enclosing_zoperand=enclosing_zoperand_new,
     )
   };
 }
@@ -1238,7 +1256,7 @@ and syn_cursor_info_rule =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
@@ -1254,7 +1272,7 @@ and syn_cursor_info_rule =
         ctx,
         extract_from_zrule(zrule),
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
       ),
     )
   | RuleZP(zp, clause) =>
@@ -1278,7 +1296,7 @@ and syn_cursor_info_rule =
           ctx,
           zclause,
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
         );
       /* Check if the cursor is on the outermost form of the clause */
       let is_outer = ZExp.is_outer(zclause);
@@ -1304,7 +1322,7 @@ and syn_cursor_info_rule =
               ~uses,
               ~parent_info,
               ~enclosing_zopseq,
-              ~opParent,
+              ~enclosing_zoperand,
               typed,
               ctx,
               cursor_term,
@@ -1318,7 +1336,7 @@ and ana_cursor_info_rule =
     (
       ~steps: CursorPath.steps,
       ~enclosing_zopseq: CursorInfo.enclosing_zopseq,
-      ~opParent: CursorInfo.opParent,
+      ~enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
@@ -1333,7 +1351,7 @@ and ana_cursor_info_rule =
         ctx,
         extract_from_zrule(zrule),
         ~enclosing_zopseq,
-        ~opParent,
+        ~enclosing_zoperand,
       ),
     )
   | RuleZP(zp, clause) =>
@@ -1353,7 +1371,7 @@ and ana_cursor_info_rule =
       let+ cursor_info =
         ana_cursor_info(
           ~enclosing_zopseq,
-          ~opParent,
+          ~enclosing_zoperand,
           ~steps=steps @ [1],
           ctx,
           zclause,
