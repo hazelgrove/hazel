@@ -153,8 +153,7 @@ let suggestion_view =
   let unset_hover = _ =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
   let color_score =
-    // TODO(andrew): figure out what i'm doing with this
-    score.delta_errors /*+ score.idiomaticity + score.type_specificity*/;
+    score.delta_errors + score.idiomaticity + score.type_specificity;
   div(
     [
       Attr.id(string_of_int(my_index)),

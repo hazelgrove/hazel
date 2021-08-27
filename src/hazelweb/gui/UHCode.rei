@@ -40,6 +40,4 @@ let typebox:
     Editor.Typ.t,
     MetaVarGen.t
   ) =>
-  // TODO(andrew): figure out why this was here from merge
-  //~cursor_inspector: CursorInspectorModel.t
   list(Vdom.Node.t);
