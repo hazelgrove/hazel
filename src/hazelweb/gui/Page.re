@@ -6,11 +6,31 @@ let logo_panel =
     [text("Hazel")],
   );
 
+// v1: just show face. hovering reveals ci control menu. clicking activates assistant.
+let ci_panel =
+    (
+      ~inject: ModelAction.t => Event.t,
+      mode: option(Model.cursor_inspector_mode),
+    ) => {
+  let on_click = _ =>
+    inject(Chain([FocusCell(MainProgram), ToggleCursorInspectorMode]));
+  let on_hover = _ => Event.Ignore;
+  div(
+    [
+      Attr.id("assistant-panel"),
+      Attr.on_click(on_click),
+      Attr.on_mouseover(on_hover),
+    ],
+    [AssistantView.icon, CursorInspector.ci_control_pane(mode, ~inject)],
+  );
+};
+
 let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   div(
     [Attr.classes(["top-bar"])],
     [
       logo_panel,
+      ci_panel(~inject, model.cursor_inspector_mode),
       CardsPanel.view(~inject, ~model),
       ActionMenu.view(~inject),
     ],

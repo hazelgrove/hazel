@@ -67,7 +67,9 @@ let opseq_report =
         | Some(ty) => ty
         };
       Some((expected_ty, zopseq |> ZExp.ZBlock.wrap'));
-    | _ => None
+    | _ =>
+      print_endline("opseq report failed to do the first thing");
+      None;
     };
   let+ (actual_ty, new_zexp) =
     switch (
@@ -78,7 +80,9 @@ let opseq_report =
       )
     ) {
     | Failed
-    | CursorEscaped(_) => None
+    | CursorEscaped(_) =>
+      print_endline("opseq report failed to do the second thing");
+      None;
     | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
     };
   let context_consistent_after =

@@ -31,8 +31,14 @@ let ci_mode_radio =
   let mode_str = string_of_cursor_inspector_mode(mode);
   Node.div(
     [
-      Attr.classes(["mode"]),
-      Attr.on_click(_ => inject(SetCursorInspectorMode(mode))),
+      Attr.class_("mode"),
+      Attr.on_click(_ =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(SetCursorInspectorMode(mode)),
+        ])
+      ),
     ],
     [
       radio(mode_str, mode == current_mode),
@@ -46,11 +52,11 @@ let ci_mode_radio =
 };
 
 let ci_control_pane =
-    (curent_mode: option(Model.cursor_inspector_mode), ~inject) => {
+    (curent_mode: option(Model.cursor_inspector_mode), ~inject): Node.t => {
   let mode_radio = (~body=[], mode) =>
     ci_mode_radio(mode, curent_mode, ~body, ~inject);
   Node.div(
-    [Attr.classes(["ci-control-pane-wrapper"])],
+    [Attr.class_("ci-control-pane-wrapper")],
     [
       Node.div(
         [Attr.class_("speech-bubble-wrapper")],
@@ -63,7 +69,7 @@ let ci_control_pane =
                 [
                   Node.text("Inspector mode"),
                   Node.div(
-                    [Attr.classes(["key"])],
+                    [Attr.class_("key")],
                     [Node.text("CTRL-SPACE")],
                   ),
                 ],

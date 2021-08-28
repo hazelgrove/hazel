@@ -7,10 +7,7 @@ let icon =
     [
       create(
         "img",
-        [
-          Attr.create("src", "imgs/assistant/boost-0000.png"),
-          Attr.create("style", "height:1.1em"),
-        ],
+        [Attr.create("src", "imgs/assistant/boost-0000.png")],
         [],
       ),
     ],

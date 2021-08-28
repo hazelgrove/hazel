@@ -93,7 +93,7 @@
 
   /* ASSISTANT suggestion info popup */
 
-  --suggestion-info-background: #666d;
+  --suggestion-info-background: #666666f8;
   --suggestion-info-text: #ccc;
   --suggestion-info-good-text: rgb(0, 200, 120);
   --suggestion-info-bad-text: red;
@@ -178,7 +178,7 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
-  gap: 1em;
+  gap: 0.75em;
   align-items: center;
 }
 
@@ -811,8 +811,12 @@ body {
 }
 
 .assistant-active .clickable-help-icon {
-  padding-right: 0.2em;
   line-height: 0; /* HACK */
+  padding-right: 0.2em;
+}
+
+.assistant-active .clickable-help-icon img {
+  height: 1.2rem;
 }
 
 .assistant-active .type-info-summary {
@@ -997,7 +1001,9 @@ body {
 }
 
 
-/* cursor inspector control pane */
+/* CURSOR INSPECTOR CONTROL PANE */
+
+/* ci control pane : inline version */
 
 #cursor-inspector .clickable-help-icon:hover+.ci-control-pane-wrapper {
   display:block;
@@ -1017,18 +1023,6 @@ body {
   cursor: default;
 }
 
-#cursor-inspector .ci-control-pane {
-  overflow: hidden;
-  border-radius: 0.4em;
-  background-color: var(--assistant-control-background);
-  color: var(--suggestion-info-text);
-  font-weight: normal;
-}
-
-#cursor-inspector .ci-control-pane-wrapper .speech-bubble-wrapper {
-  position: relative;
-}
-
 /* speech bubble tail */
 #cursor-inspector .ci-control-pane-wrapper .speech-bubble-wrapper:after {
   content: '';
@@ -1045,7 +1039,56 @@ body {
   margin-bottom: 0;
 }
 
-#cursor-inspector .ci-control-pane .mode{
+/* ci control pane : topbar version */
+
+#assistant-panel .clickable-help-icon:hover+.ci-control-pane-wrapper {
+  display:block;
+}
+
+#assistant-panel  .ci-control-pane-wrapper:hover{
+  display:block;
+}
+
+#assistant-panel .ci-control-pane-wrapper {
+  padding-top: 1em;
+  display: none;
+  z-index: 100;
+  position: absolute;
+  top: 1.75em;
+  left: 3.6em;
+  cursor: default;
+}
+
+/* speech bubble tail */
+#assistant-panel .ci-control-pane-wrapper .speech-bubble-wrapper:after {
+  content: '';
+  position: absolute;
+  top: -0.75em;
+  left: 0.75em;
+  width: 0;
+  height: 0;
+  border: 0.75em solid transparent;
+  border-bottom-color: var(--assistant-control-background);
+  border-top: 0;
+  border-left: 0;
+  margin-bottom: 0;
+}
+
+/* ci control pane shared */
+
+.ci-control-pane {
+  overflow: hidden;
+  border-radius: 0.4em;
+  background-color: var(--assistant-control-background);
+  color: var(--suggestion-info-text);
+  font-weight: normal;
+}
+
+.ci-control-pane-wrapper .speech-bubble-wrapper {
+  position: relative;
+}
+
+.ci-control-pane .mode{
   height: 2em;
   padding-left: 0.5em;
   padding-right: 0.5em;
@@ -1055,37 +1098,37 @@ body {
   cursor: pointer;
 }
 
-#cursor-inspector .ci-control-pane hr {
+.ci-control-pane hr {
   margin: 0 0.75rem 0 0.75rem;
   border: none;
   height: 1px;
   background-color: var(--assistant-control-divider);
 }
 
-#cursor-inspector .ci-control-pane .mode:last-child{
+.ci-control-pane .mode:last-child{
   border-top: solid 1px var(--assistant-control-close-shadow);
   background-color: var(--assistant-control-close-background);
   color: var(--assistant-control-close-text);
 }
 
-#cursor-inspector .ci-control-pane .mode:last-child:hover{
+.ci-control-pane .mode:last-child:hover{
   background-color: var(--assistant-control-close-background-selected);
 }
 
-#cursor-inspector .ci-control-pane .mode:last-child .key{
+.ci-control-pane .mode:last-child .key{
   opacity: 0%;
 }
 
-#cursor-inspector .ci-control-pane .mode:last-child:hover .key{
+.ci-control-pane .mode:last-child:hover .key{
   opacity: 100%;
 }
 
-#cursor-inspector .ci-control-pane .mode:hover {
+.ci-control-pane .mode:hover {
   background-color: var(--assistant-control-background-selected);
   color: var(--assistant-control-text-selected);
 }
 
-#cursor-inspector #ci-control-pane-mode-switch {
+.ci-control-pane #ci-control-pane-mode-switch {
   height: 2em;
   padding-left: 0.5em;
   padding-right: 0.5em;
@@ -1095,15 +1138,15 @@ body {
   color: var(--assistant-control-mode-switch-text);
 }
 
-#cursor-inspector #ci-control-pane-mode-switch .key {
+.ci-control-pane #ci-control-pane-mode-switch .key {
   opacity:0%;
 }
 
-#cursor-inspector #ci-control-pane-mode-switch:hover .key {
+.ci-control-pane #ci-control-pane-mode-switch:hover .key {
   opacity:100%;
 }
 
-#cursor-inspector .key {
+.ci-control-pane .key {
   margin-left: auto;
   font-size: 0.6rem;
   font-weight: bold;
@@ -1139,7 +1182,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--suggestion-category-background);
+  background-color: var(--suggestion-selected-category-background);
+  color: var(--suggestion-selected-category-text);
+  border-radius: 6px;
   font-size: 0.4em;
   font-weight: 600;
   text-transform: uppercase;
@@ -1180,6 +1225,19 @@ body {
   border-right: 0;
   margin-left: -0.75rem;
   margin-bottom: 0;
+}
+
+/* ASSISTANT panel */
+
+#assistant-panel .clickable-help-icon img {
+  opacity: 0.6;
+  height: 1em;
+  position: relative;
+  top: 0.1em;
+}
+
+#assistant-panel:hover .clickable-help-icon img {
+  opacity: 1.0;
 }
 
 
