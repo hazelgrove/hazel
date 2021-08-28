@@ -223,3 +223,9 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
+
+let is_empty_sumbody_operand: sumbody_operand => bool =
+  fun
+  | ConstTag(TagHole(_))
+  | ArgTag(TagHole(_), OpSeq(_, S(Hole, _))) => true
+  | _ => false;

@@ -693,10 +693,6 @@ and perform_zsumbody =
 
   /* Deletion */
 
-  // | (Delete, ZOperator((OnOp(After as side), _), _))
-  // | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-  //   perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)
-
   | (
       Delete,
       ZOperator(
@@ -712,37 +708,36 @@ and perform_zsumbody =
     | (A(_, prefix_tail'), A(suffix_op, suffix_tail')) =>
       {
         let+ new_zseq =
-          switch (prefix_operand, suffix_operand) {
-          // ... + _ |>+ ? + ...  ==>  ... + _ |+ ...
-          | (_, ConstTag(TagHole(_))) =>
-            let+ new_zoperator =
-              suffix_op |> ZTyp.place_before_sumbody_operator;
-            ZSeq.ZOperator(new_zoperator, (prefix, suffix_tail'));
-          // ... + ? |>+ _ + ...  ==>  ... |+ _ + ...
-          | (ConstTag(TagHole(_)), _) =>
-            Some(ZSeq.ZOperator(zop, (prefix_tail', suffix)))
-          // ... + 1 |>+ 2 + ...  ==>  ... + 1 |+ ...
-          | (_, _) =>
-            let+ new_zoperator =
-              suffix_op |> ZTyp.place_before_sumbody_operator;
-            ZSeq.ZOperator(new_zoperator, (prefix, suffix_tail'));
+          if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+            // ... + _ |>+ ? + ...  ==>  ... + _ |+ ...
+            let+ new_zop = suffix_op |> ZTyp.place_before_sumbody_operator;
+            ZSeq.ZOperator(new_zop, (prefix, suffix_tail'));
+          } else if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+            // ... + ? |>+ _ + ...  ==>  ... |+ _ + ...
+            Some(
+              ZSeq.ZOperator(zop, (prefix_tail', suffix)),
+            );
+          } else {
+            // ... + 1 |>+ 2 + ...  ==>  ... + 1 |+ ...
+            let+ new_zop = suffix_op |> ZTyp.place_before_sumbody_operator;
+            ZSeq.ZOperator(new_zop, (prefix, suffix_tail'));
           };
         ActionOutcome.Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
       }
       |> Option.value(~default=ActionOutcome.Failed)
     | (A(_, prefix_tail'), E) =>
       let new_zseq =
-        switch (prefix_operand, suffix_operand) {
-        // ... + _ |>+ ?  ==> ... + _|
-        | (_, ConstTag(TagHole(_))) =>
+        if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+          // ... + _ |>+ ?  ==> ... + _|
           let new_zoperand =
             prefix_operand |> ZTyp.place_after_sumbody_operand;
           ZSeq.ZOperand(new_zoperand, (prefix_tail, E));
-        // ... + ? |>+ _  ==> ... |+ _
-        | (ConstTag(TagHole(_)), _) =>
-          ZSeq.ZOperator(zop, (prefix_tail', suffix))
-        // ... + 1 |>+ 2  ==> ... + 1|
-        | _ =>
+        } else if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+          // ... + ? |>+ _  ==> ... |+ _
+          let new_surround = (prefix_tail', suffix);
+          ZSeq.ZOperator(zop, new_surround);
+        } else {
+          // ... + 1 |>+ 2  ==> ... + 1|
           let new_zoperand =
             prefix_operand |> ZTyp.place_after_sumbody_operand;
           ZSeq.ZOperand(new_zoperand, (prefix_tail, E));
@@ -751,20 +746,19 @@ and perform_zsumbody =
     | (E, A(suffix_op, suffix_tail')) =>
       {
         let+ new_zseq =
-          switch (prefix_operand, suffix_operand) {
-          // _ |>+ ? + ...  ==>  _ |+ ...
-          | (_, ConstTag(TagHole(_))) =>
+          if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+            // _ |>+ ? + ...  ==>  _ |+ ...
             let+ new_zop = suffix_op |> ZTyp.place_before_sumbody_operator;
             let new_surround = (Seq.wrap(prefix_operand), suffix_tail');
             ZSeq.ZOperator(new_zop, new_surround);
-          // ? |>+ _ + ...  ==>  |_ + ...
-          | (ConstTag(TagHole(_)), _) =>
+          } else if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+            // ? |>+ _ + ...  ==>  |_ + ...
             let new_zoperand =
               suffix_operand |> ZTyp.place_before_sumbody_operand;
             let new_zseq = ZSeq.ZOperand(new_zoperand, (E, suffix_tail));
             Some(new_zseq);
-          // 1 |>+ 2 + ...  ==>  1 |+ ...
-          | (_, _) =>
+          } else {
+            // 1 |>+ 2 + ...  ==>  1 |+ ...
             let+ new_zop = suffix_op |> ZTyp.place_before_sumbody_operator;
             let new_surround = (Seq.wrap(prefix_operand), suffix_tail');
             let new_zseq = ZSeq.ZOperator(new_zop, new_surround);
@@ -775,15 +769,15 @@ and perform_zsumbody =
       |> Option.value(~default=ActionOutcome.Failed)
     | (E, E) =>
       let new_zoperand =
-        switch (prefix_operand, suffix_operand) {
-        // _ |>+ ?  ==>  _|
-        | (_, ConstTag(TagHole(_))) =>
-          prefix_operand |> ZTyp.place_after_sumbody_operand
-        // ? |>+ _  ==>  |_
-        | (ConstTag(TagHole(_)), _) =>
-          suffix_operand |> ZTyp.place_before_sumbody_operand
-        // 1 |>+ 2  ==>  1|
-        | _ => prefix_operand |> ZTyp.place_after_sumbody_operand
+        if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+          // _ |>+ ?  ==>  _|
+          prefix_operand |> ZTyp.place_after_sumbody_operand;
+        } else if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+          // ? |>+ _  ==>  |_
+          suffix_operand |> ZTyp.place_before_sumbody_operand;
+        } else {
+          // 1 |>+ 2  ==>  1|
+          prefix_operand |> ZTyp.place_after_sumbody_operand;
         };
       Succeeded((ZOpSeq.wrap(new_zoperand), u_gen));
     }
@@ -805,17 +799,16 @@ and perform_zsumbody =
     | (A(prefix_op, prefix_tail'), A(suffix_op, suffix_tail')) =>
       {
         let+ new_zseq =
-          switch (prefix_operand, suffix_operand) {
-          // ... + ? +<| _ + ...  ==>  ... +| _ + ...
-          | (ConstTag(TagHole(_)), _) =>
+          if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+            // ... + ? +<| _ + ...  ==>  ... +| _ + ...
             let+ new_zop = prefix_op |> ZTyp.place_after_sumbody_operator;
             ZSeq.ZOperator(new_zop, (prefix_tail', suffix));
-          // ... + _ +<| ? + ...  ==>  ... + _ +| ...
-          | (_, ConstTag(TagHole(_))) =>
+          } else if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+            // ... + _ +<| ? + ...  ==>  ... + _ +| ...
             let+ new_zop = suffix_op |> ZTyp.place_after_sumbody_operator;
             ZSeq.ZOperator(new_zop, (prefix, suffix_tail'));
-          // ... + 1 +<| 2 + ...  ==>  ... +| 2 + ...
-          | (_, _) =>
+          } else {
+            // ... + 1 +<| 2 + ...  ==>  ... +| 2 + ...
             let+ new_zop = prefix_op |> ZTyp.place_after_sumbody_operator;
             ZSeq.ZOperator(new_zop, (prefix_tail', suffix));
           };
@@ -825,20 +818,19 @@ and perform_zsumbody =
     | (A(prefix_op, prefix_tail'), E) =>
       {
         let+ new_zseq =
-          switch (prefix_operand, suffix_operand) {
-          // ... + ? +<| _  ==> ... +| _
-          | (ConstTag(TagHole(_)), _) =>
+          if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+            // ... + ? +<| _  ==> ... +| _
             let+ new_zop = prefix_op |> ZTyp.place_after_sumbody_operator;
             let new_surround = (prefix_tail', Seq.wrap(suffix_operand));
             ZSeq.ZOperator(new_zop, new_surround);
-          // ... + _ +<| ?  ==> ... + _|
-          | (_, ConstTag(TagHole(_))) =>
+          } else if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+            // ... + _ +<| ?  ==> ... + _|
             let new_zoperand =
               prefix_operand |> ZTyp.place_after_sumbody_operand;
             let new_zseq = ZSeq.ZOperand(new_zoperand, (prefix_tail, E));
             Some(new_zseq);
-          // ... + 1 +<| 2  ==> ... +| 2
-          | (_, _) =>
+          } else {
+            // ... + 1 +<| 2  ==> ... +| 2
             let new_zoperand =
               suffix_operand |> ZTyp.place_before_sumbody_operand;
             let new_zseq = ZSeq.ZOperand(new_zoperand, (E, suffix_tail));
@@ -850,20 +842,19 @@ and perform_zsumbody =
     | (E, A(suffix_op, suffix_tail')) =>
       {
         let+ new_zseq =
-          switch (prefix_operand, suffix_operand) {
-          // ? +<| _ + ...  ==>  |_ + ...
-          | (ConstTag(TagHole(_)), _) =>
+          if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+            // ? +<| _ + ...  ==>  |_ + ...
             let new_zoperand =
               suffix_operand |> ZTyp.place_before_sumbody_operand;
             let new_zseq = ZSeq.ZOperand(new_zoperand, (E, suffix_tail));
             Some(new_zseq);
-          // _ +<| ? + ...  ==>  _ +| ...
-          | (_, ConstTag(TagHole(_))) =>
+          } else if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+            // _ +<| ? + ...  ==>  _ +| ...
             let+ new_zop = suffix_op |> ZTyp.place_after_sumbody_operator;
             let new_surround = (Seq.wrap(prefix_operand), suffix_tail');
             ZSeq.ZOperator(new_zop, new_surround);
-          // 1 +<| 2 + ...  ==>  |2 + ...
-          | (_, _) =>
+          } else {
+            // 1 +<| 2 + ...  ==>  |2 + ...
             let new_zoperand =
               suffix_operand |> ZTyp.place_before_sumbody_operand;
             let new_zseq = ZSeq.ZOperand(new_zoperand, (E, suffix_tail));
@@ -874,15 +865,15 @@ and perform_zsumbody =
       |> Option.value(~default=ActionOutcome.Failed)
     | (E, E) =>
       let new_zoperand =
-        switch (prefix_operand, suffix_operand) {
-        // ? +<| _  ==>  |_
-        | (ConstTag(TagHole(_)), _) =>
-          suffix_operand |> ZTyp.place_before_sumbody_operand
-        // _ +<| ?  ==>  _|
-        | (_, ConstTag(TagHole(_))) =>
-          prefix_operand |> ZTyp.place_after_sumbody_operand
-        // 1 +<| 2  ==>  |2
-        | _ => suffix_operand |> ZTyp.place_before_sumbody_operand
+        if (UHTyp.is_empty_sumbody_operand(prefix_operand)) {
+          // ? +<| _  ==>  |_
+          suffix_operand |> ZTyp.place_before_sumbody_operand;
+        } else if (UHTyp.is_empty_sumbody_operand(suffix_operand)) {
+          // _ +<| ?  ==>  _|
+          prefix_operand |> ZTyp.place_after_sumbody_operand;
+        } else {
+          // 1 +<| 2  ==>  |2
+          suffix_operand |> ZTyp.place_before_sumbody_operand;
         };
       Succeeded((ZOpSeq.wrap(new_zoperand), u_gen));
     }
