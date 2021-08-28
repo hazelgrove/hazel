@@ -14,9 +14,9 @@ type t = {
 };
 
 let init = {
-  visible: true,
+  visible: false,
   show_expanded: false,
-  novice_mode: true,
+  novice_mode: false,
   strategy_guide: false,
   strategy_guide_lit: false,
   strategy_guide_var: false,

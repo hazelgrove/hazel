@@ -1,23 +1,27 @@
 open Virtual_dom.Vdom;
+module Js = Js_of_ocaml.Js;
 
 let string_of_cursor_inspector_mode =
     (mode: option(Model.cursor_inspector_mode)) =>
   switch (mode) {
-  | Some(Simple) => "inspector only"
+  | Some(Simple) => "inspector"
   | Some(Assistant) => "assistant"
   | Some(Tutor) => "tutor"
   | None => "close"
   };
 
-let radio = (str, checked) =>
-  Node.input(
+let radio_button = checked =>
+  Node.create(
+    "img",
     [
-      Attr.id(str ++ "-radio"),
-      Attr.type_("radio"),
-      Attr.name("mode"),
-      Attr.value(str),
-    ]
-    @ (checked ? [Attr.checked] : []),
+      Attr.classes(["radio-button"] @ (checked ? ["checked"] : [])),
+      Attr.create(
+        "src",
+        checked
+          ? "imgs/assistant/radio_button_on.svg"
+          : "imgs/assistant/radio_button_off.svg",
+      ),
+    ],
     [],
   );
 
@@ -32,20 +36,17 @@ let ci_mode_radio =
   Node.div(
     [
       Attr.class_("mode"),
-      Attr.on_click(_ =>
+      Attr.on_click(_ => {
         Event.Many([
           Event.Prevent_default,
           Event.Stop_propagation,
           inject(SetCursorInspectorMode(mode)),
         ])
-      ),
+      }),
     ],
     [
-      radio(mode_str, mode == current_mode),
-      Node.label(
-        [Attr.for_(mode_str ++ "-radio")],
-        [Node.text(mode_str)],
-      ),
+      radio_button(mode == current_mode),
+      Node.span([], [Node.text(mode_str)]),
     ]
     @ body,
   );
@@ -62,12 +63,12 @@ let ci_control_pane =
         [Attr.class_("speech-bubble-wrapper")],
         [
           Node.div(
-            [Attr.class_("ci-control-pane")],
+            [Attr.id("ci-mode"), Attr.class_("ci-control-pane")],
             [
               Node.div(
                 [Attr.id("ci-control-pane-mode-switch")],
                 [
-                  Node.text("Inspector mode"),
+                  Node.text("Toggle inspector"),
                   Node.div(
                     [Attr.class_("key")],
                     [Node.text("CTRL-SPACE")],

@@ -1098,6 +1098,15 @@ body {
   cursor: pointer;
 }
 
+.ci-control-pane .radio-button {
+  height: 0.85em;
+  filter: invert(100%);
+}
+
+.ci-control-pane .mode:hover .radio-button {
+  filter: none;
+}
+
 .ci-control-pane hr {
   margin: 0 0.75rem 0 0.75rem;
   border: none;
@@ -1165,7 +1174,7 @@ body {
   z-index:100;
   position: absolute;
   top: -2.2rem;
-  left: 106%;
+  left: 107%;
   display: grid;
   grid-template-columns: 1.85em 1fr;
   padding: 0.5em;
