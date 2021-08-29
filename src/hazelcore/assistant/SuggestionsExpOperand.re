@@ -195,19 +195,17 @@ let mk_wrap_suggestion =
 
 let wrap_suggestions =
     ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {
-  // TODO(andrew): non-unary wraps
-  switch (actual_ty, cursor_term) {
-  | (_, ExpOperand(_, EmptyHole(_))) => []
-  // NOTE: wrapping empty holes redundant to ap
-  | (None, _) =>
-    // TODO(andrew): hack, maybe, so we get wrappings for caret case
-    let actual_ty = HTyp.Hole;
-    Assistant_common.fun_vars(ctx, expected_ty)
-    |> List.filter(((_, f_ty)) =>
-         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
-       )
-    |> List.map(mk_wrap_suggestion(ci));
-  | (Some(actual_ty), _) =>
+  let actual_ty =
+    switch (actual_ty) {
+    | None => HTyp.Hole
+    | Some(ty) => ty
+    };
+  switch (cursor_term) {
+  | ExpOperand(_, EmptyHole(_)) =>
+    /* Wrapping empty holes is redundant to ap. Revisit when there's
+       a mechanism to eliminate duplicate suggestions */
+    []
+  | _ =>
     Assistant_common.fun_vars(ctx, expected_ty)
     |> List.filter(((_, f_ty)) =>
          HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
@@ -223,6 +221,9 @@ let str_int_to_float = s =>
 
 let int_float_suggestions =
     ({cursor_term, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
+  /* This functions handles the suggestion of both float/int literals
+     and repair conversions between the two. These could be seperated
+     out once we have a system for identifying duplicate suggestions */
   (
     switch (cursor_term) {
     | ExpOperand(_, IntLit(_, s)) when s != "0" => [
