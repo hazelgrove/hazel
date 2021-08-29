@@ -51,33 +51,59 @@
   --caret-z: 5;
 
 
-  /* ASSISTANT */
+  /* CURSOR INSPECTOR */
 
-  --exp_accent: rgb(200, 255, 200);
+  --ui-accent: wheat;
+
+  --exp_accent: #c8ffc8;
   --pat_accent: #b4e4f9;
   --typ_accent: #e7ddfb;
 
   --ci-type-info: var(--exp_accent);
-  --ci-type-code: rgb(70, 70, 70);
+  --ci-type-code: #444;
   --ci-type-bidi-arrow: #ccc;
   --ci-type-inconsistent: #f88;
 
-  --assistant-background-color: #aaa;
-  --assistant-text-color: rgb(46, 46, 46);
-  --assistant-shadow-color: #6667;
+  --ci-shadow-color: #6667;
+  --ci-drop-shadow: drop-shadow(6px 6px 12px var(--ci-shadow-color));
+ 
 
+  /* CI/ASSISTANT control pane */
+
+  --assistant-control-background: var(--suggestion-info-background);
+  --assistant-control-background-selected: var(--exp_accent);
+  --assistant-control-text-selected: black;
+  --assistant-control-mode-switch-text: var(--ui-accent);
+  --assistant-control-divider: #444;
+
+  --assistant-control-close-background: #3339;
+  --assistant-control-close-text: white;
+  --assistant-control-close-shadow: #222;
+  --assistant-control-close-background-selected: #fbb;
+  
+  --assistant-control-key-text: var(--suggestion-info-text);
+  --assistant-control-key-background: #777;
+  --assistant-control-key-highlight: #999;
+  --assistant-control-key-shadow: #444;
+
+
+  /* ASSISTANT */
+
+  --assistant-background-color: #aaa;
+  --assistant-text-color: #333;
+  
   --suggestion-selected-background: var(--exp_accent);
-  --suggestion-selected-text: #383838;
+  --suggestion-selected-text: black;
   --suggestion-selected-top: white;
   --suggestion-selected-bottom: #242;
 
   --suggestion-less-errors-text: #0c5b64;
   --suggestion-more-errors-text: #b00;
-  --suggestion-less-errors-background: rgb(140, 180, 190);
-  --suggestion-more-errors-background: rgb(200, 160, 160);
+  --suggestion-less-errors-background: #8cb4be;
+  --suggestion-more-errors-background: #c8a0a0;
   
-  --suggestion-selected-hole-text: rgb(90, 182, 79);
-  --suggestion-selected-type-text: #3ba270;
+  --suggestion-selected-hole-text: #6b5;
+  --suggestion-selected-type-text: #4a7;
   
   --suggestion-type-text: #ccc;
   --suggestion-type-ann-colon: #999;
@@ -85,38 +111,21 @@
   --suggestion-selected-type-hole-text: #888;
 
   --suggestion-category-background: #888;
-  --suggestion-category-text: #bbbbbb;
-  --suggestion-selected-category-background: rgb(170, 240, 170);
+  --suggestion-category-text: #bbb;
+  --suggestion-selected-category-background: #aea;
   --suggestion-selected-category-text: #666;
 
-  --suggestion-overlay-text: #b9ffb9;
-  --suggestion-selected-overlay-text: #0088ff;
-  --suggestion-selected-hole-shadow: rgb(104, 201, 92);
+  --suggestion-overlay-text: #bfb;
+  --suggestion-selected-overlay-text: #08f;
+  --suggestion-selected-hole-shadow: #6c5;
 
   /* ASSISTANT suggestion info popup */
 
   --suggestion-info-background: #666666f8;
   --suggestion-info-text: #ccc;
-  --suggestion-info-good-text: rgb(0, 200, 120);
+  --suggestion-info-good-text: #0c7;
   --suggestion-info-bad-text: red;
 
-
-  /* ASSISTANT control pane */
-
-  --assistant-control-background: var(--suggestion-info-background);
-  --assistant-control-background-selected: var(--exp_accent);
-  --assistant-control-text-selected:black;
-  --assistant-control-divider: #444;
-  --assistant-control-close-background: #3339;
-  --assistant-control-close-text: white;
-  --assistant-control-close-shadow: #222;
-  --assistant-control-close-background-selected: #f99;
-  --assistant-control-mode-switch-text: wheat;
-  
-  --assistant-control-key-text: var(--suggestion-info-text);
-  --assistant-control-key-background: #7b7b7b;
-  --assistant-control-key-highlight: #adadad;
-  --assistant-control-key-shadow: #464646;
 }
 
 /* general */
@@ -804,7 +813,7 @@ body {
   background-color: #0000;
   outline: none;
   border-radius: 0 0.5em 0.5em 0.5em;
-  filter: drop-shadow(6px 6px 12px var(--assistant-shadow-color));
+  filter: var(--ci-drop-shadow);
 }
 
 .assistant-active .term-tag {
@@ -1073,6 +1082,7 @@ body {
   top: 1.75em;
   right: 0.75em;
   cursor: default;
+  filter: var(--ci-drop-shadow);
 }
 
 /* speech bubble tail */
@@ -1138,7 +1148,7 @@ body {
 }
 
 .ci-control-pane .mode:last-child:hover{
-  background-color: var(--assistant-control-close-background-selected);
+  background-color: var(--assistant-control-close-background-selected) !important;
 }
 
 .ci-control-pane .mode:last-child .key{

@@ -42,8 +42,8 @@ let delta_errors_string = (delta_errors: int): string =>
 let type_specificity_string = (type_specificity: int) =>
   switch (type_specificity) {
   | 0 => "Same type specificity"
-  | n when n < 0 => "Less specific type"
-  | _ => "More specific type"
+  | n when n < 0 => "Less granular type"
+  | _ => "More granular type"
   };
 let idiomaticity_string = (idiomaticity: int) =>
   switch (idiomaticity) {
