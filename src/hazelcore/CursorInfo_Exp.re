@@ -1315,7 +1315,17 @@ and syn_cursor_info_rule =
         let parent_info =
           ZExp.is_after(zclause) ? CursorInfo.AfterBranchClause : parent_info;
         switch (uses) {
-        | None => None
+        | None =>
+          Some(
+            CursorInfo_common.mk(
+              ~parent_info,
+              ~enclosing_zopseq,
+              ~enclosing_zoperand,
+              typed,
+              ctx,
+              cursor_term,
+            ),
+          )
         | Some(uses) =>
           Some(
             CursorInfo_common.mk(
