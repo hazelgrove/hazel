@@ -610,7 +610,12 @@ let summary_bar =
   let control = ci_control_pane(cursor_inspector_mode, ~inject);
   let body =
     switch (assistant_enabled, show_expansion_arrow, show_strategy_guide_icon) {
-    | (true, _, _) => [summary, fill_space, AssistantView.icon, control]
+    | (true, _, _) => [
+        summary,
+        fill_space,
+        AssistantView.icon(~sort=tag_type),
+        control,
+      ]
     | (_, true, true) => [summary, fill_space, arrow, fill_icon, control]
     | (_, true, false) => [summary, fill_space, arrow, control]
     | (_, false, true) => [summary, fill_space, fill_icon, control]
@@ -623,7 +628,8 @@ let summary_bar =
     [
       Attr.create("title", "Click to toggle form of message"),
       Attr.classes(
-        ["type-info-summary", "clickable-help"] @ assistant_classes,
+        ["type-info-summary", "clickable-help", TermSort.to_string(tag_type)]
+        @ assistant_classes,
       ),
       Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
     ],

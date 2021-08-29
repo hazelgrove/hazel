@@ -1,17 +1,14 @@
 open Virtual_dom.Vdom;
 open Node;
 
-let icon =
+let icon = (~sort: TermSort.t) => {
+  let base = s => "imgs/assistant/boost-0000-" ++ s ++ ".png";
+  let sort = TermSort.to_string(sort);
   Node.div(
-    [Attr.classes(["clickable-help-icon"])],
-    [
-      create(
-        "img",
-        [Attr.create("src", "imgs/assistant/boost-0000.png")],
-        [],
-      ),
-    ],
+    [Attr.classes(["clickable-help-icon", sort])],
+    [create("img", [Attr.create("src", base(sort))], [])],
   );
+};
 
 let category_view = category => {
   let label = Suggestion.string_of_category(category);
@@ -58,7 +55,7 @@ let idiomaticity_string = (idiomaticity: int) =>
   };
 
 let sign_view = n => {
-  div([Attr.classes([sign_label(n)])], [sign_icon(n)]);
+  div([Attr.class_(sign_label(n))], [sign_icon(n)]);
 };
 
 let subscore_view = (score_string: int => string, subscore: int) => {
@@ -66,7 +63,7 @@ let subscore_view = (score_string: int => string, subscore: int) => {
   | 0 => []
   | _ => [
       div(
-        [Attr.classes(["subscore"])],
+        [Attr.class_("subscore")],
         [sign_view(subscore), text(score_string(subscore))],
       ),
     ]
@@ -75,11 +72,11 @@ let subscore_view = (score_string: int => string, subscore: int) => {
 
 let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => {
   div(
-    [Attr.classes(["suggestion-info"])],
+    [Attr.class_("suggestion-info")],
     [
       span([], [category_view(category)]),
       span(
-        [Attr.classes(["suggestion-description"])],
+        [Attr.class_("suggestion-description")],
         [text(Suggestion.description_of_category(category))],
       ),
     ]
@@ -114,7 +111,7 @@ let overlay_view =
     | (Some((s, n)), _)
     | (_, Some((s, n))) => overlay(n, s)
     };
-  div([Attr.classes(["overlay"])], offset_overlay);
+  div([Attr.class_("overlay")], offset_overlay);
 };
 
 let suggestion_view =
@@ -151,16 +148,16 @@ let suggestion_view =
     inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
   let color_score =
     score.delta_errors + score.idiomaticity + score.type_specificity;
+  let assistant_classes =
+    ["choice"]
+    @ (is_selected ? ["selected"] : [])
+    @ (is_hovered ? ["hovered"] : [])
+    @ (color_score > 0 ? ["errors-less"] : [])
+    @ (color_score < 0 ? ["errors-more"] : []);
   div(
     [
       Attr.id(string_of_int(my_index)),
-      Attr.classes(
-        ["choice"]
-        @ (is_selected ? ["selected"] : [])
-        @ (is_hovered ? ["hovered"] : [])
-        @ (color_score > 0 ? ["errors-less"] : [])
-        @ (color_score < 0 ? ["errors-more"] : []),
-      ),
+      Attr.classes(assistant_classes),
       Attr.create("tabindex", "0"), // necessary to make cell focusable
       Attr.on_click(perform_action),
       Attr.on_mouseenter(set_hover),
@@ -168,11 +165,11 @@ let suggestion_view =
     ],
     [
       div(
-        [Attr.classes(["code-container"])],
-        [div([Attr.classes(["code"])], [overlay_view] @ result_view)],
+        [Attr.class_("code-container")],
+        [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
-      div([Attr.classes(["type-ann"])], [text(":")]),
-      div([Attr.classes(["type"])], [HTypCode.view(res_ty)]),
+      div([Attr.class_("type-ann")], [text(":")]),
+      div([Attr.class_("type")], [HTypCode.view(res_ty)]),
       category_view(category),
     ],
   );

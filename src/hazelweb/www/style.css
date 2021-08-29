@@ -54,6 +54,8 @@
   /* ASSISTANT */
 
   --exp_accent: rgb(200, 255, 200);
+  --pat_accent: #b4e4f9;
+  --typ_accent: #e7ddfb;
 
   --ci-type-info: var(--exp_accent);
   --ci-type-code: rgb(70, 70, 70);
@@ -825,7 +827,16 @@ body {
   border-radius: 3px 0.6em 0 0;
   padding: 0.3em 0.4em 0.3em 0.4em !important;
   font-weight: 100;
-  color: var(--ci-type-info) !important;
+}
+
+.assistant-active .type-info-summary.exp {
+  color: var(--exp_accent);
+}
+.assistant-active .type-info-summary.pat {
+  color: var(--pat_accent);
+}
+.assistant-active .type-info-summary.typ {
+  color: var(--typ_accent);
 }
 
 .assistant-active .type-info-summary.no-suggestions {
