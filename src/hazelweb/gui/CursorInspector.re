@@ -1,101 +1,6 @@
 open Virtual_dom.Vdom;
 module Js = Js_of_ocaml.Js;
 
-let string_of_cursor_inspector_mode =
-    (mode: option(Model.cursor_inspector_mode)) =>
-  switch (mode) {
-  | Some(Simple) => "inspector"
-  | Some(Assistant) => "assistant"
-  | Some(Tutor) => "tutor"
-  | None => "close"
-  };
-
-let radio_button = checked =>
-  Node.create(
-    "img",
-    [
-      Attr.classes(["radio-button"] @ (checked ? ["checked"] : [])),
-      Attr.create(
-        "src",
-        checked
-          ? "imgs/assistant/radio_button_on.svg"
-          : "imgs/assistant/radio_button_off.svg",
-      ),
-    ],
-    [],
-  );
-
-let ci_mode_radio =
-    (
-      mode,
-      current_mode,
-      ~body: list(Node.t)=[],
-      ~inject: ModelAction.t => Event.t,
-    ) => {
-  let mode_str = string_of_cursor_inspector_mode(mode);
-  Node.div(
-    [
-      Attr.class_("mode"),
-      Attr.on_click(_ => {
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(SetCursorInspectorMode(mode)),
-        ])
-      }),
-    ],
-    [
-      radio_button(mode == current_mode),
-      Node.span([], [Node.text(mode_str)]),
-    ]
-    @ body,
-  );
-};
-
-let ci_control_pane =
-    (curent_mode: option(Model.cursor_inspector_mode), ~inject): Node.t => {
-  let mode_radio = (~body=[], mode) =>
-    ci_mode_radio(mode, curent_mode, ~body, ~inject);
-  Node.div(
-    [Attr.class_("ci-control-pane-wrapper")],
-    [
-      Node.div(
-        [Attr.class_("speech-bubble-wrapper")],
-        [
-          Node.div(
-            [Attr.id("ci-mode"), Attr.class_("ci-control-pane")],
-            [
-              Node.div(
-                [Attr.id("ci-control-pane-mode-switch")],
-                [
-                  Node.text("Toggle inspector"),
-                  Node.div(
-                    [Attr.class_("key")],
-                    [Node.text("CTRL-SPACE")],
-                  ),
-                ],
-              ),
-              Node.hr([]),
-              mode_radio(Some(Assistant)),
-              mode_radio(Some(Tutor)),
-              mode_radio(Some(Simple)),
-              mode_radio(
-                None,
-                ~body=[
-                  Node.div(
-                    [Attr.id("ci-control-pane-close"), Attr.class_("key")],
-                    [Node.text("ESC")],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    ],
-  );
-};
-
 type err_state_b =
   | TypeInconsistency
   | BindingError
@@ -607,7 +512,12 @@ let summary_bar =
       [Node.text(Unicode.light_bulb)],
     );
   let fill_space = Node.span([Attr.classes(["filler"])], []);
-  let control = ci_control_pane(cursor_inspector_mode, ~inject);
+  let control =
+    CursorInspectorControl.view(
+      cursor_inspector_mode,
+      ~sort=tag_type,
+      ~inject,
+    );
   let body =
     switch (assistant_enabled, show_expansion_arrow, show_strategy_guide_icon) {
     | (true, _, _) => [

@@ -17,7 +17,7 @@ let cursor_inspector_panel =
     [Attr.id("assistant-panel"), Attr.on_click(toggle_cursor_inspector)],
     [
       AssistantView.icon(~sort=Exp),
-      CursorInspector.ci_control_pane(mode, ~inject),
+      CursorInspectorControl.view(mode, ~sort=Exp, ~inject),
     ],
   );
 };
@@ -27,8 +27,8 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
     [Attr.classes(["top-bar"])],
     [
       logo_panel,
-      cursor_inspector_panel(~inject, model.cursor_inspector_mode),
       CardsPanel.view(~inject, ~model),
+      cursor_inspector_panel(~inject, model.cursor_inspector_mode),
       ActionMenu.view(~inject),
     ],
   );

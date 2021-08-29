@@ -193,7 +193,6 @@ body {
 /* menu panel */
 
 .dropdown {
-  margin-left: auto;
   color:#239d60;
   display: inline-block;
   position: relative;
@@ -235,8 +234,8 @@ body {
 .dropdown summary {
   text-shadow: 0 2px #020;
   list-style: none;
+  font-size: 0.8em;
   cursor: pointer;
-  padding-left: 1.5em;
 }
 .dropdown summary::-webkit-details-marker {
   display: none;
@@ -878,6 +877,7 @@ body {
 }
 
 #assistant {
+  user-select: none;
   background-color: var(--assistant-background-color);
   color: var(--assistant-text-color);
   border-radius: 3px;
@@ -1052,6 +1052,11 @@ body {
 
 /* ci control pane : topbar version */
 
+#assistant-panel {
+  margin-left: auto;
+  cursor: pointer;
+}
+
 #assistant-panel .clickable-help-icon:hover+.ci-control-pane-wrapper {
   display:block;
 }
@@ -1066,7 +1071,7 @@ body {
   z-index: 100;
   position: absolute;
   top: 1.75em;
-  left: 3.6em;
+  right: 0.75em;
   cursor: default;
 }
 
@@ -1075,7 +1080,7 @@ body {
   content: '';
   position: absolute;
   top: -0.75em;
-  left: 0.75em;
+  right: 1.3em;
   width: 0;
   height: 0;
   border: 0.75em solid transparent;
@@ -1088,6 +1093,7 @@ body {
 /* ci control pane shared */
 
 .ci-control-pane {
+  user-select: none;
   overflow: hidden;
   border-radius: 0.4em;
   background-color: var(--assistant-control-background);
@@ -1146,6 +1152,15 @@ body {
 .ci-control-pane .mode:hover {
   background-color: var(--assistant-control-background-selected);
   color: var(--assistant-control-text-selected);
+}
+.ci-control-pane .typ.mode:hover {
+  background-color: var(--typ_accent);
+}
+.ci-control-pane .pat.mode:hover {
+  background-color: var(--pat_accent);
+}
+.ci-control-pane .exp.mode:hover {
+  background-color: var(--exp_accent);
 }
 
 .ci-control-pane #ci-control-pane-mode-switch {
