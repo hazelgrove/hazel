@@ -265,7 +265,8 @@ let get_indicated_suggestion =
   let index =
     switch (hover_index) {
     | None => selection_index
-    | Some(hover_index) => selection_index + hover_index
+    | Some(hover_index) =>
+      wrap_index(selection_index + hover_index, suggestions)
     };
   List.nth_opt(suggestions, index);
 };

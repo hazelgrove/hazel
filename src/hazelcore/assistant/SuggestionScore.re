@@ -53,6 +53,7 @@ let type_specificity_score =
   | (Hole, _, _) => 0
   | (_, Hole, Some(Hole) | None) => 0
   | (_, Hole, _) => (-1)
+  | (_, x, Some(Hole)) when x != Hole => 1
   | _ => 0
   };
 
@@ -68,7 +69,7 @@ let opseq_report =
         };
       Some((expected_ty, zopseq |> ZExp.ZBlock.wrap'));
     | _ =>
-      print_endline("opseq report failed to do the first thing");
+      print_endline("Warning: opseq_report: no zopseq provided");
       None;
     };
   let+ (actual_ty, new_zexp) =
@@ -81,7 +82,7 @@ let opseq_report =
     ) {
     | Failed
     | CursorEscaped(_) =>
-      print_endline("opseq report failed to do the second thing");
+      print_endline("Warning: opseq_report: syn_perform failure");
       None;
     | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
     };

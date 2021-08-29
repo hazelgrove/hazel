@@ -38,7 +38,12 @@ let mk_operand_suggestion' =
     };
   let score: Suggestion.score =
     switch (SuggestionScore.check_suggestion(action, res_ty, ci)) {
-    | None => Suggestion.blank_score
+    | None =>
+      Printf.printf(
+        "Warning: failed to generate a score for suggested action: %s\n",
+        Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),
+      );
+      Suggestion.blank_score;
     | Some(res) => res
     };
   {
