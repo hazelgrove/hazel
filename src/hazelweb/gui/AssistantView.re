@@ -123,7 +123,7 @@ let suggestion_view =
       {action, result, res_ty, category, result_text, score, _}: SuggestionsExp.suggestion,
       is_selected: bool,
       is_hovered: bool,
-      my_index: int,
+      index: int,
       search_string: string,
     ) => {
   let result_view =
@@ -138,12 +138,11 @@ let suggestion_view =
     Event.Many([
       Event.Prevent_default,
       Event.Stop_propagation,
-      /* NOTE: prevent main editor from losing focus */
-      inject(FocusCell(MainProgram)),
+      inject(FocusCell(MainProgram)), // prevent main editor from losing focus
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
   let set_hover = _ =>
-    inject(ModelAction.UpdateAssistant(Set_hover_index(Some(my_index))));
+    inject(ModelAction.UpdateAssistant(Set_hover_index(Some(index))));
   let unset_hover = _ =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
   let color_score =
@@ -156,7 +155,7 @@ let suggestion_view =
     @ (color_score < 0 ? ["errors-more"] : []);
   div(
     [
-      Attr.id(string_of_int(my_index)),
+      Attr.id(string_of_int(index)),
       Attr.classes(assistant_classes),
       Attr.create("tabindex", "0"), // necessary to make cell focusable
       Attr.on_click(perform_action),
@@ -185,22 +184,22 @@ let suggestions_view =
       ~ci: CursorInfo.t,
     )
     : Node.t => {
-  let (filter_string, _) =
+  let (search_string, _) =
     CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
   let suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant);
   let is_hovered = AssistantModel.is_active_suggestion_index(assistant);
-  let suggestion_view = (i, a) =>
+  let suggestion_view = (index, suggestion) =>
     suggestion_view(
       ~ci,
       ~inject,
       ~settings,
       ~font_metrics,
-      a,
-      i == 0,
-      is_hovered(i),
-      i,
-      filter_string,
+      suggestion,
+      index == 0,
+      is_hovered(index),
+      index,
+      search_string,
     );
   div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
 };
@@ -224,17 +223,15 @@ let view =
       ~assistant,
       ~ci,
     );
-  let suggestion_info_view = {
-    let suggestion =
-      AssistantModel.get_indicated_suggestion(~u_gen, assistant, ci);
-    switch (suggestion) {
-    | Some(suggestion) when AssistantModel.is_hovering(assistant) =>
-      suggestion_info_view(suggestion)
-    | _ => Node.text("")
+  let suggestion_info_view =
+    switch (AssistantModel.get_indicated_suggestion(~u_gen, assistant, ci)) {
+    | Some(suggestion) when AssistantModel.is_hovering(assistant) => [
+        suggestion_info_view(suggestion),
+      ]
+    | _ => []
     };
-  };
   div(
     [Attr.id("assistant-wrapper")],
-    [suggestions_view, suggestion_info_view],
+    [suggestions_view] @ suggestion_info_view,
   );
 };

@@ -1034,12 +1034,12 @@ body {
 }
 
 #cursor-inspector .ci-control-pane-wrapper {
-  padding-left:2em;
+  padding-left: 1.6rem;
   display: none;
-  z-index:100;
+  z-index: 100;
   position: absolute;
   top: 0;
-  left: calc(100% - 1em);
+  left: calc(100% - 0.6rem);
   cursor: default;
 }
 
@@ -1047,15 +1047,15 @@ body {
 #cursor-inspector .ci-control-pane-wrapper .speech-bubble-wrapper:after {
   content: '';
   position: absolute;
-  top: 0.75em;
+  top: 0.8rem;
   left: 0;
   width: 0;
   height: 0;
-  border: 0.9rem solid transparent;
-  border-top-color: var(--assistant-control-background);
+  border: 0.75rem solid transparent;
+  border-top-color: var(--suggestion-info-background);
   border-bottom: 0;
   border-right: 0;
-  margin-left: -0.9rem;
+  margin-left: -0.75rem;
   margin-bottom: 0;
 }
 
@@ -1207,10 +1207,10 @@ body {
 /* assistant suggestion info popup */
 
 #assistant-wrapper .suggestion-info {
-  z-index:100;
   position: absolute;
   top: -2.2rem;
-  left: 107%;
+  left: calc(100% - 0.6rem);
+  margin-left: 1.6rem;
   display: grid;
   grid-template-columns: 1.85em 1fr;
   padding: 0.5em;
@@ -1260,7 +1260,7 @@ body {
 #assistant-wrapper .suggestion-info:after {
   content: '';
   position: absolute;
-  top: 0.75em;
+  top: 0.8rem;
   left: 0;
   width: 0;
   height: 0;

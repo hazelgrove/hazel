@@ -541,7 +541,11 @@ let summary_bar =
         ["type-info-summary", "clickable-help", TermSort.to_string(tag_type)]
         @ assistant_classes,
       ),
-      Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
+      Attr.on_click(_ =>
+        toggle_cursor_inspector_event(
+          assistant_enabled ? Set_novice_mode(false) : Toggle_novice_mode,
+        )
+      ),
     ],
     body,
   );
