@@ -42,13 +42,13 @@
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
-  --tag-bg-color: rgb(248, 212, 224);
-  --tag-shadow-color: rgb(248, 192, 224);
-  --tag-bright-shadow-color: rgb(224, 112, 212);
+  --tag-bg-color: #FFE2DB;
+  --tag-shadow-color: #736663;
+  --tag-bright-shadow-color: #B5A19C;
 
-  --sum-body-bg-color: rgb(247, 246, 198);
-  --sum-body-shadow-color: rgb(255, 254, 166);
-  --sum-body-bright-shadow-color: rgb(255, 253, 120);
+  --sum-body-bg-color: #FACFF8;
+  --sum-body-shadow-color: #7A6679;
+  --sum-body-bright-shadow-color: #BD9DBB;
 
   --current-term-z: 0;
   --var-use-z: 0;
