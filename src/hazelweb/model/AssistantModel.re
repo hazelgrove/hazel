@@ -44,6 +44,23 @@ let update_filter_editor = (a: Action.t, new_editor, assistant_model: t): t => {
   put_filter_editor(assistant_model, {...new_editor, edit_state});
 };
 
+let set_hover_index = (hover_index: option(int), model: t): t => {
+  ...model,
+  hover_index,
+};
+
+let is_active_suggestion_index = (model: t, i: int) =>
+  switch (model.hover_index) {
+  | None => i == 0 // select first by default
+  | Some(hover_index) => hover_index == i
+  };
+
+let is_hovering = (model: t) =>
+  switch (model.hover_index) {
+  | None => false
+  | Some(_) => true
+  };
+
 let apply_update = (u: update, model: t) =>
   switch (u) {
   | Turn_off => init
@@ -63,18 +80,14 @@ let apply_update = (u: update, model: t) =>
   | Set_hover_index(n) => {...model, hover_index: n}
   };
 
-let wrap_index = (index: int, xs: list('a)): int =>
-  IntUtil.wrap(index, List.length(xs));
-
-let mog = (n: int, target: string): option((string, int)) => {
-  let* m = StringUtil.matched_group_opt(n, target);
-  let+ i = StringUtil.group_beginning_opt(n);
-  (m, i);
-};
-
 let submatches_and_offsets =
     (pre: string, suf: string, target: string)
     : (option((string, int)), option((string, int))) => {
+  let mog = (n: int): option((string, int)) => {
+    let* m = StringUtil.matched_group_opt(n, target);
+    let+ i = StringUtil.group_beginning_opt(n);
+    (m, i);
+  };
   let pre = StringUtil.escape_regexp_special_chars(pre);
   let suf = StringUtil.escape_regexp_special_chars(suf);
   switch (pre, suf) {
@@ -82,25 +95,25 @@ let submatches_and_offsets =
   | ("", _) =>
     let rs = "\\(" ++ suf ++ "\\)";
     let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1, target), None);
+    (mog(1), None);
   | (_, "") =>
     let rs = "\\(" ++ pre ++ "\\)";
     let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1, target), None);
+    (mog(1), None);
   | _ =>
     let pre' = "\\(" ++ pre ++ "\\)";
     let suf' = "\\(" ++ suf ++ "\\)";
     let both = "\\(" ++ pre' ++ ".*" ++ suf' ++ "\\)";
     let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
     let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    switch (mog(1, target)) {
+    switch (mog(1)) {
     | Some(_) =>
-      switch (mog(2, target), mog(3, target)) {
+      switch (mog(2), mog(3)) {
       | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
       | _ => (None, None)
       }
     | None =>
-      switch (mog(4, target), mog(5, target)) {
+      switch (mog(4), mog(5)) {
       | (Some(p), _) => (Some(p), None)
       | (_, Some(p)) => (None, Some(p))
 
@@ -228,6 +241,9 @@ let get_suggestions_of_ty =
   |> get_suggestions(~u_gen)
   |> List.filter((s: suggestion) => HTyp.consistent(s.res_ty, ty));
 
+let wrap_index = (index: int, xs: list('a)): int =>
+  IntUtil.wrap(index, List.length(xs));
+
 let get_suggestions_of_ty' =
     (
       {filter_editor, selection_index, _}: t,
@@ -277,20 +293,3 @@ let get_action =
   let+ selection = get_indicated_suggestion(assistant_model, ci, ~u_gen);
   selection.action;
 };
-
-let set_hover_index = (hover_index: option(int), model: t): t => {
-  ...model,
-  hover_index,
-};
-
-let is_active_suggestion_index = (model: t, i: int) =>
-  switch (model.hover_index) {
-  | None => i == 0 // select first by default
-  | Some(hover_index) => hover_index == i
-  };
-
-let is_hovering = (model: t) =>
-  switch (model.hover_index) {
-  | None => false
-  | Some(_) => true
-  };
