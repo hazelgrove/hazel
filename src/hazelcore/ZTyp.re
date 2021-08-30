@@ -234,7 +234,7 @@ let place_after_sumbody_operand =
     (sumbody_operand: UHTyp.sumbody_operand): zsumbody_operand =>
   switch (sumbody_operand) {
   | UHTyp.ConstTag(tag) => ConstTagZ(ZTag.place_after(tag))
-  | UHTyp.ArgTag(tag, ty) => CursorArgTag(OnDelim(0, After), tag, ty)
+  | UHTyp.ArgTag(tag, ty) => CursorArgTag(OnDelim(1, After), tag, ty)
   };
 let place_after_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
   ZOpSeq.place_after(

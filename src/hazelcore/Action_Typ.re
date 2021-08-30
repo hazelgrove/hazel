@@ -831,10 +831,9 @@ and perform_zsumbody =
             Some(new_zseq);
           } else {
             // ... + 1 +<| 2  ==> ... +| 2
-            let new_zoperand =
-              suffix_operand |> ZTyp.place_before_sumbody_operand;
-            let new_zseq = ZSeq.ZOperand(new_zoperand, (E, suffix_tail));
-            Some(new_zseq);
+            let+ new_zop = prefix_op |> ZTyp.place_after_sumbody_operator;
+            let new_surround = (prefix_tail', Seq.wrap(suffix_operand));
+            ZSeq.ZOperator(new_zop, new_surround);
           };
         ActionOutcome.Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
       }
