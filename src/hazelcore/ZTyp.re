@@ -467,16 +467,3 @@ and move_cursor_right_zsumbody_operand =
     | None => Some(CursorArgTag(OnDelim(2, Before), tag, erase(zty)))
     }
   };
-
-let rec is_cursor_in_sum = (ZOpSeq(_, zseq): t): bool =>
-  switch (zseq) {
-  | ZOperator(_, _) => false
-  | ZOperand(zoperand, _) =>
-    switch (zoperand) {
-    | CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)) => true
-    | CursorT(_, _) => false
-    | ParenthesizedZ(zty) => is_cursor_in_sum(zty)
-    | ListZ(zty) => is_cursor_in_sum(zty)
-    | SumZ(_) => true
-    }
-  };
