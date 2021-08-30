@@ -80,56 +80,13 @@ let apply_update = (u: update, model: t) =>
   | Set_hover_index(n) => {...model, hover_index: n}
   };
 
-let submatches_and_offsets =
-    (pre: string, suf: string, target: string)
-    : (option((string, int)), option((string, int))) => {
-  let mog = (n: int): option((string, int)) => {
-    let* m = StringUtil.matched_group_opt(n, target);
-    let+ i = StringUtil.group_beginning_opt(n);
-    (m, i);
-  };
-  let pre = StringUtil.escape_regexp_special_chars(pre);
-  let suf = StringUtil.escape_regexp_special_chars(suf);
-  switch (pre, suf) {
-  | ("", "") => (None, None)
-  | ("", _) =>
-    let rs = "\\(" ++ suf ++ "\\)";
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1), None);
-  | (_, "") =>
-    let rs = "\\(" ++ pre ++ "\\)";
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1), None);
-  | _ =>
-    let pre' = "\\(" ++ pre ++ "\\)";
-    let suf' = "\\(" ++ suf ++ "\\)";
-    let both = "\\(" ++ pre' ++ ".*" ++ suf' ++ "\\)";
-    let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    switch (mog(1)) {
-    | Some(_) =>
-      switch (mog(2), mog(3)) {
-      | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
-      | _ => (None, None)
-      }
-    | None =>
-      switch (mog(4), mog(5)) {
-      | (Some(p), _) => (Some(p), None)
-      | (_, Some(p)) => (None, Some(p))
-
-      | _ => (None, None)
-      }
-    };
-  };
-};
-
-let is_filter_match = (pre: string, suf: string, target: string): bool =>
-  switch (submatches_and_offsets(pre, suf, target)) {
+let _is_filter_match = (pre: string, suf: string, target: string): bool =>
+  switch (SuggestionScore.submatches_and_offsets(pre, suf, target)) {
   | (None, None) => false
   | _ => true
   };
 
-let compare_suggestions_by_text_match =
+let _compare_suggestions_by_text_match =
     (
       before_caret: string,
       after_caret: string,
@@ -138,8 +95,10 @@ let compare_suggestions_by_text_match =
     ) => {
   let s1 = a1.result_text;
   let s2 = a2.result_text;
-  let m1 = submatches_and_offsets(before_caret, after_caret, s1);
-  let m2 = submatches_and_offsets(before_caret, after_caret, s2);
+  let m1 =
+    SuggestionScore.submatches_and_offsets(before_caret, after_caret, s1);
+  let m2 =
+    SuggestionScore.submatches_and_offsets(before_caret, after_caret, s2);
   switch (m1, m2) {
   | ((Some(_), _), (None, _))
   | ((Some(_), Some(_)), (Some(_), None))
@@ -159,26 +118,26 @@ let compare_suggestions_by_text_match =
   };
 };
 
-let sort_by_prefix =
+let _sort_by_prefix =
     ((prefix: string, index: int), suggestions: list(suggestion))
     : list(suggestion) => {
   let (before_caret, after_caret) = StringUtil.split_string(index, prefix);
   let matches =
     List.filter(
       (s: suggestion) => {
-        is_filter_match(before_caret, after_caret, s.result_text)
+        _is_filter_match(before_caret, after_caret, s.result_text)
       },
       suggestions,
     );
   let matches =
     List.sort(
-      compare_suggestions_by_text_match(before_caret, after_caret),
+      _compare_suggestions_by_text_match(before_caret, after_caret),
       matches,
     );
   let nonmatches =
     List.filter(
       (s: suggestion) =>
-        !is_filter_match(before_caret, after_caret, s.result_text),
+        !_is_filter_match(before_caret, after_caret, s.result_text),
       suggestions,
     );
   matches @ nonmatches;
@@ -191,11 +150,12 @@ let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   };
 
 let sort_suggestions = (suggestions: list(suggestion)): list(suggestion) => {
-  let compare = (a1: suggestion, a2: suggestion) =>
-    Int.compare(
-      a2.score.delta_errors + a2.score.idiomaticity + a2.score.type_specificity,
-      a1.score.delta_errors + a1.score.idiomaticity + a1.score.type_specificity,
-    );
+  let int_score = (a: suggestion) =>
+    a.score.delta_errors + a.score.idiomaticity + a.score.type_specificity;
+  let text_match_multiplier = 2.;
+  let scorer = (a: suggestion) =>
+    float_of_int(int_score(a)) +. text_match_multiplier *. a.score.text_match;
+  let compare = (a1, a2) => Float.compare(scorer(a2), scorer(a1));
   List.sort(compare, suggestions);
 };
 
@@ -225,14 +185,11 @@ let renumber_suggestion_holes =
 };
 
 let get_suggestions =
-    ({cursor_term, ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+    ({/*cursor_term,*/ ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
     : list(suggestion) => {
   get_operand_suggestions(ci)
   |> List.map(renumber_suggestion_holes(ctx, u_gen))
-  |> sort_suggestions
-  |> sort_by_prefix(
-       CursorInfo_common.string_and_index_of_cursor_term(cursor_term),
-     );
+  |> sort_suggestions /*|> sort_by_prefix(    CursorInfo_common.string_and_index_of_cursor_term(cursor_term),  )*/;
 };
 
 let get_suggestions_of_ty =

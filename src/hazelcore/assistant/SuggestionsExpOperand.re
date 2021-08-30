@@ -33,7 +33,7 @@ let mk_operand_suggestion' =
     : suggestion => {
   let res_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let score: Suggestion.score =
-    switch (SuggestionScore.check_suggestion(action, res_ty, ci)) {
+    switch (SuggestionScore.check_suggestion(action, res_ty, result_text, ci)) {
     | None =>
       Printf.printf(
         "Warning: failed to generate a score for suggested action: %s\n",
@@ -126,15 +126,14 @@ let var_suggestions =
 
 let mk_app_suggestion =
     (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)): suggestion => {
-  let (res_ty, e) =
+  let (_, result) =
     mk_ap_iter(ci, name, f_ty)
     |> OptUtil.get(_ => failwith("mk_app_suggestion"));
-  Suggestion.mk(
+  mk_operand_suggestion(
     ~category=InsertApp,
-    ~result_text=name,
-    ~action=ReplaceOperand(UHExp.Parenthesized(e), None),
-    ~res_ty,
-    ~result=e,
+    ~operand=UHExp.Parenthesized(result),
+    ~result,
+    ci,
   );
 };
 

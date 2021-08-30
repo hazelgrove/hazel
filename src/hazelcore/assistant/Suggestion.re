@@ -16,12 +16,14 @@ type score = {
   idiomaticity: int,
   type_specificity: int,
   delta_errors: int,
+  text_match: float,
 };
 
 let blank_score: score = {
   idiomaticity: 0,
   type_specificity: 0,
   delta_errors: 0,
+  text_match: 0.,
 };
 
 [@deriving sexp]

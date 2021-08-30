@@ -70,6 +70,26 @@ let subscore_view = (score_string: int => string, subscore: int) => {
   };
 };
 
+let subscore_view_float = (score_string: float => string, subscore: float) => {
+  switch (subscore) {
+  | 0. => []
+  | _ => [
+      div(
+        [Attr.class_("subscore")],
+        [sign_view(1), text(score_string(subscore))],
+      ),
+    ]
+  };
+};
+
+let text_match_string = (ratio: float) =>
+  switch (ratio) {
+  | x when x < 0.1 => "No text kept"
+  | x when x < 0.6 => "Some text kept"
+  | x when x < 0.9 => "Much text kept"
+  | _ => "All text kept"
+  };
+
 let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => {
   div(
     [Attr.class_("suggestion-info")],
@@ -82,7 +102,9 @@ let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => 
     ]
     @ subscore_view(delta_errors_string, score.delta_errors)
     @ subscore_view(idiomaticity_string, score.idiomaticity)
-    @ subscore_view(type_specificity_string, score.type_specificity),
+    @ subscore_view(type_specificity_string, score.type_specificity)
+    @ [text(string_of_float(score.text_match))]
+    @ subscore_view_float(text_match_string, score.text_match),
   );
 };
 
@@ -103,7 +125,7 @@ let overlay_view =
     span([Attr.class_("overlay-text")], [text(s)]),
   ];
   let offset_overlay =
-    switch (AssistantModel.submatches_and_offsets(pre, suf, result_text)) {
+    switch (SuggestionScore.submatches_and_offsets(pre, suf, result_text)) {
     | (None, None) => []
     | (Some((s0, n0)), Some((s1, n1))) =>
       let n1' = n1 - (n0 + String.length(s0));
