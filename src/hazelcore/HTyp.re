@@ -17,6 +17,12 @@ type join =
   | GLB
   | LUB;
 
+[@deriving sexp]
+type order =
+  | Equal
+  | GT
+  | LT
+  | Incomparable;
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
 let precedence_Sum = Operators_Typ.precedence(Sum);
@@ -180,3 +186,32 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let compare_order = (xx: order, yy: order): order =>
+  switch (xx, yy) {
+  | (x, y) when x == y => x
+  | (Equal, GT)
+  | (GT, Equal) => GT
+  | (Equal, LT)
+  | (LT, Equal) => LT
+  | _ => Incomparable
+  };
+
+let rec compare = (a: t, b: t): order =>
+  switch (a, b) {
+  | _ when a == b => Equal
+  | (Hole, _) => LT
+  | (_, Hole) => GT
+  | (List(a), List(b)) => compare(a, b)
+  | (Arrow(a', a''), Arrow(b', b''))
+  | (Sum(a', a''), Sum(b', b'')) =>
+    compare_order(compare(a', b'), compare(a'', b''))
+  | (Prod(xs), Prod(ys)) when List.length(xs) == List.length(ys) =>
+    List.fold_left(compare_order, Equal, List.map2(compare, xs, ys))
+  | _ => Incomparable
+  };
+
+let relax: option(t) => t =
+  fun
+  | None => Hole
+  | Some(x) => x;

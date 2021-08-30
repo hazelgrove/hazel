@@ -14,6 +14,13 @@ type join =
   | GLB
   | LUB;
 
+[@deriving sexp]
+type order =
+  | Equal
+  | GT
+  | LT
+  | Incomparable;
+
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;
@@ -36,3 +43,6 @@ let complete: t => bool;
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
+
+let compare: (t, t) => order;
+let relax: option(t) => t;

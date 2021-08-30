@@ -31,11 +31,7 @@ let mk_operand_suggestion' =
       ~action: Action.t,
     )
     : suggestion => {
-  let res_ty =
-    switch (Statics_Exp.syn_operand(ci.ctx, operand)) {
-    | None => HTyp.Hole
-    | Some(ty) => ty
-    };
+  let res_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let score: Suggestion.score =
     switch (SuggestionScore.check_suggestion(action, res_ty, ci)) {
     | None =>
@@ -199,25 +195,19 @@ let mk_wrap_suggestion =
 };
 
 let wrap_suggestions =
-    ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) => {
-  let actual_ty =
-    switch (actual_ty) {
-    | None => HTyp.Hole
-    | Some(ty) => ty
-    };
+    ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) =>
   switch (cursor_term) {
   | ExpOperand(_, EmptyHole(_)) =>
     /* Wrapping empty holes is redundant to ap. Revisit when there's
        a mechanism to eliminate duplicate suggestions */
     []
   | _ =>
+    let arrow_consistent = ((_, f_ty)) =>
+      HTyp.consistent(f_ty, HTyp.Arrow(HTyp.relax(actual_ty), expected_ty));
     Assistant_common.fun_vars(ctx, expected_ty)
-    |> List.filter(((_, f_ty)) =>
-         HTyp.consistent(f_ty, HTyp.Arrow(actual_ty, expected_ty))
-       )
-    |> List.map(mk_wrap_suggestion(ci))
+    |> List.filter(arrow_consistent)
+    |> List.map(mk_wrap_suggestion(ci));
   };
-};
 
 let str_float_to_int = s =>
   s |> float_of_string |> Float.to_int |> string_of_int;

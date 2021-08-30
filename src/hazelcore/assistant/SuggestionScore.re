@@ -11,7 +11,18 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
-let idomaticity_score_parent =
+let type_specificity_score =
+    (expected_ty: HTyp.t, res_ty: HTyp.t, actual_ty: HTyp.t) =>
+  switch (HTyp.compare(res_ty, actual_ty)) {
+  | _ when expected_ty == Hole => 0
+  | _ when !HTyp.consistent(expected_ty, res_ty) => 0
+  | Incomparable
+  | Equal => 0
+  | GT => 1
+  | LT => (-1)
+  };
+
+let idiomaticity_score_parent =
     (action: Action.t, enclosing_zoperand: CursorInfo.enclosing_zoperand): int => {
   switch (action, enclosing_zoperand) {
   | (ReplaceOperand(operand, None), Some(parent_operand)) =>
@@ -46,28 +57,12 @@ let idomaticity_score_parent =
   };
 };
 
-let type_specificity_score =
-    (expected_ty: HTyp.t, res_ty: HTyp.t, actual_ty: option(HTyp.t)) =>
-  // improve society somewhat
-  switch (expected_ty, res_ty, actual_ty) {
-  | (Hole, _, _) => 0
-  | (_, Hole, Some(Hole) | None) => 0
-  | (_, Hole, _) => (-1)
-  | (_, x, Some(Hole)) when x != Hole => 1
-  | _ => 0
-  };
-
 let opseq_report =
     (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
   let* (opseq_expected_ty, old_zexp) =
     switch (enclosing_zopseq) {
     | ExpSeq(zopseq, expected_ty) =>
-      let expected_ty =
-        switch (expected_ty) {
-        | None => HTyp.Hole
-        | Some(ty) => ty
-        };
-      Some((expected_ty, zopseq |> ZExp.ZBlock.wrap'));
+      Some((HTyp.relax(expected_ty), ZExp.ZBlock.wrap'(zopseq)))
     | _ =>
       print_endline("Warning: opseq_report: no zopseq provided");
       None;
@@ -113,8 +108,12 @@ let check_suggestion =
     };
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
-  let idiomaticity = idomaticity_score_parent(action, enclosing_zoperand);
+  let idiomaticity = idiomaticity_score_parent(action, enclosing_zoperand);
+  Printf.printf(
+    "action: %s\n",
+    Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),
+  );
   let type_specificity =
-    type_specificity_score(expected_ty, res_ty, actual_ty);
+    type_specificity_score(expected_ty, res_ty, HTyp.relax(actual_ty));
   Suggestion.{idiomaticity, type_specificity, delta_errors};
 };

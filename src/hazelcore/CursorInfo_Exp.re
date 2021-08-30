@@ -325,11 +325,7 @@ and syn_cursor_info_line =
       )
     }
   | LetLineZP(zp, def) =>
-    let ty_def =
-      switch (Statics_Exp.syn(ctx, def)) {
-      | Some(ty) => ty
-      | None => HTyp.Hole
-      };
+    let ty_def = HTyp.relax(Statics_Exp.syn(ctx, def));
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
         ~steps=steps @ [0],

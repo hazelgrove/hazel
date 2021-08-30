@@ -207,11 +207,7 @@ let mk =
     )
     : CursorInfo.t => {
   let (expected_ty, actual_ty, _mode) = get_types_and_mode(typed);
-  let expected_ty =
-    switch (expected_ty) {
-    | None => HTyp.Hole
-    | Some(ty) => ty
-    };
+  let expected_ty = HTyp.relax(expected_ty);
   {
     typed,
     ctx,
