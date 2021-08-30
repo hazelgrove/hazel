@@ -29,8 +29,17 @@ let is_numeric_digit = (c: char): bool => {
   Char.code('0') <= code && code <= Char.code('9');
 };
 
+let is_punctuation: char => bool =
+  fun
+  | '_'
+  | '\'' => true
+  | _ => false;
+
 let is_tag_char = (c: char): bool => {
-  is_majuscule_letter(c) || is_minuscule_letter(c) || is_numeric_digit(c);
+  is_majuscule_letter(c)
+  || is_minuscule_letter(c)
+  || is_numeric_digit(c)
+  || is_punctuation(c);
 };
 
 let is_tag_name = (str: string): bool => {
