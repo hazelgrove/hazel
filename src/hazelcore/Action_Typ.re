@@ -943,8 +943,21 @@ and perform_zsumbody =
     let zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
 
+  // ... + 1 |+ 2 + ...  ==>  ... + 1 + |? + 2 + ...
+  // ... + 1 +| 2 + ...  ==>  ... + 1 + ?| + 2 + ...
+  | (
+      Construct(SOp(SPlus)),
+      ZOperator((OnOp(side), op), (prefix, suffix)),
+    ) =>
+    let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+    let ztag = tag_hole |> ZTag.(side == Before ? place_before : place_after);
+    let zoperand = ZTyp.ConstTagZ(ztag);
+    let new_prefix = Seq.A(Operators_SumBody.Plus, prefix);
+    let zseq = ZSeq.ZOperand(zoperand, (new_prefix, Seq.A(op, suffix)));
+    Succeeded((ZTyp.mk_sumbody_ZOpSeq(zseq), u_gen));
+
   // _ +| _  ==>  _ + |_
-  | (Construct(SOp(SSpace)), ZOperator((OnOp(_), _), _)) =>
+  | (Construct(SOp(SSpace)), ZOperator(_, _)) =>
     perform_zsumbody(u_gen, MoveRight, zsumbody)
 
   | (Construct(_), ZOperator(_, _)) => Failed
