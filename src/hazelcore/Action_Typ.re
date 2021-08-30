@@ -229,9 +229,14 @@ and perform_operand =
         ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
       ),
     )
-  | (Construct(SCloseParens), CursorT(OnDelim(_, _), _)) =>
-    print_endline("Action_Typ perform operand SCloseParens wrong action");
-    Failed;
+  | (
+      Construct(SCloseParens),
+      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
+    ) =>
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+    )
+  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   /* Invalid actions at the type level */
   | (
       UpdateApPalette(_) |

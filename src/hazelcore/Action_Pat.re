@@ -607,29 +607,6 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
-  | (Construct(SCloseParens), TypeAnnZA(err, operand, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Succeeded(new_zann) =>
-      mk_syn_result(
-        ctx,
-        u_gen,
-        ZOpSeq.wrap(ZPat.TypeAnnZA(err, operand, new_zann)),
-      )
-    | _ => Failed
-    }
-  | (Construct(SCloseParens), TypeAnnZP(err, ParenthesizedZ(zopseq), ann))
-      when ZPat.is_after(zopseq) =>
-    mk_syn_result(
-      ctx,
-      u_gen,
-      ZOpSeq.wrap(
-        ZPat.TypeAnnZP(
-          err,
-          CursorP(OnDelim(1, After), Parenthesized(ZPat.erase(zopseq))),
-          ann,
-        ),
-      ),
-    )
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>
     mk_syn_result(
@@ -642,9 +619,32 @@ and syn_perform_operand =
         ),
       ),
     )
-
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+    )
   | (Construct(SCloseParens), CursorP(_, _)) => Failed
-  
+
   /* Invalid cursor positions */
   | (
       _,
@@ -1142,30 +1142,6 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
-  | (Construct(SCloseParens), TypeAnnZA(err, operand, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Succeeded(new_zann) =>
-      mk_ana_result(
-        ctx,
-        u_gen,
-        ZOpSeq.wrap(ZPat.TypeAnnZA(err, operand, new_zann)),
-        ty,
-      )
-    | _ => Failed
-    }
-  | (Construct(SCloseParens), TypeAnnZP(err, ParenthesizedZ(zopseq), ann))
-      when ZPat.is_after(zopseq) =>
-    Succeeded((
-      ZOpSeq.wrap(
-        ZPat.TypeAnnZP(
-          err,
-          CursorP(OnDelim(1, After), Parenthesized(ZPat.erase(zopseq))),
-          ann,
-        ),
-      ),
-      ctx,
-      u_gen,
-    ))
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>
     Succeeded((
@@ -1175,6 +1151,30 @@ and ana_perform_operand =
           Inj(err, side, ZPat.erase(zopseq)),
         ),
       ),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
       ctx,
       u_gen,
     ))
@@ -1472,7 +1472,6 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((zbody, ctx, u_gen)) =>
-        print_endline("did it succeed?");
         let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
         Succeeded((zp, ctx, u_gen));
       };

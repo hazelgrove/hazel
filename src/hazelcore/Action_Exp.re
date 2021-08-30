@@ -1400,8 +1400,51 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
   /* Invalid cursor positions */
-  | (Construct(SCloseParens), _) => Failed
   | (
       _,
       CursorE(
@@ -2761,7 +2804,47 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
-  | (Construct(SCloseParens), _) => Failed
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
 
   /* Invalid cursor positions */
   | (
