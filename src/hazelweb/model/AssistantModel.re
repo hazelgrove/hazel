@@ -80,69 +80,6 @@ let apply_update = (u: update, model: t) =>
   | Set_hover_index(n) => {...model, hover_index: n}
   };
 
-let _is_filter_match = (pre: string, suf: string, target: string): bool =>
-  switch (SuggestionScore.submatches_and_offsets(pre, suf, target)) {
-  | (None, None) => false
-  | _ => true
-  };
-
-let _compare_suggestions_by_text_match =
-    (
-      before_caret: string,
-      after_caret: string,
-      a1: suggestion,
-      a2: suggestion,
-    ) => {
-  let s1 = a1.result_text;
-  let s2 = a2.result_text;
-  let m1 =
-    SuggestionScore.submatches_and_offsets(before_caret, after_caret, s1);
-  let m2 =
-    SuggestionScore.submatches_and_offsets(before_caret, after_caret, s2);
-  switch (m1, m2) {
-  | ((Some(_), _), (None, _))
-  | ((Some(_), Some(_)), (Some(_), None))
-  | ((None, Some(_)), (None, None)) => (-1)
-
-  | ((None, _), (Some(_), _))
-  | ((Some(_), None), (Some(_), Some(_)))
-  | ((None, None), (None, Some(_))) => 1
-
-  // matches earlier in the string should show up first
-  | ((Some(i0), _), (Some(i1), _)) when i0 < i1 => (-1)
-  | ((_, Some(i0)), (_, Some(i1))) when i0 < i1 => (-1)
-  | ((Some(i0), _), (Some(i1), _)) when i0 > i1 => 1
-  | ((_, Some(i0)), (_, Some(i1))) when i0 > i1 => 1
-
-  | _ => String.compare(s1, s2)
-  };
-};
-
-let _sort_by_prefix =
-    ((prefix: string, index: int), suggestions: list(suggestion))
-    : list(suggestion) => {
-  let (before_caret, after_caret) = StringUtil.split_string(index, prefix);
-  let matches =
-    List.filter(
-      (s: suggestion) => {
-        _is_filter_match(before_caret, after_caret, s.result_text)
-      },
-      suggestions,
-    );
-  let matches =
-    List.sort(
-      _compare_suggestions_by_text_match(before_caret, after_caret),
-      matches,
-    );
-  let nonmatches =
-    List.filter(
-      (s: suggestion) =>
-        !_is_filter_match(before_caret, after_caret, s.result_text),
-      suggestions,
-    );
-  matches @ nonmatches;
-};
-
 let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
   switch (ci.cursor_term) {
   | ExpOperand(_) => SuggestionsExpOperand.mk(ci)

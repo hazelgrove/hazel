@@ -144,26 +144,6 @@ let app_suggestions =
   |> List.map(mk_app_suggestion(ci));
 };
 
-/*
-  enhanced wrap plan:
-  cursorterm cases
-  textable stuff:
-  1. if it's a literal (bool, int, float), don't split it on caret,
-    just wrap the whole thing
-    - but should we behave differently if it's not a type match?
-  2. same (maybe?) if it's a bound variable?
-    - but what if we it's coincidentally a combo of other things?
-    - ignore this subtely for now
-  3. unbound variable or invalidtext
-    - in this case, we might want to use the suffix, or more generally
-      the part which doesn't match the function expr string, as
-      a filter across a list of possible generated arguments
-    - these arguments could be arbitary expressions, but to start
-      we could just do variables in the ctx
-    - there are def ways to generalize this but it might be worth
-      stumbling around a bit more first
- */
-
 let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
   ctx
   |> Contexts.gamma
@@ -175,15 +155,6 @@ let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
        }
      );
 };
-
-/*
- if unbound or invalidtext
- make this function also take the wrapName (of wrapping fn) or name="case" (case case)
- if thing before caret partially matches wrapName, then try to find variables
- of appropriate type in context which partially match the thing after the caret.
- should return a list in this case (could just do best match to start)
- if it doesn't find any matches, then just wrap the whole unboundvar/invalidtext
-  */
 
 let get_wrap_operand =
     (
@@ -197,18 +168,27 @@ let get_wrap_operand =
       OnText(i),
       (Var(_, InVarHole(_), s) | InvalidText(_, s)) as operand,
     ) =>
+    /*
+      If we're on an unbound variable or invalidtext, try to interpret
+      it as the user attempting to wrap the current operand, splitting
+      the cursortext at the cursor and trying to match the wrapper to
+      the prefix and find a wrappee matching the suffix
+     */
     let (pre, suf) = StringUtil.split_string(i, s);
     switch (StringUtil.search_forward_opt(Str.regexp(pre), wrap_name)) {
     | None => operand
     | Some(_) =>
-      switch (vars_of_type_matching_str(ctx, arg_ty, suf)) {
-      | [] => operand
-      | [(name, _), ..._] =>
-        //TODO: return all? or just best? prob should be something other than first...
-        print_endline("DAT CASE:");
-        print_endline(name);
-        UHExp.operand_of_string(name);
-      }
+      let suf_op = UHExp.operand_of_string(suf);
+      if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
+        suf_op;
+      } else {
+        switch (vars_of_type_matching_str(ctx, arg_ty, suf)) {
+        | [] => operand
+        | [(name, _), ..._] =>
+          // TODO: return best match rather than first
+          UHExp.operand_of_string(name)
+        };
+      };
     };
   | ExpOperand(
       _,
@@ -217,42 +197,9 @@ let get_wrap_operand =
         Var(InHole(TypeInconsistent, _), _, _)
       ) as operand,
     ) =>
-    // Revisit these cases; might still want to split sometimes?
+    // TODO: consider bound variables which are coincidentally wraps
     operand
   | ExpOperand(_, operand) => operand
-  /*
-   switch (operand) {
-   | EmptyHole(_)
-   | IntLit(_)
-   | FloatLit(_)
-   | BoolLit(_)
-   | ListNil(_)
-   | Lam(_)
-   | Inj(_)
-   | Case(_)
-   | Parenthesized(_)
-   | ApPalette(_) => operand
-   | Var(NotInHole, NotInVarHole, _)
-   | Var(InHole(TypeInconsistent, _), _, _)
-   // Revisit above cases; might still want to split sometimes?
-   | Var(_, _, _s) // unbound var case
-   | InvalidText(_, _s) =>
-     print_endline("ITS DAT BOY");
-     print_endline(
-       Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
-     );
-
-     switch (pos, UHExp.string_of_operand(operand)) {
-     | (_, "") => operand
-     | (OnText(i), guy) =>
-       switch (StringUtil.split_string(i, guy)) {
-       | (_, "") => UHExp.EmptyHole(0)
-       | (_, suf) => UHExp.operand_of_string(suf)
-       }
-     | _ => operand
-     };
-   // second _ is varerrstatus
-   }*/
   | _ => failwith("get_wrap_operand impossible")
   };
 };

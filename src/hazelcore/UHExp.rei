@@ -116,6 +116,7 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 let is_complete: t => bool;
 
 let is_atomic_operand: operand => bool;
+let is_literal_operand: operand => bool;
 
 let operand_of_string: string => operand;
 

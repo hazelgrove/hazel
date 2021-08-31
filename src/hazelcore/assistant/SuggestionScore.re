@@ -106,6 +106,7 @@ let text_match_score = (ci: CursorInfo.t, result_text: string): float => {
   let (str, index) =
     CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
   let (before_caret, after_caret) = StringUtil.split_string(index, str);
+  let cursor_text_length = String.length(str);
   let result_length = String.length(result_text);
   let (total_match_length, imm) =
     switch (submatches_and_offsets(before_caret, after_caret, result_text)) {
@@ -116,7 +117,8 @@ let text_match_score = (ci: CursorInfo.t, result_text: string): float => {
     };
   let length_ratio =
     result_length == 0
-      ? 0. : float_of_int(total_match_length) /. float_of_int(result_length);
+      ? 0.
+      : float_of_int(total_match_length) /. float_of_int(cursor_text_length);
   let length_rounded = Float.round(10. *. length_ratio) /. 10.;
   let immediacy_ratio =
     result_length == 0

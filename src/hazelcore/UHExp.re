@@ -362,6 +362,21 @@ let is_atomic_operand: operand => bool =
   | Parenthesized(_)
   | ApPalette(_) => false;
 
+let is_literal_operand: operand => bool =
+  fun
+  | Lam(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_) => true
+  | EmptyHole(_)
+  | InvalidText(_)
+  | Var(_)
+  | Inj(_)
+  | Case(_)
+  | Parenthesized(_)
+  | ApPalette(_) => false;
+
 /* NOTE: Should be replaced when parser is ready */
 let operand_of_string = (text: string): operand =>
   switch (TextShape.of_text(text)) {
