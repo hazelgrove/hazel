@@ -144,29 +144,123 @@ let app_suggestions =
   |> List.map(mk_app_suggestion(ci));
 };
 
-/* If the cursor_term is an operand which admits caret sub-positioning,
-   and the suffix of the operand's text representation wrt the caret
-   is itself a meaningful operand, return the operand resulting from
-   parsing that suffix. Otherwise return the original operand */
-let get_wrap_operand = (cursor_term: CursorInfo.cursor_term) => {
+/*
+  enhanced wrap plan:
+  cursorterm cases
+  textable stuff:
+  1. if it's a literal (bool, int, float), don't split it on caret,
+    just wrap the whole thing
+    - but should we behave differently if it's not a type match?
+  2. same (maybe?) if it's a bound variable?
+    - but what if we it's coincidentally a combo of other things?
+    - ignore this subtely for now
+  3. unbound variable or invalidtext
+    - in this case, we might want to use the suffix, or more generally
+      the part which doesn't match the function expr string, as
+      a filter across a list of possible generated arguments
+    - these arguments could be arbitary expressions, but to start
+      we could just do variables in the ctx
+    - there are def ways to generalize this but it might be worth
+      stumbling around a bit more first
+ */
+
+let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
+  ctx
+  |> Contexts.gamma
+  |> VarMap.filter(((name, ty)) =>
+       switch (StringUtil.search_forward_opt(Str.regexp(str), name)) {
+       | None => false
+       | Some(_) => HTyp.consistent(ty, typ)
+       // TODO(andrew): return measure of match quality?
+       }
+     );
+};
+
+/*
+ if unbound or invalidtext
+ make this function also take the wrapName (of wrapping fn) or name="case" (case case)
+ if thing before caret partially matches wrapName, then try to find variables
+ of appropriate type in context which partially match the thing after the caret.
+ should return a list in this case (could just do best match to start)
+ if it doesn't find any matches, then just wrap the whole unboundvar/invalidtext
+  */
+
+let get_wrap_operand =
+    (
+      {ctx, _}: CursorInfo.t,
+      arg_ty,
+      wrap_name: string,
+      cursor_term: CursorInfo.cursor_term,
+    ) => {
   switch (cursor_term) {
-  | ExpOperand(pos, operand) =>
-    switch (pos, UHExp.string_of_operand(operand)) {
-    | (_, "") => operand
-    | (OnText(i), guy) =>
-      switch (StringUtil.split_string(i, guy)) {
-      | (_, "") => UHExp.EmptyHole(0)
-      | (_, suf) => UHExp.operand_of_string(suf)
+  | ExpOperand(OnText(i), (Var(_, _, s) | InvalidText(_, s)) as operand) =>
+    let (pre, suf) = StringUtil.split_string(i, s);
+    switch (StringUtil.search_forward_opt(Str.regexp(pre), wrap_name)) {
+    | None => operand
+    | Some(_) =>
+      switch (vars_of_type_matching_str(ctx, arg_ty, suf)) {
+      | [] => operand
+      | [(name, _), ..._] =>
+        //TODO: return all? or just best? prob should be something other than first...
+        print_endline("DAT CASE:");
+        print_endline(name);
+        UHExp.operand_of_string(name);
       }
-    | _ => operand
-    }
+    };
+  | ExpOperand(
+      _,
+      (
+        Var(NotInHole, NotInVarHole, _) |
+        Var(InHole(TypeInconsistent, _), _, _)
+      ) as operand,
+    ) =>
+    // Revisit these cases; might still want to split sometimes?
+    operand
+  | ExpOperand(_, operand) => operand
+  /*
+   switch (operand) {
+   | EmptyHole(_)
+   | IntLit(_)
+   | FloatLit(_)
+   | BoolLit(_)
+   | ListNil(_)
+   | Lam(_)
+   | Inj(_)
+   | Case(_)
+   | Parenthesized(_)
+   | ApPalette(_) => operand
+   | Var(NotInHole, NotInVarHole, _)
+   | Var(InHole(TypeInconsistent, _), _, _)
+   // Revisit above cases; might still want to split sometimes?
+   | Var(_, _, _s) // unbound var case
+   | InvalidText(_, _s) =>
+     print_endline("ITS DAT BOY");
+     print_endline(
+       Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
+     );
+
+     switch (pos, UHExp.string_of_operand(operand)) {
+     | (_, "") => operand
+     | (OnText(i), guy) =>
+       switch (StringUtil.split_string(i, guy)) {
+       | (_, "") => UHExp.EmptyHole(0)
+       | (_, suf) => UHExp.operand_of_string(suf)
+       }
+     | _ => operand
+     };
+   // second _ is varerrstatus
+   }*/
   | _ => failwith("get_wrap_operand impossible")
   };
 };
 
 let mk_wrap_case_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
-  let operand = cursor_term |> get_wrap_operand |> UHExp.Block.wrap |> mk_case;
+  let operand =
+    cursor_term
+    |> get_wrap_operand(ci, HTyp.Hole, "case")
+    |> UHExp.Block.wrap
+    |> mk_case;
   mk_operand_suggestion(~category=Wrap, ~operand, ci);
 };
 
@@ -184,7 +278,15 @@ let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
 
 let mk_wrap_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  let result = mk_ap(name, S(get_wrap_operand(cursor_term), E));
+  let get_arg_type_somehow_TODO = HTyp.Hole;
+  let result =
+    mk_ap(
+      name,
+      S(
+        get_wrap_operand(ci, get_arg_type_somehow_TODO, name, cursor_term),
+        E,
+      ),
+    );
   mk_operand_suggestion(
     ~category=Wrap,
     ~operand=UHExp.Parenthesized(result),

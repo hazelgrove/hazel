@@ -33,11 +33,6 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 
 let get_type = CursorInfo_common.get_type;
 
-let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
-  CursorInfo_common.on_empty_expr_hole(term)
-  || CursorInfo_common.on_expr_var(term);
-};
-
 /**
  * Gets the type in string format.
  * Return string
@@ -52,16 +47,5 @@ let type_to_str = (ty: HTyp.t) => {
   | Sum(_, _) => "a Sum"
   | Prod(_) => "a Product"
   | List(_) => "a List"
-  };
-};
-
-/**
- * Extacts a text for of the current cursor term, suitable for search
- *  or filtering. Currently only supports Vars.
-*/
-let term_to_str = (term: CursorInfo.cursor_term): string => {
-  switch (term) {
-  | ExpOperand(_, Var(_, _, s)) => s
-  | _ => ""
   };
 };

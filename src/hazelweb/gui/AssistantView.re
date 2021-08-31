@@ -54,9 +54,14 @@ let idiomaticity_string = (idiomaticity: int) =>
   | _ => "Much more idiomatic"
   };
 
-let sign_view = n => {
-  div([Attr.class_(sign_label(n))], [sign_icon(n)]);
-};
+let text_match_string = (ratio: float) =>
+  switch (ratio) {
+  | x when x < 0.6 => "Syntax partially conserved"
+  | x when x < 0.9 => "Syntax mostly conserved"
+  | _ => "Existing syntax conserved"
+  };
+
+let sign_view = n => div([Attr.class_(sign_label(n))], [sign_icon(n)]);
 
 let subscore_view = (score_string: int => string, subscore: int) => {
   switch (subscore) {
@@ -82,14 +87,6 @@ let subscore_view_float = (score_string: float => string, subscore: float) => {
   };
 };
 
-let text_match_string = (ratio: float) =>
-  switch (ratio) {
-  | x when x < 0.1 => "No text kept"
-  | x when x < 0.6 => "Some text kept"
-  | x when x < 0.9 => "Much text kept"
-  | _ => "All text kept"
-  };
-
 let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => {
   div(
     [Attr.class_("suggestion-info")],
@@ -103,7 +100,7 @@ let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => 
     @ subscore_view(delta_errors_string, score.delta_errors)
     @ subscore_view(idiomaticity_string, score.idiomaticity)
     @ subscore_view(type_specificity_string, score.type_specificity)
-    @ [text(string_of_float(score.text_match))]
+    //@ [text(string_of_float(score.text_match))]
     @ subscore_view_float(text_match_string, score.text_match),
   );
 };
