@@ -28,36 +28,29 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
-let mk_TagArg = (body: formatted_child): UHDoc.t => {
-  let open_group = Delim.open_Parenthesized() |> annot_Tessera;
-  let close_group = Delim.close_Parenthesized() |> annot_Tessera;
+let mk_ConstTag = (tag: UHDoc.t): UHDoc.t =>
+  tag |> UHDoc_common.annot_ClosedChild(~is_inline=true, ~sort=Tag);
+
+let mk_ArgTag = (tag: formatted_child, body: formatted_child): UHDoc.t =>
   Doc.hcats([
-    open_group,
-    body |> pad_delimited_open_child(~inline_padding=(empty_, empty_)),
-    // |> pad_closed_child(~sort=Typ),
-    // |> pad_delimited_closed_child(~sort=Typ),
-    close_group,
-  ]);
-  // |> annot_Operand(~sort=SumBody);
-};
-
-let mk_ConstTag = (tag: UHDoc.t): UHDoc.t => tag;
-//  |> pad_closed_child(~sort=Tag);
-
-let mk_ArgTag = (tag: UHDoc.t, body: formatted_child): UHDoc.t =>
-  Doc.hcats([mk_ConstTag(tag), mk_TagArg(body)])
+    Delim.mk(~index=-1, ""),
+    tag |> pad_delimited_closed_child(~sort=Tag),
+    Delim.open_Parenthesized(),
+    body |> pad_delimited_closed_child(~sort=Typ),
+    Delim.close_Parenthesized(),
+  ])
   |> annot_Tessera
   |> annot_Operand(~sort=SumBody);
 
 let mk_Sum = (sumbody_opt: option(formatted_child)): UHDoc.t => {
   let open_group = Delim.open_Sum() |> annot_Tessera;
   let close_group = Delim.close_Sum() |> annot_Tessera;
-  let maybe_sumbody =
+  let sumbody =
     switch (sumbody_opt) {
-    | None => []
-    | Some(sumbody) => [sumbody |> pad_bidelimited_open_child]
+    | None => Doc.empty()
+    | Some(sumbody) => sumbody |> pad_delimited_closed_child(~sort=SumBody)
     };
-  Doc.hcats([open_group] @ maybe_sumbody @ [close_group])
+  Doc.hcats([open_group, sumbody |> annot_Tessera, close_group])
   |> annot_Tessera
   |> annot_Operand(~sort=Typ);
 };
@@ -101,7 +94,7 @@ let mk_SumBody =
                    sumbody,
                    space_ |> annot(UHAnnot.OpenChild(InlineWithBorder)),
                    plus_doc(plus_index) |> annot_Tessera,
-                   hcat(space_, elem_doc)
+                   hcats([space_, elem_doc])
                    |> annot(UHAnnot.OpenChild(InlineWithBorder)),
                  ])
                );
@@ -237,17 +230,12 @@ and mk_sumbody_operand =
         switch (operand) {
         | ConstTag(tag) =>
           let tag_doc =
-            // UHDoc_Tag.mk_formatted(~memoize, ~enforce_inline, tag);
             Lazy.force(UHDoc_Tag.mk, ~memoize, ~enforce_inline, tag);
           mk_ConstTag(tag_doc);
         | ArgTag(tag, ty) =>
           let tag_doc =
-            Lazy.force(UHDoc_Tag.mk, ~memoize, ~enforce_inline, tag)
-            |> annot_Step(0);
-          // UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
-          let body =
-            //  Lazy.force(mk, ~memoize, ~enforce_inline, ty);
-            mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
+            UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
+          let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
           mk_ArgTag(tag_doc, body);
         }: UHDoc.t
       )

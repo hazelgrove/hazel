@@ -147,6 +147,7 @@ let user_newline: t =
     ])
   );
 
+[@deriving sexp]
 type formatted_child =
   | UserNewline(t)
   | EnforcedInline(t)

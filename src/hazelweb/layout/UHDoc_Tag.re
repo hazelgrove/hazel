@@ -20,15 +20,6 @@ let mk = {
   );
 };
 
-let mk_formatted =
-    (~memoize: bool, ~enforce_inline: bool, tag: UHTag.t): formatted_child => {
-  let formattable = (~enforce_inline: bool) =>
-    Lazy.force(mk, ~memoize, ~enforce_inline, tag);
-  enforce_inline
-    ? EnforcedInline(formattable(~enforce_inline))
-    : Unformatted(formattable);
-};
-
 let mk_child =
     (~memoize: bool, ~enforce_inline: bool, ~child_step: int, tag: UHTag.t)
     : formatted_child => {
