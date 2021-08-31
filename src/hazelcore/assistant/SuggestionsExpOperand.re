@@ -193,7 +193,10 @@ let get_wrap_operand =
       cursor_term: CursorInfo.cursor_term,
     ) => {
   switch (cursor_term) {
-  | ExpOperand(OnText(i), (Var(_, _, s) | InvalidText(_, s)) as operand) =>
+  | ExpOperand(
+      OnText(i),
+      (Var(_, InVarHole(_), s) | InvalidText(_, s)) as operand,
+    ) =>
     let (pre, suf) = StringUtil.split_string(i, s);
     switch (StringUtil.search_forward_opt(Str.regexp(pre), wrap_name)) {
     | None => operand
