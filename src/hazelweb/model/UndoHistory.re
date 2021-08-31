@@ -496,6 +496,7 @@ let get_new_action_group =
       | SCommentLine
       | SParenthesized
       | SCloseParens
+      | SCloseBraces
       | SList
       | SAnn
       | SLam

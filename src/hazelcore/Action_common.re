@@ -5,6 +5,7 @@ let shape_to_string = (shape: shape): string => {
   | SList => "list type"
   | SParenthesized => "parentheses"
   | SCloseParens => "close parens"
+  | SCloseBraces => "close lambda body"
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"

@@ -607,6 +607,8 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
+  | (Construct(SCloseBraces), _) => Failed
+
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>
     mk_syn_result(
@@ -1142,6 +1144,8 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
+  | (Construct(SCloseBraces), _) => Failed
+
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>
     Succeeded((

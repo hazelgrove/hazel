@@ -222,6 +222,8 @@ and perform_opseq =
 and perform_operand =
     (a: Action.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
   switch (a, zoperand) {
+  | (Construct(SCloseBraces), _) => Failed
+
   | (Construct(SCloseParens), ParenthesizedZ(zopseq))
       when ZTyp.is_after(zopseq) =>
     Succeeded(

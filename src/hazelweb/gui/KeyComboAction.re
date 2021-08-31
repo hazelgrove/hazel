@@ -23,6 +23,7 @@ let get_model_action =
   | VBar => construct(SOp(SOr))
   | LeftParen => construct(SParenthesized)
   | RightParen => construct(SCloseParens)
+  | RightBrace => construct(SCloseBraces)
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)

@@ -1400,6 +1400,19 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
+  | (Construct(SCloseBraces), LamZE(_, _, zbody))
+      when ZExp.is_after_zblock(zbody) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseBraces), _) => Failed
+
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -2804,6 +2817,19 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
+  | (Construct(SCloseBraces), LamZE(_, _, zbody))
+      when ZExp.is_after_zblock(zbody) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (Construct(SCloseBraces), _) => Failed
+
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(

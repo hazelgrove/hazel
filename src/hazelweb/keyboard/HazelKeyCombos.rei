@@ -13,6 +13,7 @@ type t =
   | VBar
   | LeftParen
   | RightParen
+  | RightBrace
   | Colon
   | Equals
   | Enter

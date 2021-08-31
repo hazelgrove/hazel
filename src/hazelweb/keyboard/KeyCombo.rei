@@ -24,6 +24,7 @@ let backslash: t;
 let left_paren: t;
 let right_paren: t;
 let left_bracket: t;
+let right_brace: t;
 let equals: t;
 let pound: t;
 let plus: t;

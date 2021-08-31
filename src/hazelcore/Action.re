@@ -23,6 +23,7 @@ type shape =
   | SList
   | SParenthesized
   | SCloseParens
+  | SCloseBraces
   | SChar(string)
   | SAnn
   | SLam
