@@ -6,7 +6,7 @@ and zoperand =
 let valid_cursors: UHTag.t => list(CursorPosition.t) =
   fun
   | Tag(_, s) => CursorPosition.text_cursors(String.length(s))
-  | TagHole(_) => CursorPosition.delim_cursors(1);
+  | EmptyTagHole(_) => CursorPosition.delim_cursors(1);
 
 let is_valid_cursor = (cursor: CursorPosition.t, tag: UHTag.t): bool =>
   valid_cursors(tag) |> List.mem(cursor);
@@ -14,24 +14,24 @@ let is_valid_cursor = (cursor: CursorPosition.t, tag: UHTag.t): bool =>
 let is_before = (ztag: t): bool =>
   switch (ztag) {
   | CursorTag(cursor, Tag(_)) => cursor == OnText(0)
-  | CursorTag(cursor, TagHole(_)) => cursor == OnDelim(0, Before)
+  | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(0, Before)
   };
 
 let is_after = (ztag: t): bool =>
   switch (ztag) {
   | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t))
-  | CursorTag(cursor, TagHole(_)) => cursor == OnDelim(1, After)
+  | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(1, After)
   };
 
 let place_before = (tag: UHTag.t): t =>
   switch (tag) {
-  | TagHole(_) => CursorTag(OnDelim(0, Before), tag)
+  | EmptyTagHole(_) => CursorTag(OnDelim(0, Before), tag)
   | Tag(_) => CursorTag(OnText(0), tag)
   };
 
 let place_after = (tag: UHTag.t): t =>
   switch (tag) {
-  | TagHole(_) => CursorTag(OnDelim(0, After), tag)
+  | EmptyTagHole(_) => CursorTag(OnDelim(0, After), tag)
   | Tag(_, t) => CursorTag(OnText(String.length(t)), tag)
   };
 

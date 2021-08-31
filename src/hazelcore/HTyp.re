@@ -150,7 +150,7 @@ let rec complete =
         (
           switch (tag) {
           | Tag(_) => true
-          | TagHole(_) => false
+          | EmptyTagHole(_) => false
           }
         )
         && (

@@ -68,7 +68,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
          | TypHole
-         | TagHole(_) => None
+         | EmptyTagHole(_) => None
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {

@@ -12,7 +12,7 @@ let mk_Tag = (t: string): t => Doc.(text(t) |> annot(HTypAnnot.Delim));
 
 let mk = (tag: UHTag.t): t => {
   switch (tag) {
-  | TagHole(u) => mk_TagHole(u)
+  | EmptyTagHole(u) => mk_TagHole(u)
   | Tag(_, t) => mk_Tag(t)
   };
 };

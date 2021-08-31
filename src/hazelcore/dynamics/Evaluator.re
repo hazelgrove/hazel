@@ -199,9 +199,9 @@ let rec evaluate = (d: DHExp.t): result =>
     | Indet(d1') => Indet(Inj((tymap, tag, Some(d1'))))
     }
   // IInjNull
-  | Inj((_, TagHole(_), None))
+  | Inj((_, EmptyTagHole(_), None))
   | InjError(_, _, _, _, (_, _, None)) => Indet(d)
-  | Inj((tymap, TagHole(_) as tag, Some(d1))) =>
+  | Inj((tymap, EmptyTagHole(_) as tag, Some(d1))) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     // IInjTag

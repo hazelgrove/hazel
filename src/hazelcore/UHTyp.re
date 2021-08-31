@@ -191,8 +191,8 @@ let rec is_complete_operand = (operand: 'operand) => {
 }
 and is_complete_sumbody_operand = (sumbody_operand: sumbody_operand) => {
   switch (sumbody_operand) {
-  | ConstTag(TagHole(_))
-  | ArgTag(TagHole(_), _) => false
+  | ConstTag(EmptyTagHole(_))
+  | ArgTag(EmptyTagHole(_), _) => false
   | ConstTag(Tag(_)) => true
   | ArgTag(Tag(_), ty) => is_complete(ty)
   };
@@ -226,6 +226,6 @@ and is_complete = (ty: t) => {
 
 let is_empty_sumbody_operand: sumbody_operand => bool =
   fun
-  | ConstTag(TagHole(_))
-  | ArgTag(TagHole(_), OpSeq(_, S(Hole, _))) => true
+  | ConstTag(EmptyTagHole(_))
+  | ArgTag(EmptyTagHole(_), OpSeq(_, S(Hole, _))) => true
   | _ => false;

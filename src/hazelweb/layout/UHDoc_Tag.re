@@ -14,7 +14,7 @@ let mk = {
     memoize((~memoize as _: bool, ~enforce_inline as _: bool, tag: UHTag.t) =>
       switch (tag) {
       | Tag(_, t) => mk_Tag(t)
-      | TagHole(u) => mk_TagHole(u)
+      | EmptyTagHole(u) => mk_TagHole(u)
       }
     )
   );

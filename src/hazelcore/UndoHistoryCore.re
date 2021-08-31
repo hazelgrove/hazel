@@ -195,7 +195,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Tag(_, tag) =>
     switch (tag) {
     | Tag(_, t) => Len(String.length(t))
-    | TagHole(_) => MinLen
+    | EmptyTagHole(_) => MinLen
     }
   };
 };

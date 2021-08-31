@@ -54,7 +54,7 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | Pat(_, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
-  | Tag(_, TagHole(_)) => true
+  | Tag(_, EmptyTagHole(_)) => true
   | Tag(_, Tag(_)) => false
   | ExpOp(_, _)
   | PatOp(_, _)

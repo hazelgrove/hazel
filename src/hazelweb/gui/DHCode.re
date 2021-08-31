@@ -39,11 +39,11 @@ let view_of_layout =
                  ],
                  ds,
                )
-             | TagHole(_) => (
+             | EmptyTagHole(_) => (
                  [
                    Node.span(
                      [
-                       Attr.classes(["TagHole"]),
+                       Attr.classes(["EmptyTagHole"]),
                        //  Attr.on_click(_ =>
                        //    inject(ModelAction.SelectHoleInstance(inst))
                        //  ),

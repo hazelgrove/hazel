@@ -28,20 +28,20 @@ let holes =
     : CursorPath.hole_list =>
   switch (tag) {
   | Tag(_) => hs
-  | TagHole(u) =>
+  | EmptyTagHole(u) =>
     let steps = List.rev(rev_steps);
-    [{sort: TagHole(u), steps, ap_steps: steps}, ...hs];
+    [{sort: EmptyTagHole(u), steps, ap_steps: steps}, ...hs];
   };
 
 let holes_z =
     (ztag: ZTag.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
   switch (ztag |> ZTag.erase) {
   | Tag(_) => CursorPath.empty_zhole_list
-  | TagHole(u) =>
+  | EmptyTagHole(u) =>
     let steps = List.rev(rev_steps);
     {
       ...CursorPath.empty_zhole_list,
-      hole_selected: Some({sort: TagHole(u), steps, ap_steps: steps}),
+      hole_selected: Some({sort: EmptyTagHole(u), steps, ap_steps: steps}),
     };
   };
 

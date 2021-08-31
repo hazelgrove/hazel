@@ -8,10 +8,10 @@ let fix_holes =
     : (UHTag.t, MetaVarGen.t) =>
   switch (tag) {
   | Tag(_) => (tag, u_gen)
-  | TagHole(_) =>
+  | EmptyTagHole(_) =>
     if (renumber_empty_holes) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (TagHole(u), u_gen);
+      (EmptyTagHole(u), u_gen);
     } else {
       (tag, u_gen);
     }

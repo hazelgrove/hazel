@@ -250,7 +250,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [indicate_words_view("tag: "), code_keywords_view(t)],
         )
       )
-    | TagHole(_) => Vdom.(Node.span([], [indicate_words_view("tag hole")]))
+    | EmptyTagHole(_) =>
+      Vdom.(Node.span([], [indicate_words_view("tag hole")]))
     };
 
   let cursor_term_view =

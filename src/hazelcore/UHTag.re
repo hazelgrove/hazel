@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Tag(TagErrStatus.t, string)
-  | TagHole(MetaVar.t);
+  | EmptyTagHole(MetaVar.t);
 
 let compare = compare;
 
@@ -11,7 +11,7 @@ let eq = (t1: t, t2: t): bool => t1 == t2;
 
 let new_TagHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
-  (TagHole(u), u_gen);
+  (EmptyTagHole(u), u_gen);
 };
 
 let is_majuscule_letter = (c: char): bool => {
@@ -57,4 +57,4 @@ let of_text = (text: string): t => {
 let is_complete: t => bool =
   fun
   | Tag(_) => true
-  | TagHole(_) => false;
+  | EmptyTagHole(_) => false;

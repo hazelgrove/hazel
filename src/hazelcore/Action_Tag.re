@@ -93,7 +93,7 @@ let perform =
     Failed
   | (_, CursorTag(OnOp(_), _))
   | (_, CursorTag(OnDelim(_), Tag(_)))
-  | (_, CursorTag(OnText(_), TagHole(_))) => Failed
+  | (_, CursorTag(OnText(_), EmptyTagHole(_))) => Failed
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -101,16 +101,16 @@ let perform =
 
   /* Backspace and Delete */
 
-  | (Backspace, CursorTag(OnDelim(_0, After), TagHole(_) as operand)) =>
+  | (Backspace, CursorTag(OnDelim(_0, After), EmptyTagHole(_) as operand)) =>
     let ztag = ZTag.place_before(operand);
     ZTag.is_after(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(Before);
-  | (Delete, CursorTag(OnDelim(_0, Before), TagHole(_) as operand)) =>
+  | (Delete, CursorTag(OnDelim(_0, Before), EmptyTagHole(_) as operand)) =>
     let ztag = operand |> ZTag.place_after;
     ZTag.is_before(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(After);
 
-  | (Backspace, CursorTag(OnDelim(_0, Before), TagHole(_))) =>
+  | (Backspace, CursorTag(OnDelim(_0, Before), EmptyTagHole(_))) =>
     CursorEscaped(Before)
-  | (Delete, CursorTag(OnDelim(_0, After), TagHole(_))) =>
+  | (Delete, CursorTag(OnDelim(_0, After), EmptyTagHole(_))) =>
     CursorEscaped(After)
 
   | (Backspace, CursorTag(OnText(j), Tag(_, t))) =>
@@ -162,19 +162,21 @@ let perform =
 
   | (Construct(SChar(_)), CursorTag(OnText(_), Tag(_))) => Failed
 
-  | (Construct(SOp(SSpace)), CursorTag(OnDelim(_0, _), TagHole(_))) =>
+  | (Construct(SOp(SSpace)), CursorTag(OnDelim(_0, _), EmptyTagHole(_))) =>
     move(u_gen, MoveRight, ztag)
 
-  | (Construct(SOp(_)), CursorTag(OnDelim(_, _), TagHole(_))) => Failed
+  | (Construct(SOp(_)), CursorTag(OnDelim(_, _), EmptyTagHole(_))) =>
+    Failed
 
-  | (Construct(SChar(s)), CursorTag(OnDelim(_, _), TagHole(_)))
+  | (Construct(SChar(s)), CursorTag(OnDelim(_, _), EmptyTagHole(_)))
       when UHTag.is_tag_name(s) =>
     switch (insert_text((0, s), "")) {
     | (CursorEscaped(_) | Failed) as outcome => outcome
     | Succeeded(ztag) => Succeeded((ztag, u_gen))
     }
 
-  | (Construct(SChar(_)), CursorTag(OnDelim(_, _), TagHole(_))) => Failed
+  | (Construct(SChar(_)), CursorTag(OnDelim(_, _), EmptyTagHole(_))) =>
+    Failed
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
