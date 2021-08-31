@@ -424,18 +424,18 @@ and perform_operand =
     let ty_hole = OpSeq.wrap(UHTyp.Hole);
     Succeeded((ZTyp.place_after(ty_hole), u_gen));
 
+  // sum { | }  ==>  sum { _| }
   | (
       Construct(SChar(c)),
       CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)),
     ) =>
-    UHTag.is_majuscule_letter(c.[0])
-      ? {
-        let ztag = ZTag.place_after(UHTag.Tag(c));
-        let zty =
-          ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
-        Succeeded((zty, u_gen));
-      }
-      : Failed
+    switch (Action_Tag.mk_text(0, c)) {
+    | Failed
+    | CursorEscaped(_) => Failed
+    | Succeeded(ztag) =>
+      let zty = ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
+      Succeeded((zty, u_gen));
+    }
 
   // sum {| }  ==>  sum { ? + ?| }
   // sum { |}  ==>  sum { ? + ?| }

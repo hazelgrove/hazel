@@ -1,12 +1,9 @@
-let mk_text = (caret_index: int, text: string): ActionOutcome.t('success) =>
-  if (UHTag.is_tag_name(text)) {
-    Succeeded(
-      ZTag.CursorTag(CursorPosition.OnText(caret_index), UHTag.Tag(text)),
-    );
-  } else {
-    Failed;
-  };
-
+let mk_text = (caret_index: int, text: string): ActionOutcome.t(ZTag.t) => {
+  let cursor = CursorPosition.OnText(caret_index);
+  let status: TagErrStatus.t =
+    UHTag.is_tag_name(text) ? NotInHole : InvalidTagName;
+  Succeeded(ZTag.CursorTag(cursor, UHTag.Tag(status, text)));
+};
 let insert_text =
     ((caret_index: int, insert_text: string), text: string)
     : ActionOutcome.t('success) =>
@@ -15,7 +12,7 @@ let insert_text =
     text |> StringUtil.insert(caret_index, insert_text),
   );
 
-let delete_text = (caret_index: int, text: string): ActionOutcome.t('success) =>
+let delete_text = (caret_index: int, text: string): ActionOutcome.t(ZTag.t) =>
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
@@ -24,7 +21,7 @@ let delete_text = (caret_index: int, text: string): ActionOutcome.t('success) =>
   };
 
 let backspace_text =
-    (caret_index: int, text: string): ActionOutcome.t('success) =>
+    (caret_index: int, text: string): ActionOutcome.t(ZTag.t) =>
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
@@ -116,7 +113,7 @@ let perform =
   | (Delete, CursorTag(OnDelim(_0, After), TagHole(_))) =>
     CursorEscaped(After)
 
-  | (Backspace, CursorTag(OnText(j), Tag(t))) =>
+  | (Backspace, CursorTag(OnText(j), Tag(_, t))) =>
     switch (String.length(t)) {
     | 1 =>
       let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
@@ -128,7 +125,7 @@ let perform =
       }
     }
 
-  | (Delete, CursorTag(OnText(j), Tag(t))) =>
+  | (Delete, CursorTag(OnText(j), Tag(_, t))) =>
     switch (String.length(t)) {
     | 1 =>
       let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
@@ -148,15 +145,15 @@ let perform =
     | _ => ZTag.is_after(ztag) ? CursorEscaped(After) : Failed
     }
 
-  | (Construct(SOp(_)), CursorTag(OnText(_), Tag(_))) => Failed
+  | (Construct(SOp(_)), CursorTag(OnText(_), Tag(_, _))) => Failed
 
-  | (Construct(SChar(c)), CursorTag(OnText(0), Tag(t)))
+  | (Construct(SChar(c)), CursorTag(OnText(0), Tag(_, t)))
       when UHTag.is_majuscule_letter(c.[0]) =>
     switch (insert_text((0, c), t)) {
     | (CursorEscaped(_) | Failed) as outcome => outcome
     | Succeeded(ztag) => Succeeded((ztag, u_gen))
     }
-  | (Construct(SChar(c)), CursorTag(OnText(j), Tag(t)))
+  | (Construct(SChar(c)), CursorTag(OnText(j), Tag(_, t)))
       when UHTag.is_tag_char(c.[0]) =>
     switch (insert_text((j, c), t)) {
     | (CursorEscaped(_) | Failed) as outcome => outcome

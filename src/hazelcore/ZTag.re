@@ -5,7 +5,7 @@ and zoperand =
 
 let valid_cursors: UHTag.t => list(CursorPosition.t) =
   fun
-  | Tag(s) => CursorPosition.text_cursors(String.length(s))
+  | Tag(_, s) => CursorPosition.text_cursors(String.length(s))
   | TagHole(_) => CursorPosition.delim_cursors(1);
 
 let is_valid_cursor = (cursor: CursorPosition.t, tag: UHTag.t): bool =>
@@ -19,7 +19,7 @@ let is_before = (ztag: t): bool =>
 
 let is_after = (ztag: t): bool =>
   switch (ztag) {
-  | CursorTag(cursor, Tag(t)) => cursor == OnText(String.length(t))
+  | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t))
   | CursorTag(cursor, TagHole(_)) => cursor == OnDelim(1, After)
   };
 
@@ -32,7 +32,7 @@ let place_before = (tag: UHTag.t): t =>
 let place_after = (tag: UHTag.t): t =>
   switch (tag) {
   | TagHole(_) => CursorTag(OnDelim(0, After), tag)
-  | Tag(t) => CursorTag(OnText(String.length(t)), tag)
+  | Tag(_, t) => CursorTag(OnText(String.length(t)), tag)
   };
 
 let place_cursor = (cursor: CursorPosition.t, tag: UHTag.t): option(t) =>

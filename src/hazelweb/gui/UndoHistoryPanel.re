@@ -243,7 +243,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
   let tag_view = (tag: UHTag.t) =>
     switch (tag) {
-    | Tag(t) =>
+    | Tag(_, t) =>
       Vdom.(
         Node.span(
           [],

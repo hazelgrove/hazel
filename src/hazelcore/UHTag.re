@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
-  | Tag(string)
+  | Tag(TagErrStatus.t, string)
   | TagHole(MetaVar.t);
 
 let compare = compare;
@@ -50,13 +50,10 @@ let is_tag_name = (str: string): bool => {
   };
 };
 
-let of_text = (text: string): option(t) =>
-  if (is_tag_name(text)) {
-    Some(Tag(text));
-  } else {
-    None;
-  };
-
+let of_text = (text: string): t => {
+  let status = TagErrStatus.(is_tag_name(text) ? NotInHole : InvalidTagName);
+  Tag(status, text);
+};
 let is_complete: t => bool =
   fun
   | Tag(_) => true

@@ -194,7 +194,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | SumBodyOp(_, _) => Len(1)
   | Tag(_, tag) =>
     switch (tag) {
-    | Tag(t) => Len(String.length(t))
+    | Tag(_, t) => Len(String.length(t))
     | TagHole(_) => MinLen
     }
   };

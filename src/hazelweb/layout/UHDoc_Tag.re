@@ -13,7 +13,7 @@ let mk = {
   lazy(
     memoize((~memoize as _: bool, ~enforce_inline as _: bool, tag: UHTag.t) =>
       switch (tag) {
-      | Tag(t) => mk_Tag(t)
+      | Tag(_, t) => mk_Tag(t)
       | TagHole(u) => mk_TagHole(u)
       }
     )
