@@ -139,7 +139,7 @@ let suggestion_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, res_ty, category, result_text, score, _}: SuggestionsExp.suggestion,
+      {action, result, result_ty, category, result_text, score, _}: SuggestionsExp.suggestion,
       is_selected: bool,
       is_hovered: bool,
       index: int,
@@ -187,7 +187,7 @@ let suggestion_view =
         [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
       div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], [HTypCode.view(res_ty)]),
+      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
       category_view(category),
     ],
   );

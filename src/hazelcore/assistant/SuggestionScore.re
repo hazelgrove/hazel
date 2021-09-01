@@ -12,10 +12,10 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   |> List.filter(hole_not_empty);
 
 let type_specificity_score =
-    (expected_ty: HTyp.t, res_ty: HTyp.t, actual_ty: HTyp.t) =>
-  switch (HTyp.compare(res_ty, actual_ty)) {
+    (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t) =>
+  switch (HTyp.compare(result_ty, actual_ty)) {
   | _ when expected_ty == Hole => 0
-  | _ when !HTyp.consistent(expected_ty, res_ty) => 0
+  | _ when !HTyp.consistent(expected_ty, result_ty) => 0
   | Incomparable
   | Equal => 0
   | GT => 1
@@ -161,7 +161,7 @@ let opseq_report =
 let check_suggestion =
     (
       action: Action.t,
-      res_ty: HTyp.t,
+      result_ty: HTyp.t,
       result_text: string,
       {enclosing_zoperand, expected_ty, actual_ty, _} as ci: CursorInfo.t,
     )
@@ -186,7 +186,7 @@ let check_suggestion =
   let idiomaticity = idiomaticity_score_parent(action, enclosing_zoperand);
 
   let type_specificity =
-    type_specificity_score(expected_ty, res_ty, HTyp.relax(actual_ty));
+    type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
   let text_match = text_match_score(ci, result_text);
   Suggestion.{idiomaticity, type_specificity, delta_errors, text_match};
 };

@@ -32,7 +32,7 @@ type t('a) = {
   score,
   action: Action.t,
   result: 'a,
-  res_ty: HTyp.t,
+  result_ty: HTyp.t,
   result_text: string,
 };
 
@@ -47,14 +47,14 @@ let mk =
       ~result_text: string,
       ~action: Action.t,
       ~result: 'a,
-      ~res_ty: HTyp.t,
+      ~result_ty: HTyp.t,
     )
     : t('a) => {
   category,
   result_text,
   action,
   result,
-  res_ty,
+  result_ty,
   score: blank_score,
 };
 

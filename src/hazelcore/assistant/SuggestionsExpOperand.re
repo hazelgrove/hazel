@@ -20,6 +20,17 @@ let mk_ap_iter =
   (output_ty, mk_ap(f, holes_seq));
 };
 
+let mk_ntuple_operand = (n: int): UHExp.operand => {
+  let rec mk' = n =>
+    switch (n) {
+    | 0
+    | 1 => failwith("mk_ntuple_operand: n must be 2 or more")
+    | 2 => Seq.S(hole_operand, A(Operators_Exp.Comma, S(hole_operand, E)))
+    | _ => Seq.S(hole_operand, A(Operators_Exp.Comma, mk'(n - 1)))
+    };
+  UHExp.Parenthesized(UHExp.Block.wrap'(UHExp.mk_OpSeq(mk'(n))));
+};
+
 let mk_operand_suggestion =
     (
       ~category: Suggestion.category,
@@ -28,11 +39,13 @@ let mk_operand_suggestion =
       ci: CursorInfo.t,
     )
     : suggestion => {
-  let res_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
+  let result_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let result_text = UHExp.string_of_operand(operand);
   let action: Action.t = ReplaceOperand(operand, None);
   let score =
-    switch (SuggestionScore.check_suggestion(action, res_ty, result_text, ci)) {
+    switch (
+      SuggestionScore.check_suggestion(action, result_ty, result_text, ci)
+    ) {
     | None =>
       Printf.printf(
         "Warning: failed to generate a score for suggested action: %s\n",
@@ -41,18 +54,18 @@ let mk_operand_suggestion =
       Suggestion.blank_score;
     | Some(res) => res
     };
-  {category, result_text, action, result, res_ty, score};
+  {category, result_text, action, result, result_ty, score};
 };
 
 let mk_lit_suggestion = mk_operand_suggestion(~category=InsertLit);
 
-let mk_bool_lit_suggestion = (ci: CursorInfo.t, b: bool): suggestion =>
+let mk_bool_lit_suggestion = (b: bool, ci: CursorInfo.t): suggestion =>
   mk_lit_suggestion(~operand=UHExp.boollit(b), ci);
 
-let mk_int_lit_suggestion = (ci: CursorInfo.t, s: string): suggestion =>
+let mk_int_lit_suggestion = (s: string, ci: CursorInfo.t): suggestion =>
   mk_lit_suggestion(~operand=UHExp.intlit(s), ci);
 
-let mk_float_lit_suggestion = (ci: CursorInfo.t, s: string): suggestion =>
+let mk_float_lit_suggestion = (s: string, ci: CursorInfo.t): suggestion =>
   mk_lit_suggestion(~operand=UHExp.floatlit(s), ci);
 
 let mk_nil_list_suggestion = (ci: CursorInfo.t): suggestion =>
@@ -64,7 +77,14 @@ let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): suggestion =>
 let mk_empty_hole_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(~category=Delete, ~operand=hole_operand, ci);
 
-let mk_inj_suggestion = (ci: CursorInfo.t, side: InjSide.t): suggestion =>
+let mk_pair_suggestion = (ci: CursorInfo.t): suggestion =>
+  mk_operand_suggestion(
+    ~category=InsertConstructor,
+    ~operand=mk_ntuple_operand(2),
+    ci,
+  );
+
+let mk_inj_suggestion = (side: InjSide.t, ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(
     ~category=InsertConstructor,
     ~operand=mk_inj(side),
@@ -155,7 +175,7 @@ let get_wrapped_operand =
 
 let mk_wrap_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  // TODO(andrew)
+  // TODO(andrew): get type
   let get_arg_type_somehow_TODO = HTyp.Hole;
   let wrapped_operand =
     get_wrapped_operand(ci, get_arg_type_somehow_TODO, name, cursor_term);
@@ -198,25 +218,25 @@ let int_float_suggestions': generator =
        out once we have a system for identifying duplicate suggestions */
     switch (cursor_term) {
     | ExpOperand(_, IntLit(_, s)) when s != "0" => [
-        mk_float_lit_suggestion(ci, s ++ "."),
-        mk_int_lit_suggestion(ci, "0"),
+        mk_float_lit_suggestion(s ++ ".", ci),
+        mk_int_lit_suggestion("0", ci),
       ]
     | ExpOperand(_, IntLit(_, s)) when s == "0" => [
-        mk_float_lit_suggestion(ci, str_int_to_float(s)),
+        mk_float_lit_suggestion(str_int_to_float(s), ci),
       ]
     | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
       s |> float_of_string |> Float.is_integer
         ? [
-          mk_int_lit_suggestion(ci, str_float_to_int(s)),
-          mk_float_lit_suggestion(ci, "0."),
+          mk_int_lit_suggestion(str_float_to_int(s), ci),
+          mk_float_lit_suggestion("0.", ci),
         ]
-        : [mk_int_lit_suggestion(ci, "0")]
+        : [mk_int_lit_suggestion("0", ci)]
     | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
-        mk_int_lit_suggestion(ci, "0"),
+        mk_int_lit_suggestion("0", ci),
       ]
     | _ => [
-        mk_float_lit_suggestion(ci, "0."),
-        mk_int_lit_suggestion(ci, "0"),
+        mk_float_lit_suggestion("0.", ci),
+        mk_int_lit_suggestion("0", ci),
       ]
     };
   };
@@ -232,19 +252,20 @@ let mk_wrap_case_suggestion =
 };
 
 let result_type_consistent_with = (expected_ty, a: suggestion) =>
-  HTyp.consistent(a.res_ty, expected_ty);
+  HTyp.consistent(a.result_ty, expected_ty);
 
 // GENERATORS --------------------------------------------------------
 
 let mk_intro_suggestions: generator =
   ci => [
     mk_empty_hole_suggestion(ci),
-    mk_bool_lit_suggestion(ci, true),
-    mk_bool_lit_suggestion(ci, false),
+    mk_bool_lit_suggestion(true, ci),
+    mk_bool_lit_suggestion(false, ci),
     mk_nil_list_suggestion(ci),
-    mk_inj_suggestion(ci, L),
-    mk_inj_suggestion(ci, R),
+    mk_inj_suggestion(L, ci),
+    mk_inj_suggestion(R, ci),
     mk_lambda_suggestion(ci),
+    mk_pair_suggestion(ci),
   ];
 
 let intro_suggestions: generator =

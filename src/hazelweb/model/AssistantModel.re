@@ -133,7 +133,7 @@ let get_suggestions_of_ty =
     (ci: CursorInfo.t, ~u_gen: MetaVarGen.t, ty: HTyp.t): list(suggestion) =>
   ci
   |> get_suggestions(~u_gen)
-  |> List.filter((s: suggestion) => HTyp.consistent(s.res_ty, ty));
+  |> List.filter((s: suggestion) => HTyp.consistent(s.result_ty, ty));
 
 let wrap_index = (index: int, xs: list('a)): int =>
   IntUtil.wrap(index, List.length(xs));
