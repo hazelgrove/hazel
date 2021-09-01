@@ -50,10 +50,6 @@ let is_tag_name = (str: string): bool => {
   };
 };
 
-let of_text = (text: string): t => {
-  let status = TagErrStatus.(is_tag_name(text) ? NotInHole : InvalidTagName);
-  Tag(status, text);
-};
 let is_complete: t => bool =
   fun
   | Tag(_) => true

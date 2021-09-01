@@ -1,5 +1,11 @@
+module HoleReason = {
+  [@deriving sexp]
+  type t =
+    | InvalidTagName
+    | DuplicateTagName;
+};
+
 [@deriving sexp]
 type t =
-  | NotInHole
-  | InvalidTagName
-  | DuplicateTagName;
+  | NotInTagHole
+  | InTagHole(HoleReason.t, MetaVar.t);

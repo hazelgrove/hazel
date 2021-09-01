@@ -429,13 +429,9 @@ and perform_operand =
       Construct(SChar(c)),
       CursorT(OnDelim(0, After) | OnDelim(1, Before), Sum(None)),
     ) =>
-    switch (Action_Tag.mk_text(0, c)) {
-    | Failed
-    | CursorEscaped(_) => Failed
-    | Succeeded(ztag) =>
-      let zty = ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
-      Succeeded((zty, u_gen));
-    }
+    let (ztag, u_gen) = Action_Tag.mk_text(0, c, u_gen);
+    let zty = ZOpSeq.wrap(ZTyp.SumZ(ZOpSeq.wrap(ZTyp.ConstTagZ(ztag))));
+    Succeeded((zty, u_gen));
 
   // sum {| }  ==>  sum { ? + ?| }
   // sum { |}  ==>  sum { ? + ?| }
