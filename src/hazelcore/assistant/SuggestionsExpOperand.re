@@ -1,35 +1,4 @@
-open OptUtil.Syntax;
 open SuggestionsExp;
-
-let rec mk_ap_iter_seq =
-        (f_ty: HTyp.t, hole_ty: HTyp.t): option((HTyp.t, UHExp.seq)) => {
-  switch (f_ty) {
-  | Arrow(_, out_ty) when HTyp.consistent(out_ty, hole_ty) =>
-    Some((out_ty, Seq.wrap(hole_operand)))
-  | Arrow(_, out_ty') =>
-    let* (out_ty, affix) = mk_ap_iter_seq(out_ty', hole_ty);
-    Some((out_ty, ap_seq(hole_operand, affix)));
-  | _ => None
-  };
-};
-
-let mk_ap_iter =
-    ({expected_ty, _}: CursorInfo.t, f: Var.t, f_ty: HTyp.t)
-    : option((HTyp.t, UHExp.t)) => {
-  let+ (output_ty, holes_seq) = mk_ap_iter_seq(f_ty, expected_ty);
-  (output_ty, mk_ap(f, holes_seq));
-};
-
-let mk_ntuple_operand = (n: int): UHExp.operand => {
-  let rec mk' = n =>
-    switch (n) {
-    | 0
-    | 1 => failwith("mk_ntuple_operand: n must be 2 or more")
-    | 2 => Seq.S(hole_operand, A(Operators_Exp.Comma, S(hole_operand, E)))
-    | _ => Seq.S(hole_operand, A(Operators_Exp.Comma, mk'(n - 1)))
-    };
-  UHExp.Parenthesized(UHExp.Block.wrap'(UHExp.mk_OpSeq(mk'(n))));
-};
 
 let mk_operand_suggestion =
     (
@@ -41,7 +10,7 @@ let mk_operand_suggestion =
     : suggestion => {
   let result_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let result_text = UHExp.string_of_operand(operand);
-  let action: Action.t = ReplaceOperand(operand, None);
+  let action = Action.ReplaceOperand(operand, None);
   let score =
     switch (
       SuggestionScore.check_suggestion(action, result_ty, result_text, ci)
@@ -77,13 +46,6 @@ let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): suggestion =>
 let mk_empty_hole_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(~category=Delete, ~operand=hole_operand, ci);
 
-let mk_pair_suggestion = (ci: CursorInfo.t): suggestion =>
-  mk_operand_suggestion(
-    ~category=InsertConstructor,
-    ~operand=mk_ntuple_operand(2),
-    ci,
-  );
-
 let mk_inj_suggestion = (side: InjSide.t, ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(
     ~category=InsertConstructor,
@@ -101,10 +63,31 @@ let mk_lambda_suggestion = (ci: CursorInfo.t): suggestion =>
     ci,
   );
 
+let mk_pair_suggestion = (ci: CursorInfo.t): suggestion => {
+  let seq = mk_n_seq(Operators_Exp.Comma, 2);
+  mk_operand_suggestion(
+    ~category=InsertConstructor,
+    ~operand=UHExp.Parenthesized(seq_into_uhexp(seq)),
+    ~result=seq_into_uhexp(seq),
+    ci,
+  );
+};
+
+let mk_list_suggestion = (ci: CursorInfo.t): suggestion => {
+  let seq = mk_n_seq(Operators_Exp.Cons, 2);
+  mk_operand_suggestion(
+    ~category=InsertConstructor,
+    ~operand=UHExp.Parenthesized(seq_into_uhexp(seq)),
+    ~result=seq_into_uhexp(seq),
+    ci,
+  );
+};
+
 let mk_app_suggestion =
-    (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)): suggestion => {
-  let (_, result) =
-    mk_ap_iter(ci, name, f_ty)
+    ({expected_ty, _} as ci: CursorInfo.t, (name: string, f_ty: HTyp.t))
+    : suggestion => {
+  let result =
+    mk_ap_iter(expected_ty, name, f_ty)
     |> OptUtil.get(_ => failwith("mk_app_suggestion"));
   mk_operand_suggestion(
     ~category=InsertApp,
@@ -179,7 +162,7 @@ let mk_wrap_suggestion =
   let get_arg_type_somehow_TODO = HTyp.Hole;
   let wrapped_operand =
     get_wrapped_operand(ci, get_arg_type_somehow_TODO, name, cursor_term);
-  let result = mk_ap(name, S(wrapped_operand, E));
+  let result = mk_bin_ap_uhexp(UHExp.var(name), wrapped_operand);
   mk_operand_suggestion(
     ~category=Wrap,
     ~operand=UHExp.Parenthesized(result),
@@ -257,15 +240,17 @@ let result_type_consistent_with = (expected_ty, a: suggestion) =>
 // GENERATORS --------------------------------------------------------
 
 let mk_intro_suggestions: generator =
+  // TODO: refactor into cases on expected_ty
   ci => [
     mk_empty_hole_suggestion(ci),
     mk_bool_lit_suggestion(true, ci),
     mk_bool_lit_suggestion(false, ci),
-    mk_nil_list_suggestion(ci),
     mk_inj_suggestion(L, ci),
     mk_inj_suggestion(R, ci),
-    mk_lambda_suggestion(ci),
-    mk_pair_suggestion(ci),
+    mk_nil_list_suggestion(ci),
+    mk_list_suggestion(ci),
+    mk_lambda_suggestion(ci), // TODO: nested lambdas
+    mk_pair_suggestion(ci) // TODO: n-tuples
   ];
 
 let intro_suggestions: generator =
@@ -297,11 +282,11 @@ let elim_suggestions: generator =
   ci => app_suggestions(ci) @ [mk_wrap_case_suggestion(ci)];
 
 let exp_operand_generators = [
-  intro_suggestions,
   elim_suggestions,
-  var_suggestions,
   wrap_suggestions,
+  intro_suggestions,
   int_float_suggestions,
+  var_suggestions,
 ];
 
 let mk: generator = Suggestion.generate(exp_operand_generators);

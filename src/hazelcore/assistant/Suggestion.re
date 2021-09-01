@@ -36,6 +36,7 @@ type t('a) = {
   result_text: string,
 };
 
+[@deriving sexp]
 type generator('a) = CursorInfo.t => list(t('a));
 
 let generate = (gs: list(generator('a)), ci: CursorInfo.t): list(t('a)) =>

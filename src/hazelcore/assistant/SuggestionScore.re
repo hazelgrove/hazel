@@ -124,7 +124,8 @@ let text_match_score = (ci: CursorInfo.t, result_text: string): float => {
     result_length == 0
       ? 0. : 1.0 -. float_of_int(imm) /. float_of_int(result_length);
   let immediacy_ratio_rounded = Float.round(10. *. immediacy_ratio) /. 10.;
-  length_rounded +. 0.1 *. immediacy_ratio_rounded;
+  cursor_text_length == 0
+    ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
 let opseq_report =
