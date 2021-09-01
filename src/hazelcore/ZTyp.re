@@ -365,7 +365,7 @@ and move_cursor_left_zsumbody_operand =
   | ArgTagZA(tag, zty) =>
     switch (move_cursor_left(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
-    | None => Some(CursorArgTag(OnDelim(1, After), tag, erase(zty)))
+    | None => Some(CursorArgTag(OnDelim(0, After), tag, erase(zty)))
     };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
