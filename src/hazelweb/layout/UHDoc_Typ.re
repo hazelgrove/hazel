@@ -33,7 +33,7 @@ let mk_ConstTag = (tag: UHDoc.t): UHDoc.t =>
 
 let mk_ArgTag = (tag: formatted_child, body: formatted_child): UHDoc.t =>
   Doc.hcats([
-    Delim.mk(~index=-1, ""),
+    // Delim.mk(~index=-1, ""),
     tag |> pad_delimited_closed_child(~sort=Tag),
     Delim.open_Parenthesized(),
     body |> pad_delimited_closed_child(~sort=Typ),
