@@ -20,19 +20,18 @@ let mk_ap_iter =
   (output_ty, mk_ap(f, holes_seq));
 };
 
-/* returns a blank score if there is an error checking a suggestion */
-let mk_operand_suggestion' =
+let mk_operand_suggestion =
     (
-      ~ci: CursorInfo.t,
       ~category: Suggestion.category,
-      ~result_text: string,
       ~operand: UHExp.operand,
-      ~result,
-      ~action: Action.t,
+      ~result=UHExp.Block.wrap(operand),
+      ci: CursorInfo.t,
     )
     : suggestion => {
   let res_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
-  let score: Suggestion.score =
+  let result_text = UHExp.string_of_operand(operand);
+  let action: Action.t = ReplaceOperand(operand, None);
+  let score =
     switch (SuggestionScore.check_suggestion(action, res_ty, result_text, ci)) {
     | None =>
       Printf.printf(
@@ -42,26 +41,10 @@ let mk_operand_suggestion' =
       Suggestion.blank_score;
     | Some(res) => res
     };
-  {
-    ...Suggestion.mk(~category, ~result_text, ~action, ~result, ~res_ty),
-    score,
-  };
+  {category, result_text, action, result, res_ty, score};
 };
 
-let mk_operand_suggestion =
-    (~operand, ~result=UHExp.Block.wrap(operand), ~category, ci) =>
-  mk_operand_suggestion'(
-    ~ci,
-    ~category,
-    ~operand,
-    ~result_text=UHExp.string_of_operand(operand),
-    ~action=ReplaceOperand(operand, None),
-    ~result,
-  );
-
 let mk_lit_suggestion = mk_operand_suggestion(~category=InsertLit);
-
-// INTRO SUGGESTIONS  ------------------------------------------------------------
 
 let mk_bool_lit_suggestion = (ci: CursorInfo.t, b: bool): suggestion =>
   mk_lit_suggestion(~operand=UHExp.boollit(b), ci);
@@ -98,32 +81,6 @@ let mk_lambda_suggestion = (ci: CursorInfo.t): suggestion =>
     ci,
   );
 
-let mk_intro_suggestions = (ci: CursorInfo.t): list(suggestion) => [
-  mk_empty_hole_suggestion(ci),
-  mk_bool_lit_suggestion(ci, true),
-  mk_bool_lit_suggestion(ci, false),
-  mk_nil_list_suggestion(ci),
-  mk_inj_suggestion(ci, L),
-  mk_inj_suggestion(ci, R),
-  mk_lambda_suggestion(ci),
-];
-
-let intro_suggestions =
-    ({expected_ty, _} as ci: CursorInfo.t): list(suggestion) =>
-  ci
-  |> mk_intro_suggestions
-  |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
-
-// VAR SUGGESTIONS -----------------------------------------------------------
-
-let var_suggestions =
-    ({ctx, expected_ty, _} as ci: CursorInfo.t): list(suggestion) =>
-  expected_ty
-  |> Assistant_common.extract_vars(ctx)
-  |> List.map(mk_var_suggestion(ci));
-
-// ELIM SUGGESTIONS ----------------------------------------------------------
-
 let mk_app_suggestion =
     (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)): suggestion => {
   let (_, result) =
@@ -137,13 +94,6 @@ let mk_app_suggestion =
   );
 };
 
-let app_suggestions =
-    ({ctx, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
-  expected_ty
-  |> Assistant_common.fun_vars(ctx)
-  |> List.map(mk_app_suggestion(ci));
-};
-
 let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
   ctx
   |> Contexts.gamma
@@ -151,12 +101,11 @@ let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
        switch (StringUtil.search_forward_opt(Str.regexp(str), name)) {
        | None => false
        | Some(_) => HTyp.consistent(ty, typ)
-       // TODO(andrew): return measure of match quality?
        }
      );
 };
 
-let get_wrap_operand =
+let get_wrapped_operand =
     (
       {ctx, _}: CursorInfo.t,
       arg_ty,
@@ -204,39 +153,13 @@ let get_wrap_operand =
   };
 };
 
-let mk_wrap_case_suggestion =
-    ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
-  let operand =
-    cursor_term
-    |> get_wrap_operand(ci, HTyp.Hole, "case")
-    |> UHExp.Block.wrap
-    |> mk_case;
-  mk_operand_suggestion(~category=Wrap, ~operand, ci);
-};
-
-let elim_suggestions = (ci: CursorInfo.t): list(suggestion) =>
-  app_suggestions(ci) @ [mk_wrap_case_suggestion(ci)];
-
-let mk_operand_wrap_suggestion = (~ci: CursorInfo.t, ~category, ~operand) =>
-  mk_operand_suggestion'(
-    ~ci,
-    ~category,
-    ~operand,
-    ~result_text=UHExp.string_of_operand(operand),
-    ~action=ReplaceOperand(operand, None),
-  );
-
 let mk_wrap_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
+  // TODO(andrew)
   let get_arg_type_somehow_TODO = HTyp.Hole;
-  let result =
-    mk_ap(
-      name,
-      S(
-        get_wrap_operand(ci, get_arg_type_somehow_TODO, name, cursor_term),
-        E,
-      ),
-    );
+  let wrapped_operand =
+    get_wrapped_operand(ci, get_arg_type_somehow_TODO, name, cursor_term);
+  let result = mk_ap(name, S(wrapped_operand, E));
   mk_operand_suggestion(
     ~category=Wrap,
     ~operand=UHExp.Parenthesized(result),
@@ -245,32 +168,34 @@ let mk_wrap_suggestion =
   );
 };
 
-let wrap_suggestions =
-    ({ctx, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t) =>
-  switch (cursor_term) {
-  | ExpOperand(_, EmptyHole(_)) =>
-    /* Wrapping empty holes is redundant to ap. Revisit when there's
-       a mechanism to eliminate duplicate suggestions */
-    []
-  | _ =>
-    let arrow_consistent = ((_, f_ty)) =>
-      HTyp.consistent(f_ty, HTyp.Arrow(HTyp.relax(actual_ty), expected_ty));
-    Assistant_common.fun_vars(ctx, expected_ty)
-    |> List.filter(arrow_consistent)
-    |> List.map(mk_wrap_suggestion(ci));
-  };
+let wrap_suggestions: generator =
+  ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
+    switch (cursor_term) {
+    | ExpOperand(_, EmptyHole(_)) =>
+      /* Wrapping empty holes is redundant to ap. Revisit when there's
+         a mechanism to eliminate duplicate suggestions */
+      []
+    | _ =>
+      let arrow_consistent = ((_, f_ty)) =>
+        HTyp.consistent(
+          f_ty,
+          HTyp.Arrow(HTyp.relax(actual_ty), expected_ty),
+        );
+      Assistant_common.fun_vars(ctx, expected_ty)
+      |> List.filter(arrow_consistent)
+      |> List.map(mk_wrap_suggestion(ci));
+    };
 
 let str_float_to_int = s =>
   s |> float_of_string |> Float.to_int |> string_of_int;
 let str_int_to_float = s =>
   s |> int_of_string |> Float.of_int |> string_of_float;
 
-let int_float_suggestions =
-    ({cursor_term, expected_ty, _} as ci: CursorInfo.t): list(suggestion) => {
-  /* This functions handles the suggestion of both float/int literals
-     and repair conversions between the two. These could be seperated
-     out once we have a system for identifying duplicate suggestions */
-  (
+let int_float_suggestions': generator =
+  ({cursor_term, _} as ci) => {
+    /* This functions handles the suggestion of both float/int literals
+       and repair conversions between the two. These could be seperated
+       out once we have a system for identifying duplicate suggestions */
     switch (cursor_term) {
     | ExpOperand(_, IntLit(_, s)) when s != "0" => [
         mk_float_lit_suggestion(ci, s ++ "."),
@@ -293,14 +218,69 @@ let int_float_suggestions =
         mk_float_lit_suggestion(ci, "0."),
         mk_int_lit_suggestion(ci, "0"),
       ]
-    }
-  )
-  |> List.filter((a: suggestion) => HTyp.consistent(a.res_ty, expected_ty));
+    };
+  };
+
+let mk_wrap_case_suggestion =
+    ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
+  let operand =
+    cursor_term
+    |> get_wrapped_operand(ci, HTyp.Hole, "case")
+    |> UHExp.Block.wrap
+    |> mk_case;
+  mk_operand_suggestion(~category=Wrap, ~operand, ci);
 };
 
-let mk = (ci: CursorInfo.t): list(suggestion) =>
-  int_float_suggestions(ci)
-  @ wrap_suggestions(ci)
-  @ intro_suggestions(ci)
-  @ var_suggestions(ci)
-  @ elim_suggestions(ci);
+let result_type_consistent_with = (expected_ty, a: suggestion) =>
+  HTyp.consistent(a.res_ty, expected_ty);
+
+// GENERATORS --------------------------------------------------------
+
+let mk_intro_suggestions: generator =
+  ci => [
+    mk_empty_hole_suggestion(ci),
+    mk_bool_lit_suggestion(ci, true),
+    mk_bool_lit_suggestion(ci, false),
+    mk_nil_list_suggestion(ci),
+    mk_inj_suggestion(ci, L),
+    mk_inj_suggestion(ci, R),
+    mk_lambda_suggestion(ci),
+  ];
+
+let intro_suggestions: generator =
+  ({expected_ty, _} as ci) =>
+    ci
+    |> mk_intro_suggestions
+    |> List.filter(result_type_consistent_with(expected_ty));
+
+let int_float_suggestions: generator =
+  ({expected_ty, _} as ci) =>
+    ci
+    |> int_float_suggestions'
+    |> List.filter(result_type_consistent_with(expected_ty));
+
+let var_suggestions: generator =
+  ({ctx, expected_ty, _} as ci) =>
+    expected_ty
+    |> Assistant_common.extract_vars(ctx)
+    |> List.map(mk_var_suggestion(ci));
+
+let app_suggestions: generator =
+  ({ctx, expected_ty, _} as ci) => {
+    expected_ty
+    |> Assistant_common.fun_vars(ctx)
+    |> List.map(mk_app_suggestion(ci));
+  };
+
+let elim_suggestions: generator =
+  ci => app_suggestions(ci) @ [mk_wrap_case_suggestion(ci)];
+
+let exp_operand_generators = [
+  intro_suggestions,
+  elim_suggestions,
+  var_suggestions,
+  wrap_suggestions,
+  int_float_suggestions,
+];
+
+let mk: generator = Suggestion.generate(exp_operand_generators);

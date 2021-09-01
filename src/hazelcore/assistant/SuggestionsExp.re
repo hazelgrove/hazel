@@ -1,5 +1,6 @@
 [@deriving sexp]
 type suggestion = Suggestion.t(UHExp.t);
+type generator = Suggestion.generator(UHExp.t);
 
 /* SYNTAX CONSTRUCTION HELPERS:
  * These assemble syntax without proper hole numbering.
