@@ -162,8 +162,11 @@ let perform =
 
   | (Construct(SChar(_)), CursorTag(OnText(_), Tag(_))) => Failed
 
-  | (Construct(SOp(SSpace)), CursorTag(OnDelim(_0, _), EmptyTagHole(_))) =>
-    move(u_gen, MoveRight, ztag)
+  | (
+      Construct(SOp(SSpace)),
+      CursorTag(OnDelim(_0, After), EmptyTagHole(_)),
+    ) =>
+    CursorEscaped(After)
 
   | (Construct(SOp(_)), CursorTag(OnDelim(_, _), EmptyTagHole(_))) =>
     Failed

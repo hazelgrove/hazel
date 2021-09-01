@@ -1114,9 +1114,6 @@ and perform_zsumbody_operand =
 
   /* Construction */
 
-  | (Construct(SOp(SSpace)), CursorArgTag(OnDelim(_, _), _, _)) =>
-    perform_zsumbody_operand(u_gen, MoveRight, zoperand)
-
   | (
       Construct(SOp(_) | SChar(_) | SList | SParenthesized),
       CursorArgTag(_, _, _),
