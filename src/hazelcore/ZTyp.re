@@ -182,9 +182,9 @@ let is_after_zoperator: zoperator => bool =
 
 let is_after_zsumbody_operand =
   fun
-  | CursorArgTag(cursor, _, _) => cursor == OnDelim(2, After)
-  | ArgTagZT(_, _) => false
-  | ArgTagZA(_, zty) => is_after(zty)
+  | CursorArgTag(cursor, _, _) => cursor == OnDelim(1, After)
+  | ArgTagZT(_, _)
+  | ArgTagZA(_, _) => false
   | ConstTagZ(ztag) => ZTag.is_after(ztag);
 
 let is_after_zsumbody_operator = ((cursor, _): zsumbody_operator): bool =>

@@ -19,7 +19,7 @@ let is_before = (ztag: t): bool =>
 
 let is_after = (ztag: t): bool =>
   switch (ztag) {
-  | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t))
+  | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t) + 1)
   | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(1, After)
   };
 

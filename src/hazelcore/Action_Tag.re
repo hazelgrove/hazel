@@ -136,11 +136,11 @@ let perform =
     }
 
   | (Delete, CursorTag(OnText(j), Tag(_, t))) =>
-    switch (String.length(t)) {
-    | 1 =>
+    switch (j, String.length(t)) {
+    | (0, 1) =>
       let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
       Succeeded((ZTag.place_before(tag_hole), u_gen));
-    | _ => delete_text(j, t, u_gen)
+    | (_, _) => delete_text(j, t, u_gen)
     }
 
   /* Construction */
