@@ -1400,8 +1400,8 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
-  | (Construct(SCloseBraces), LamZE(_, _, zbody))
-      when ZExp.is_after_zblock(zbody) =>
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
     Succeeded(
       SynDone((
         ZExp.ZBlock.wrap(
@@ -1411,7 +1411,17 @@ and syn_perform_operand =
         u_gen,
       )),
     )
-  | (Construct(SCloseBraces), _) => Failed
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        ty,
+        u_gen,
+      )),
+    )
 
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
@@ -1969,6 +1979,12 @@ and syn_perform_operand =
         };
       }
     }
+  | (Construct(SCloseBraces), _) =>
+    print_endline(
+      "ana_operand close braces"
+      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
+    );
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2817,8 +2833,8 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
-  | (Construct(SCloseBraces), LamZE(_, _, zbody))
-      when ZExp.is_after_zblock(zbody) =>
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
     Succeeded(
       AnaDone((
         ZExp.ZBlock.wrap(
@@ -2827,8 +2843,16 @@ and ana_perform_operand =
         u_gen,
       )),
     )
-
-  | (Construct(SCloseBraces), _) => Failed
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        u_gen,
+      )),
+    )
 
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
@@ -3349,6 +3373,14 @@ and ana_perform_operand =
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
+
+  | (Construct(SCloseBraces), _) =>
+    print_endline(
+      "ana_operand close braces"
+      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
+    );
+
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_subsume =
