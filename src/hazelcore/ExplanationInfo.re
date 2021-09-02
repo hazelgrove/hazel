@@ -23,7 +23,7 @@ type explanation_info =
   | ExpCommaOperator(list(UHExp.opseq))
   | ExpBinOperator(UHExp.operator, UHExp.opseq, UHExp.opseq)
   | Pattern(pattern_info)
-  | Typ(type_info) /* Things need to handle here:   - parenthesis (I think this might be one of the trickiest parts to handle)   - type annotations of patterns   - pulling out opseq children (including in case of pattern)   */;
+  | Typ(type_info);
 
 let rec mk_explanation_info =
         (cursor_term: CursorInfo.cursor_term): explanation_info => {
@@ -63,6 +63,7 @@ and extract_exp_operand_info = (exp: UHExp.operand): explanation_info => {
   switch (exp) {
   | Lam(_, pat, body) => Lambda(extract_pat_opseq_info(pat, None), body)
   | Parenthesized(_exp) =>
+    /* TODO: Hannah - if block of lines, make its own message - if single line, just use the child message*/
     /* TODO: Hannah - what should be happening here? maybe highlight block except for last line with an expression and then the last expresssion line separately to to explain that the other lines will be evaluated but the whole expression evaluates to the last expression line */ failwith(
       "Not yet implemented",
     )
