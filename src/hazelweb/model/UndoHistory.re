@@ -464,7 +464,13 @@ let get_new_action_group =
       ~action: Action.t,
     )
     : option(UndoHistoryCore.action_group) =>
-  if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
+  /* they areparens and bsraces basically results with movements but
+    * it is an edit action, therefore there is a need to make sure that
+    * the action is not Construct(SCloseParens) or Construct(SCloseBraces)
+   */
+  if (UndoHistoryCore.is_move_action(new_cursor_term_info)
+      && action != Construct(SCloseParens)
+      && action != Construct(SCloseBraces)) {
     None;
         /* It's a caret movement */
   } else {

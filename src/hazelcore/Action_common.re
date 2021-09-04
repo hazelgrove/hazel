@@ -4,8 +4,8 @@ let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
   | SParenthesized => "parentheses"
-  | SCloseParens => "close parens"
-  | SCloseBraces => "close lambda body"
+  | SCloseParens => "closing parens"
+  | SCloseBraces => "closing brace"
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"
