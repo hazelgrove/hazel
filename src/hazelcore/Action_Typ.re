@@ -222,23 +222,6 @@ and perform_opseq =
 and perform_operand =
     (a: Action.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
   switch (a, zoperand) {
-  | (Construct(SCloseBraces), _) => Failed
-
-  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
-      when ZTyp.is_after(zopseq) =>
-    Succeeded(
-      ZOpSeq.wrap(
-        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
-      ),
-    )
-  | (
-      Construct(SCloseParens),
-      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
-    ) =>
-    Succeeded(
-      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
-    )
-  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   /* Invalid actions at the type level */
   | (
       UpdateApPalette(_) |
@@ -318,7 +301,23 @@ and perform_operand =
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
+  | (Construct(SCloseBraces), _) => Failed
 
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
+    ) =>
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+    )
+  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed

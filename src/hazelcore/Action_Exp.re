@@ -1398,75 +1398,9 @@ and syn_perform_operand =
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
-  | (Construct(SCloseBraces), LamZE(_, _, zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      SynDone((
-        ZExp.ZBlock.wrap(
-          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
-        ),
-        ty,
-        u_gen,
-      )),
-    )
-  | (
-      Construct(SCloseBraces),
-      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
-    ) =>
-    Succeeded(
-      SynDone((
-        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
-        ty,
-        u_gen,
-      )),
-    )
-
-  | (Construct(SCloseParens), InjZ(err, side, zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      SynDone((
-        ZExp.ZBlock.wrap(
-          ZExp.CursorE(
-            OnDelim(1, After),
-            Inj(err, side, ZExp.erase_zblock(zblock)),
-          ),
-        ),
-        ty,
-        u_gen,
-      )),
-    )
-  | (Construct(SCloseParens), ParenthesizedZ(zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      SynDone((
-        ZExp.ZBlock.wrap(
-          ZExp.CursorE(
-            OnDelim(1, After),
-            Parenthesized(ZExp.erase_zblock(zblock)),
-          ),
-        ),
-        ty,
-        u_gen,
-      )),
-    )
-
-  | (
-      Construct(SCloseParens),
-      CursorE(
-        OnDelim(1, Before),
-        Parenthesized(_) as operand | Inj(_, _, _) as operand,
-      ),
-    ) =>
-    Succeeded(
-      SynDone((
-        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
-        ty,
-        u_gen,
-      )),
-    )
-  | (Construct(SCloseParens), CursorE(_, _)) => Failed
+  | (Init, _) => failwith("Init action should not be performed.")
   /* Invalid cursor positions */
   | (
       _,
@@ -1695,6 +1629,72 @@ and syn_perform_operand =
       );
     Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), u_gen)));
 
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        ty,
+        u_gen,
+      )),
+    )
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1979,15 +1979,8 @@ and syn_perform_operand =
         };
       }
     }
-  | (Construct(SCloseBraces), _) =>
-    print_endline(
-      "ana_operand close braces"
-      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
-    );
-    Failed;
-  | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  | (Construct(SCloseBraces), _) => Failed
+  }
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2833,69 +2826,6 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
-  | (Construct(SCloseBraces), LamZE(_, _, zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      AnaDone((
-        ZExp.ZBlock.wrap(
-          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
-        ),
-        u_gen,
-      )),
-    )
-  | (
-      Construct(SCloseBraces),
-      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
-    ) =>
-    Succeeded(
-      AnaDone((
-        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
-        u_gen,
-      )),
-    )
-
-  | (Construct(SCloseParens), InjZ(err, side, zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      AnaDone((
-        ZExp.ZBlock.wrap(
-          ZExp.CursorE(
-            OnDelim(1, After),
-            Inj(err, side, ZExp.erase(zblock)),
-          ),
-        ),
-        u_gen,
-      )),
-    )
-  | (Construct(SCloseParens), ParenthesizedZ(zblock))
-      when ZExp.is_after_zblock(zblock) =>
-    Succeeded(
-      AnaDone((
-        ZExp.ZBlock.wrap(
-          ZExp.CursorE(
-            OnDelim(1, After),
-            Parenthesized(ZExp.erase_zblock(zblock)),
-          ),
-        ),
-        u_gen,
-      )),
-    )
-
-  | (
-      Construct(SCloseParens),
-      CursorE(
-        OnDelim(1, Before),
-        Parenthesized(_) as operand | Inj(_, _, _) as operand,
-      ),
-    ) =>
-    Succeeded(
-      AnaDone((
-        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
-        u_gen,
-      )),
-    )
-  | (Construct(SCloseParens), CursorE(_, _)) => Failed
-
   /* Invalid cursor positions */
   | (
       _,
@@ -3180,6 +3110,68 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, u_gen)));
     };
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
 
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
@@ -3369,18 +3361,12 @@ and ana_perform_operand =
       }
     }
 
+  | (Construct(SCloseBraces), _) => Failed
+
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
-
-  | (Construct(SCloseBraces), _) =>
-    print_endline(
-      "ana_operand close braces"
-      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zoperand)),
-    );
-
-    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_subsume =
