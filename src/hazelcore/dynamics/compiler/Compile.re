@@ -17,9 +17,9 @@ let rec trans_DHExp = (d: DHExp.t): CHExp.t => {
     Meta(metavar, metavarinst, trans_VarMap(varmap), InvalidText(string))
   | BoundVar(v) => BoundVar(v)
   | Let(dp, d1, d2) =>
-    Ap(trans_CHExp(CHExp.Lam(dp, None, trans_DHExp(d2))), trans_DHExp(d1))
+    Ap(trans_Lam(CHExp.Lam(dp, None, trans_DHExp(d2))), trans_DHExp(d1))
   | FixF(var, ty, d1) => FixF(var, Some(ty), trans_DHExp(d1))
-  | Lam(dp, ty, d1) => trans_CHExp(Lam(dp, Some(ty), trans_DHExp(d1)))
+  | Lam(dp, ty, d1) => trans_Lam(Lam(dp, Some(ty), trans_DHExp(d1)))
   | Ap(d1, d2) => Ap(trans_DHExp(d1), trans_DHExp(d2))
   | BoolLit(b) => BoolLit(b)
   | IntLit(i) => IntLit(i)
@@ -45,8 +45,26 @@ let rec trans_DHExp = (d: DHExp.t): CHExp.t => {
 and trans_VarMap = (varmap: VarMap.t_(DHExp.t)): VarMap.t_(CHExp.t) => {
   List.map(((v, e)) => (v, trans_DHExp(e)), varmap);
 }
-and trans_CHExp = (d: CHExp.t): CHExp.t => {
+and trans_Lam = (d: CHExp.t): CHExp.t => {
   switch (d) {
-  | _ => BuiltIn(Indet)
+  | Lam(IntLit(x), _, d0) => BuiltIn(IfEqInt(x, d0, BuiltIn(Indet)))
+  | Lam(FloatLit(x), _, d0) => BuiltIn(IfEqFloat(x, d0, BuiltIn(Indet)))
+  | Lam(BoolLit(x), _, d0) => BuiltIn(IfEqBool(x, d0, BuiltIn(Indet)))
+  | Lam(Pair(p1, p2), _, d0) =>
+    BuiltIn(
+      UnpackProd(
+        2,
+        trans_Lam(Lam(p1, None, trans_Lam(Lam(p2, None, d0)))),
+      ),
+    ) // None can be improved
+  | Lam(Triv, _, d0) => BuiltIn(UnpackProd(1, d0))
+  | Lam(Inj(side, p1), _, d0) =>
+    BuiltIn(UnpackSum(side, trans_Lam(Lam(p1, None, d0))))
+  | Lam(ListNil, _, d0) => BuiltIn(UnpackNil(d0))
+  | Lam(Cons(p1, p2), _, d0) =>
+    BuiltIn(
+      UnpackCons(trans_Lam(Lam(p1, None, trans_Lam(Lam(p2, None, d0))))),
+    )
+  | d => d
   };
 };

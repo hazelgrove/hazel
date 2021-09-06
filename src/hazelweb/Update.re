@@ -214,6 +214,14 @@ let apply_action =
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log;
+        | CHExp =>
+          let d = model |> Model.get_program |> Program.get_expansion;
+          d
+          |> Compile.trans_DHExp
+          |> CHExp.sexp_of_t
+          |> Sexplib.Sexp.to_string
+          |> Js.string
+          |> JSUtil.log;
         };
         model;
       };

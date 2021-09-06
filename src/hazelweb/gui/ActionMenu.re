@@ -18,6 +18,11 @@ let menu_entries: list(menu_entry) = [
     shortcut: None,
     action: SerializeToConsole(DHExp),
   },
+  {
+    label: "Serialize compile result to console",
+    shortcut: None,
+    action: SerializeToConsole(CHExp),
+  },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
 ];

@@ -34,9 +34,11 @@ and meta_exp =
 and builtin =
   | DoesNotMatch
   | Indet
-  | UnpackSum(InjSide.t)
-  | UnpackProd(int)
-  | UnpackCons
-  | UnpackNil
+  | UnpackSum(InjSide.t, t)
+  | UnpackProd(int, t)
+  | UnpackCons(t)
+  | UnpackNil(t)
   | Select(int)
-  | IfEq;
+  | IfEqInt(int, t, t)
+  | IfEqBool(bool, t, t)
+  | IfEqFloat(float, t, t);
