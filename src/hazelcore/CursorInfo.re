@@ -125,6 +125,9 @@ type typed =
   | OnType
   /* cursor in tag position */
   | OnTag
+  | OnTagHole
+  | OnInvalidTag(UHTag.t)
+  | OnDuplicateTag(UHTag.t)
   /* cursor in sum body position */
   | OnSumBody
   /* (we will have a richer structure here later)*/

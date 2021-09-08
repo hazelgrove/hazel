@@ -47,6 +47,32 @@ let shape_of_sumbody_operator =
   | Plus => SPlus
   };
 
+let fix_holes = (zty: ZTyp.t, u_gen: MetaVarGen.t): (ZTyp.t, MetaVarGen.t) => {
+  let path = CursorPath_Typ.of_z(zty);
+  let (ty, u_gen) = UHTyp.fix_holes(ZTyp.erase(zty), u_gen);
+  let zty =
+    CursorPath_Typ.follow(path, ty)
+    |> OptUtil.get(() =>
+         failwith(
+           "fix_holes did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zty, u_gen);
+};
+
+let mk_and_fix_OpSeq =
+    (seq: UHTyp.seq, u_gen: MetaVarGen.t): (UHTyp.t, MetaVarGen.t) => {
+  let opseq = UHTyp.mk_OpSeq(seq);
+  UHTyp.fix_holes(opseq, u_gen);
+};
+
+let mk_and_fix_ZOpSeq =
+    (zseq: ZTyp.zseq, u_gen: MetaVarGen.t): (ZTyp.t, MetaVarGen.t) => {
+  let zopseq = ZTyp.mk_ZOpSeq(zseq);
+  fix_holes(zopseq, u_gen);
+};
+
 let construct_operator =
     (
       operator: UHTyp.operator,
@@ -221,7 +247,10 @@ and move_zsumbody =
 let rec perform =
         (u_gen: MetaVarGen.t, a: Action.t, zty: ZTyp.t)
         : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
-  perform_opseq(u_gen, a, zty)
+  switch (perform_opseq(u_gen, a, zty)) {
+  | (Failed | CursorEscaped(_)) as outcome => outcome
+  | Succeeded((zty, u_gen)) => Succeeded(fix_holes(zty, u_gen))
+  }
 
 and perform_opseq =
     (

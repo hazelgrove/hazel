@@ -84,6 +84,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a tag"));
+  let expected_a_unique_tag_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a unique tag"));
   let expected_a_sum_body_element_indicator =
     expected_indicator("Expecting ", special_msg_bar("a sum body element"));
   let expected_a_line_indicator =
@@ -148,10 +150,18 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_invalid_indicator =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
 
+  let got_invalid_tag_indicator = (tag: UHTag.t) =>
+    got_indicator("Got invalid tag", tagbar(tag));
+
+  let got_duplicate_tag_indicator = (tag: UHTag.t) =>
+    got_indicator("Got duplicate tag", tagbar(tag));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_tag_indicator = got_indicator("Got", special_msg_bar("a tag"));
+  let got_a_tag_hole_indicator =
+    got_indicator("Got", special_msg_bar("a tag hole"));
   let got_a_sum_body_element_indicator =
     got_indicator("Got", special_msg_bar("a sum body element"));
   let got_a_line_indicator =
@@ -408,6 +418,18 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_a_tag_indicator;
       let ind2 = got_a_tag_indicator;
       (ind1, ind2, OK);
+    | OnTagHole =>
+      let ind1 = expected_a_tag_indicator;
+      let ind2 = got_a_tag_hole_indicator;
+      (ind1, ind2, OK);
+    | OnInvalidTag(tag) =>
+      let ind1 = expected_a_tag_indicator;
+      let ind2 = got_invalid_tag_indicator(tag);
+      (ind1, ind2, TypeInconsistency);
+    | OnDuplicateTag(tag) =>
+      let ind1 = expected_a_unique_tag_indicator;
+      let ind2 = got_duplicate_tag_indicator(tag);
+      (ind1, ind2, TypeInconsistency);
     | OnSumBody =>
       let ind1 = expected_a_sum_body_element_indicator;
       let ind2 = got_a_sum_body_element_indicator;
