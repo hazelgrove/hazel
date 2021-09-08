@@ -224,7 +224,8 @@ and syn_cursor_info_zoperand =
        })
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | InjZT(_, ztag, _) =>
-    let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
+    let+ cursor_info =
+      CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag);
     CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
   | InjZP(_, _, zpat) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zpat, HTyp.Hole)
@@ -565,7 +566,8 @@ and ana_cursor_info_zoperand =
          )
     }
   | InjZT(_, ztag, _) =>
-    let+ cursor_info = CursorInfo_Tag.cursor_info(ctx, ztag);
+    let+ cursor_info =
+      CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag);
     CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
   | InjZP(_, tag, zpat) =>
     let* ty_pat =

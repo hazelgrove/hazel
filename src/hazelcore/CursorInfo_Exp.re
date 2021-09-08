@@ -536,7 +536,8 @@ and syn_cursor_info_zoperand =
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   // SInj
-  | InjZT(_, ztag, _) => CursorInfo_Tag.cursor_info(ctx, ztag)
+  | InjZT(_, ztag, _) =>
+    CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag)
   | InjZE(_, _, zbody) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zbody, Hole)
   | CaseZE(_, zscrut, rules) =>
@@ -950,7 +951,8 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
-  | InjZT(_, ztag, _) => CursorInfo_Tag.cursor_info(ctx, ztag)
+  | InjZT(_, ztag, _) =>
+    CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag)
   | InjZE(_, tag, zbody) =>
     let* ty_body =
       switch (ty) {

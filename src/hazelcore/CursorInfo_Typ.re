@@ -70,7 +70,7 @@ let cursor_info =
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => OnType
-    | Tag(_, _) => OnTag
+    | Tag(_, tag) => CursorInfo_Tag.cursor_info_typed(tag)
     | SumBody(_, _)
     | SumBodyOp(_, _) => OnSumBody
     };
