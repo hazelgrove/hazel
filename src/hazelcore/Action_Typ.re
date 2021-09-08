@@ -916,6 +916,7 @@ and perform_zsumbody =
    */
   | (Construct(SOp(SPlus)), ZOperand(zoperand, (prefix, suffix)))
       when ZTyp.is_after_zsumbody_operand(zoperand) =>
+    print_endline("XXX");
     let (tag, u_gen) = UHTag.new_TagHole(u_gen);
     switch (ZTyp.place_after_sumbody_operator(Operators_SumBody.Plus)) {
     | None => Failed

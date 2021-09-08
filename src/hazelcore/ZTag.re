@@ -20,7 +20,7 @@ let is_before = (ztag: t): bool =>
 let is_after = (ztag: t): bool =>
   switch (ztag) {
   | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t))
-  | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(1, After)
+  | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(0, After)
   };
 
 let place_before = (tag: UHTag.t): t =>
