@@ -6,6 +6,7 @@ type t = {
   left_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
+  explanations: CodeExplanationSettings.t,
   settings: Settings.t,
 };
 
@@ -51,6 +52,7 @@ let init = (): t => {
       cur_elt_id: 0,
     };
   };
+  let explanations: CodeExplanationSettings.t = {highlight_summary: true};
   let settings = Settings.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
@@ -76,6 +78,7 @@ let init = (): t => {
         col_width: 1.0,
       },
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
+    explanations,
     settings,
   };
 };

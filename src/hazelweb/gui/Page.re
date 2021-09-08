@@ -82,7 +82,11 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
             Program.get_cursor_info(program);
           let explanation_info =
             ExplanationInfo.mk_explanation_info(cursor_term);
-          CodeSummary.view(explanation_info);
+          CodeSummary.view(
+            ~inject,
+            explanation_info,
+            model.explanations.highlight_summary,
+          );
         },
       ),
       (

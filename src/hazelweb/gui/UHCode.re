@@ -209,6 +209,7 @@ let view =
       let l = Program.get_layout(~settings, program);
 
       let code_text = view_of_box(UHBox.mk(l));
+      /* TODO Hannah - about here call a method from Code Summary to get the paths and colors */
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);

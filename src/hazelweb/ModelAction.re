@@ -38,5 +38,6 @@ type t =
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
+  | ToggleHighlightSummary
   | UpdateFontMetrics(FontMetrics.t)
   | SerializeToConsole;

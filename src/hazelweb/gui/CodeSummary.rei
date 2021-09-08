@@ -1,3 +1,9 @@
 open Virtual_dom;
 
-let view: ExplanationInfo.explanation_info => Vdom.Node.t;
+let view:
+  (
+    ~inject: ModelAction.t => Vdom.Event.t,
+    ExplanationInfo.explanation_info,
+    bool
+  ) =>
+  Vdom.Node.t;

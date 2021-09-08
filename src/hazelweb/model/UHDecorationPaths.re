@@ -1,5 +1,10 @@
 open Sexplib.Std;
 
+/* TODO: Hannah - change this from different lists that get converted to what
+   type of thing you want to draw to just a single list of the things you want to draw
+    (instead of doing that in the current method)  - each item has paths and a shape and the
+    shape holds any other information you need to draw
+    - make this its own branch/PR */
 [@deriving sexp]
 type t = {
   err_holes: list(CursorPath.steps),

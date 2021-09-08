@@ -13,6 +13,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
+  explanations: CodeExplanationSettings.t,
   settings: Settings.t,
 };
 
