@@ -233,8 +233,6 @@ let is_empty_sumbody_operand: sumbody_operand => bool =
 let rec fix_holes =
         (OpSeq(skel, seq): t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (skel, seq, u_gen) = fix_holes_skel(skel, seq, u_gen);
-  print_endline("FIX_HOLES");
-  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(OpSeq(skel, seq))));
   (OpSeq(skel, seq), u_gen);
 }
 
