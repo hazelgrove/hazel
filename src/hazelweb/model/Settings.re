@@ -115,180 +115,15 @@ module Performance = {
     };
 };
 
-/**
- * Flags for the display of the cursor inspector
- */
-module CursorInspector = {
-  type t = {
-    visible: bool,
-    show_expanded: bool,
-    novice_mode: bool,
-    type_assist: bool,
-    type_assist_lit: bool,
-    type_assist_other: bool,
-    type_assist_prim_ty: bool,
-    type_assist_comp_ty: bool,
-    type_assist_func_ty: bool,
-    type_assist_comp_filled_ty: bool,
-    type_assist_func_filled_ty: bool,
-    type_assist_pat_filled_ty: bool,
-    type_assist_new_type_filled_ty: bool,
-    /* exp */
-    type_assist_var: bool,
-    type_assist_fun: bool,
-    type_assist_branch: bool,
-    type_assist_new_var: bool,
-    /* pat */
-    type_assist_val: bool,
-    type_assist_structure: bool,
-    type_assist_any: bool,
-    type_assist_ignore: bool,
-  };
-
-  let init = {
-    visible: true,
-    show_expanded: false,
-    novice_mode: true,
-    type_assist: false,
-    type_assist_lit: false,
-    type_assist_other: false,
-    type_assist_prim_ty: false,
-    type_assist_comp_ty: false,
-    type_assist_func_ty: false,
-    type_assist_comp_filled_ty: false,
-    type_assist_func_filled_ty: false,
-    type_assist_pat_filled_ty: false,
-    type_assist_new_type_filled_ty: false,
-    /* exp */
-    type_assist_var: false,
-    type_assist_fun: false,
-    type_assist_branch: false,
-    type_assist_new_var: false,
-    /* pat */
-    type_assist_val: false,
-    type_assist_structure: false,
-    type_assist_any: false,
-    type_assist_ignore: false,
-  };
-
-  [@deriving sexp]
-  type update =
-    | Toggle_visible
-    | Toggle_show_expanded
-    | Toggle_novice_mode
-    | Toggle_type_assist
-    | Toggle_type_assist_lit
-    | Toggle_type_assist_other
-    | Toggle_type_assist_prim_ty
-    | Toggle_type_assist_comp_ty
-    | Toggle_type_assist_func_ty
-    | Toggle_type_assist_comp_filled_ty
-    | Toggle_type_assist_func_filled_ty
-    | Toggle_type_assist_pat_filled_ty
-    | Toggle_type_assist_new_type_filled_ty
-    // exp
-    | Toggle_type_assist_var
-    | Toggle_type_assist_fun
-    | Toggle_type_assist_branch
-    | Toggle_type_assist_new_var
-    // pat
-    | Toggle_type_assist_val
-    | Toggle_type_assist_structure
-    | Toggle_type_assist_any
-    | Toggle_type_assist_ignore;
-
-  let apply_update = (u: update, settings: t) =>
-    switch (u) {
-    | Toggle_visible => {...settings, visible: !settings.visible}
-    | Toggle_show_expanded => {
-        ...settings,
-        show_expanded: !settings.show_expanded,
-      }
-    | Toggle_novice_mode => {...settings, novice_mode: !settings.novice_mode}
-    | Toggle_type_assist => {...settings, type_assist: !settings.type_assist}
-    | Toggle_type_assist_lit => {
-        ...settings,
-        type_assist_lit: !settings.type_assist_lit,
-      }
-    | Toggle_type_assist_other => {
-        ...settings,
-        type_assist_other: !settings.type_assist_other,
-      }
-    | Toggle_type_assist_var => {
-        ...settings,
-        type_assist_var: !settings.type_assist_var,
-      }
-    | Toggle_type_assist_fun => {
-        ...settings,
-        type_assist_fun: !settings.type_assist_fun,
-      }
-    | Toggle_type_assist_branch => {
-        ...settings,
-        type_assist_branch: !settings.type_assist_branch,
-      }
-    | Toggle_type_assist_new_var => {
-        ...settings,
-        type_assist_new_var: !settings.type_assist_new_var,
-      }
-    | Toggle_type_assist_val => {
-        ...settings,
-        type_assist_val: !settings.type_assist_val,
-      }
-    | Toggle_type_assist_structure => {
-        ...settings,
-        type_assist_structure: !settings.type_assist_structure,
-      }
-    | Toggle_type_assist_any => {
-        ...settings,
-        type_assist_any: !settings.type_assist_any,
-      }
-    | Toggle_type_assist_ignore => {
-        ...settings,
-        type_assist_ignore: !settings.type_assist_ignore,
-      }
-    | Toggle_type_assist_prim_ty => {
-        ...settings,
-        type_assist_prim_ty: !settings.type_assist_prim_ty,
-      }
-    | Toggle_type_assist_comp_ty => {
-        ...settings,
-        type_assist_comp_ty: !settings.type_assist_comp_ty,
-      }
-    | Toggle_type_assist_func_ty => {
-        ...settings,
-        type_assist_func_ty: !settings.type_assist_func_ty,
-      }
-    | Toggle_type_assist_comp_filled_ty => {
-        ...settings,
-        type_assist_comp_filled_ty: !settings.type_assist_comp_filled_ty,
-      }
-    | Toggle_type_assist_func_filled_ty => {
-        ...settings,
-        type_assist_func_filled_ty: !settings.type_assist_func_filled_ty,
-      }
-    | Toggle_type_assist_pat_filled_ty => {
-        ...settings,
-        type_assist_pat_filled_ty: !settings.type_assist_pat_filled_ty,
-      }
-    | Toggle_type_assist_new_type_filled_ty => {
-        ...settings,
-        type_assist_new_type_filled_ty:
-          !settings.type_assist_new_type_filled_ty,
-      }
-    };
-};
-
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,
-  cursor_inspector: CursorInspector.t,
   memoize_doc: bool,
 };
 
 let init: t = {
   evaluation: Evaluation.init,
   performance: Performance.init,
-  cursor_inspector: CursorInspector.init,
   memoize_doc: true,
 };
 
@@ -296,8 +131,7 @@ let init: t = {
 type update =
   | Toggle_memoize_doc
   | Evaluation(Evaluation.update)
-  | Performance(Performance.update)
-  | CursorInspector(CursorInspector.update);
+  | Performance(Performance.update);
 
 let apply_update = (u: update, settings: t) =>
   switch (u) {
@@ -309,10 +143,5 @@ let apply_update = (u: update, settings: t) =>
   | Performance(u) => {
       ...settings,
       performance: Performance.apply_update(u, settings.performance),
-    }
-  | CursorInspector(u) => {
-      ...settings,
-      cursor_inspector:
-        CursorInspector.apply_update(u, settings.cursor_inspector),
     }
   };

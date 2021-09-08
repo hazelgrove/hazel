@@ -6,16 +6,17 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  cursor_inspector: CursorInspectorModel.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
-  TutorialCards.cardstack,
-  // HazelTutorCards.cardstack,
+  Examples.cardstack,
+  Examples.teststack,
+  // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];
 
@@ -53,6 +54,7 @@ let init = (): t => {
     };
   };
   let settings = Settings.init;
+  let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -77,9 +79,9 @@ let init = (): t => {
         row_height: 1.0,
         col_width: 1.0,
       },
-    is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    cursor_inspector,
   };
 };
 
@@ -118,6 +120,14 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
 
 let get_cardstack = model => model |> get_cardstacks |> ZCardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
+
+let get_cards_info = (model: t): list(CardInfo.t) =>
+  switch (
+    model.cardstacks |> ZList.prefix_length |> List.nth_opt(cardstack_info)
+  ) {
+  | None => []
+  | Some(cardinfo) => cardinfo.cards
+  };
 
 let map_selected_instances =
     (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
@@ -202,6 +212,12 @@ let next_card = model => {
   |> focus_cell;
 };
 
+let nth_card = (n, model) => {
+  model
+  |> map_cardstacks(ZCardstacks.map_z(Cardstack.nth_card(n)))
+  |> focus_cell;
+};
+
 let perform_edit_action = (a: Action.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
@@ -250,18 +266,6 @@ let toggle_right_sidebar = (model: t): t => {
   ...model,
   right_sidebar_open: !model.right_sidebar_open,
 };
-
-let load_example = (model: t, e: UHExp.t): t =>
-  model
-  |> put_program(
-       Program.mk(
-         ~width=model.cell_width,
-         Statics_Exp.fix_and_renumber_holes_z(
-           Contexts.empty,
-           ZExp.place_before(e),
-         ),
-       ),
-     );
 
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;

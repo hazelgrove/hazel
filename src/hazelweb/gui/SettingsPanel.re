@@ -48,7 +48,7 @@ let summary = Vdom.Node.create("summary");
 let view =
     (~inject: ModelAction.t => Vdom.Event.t, settings: Settings.t)
     : Vdom.Node.t => {
-  let Settings.{memoize_doc, performance, evaluation, cursor_inspector} = settings;
+  let Settings.{memoize_doc, performance, evaluation} = settings;
   let evaluation_checkboxes =
     Vdom.(
       Node.div(
@@ -207,14 +207,6 @@ let view =
             ~label="Memoize doc generation",
             ~on_change=() => inject(UpdateSettings(Toggle_memoize_doc)),
             memoize_doc,
-          ),
-          labeled_checkbox(
-            ~id="novice_mode",
-            ~label="Novice mode",
-            ~on_change=
-              () =>
-                inject(UpdateSettings(CursorInspector(Toggle_novice_mode))),
-            cursor_inspector.novice_mode,
           ),
         ],
       )

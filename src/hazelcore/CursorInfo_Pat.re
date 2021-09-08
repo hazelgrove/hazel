@@ -3,7 +3,8 @@ type zoperand = CursorInfo_common.zoperand;
 
 let irrefutable_of_term = (cursor_term: cursor_term): cursor_term => {
   switch (cursor_term) {
-  | Pat(position, operand, _) => Pat(position, operand, Irrefutable)
+  | PatOperand(position, operand, _) =>
+    PatOperand(position, operand, Irrefutable)
   | _ => cursor_term
   };
 };
@@ -22,13 +23,13 @@ and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
     let (cursor_pos, uop) = zpat_operator;
-    PatOp(cursor_pos, uop, Refutable);
+    PatOperator(cursor_pos, uop, Refutable);
   };
 }
 and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) =>
-    Pat(cursor_pos, upat_operand, Refutable)
+    PatOperand(cursor_pos, upat_operand, Refutable)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
   | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)

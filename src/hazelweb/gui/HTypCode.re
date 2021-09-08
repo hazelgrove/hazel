@@ -34,10 +34,10 @@ let view_of_layout =
       switch (annot) {
       | Term =>
         let vs = go(indent, dpaths, l);
-        List.exists((==)([]), diff_steps)
+        List.exists((==)([]), dpaths)
           ? [Node.span([Attr.classes(["Diff"])], vs)] : vs;
       | Step(step) =>
-        let dpaths' = take_step(step, diff_steps);
+        let dpaths' = take_step(step, dpaths);
         go(indent, dpaths', l);
       | Delim =>
         let vs = go(indent, dpaths, l);

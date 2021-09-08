@@ -246,12 +246,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
-    | Exp(_, exp) => exp_view(exp, show_indicate_word)
-    | Pat(_, pat, _) => pat_view(pat, show_indicate_word)
-    | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op, _) => code_view(Operators_Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
+    | ExpOperand(_, exp) => exp_view(exp, show_indicate_word)
+    | PatOperand(_, pat, _) => pat_view(pat, show_indicate_word)
+    | TypOperand(_, typ) => typ_view(typ)
+    | ExpOperator(_, op) => code_view(Operators_Exp.to_string(op))
+    | PatOperator(_, op, _) => code_view(Operators_Pat.to_string(op))
+    | TypOperator(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
@@ -959,8 +959,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let undo_button = (disabled, is_mac) => {
-    let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
+  let undo_button = disabled => {
+    let title = "Undo (" ++ HazelKeyCombos.name(CtrlOrCmd_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -984,9 +984,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let redo_button = (disabled, is_mac) => {
-    let title =
-      if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
+  let redo_button = disabled => {
+    let title = "Redo (" ++ HazelKeyCombos.name(CtrlOrCmd_Shift_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1054,15 +1053,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let button_bar_view = (undo_history: UndoHistory.t, is_mac: bool) =>
+  let button_bar_view = (undo_history: UndoHistory.t) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history-button-bar"])],
         [
           preview_on_hover_checkbox(undo_history.preview_on_hover),
           expand_button(undo_history.all_hidden_history_expand),
-          redo_button(UndoHistory.disable_redo(undo_history), is_mac),
-          undo_button(UndoHistory.disable_undo(undo_history), is_mac),
+          redo_button(UndoHistory.disable_redo(undo_history)),
+          undo_button(UndoHistory.disable_undo(undo_history)),
         ],
       )
     );
@@ -1089,7 +1088,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       ],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.undo_history, model.is_mac),
+        button_bar_view(model.undo_history),
         Node.div(
           if (model.undo_history.preview_on_hover) {
             [

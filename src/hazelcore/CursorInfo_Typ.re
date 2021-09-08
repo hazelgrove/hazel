@@ -8,13 +8,13 @@ let rec extract_cursor_term = (ztyp: ZTyp.t): cursor_term => {
     | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
     | ZOperator(ztyp_operator, _) =>
       let (cursor_pos, uop) = ztyp_operator;
-      TypOp(cursor_pos, uop);
+      TypOperator(cursor_pos, uop);
     }
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
-  | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
+  | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
   };
@@ -43,12 +43,5 @@ and get_zoperand_from_ztyp_operand =
 };
 
 let cursor_info =
-    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) => {
-  Some(
-    CursorInfo_common.mk(
-      OnType(!ZTyp.is_after(typ)),
-      ctx,
-      extract_cursor_term(typ),
-    ),
-  );
-};
+    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
+  Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));
