@@ -146,7 +146,7 @@ let is_before_zoperator: zoperator => bool =
 
 let is_before_zsumbody_operand =
   fun
-  | CursorArgTag(cursor, _, _) => cursor == OnDelim(0, Before)
+  | CursorArgTag(_, _, _) => false
   | ConstTagZ(ztag)
   | ArgTagZT(ztag, _) => ZTag.is_before(ztag)
   | ArgTagZA(_, _) => false;
@@ -348,20 +348,23 @@ and move_cursor_left_zsumbody_operand =
       let+ ztag = ZTag.move_cursor_left(ztag);
       ConstTagZ(ztag);
     }
+  /* Invalid movement actions */
   | CursorArgTag(OnOp(_) | OnText(_), _, _) => None
-  | CursorArgTag(OnDelim(k, After), tag, ty) =>
-    Some(CursorArgTag(OnDelim(k, Before), tag, ty))
-  | CursorArgTag(OnDelim(k, Before), tag, ty) =>
-    switch (k) {
-    | 1 => Some(ArgTagZT(ZTag.place_after(tag), ty))
-    | 2 => Some(ArgTagZA(tag, place_after(ty)))
-    | _ => None
+
+  | CursorArgTag(OnDelim(j, side), tag, ty) =>
+    switch (j, side) {
+    | (0, Before) => Some(ArgTagZT(ZTag.place_after(tag), ty))
+    | (1, Before) => Some(ArgTagZA(tag, place_after(ty)))
+    | (_, After) => Some(CursorArgTag(OnDelim(j, Before), tag, ty))
+    | (_, _) => None
     }
+
   | ArgTagZT(ztag, ty) =>
     switch (ZTag.move_cursor_left(ztag)) {
     | Some(ztag) => Some(ArgTagZT(ztag, ty))
     | None => Some(CursorArgTag(OnDelim(0, Before), ZTag.erase(ztag), ty))
     }
+
   | ArgTagZA(tag, zty) =>
     switch (move_cursor_left(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
@@ -459,11 +462,11 @@ and move_cursor_right_zsumbody_operand =
   | ArgTagZT(ztag, ty) =>
     switch (ZTag.move_cursor_right(ztag)) {
     | Some(ztag) => Some(ArgTagZT(ztag, ty))
-    | None => Some(CursorArgTag(OnDelim(1, Before), ZTag.erase(ztag), ty))
+    | None => Some(CursorArgTag(OnDelim(0, Before), ZTag.erase(ztag), ty))
     }
   | ArgTagZA(tag, zty) =>
     switch (move_cursor_right(zty)) {
     | Some(zty) => Some(ArgTagZA(tag, zty))
-    | None => Some(CursorArgTag(OnDelim(2, Before), tag, erase(zty)))
+    | None => Some(CursorArgTag(OnDelim(1, Before), tag, erase(zty)))
     }
   };

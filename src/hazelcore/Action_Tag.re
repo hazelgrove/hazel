@@ -1,7 +1,4 @@
-let mk_text =
-    (caret_index: int, text: string, u_gen: MetaVarGen.t)
-    : (ZTag.t, MetaVarGen.t) => {
-  let cursor = CursorPosition.OnText(caret_index);
+let mk_tag = (text: string, u_gen: MetaVarGen.t): (UHTag.t, MetaVarGen.t) => {
   let (status: TagErrStatus.t, u_gen) =
     if (UHTag.is_tag_name(text)) {
       (NotInTagHole, u_gen);
@@ -9,7 +6,15 @@ let mk_text =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (InTagHole(InvalidTagName, u), u_gen);
     };
-  (ZTag.CursorTag(cursor, UHTag.Tag(status, text)), u_gen);
+  (UHTag.Tag(status, text), u_gen);
+};
+
+let mk_text =
+    (caret_index: int, text: string, u_gen: MetaVarGen.t)
+    : (ZTag.t, MetaVarGen.t) => {
+  let cursor = CursorPosition.OnText(caret_index);
+  let (tag, u_gen) = mk_tag(text, u_gen);
+  (ZTag.CursorTag(cursor, tag), u_gen);
 };
 
 let insert_text =
@@ -153,9 +158,6 @@ let perform =
 
   | (Construct(SOp(_)), CursorTag(OnText(_), Tag(_, _))) => Failed
 
-  | (Construct(SChar(c)), CursorTag(OnText(0), Tag(_, t)))
-      when UHTag.is_majuscule_letter(c.[0]) =>
-    insert_text((0, c), t, u_gen)
   | (Construct(SChar(c)), CursorTag(OnText(j), Tag(_, t)))
       when UHTag.is_tag_char(c.[0]) =>
     insert_text((j, c), t, u_gen)
@@ -171,9 +173,9 @@ let perform =
   | (Construct(SOp(_)), CursorTag(OnDelim(_, _), EmptyTagHole(_))) =>
     Failed
 
-  | (Construct(SChar(s)), CursorTag(OnDelim(_, _), EmptyTagHole(_)))
-      when UHTag.is_tag_name(s) =>
-    insert_text((0, s), "", u_gen)
+  | (Construct(SChar(c)), CursorTag(OnDelim(_, _), EmptyTagHole(_)))
+      when UHTag.is_tag_char(c.[0]) =>
+    insert_text((0, c), "", u_gen)
 
   | (Construct(SChar(_)), CursorTag(OnDelim(_, _), EmptyTagHole(_))) =>
     Failed

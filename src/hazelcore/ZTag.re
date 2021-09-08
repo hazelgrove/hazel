@@ -19,7 +19,7 @@ let is_before = (ztag: t): bool =>
 
 let is_after = (ztag: t): bool =>
   switch (ztag) {
-  | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t) + 1)
+  | CursorTag(cursor, Tag(_, t)) => cursor == OnText(String.length(t))
   | CursorTag(cursor, EmptyTagHole(_)) => cursor == OnDelim(1, After)
   };
 
@@ -47,14 +47,16 @@ let new_TagHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 
 let move_cursor_left: t => option(t) =
   fun
-  | CursorTag(OnText(j), tag) => Some(CursorTag(OnText(j - 1), tag))
-  | CursorTag(OnDelim(_0, After), tag) =>
+  | CursorTag(OnText(j), Tag(_, _) as tag) =>
+    j > 0 ? Some(CursorTag(OnText(j - 1), tag)) : None
+  | CursorTag(OnDelim(0, After), EmptyTagHole(_) as tag) =>
     Some(CursorTag(OnDelim(0, Before), tag))
-  | CursorTag(OnDelim(_, Before) | OnOp(_), _) => None;
+  | CursorTag(_, Tag(_) | EmptyTagHole(_)) => None;
 
 let move_cursor_right: t => option(t) =
   fun
-  | CursorTag(OnText(j), tag) => Some(CursorTag(OnText(j + 1), tag))
-  | CursorTag(OnDelim(_0, Before), tag) =>
+  | CursorTag(OnText(j), Tag(_, t) as tag) =>
+    j < String.length(t) - 1 ? Some(CursorTag(OnText(j + 1), tag)) : None
+  | CursorTag(OnDelim(0, Before), EmptyTagHole(_) as tag) =>
     Some(CursorTag(OnDelim(0, After), tag))
-  | CursorTag(OnDelim(_, After) | OnOp(_), _) => None;
+  | CursorTag(_, Tag(_) | EmptyTagHole(_)) => None;
