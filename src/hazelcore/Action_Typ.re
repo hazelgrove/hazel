@@ -305,7 +305,7 @@ and perform_opseq =
   /*
    Pressing <Space> after an operator moves the cursor forward.
 
-   ... +| _ ...  =( )=>  ... + |_ ...
+   ...,| _ ...  =( )=>  ..., |_ ...
    */
   | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
     perform_opseq(u_gen, MoveRight, zopseq)
@@ -313,8 +313,8 @@ and perform_opseq =
   /*
    When the cursor is on an operator, the cursor moves before construction.
 
-   ... +| _ ...  =(+)=>  ... + |_ ...  =(+)=>  ... + ? +| _ ...
-   ... _ |+ ...  =(+)=>  ... _| + ...  =(+)=>  ... _ +| ? + ...
+   ...,| _ ...  =(,)=>  ..., |_ ...  =(,)=>  ..., ?,| _ ...
+   ... _|, ...  =(,)=>  ... _|, ...  =(,)=>  ... _,| ?, ...
    */
   | (Construct(_), ZOperator((OnOp(side), _), _)) =>
     switch (perform_opseq(u_gen, Action_common.escape(side), zopseq)) {
@@ -582,6 +582,49 @@ and perform_operand =
     let place_cursor =
       j == 0 ? ZTyp.place_before_operand : ZTyp.place_after_operand;
     Succeeded((ZOpSeq.wrap(place_cursor(UHTyp.Hole)), u_gen));
+
+  /*
+   Destroying a singleton tag hole destroys the sum body.
+   */
+  // sum { |>? }  ==>  sum { |}
+  // sum { ?<| }  ==>  sum {| }
+  | (
+      Delete,
+      SumZ(
+        ZOpSeq(
+          _,
+          ZOperand(
+            ConstTagZ(
+              CursorTag(OnDelim(_0, Before as side), EmptyTagHole(_)),
+            ),
+            (E, E),
+          ),
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      SumZ(
+        ZOpSeq(
+          _,
+          ZOperand(
+            ConstTagZ(
+              CursorTag(OnDelim(_0, After as side), EmptyTagHole(_)),
+            ),
+            (E, E),
+          ),
+        ),
+      ),
+    ) =>
+    let place_cursor =
+      switch (side) {
+      | Before => ZTyp.place_cursor_operand(OnDelim(1, Before))
+      | After => ZTyp.place_cursor_operand(OnDelim(0, After))
+      };
+    switch (place_cursor(Sum(None))) {
+    | None => Failed
+    | Some(zoperand) => Succeeded((ZOpSeq.wrap(zoperand), u_gen))
+    };
 
   /*
    When a destruction action is toward a sum body delimiter, the action becomes
