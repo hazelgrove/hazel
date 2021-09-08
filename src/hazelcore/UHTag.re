@@ -54,3 +54,23 @@ let is_complete: t => bool =
   fun
   | Tag(_) => true
   | EmptyTagHole(_) => false;
+
+module OrderedType = {
+  type nonrec t = t;
+  let compare = compare;
+};
+
+module Set = Set.Make(OrderedType);
+
+let fix_holes =
+    (tag: t, seen: Set.t, u_gen: MetaVarGen.t): (t, Set.t, MetaVarGen.t) =>
+  switch (tag) {
+  | Tag(status, t) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let (status, seen) =
+      Set.mem(tag, seen)
+        ? (TagErrStatus.InTagHole(DuplicateTagName, u), seen)
+        : (status, Set.add(tag, seen));
+    (Tag(status, t), seen, u_gen);
+  | EmptyTagHole(_) => (tag, Set.add(tag, seen), u_gen)
+  };

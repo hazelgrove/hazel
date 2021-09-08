@@ -49,3 +49,5 @@ let expand: t => HTyp.t;
 let is_complete: t => bool;
 
 let is_empty_sumbody_operand: sumbody_operand => bool;
+
+let fix_holes: (t, MetaVarGen.t) => (t, MetaVarGen.t);
