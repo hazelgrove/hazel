@@ -2,7 +2,7 @@ open Sexplib.Std;
 open OptUtil.Syntax;
 
 [@deriving sexp]
-type t = list(UHDecorationShape.t);
+type t = list((CursorPath.steps, UHDecorationShape.t));
 
 let is_empty = (dpaths: t): bool => ListUtil.is_empty(dpaths);
 
@@ -12,21 +12,10 @@ let take_step = (step: int, dpaths: t): t => {
     | [step', ...steps] when step == step' => Some(steps)
     | _ => None;
   List.filter_map(
-    (dpath: UHDecorationShape.t) =>
-      switch (dpath) {
-      | ErrHole(steps) =>
-        let+ steps' = remove_step(steps);
-        UHDecorationShape.ErrHole(steps');
-      | VarErrHole(steps) =>
-        let+ steps' = remove_step(steps);
-        UHDecorationShape.VarErrHole(steps');
-      | VarUse(steps) =>
-        let+ steps' = remove_step(steps);
-        UHDecorationShape.VarUse(steps');
-      | CurrentTerm((steps, cursor)) =>
-        let+ steps' = remove_step(steps);
-        UHDecorationShape.CurrentTerm((steps', cursor));
-      },
+    ((steps, shape)) => {
+      let+ steps' = remove_step(steps);
+      (steps', shape);
+    },
     dpaths,
   );
 };
@@ -42,14 +31,6 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | Case
     | Rule => steps == []
     };
-  List.find_all(
-    dpath =>
-      switch (dpath) {
-      | UHDecorationShape.ErrHole(steps)
-      | VarErrHole(steps)
-      | VarUse(steps)
-      | CurrentTerm((steps, _)) => is_current(steps)
-      },
-    dpaths,
-  );
+  List.find_all(((steps, _)) => is_current(steps), dpaths)
+  |> List.map(snd);
 };

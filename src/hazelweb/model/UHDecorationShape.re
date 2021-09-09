@@ -1,6 +1,6 @@
 [@deriving sexp]
 type t =
-  | ErrHole(CursorPath.steps)
-  | VarErrHole(CursorPath.steps)
-  | VarUse(CursorPath.steps)
-  | CurrentTerm(CursorPath.t);
+  | ErrHole
+  | VarErrHole
+  | VarUse
+  | CurrentTerm;

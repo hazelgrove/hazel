@@ -8,10 +8,10 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 let decoration_cls: UHDecorationShape.t => string =
   fun
-  | ErrHole(_) => "err-hole"
-  | VarErrHole(_) => "var-err-hole"
-  | VarUse(_) => "var-use"
-  | CurrentTerm(_) => "current-term";
+  | ErrHole => "err-hole"
+  | VarErrHole => "var-err-hole"
+  | VarUse => "var-use"
+  | CurrentTerm => "current-term";
 
 let decoration_view =
     (
@@ -23,10 +23,10 @@ let decoration_view =
     ) =>
   UHDecoration.(
     switch (shape) {
-    | ErrHole(_) => ErrHole.view(~contains_current_term, ~corner_radii)
-    | VarErrHole(_) => VarErrHole.view(~contains_current_term, ~corner_radii)
-    | VarUse(_) => VarUse.view(~corner_radii)
-    | CurrentTerm(_) =>
+    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+    | VarUse => VarUse.view(~corner_radii)
+    | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     }
   );
@@ -73,12 +73,12 @@ let decoration_views =
       | Term({shape, sort, _}) =>
         let current_term =
           List.find_opt(
-            dpath =>
-              switch (dpath) {
-              | UHDecorationShape.ErrHole(_)
-              | VarErrHole(_)
-              | VarUse(_) => false
-              | CurrentTerm(_) => true
+            ((_, shape)) =>
+              switch (shape) {
+              | UHDecorationShape.ErrHole
+              | VarErrHole
+              | VarUse => false
+              | CurrentTerm => true
               },
             dpaths,
           );
