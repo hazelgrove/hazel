@@ -11,7 +11,12 @@ let menu_entries: list(menu_entry) = [
   {
     label: "Serialize to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
-    action: SerializeToConsole,
+    action: SerializeToConsole(UHExp),
+  },
+  {
+    label: "Serialize result to console",
+    shortcut: None,
+    action: SerializeToConsole(DHExp),
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   /*{label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},*/

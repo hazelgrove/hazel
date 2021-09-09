@@ -63,8 +63,10 @@ let get_cursor_info = (program: t) => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) =
+  let current_term =
+    program.is_focused
+      ? [UHDecorationShape.CurrentTerm(get_path(program))] : [];
+  let err_holes =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
@@ -73,42 +75,24 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
-           | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+           | VarErr =>
+             Some(
+               UHDecorationShape.VarErrHole(CursorPath.get_steps(hole_info)),
+             )
+           | TypeErr =>
+             Some(
+               UHDecorationShape.ErrHole(CursorPath.get_steps(hole_info)),
+             )
            }
          }
-       )
-    |> List.partition(
-         fun
-         | (CursorPath.TypeErr, _) => true
-         | (_var_err, _) => false,
-       )
-    |> TupleUtil.map2(List.map(snd));
+       );
   let var_uses =
     switch (get_cursor_info(program)) {
-    | {uses: Some(uses), _} => uses
+    | {uses: Some(uses), _} =>
+      List.map(use_steps => UHDecorationShape.VarUse(use_steps), uses)
     | _ => []
     };
-  /*let {cursor_term, _}: CursorInfo.t = get_cursor_info(program);
-    print_endline(
-        "Cursor Term: "
-        ++ Sexp.to_string(CursorInfo.sexp_of_cursor_term(cursor_term)),
-      );
-      print_endline(
-        "Explanation Info: "
-        ++ Sexp.to_string(
-             ExplanationInfo.sexp_of_explanation_info(
-               ExplanationInfo.mk_explanation_info(cursor_term),
-             ),
-           ),
-      );*/
-  /* TODO: Hannah - probably unnecessary to highlight when exactly the same as the current term path */
-  //print_endline(Sexp.to_string(UHExp.sexp_of_t(get_uhexp(program))));
-
-  let explanation_elems =
-    ExplanationInfo.explanation_paths(get_zexp(program));
-
-  {current_term, err_holes, var_uses, var_err_holes, explanation_elems};
+  List.concat([err_holes, var_uses, current_term]);
 };
 
 exception DoesNotElaborate;

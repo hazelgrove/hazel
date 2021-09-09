@@ -1,7 +1,9 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type t =
-  | ErrHole
-  | VarErrHole
-  | VarUse
-  | ExplanationElems
-  | CurrentTerm;
+  | ErrHole(CursorPath.steps)
+  | VarErrHole(CursorPath.steps)
+  | VarUse(CursorPath.steps)
+  | CurrentTerm(CursorPath.t)
+  | ExplanationElems((CursorPath.steps, string));

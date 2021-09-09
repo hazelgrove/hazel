@@ -16,8 +16,15 @@ type shift_history_info = {
   elt_id: int,
   call_by_mouseenter: bool,
 };
+
 [@deriving sexp]
 type group_id = int;
+
+[@deriving sexp]
+type serialize_object =
+  | UHExp
+  | DHExp;
+
 [@deriving sexp]
 type t =
   | EditAction(EditAction.t)
@@ -40,4 +47,4 @@ type t =
   | TogglePreviewOnHover
   | ToggleHighlightSummary
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole;
+  | SerializeToConsole(serialize_object);
