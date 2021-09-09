@@ -810,10 +810,9 @@ and perform_zsumbody =
     Failed
 
   /* Invalid swap actions */
-  | (SwapLeft, ZOperator(_))
-  | (SwapRight, ZOperator(_))
-  | (SwapLeft, ZOperand(CursorArgTag(_, _, _), (E, _)))
-  | (SwapRight, ZOperand(CursorArgTag(_), (_, E))) => Failed
+  | (SwapLeft | SwapRight, ZOperator(_))
+  | (SwapLeft, ZOperand(_, (E, _)))
+  | (SwapRight, ZOperand(_, (_, E))) => Failed
 
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1276,18 +1275,6 @@ and perform_zsumbody =
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
 
   | (
-      SwapLeft,
-      ZOperand(
-        ArgTagZA(_, zty) as zoperand,
-        (A(operator, S(operand, new_prefix)), suffix),
-      ),
-    )
-      when ZTyp.is_before(zty) || ZTyp.is_after(zty) =>
-    let new_suffix = Seq.A(operator, S(operand, suffix));
-    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
-
-  | (
       SwapRight,
       ZOperand(
         (CursorArgTag(_) | ConstTagZ(_) | ArgTagZT(_, _)) as zoperand,
@@ -1298,17 +1285,14 @@ and perform_zsumbody =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
 
-  | (
-      SwapRight,
-      ZOperand(
-        ArgTagZA(_, zty) as zoperand,
-        (prefix, A(operator, S(operand, new_suffix))),
-      ),
-    )
-      when ZTyp.is_before(zty) || ZTyp.is_after(zty) =>
-    let new_prefix = Seq.A(operator, S(operand, prefix));
-    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
+  | (SwapLeft | SwapRight, ZOperand(ArgTagZA(tag, zty), surround)) =>
+    switch (perform(u_gen, a, zty)) {
+    | Failed
+    | CursorEscaped(_) => Failed
+    | Succeeded((zty, u_gen)) =>
+      let new_zseq = ZSeq.ZOperand(ZTyp.ArgTagZA(tag, zty), surround);
+      Succeeded((ZTyp.mk_sumbody_ZOpSeq(new_zseq), u_gen));
+    }
 
   /* Zipper */
 
