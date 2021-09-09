@@ -264,7 +264,8 @@ and of_steps_sumbody_operator =
   };
 
 let hole_sort = _ => CursorPath.TypHole;
-let sumbody_hole_sort = (u: MetaVar.t) => CursorPath.EmptyTagHole(u);
+let sumbody_hole_sort = (shape: CursorPath.hole_shape, u: MetaVar.t) =>
+  CursorPath.TagHole(u, shape);
 
 let is_space = _ => false;
 
@@ -311,7 +312,7 @@ and holes_sumbody =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand=holes_sumbody_operand,
-       ~hole_sort=sumbody_hole_sort,
+       ~hole_sort=sumbody_hole_sort(TypeErr),
        ~is_space,
        ~rev_steps,
        sumbody,
@@ -385,7 +386,7 @@ and holes_zsumbody =
   CursorPath_common.holes_zopseq_(
     ~holes_operand=holes_sumbody_operand,
     ~holes_zoperand=holes_zsumbody_operand,
-    ~hole_sort=sumbody_hole_sort,
+    ~hole_sort=sumbody_hole_sort(TypeErr),
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zsumbody,

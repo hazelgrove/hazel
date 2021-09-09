@@ -67,8 +67,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
-         | TypHole
-         | EmptyTagHole(_) => None
+         | TypHole => None
+         | TagHole(_, shape)
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
@@ -89,7 +89,16 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let result =
+    UHDecorationPaths.{current_term, err_holes, var_uses, var_err_holes};
+  Sexplib.Sexp.(
+    {
+      print_endline("GET_DECORATION_PATHS");
+      print_endline(to_string_hum(UHExp.sexp_of_t(get_uhexp(program))));
+      print_endline(to_string_hum(UHDecorationPaths.sexp_of_t(result)));
+    }
+  );
+  result;
 };
 
 exception DoesNotElaborate;

@@ -23,7 +23,7 @@ type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape)
-  | EmptyTagHole(MetaVar.t);
+  | TagHole(MetaVar.t, hole_shape);
 
 [@deriving sexp]
 type hole_info = {

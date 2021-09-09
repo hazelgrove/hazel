@@ -34,21 +34,40 @@ let holes =
     (tag: UHTag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)
     : CursorPath.hole_list =>
   switch (tag) {
-  | Tag(_) => hs
+  | Tag(NotInTagHole, _) => hs
+  | Tag(InTagHole(reason, u), _) =>
+    let shape: CursorPath.hole_shape =
+      switch (reason) {
+      | InvalidTagName => VarErr
+      | DuplicateTagName => TypeErr
+      };
+    let steps = List.rev(rev_steps);
+    [{sort: TagHole(u, shape), steps, ap_steps: steps}, ...hs];
   | EmptyTagHole(u) =>
     let steps = List.rev(rev_steps);
-    [{sort: EmptyTagHole(u), steps, ap_steps: steps}, ...hs];
+    [{sort: TagHole(u, Empty), steps, ap_steps: steps}, ...hs];
   };
 
 let holes_z =
     (ztag: ZTag.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
   switch (ztag |> ZTag.erase) {
-  | Tag(_) => CursorPath.empty_zhole_list
+  | Tag(NotInTagHole, _) => CursorPath.empty_zhole_list
+  | Tag(InTagHole(reason, u), _) =>
+    let shape: CursorPath.hole_shape =
+      switch (reason) {
+      | InvalidTagName => VarErr
+      | DuplicateTagName => TypeErr
+      };
+    let steps = List.rev(rev_steps);
+    {
+      ...CursorPath.empty_zhole_list,
+      hole_selected: Some({sort: TagHole(u, shape), steps, ap_steps: steps}),
+    };
   | EmptyTagHole(u) =>
     let steps = List.rev(rev_steps);
     {
       ...CursorPath.empty_zhole_list,
-      hole_selected: Some({sort: EmptyTagHole(u), steps, ap_steps: steps}),
+      hole_selected: Some({sort: TagHole(u, Empty), steps, ap_steps: steps}),
     };
   };
 
