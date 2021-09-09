@@ -302,20 +302,6 @@ and fix_holes_sumbody =
     : (sumbody, MetaVarGen.t) => {
   let dups = duplicate_tags(sumbody);
   let (skel, seq, u_gen) = fix_holes_sumbody_skel(skel, seq, dups, u_gen);
-  Sexplib.(
-    Sexp.(
-      Std.(
-        {
-          print_endline("FIX_HOLES_SUMBODY");
-          print_endline(
-            to_string_hum(
-              sexp_of_list(UHTag.sexp_of_t, UHTag.Set.elements(dups)),
-            ),
-          );
-        }
-      )
-    )
-  );
   (OpSeq(skel, seq), u_gen);
 }
 
