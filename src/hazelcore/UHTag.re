@@ -7,7 +7,13 @@ type t =
 
 let compare = compare;
 
-let eq = (t1: t, t2: t): bool => t1 == t2;
+let eq = (tag1: t, tag2: t): bool =>
+  switch (tag1, tag2) {
+  | (Tag(_, _), EmptyTagHole(_))
+  | (EmptyTagHole(_), Tag(_, _)) => false
+  | (Tag(_, t1), Tag(_, t2)) => String.equal(t1, t2)
+  | (EmptyTagHole(u1), EmptyTagHole(u2)) => MetaVar.eq(u1, u2)
+  };
 
 let new_TagHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -61,16 +67,15 @@ module OrderedType = {
 };
 
 module Set = Set.Make(OrderedType);
+module Map = Map.Make(OrderedType);
 
-let fix_holes =
-    (tag: t, seen: Set.t, u_gen: MetaVarGen.t): (t, Set.t, MetaVarGen.t) =>
+let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>
   switch (tag) {
   | Tag(status, t) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let (status, seen) =
-      Set.mem(tag, seen)
-        ? (TagErrStatus.InTagHole(DuplicateTagName, u), seen)
-        : (status, Set.add(tag, seen));
-    (Tag(status, t), seen, u_gen);
-  | EmptyTagHole(_) => (tag, Set.add(tag, seen), u_gen)
+    let status =
+      Set.mem(tag, dups)
+        ? TagErrStatus.InTagHole(DuplicateTagName, u) : status;
+    (Tag(status, t), u_gen);
+  | EmptyTagHole(_) => (tag, u_gen)
   };

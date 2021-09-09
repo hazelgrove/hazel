@@ -230,6 +230,33 @@ let is_empty_sumbody_operand: sumbody_operand => bool =
   | ArgTag(EmptyTagHole(_), OpSeq(_, S(Hole, _))) => true
   | _ => false;
 
+let duplicate_tags = (OpSeq(_, seq): sumbody): UHTag.Set.t => {
+  let rec histogram = (xs: list('a)): UHTag.Map.t(int) => {
+    let incr_opt =
+      fun
+      | None => Some(1)
+      | Some(n) => Some(n + 1);
+    switch (xs) {
+    | [] => UHTag.Map.empty
+    | [hd, ...tl] => histogram(tl) |> UHTag.Map.update(hd, incr_opt)
+    };
+  };
+
+  Seq.operands(seq)
+  |> List.map(
+       fun
+       | ConstTag(Tag(_, t)) => UHTag.Tag(NotInTagHole, t)
+       | ConstTag(EmptyTagHole(_) as tag) => tag
+       | ArgTag(Tag(_, t), _) => UHTag.Tag(NotInTagHole, t)
+       | ArgTag(EmptyTagHole(_) as tag, _) => tag,
+     )
+  |> histogram
+  |> UHTag.Map.bindings
+  |> List.filter(((_, n)) => n > 1)
+  |> List.map(fst)
+  |> UHTag.Set.of_list;
+};
+
 let rec fix_holes =
         (OpSeq(skel, seq): t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (skel, seq, u_gen) = fix_holes_skel(skel, seq, u_gen);
@@ -244,7 +271,6 @@ and fix_holes_skel =
     let (operand, u_gen) = fix_holes_operand(operand, u_gen);
     let seq = seq |> Seq.update_nth_operand(n, operand);
     (skel, seq, u_gen);
-
   | BinOp(_, op, skel1, skel2) =>
     let (skel1, seq, u_gen) = fix_holes_skel(skel1, seq, u_gen);
     let (skel2, seq, u_gen) = fix_holes_skel(skel2, seq, u_gen);
@@ -272,45 +298,58 @@ and fix_holes_operand =
   }
 
 and fix_holes_sumbody =
-    (OpSeq(skel, seq): sumbody, u_gen: MetaVarGen.t)
+    (OpSeq(skel, seq) as sumbody: sumbody, u_gen: MetaVarGen.t)
     : (sumbody, MetaVarGen.t) => {
-  let (skel, seq, _, u_gen) =
-    fix_holes_sumbody_skel(skel, seq, UHTag.Set.empty, u_gen);
+  let dups = duplicate_tags(sumbody);
+  let (skel, seq, u_gen) = fix_holes_sumbody_skel(skel, seq, dups, u_gen);
+  Sexplib.(
+    Sexp.(
+      Std.(
+        {
+          print_endline("FIX_HOLES_SUMBODY");
+          print_endline(
+            to_string_hum(
+              sexp_of_list(UHTag.sexp_of_t, UHTag.Set.elements(dups)),
+            ),
+          );
+        }
+      )
+    )
+  );
   (OpSeq(skel, seq), u_gen);
 }
+
 and fix_holes_sumbody_skel =
     (
       skel: sumbody_skel,
       seq: sumbody_seq,
-      seen: UHTag.Set.t,
+      dups: UHTag.Set.t,
       u_gen: MetaVarGen.t,
     )
-    : (sumbody_skel, sumbody_seq, UHTag.Set.t, MetaVarGen.t) =>
+    : (sumbody_skel, sumbody_seq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    let (operand, seen, u_gen) =
-      fix_holes_sumbody_operand(operand, seen, u_gen);
+    let (operand, u_gen) = fix_holes_sumbody_operand(operand, dups, u_gen);
     let seq = seq |> Seq.update_nth_operand(n, operand);
-    (skel, seq, seen, u_gen);
-
+    (skel, seq, u_gen);
   | BinOp(_, op, skel1, skel2) =>
-    let (skel1, seq, seen, u_gen) =
-      fix_holes_sumbody_skel(skel1, seq, seen, u_gen);
-    let (skel2, seq, seen, u_gen) =
-      fix_holes_sumbody_skel(skel2, seq, seen, u_gen);
-    (BinOp(NotInHole, op, skel1, skel2), seq, seen, u_gen);
+    let (skel1, seq, u_gen) =
+      fix_holes_sumbody_skel(skel1, seq, dups, u_gen);
+    let (skel2, seq, u_gen) =
+      fix_holes_sumbody_skel(skel2, seq, dups, u_gen);
+    (BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
   }
 
 and fix_holes_sumbody_operand =
-    (operand: sumbody_operand, seen: UHTag.Set.t, u_gen: MetaVarGen.t)
-    : (sumbody_operand, UHTag.Set.t, MetaVarGen.t) =>
+    (operand: sumbody_operand, dups: UHTag.Set.t, u_gen: MetaVarGen.t)
+    : (sumbody_operand, MetaVarGen.t) =>
   switch (operand) {
   | ConstTag(tag) =>
-    let (tag, seen, u_gen) = UHTag.fix_holes(tag, seen, u_gen);
-    (ConstTag(tag), seen, u_gen);
+    let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);
+    (ConstTag(tag), u_gen);
   | ArgTag(tag, ty) =>
-    let (tag, seen, u_gen) = UHTag.fix_holes(tag, seen, u_gen);
+    let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);
     let (ty, u_gen) = fix_holes(ty, u_gen);
-    (ArgTag(tag, ty), seen, u_gen);
+    (ArgTag(tag, ty), u_gen);
   };
