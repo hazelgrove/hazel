@@ -2,12 +2,7 @@
  * A collection of paths to decorations in a given UH-term
  */
 [@deriving sexp]
-type t = {
-  err_holes: list(CursorPath.steps),
-  var_err_holes: list(CursorPath.steps),
-  var_uses: list(CursorPath.steps),
-  current_term: option(CursorPath.t),
-};
+type t = list(UHDecorationShape.t);
 
 let is_empty: t => bool;
 
