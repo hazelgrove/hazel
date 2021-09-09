@@ -17,11 +17,18 @@ let of_steps =
   | _ => None
   };
 
-let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) =>
+let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) => {
+  print_endline("CPTag FOLLOW");
   switch (path) {
+  | ([], OnDelim((-1), side)) =>
+    switch (side) {
+    | Before => Some(ZTag.place_before(tag))
+    | After => Some(ZTag.place_after(tag))
+    }
   | ([], cursor) => Some(CursorTag(cursor, tag))
   | _ => None
   };
+};
 
 let holes =
     (tag: UHTag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)

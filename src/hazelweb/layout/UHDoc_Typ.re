@@ -28,12 +28,12 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
-let mk_ConstTag = (tag: UHDoc.t): UHDoc.t =>
-  tag |> UHDoc_common.annot_ClosedChild(~is_inline=true, ~sort=Tag);
+let mk_ConstTag = (tag: formatted_child): UHDoc.t =>
+  tag |> pad_delimited_closed_child(~sort=Tag);
 
 let mk_ArgTag = (tag: formatted_child, body: formatted_child): UHDoc.t =>
   Doc.hcats([
-    // Delim.mk(~index=-1, ""),
+    Delim.mk(~index=-1, ""),
     tag |> pad_delimited_closed_child(~sort=Tag),
     Delim.open_Parenthesized(),
     body |> pad_delimited_closed_child(~sort=Typ),
@@ -47,10 +47,10 @@ let mk_Sum = (sumbody_opt: option(formatted_child)): UHDoc.t => {
   let close_group = Delim.close_Sum() |> annot_Tessera;
   let sumbody =
     switch (sumbody_opt) {
-    | None => Doc.empty()
-    | Some(sumbody) => sumbody |> pad_delimited_closed_child(~sort=SumBody)
+    | None => Doc.empty() |> pad_closed_inline_child((empty_, empty_), Typ)
+    | Some(sumbody) => sumbody |> pad_delimited_closed_child(~sort=Typ)
     };
-  Doc.hcats([open_group, sumbody |> annot_Tessera, close_group])
+  Doc.hcats([open_group, sumbody, close_group])
   |> annot_Tessera
   |> annot_Operand(~sort=Typ);
 };
@@ -72,7 +72,8 @@ let mk_SumBody =
       ~seq,
     );
   switch (UHTyp.get_sumbody_elements(skel)) {
-  | [] => failwith(__LOC__ ++ ": found empty sum")
+  /* Empty sums are handled by mk_Sum */
+  | [] => failwith(__LOC__ ++ ": found empty sum body")
   | [singleton] => mk_BinOp(~enforce_inline, singleton)
   | [hd, ...tl] =>
     let hd_doc = (~enforce_inline: bool) => {
@@ -230,7 +231,7 @@ and mk_sumbody_operand =
         switch (operand) {
         | ConstTag(tag) =>
           let tag_doc =
-            Lazy.force(UHDoc_Tag.mk, ~memoize, ~enforce_inline, tag);
+            UHDoc_Tag.mk_formatted(~memoize, ~enforce_inline, tag);
           mk_ConstTag(tag_doc);
         | ArgTag(tag, ty) =>
           let tag_doc =

@@ -246,11 +246,13 @@ and move_zsumbody =
 
 let rec perform =
         (u_gen: MetaVarGen.t, a: Action.t, zty: ZTyp.t)
-        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
+  print_endline("PERFORM");
   switch (perform_opseq(u_gen, a, zty)) {
   | (Failed | CursorEscaped(_)) as outcome => outcome
   | Succeeded((zty, u_gen)) => Succeeded(fix_holes(zty, u_gen))
-  }
+  };
+}
 
 and perform_opseq =
     (
@@ -258,7 +260,8 @@ and perform_opseq =
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
     )
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
+  print_endline("PERFORM_OPSEQ");
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -407,11 +410,13 @@ and perform_opseq =
       Succeeded((ZTyp.mk_ZOpSeq(ZSeq.insert(zseq, surround)), u_gen))
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 
 and perform_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zoperand)
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
+  print_endline("PERFORM_OPERAND");
   switch (a, zoperand) {
   /* Invalid actions */
   | (
@@ -785,7 +790,8 @@ and perform_operand =
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 
 and perform_zsumbody =
     (
@@ -793,7 +799,8 @@ and perform_zsumbody =
       a: Action.t,
       ZOpSeq(_, zseq) as zsumbody: ZTyp.zsumbody,
     )
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
+  print_endline("PERFORM_ZSUMBODY");
   switch (a, zseq) {
   /* Invalid actions on sum body operators */
   | (
@@ -1363,11 +1370,13 @@ and perform_zsumbody =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 
 and perform_zsumbody_operand =
     (u_gen: MetaVarGen.t, a: Action.t, zoperand: ZTyp.zsumbody_operand)
-    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.zsumbody, MetaVarGen.t)) => {
+  print_endline("PERFORM_ZSUMBODY_OPERAND");
   switch (a, zoperand) {
   /* Invalid actions */
   | (
@@ -1475,3 +1484,4 @@ and perform_zsumbody_operand =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

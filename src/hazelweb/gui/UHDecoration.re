@@ -76,8 +76,8 @@ module CurrentTerm = {
 
   let sort_cls: TermSort.t => string =
     fun
-    | SumBody => "SumBody"
     | Tag => "Tag"
+    | SumBody => "SumBody"
     | Typ => "Typ"
     | Pat => "Pat"
     | Exp => "Exp";
@@ -389,6 +389,8 @@ module CurrentTerm = {
       [
         // TODO cache filters at document root
         outer_filter,
+        closed_child_filter(Tag),
+        closed_child_filter(SumBody),
         closed_child_filter(Typ),
         closed_child_filter(Pat),
         closed_child_filter(Exp),

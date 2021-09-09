@@ -100,14 +100,27 @@ and follow_sumbody =
 
 and follow_sumbody_operand =
     ((steps, cursor): CursorPath.t, operand: UHTyp.sumbody_operand)
-    : option(ZTyp.zsumbody_operand) =>
+    : option(ZTyp.zsumbody_operand) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("CPTyp FOLLOW_SUMBODY_OPERAND");
+      print_endline(to_string_hum(CursorPath.sexp_of_t((steps, cursor))));
+      print_endline(to_string_hum(UHTyp.sexp_of_sumbody_operand(operand)));
+    }
+  );
   switch (operand) {
   | ConstTag(tag) =>
     let+ ztag = CursorPath_Tag.follow((steps, cursor), tag);
     ZTyp.ConstTagZ(ztag);
   | ArgTag(tag, ty) =>
     switch (steps) {
-    | [] => ZTyp.place_cursor_sumbody_operand(cursor, operand)
+    | [] =>
+      switch (cursor) {
+      | OnDelim((-1), _) =>
+        let+ ztag = CursorPath_Tag.follow((steps, cursor), tag);
+        ZTyp.ArgTagZT(ztag, ty);
+      | _ => ZTyp.place_cursor_sumbody_operand(cursor, operand)
+      }
     | [0, ...xs] =>
       let+ ztag = CursorPath_Tag.follow((xs, cursor), tag);
       ZTyp.ArgTagZT(ztag, ty);
@@ -116,7 +129,8 @@ and follow_sumbody_operand =
       ZTyp.ArgTagZA(tag, zty);
     | _ => None
     }
-  }
+  };
+}
 
 and follow_sumbody_operator =
     ((steps, cursor): CursorPath.t, operator: UHTyp.sumbody_operator)

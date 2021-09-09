@@ -414,7 +414,8 @@ and syn_perform_opseq =
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
+  print_endline("AP SYN_PERFORM_OPSEQ");
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -597,7 +598,8 @@ and syn_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and syn_perform_operand =
     (
       ctx: Contexts.t,
@@ -606,6 +608,7 @@ and syn_perform_operand =
       zoperand: ZPat.zoperand,
     )
     : ActionOutcome.t(syn_success) => {
+  print_endline("AP SYN_PERFORM_OPERAND");
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -934,7 +937,8 @@ and ana_perform_opseq =
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  print_endline("AP ANA_PERFORM_OPSEQ");
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1130,7 +1134,8 @@ and ana_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_operand =
     (
       ctx: Contexts.t,
@@ -1139,7 +1144,8 @@ and ana_perform_operand =
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  print_endline("AP ANA_PERFORM_OPERAND");
   switch (a, zoperand) {
   /* Invalid cursor positions */
 
@@ -1539,3 +1545,4 @@ and ana_perform_operand =
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};
