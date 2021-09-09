@@ -792,7 +792,6 @@ and perform_zsumbody =
         SCase |
         SApPalette(_) |
         SParenthesized |
-        SChar(_) |
         SOp(
           SMinus | STimes | SDivide | SLessThan | SGreaterThan | SEquals |
           SComma |
@@ -965,14 +964,43 @@ and perform_zsumbody =
     }
 
   /*
-   Pressing <Space> on either side of a sum body operator moves the cursor to
-   the right.
+   Pressing <Space> on a sum body operator moves the cursor to the right.
 
    _ |+ _  =( )=>  _ +| _
    _ +| _  =( )=>  _ + |_
    */
   | (Construct(SOp(SSpace)), ZOperator(_, _)) =>
     perform_zsumbody(u_gen, MoveRight, zsumbody)
+
+  /*
+   Pressing a valid tag character before a sum body operator redirects the
+   action to the left operand.
+
+   ... 1 |+ ...  =(c)=>  ... 1| + ...  =(c)=>  ... 1c| + ...
+   */
+  | (Construct(SChar(c)), ZOperator((OnOp(side), _), _))
+      when UHTag.is_tag_char(c.[0]) =>
+    switch (perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)) {
+    | Failed
+    | CursorEscaped(_) => Failed
+    | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
+    }
+
+  /*
+   Pressing a valid tag character after a sum body operator redirects the action
+   to the right operand.
+
+   ... 1 |+ ...  =(c)=>  ... 1| + ...  =(c)=>  ... 1c| + ...
+   */
+  | (Construct(SChar(c)), ZOperator((OnOp(side), _), _))
+      when UHTag.is_tag_char(c.[0]) =>
+    switch (perform_zsumbody(u_gen, Action_common.escape(side), zsumbody)) {
+    | Failed
+    | CursorEscaped(_) => Failed
+    | Succeeded((zsumbody, u_gen)) => perform_zsumbody(u_gen, a, zsumbody)
+    }
+
+  | (Construct(SChar(_)), ZOperator(_, _)) => Failed
 
   /*
    Principled Destruction:
