@@ -86,8 +86,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     expected_indicator("Expecting ", special_msg_bar("a tag"));
   let expected_a_unique_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a unique tag"));
-  let expected_a_sum_body_element_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a sum body element"));
+  let expected_a_sum_type_body_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a sum type body"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
@@ -162,8 +162,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_a_tag_indicator = got_indicator("Got", special_msg_bar("a tag"));
   let got_a_tag_hole_indicator =
     got_indicator("Got", special_msg_bar("a tag hole"));
-  let got_a_sum_body_element_indicator =
-    got_indicator("Got", special_msg_bar("a sum body element"));
+  let got_a_sum_type_body_indicator =
+    got_indicator("Got", special_msg_bar("a sum type body"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
@@ -431,8 +431,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 = got_duplicate_tag_indicator(tag);
       (ind1, ind2, TypeInconsistency);
     | OnSumBody =>
-      let ind1 = expected_a_sum_body_element_indicator;
-      let ind2 = got_a_sum_body_element_indicator;
+      let ind1 = expected_a_sum_type_body_indicator;
+      let ind2 = got_a_sum_type_body_indicator;
       (ind1, ind2, OK);
     | OnLine =>
       /* TODO */
