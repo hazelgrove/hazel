@@ -369,7 +369,7 @@ and perform_opseq =
       Succeeded((construct_operator(op, zoperand, surround), u_gen))
     }
 
-  /* SwapLeft and SwapRight is handled at block level */
+  /* SwapLeft and SwapRight are handled at block level */
 
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
@@ -385,6 +385,7 @@ and perform_opseq =
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     Succeeded((ZTyp.mk_ZOpSeq(new_zseq), u_gen));
+
   | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
   | (
       SwapRight,
@@ -821,8 +822,8 @@ and perform_zsumbody =
 
   /* Invalid swap actions */
   | (SwapLeft | SwapRight, ZOperator(_))
-  | (SwapLeft, ZOperand(_, (E, _)))
-  | (SwapRight, ZOperand(_, (_, E))) => Failed
+  | (SwapLeft, ZOperand(ConstTagZ(_) | ArgTagZT(_, _), (E, _)))
+  | (SwapRight, ZOperand(ConstTagZ(_) | ArgTagZT(_, _), (_, E))) => Failed
 
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
