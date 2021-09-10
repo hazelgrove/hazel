@@ -300,19 +300,6 @@ and fix_holes_sumbody =
     (OpSeq(skel, seq) as sumbody: sumbody, u_gen: MetaVarGen.t)
     : (sumbody, MetaVarGen.t) => {
   let dups = duplicate_tags(sumbody);
-  Sexplib.Sexp.(
-    {
-      print_endline("FIX_HOLES_SUMBODY");
-      print_endline(
-        to_string_hum(
-          UHTag.Set.elements(dups)
-          |> Sexplib.Std.sexp_of_list(UHTag.sexp_of_t),
-        ),
-      );
-      print_endline(to_string_hum(sexp_of_sumbody(sumbody)));
-    }
-  );
-
   let (skel, seq, u_gen) = fix_holes_sumbody_skel(skel, seq, dups, u_gen);
   (OpSeq(skel, seq), u_gen);
 }
@@ -341,19 +328,7 @@ and fix_holes_sumbody_skel =
 
 and fix_holes_sumbody_operand =
     (operand: sumbody_operand, dups: UHTag.Set.t, u_gen: MetaVarGen.t)
-    : (sumbody_operand, MetaVarGen.t) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("FIX_HOLES_SUMBODY_OPERAND");
-      print_endline(
-        to_string_hum(
-          UHTag.Set.elements(dups)
-          |> Sexplib.Std.sexp_of_list(UHTag.sexp_of_t),
-        ),
-      );
-      print_endline(to_string_hum(sexp_of_sumbody_operand(operand)));
-    }
-  );
+    : (sumbody_operand, MetaVarGen.t) =>
   switch (operand) {
   | ConstTag(tag) =>
     let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);
@@ -363,4 +338,3 @@ and fix_holes_sumbody_operand =
     let (ty, u_gen) = fix_holes(ty, u_gen);
     (ArgTag(tag, ty), u_gen);
   };
-};
