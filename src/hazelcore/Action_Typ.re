@@ -525,11 +525,11 @@ and perform_operand =
    Pressing <Plus> on a type hole constructs a tag hole inside a sum.
 
    |?  ==>  sum { |? }
-   ?|  ==>  sum { ?| }
+   ?|  ==>  sum { |? }
    */
-  | (Construct(SOp(SPlus)), CursorT(OnDelim(_, side), Hole)) =>
+  | (Construct(SOp(SPlus)), CursorT(OnDelim(_, _), Hole)) =>
     let (tag, u_gen) = UHTag.new_TagHole(u_gen);
-    switch (ZTag.place_cursor(OnDelim(0, side), tag)) {
+    switch (ZTag.place_cursor(OnDelim(0, Before), tag)) {
     | None => Failed
     | Some(ztag) =>
       let zsumbody = ZOpSeq.wrap(ZTyp.ConstTagZ(ztag));
