@@ -561,28 +561,16 @@ and perform_operand =
     Succeeded((ZOpSeq.wrap(place_cursor(UHTyp.Hole)), u_gen));
 
   /*
-   Destroying the inside of an empty sum body delimiter destroys the sum.
+   Destroying the inside of a sum body delimiter destroys the sum.
 
-   sum { |>}  ==>  ?|
-   sum {<| }  ==>  |?
+   sum { ... |>}  ==>  ?|
+   sum {<| ... }  ==>  |?
    */
-  | (Backspace, CursorT(OnDelim(j, After), Sum(None)))
-  | (Delete, CursorT(OnDelim(j, Before), Sum(None))) =>
+  | (Backspace, CursorT(OnDelim(j, After), Sum(_)))
+  | (Delete, CursorT(OnDelim(j, Before), Sum(_))) =>
     let place_cursor =
       j == 0 ? ZTyp.place_before_operand : ZTyp.place_after_operand;
     Succeeded((ZOpSeq.wrap(place_cursor(UHTyp.Hole)), u_gen));
-
-  /*
-   Destroying the inside of a sum body delimiter destroys the sum body.
-   */
-  // sum { ... _ |>}  ==>  sum { |}
-  // sum {<| _ ... }  ==>  sum {| }
-  | (Backspace, CursorT(OnDelim(_, After) as cursor, Sum(Some(_))))
-  | (Delete, CursorT(OnDelim(_, Before) as cursor, Sum(Some(_)))) =>
-    switch (ZTyp.place_cursor_operand(cursor, Sum(None))) {
-    | None => Failed
-    | Some(zoperand) => Succeeded((ZOpSeq.wrap(zoperand), u_gen))
-    }
 
   /*
    Destroying a singleton tag hole destroys the sum body.
