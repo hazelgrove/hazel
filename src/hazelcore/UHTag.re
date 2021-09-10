@@ -63,7 +63,14 @@ let is_complete: t => bool =
 
 module OrderedType = {
   type nonrec t = t;
-  let compare = compare;
+
+  let compare = (tag1: t, tag2: t): int =>
+    switch (tag1, tag2) {
+    | (EmptyTagHole(_), Tag(_)) => (-1)
+    | (Tag(_), EmptyTagHole(_)) => 1
+    | (EmptyTagHole(u1), EmptyTagHole(u2)) => Int.compare(u1, u2)
+    | (Tag(_, t1), Tag(_, t2)) => String.compare(t1, t2)
+    };
 };
 
 module Set = Set.Make(OrderedType);
@@ -71,11 +78,12 @@ module Map = Map.Make(OrderedType);
 
 let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>
   switch (tag) {
-  | Tag(status, t) =>
+  | Tag(_, t) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let status =
-      Set.mem(tag, dups)
-        ? TagErrStatus.InTagHole(DuplicateTagName, u) : status;
+    let status: TagErrStatus.t =
+      !is_tag_name(t)
+        ? InTagHole(InvalidTagName, u)
+        : Set.mem(tag, dups) ? InTagHole(DuplicateTagName, u) : NotInTagHole;
     (Tag(status, t), u_gen);
   | EmptyTagHole(_) => (tag, u_gen)
   };

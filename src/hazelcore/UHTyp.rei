@@ -51,3 +51,4 @@ let is_complete: t => bool;
 let is_empty_sumbody_operand: sumbody_operand => bool;
 
 let fix_holes: (t, MetaVarGen.t) => (t, MetaVarGen.t);
+let fix_holes_sumbody: (sumbody, MetaVarGen.t) => (sumbody, MetaVarGen.t);

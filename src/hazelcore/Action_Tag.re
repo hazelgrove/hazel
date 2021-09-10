@@ -121,16 +121,17 @@ let perform =
   /* Backspace and Delete */
 
   | (Backspace, CursorTag(OnDelim(_0, After), EmptyTagHole(_) as operand)) =>
-    let ztag = ZTag.place_before(operand);
-    ZTag.is_after(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(Before);
-  | (Delete, CursorTag(OnDelim(_0, Before), EmptyTagHole(_) as operand)) =>
-    let ztag = operand |> ZTag.place_after;
-    ZTag.is_before(ztag) ? Succeeded((ztag, u_gen)) : CursorEscaped(After);
+    ZTag.is_after(ztag)
+      ? Succeeded((ZTag.place_before(operand), u_gen))
+      : CursorEscaped(Before)
 
-  | (Backspace, CursorTag(OnDelim(_0, Before), EmptyTagHole(_))) =>
-    CursorEscaped(Before)
-  | (Delete, CursorTag(OnDelim(_0, After), EmptyTagHole(_))) =>
-    CursorEscaped(After)
+  | (Delete, CursorTag(OnDelim(_0, Before), EmptyTagHole(_) as operand)) =>
+    ZTag.is_before(ztag)
+      ? Succeeded((ZTag.place_after(operand), u_gen)) : CursorEscaped(After)
+
+  | (Backspace, CursorTag(OnDelim(_0, side), EmptyTagHole(_)))
+  | (Delete, CursorTag(OnDelim(_0, side), EmptyTagHole(_))) =>
+    CursorEscaped(side)
 
   | (Backspace, CursorTag(OnText(j), Tag(_, t))) =>
     switch (String.length(t)) {
