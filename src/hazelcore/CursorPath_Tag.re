@@ -17,8 +17,7 @@ let of_steps =
   | _ => None
   };
 
-let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) => {
-  print_endline("CPTag FOLLOW");
+let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) =>
   switch (path) {
   | ([], OnDelim((-1), side)) =>
     switch (side) {
@@ -28,7 +27,6 @@ let follow = (path: CursorPath.t, tag: UHTag.t): option(ZTag.t) => {
   | ([], cursor) => Some(CursorTag(cursor, tag))
   | _ => None
   };
-};
 
 let holes =
     (tag: UHTag.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hole_list)

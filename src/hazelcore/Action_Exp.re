@@ -593,8 +593,7 @@ let rec syn_perform =
           a: Action.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
-        : ActionOutcome.t(syn_done) => {
-  print_endline("AE SYN_PERFORM");
+        : ActionOutcome.t(syn_done) =>
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -609,8 +608,8 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  };
-}
+  }
+
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -621,15 +620,7 @@ and syn_perform_block =
         u_gen: MetaVarGen.t,
       ),
     )
-    : ActionOutcome.t(syn_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("AE SYN_PERFORM_BLOCK");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_zblock(zblock)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
+    : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(_)
@@ -810,12 +801,11 @@ and syn_perform_block =
         }
       }
     }
-  };
-}
+  }
+
 and syn_perform_line =
     (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
     : ActionOutcome.t(line_success) => {
-  print_endline("AE SYN_PERFORM_LINE");
   let mk_result = (u_gen, zlines): ActionOutcome.t(_) =>
     switch (Statics_Exp.syn_lines(ctx, ZExp.erase_zblock(zlines))) {
     | None => Failed
@@ -1096,8 +1086,7 @@ and syn_perform_opseq =
         u_gen: MetaVarGen.t,
       ),
     )
-    : ActionOutcome.t(syn_success) => {
-  print_endline("AE SYN_PERFORM_OPSEQ");
+    : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1403,16 +1392,15 @@ and syn_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
+
 and syn_perform_operand =
     (
       ctx: Contexts.t,
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
-  print_endline("AE SYN_PERFORM_OPERAND");
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1972,8 +1960,8 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
+
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2273,8 +2261,7 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  print_endline("AE ANA_PERFORM");
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2289,8 +2276,8 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  };
-}
+  }
+
 and ana_perform_block =
     (
       ctx: Contexts.t,
@@ -2468,6 +2455,7 @@ and ana_perform_block =
       }
     }
   }
+
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -2475,8 +2463,7 @@ and ana_perform_opseq =
       (ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) => {
-  print_endline("AE ANA_PERFORM_OPSEQ");
+    : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2812,8 +2799,8 @@ and ana_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
+
 and ana_perform_operand =
     (
       ctx: Contexts.t,
@@ -2821,8 +2808,7 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) => {
-  print_endline("AE ANA_PERFORM_OPERAND");
+    : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3361,8 +3347,8 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
+
 and ana_perform_subsume =
     (
       ctx: Contexts.t,

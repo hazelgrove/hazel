@@ -89,16 +89,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  let result =
-    UHDecorationPaths.{current_term, err_holes, var_uses, var_err_holes};
-  Sexplib.Sexp.(
-    {
-      print_endline("GET_DECORATION_PATHS");
-      print_endline(to_string_hum(UHExp.sexp_of_t(get_uhexp(program))));
-      print_endline(to_string_hum(UHDecorationPaths.sexp_of_t(result)));
-    }
-  );
-  result;
+  {current_term, err_holes, var_uses, var_err_holes};
 };
 
 exception DoesNotElaborate;
