@@ -172,6 +172,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Int
     | Float
     | Bool
+    | String
     | Parenthesized(_)
     | List(_) => MaxLen
     }

@@ -31,7 +31,8 @@ and follow_operand =
     | Unit
     | Int
     | Float
-    | Bool => None
+    | Bool
+    | String => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -89,7 +90,8 @@ and of_steps_operand =
     | Unit
     | Int
     | Float
-    | Bool => None
+    | Bool
+    | String => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -154,7 +156,8 @@ and holes_operand =
   | Unit
   | Int
   | Float
-  | Bool => hs
+  | Bool
+  | String => hs
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   };
@@ -183,7 +186,7 @@ and holes_zoperand =
       ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
     )
-  | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
+  | CursorT(_, Unit | Int | Float | Bool | String) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);
     switch (k) {

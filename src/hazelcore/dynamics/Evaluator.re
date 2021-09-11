@@ -24,6 +24,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Bool
   | Int
   | Float
+  | String
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground

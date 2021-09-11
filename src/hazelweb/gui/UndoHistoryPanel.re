@@ -242,6 +242,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [indicate_words_view("type: "), code_keywords_view("Bool")],
         )
       )
+    | String =>
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("type: "), code_keywords_view("String")],
+        )
+      )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
     };

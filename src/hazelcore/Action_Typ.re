@@ -263,7 +263,10 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-  | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
+  | (
+      Backspace,
+      CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String),
+    ) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
   /* ( _ )<|  ==>  _| */

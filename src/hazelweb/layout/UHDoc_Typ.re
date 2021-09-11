@@ -55,6 +55,7 @@ and mk_operand =
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()
         | Bool => UHDoc_common.mk_Bool()
+        | String => UHDoc_common.mk_String()
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
