@@ -1673,6 +1673,7 @@ and syn_perform_operand =
       )),
     )
   | (Construct(SCloseParens), CursorE(_, _)) => Failed
+
   | (Construct(SCloseBraces), LamZE(_, _, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -1695,6 +1696,8 @@ and syn_perform_operand =
         u_gen,
       )),
     )
+  | (Construct(SCloseBraces), CursorE(_)) => Failed
+
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1979,7 +1982,6 @@ and syn_perform_operand =
         };
       }
     }
-  | (Construct(SCloseBraces), _) => Failed
   }
 and syn_perform_rules =
     (
@@ -3110,6 +3112,7 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, u_gen)));
     };
+
   | (Construct(SCloseBraces), LamZE(_, _, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -3130,6 +3133,8 @@ and ana_perform_operand =
         u_gen,
       )),
     )
+  | (Construct(SCloseBraces), CursorE(_, _)) => Failed
+
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -3360,8 +3365,6 @@ and ana_perform_operand =
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
-
-  | (Construct(SCloseBraces), _) => Failed
 
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)

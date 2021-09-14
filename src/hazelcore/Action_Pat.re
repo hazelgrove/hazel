@@ -802,7 +802,8 @@ and syn_perform_operand =
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
-  | (Construct(SCloseBraces), _) => Failed
+
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
 
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>
@@ -1387,7 +1388,8 @@ and ana_perform_operand =
         ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded((zp, ctx, u_gen));
     }
-  | (Construct(SCloseBraces), _) => Failed
+
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
 
   | (Construct(SCloseParens), InjZ(err, side, zopseq))
       when ZPat.is_after(zopseq) =>

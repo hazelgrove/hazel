@@ -169,7 +169,6 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
 let rec move_cursor_right = (zty: t): option(t) =>
   zty |> move_cursor_right_zopseq
 and move_cursor_right_zopseq = zopseq => {
-  print_endline("ZTyp move_cursor_right_zopseq");
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
     ~move_cursor_right_zoperator,

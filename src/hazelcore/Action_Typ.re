@@ -301,7 +301,8 @@ and perform_operand =
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
-  | (Construct(SCloseBraces), _) => Failed
+
+  | (Construct(SCloseBraces), CursorT(_)) => Failed
 
   | (Construct(SCloseParens), ParenthesizedZ(zopseq))
       when ZTyp.is_after(zopseq) =>
