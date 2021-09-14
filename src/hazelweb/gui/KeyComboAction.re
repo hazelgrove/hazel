@@ -46,7 +46,7 @@ let get_model_action_from_kc =
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
-  | Ctrl_S => Some(SerializeToConsole)
+  | Ctrl_S => Some(SerializeToConsole(UHExp))
   | Ctrl_Shift_S => Some(SerializeZexpToConsole)
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)
@@ -84,8 +84,8 @@ let get_model_action =
   let single_key = JSUtil.is_single_key(evt, alpha_regexp);
   let single_key_in_comment = JSUtil.is_single_key(evt, char_regexp);
 
-  JSUtil.log(evt##.key);
-  JSUtil.log(Key.get_key(evt));
+  /* JSUtil.log(evt##.key); */
+  /* JSUtil.log(Key.get_key(evt)); */
 
   switch (key_combo, single_key, single_key_in_comment) {
   | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
