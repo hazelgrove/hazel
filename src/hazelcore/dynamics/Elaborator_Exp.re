@@ -86,7 +86,7 @@ and syn_elab_line =
             FixF(
               x,
               ty1',
-              Environment.subst_var(
+              Evaluator.subst_var(
                 DHExp.cast(BoundVar(x), ty1', ty1),
                 x,
                 d1,
