@@ -1400,7 +1400,6 @@ and syn_perform_operand =
     )
     : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
-  | (Init, _) => failwith("Init action should not be performed.")
   /* Invalid cursor positions */
   | (
       _,
@@ -1983,6 +1982,7 @@ and syn_perform_operand =
         };
       }
     }
+  | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_rules =
     (

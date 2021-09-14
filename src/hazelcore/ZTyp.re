@@ -168,7 +168,7 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
 
 let rec move_cursor_right = (zty: t): option(t) =>
   zty |> move_cursor_right_zopseq
-and move_cursor_right_zopseq = zopseq => {
+and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
     ~move_cursor_right_zoperator,
@@ -177,31 +177,25 @@ and move_cursor_right_zopseq = zopseq => {
     ~erase_zoperand,
     ~erase_zoperator,
     zopseq,
-  );
-}
+  )
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorT(OnOp(_) | OnText(_), _) => None
-  | CursorT(OnDelim(k, Before), ty) => {
-      Some(CursorT(OnDelim(k, After), ty));
-    }
-  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool) => {
-      None;
-    }
-  | CursorT(OnDelim(_k, After), Parenthesized(ty1)) => {
-      // _k == 0
-      Some(ParenthesizedZ(place_before(ty1)));
-    }
+  | CursorT(OnDelim(k, Before), ty) =>
+    Some(CursorT(OnDelim(k, After), ty))
+  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool) => None
+  | CursorT(OnDelim(_k, After), Parenthesized(ty1)) =>
+    // _k == 0
+    Some(ParenthesizedZ(place_before(ty1)))
   | CursorT(OnDelim(_k, After), List(ty1)) =>
     // _k == 0
     Some(ListZ(place_before(ty1)))
-  | ParenthesizedZ(zty1) => {
-      switch (move_cursor_right(zty1)) {
-      | Some(zty1) => Some(ParenthesizedZ(zty1))
-      | None =>
-        Some(CursorT(OnDelim(1, Before), Parenthesized(erase(zty1))))
-      };
+  | ParenthesizedZ(zty1) =>
+    switch (move_cursor_right(zty1)) {
+    | Some(zty1) => Some(ParenthesizedZ(zty1))
+    | None =>
+      Some(CursorT(OnDelim(1, Before), Parenthesized(erase(zty1))))
     }
   | ListZ(zty1) =>
     switch (move_cursor_right(zty1)) {
