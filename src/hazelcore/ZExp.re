@@ -1004,6 +1004,37 @@ and cursor_on_EmptyHole_zrule =
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
 
+let rec cursor_on_EmptyTagHole = ze => cursor_on_EmptyTagHole_zblock(ze)
+and cursor_on_EmptyTagHole_zblock = ((_, zline, _)) =>
+  cursor_on_EmptyTagHole_zline(zline)
+and cursor_on_EmptyTagHole_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => cursor_on_EmptyTagHole_zopseq(zopseq)
+  | LetLineZP(zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
+  | LetLineZE(_, ze) => cursor_on_EmptyTagHole(ze)
+and cursor_on_EmptyTagHole_zopseq =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    cursor_on_EmptyTagHole_zoperand(zoperand)
+and cursor_on_EmptyTagHole_zoperand =
+  fun
+  | CursorE(_) => None
+  | InjZT(_, ztag, _) => ZTag.cursor_on_EmptyTagHole(ztag)
+  | LamZP(_, zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
+  | InjZE(_, _, ze)
+  | LamZE(_, _, ze)
+  | ParenthesizedZ(ze)
+  | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
+  | ApPaletteZ(_) => failwith("unimplemented")
+  | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyTagHole_zrule(zrule)
+and cursor_on_EmptyTagHole_zrule =
+  fun
+  | CursorR(_) => None
+  | RuleZP(zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
+  | RuleZE(_, ze) => cursor_on_EmptyTagHole(ze);
+
 let zline_is_just_empty_hole = (zline: zline): bool =>
   switch (zline) {
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))) =>

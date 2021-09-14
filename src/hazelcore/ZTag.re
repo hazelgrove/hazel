@@ -60,3 +60,12 @@ let move_cursor_right: t => option(t) =
   | CursorTag(OnDelim(0, Before), EmptyTagHole(_) as tag) =>
     Some(CursorTag(OnDelim(0, After), tag))
   | CursorTag(_, Tag(_) | EmptyTagHole(_)) => None;
+
+// type t = zoperand
+// and zoperand =
+//   | CursorTag(CursorPosition.t, UHTag.t);
+
+let cursor_on_EmptyTagHole: t => option(MetaVar.t) =
+  fun
+  | CursorTag(_, EmptyTagHole(u)) => Some(u)
+  | CursorTag(_, Tag(_)) => None;

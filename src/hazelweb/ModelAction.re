@@ -37,6 +37,7 @@ type t =
   | PrevCard
   | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
+  | SelectTagHole(MetaVar.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell
   | BlurCell

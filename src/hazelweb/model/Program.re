@@ -279,4 +279,10 @@ let move_via_key =
 
 let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
+
+let cursor_on_tag_hole_ =
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyTagHole);
+
 let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+
+let cursor_on_tag_hole = program => program |> get_zexp |> cursor_on_tag_hole_;

@@ -39,14 +39,17 @@ let view_of_layout =
                  ],
                  ds,
                )
-             | EmptyTagHole(_) => (
+             | EmptyTagHole(selected, u) => (
                  [
                    Node.span(
                      [
-                       Attr.classes(["EmptyTagHole"]),
-                       //  Attr.on_click(_ =>
-                       //    inject(ModelAction.SelectHoleInstance(inst))
-                       //  ),
+                       Attr.classes([
+                         "EmptyTagHole",
+                         ...selected ? ["selected"] : [],
+                       ]),
+                       Attr.on_click(_ =>
+                         inject(ModelAction.SelectTagHole(u))
+                       ),
                      ],
                      txt,
                    ),
@@ -90,6 +93,7 @@ let view =
       ~inject,
       ~settings: Settings.Evaluation.t,
       ~selected_instance: option(HoleInstance.t),
+      ~selected_tag_hole: option(MetaVar.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -97,7 +101,12 @@ let view =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(
+       ~settings,
+       ~enforce_inline=false,
+       ~selected_instance,
+       ~selected_tag_hole,
+     )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -111,6 +120,7 @@ let view_of_hole_instance =
       ~width: int,
       ~pos=0,
       ~selected_instance,
+      ~selected_tag_hole,
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       (u, i): HoleInstance.t,
@@ -120,6 +130,7 @@ let view_of_hole_instance =
     ~inject,
     ~settings,
     ~selected_instance,
+    ~selected_tag_hole,
     ~font_metrics,
     ~width,
     ~pos,

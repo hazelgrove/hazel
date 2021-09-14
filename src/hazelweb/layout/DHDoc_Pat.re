@@ -21,8 +21,14 @@ let precedence = (dp: DHPat.t) =>
   };
 
 let rec mk =
-        (~parenthesize=false, ~enforce_inline: bool, dp: DHPat.t): DHDoc.t => {
-  let mk' = mk(~enforce_inline);
+        (
+          ~parenthesize=false,
+          ~enforce_inline: bool,
+          ~selected_tag_hole: option(MetaVar.t),
+          dp: DHPat.t,
+        )
+        : DHDoc.t => {
+  let mk' = mk(~enforce_inline, ~selected_tag_hole);
   let mk_left_associative_operands = (precedence_op, dp1, dp2) => (
     mk'(~parenthesize=precedence(dp1) > precedence_op, dp1),
     mk'(~parenthesize=precedence(dp2) >= precedence_op, dp2),
@@ -45,11 +51,16 @@ let rec mk =
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
     | Inj((tag, body_opt)) =>
-      let tag_doc = DHDoc_Tag.mk(~enforce_inline, tag);
+      let tag_doc = DHDoc_Tag.mk(~enforce_inline, ~selected_tag_hole, tag);
       let padded_child_opt =
         switch (body_opt) {
         | Some(body) =>
-          Some(DHDoc_common.pad_child(~enforce_inline, mk(body)))
+          Some(
+            DHDoc_common.pad_child(
+              ~enforce_inline,
+              mk(~selected_tag_hole, body),
+            ),
+          )
         | None => None
         };
       DHDoc_common.mk_Inj(tag_doc, padded_child_opt);

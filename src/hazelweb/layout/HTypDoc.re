@@ -25,9 +25,16 @@ let pad_child =
 
 let mk_delim = s => Doc.(annot(HTypAnnot.Delim, text(s)));
 
-let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
+let rec mk =
+        (
+          ~parenthesize=false,
+          ~enforce_inline: bool,
+          ~selected_tag_hole: option(MetaVar.t),
+          ty: HTyp.t,
+        )
+        : t => {
   open Doc;
-  let mk' = mk(~enforce_inline);
+  let mk' = mk(~enforce_inline, ~selected_tag_hole);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
     mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
     mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
@@ -41,7 +48,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | List(ty) =>
       hcats([
         mk_delim("["),
-        mk(ty) |> pad_child(~enforce_inline),
+        mk(~selected_tag_hole, ty) |> pad_child(~enforce_inline),
         mk_delim("]"),
       ])
     | Arrow(ty1, ty2) =>
@@ -76,15 +83,23 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
          )
       |> hcats
     | Sum(tymap) =>
-      let mk_member = ((tag, ty_opt)) =>
-        switch (ty_opt) {
-        | Some(ty) =>
-          hcats([
-            HTypDoc_Tag.mk(tag),
-            mk(~enforce_inline, ~parenthesize=true, ty),
-          ])
-        | None => HTypDoc_Tag.mk(tag)
-        };
+      let mk_member = ((tag, ty_opt)) => {
+        let tag_doc = HTypDoc_Tag.mk(tag);
+        let maybe_ty_doc =
+          ty_opt
+          |> Option.map(ty =>
+               [
+                 mk(
+                   ~enforce_inline,
+                   ~parenthesize=true,
+                   ~selected_tag_hole,
+                   ty,
+                 ),
+               ]
+             )
+          |> Option.value(~default=[]);
+        hcats([tag_doc, ...maybe_ty_doc]);
+      };
       switch (TagMap.bindings(tymap)) {
       | [] => hcat(mk_delim("sum {"), mk_delim("}"))
       | bindings =>

@@ -89,6 +89,7 @@ module Delim = {
   let arrow_Rule = mk("=>");
 
   let open_Cast = mk("<");
+
   let arrow_Cast = mk(Unicode.castArrowSym);
   let close_Cast = mk(">");
 
@@ -102,8 +103,8 @@ let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
-let mk_TagHole = u =>
-  Delim.tag_hole(u) |> Doc.annot(DHAnnot.EmptyTagHole(u));
+let mk_TagHole = (~selected=false, u: MetaVar.t): DHDoc.t =>
+  Delim.tag_hole(u) |> Doc.annot(DHAnnot.EmptyTagHole(selected, u));
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))

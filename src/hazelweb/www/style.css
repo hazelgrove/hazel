@@ -1219,6 +1219,16 @@ h1 {
   border: 1px solid var(--empty-hole-color);
 }
 
+.HTypCode .EmptyTagHole {
+  /* border-bottom: 1px solid var(--empty-hole-color); */
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.HTypCode .EmptyTagHole.selected {
+  box-sizing: border-box;
+  border: 1px solid var(--empty-hole-color);
+}
+
 .selected-instance {
   border: 1px solid var(--empty-hole-color);
 }

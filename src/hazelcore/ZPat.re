@@ -391,3 +391,18 @@ and move_cursor_right_zoperand =
       let+ zann = ZTyp.move_cursor_right(zann);
       TypeAnnZA(err, op, zann);
     };
+
+let rec cursor_on_EmptyTagHole = zp => cursor_on_EmptyTagHole_zopseq(zp)
+and cursor_on_EmptyTagHole_zopseq: t => option(MetaVar.t) =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    cursor_on_EmptyTagHole_zoperand(zoperand)
+and cursor_on_EmptyTagHole_zoperand =
+  fun
+  | CursorP(_, _) => None
+  | ParenthesizedZ(zp) => cursor_on_EmptyTagHole(zp)
+  | TypeAnnZP(_, zp, _) => cursor_on_EmptyTagHole_zoperand(zp)
+  | TypeAnnZA(_, _, zty) => ZTyp.cursor_on_EmptyTagHole(zty)
+  | InjZT(_, ztag, _) => ZTag.cursor_on_EmptyTagHole(ztag)
+  | InjZP(_, _, zp) => cursor_on_EmptyTagHole(zp);

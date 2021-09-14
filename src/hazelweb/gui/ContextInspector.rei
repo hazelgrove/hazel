@@ -13,6 +13,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~selected_instance: option(HoleInstance.t),
+    ~selected_tag_hole: option(MetaVar.t),
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
     Program.t

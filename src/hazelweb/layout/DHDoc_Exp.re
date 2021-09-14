@@ -100,6 +100,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
+          ~selected_tag_hole: option(MetaVar.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -112,7 +113,7 @@ let rec mk =
           doc,
           annot(
             DHAnnot.CastDecoration,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
+            DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty),
           ),
         )
       )
@@ -138,7 +139,10 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_instance)),
+            drs
+            |> List.map(
+                 mk_rule(~settings, ~selected_instance, ~selected_tag_hole),
+               ),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -180,7 +184,7 @@ let rec mk =
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
       | Inj((_, tag, body_opt)) =>
-        let tag_doc = DHDoc_Tag.mk(~enforce_inline, tag);
+        let tag_doc = DHDoc_Tag.mk(~enforce_inline, ~selected_tag_hole, tag);
         let padded_child_opt =
           switch (body_opt) {
           | Some(body) =>
@@ -189,6 +193,14 @@ let rec mk =
             Some(DHDoc_common.pad_child(~enforce_inline, child));
           | None => None
           };
+        // let selected =
+        //   switch (tag) {
+        //   | Tag(_, _) => false
+        //   | EmptyTagHole(u) =>
+        //     selected_tag_hole
+        //     |> Option.map(MetaVar.eq(u))
+        //     |> Option.value(~default=false)
+        //   };
         DHDoc_common.mk_Inj(tag_doc, padded_child_opt);
       | InjError(reason, u, i, _sigma, inj) =>
         go'(Inj(inj)) |> mk_cast |> annot(DHAnnot.InjHole(reason, (u, i)))
@@ -228,7 +240,7 @@ let rec mk =
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
-            DHDoc_Pat.mk(dp)
+            DHDoc_Pat.mk(~selected_tag_hole, dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
                  ~enforce_inline,
@@ -249,9 +261,9 @@ let rec mk =
           hcats([
             DHDoc_common.Delim.open_FailedCast,
             hseps([
-              DHDoc_Typ.mk(~enforce_inline=true, ty1),
+              DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty1),
               DHDoc_common.Delim.arrow_FailedCast,
-              DHDoc_Typ.mk(~enforce_inline=true, ty3),
+              DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty3),
             ]),
             DHDoc_common.Delim.close_FailedCast,
           ])
@@ -293,9 +305,9 @@ let rec mk =
             mk_cast(go(~enforce_inline, dbody));
           hcats([
             DHDoc_common.Delim.sym_Lam,
-            DHDoc_Pat.mk(~enforce_inline=true, dp),
+            DHDoc_Pat.mk(~enforce_inline=true, ~selected_tag_hole, dp),
             DHDoc_common.Delim.colon_Lam,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
+            DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty),
             DHDoc_common.Delim.open_Lam,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Lam,
@@ -312,7 +324,7 @@ let rec mk =
             space(),
             text(x),
             DHDoc_common.Delim.colon_FixF,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
+            DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty),
             DHDoc_common.Delim.open_FixF,
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_FixF,
@@ -334,23 +346,34 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
+    (
+      ~settings,
+      ~selected_instance,
+      ~selected_tag_hole,
+      Rule(dp, dclause): DHExp.rule,
+    )
+    : DHDoc.t => {
   open Doc;
   let mk' = mk(~settings, ~selected_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses
       ? choices([
-          hcats([space(), mk'(~enforce_inline=true, dclause)]),
+          hcats([
+            space(),
+            mk'(~enforce_inline=true, ~selected_tag_hole, dclause),
+          ]),
           hcats([
             linebreak(),
-            indent_and_align(mk'(~enforce_inline=false, dclause)),
+            indent_and_align(
+              mk'(~enforce_inline=false, ~selected_tag_hole, dclause),
+            ),
           ]),
         ])
       : hcat(space(), hidden_clause);
   hcats([
     DHDoc_common.Delim.bar_Rule,
-    DHDoc_Pat.mk(dp)
+    DHDoc_Pat.mk(~selected_tag_hole, dp)
     |> DHDoc_common.pad_child(
          ~inline_padding=(space(), space()),
          ~enforce_inline=false,

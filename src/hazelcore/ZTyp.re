@@ -470,3 +470,30 @@ and move_cursor_right_zsumbody_operand =
     | None => Some(CursorArgTag(OnDelim(1, Before), tag, erase(zty)))
     }
   };
+
+let rec cursor_on_EmptyTagHole = zty => cursor_on_EmptyTagHole_zopseq(zty)
+and cursor_on_EmptyTagHole_zopseq: t => option(MetaVar.t) =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    cursor_on_EmptyTagHole_zoperand(zoperand)
+and cursor_on_EmptyTagHole_zoperand =
+  fun
+  | CursorT(_, _) => None
+  | ParenthesizedZ(zty) => cursor_on_EmptyTagHole(zty)
+  | ListZ(zty) => cursor_on_EmptyTagHole(zty)
+  | SumZ(zsumbody) => cursor_on_EmptyTagHole_zsumbody(zsumbody)
+
+and cursor_on_EmptyTagHole_zsumbody: zsumbody => option(MetaVar.t) =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    cursor_on_EmptyTagHole_zsumbody_operand(zoperand)
+
+and cursor_on_EmptyTagHole_zsumbody_operand:
+  zsumbody_operand => option(MetaVar.t) =
+  fun
+  | CursorArgTag(_, _, _) => None
+  | ConstTagZ(ztag)
+  | ArgTagZT(ztag, _) => ZTag.cursor_on_EmptyTagHole(ztag)
+  | ArgTagZA(_, zty) => cursor_on_EmptyTagHole(zty);

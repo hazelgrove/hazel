@@ -20,6 +20,7 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
 let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
   let selected_instance = Model.get_selected_hole_instance(model);
+  let selected_tag_hole = Model.get_selected_tag_hole(model);
   let (_, ty, _) = program.edit_state;
   let result =
     settings.evaluation.show_unevaluated_expansion
@@ -38,7 +39,10 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
                 [Attr.classes(["type-label"])],
                 [text("Result of type: ")],
               ),
-              div([Attr.classes(["htype-view"])], [HTypCode.view(ty)]),
+              div(
+                [Attr.classes(["htype-view"])],
+                [HTypCode.view(~inject, ~selected_tag_hole, ty)],
+              ),
             ],
           ),
         ],
@@ -49,6 +53,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
           DHCode.view(
             ~inject,
             ~selected_instance,
+            ~selected_tag_hole,
             ~settings=settings.evaluation,
             ~width=80,
             ~font_metrics=model.font_metrics,
@@ -69,12 +74,14 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
   let selected_instance = Model.get_selected_hole_instance(model);
+  let selected_tag_hole = Model.get_selected_tag_hole(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
-      CursorInspector.view(~inject, model),
+      CursorInspector.view(~inject, ~selected_tag_hole, model),
       ContextInspector.view(
         ~inject,
         ~selected_instance,
+        ~selected_tag_hole,
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
         program,

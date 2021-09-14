@@ -151,6 +151,9 @@ let get_selected_hole_instance = model =>
     Some((u, i));
   };
 
+let get_selected_tag_hole = model =>
+  model |> get_program |> Program.cursor_on_tag_hole;
+
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
@@ -158,6 +161,14 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
        Program.perform_edit_action(action, program);
      })
   |> map_selected_instances(UserSelectedInstances.add(u, i))
+  |> focus_cell;
+
+let select_tag_hole = (u: MetaVar.t, model: t): t =>
+  model
+  |> map_program(program => {
+       let action = Program.move_to_hole(u, program);
+       Program.perform_edit_action(action, program);
+     })
   |> focus_cell;
 
 let update_program = (a: Action.t, new_program, model) => {

@@ -72,6 +72,7 @@ let move_to_case_branch: (CursorPath.steps, int) => Action.t;
 let get_layout: (~settings: Settings.t, t) => UHLayout.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
+let cursor_on_tag_hole: t => option(MetaVar.t);
 
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;

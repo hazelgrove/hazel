@@ -5,24 +5,33 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
+let view =
+    (
+      ~inject: ModelAction.t => Event.t,
+      ~selected_tag_hole: option(MetaVar.t),
+      model: Model.t,
+    )
+    : Node.t => {
   let typebar = ty =>
-    Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
+    Node.div(
+      [Attr.classes(["infobar", "typebar"])],
+      [HTypCode.view(~inject, ~selected_tag_hole, ty)],
+    );
   let tagbar = tag =>
     Node.div(
       [Attr.classes(["infobar", "tagbar"])],
-      [HTypCode_Tag.view(tag)],
+      [HTypCode_Tag.view(~inject, ~selected_tag_hole, tag)],
     );
   let matched_ty_bar = (ty1, ty2) =>
     Node.div(
       [Attr.classes(["infobar", "matched-type-bar"])],
       [
-        HTypCode.view(ty1),
+        HTypCode.view(~inject, ~selected_tag_hole, ty1),
         Node.span(
           [Attr.classes(["matched-connective"])],
           [Node.text(" ▶ ")],
         ),
-        HTypCode.view(ty2),
+        HTypCode.view(~inject, ~selected_tag_hole, ty2),
       ],
     );
   let inconsistent_branches_ty_bar =
@@ -47,7 +56,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
                 inject(SelectCaseBranch(path_to_case, shifted_index))
               }),
             ],
-            [HTypCode.view(ty)],
+            [HTypCode.view(~inject, ~selected_tag_hole, ty)],
           );
         },
         branch_types,

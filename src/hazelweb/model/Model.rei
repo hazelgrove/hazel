@@ -49,6 +49,9 @@ let is_cell_focused: t => bool;
 let select_hole_instance: (HoleInstance.t, t) => t;
 let get_selected_hole_instance: t => option(HoleInstance.t);
 
+let select_tag_hole: (MetaVar.t, t) => t;
+let get_selected_tag_hole: t => option(MetaVar.t);
+
 let prev_card: t => t;
 let next_card: t => t;
 let nth_card: (int, t) => t;

@@ -76,7 +76,7 @@ module Delim: {
 
 let mk_EmptyHole: (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => DHDoc.t;
 
-let mk_TagHole: MetaVar.t => DHDoc.t;
+let mk_TagHole: (~selected: bool=?, MetaVar.t) => DHDoc.t;
 
 let mk_Keyword: (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => DHDoc.t;
 
