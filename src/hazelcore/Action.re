@@ -24,6 +24,7 @@ type shape =
   | SParenthesized
   | SCloseParens
   | SCloseBraces
+  | SCloseSquareBracket
   | SChar(string)
   | SAnn
   | SLam

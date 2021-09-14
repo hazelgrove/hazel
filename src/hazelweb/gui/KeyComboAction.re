@@ -24,6 +24,7 @@ let get_model_action =
   | LeftParen => construct(SParenthesized)
   | RightParen => construct(SCloseParens)
   | RightBrace => construct(SCloseBraces)
+  | RightSquareBracket => construct(SCloseSquareBracket)
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)

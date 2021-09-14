@@ -503,6 +503,7 @@ let get_new_action_group =
       | SParenthesized
       | SCloseParens
       | SCloseBraces
+      | SCloseSquareBracket
       | SList
       | SAnn
       | SLam

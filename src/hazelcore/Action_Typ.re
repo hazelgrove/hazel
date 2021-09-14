@@ -299,6 +299,15 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
 
+  | (Construct(SCloseSquareBracket), ListZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
 

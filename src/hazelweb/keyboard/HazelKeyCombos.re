@@ -14,6 +14,7 @@ type t =
   | LeftParen
   | RightParen
   | RightBrace
+  | RightSquareBracket
   | Colon
   | Equals
   | Enter
@@ -60,6 +61,7 @@ let get_details =
   | LeftParen => KeyCombo.left_paren
   | RightParen => KeyCombo.right_paren
   | RightBrace => KeyCombo.right_brace
+  | RightSquareBracket => KeyCombo.right_square_bracket
   | Colon => KeyCombo.colon
   | Equals => KeyCombo.equals
   | Enter => KeyCombo.enter
@@ -117,6 +119,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(RightParen);
   } else if (evt_matches(KeyCombo.right_brace)) {
     Some(RightBrace);
+  } else if (evt_matches(KeyCombo.right_square_bracket)) {
+    Some(RightSquareBracket);
   } else if (evt_matches(KeyCombo.colon)) {
     Some(Colon);
   } else if (evt_matches(KeyCombo.equals)) {

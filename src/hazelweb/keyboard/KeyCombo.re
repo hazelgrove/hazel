@@ -38,6 +38,7 @@ let left_paren = no_ctrlOrCmd_alt(Key.the_key("("));
 let right_paren = no_ctrlOrCmd_alt(Key.the_key(")"));
 let left_bracket = no_ctrlOrCmd_alt(Key.the_key("["));
 let right_brace = no_ctrlOrCmd_alt(Key.the_key("}"));
+let right_square_bracket = no_ctrlOrCmd_alt(Key.the_key("]"));
 let equals = no_ctrlOrCmd_alt(Key.the_key("="));
 let pound = no_ctrlOrCmd_alt(Key.the_key("#"));
 let plus = no_ctrlOrCmd_alt(Key.the_key("+"));

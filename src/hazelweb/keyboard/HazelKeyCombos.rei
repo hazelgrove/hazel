@@ -14,6 +14,7 @@ type t =
   | LeftParen
   | RightParen
   | RightBrace
+  | RightSquareBracket
   | Colon
   | Equals
   | Enter

@@ -1424,6 +1424,7 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2899,6 +2900,8 @@ and ana_perform_operand =
 
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
+
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
   /* Backspace & Delete */
 

@@ -6,6 +6,7 @@ let shape_to_string = (shape: shape): string => {
   | SParenthesized => "parentheses"
   | SCloseParens => "closing parens"
   | SCloseBraces => "closing brace"
+  | SCloseSquareBracket => "closing square bracket"
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"
