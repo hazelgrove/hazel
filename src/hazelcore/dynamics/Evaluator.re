@@ -38,6 +38,457 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | List(_) => grounded_List
   };
 
+type match_result =
+  | Matches(Environment.t)
+  | DoesNotMatch
+  | Indet;
+
+let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
+  switch (dp, d) {
+  | (_, BoundVar(_)) => DoesNotMatch
+  | (EmptyHole(_, _), _)
+  | (NonEmptyHole(_, _, _, _), _) => Indet
+  | (Wild, _) => Matches(Environment.empty)
+  | (Keyword(_, _, _), _) => DoesNotMatch
+  | (InvalidText(_), _) => Indet
+  | (Var(x), _) =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
+  | (_, EmptyHole(_, _, _)) => Indet
+  | (_, NonEmptyHole(_, _, _, _, _)) => Indet
+  | (_, FailedCast(_, _, _)) => Indet
+  | (_, InvalidOperation(_)) => Indet
+  | (_, FreeVar(_, _, _, _)) => Indet
+  | (_, InvalidText(_)) => Indet
+  | (_, Let(_, _, _)) => Indet
+  | (_, FixF(_, _, _)) => DoesNotMatch
+  | (_, Lam(_, _, _)) => DoesNotMatch
+  | (_, Ap(_, _)) => Indet
+  | (_, BinBoolOp(_, _, _)) => Indet
+  | (_, BinIntOp(_, _, _)) => Indet
+  | (_, BinFloatOp(_, _, _)) => Indet
+  | (_, ConsistentCase(Case(_, _, _))) => Indet
+  | (BoolLit(b1), BoolLit(b2)) =>
+    if (b1 == b2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (BoolLit(_), Cast(d, Bool, Hole)) => matches(dp, d)
+  | (BoolLit(_), Cast(d, Hole, Bool)) => matches(dp, d)
+  | (BoolLit(_), _) => DoesNotMatch
+  | (IntLit(n1), IntLit(n2)) =>
+    if (n1 == n2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (IntLit(_), Cast(d, Int, Hole)) => matches(dp, d)
+  | (IntLit(_), Cast(d, Hole, Int)) => matches(dp, d)
+  | (IntLit(_), _) => DoesNotMatch
+  | (FloatLit(n1), FloatLit(n2)) =>
+    if (n1 == n2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
+  | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
+  | (FloatLit(_), _) => DoesNotMatch
+  | (Inj(side1, dp), Inj(_, side2, d)) =>
+    switch (side1, side2) {
+    | (L, L)
+    | (R, R) => matches(dp, d)
+    | _ => DoesNotMatch
+    }
+  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
+    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
+  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
+  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
+  | (Inj(_, _), _) => DoesNotMatch
+  | (Pair(dp1, dp2), Pair(d1, d2)) =>
+    switch (matches(dp1, d1)) {
+    | DoesNotMatch => DoesNotMatch
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
+    | Matches(env1) =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env2) => Matches(Environment.union(env1, env2))
+      }
+    }
+  | (
+      Pair(dp1, dp2),
+      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
+    ) =>
+    matches_cast_Pair(
+      dp1,
+      dp2,
+      d,
+      [(head1, head2)],
+      List.combine(tail1, tail2),
+    )
+  | (Pair(_, _), Cast(d, Hole, Prod(_)))
+  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
+  | (Pair(_, _), _) => DoesNotMatch
+  | (Triv, Triv) => Matches(Environment.empty)
+  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
+  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
+  | (Triv, _) => DoesNotMatch
+  | (ListNil, ListNil(_)) => Matches(Environment.empty)
+  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
+  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
+  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
+  | (ListNil, _) => DoesNotMatch
+  | (Cons(dp1, dp2), Cons(d1, d2)) =>
+    switch (matches(dp1, d1)) {
+    | DoesNotMatch => DoesNotMatch
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
+    | Matches(env1) =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env2) => Matches(Environment.union(env1, env2))
+      }
+    }
+  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
+    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
+  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(_, _), _) => DoesNotMatch
+  | (Ap(_, _), _) => DoesNotMatch
+  }
+and matches_cast_Inj =
+    (
+      side: InjSide.t,
+      dp: DHPat.t,
+      d: DHExp.t,
+      casts: list((HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
+    )
+    : match_result =>
+  switch (d) {
+  | Inj(_, side', d') =>
+    switch (side, side') {
+    | (L, L)
+    | (R, R) =>
+      let side_casts =
+        List.map(
+          (c: (HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
+            let (tyL1, tyR1, tyL2, tyR2) = c;
+            switch (side) {
+            | L => (tyL1, tyL2)
+            | R => (tyR1, tyR2)
+            };
+          },
+          casts,
+        );
+      matches(dp, DHExp.apply_casts(d', side_casts));
+    | _ => DoesNotMatch
+    }
+  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
+  | Cast(d', Sum(_, _), Hole)
+  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(_, _, _) => DoesNotMatch
+  | BoundVar(_) => DoesNotMatch
+  | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
+  | Keyword(_, _, _, _) => Indet
+  | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
+  | Lam(_, _, _) => DoesNotMatch
+  | Ap(_, _) => Indet
+  | BinBoolOp(_, _, _)
+  | BinIntOp(_, _, _)
+  | BinFloatOp(_, _, _)
+  | BoolLit(_) => DoesNotMatch
+  | IntLit(_) => DoesNotMatch
+  | FloatLit(_) => DoesNotMatch
+  | ListNil(_) => DoesNotMatch
+  | Cons(_, _) => DoesNotMatch
+  | Pair(_, _) => DoesNotMatch
+  | Triv => DoesNotMatch
+  | ConsistentCase(_)
+  | InconsistentBranches(_) => Indet
+  | EmptyHole(_, _, _) => Indet
+  | NonEmptyHole(_, _, _, _, _) => Indet
+  | FailedCast(_, _, _) => Indet
+  | InvalidOperation(_) => Indet
+  }
+and matches_cast_Pair =
+    (
+      dp1: DHPat.t,
+      dp2: DHPat.t,
+      d: DHExp.t,
+      left_casts: list((HTyp.t, HTyp.t)),
+      right_casts: list((HTyp.t, HTyp.t)),
+    )
+    : match_result =>
+  switch (d) {
+  | Pair(d1, d2) =>
+    switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
+    | DoesNotMatch => DoesNotMatch
+    | Indet =>
+      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
+    | Matches(env1) =>
+      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env2) => Matches(Environment.union(env1, env2))
+      }
+    }
+  | Cast(d', Prod([]), Prod([])) =>
+    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
+    matches_cast_Pair(
+      dp1,
+      dp2,
+      d',
+      [(head1, head2), ...left_casts],
+      List.combine(tail1, tail2) @ right_casts,
+    )
+  | Cast(d', Prod(_), Hole)
+  | Cast(d', Hole, Prod(_)) =>
+    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Cast(_, _, _) => DoesNotMatch
+  | BoundVar(_) => DoesNotMatch
+  | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
+  | Keyword(_, _, _, _) => Indet
+  | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
+  | Lam(_, _, _) => DoesNotMatch
+  | Ap(_, _) => Indet
+  | BinBoolOp(_, _, _)
+  | BinIntOp(_, _, _)
+  | BinFloatOp(_, _, _)
+  | BoolLit(_) => DoesNotMatch
+  | IntLit(_) => DoesNotMatch
+  | FloatLit(_) => DoesNotMatch
+  | Inj(_, _, _) => DoesNotMatch
+  | ListNil(_) => DoesNotMatch
+  | Cons(_, _) => DoesNotMatch
+  | Triv => DoesNotMatch
+  | ConsistentCase(_)
+  | InconsistentBranches(_) => Indet
+  | EmptyHole(_, _, _) => Indet
+  | NonEmptyHole(_, _, _, _, _) => Indet
+  | FailedCast(_, _, _) => Indet
+  | InvalidOperation(_) => Indet
+  }
+and matches_cast_Cons =
+    (
+      dp1: DHPat.t,
+      dp2: DHPat.t,
+      d: DHExp.t,
+      elt_casts: list((HTyp.t, HTyp.t)),
+    )
+    : match_result =>
+  switch (d) {
+  | Cons(d1, d2) =>
+    switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+    | DoesNotMatch => DoesNotMatch
+    | Indet =>
+      let list_casts =
+        List.map(
+          (c: (HTyp.t, HTyp.t)) => {
+            let (ty1, ty2) = c;
+            (HTyp.List(ty1), HTyp.List(ty2));
+          },
+          elt_casts,
+        );
+      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      };
+    | Matches(env1) =>
+      let list_casts =
+        List.map(
+          (c: (HTyp.t, HTyp.t)) => {
+            let (ty1, ty2) = c;
+            (HTyp.List(ty1), HTyp.List(ty2));
+          },
+          elt_casts,
+        );
+      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env2) => Matches(Environment.union(env1, env2))
+      };
+    }
+  | Cast(d', List(ty1), List(ty2)) =>
+    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
+  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(_, _, _) => DoesNotMatch
+  | BoundVar(_) => DoesNotMatch
+  | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
+  | Keyword(_, _, _, _) => Indet
+  | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
+  | Lam(_, _, _) => DoesNotMatch
+  | Ap(_, _) => Indet
+  | BinBoolOp(_, _, _)
+  | BinIntOp(_, _, _)
+  | BinFloatOp(_, _, _)
+  | BoolLit(_) => DoesNotMatch
+  | IntLit(_) => DoesNotMatch
+  | FloatLit(_) => DoesNotMatch
+  | Inj(_, _, _) => DoesNotMatch
+  | ListNil(_) => DoesNotMatch
+  | Pair(_, _) => DoesNotMatch
+  | Triv => DoesNotMatch
+  | ConsistentCase(_)
+  | InconsistentBranches(_) => Indet
+  | EmptyHole(_, _, _) => Indet
+  | NonEmptyHole(_, _, _, _, _) => Indet
+  | FailedCast(_, _, _) => Indet
+  | InvalidOperation(_) => Indet
+  };
+
+/* closed substitution [d1/x]d2*/
+let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
+  switch (d2) {
+  | BoundVar(y) =>
+    if (Var.eq(x, y)) {
+      d1;
+    } else {
+      d2;
+    }
+  | FreeVar(_) => d2
+  | InvalidText(_) => d2
+  | Keyword(_) => d2
+  | Let(dp, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 =
+      if (DHPat.binds_var(x, dp)) {
+        d4;
+      } else {
+        subst_var(d1, x, d4);
+      };
+    Let(dp, d3, d4);
+  | FixF(y, ty, d3) =>
+    let d3 =
+      if (Var.eq(x, y)) {
+        d3;
+      } else {
+        subst_var(d1, x, d3);
+      };
+    FixF(y, ty, d3);
+  | Lam(dp, ty, d3) =>
+    if (DHPat.binds_var(x, dp)) {
+      d2;
+    } else {
+      let d3 = subst_var(d1, x, d3);
+      Lam(dp, ty, d3);
+    }
+  | Ap(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Ap(d3, d4);
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => d2
+  | Cons(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Cons(d3, d4);
+  | BinBoolOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinBoolOp(op, d3, d4);
+  | BinIntOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinIntOp(op, d3, d4);
+  | BinFloatOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinFloatOp(op, d3, d4);
+  | Inj(ty, side, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    Inj(ty, side, d3);
+  | Pair(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Pair(d3, d4);
+  | ConsistentCase(Case(d3, rules, n)) =>
+    let d3 = subst_var(d1, x, d3);
+    let rules = subst_var_rules(d1, x, rules);
+    ConsistentCase(Case(d3, rules, n));
+  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+    let d3 = subst_var(d1, x, d3);
+    let rules = subst_var_rules(d1, x, rules);
+    let sigma' = subst_var_env(d1, x, sigma);
+    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+  | EmptyHole(u, i, sigma) =>
+    let sigma' = subst_var_env(d1, x, sigma);
+    EmptyHole(u, i, sigma');
+  | NonEmptyHole(reason, u, i, sigma, d3) =>
+    let d3' = subst_var(d1, x, d3);
+    let sigma' = subst_var_env(d1, x, sigma);
+    NonEmptyHole(reason, u, i, sigma', d3');
+  | Cast(d, ty1, ty2) =>
+    let d' = subst_var(d1, x, d);
+    Cast(d', ty1, ty2);
+  | FailedCast(d, ty1, ty2) =>
+    let d' = subst_var(d1, x, d);
+    FailedCast(d', ty1, ty2);
+  | InvalidOperation(d, err) =>
+    let d' = subst_var(d1, x, d);
+    InvalidOperation(d', err);
+  }
+
+and subst_var_rules =
+    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
+  rules
+  |> List.map((r: DHExp.rule) =>
+       switch (r) {
+       | Rule(dp, d2) =>
+         if (DHPat.binds_var(x, dp)) {
+           r;
+         } else {
+           Rule(dp, subst_var(d1, x, d2));
+         }
+       }
+     )
+
+and subst_var_env =
+    (d1: DHExp.t, x: Var.t, sigma: Environment.t): Environment.t =>
+  sigma
+  |> List.map(xd => {
+       let (y, d) = xd;
+       (y, subst_var(d1, x, d));
+     });
+
+let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
+  env
+  |> List.fold_left(
+       (d2, xd: (Var.t, DHExp.t)) => {
+         let (x, d1) = xd;
+         subst_var(d1, x, d2);
+       },
+       d,
+     );
+
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
   | And => BoolLit(b1 && b2)
@@ -77,13 +528,13 @@ let rec evaluate = (d: DHExp.t): result =>
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1)
     | Indet(d1) =>
-      switch (Elaborator_Exp.matches(dp, d1)) {
+      switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2))
+      | Matches(env) => evaluate(subst(env, d2))
       }
     }
-  | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
+  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
@@ -93,12 +544,12 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2)
       | Indet(d2) =>
-        switch (Elaborator_Exp.matches(dp, d2)) {
+        switch (matches(dp, d2)) {
         | DoesNotMatch => Indet(d)
         | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator_Exp.subst(env, d3))
+          evaluate(subst(env, d3))
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -339,7 +790,7 @@ and evaluate_case =
         Indet(InconsistentBranches(u, i, sigma, case))
       };
     | Some(Rule(dp, d)) =>
-      switch (Elaborator_Exp.matches(dp, scrut)) {
+      switch (matches(dp, scrut)) {
       | Indet =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
@@ -347,7 +798,7 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d))
+      | Matches(env) => evaluate(subst(env, d))
       | DoesNotMatch =>
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }

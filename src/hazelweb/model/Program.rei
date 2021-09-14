@@ -38,7 +38,7 @@ let get_decoration_paths: t => UHDecorationPaths.t;
  * (indicates a bug, either in that function or in Action
  * because Action needs to return a well-typed edit state) */
 exception DoesNotElaborate;
-let get_expansion: t => DHExp.t;
+let get_elaboration: t => DHExp.t;
 
 /**
  * Raised when evaluation fails with the InvalidInput output

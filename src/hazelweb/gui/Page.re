@@ -22,8 +22,8 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let selected_instance = Model.get_selected_hole_instance(model);
   let (_, ty, _) = program.edit_state;
   let result =
-    settings.evaluation.show_unevaluated_expansion
-      ? program |> Program.get_expansion
+    settings.evaluation.show_unevaluated_elaboration
+      ? program |> Program.get_elaboration
       : program |> Program.get_result |> Result.get_dhexp;
   div(
     [],
