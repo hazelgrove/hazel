@@ -464,16 +464,12 @@ let get_new_action_group =
       ~action: Action.t,
     )
     : option(UndoHistoryCore.action_group) =>
-  /* they areparens and bsraces basically results with movements but
-    * it is an edit action, therefore there is a need to make sure that
-    * the action is not Construct(SCloseParens) or Construct(SCloseBraces)
-   */
-  if (UndoHistoryCore.is_move_action(new_cursor_term_info)
-      && action != Construct(SCloseParens)
-      && action != Construct(SCloseBraces)) {
-    None;
-        /* It's a caret movement */
-  } else {
+  /**
+     * SCloseParens, SCloseBraces and SCloseSquareBrackets are edit actions
+     * (with no structural change) which result in movement of the cursor,
+     * therefore undoing them should be supported
+     */
+  (
     switch (action) {
     | Delete =>
       delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
@@ -661,8 +657,8 @@ let get_new_action_group =
     | Init => None
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
-    };
-  };
+    }
+  );
 let get_cursor_term_info =
     (
       ~new_cardstacks_after: ZCardstacks.t,
