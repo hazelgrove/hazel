@@ -1,0 +1,8 @@
+(include_subdirs no)
+
+(library
+ (name parse_test)
+ (inline_tests)
+ (libraries parser)
+ (preprocess
+  (pps ppx_let ppx_inline_test)))
