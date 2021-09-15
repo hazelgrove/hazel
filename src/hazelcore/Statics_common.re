@@ -26,8 +26,7 @@ let tuple_zip =
       //need to generate a set of pairs of skels with necessary hole type, generating ids as needed while extending a
       //prod type for a constraint involving the base hole
       let acc_skel_pairings = 
-        ((acc_skel_pairs, acc_holes): (list((Skel.t('op), HTyp.t)), list(HTyp.t)))
-        (elt: Skel.t('op)) => {
+        ((acc_skel_pairs, acc_holes): (list((Skel.t('op), HTyp.t)), list(HTyp.t))) (elt: Skel.t('op)) => {
         let fresh_hole = InfVar.gen_new_type_var();
         ((elt, HTyp.Hole(fresh_hole))::acc_skel_pairs, HTyp.Hole(fresh_hole)::acc_holes)
       };

@@ -5,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t, MetaVarGen.t)
   | Unit
   | Int
   | Float

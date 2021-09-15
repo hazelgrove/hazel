@@ -3,7 +3,13 @@ open Sexplib.Std;
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole(InfVar.t)
+  | Hole(MetaVar.t, (list(MetaVar.t)), MetaVarGen.t) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
+  // UHHole [1] used in (HHole [1.1] , HHole [1.2]) ; 
+  // UHHole [1] used in (HHole [1.3] , HHole [1.4]) ;
+  // HHole [1.3] used in (HHole [1.3.1], HHole [1.3.2])
+  // ^ Hole(1, [3], *0->2*) used in (Hole(1, [3, 1], 0), Hole(1, [3, 2], 0))
+  // HHole [1.3] used in (HHole [1.3.3], HHole [1.3.4])
+  // ^ Hole(1, [3], *2->4*) used in (Hole(1, [3, 3], 0), Hole(1, [3, 4], 0))
   | Int
   | Float
   | Bool
@@ -78,28 +84,6 @@ let rec consistent_all = (types: list(t)): bool =>
     }
   };
 
-/* matched arrow types */
-/* if two versions desired
-     (one that simply returns the type and the other that returns constraints too)
-     use this
-   let matched_arrow =
-     (ty: t) => {
-     let (ma_tys, _) = matched_arrow_(ty);
-     ma_tys
-   };*/
-
-let matched_arrow: t => (option((t, t)), list(inf_constraint)) =
-  (typ: t) =>
-    switch (typ) {
-    | Hole(_) =>
-      let var_in = InfVar.gen_new_type_var();
-      let var_out = InfVar.gen_new_type_var();
-      let arrow_typ = Arrow(Hole(var_in), Hole(var_out));
-      (Some((Hole(var_in), Hole(var_out))), [(typ, arrow_typ)]);
-    | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
-    | _ => (None, [])
-    };
-
 let get_prod_elements: t => list(t) =
   fun
   | Prod(tys) => tys
@@ -107,46 +91,62 @@ let get_prod_elements: t => list(t) =
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
-/* matched sum types */
-/*
- let matched_sum =
-   fun
-   | Hole => Some((Hole, Hole))
-   | Sum(tyL, tyR) => Some((tyL, tyR))
-   | _ => None;
- */
-
-let matched_sum: t => (option((t, t)), list(inf_constraint)) =
+let matched_arrow: t => (option(t, t)) =
   (typ: t) =>
-    switch (typ) {
-    | Hole(_) =>
-      let var_in = InfVar.gen_new_type_var();
-      let var_out = InfVar.gen_new_type_var();
-      let sum_typ = Sum(Hole(var_in), Hole(var_out));
-      (Some((Hole(var_in), Hole(var_out))), [(typ, sum_typ)]);
+  let pair, _ = matched_arrow_inf(typ);
+  pair;
+
+let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
+  (typ: t) =>
+  switch (typ) {
+    | Hole(base, tl, u_gen) =>
+      let (id_in, u_gen) = MetaVarGen.next(u_gen);
+      let (id_out, u_gen) = MetaVarGen.next(u_gen);
+      let hole_in = Hole(base, tl @ id_in, MetaVarGen.init);
+      let hole_out = Hole(base, tl @ id_out, MetaVarGen.init);
+      let pair = (hole_in, hole_out);
+      let constraint = [(typ, Arrow(hole_in, hole_out))];
+      (Some(pair), constraint);
+    | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
+    | _ => (None, [])
+  };
+
+let matched_sum: t => (option(t, t)) =
+  (typ: t) =>
+  let pair, _ = matched_sum_inf(typ);
+  pair;
+
+let matched_sum_inf: t => (option(t, t), list(inf_constraint)) =
+  (typ: t) =>
+  switch (typ) {
+    | Hole(base, tl, u_gen) =>
+      let (id_in, u_gen) = MetaVarGen.next(u_gen);
+      let (id_out, u_gen) = MetaVarGen.next(u_gen);
+      let hole_in = Hole(base, tl @ id_in, MetaVarGen.init);
+      let hole_out = Hole(base, tl @ id_out, MetaVarGen.init);
+      let pair = (hole_in, hole_out);
+      let constraint = [(typ, Sum(hole_in, hole_out))];
+      (Some(pair), constraint);
     | Sum(ty1, ty2) => (Some((ty1, ty2)), [])
     | _ => (None, [])
-    };
+  };
 
-/* matched list types */
-/*
- let matched_list =
-   fun
-   | Hole => Some(Hole)
-   | List(ty) => Some(ty)
-   | _ => None;
- */
-
-/*returns the type contained within the list type */
-let matched_list: t => (option(t), list(inf_constraint)) =
+let matched_list: t => (option(t, t)) =
   (typ: t) =>
-    switch (typ) {
-    | Hole(_) =>
-      let var_list = InfVar.gen_new_type_var();
-      (Some(Hole(var_list)), [(typ, List(Hole(var_list)))]);
+  let pair, _ = matched_list_inf(typ);
+  pair;
+
+let matched_list_inf: t => (option(t), list(inf_constraint)) =
+  (typ: t) =>
+  switch (typ) {
+    | Hole(base, tl, u_gen) =>
+      let (id_elt, u_gen) = MetaVarGen.next(u_gen);
+      let hole_elt = Hole(base, tl @ id_in, MetaVarGen.init);
+      let constraint = [(typ, List(hole_elt))];
+      (Some(hole_elt), constraint);
     | List(ty_ls) => (Some(ty_ls), [])
     | _ => (None, [])
-    };
+  };
 
 let rec load_type_variable = (typ: t) => {
   switch (typ) {
