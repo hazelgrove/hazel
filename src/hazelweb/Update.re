@@ -76,6 +76,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | Import(_)
+  | ToggleImportPopup
+  | ToggleExportPopup
   | FocusCell
   | BlurCell
   | Undo
@@ -157,6 +159,8 @@ let apply_action =
           Model.load_uhexp(model, ast);
         | None => model
         };
+      | ToggleImportPopup => Model.toggle_import_popup(model)
+      | ToggleExportPopup => Model.toggle_export_popup(model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>

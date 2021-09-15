@@ -40,6 +40,8 @@ type t =
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | Import(string)
+  | ToggleImportPopup
+  | ToggleExportPopup
   | FocusCell
   | BlurCell
   | Redo

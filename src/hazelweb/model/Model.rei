@@ -5,6 +5,8 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  import_popup_open: bool,
+  export_popup_open: bool,
   font_metrics: FontMetrics.t,
   /**
    * Preview on undo history entry mainly implemented by
@@ -69,6 +71,12 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  */
 let toggle_left_sidebar: t => t;
 let toggle_right_sidebar: t => t;
+
+/**
+ * Show/hide import and export popups
+ */
+let toggle_import_popup: t => t;
+let toggle_export_popup: t => t;
 
 /**
  * Load a selected cardstack into view

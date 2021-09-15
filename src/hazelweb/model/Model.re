@@ -5,6 +5,8 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  import_popup_open: bool,
+  export_popup_open: bool,
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
@@ -73,6 +75,8 @@ let init = (): t => {
     undo_history,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    import_popup_open: false,
+    export_popup_open: false,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -267,12 +271,22 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
+let toggle_import_popup = (model: t): t => {
+  ...model,
+  import_popup_open: !model.import_popup_open,
+};
+let toggle_export_popup = (model: t): t => {
+  ...model,
+  export_popup_open: !model.export_popup_open,
+};
+
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
 };
 
 let load_uhexp = (model: t, e: UHExp.t): t =>
   model
+  // update program
   |> put_program(
        Program.mk(
          ~width=model.cell_width,
