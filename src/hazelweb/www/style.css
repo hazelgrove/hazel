@@ -103,10 +103,7 @@ body {
   padding-left: var(--page-padding);
   padding-right: var(--page-padding);
   background-color: var(--title-bar-color);
-  color: white;
-  font-weight: bold;
-  font-size: 14pt;
-  width: 100%;
+   width: 100%;
   height: min-content;
   display: flex;
   flex-direction: row;
@@ -117,7 +114,16 @@ body {
 
 .logo-text {
   color: white;
+  font-size: 14pt;
+  color: white;
+  font-weight: bold;
   text-decoration: none;
+}
+
+.branch-panel {
+  color: rgba(0,0,0,0);
+  font-size: 10pt;
+  font-family: monospace;
 }
 
 
