@@ -146,19 +146,6 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                           cell_status,
                         ],
                       ),
-                      Node.button(
-                        [
-                          Attr.on_click(_ => {
-                            let program = Model.get_program(model);
-                            let e = program |> Program.get_uhexp;
-                            JSUtil.log(
-                              Js.string(Serialization.string_of_exp(e)),
-                            );
-                            Event.Ignore;
-                          }),
-                        ],
-                        [Node.text("Serialize to console")],
-                      ),
                       div(
                         [
                           Attr.style(
