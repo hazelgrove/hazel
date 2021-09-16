@@ -3,7 +3,6 @@ open Node;
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 module Parse = Parser.Parse;
-module Hazel_parser = Parser.Hazel_parser;
 module Print = Parser.Print;
 let logo_panel =
   a(

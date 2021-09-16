@@ -2,12 +2,12 @@ open Incr_dom;
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Parse = Parser.Parse;
-module Hazel_parser = Parser.Hazel_parser;
+module Parsing = Parser.Parsing;
 module Print = Parser.Print;
 
 let get_ast = l =>
-  try(Some(Parse.parse(l, Hazel_parser.Incremental.main(l.lex_curr_p)))) {
-  | Parse.SyntaxError((pos, tok)) =>
+  try(Some(Parsing.parse(l, Parse.Incremental.main(l.lex_curr_p)))) {
+  | Parsing.SyntaxError((pos, tok)) =>
     switch (pos) {
     | Some((line, col)) =>
       // Handle presenting the error

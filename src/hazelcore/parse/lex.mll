@@ -1,5 +1,5 @@
 {
-open Hazel_parser
+open Parse
 
 let keyword_table = Hashtbl.create 12
 let _ =

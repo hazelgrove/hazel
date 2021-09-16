@@ -4,7 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 module Parse = Parser.Parse;
-module Hazel_parser = Parser.Hazel_parser;
+module Parsing = Parser.Parsing;
 module Print = Parser.Print;
 
 [@deriving sexp]
@@ -38,8 +38,8 @@ let get_current_timestamp = (): timestamp => {
 };
 
 let get_ast = l =>
-  try(Some(Parse.parse(l, Hazel_parser.Incremental.main(l.lex_curr_p)))) {
-  | Parse.SyntaxError((pos, tok)) =>
+  try(Some(Parsing.parse(l, Parse.Incremental.main(l.lex_curr_p)))) {
+  | Parsing.SyntaxError((pos, tok)) =>
     switch (pos) {
     | Some((line, col)) =>
       JSUtil.log(

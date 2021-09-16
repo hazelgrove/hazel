@@ -39,7 +39,9 @@ let tests = [
     map"}
 ]
 
-open Parser
+module Parsing = Parser.Parsing
+module Parse = Parser.Parse
+module Print = Parser.Print
 module UHDoc_Exp = UHDoc_Exp.Make(Memo.DummyMemo)
 
 let compare_strings original parsed =
@@ -53,7 +55,7 @@ let compare_strings original parsed =
 
 let parse text: UHExp.line list =
   let lexbuf = Lexing.from_string text in
-  Parse.parse lexbuf (Hazel_parser.Incremental.main lexbuf.lex_curr_p)
+  Parsing.parse lexbuf (Parse.Incremental.main lexbuf.lex_curr_p)
 
 let test_parse text: bool =
  (*Get the first AST*)

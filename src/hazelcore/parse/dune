@@ -7,8 +7,8 @@
   (pps ppx_let)))
 
 (ocamllex
- (modules hazel_lexer))
+ (modules lex))
 
 (menhir
  (flags --table)
- (modules hazel_parser))
+ (modules parse))

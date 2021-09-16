@@ -2,12 +2,12 @@ open Lexing
 
 exception SyntaxError of ((int * int) option * string)
 
-module I = Hazel_parser.MenhirInterpreter
+module I = Parse.MenhirInterpreter
 
 let rec parse lexbuf c =
   match c with
   | I.InputNeeded _ ->
-      let token = Hazel_lexer.read lexbuf in
+      let token = Lex.read lexbuf in
       let startp = lexbuf.lex_start_p
       and endp = lexbuf.lex_curr_p in
       let checkpoint = I.offer c (token, startp, endp) in
