@@ -435,6 +435,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
+    | StringLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | TypeAnn(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
@@ -457,6 +458,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
+    | StringLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | TypeAnn(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _) => None
@@ -504,6 +506,12 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+        ),
+      )
+    | StringLit(NotInHole, _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaSubsumed(ty, String), ctx, cursor_term),
         ),
       )
     | Inj(NotInHole, _, _) =>

@@ -670,7 +670,10 @@ and syn_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     syn_perform(ctx, u_gen, Backspace, new_zp);
 
-  | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
+  | (
+      Backspace,
+      CursorP(OnDelim(_, After), ListNil(_) | Wild(_) | StringLit(_)),
+    ) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
@@ -692,6 +695,20 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
+    if (j == String.length(s)) {
+      /* Delete at end of string, before delim, deletes the string */
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZOpSeq.wrap(zhole);
+      Succeeded((zp, Hole, ctx, u_gen));
+    } else {
+      /* Delete inside a string deletes the next character in the string */
+      let new_text = s |> StringUtil.delete(j);
+      let text_cursor = CursorPosition.OnText(j);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+      Succeeded((zp, HTyp.String, ctx, u_gen));
+    }
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
@@ -703,6 +720,20 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
+    if (j == 0) {
+      /* Backspace at beginning of string, after delim, deletes the string */
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZOpSeq.wrap(zhole);
+      Succeeded((zp, Hole, ctx, u_gen));
+    } else {
+      /* Backspace inside a string deletes the previous character in the string */
+      let new_text = s |> StringUtil.backspace(j);
+      let text_cursor = CursorPosition.OnText(j - 1);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+      Succeeded((zp, String, ctx, u_gen));
+    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -776,12 +807,56 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+  | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, x))) =>
+    let new_text = x |> StringUtil.insert(j, s);
+    let text_cursor = CursorPosition.OnText(j + 1);
+    let zp =
+      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+    Succeeded((zp, HTyp.String, ctx, u_gen));
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
+
+  /* Insert new empty string literal in an empty hole */
+  | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(UHPat.stringlit("")));
+    Succeeded((zp, String, ctx, u_gen));
+  /* Insert a quote at beginning/end of string literal */
+  | (
+      Construct(SQuote),
+      CursorP(OnDelim(delim_idx, _side), StringLit(_, s) as operand),
+    ) =>
+    let j =
+      switch (delim_idx) {
+      | 0 => 0
+      | _1 => String.length(s)
+      };
+    syn_perform_operand(ctx, u_gen, a, CursorP(OnText(j), operand));
+  /* Disallow quotes directly next to something else */
+  | (
+      Construct(SQuote),
+      CursorP(
+        OnDelim(_, _),
+        Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_, _, _) |
+        TypeAnn(_, _, _),
+      ),
+    ) =>
+    Failed
+  /* Quote inside StringLit inserts a quote into the string */
+  | (Construct(SQuote), CursorP(OnText(_), StringLit(_))) =>
+    syn_perform_operand(ctx, u_gen, Construct(SChar("\"")), zoperand)
+  | (
+      Construct(SQuote),
+      CursorP(
+        OnText(_),
+        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
+        BoolLit(_, _),
+      ),
+    ) =>
+    Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
     mk_syn_result(
@@ -1197,7 +1272,10 @@ and ana_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     ana_perform(ctx, u_gen, Backspace, new_zp, ty);
 
-  | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListNil(_))) =>
+  | (
+      Backspace,
+      CursorP(OnDelim(_, After), Wild(_) | ListNil(_) | StringLit(_)),
+    ) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, ctx, u_gen));
@@ -1212,6 +1290,25 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
+    if (j == String.length(s)) {
+      /* Delete at end of string, before quotation, deletes the string */
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZOpSeq.wrap(zhole);
+      Succeeded((zp, ctx, u_gen));
+    } else {
+      /* Delete inside a string deletes the next character in the string */
+      let new_s = s |> StringUtil.delete(j);
+      let text_cursor = CursorPosition.OnText(j);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_s)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      };
+    }
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -1223,6 +1320,25 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
+    if (j == 0) {
+      /* Backspace at beginning of string, after delim, deletes the string */
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZOpSeq.wrap(zhole);
+      Succeeded((zp, ctx, u_gen));
+    } else {
+      /* Backspace inside a string deletes the previous character in the string */
+      let new_text = s |> StringUtil.backspace(j);
+      let text_cursor = CursorPosition.OnText(j - 1);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      };
+    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -1317,7 +1433,61 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+  | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, x))) =>
+    let new_text = x |> StringUtil.insert(j, s);
+    let text_cursor = CursorPosition.OnText(j + 1);
+    let zp =
+      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+    if (HTyp.consistent(ty, HTyp.String)) {
+      Succeeded((zp, ctx, u_gen));
+    } else {
+      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+      Succeeded((zp, ctx, u_gen));
+    };
   | (Construct(SChar(_)), CursorP(_)) => Failed
+
+  /* Construct a new empty string literal in an empty hole */
+  | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(UHPat.stringlit("")));
+    if (HTyp.consistent(ty, HTyp.String)) {
+      Succeeded((zp, ctx, u_gen));
+    } else {
+      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+      Succeeded((zp, ctx, u_gen));
+    };
+  /* Insert a quote at the beginning/end of a stirng literal */
+  | (
+      Construct(SQuote),
+      CursorP(OnDelim(delim_idx, _side), StringLit(_, s) as operand),
+    ) =>
+    let j =
+      switch (delim_idx) {
+      | 0 => 0
+      | _1 => String.length(s)
+      };
+    ana_perform_operand(ctx, u_gen, a, CursorP(OnText(j), operand), ty);
+  /* Disallow quotes directly next to anything else */
+  | (
+      Construct(SQuote),
+      CursorP(
+        OnDelim(_, _),
+        Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_, _, _) |
+        TypeAnn(_, _, _),
+      ),
+    ) =>
+    Failed
+  /* Quote inside StringLit inserts a quote into the string */
+  | (Construct(SQuote), CursorP(OnText(_), StringLit(_))) =>
+    ana_perform_operand(ctx, u_gen, Construct(SChar("\"")), zoperand, ty)
+  | (
+      Construct(SQuote),
+      CursorP(
+        OnText(_),
+        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
+        BoolLit(_, _),
+      ),
+    ) =>
+    Failed
 
   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>

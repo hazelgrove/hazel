@@ -40,6 +40,8 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | IntLit(_, n) => text_cursors(String.length(n))
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
+    | StringLit(_, s) =>
+      List.append(delim_cursors(2), text_cursors(String.length(s)))
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
@@ -128,7 +130,8 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorP(cursor, ListNil(_))
+  | CursorP(cursor, StringLit(_, _)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, IntLit(_, _))
@@ -159,6 +162,7 @@ and is_after_zoperand =
   | CursorP(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
+  | CursorP(cursor, StringLit(_, _))
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorP(_, TypeAnn(_)) => false
@@ -178,7 +182,8 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
-  | ListNil(_) => CursorP(OnDelim(0, Before), operand)
+  | ListNil(_)
+  | StringLit(_, _) => CursorP(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_, _, _)
   | IntLit(_, _)
@@ -207,6 +212,7 @@ and place_after_operand = operand =>
   | IntLit(_, n) => CursorP(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorP(OnText(String.length(f)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
+  | StringLit(_, _)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
@@ -256,9 +262,15 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
+  // moving from the start of a string literal
+  | CursorP(OnText(0), StringLit(_) as operand) =>
+    Some(CursorP(OnDelim(0, After), operand))
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
+  // moving to the end of a string literal
+  | CursorP(OnDelim(_one, Before), StringLit(_, s) as operand) =>
+    Some(CursorP(OnText(String.length(s)), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
@@ -318,8 +330,15 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
+  // moving from the end of a string literal
+  | CursorP(OnText(j), StringLit(_, s) as operand)
+      when j == String.length(s) =>
+    Some(CursorP(OnDelim(1, Before), operand))
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
+  // moving to the start of a string literal
+  | CursorP(OnDelim(_zero, After), StringLit(_) as operand) =>
+    Some(CursorP(OnText(0), operand))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_k, After), TypeAnn(err, p, a)) =>
     Some(TypeAnnZA(err, p, ZTyp.place_before(a)))

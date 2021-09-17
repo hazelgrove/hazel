@@ -15,6 +15,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
@@ -34,6 +35,8 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 let intlit: (~err: ErrStatus.t=?, string) => operand;
 
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
+
+let stringlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 

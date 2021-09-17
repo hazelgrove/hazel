@@ -42,6 +42,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
+  | StringLit(_)
   | Triv => d2
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -180,6 +181,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
+  | (StringLit(s1), StringLit(s2)) =>
+    if (s1 == s2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
+  | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
+  | (StringLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -299,6 +309,7 @@ and matches_cast_Inj =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -364,6 +375,7 @@ and matches_cast_Pair =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -435,6 +447,7 @@ and matches_cast_Cons =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -706,6 +719,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -725,6 +739,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -804,6 +819,7 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
+  | StringLit(NotInHole, s) => Elaborates(StringLit(s), String, delta)
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
@@ -1125,6 +1141,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -1153,6 +1170,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -1243,6 +1261,7 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
+  | StringLit(NotInHole, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
@@ -1301,6 +1320,7 @@ let rec renumber_result_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
@@ -1399,6 +1419,7 @@ let rec renumber_sigmas_only =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>

@@ -17,6 +17,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
@@ -46,6 +47,8 @@ let intlit: (~err: ErrStatus.t=?, string) => operand;
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
+
+let stringlit: (~err: ErrStatus.t=?, string) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 

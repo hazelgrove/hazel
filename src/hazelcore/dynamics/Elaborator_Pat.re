@@ -108,6 +108,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
@@ -124,6 +125,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
@@ -156,6 +158,7 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
+  | StringLit(NotInHole, s) => Elaborates(StringLit(s), String, ctx, delta)
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, side, p) =>
@@ -327,6 +330,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
@@ -344,6 +348,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
@@ -362,7 +367,8 @@ and ana_elab_operand =
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
+  | BoolLit(NotInHole, _)
+  | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
@@ -396,6 +402,7 @@ let rec renumber_result_only =
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | InvalidText(_)
   | BoolLit(_)
   | ListNil

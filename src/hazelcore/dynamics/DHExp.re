@@ -150,6 +150,7 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
@@ -183,6 +184,7 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
+  | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"

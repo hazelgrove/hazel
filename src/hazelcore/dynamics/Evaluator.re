@@ -123,6 +123,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1)) {

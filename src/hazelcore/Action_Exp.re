@@ -1413,7 +1413,8 @@ and syn_perform_operand =
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
         ApPalette(_),
-      ),
+      ) |
+      CursorE(OnOp(_), StringLit(_)),
     ) =>
     Failed
   | (_, CursorE(cursor, operand))
@@ -1456,7 +1457,7 @@ and syn_perform_operand =
     let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
     syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
-  | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
+  | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | StringLit(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, u_gen)));
@@ -1471,6 +1472,21 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Delete, CursorE(OnText(j), StringLit(_, s))) =>
+    if (j == String.length(s)) {
+      /* Delete at end of string, before delim, deletes the string */
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      let new_ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(SynDone((new_ze, String, u_gen)));
+    } else {
+      /* Delete inside a string deletes next character */
+      let new_text = s |> StringUtil.delete(j);
+      let text_cursor = CursorPosition.OnText(j);
+      let new_ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      Succeeded(SynDone((new_ze, HTyp.String, u_gen)));
+    }
+
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1481,6 +1497,20 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorE(OnText(j), StringLit(_, s))) =>
+    if (j == 0) {
+      /* Backspace at beginning of string, after delim, deletes the string */
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      let new_ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(SynDone((new_ze, String, u_gen)));
+    } else {
+      /* Backspace inside a string deletes the previous character */
+      let new_text = s |> StringUtil.backspace(j);
+      let text_cursor = CursorPosition.OnText(j - 1);
+      let new_ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      Succeeded(SynDone((new_ze, String, u_gen)));
+    }
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
@@ -1566,6 +1596,11 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
+  | (Construct(SOp(sop)), CursorE(OnText(j), StringLit(_, s)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, s)
 
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
@@ -1596,7 +1631,60 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+  | (Construct(SChar(s)), CursorE(OnText(j), StringLit(_, x))) =>
+    let new_text = x |> StringUtil.insert(j, s);
+    let text_cursor = CursorPosition.OnText(j + 1);
+    let new_ze =
+      ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+    Succeeded(SynDone((new_ze, HTyp.String, u_gen)));
   | (Construct(SChar(_)), CursorE(_)) => Failed
+
+  /* Insert a new empty string literal in an empty hole */
+  | (Construct(SQuote), CursorE(OnDelim(_), EmptyHole(_))) =>
+    let ze =
+      ZExp.ZBlock.wrap(ZExp.place_after_operand(UHExp.stringlit("")));
+    Succeeded(SynDone((ze, HTyp.String, u_gen)));
+  /* Insert a quote at beginning/end of string literal */
+  | (
+      Construct(SQuote),
+      CursorE(OnDelim(delim_idx, _side), StringLit(_, s) as operand),
+    ) =>
+    let j =
+      switch (delim_idx) {
+      | 0 => 0
+      | _1 => String.length(s)
+      };
+    syn_perform_operand(
+      ctx,
+      a,
+      (CursorE(OnText(j), operand), HTyp.String, u_gen),
+    );
+  /* Disallow quotes directly next to something else */
+  | (
+      Construct(SQuote),
+      CursorE(
+        OnDelim(_, _),
+        ListNil(_) | Parenthesized(_) | Inj(_, _, _) | Lam(_, _, _) |
+        Case(_, _, _),
+      ),
+    ) =>
+    Failed
+  /* Quote inside string inserts a quote into the string literal */
+  | (Construct(SQuote), CursorE(OnText(_), StringLit(_)) as ze) =>
+    syn_perform_operand(
+      ctx,
+      Construct(SChar("\"")),
+      (ze, HTyp.String, u_gen),
+    )
+  | (
+      Construct(SQuote),
+      CursorE(
+        OnText(_),
+        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
+        BoolLit(_, _),
+      ),
+    ) =>
+    Failed
 
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
     let new_ze =

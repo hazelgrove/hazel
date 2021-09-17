@@ -227,7 +227,8 @@ and perform_operand =
       UpdateApPalette(_) |
       Construct(
         SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
-        SCommentLine,
+        SCommentLine |
+        SQuote,
       ) |
       SwapUp |
       SwapDown,
@@ -297,6 +298,8 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+  | (Construct(SChar("S")), CursorT(_, Hole)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
