@@ -1,4 +1,6 @@
+[@deriving sexp]
 type t =
-  | EmptyTagHole(MetaVar.t)
   | HoleLabel
-  | Delim;
+  | Delim
+  | EmptyTagHole(MetaVar.t)
+  | NonEmptyTagHole(TagErrStatus.HoleReason.t, MetaVar.t);

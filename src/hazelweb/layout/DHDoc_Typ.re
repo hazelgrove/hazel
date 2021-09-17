@@ -3,9 +3,10 @@ open Pretty;
 let promote_annot =
     (selected: MetaVar.t => bool, annot: HTypAnnot.t): DHAnnot.t =>
   switch (annot) {
-  | EmptyTagHole(u) => EmptyTagHole(selected(u), u)
-  | HoleLabel => HoleLabel
   | Delim => Delim
+  | HoleLabel => HoleLabel
+  | EmptyTagHole(u) => EmptyTagHole(selected(u), u)
+  | NonEmptyTagHole(reason, u) => NonEmptyTagHole(reason, u)
   };
 
 let promote = (selected: MetaVar.t => bool, d: HTypDoc.t): DHDoc.t =>

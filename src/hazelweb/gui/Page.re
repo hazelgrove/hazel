@@ -41,7 +41,14 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
               ),
               div(
                 [Attr.classes(["htype-view"])],
-                [HTypCode.view(~inject, ~selected_tag_hole, ty)],
+                [
+                  HTypCode.view(
+                    ~inject,
+                    ~font_metrics=model.font_metrics,
+                    ~selected_tag_hole,
+                    ty,
+                  ),
+                ],
               ),
             ],
           ),
@@ -77,7 +84,12 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let selected_tag_hole = Model.get_selected_tag_hole(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
-      CursorInspector.view(~inject, ~selected_tag_hole, model),
+      CursorInspector.view(
+        ~inject,
+        ~font_metrics=model.font_metrics,
+        ~selected_tag_hole,
+        model,
+      ),
       ContextInspector.view(
         ~inject,
         ~selected_instance,

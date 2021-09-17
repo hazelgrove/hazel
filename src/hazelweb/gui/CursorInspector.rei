@@ -1,10 +1,13 @@
+open Virtual_dom.Vdom;
+
 /**
  * Typing information at the cursor.
  */
 let view:
   (
-    ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,
+    ~inject: ModelAction.t => Event.t,
+    ~font_metrics: FontMetrics.t,
     ~selected_tag_hole: option(MetaVar.t),
     Model.t
   ) =>
-  Virtual_dom.Vdom.Node.t;
+  Node.t;
