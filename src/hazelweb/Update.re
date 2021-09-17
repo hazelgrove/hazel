@@ -63,7 +63,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | SerializeToConsole
+  | SerializeToConsole(_)
   | UpdateAssistant(_)
   | AcceptSuggestion(_)
   | Chain(_)
@@ -237,14 +237,28 @@ let rec apply_action =
           cursor_inspector:
             CursorInspectorModel.apply_update(u, model.cursor_inspector),
         }
-      | SerializeToConsole =>
-        model
-        |> Model.get_program
-        |> Editor.get_edit_state
-        |> Editor.EditState_Exp.get_uhstx
-        |> Serialization.string_of_exp
-        |> Js.string
-        |> JSUtil.log;
+      | SerializeToConsole(obj) =>
+        switch (obj) {
+        | UHExp =>
+          model
+          |> Model.get_program
+          |> Editor.get_edit_state
+          |> Editor.EditState_Exp.get_uhstx
+          |> Serialization.string_of_exp
+          |> Js.string
+          |> JSUtil.log
+        | DHExp =>
+          let (d, _, _) =
+            model
+            |> Model.get_program
+            |> Editor.get_edit_state
+            |> Editor.EditState_Exp.get_result;
+          d
+          |> DHExp.sexp_of_t
+          |> Sexplib.Sexp.to_string
+          |> Js.string
+          |> JSUtil.log;
+        };
         model;
       | SetCursorInspectorMode(cursor_inspector_mode) =>
         let model = {...model, cursor_inspector_mode};
