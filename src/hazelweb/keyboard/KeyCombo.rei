@@ -7,8 +7,8 @@ type t = {
 };
 
 let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
-
 let name: t => string;
+
 let enter: t;
 let escape: t;
 let backspace: t;
@@ -38,12 +38,17 @@ let alt_R: t;
 let alt_C: t;
 let alt_PageUp: t;
 let alt_PageDown: t;
-let ctrl_z: t;
-let ctrl_shift_z: t;
-let ctrl_alt_i: t;
-let ctrl_alt_k: t;
-let ctrl_alt_j: t;
-let ctrl_alt_l: t;
-let meta_z: t;
-let meta_shift_z: t;
-let ctrl_enter: t;
+let ctrl_s: t;
+let ctrlOrCmd_z: t;
+let ctrlOrCmd_shift_z: t;
+let up: t;
+let down: t;
+let left: t;
+let right: t;
+let home_key: t;
+let end_key: t;
+let alt_up: t;
+let alt_down: t;
+let alt_left: t;
+let alt_right: t;
+let ctrlOrCmd_enter: t;

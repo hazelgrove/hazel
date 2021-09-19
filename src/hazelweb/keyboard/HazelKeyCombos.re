@@ -30,15 +30,20 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
-  | Ctrl_Z
-  | Ctrl_Shift_Z
-  | Ctrl_Alt_I
-  | Ctrl_Alt_K
-  | Ctrl_Alt_J
-  | Ctrl_Alt_L
-  | Meta_Z
-  | Meta_Shift_Z
-  | Ctrl_Enter;
+  | Ctrl_S
+  | CtrlOrCmd_Z
+  | CtrlOrCmd_Shift_Z
+  | Up
+  | Down
+  | Left
+  | Right
+  | Home
+  | End
+  | Alt_Up
+  | Alt_Down
+  | Alt_Left
+  | Alt_Right
+  | CtrlOrCmd_Enter;
 
 let get_details =
   fun
@@ -69,28 +74,25 @@ let get_details =
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
-  | Ctrl_Z => KeyCombo.ctrl_z
-  | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
-  | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
-  | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
-  | Ctrl_Alt_J => KeyCombo.ctrl_alt_j
-  | Ctrl_Alt_L => KeyCombo.ctrl_alt_l
-  | Meta_Z => KeyCombo.meta_z
-  | Meta_Shift_Z => KeyCombo.meta_shift_z
-  | Ctrl_Enter => KeyCombo.ctrl_enter;
+  | Ctrl_S => KeyCombo.ctrl_s
+  | CtrlOrCmd_Z => KeyCombo.ctrlOrCmd_z
+  | CtrlOrCmd_Shift_Z => KeyCombo.ctrlOrCmd_shift_z
+  | Up => KeyCombo.up
+  | Down => KeyCombo.down
+  | Left => KeyCombo.left
+  | Right => KeyCombo.right
+  | Home => KeyCombo.home_key
+  | End => KeyCombo.end_key
+  | Alt_Up => KeyCombo.alt_up
+  | Alt_Down => KeyCombo.alt_down
+  | Alt_Left => KeyCombo.alt_left
+  | Alt_Right => KeyCombo.alt_right
+  | CtrlOrCmd_Enter => KeyCombo.ctrlOrCmd_enter;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
   if (evt_matches(KeyCombo.pound)) {
     Some(Pound);
-  } else if (evt_matches(KeyCombo.ctrl_z)) {
-    Some(Ctrl_Z);
-  } else if (evt_matches(KeyCombo.ctrl_shift_z)) {
-    Some(Ctrl_Shift_Z);
-  } else if (evt_matches(KeyCombo.meta_z)) {
-    Some(Meta_Z);
-  } else if (evt_matches(KeyCombo.meta_shift_z)) {
-    Some(Meta_Shift_Z);
   } else if (evt_matches(KeyCombo.escape)) {
     Some(Escape);
   } else if (evt_matches(KeyCombo.backspace)) {
@@ -143,17 +145,37 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_R);
   } else if (evt_matches(KeyCombo.alt_C)) {
     Some(Alt_C);
-  } else if (evt_matches(KeyCombo.ctrl_alt_i)) {
-    Some(Ctrl_Alt_I);
-  } else if (evt_matches(KeyCombo.ctrl_alt_k)) {
-    Some(Ctrl_Alt_K);
-  } else if (evt_matches(KeyCombo.ctrl_alt_j)) {
-    Some(Ctrl_Alt_J);
-  } else if (evt_matches(KeyCombo.ctrl_alt_l)) {
-    Some(Ctrl_Alt_L);
-  } else if (evt_matches(KeyCombo.ctrl_enter)) {
-    Some(Ctrl_Enter);
+  } else if (evt_matches(KeyCombo.ctrl_s)) {
+    Some(Ctrl_S);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_z)) {
+    Some(CtrlOrCmd_Z);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_shift_z)) {
+    Some(CtrlOrCmd_Shift_Z);
+  } else if (evt_matches(KeyCombo.up)) {
+    Some(Up);
+  } else if (evt_matches(KeyCombo.down)) {
+    Some(Down);
+  } else if (evt_matches(KeyCombo.left)) {
+    Some(Left);
+  } else if (evt_matches(KeyCombo.right)) {
+    Some(Right);
+  } else if (evt_matches(KeyCombo.home_key)) {
+    Some(Home);
+  } else if (evt_matches(KeyCombo.end_key)) {
+    Some(End);
+  } else if (evt_matches(KeyCombo.alt_up)) {
+    Some(Alt_Up);
+  } else if (evt_matches(KeyCombo.alt_down)) {
+    Some(Alt_Down);
+  } else if (evt_matches(KeyCombo.alt_left)) {
+    Some(Alt_Left);
+  } else if (evt_matches(KeyCombo.alt_right)) {
+    Some(Alt_Right);
+  } else if (evt_matches(KeyCombo.ctrlOrCmd_enter)) {
+    Some(CtrlOrCmd_Enter);
   } else {
     None;
   };
 };
+
+let name = (combo: t): string => KeyCombo.name(get_details(combo));

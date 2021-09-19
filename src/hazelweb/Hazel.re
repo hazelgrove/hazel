@@ -41,15 +41,6 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
-  /* need to know whether a Mac is being used to determine certain key
-     combinations, such as Ctrl+Z vs Cmd+Z for undo */
-  let is_mac =
-    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Mac"),
-    )
-    >= 0;
-  schedule_action(UpdateIsMac(is_mac));
-
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {

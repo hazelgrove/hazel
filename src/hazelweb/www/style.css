@@ -111,6 +111,114 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
+  gap: 1em;
+  align-items: center;
+}
+
+.logo-text {
+  color: white;
+  text-decoration: none;
+}
+
+
+/* menu panel */
+
+.dropdown {
+  margin-left: auto;
+  color:#239d60;
+  display: inline-block;
+  position: relative;
+}
+.dropdown:hover {
+  color:#40cb85;
+}
+
+.dropdown details {
+  display: flex;
+  align-items: center;
+}
+
+.dropdown ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dropdown ul li {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  font-size: 0.8em;
+  padding: 0.4em;
+}
+
+.dropdown ul li:hover {
+  cursor: pointer;
+  color: white;
+}
+
+.dropdown .shortcut {
+  font-size: 0.7em;
+  font-style: italic;
+  color:#7f8b85;
+}
+
+.dropdown summary {
+  text-shadow: 0 2px #020;
+  list-style: none;
+  cursor: pointer;
+  padding-left: 1.5em;
+}
+.dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.dropdown .dropdown-content {
+  font-size: 1em;
+  font-weight: normal;
+  position: absolute;
+  right: -0.8em;
+  top: 1.7em;
+  min-inline-size: max-content;
+  background-color: var(--title-bar-color);
+  border-bottom-left-radius: 0.23em;
+  padding: 0.5em;
+  z-index: 10001;
+  filter: drop-shadow(0 0.2em 0.3em #2337);
+}
+
+.dropdown details[open] summary::before {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  content: "";
+  cursor: default;
+  background-color: #0000;
+  z-index: 10000;
+}
+
+
+#card-controls {
+  display: flex;
+  gap: 0.26em;
+  flex-direction: row;
+  align-items: center;
+}
+
+#card-controls select, #card-controls button {
+  background-color: #187346;
+  color: #94deba;
+  border-width: 0;
+  height: 1.3rem;
+  border-radius: 0.3em;
+  box-shadow: 0 3px #020;
+}
+
+#card-controls select:hover, #card-controls button:hover {
+  color: #d7ffec;
+  background-color: #239d60; 
 }
 
 #cardstack-controls {
@@ -137,12 +245,6 @@ body {
   font-weight: bold;
   line-height: 0%;
   white-space: pre;
-}
-
-.logo-text {
-  color: white;
-  text-decoration: none;
-  margin-right: var(--page-padding);
 }
 
 /* arrangement of main area */
@@ -847,20 +949,24 @@ h1 {
   fill: white;
 }
 
-#code-root {
+#code-root,
+.DHCode {
   position: relative;
 }
 #code-root:focus {
   outline: none;
 }
 
-#code-root .code {
+#code-root .code,
+.DHCode .code {
   z-index: var(--code-text-z);
 }
-#code-root .decoration-container {
+#code-root .decoration-container,
+.DHCode .decoration-container {
   position: absolute;
 }
-#code-root .err-hole-container {
+#code-root .err-hole-container,
+.DHCode .err-hole-container {
   z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
@@ -1011,6 +1117,10 @@ h1 {
   }
 }
 
+.InHole {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;

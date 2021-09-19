@@ -195,15 +195,15 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
-         switch (sort) {
+    |> List.filter_map(hole_info =>
+         switch (CursorPath.get_sort(hole_info)) {
          | TypHole => None
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
            }
          }
        )
@@ -296,7 +296,7 @@ let perform_edit_action = (a, program) => {
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze), false)) {
+      if (UHExp.is_complete(ZExp.erase(ze))) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
