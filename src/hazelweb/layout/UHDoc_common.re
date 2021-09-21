@@ -83,11 +83,7 @@ module Delim = {
   let close_Sum = (): t => mk(~index=1, "}");
 
   let open_Inj = (): t => mk(~index=0, "inj[");
-  let body_Inj = (body_opt: option('a)): option(t) =>
-    switch (body_opt) {
-    | Some(_) => Some(mk(~index=1, "]("))
-    | None => None
-    };
+  let body_Inj = (): t => mk(~index=1, "](");
   let close_Inj = (has_body: bool): t =>
     has_body ? mk(~index=2, ")") : mk(~index=1, "]");
 
@@ -348,13 +344,12 @@ let mk_Inj =
   let close_group =
     Delim.close_Inj(Option.is_some(body_opt)) |> annot_Tessera;
   let maybe_body =
-    switch (body_opt, Delim.body_Inj(body_opt)) {
-    | (Some(body), Some(body_group)) => [
+    switch (body_opt) {
+    | None => []
+    | Some(body) => [
+        Delim.body_Inj() |> annot_Tessera,
         body |> pad_bidelimited_open_child,
-        body_group,
       ]
-    | (None, _)
-    | (_, None) => []
     };
   Doc.hcats(
     [open_group, tag_doc |> pad_closed_child(~sort=Tag)]
