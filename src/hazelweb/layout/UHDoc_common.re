@@ -88,11 +88,8 @@ module Delim = {
     | Some(_) => Some(mk(~index=1, "]("))
     | None => None
     };
-  let close_Inj = (body_opt: option('a)): t =>
-    switch (body_opt) {
-    | Some(_) => mk(~index=2, ")")
-    | None => mk(~index=1, "]")
-    };
+  let close_Inj = (has_body: bool): t =>
+    has_body ? mk(~index=2, ")") : mk(~index=1, "]");
 
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
@@ -348,7 +345,8 @@ let mk_Inj =
     )
     : t => {
   let open_group = Delim.open_Inj() |> annot_Tessera;
-  let close_group = Delim.close_Inj(body_opt) |> annot_Tessera;
+  let close_group =
+    Delim.close_Inj(Option.is_some(body_opt)) |> annot_Tessera;
   let maybe_body =
     switch (body_opt, Delim.body_Inj(body_opt)) {
     | (Some(body), Some(body_group)) => [

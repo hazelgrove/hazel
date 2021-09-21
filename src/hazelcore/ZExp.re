@@ -85,8 +85,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(1)
       @ CursorPosition.delim_cursors_k(2);
     }
-  | Inj(_, _, None) => CursorPosition.delim_cursors(1)
-  | Inj(_, _, Some(_)) => CursorPosition.delim_cursors(2)
+  | Inj(_, _, None) => CursorPosition.delim_cursors(2)
+  | Inj(_, _, Some(_)) => CursorPosition.delim_cursors(3)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
