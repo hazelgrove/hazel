@@ -1269,6 +1269,26 @@ and syn_perform_opseq =
     let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
     syn_perform_opseq(ctx, keyword_action(k), (zopseq, ty, u_gen));
 
+  /*
+   Pressing <Parenthesized> after a constant injection is handled by
+   syn_perform_operand.
+   */
+  | (
+      Construct(SParenthesized),
+      ZOperand(
+        CursorE(OnDelim(1, After), Inj(_, _, None)) as zoperand,
+        surround,
+      ),
+    ) =>
+    switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
+    | Failed
+    | CursorEscaped(_)
+    | Succeeded(SynExpands(_)) => Failed
+    | Succeeded(SynDone((new_zexp, _, u_gen))) =>
+      let (zexp, u_gen) = resurround_z(u_gen, new_zexp, surround);
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+    }
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
@@ -1438,8 +1458,191 @@ and syn_perform_operand =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     syn_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), ty, u_gen))
 
-  /* Backspace & Deletion */
+  /* Injections */
 
+  /* Construct */
+
+  /*
+   Pressing <Inj> on an expression creates an injection.
+
+   |?  =(Inj)=>  inj[ |? ]
+   ?|  =(Inj)=>  inj[ |? ]
+   |1  =(Inj)=>  inj[ |? ]( 1 )
+   1|  =(Inj)=>  inj[ |? ]( 1 )
+   */
+  | (Construct(SInj), CursorE(_, operand)) =>
+    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
+    let arg_opt =
+      switch (operand) {
+      | EmptyHole(_) => None
+      | _ => Some(UHExp.Block.wrap(operand))
+      };
+    let zoperand = ZExp.InjZT(InjErrStatus.NotInHole, ztag, arg_opt);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Parenthesized> after a constant injection wraps the injection
+   around an expression hole.
+
+   inj[ _ ]|  =(Parenthesized)=>  inj[ _ ]( |? )
+   */
+  | (
+      Construct(SParenthesized),
+      CursorE(OnDelim(1, After), Inj(status, tag, None)),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zarg = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    let zoperand = ZExp.InjZE(status, tag, zarg);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /* Delete */
+
+  /*
+   Pressing <Delete> before a constant injection or before the opening or middle
+   delimiter of an injection with an argument hole destroys the injection.
+
+   |>inj[ _ ]       ==>  |?
+   |>inj[ _ ]( ? )  ==>  |?
+   inj[ _ |>]( ? )  ==>  |?
+   */
+  | (
+      Delete,
+      CursorE(OnDelim(0, Before), Inj(_, _, None)) |
+      CursorE(
+        OnDelim(0 | 1, Before),
+        Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Delete> before the closing delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   inj[ _ |>]       ==>  ?|
+   inj[ _ ]( ? |>)  ==>  ?|
+   */
+  | (
+      Delete,
+      CursorE(OnDelim(1, Before), Inj(_, _, None)) |
+      CursorE(
+        OnDelim(2, Before),
+        Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Delete> before any delimiter of an injection with an argument
+   unwraps the argument.
+
+   |>inj[ _ ]( 2 )  ==>  |2
+   inj[ _ |>]( 2 )  ==>  |2
+   inj[ _ ]( 2 |>)  ==>  2|
+   */
+  | (Delete, CursorE(OnDelim(j, Before), Inj(_, _, Some(arg)))) =>
+    let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
+    let zexp = place_cursor(arg);
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Delete> after the opening delimiter of an injection moves the
+   cursor forward.
+
+   inj[|> _ ]       ==>  inj[ |_ ]
+   inj[|> _ ]( _ )  ==>  inj[ |_ ]( _ )
+   */
+  | (Delete, CursorE(OnDelim(0, After), Inj(_, tag, arg_opt))) =>
+    let zoperand = ZExp.InjZT(NotInHole, ZTag.place_before(tag), arg_opt);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Delete> after the middle delimiter of an injection with an argument
+   moves the cursor forward.
+
+   inj[ _ ](|> _ )  ==>  inj[ _ ]( |_ )
+   */
+  | (Delete, CursorE(OnDelim(1, After), Inj(_, tag, Some(arg)))) =>
+    let zoperand = ZExp.InjZE(NotInHole, tag, ZExp.place_before(arg));
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /* Backspace */
+
+  /*
+   Pressing <Backspace> after any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   inj[ _ ]<|       ==>  |?
+   inj[<| _ ]       ==>  |?
+   inj[ _ ]( ? )<|  ==>  |?
+   inj[ _ ](<| ? )  ==>  |?
+   inj[<| _ ]( ? )  ==>  |?
+   */
+  | (
+      Backspace,
+      CursorE(
+        OnDelim(_, After),
+        Inj(_, _, None | Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of a constant injection or
+   the middle delimiter of an injection with an argument moves the cursor
+   backward.
+
+   inj[ _ <|]       ==>  inj[ _| ]
+   inj[ _ <|]( _ )  ==>  inj[ _| ]( _ )
+   */
+  | (Backspace, CursorE(OnDelim(1, Before), Inj(_, tag, arg_opt))) =>
+    let ztag = ZTag.place_after(tag);
+    let zoperand = ZExp.InjZT(NotInHole, ztag, arg_opt);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Backspace> after any delimiter of an injection with an argument
+   unwraps the argument.
+
+   inj[ _ ]( 2 )<|  ==>  2|
+   inj[ _ ](<| 2 )  ==>  |2
+   inj[<| _ ]( 2 )  ==>  |2
+   */
+  | (Backspace, CursorE(OnDelim(j, After), Inj(_, _, Some(operand)))) =>
+    let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
+    let zexp = place_cursor(operand);
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of an injection with an
+   argument moves the cursor backward.
+
+   inj[ _ ]( _ <|)  ==>  inj[ _ ]( _| )
+   */
+  | (Backspace, CursorE(OnDelim(2, Before), Inj(_, tag, Some(arg)))) =>
+    let zarg = ZExp.place_after(arg);
+    let zoperand = ZExp.InjZE(NotInHole, tag, zarg);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+
+  /* Zipper Cases */
+  /*
+   inj[ _|_ ]
+   inj[ _|_ ]( _ )
+   inj[ _ ]( _|_ )
+   */
+  /* Backspace & Deletion */
   | (Backspace, _) when ZExp.is_before_zoperand(zoperand) =>
     CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_zoperand(zoperand) =>
@@ -1453,46 +1656,6 @@ and syn_perform_operand =
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_after;
     ze |> ZExp.is_before
       ? Succeeded(SynDone((ze, Hole, u_gen))) : CursorEscaped(After);
-
-  | (Backspace, CursorE(OnDelim(0, After), Inj(_, _, _))) =>
-    CursorEscaped(Before)
-
-  | (Backspace, CursorE(OnDelim(k, After), Inj(err, tag, Some(body)))) =>
-    switch (k) {
-    /* inj[<| tag ]( e1 )  ==>  |e1 */
-    | 0 =>
-      let body_zexp = ZExp.place_before(body);
-      let inj_zexp = ZExp.ZBlock.wrap(ZExp.InjZE(err, tag, body_zexp));
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
-
-    /* inj[ tag ](<| e1 )  ==>  inj[ tag ]| */
-    | 1 =>
-      let inj_zexp =
-        ZExp.ZBlock.wrap(
-          ZExp.place_after_operand(UHExp.Inj(err, tag, None)),
-        );
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
-
-    /* inj[ tag ]( e1 )<|  ==>  inj[ tag ]( e1 |) */
-    | _2 =>
-      let body_zexp = ZExp.place_after(body);
-      let inj_zexp = ZExp.ZBlock.wrap(ZExp.InjZE(err, tag, body_zexp));
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
-    }
-
-  | (Backspace, CursorE(OnDelim(k, After), Inj(err, tag, None))) =>
-    switch (k) {
-    /* inj[<| tag ]  ==>  |_ */
-    | 0 =>
-      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
-      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), Hole, u_gen)));
-
-    /* inj[ tag ]<|  ==>  inj[ tag |] */
-    | _1 =>
-      let ztag = ZTag.place_after(tag);
-      let inj_zexp = ZExp.ZBlock.wrap(ZExp.InjZT(err, ztag, None));
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
-    }
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
@@ -1659,33 +1822,6 @@ and syn_perform_operand =
     let new_ze =
       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
     Succeeded(SynDone((new_ze, ty, u_gen)));
-
-  /*
-   Pressing <Inj> on an empty hole constructs a bodiless injection
-
-   |?  =(Inj)=>  inj[ |? ]
-   ?|  =(Inj)=>  inj[ |? ]
-   */
-  | (Construct(SInj), CursorE(_, EmptyHole(_))) =>
-    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-    let ze = ZExp.(ZBlock.wrap(InjZT(NotInHole, ztag, None)));
-    let (a, b, c) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze);
-    Sexplib.Sexp.(
-      {
-        print_endline("XXX");
-        print_endline(to_string_hum(ZExp.sexp_of_t(a)));
-        print_endline(to_string_hum(HTyp.sexp_of_t(b)));
-      }
-    );
-    Succeeded(SynDone((a, b, c)));
-
-  /* |_  ==>  inj[ |? ]( _ ) */
-  /* _|  ==>  inj[ |? ]( _ ) */
-  | (Construct(SInj), CursorE(_, body)) =>
-    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-    let e_body = UHExp.Block.wrap(body);
-    let ze = ZExp.(ZBlock.wrap(InjZT(NotInHole, ztag, Some(e_body))));
-    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   | (Construct(SLam), CursorE(_, operand)) =>
     let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
