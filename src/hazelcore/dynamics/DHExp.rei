@@ -7,6 +7,8 @@ module BinBoolOp: {
   let of_op: UHExp.operator => option(t);
 
   let to_op: t => UHExp.operator;
+
+  let toString: t => string;
 };
 
 module BinIntOp: {
@@ -23,6 +25,8 @@ module BinIntOp: {
   let of_op: UHExp.operator => option((t, HTyp.t));
 
   let to_op: t => UHExp.operator;
+
+  let toString: t => string;
 };
 
 module BinFloatOp: {
@@ -39,6 +43,8 @@ module BinFloatOp: {
   let of_op: UHExp.operator => option((t, HTyp.t));
 
   let to_op: t => UHExp.operator;
+
+  let toString: t => string;
 };
 
 [@deriving sexp]

@@ -34,6 +34,13 @@ module BinBoolOp = {
     | And => And
     | Or => Or
     };
+
+  let toString = (op: t): string => {
+    switch (op) {
+    | And => "And"
+    | Or => "Or"
+    };
+  };
 };
 
 module BinIntOp = {
@@ -80,6 +87,18 @@ module BinIntOp = {
     | GreaterThan => GreaterThan
     | Equals => Equals
     };
+
+  let toString = (op: t): string => {
+    switch (op) {
+    | Minus => "Minus"
+    | Plus => "Plus"
+    | Times => "Times"
+    | Divide => "Divide"
+    | LessThan => "LessThan"
+    | GreaterThan => "GreaterThan"
+    | Equals => "Equals"
+    };
+  };
 };
 
 module BinFloatOp = {
@@ -126,6 +145,18 @@ module BinFloatOp = {
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
     };
+
+  let toString = (op: t): string => {
+    switch (op) {
+    | FMinus => "FMinus"
+    | FPlus => "FPlus"
+    | FTimes => "FTimes"
+    | FDivide => "FDivide"
+    | FLessThan => "FLessThan"
+    | FGreaterThan => "FGreaterThan"
+    | FEquals => "FEquals"
+    };
+  };
 };
 
 [@deriving sexp]

@@ -62,7 +62,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | SerializeToConsole(_) =>
+  | SerializeToConsole(_)
+  | Compile =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -215,15 +216,17 @@ let apply_action =
           |> Js.string
           |> JSUtil.log;
         | CHExp =>
-          let d = model |> Model.get_program |> Program.get_expansion;
-          d
-          |> Compile.trans_DHExp
+          model
+          |> Model.get_program
+          |> Program.get_compiled
           |> CHExp.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
-          |> JSUtil.log;
+          |> JSUtil.log
         };
         model;
+      | Compile =>
+        
       };
     },
   );

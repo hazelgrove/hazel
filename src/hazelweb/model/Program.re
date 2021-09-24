@@ -119,6 +119,9 @@ let get_result = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
+let get_compiled = (program: t): CHExp.t =>
+  program |> get_expansion |> Compile.trans_DHExp;
+
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
     "Program.get_doc",
