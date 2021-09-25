@@ -9,6 +9,11 @@ type t('a) = list((key, 'a));
 
 let empty: t('a) = [];
 
+let is_empty: t('a) => bool =
+  fun
+  | [] => true
+  | _ => false;
+
 let singleton = (tag: key, value: 'a): t('a) => [(tag, value)];
 
 let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>

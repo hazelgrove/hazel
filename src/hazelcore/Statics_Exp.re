@@ -118,7 +118,13 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel2, seq, ty);
     ty;
   }
-and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
+and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("SYN_OPERAND");
+      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
+    }
+  );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
@@ -137,7 +143,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(InjectionInSyntheticPosition, _), _, body_opt) =>
     let+ _ = inj_body_valid(ctx, body_opt);
     HTyp.Hole;
-  | Inj(InHole(_, _), _, _) => None
+  | Inj(InHole(_), _, _) => None
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -186,7 +192,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     expansion_ty;
   | Inj(NotInHole, _, _) => None
   | Parenthesized(body) => syn(ctx, body)
-  }
+  };
+}
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
   let* clause_types =

@@ -780,13 +780,14 @@ and ana_elab_operand =
   | Inj(InHole(ExpectedBody, _), _, Some(_)) => DoesNotElaborate
 
   // EAInjBadTag
-  | Inj(InHole(BadTag as reason, u), tag, body_opt) =>
+  | Inj(InHole(BadTag as reason, u), tag, arg_opt) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(_) => DoesNotElaborate
       | None =>
-        switch (ana_elab_inj_body(ctx, delta, body_opt, Some(Hole))) {
+        let ty_arg_opt = Option.is_some(arg_opt) ? Some(HTyp.Hole) : None;
+        switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_arg_opt)) {
         | Some(DoesNotElaborate) => DoesNotElaborate
         | Some(Elaborates(d, d_ty, delta)) =>
           let gamma = Contexts.gamma(ctx);
@@ -805,7 +806,7 @@ and ana_elab_operand =
           let delta =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
           Elaborates(d, ty, delta);
-        }
+        };
       }
     | _ => DoesNotElaborate
     }
