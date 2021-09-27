@@ -803,6 +803,13 @@ and ana_cursor_info_zoperand =
       ty: HTyp.t,
     )
     : option(CursorInfo.t) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("ANA_CURSOR_INFO_ZOPERAND");
+      print_endline(to_string_hum(ZExp.sexp_of_zoperand(zoperand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, e) =>
@@ -951,15 +958,22 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
+
   | InjZT(_, ztag, _) =>
     CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag)
-  | InjZE(_, tag, zbody) =>
-    let* ty_body =
-      switch (ty) {
-      | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
-      | _ => None
-      };
-    ana_cursor_info(~steps=steps @ [1], ctx, zbody, ty_body);
+
+  | InjZE(_, tag, zarg) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap) |> Option.join) {
+      | Some(ty_arg) =>
+        ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg)
+      | None => ana_cursor_info(~steps=steps @ [1], ctx, zarg, HTyp.Hole)
+      }
+
+    | _ => None
+    }
+
   | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
     syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
   | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>

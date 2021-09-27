@@ -119,12 +119,12 @@ and syn_skel =
     ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("SYN_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-    }
-  );
+  // Sexplib.Sexp.(
+  //   {
+  //     print_endline("SYN_OPERAND");
+  //     print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
+  //   }
+  // );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)

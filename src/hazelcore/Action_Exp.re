@@ -3249,7 +3249,25 @@ and ana_perform_operand =
   //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
   //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
 
+  /*
+   Pressing a valid tag character next to the tag of an injection redirects the
+   action to the tag.
+   */
+  | (
+      Construct(SChar(c)),
+      CursorE(
+        OnDelim(0, After as side) | OnDelim(1, Before as side),
+        Inj(status, tag, arg_opt),
+      ),
+    )
+      when UHTag.is_tag_char(c.[0]) =>
+    print_endline("XXX");
+    let place_cursor = side == After ? ZTag.place_before : ZTag.place_after;
+    let zoperand = ZExp.InjZT(status, place_cursor(tag), arg_opt);
+    ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+
   // /* Zipper Cases */
+
   // /*
   //  inj[ _|_ ]
   //  inj[ _|_ ]( _ )
@@ -3481,21 +3499,6 @@ and ana_perform_operand =
       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
     Succeeded(AnaDone((new_ze, u_gen)));
 
-  // /* |?  ==>  inj[ |? ] */
-  // /* ?|  ==>  inj[ |? ] */
-  // | (Construct(SInj), CursorE(_, EmptyHole(_))) =>
-  //   let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-  //   let ze = ZExp.(ZBlock.wrap(InjZT(NotInHole, ztag, None)));
-  //   Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
-
-  // /* |e  ==>  inj[ |? ]( e ) */
-  // /* e|  ==>  inj[ |? ]( e ) */
-  // | (Construct(SInj), CursorE(_, body)) =>
-  //   let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-  //   let e_body = UHExp.Block.wrap(body);
-  //   let ze = ZExp.(ZBlock.wrap(InjZT(NotInHole, ztag, Some(e_body))));
-  //   Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
-
   | (Construct(SLam), CursorE(_)) =>
     let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
     switch (HTyp.matched_arrow(ty)) {
@@ -3641,38 +3644,26 @@ and ana_perform_operand =
       }
     }
 
-  | (_, InjZT(err, ztag, body_opt)) =>
+  | (_, InjZT(_, ztag, body_opt)) =>
     switch (Action_Tag.perform(u_gen, a, ztag)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, u_gen),
-        ty,
-      )
     | Succeeded((ztag, u_gen)) =>
-      let inj_zexp = ZExp.(ZBlock.wrap(InjZT(err, ztag, body_opt)));
-      Succeeded(
-        AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, inj_zexp, ty)),
-      );
+      let zexp = ZExp.ZBlock.wrap(InjZT(NotInHole, ztag, body_opt));
+      Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
+    | CursorEscaped(side) =>
+      let a = Action_common.escape(side);
+      ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+    | Failed => Failed
     }
 
-  | (_, InjZE(err, tag, zbody)) =>
+  | (_, InjZE(_, tag, zbody)) =>
     switch (ana_perform(ctx, a, (zbody, u_gen), HTyp.Hole)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, u_gen),
-        ty,
-      )
     | Succeeded((zbody, u_gen)) =>
-      let inj_zexp = ZExp.(ZBlock.wrap(InjZE(err, tag, zbody)));
-      Succeeded(
-        AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, inj_zexp, ty)),
-      );
+      let zexp = ZExp.ZBlock.wrap(InjZE(NotInHole, tag, zbody));
+      Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
+    | CursorEscaped(side) =>
+      let a = Action_common.escape(side);
+      ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+    | Failed => Failed
     }
 
   | (_, CaseZE(_, zscrut, rules)) =>
