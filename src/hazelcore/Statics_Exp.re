@@ -119,12 +119,6 @@ and syn_skel =
     ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
-  // Sexplib.Sexp.(
-  //   {
-  //     print_endline("SYN_OPERAND");
-  //     print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-  //   }
-  // );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
@@ -1252,7 +1246,7 @@ and ana_fix_holes_operand =
       e: UHExp.operand,
       ty: HTyp.t,
     )
-    : (UHExp.operand, MetaVarGen.t) =>
+    : (UHExp.operand, MetaVarGen.t) => {
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1308,45 +1302,45 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
-  | Inj(_, tag, body_opt) =>
+  | Inj(_, tag, arg_opt) =>
     switch (ty) {
     | Hole =>
       let (tag, u_gen) =
         Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-      let (body_opt, u_gen) =
-        switch (body_opt) {
+      let (arg_opt, u_gen) =
+        switch (arg_opt) {
         | None => (None, u_gen)
-        | Some(body) =>
-          let (body, u_gen) =
-            ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
-          (Some(body), u_gen);
+        | Some(arg) =>
+          let (arg, u_gen) =
+            ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
+          (Some(arg), u_gen);
         };
-      (Inj(NotInHole, tag, body_opt), u_gen);
+      (Inj(NotInHole, tag, arg_opt), u_gen);
     | Sum(tymap) =>
-      switch (body_opt, TagMap.find_opt(tag, tymap)) {
+      switch (arg_opt, TagMap.find_opt(tag, tymap)) {
       /* TAInj (unary) */
-      | (Some(body), Some(Some(ty_body))) =>
+      | (Some(arg), Some(Some(ty_arg))) =>
         let (tag, u_gen) =
           Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-        let (body, u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty_body);
-        (Inj(NotInHole, tag, Some(body)), u_gen);
+        let (arg, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ty_arg);
+        (Inj(NotInHole, tag, Some(arg)), u_gen);
       /* TAInjUnexpectedBody */
-      | (Some(body), Some(None)) =>
+      | (Some(arg), Some(None)) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let (tag, u_gen) =
           Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-        let (body, u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
-        (Inj(InHole(UnexpectedBody, u), tag, Some(body)), u_gen);
+        let (arg, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
+        (Inj(InHole(UnexpectedBody, u), tag, Some(arg)), u_gen);
       /* TAInjBadTag */
-      | (Some(body), None) =>
+      | (Some(arg), None) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let (tag, u_gen) =
           Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-        let (body, u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
-        (Inj(InHole(BadTag, u), tag, Some(body)), u_gen);
+        let (arg, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
+        (Inj(InHole(BadTag, u), tag, Some(arg)), u_gen);
       /* TAInjBadTag */
       | (None, None) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1365,7 +1359,7 @@ and ana_fix_holes_operand =
     | _ =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let (body_opt, u_gen) =
-        switch (body_opt) {
+        switch (arg_opt) {
         | None => (None, u_gen)
         | Some(body) =>
           let (body, u_gen) =
@@ -1402,7 +1396,9 @@ and ana_fix_holes_operand =
         u_gen,
       );
     };
-  }
+  };
+}
+
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */

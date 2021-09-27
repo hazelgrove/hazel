@@ -246,12 +246,6 @@ and syn_elab_skel =
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t => {
-  Sexplib.Sexp.(
-    {
-      print_endline("SYN_ELAB_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -315,14 +309,11 @@ and syn_elab_operand =
 
   // ESInj
   | Inj(InHole(InjectionInSyntheticPosition as reason, u), tag, body_opt) =>
-    print_endline("ESInj");
     let ty_opt = Option.is_some(body_opt) ? Some(HTyp.Hole) : None;
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     switch (ana_elab_inj_body(ctx, delta, body_opt, ty_opt)) {
-    | Some(DoesNotElaborate) =>
-      print_endline("DoesNotElaborate");
-      DoesNotElaborate;
+    | Some(DoesNotElaborate) => DoesNotElaborate
     | Some(Elaborates(d, ty, delta)) =>
       let tymap = TagMap.singleton(tag, Some(ty));
       let d = DHExp.InjError(reason, u, 0, sigma, (tymap, tag, Some(d)));
@@ -697,13 +688,6 @@ and ana_elab_skel =
 and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t => {
-  Sexplib.Sexp.(
-    {
-      print_endline("ANA_ELAB_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -817,14 +801,11 @@ and ana_elab_operand =
       tag,
       body_opt,
     ) =>
-    print_endline("ExpectedTypeNotConsistentWithSums");
     let ty_opt = Option.is_some(body_opt) ? Some(HTyp.Hole) : None;
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     switch (ana_elab_inj_body(ctx, delta, body_opt, ty_opt)) {
-    | Some(DoesNotElaborate) =>
-      print_endline("DoesNotElaborate");
-      DoesNotElaborate;
+    | Some(DoesNotElaborate) => DoesNotElaborate
     | Some(Elaborates(d, ty, delta)) =>
       let tymap = TagMap.singleton(tag, Some(ty));
       let d = DHExp.InjError(reason, u, 0, sigma, (tymap, tag, Some(d)));

@@ -51,7 +51,6 @@ let view_of_layout =
                  ds,
                );
              | NonEmptyTagHole(_, _) =>
-               print_endline("0");
                let offset = start.col - indent;
                let decoration =
                  Decoration_common.container(

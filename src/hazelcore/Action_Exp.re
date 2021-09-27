@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -212,6 +214,7 @@ let resurround_z =
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
 
+[@deriving sexp]
 type expanding_result = {
   kw: ExpandingKeyword.t,
   u_gen: MetaVarGen.t,
@@ -224,10 +227,13 @@ type line_success =
   | LineExpands(expanding_result)
   | LineDone((ZExp.zblock, Contexts.t, MetaVarGen.t));
 
+[@deriving sexp]
 type syn_done = (ZExp.t, HTyp.t, MetaVarGen.t);
+[@deriving sexp]
 type syn_success =
   | SynExpands(expanding_result)
   | SynDone(syn_done);
+
 let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
@@ -238,10 +244,13 @@ let wrap_in_SynDone:
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(syn_done) => Succeeded(SynDone(syn_done));
 
+[@deriving sexp]
 type ana_done = (ZExp.t, MetaVarGen.t);
+[@deriving sexp]
 type ana_success =
   | AnaExpands(expanding_result)
   | AnaDone(ana_done);
+
 let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
@@ -593,22 +602,41 @@ let rec syn_perform =
           a: Action.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
-        : ActionOutcome.t(syn_done) =>
-  switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-  | (Failed | CursorEscaped(_)) as err => err
-  | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
-  | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-    let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
-    let new_ze =
-      (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-      |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
-    let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
-    let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  }
+        : ActionOutcome.t(syn_done) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("SYN_PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
+  let result =
+    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
+    | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
+      let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
+      let new_ze =
+        (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+        |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
+      let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
+      let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    };
+  Sexplib.Sexp.(
+    {
+      print_endline("SYN_PERFORM =>");
+      print_endline(
+        to_string_hum(ActionOutcome.sexp_of_t(sexp_of_syn_done, result)),
+      );
+    }
+  );
+  result;
+}
 
 and syn_perform_block =
     (
@@ -1421,14 +1449,6 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("SYN_PERFORM_OPERAND");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_zoperand(zoperand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1459,8 +1479,6 @@ and syn_perform_operand =
     syn_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), ty, u_gen))
 
   /* Injections */
-
-  /* Construct */
 
   /*
    Pressing <Inj> on an expression creates an injection.
@@ -1497,41 +1515,21 @@ and syn_perform_operand =
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
 
-  /* Delete */
-
   /*
-   Pressing <Delete> before a constant injection or before the opening or middle
-   delimiter of an injection with an argument hole destroys the injection.
-
-   |>inj[ _ ]       ==>  |?
-   |>inj[ _ ]( ? )  ==>  |?
-   inj[ _ |>]( ? )  ==>  |?
-   */
-  | (
-      Delete,
-      CursorE(OnDelim(0, Before), Inj(_, _, None)) |
-      CursorE(
-        OnDelim(0 | 1, Before),
-        Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
-      ),
-    ) =>
-    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
-
-  /*
-   Pressing <Delete> before the closing delimiter of a constant injection or an
+   Pressing <Delete> before any delimiter of a constant injection or an
    injection with an argument hole destroys the injection.
 
-   inj[ _ |>]       ==>  ?|
-   inj[ _ ]( ? |>)  ==>  ?|
+   |>inj[ _ ]       ==>  |?
+   inj[ _ |>]       ==>  |?
+   |>inj[ _ ]( ? )  ==>  |?
+   inj[ _ |>]( ? )  ==>  |?
+   inj[ _ ]( ? |>)  ==>  |?
    */
   | (
       Delete,
-      CursorE(OnDelim(1, Before), Inj(_, _, None)) |
       CursorE(
-        OnDelim(2, Before),
-        Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+        OnDelim(_, Before),
+        Inj(_, _, None | Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
       ),
     ) =>
     let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -1573,8 +1571,6 @@ and syn_perform_operand =
     let zoperand = ZExp.InjZE(NotInHole, tag, ZExp.place_before(arg));
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
-
-  /* Backspace */
 
   /*
    Pressing <Backspace> after any delimiter of a constant injection or an
@@ -1637,11 +1633,14 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
 
   /* Zipper Cases */
+
   /*
    inj[ _|_ ]
    inj[ _|_ ]( _ )
    inj[ _ ]( _|_ )
    */
+
+  /* -- End of Injections -- */
 
   /* Backspace & Deletion */
   | (Backspace, _) when ZExp.is_before_zoperand(zoperand) =>
@@ -2990,14 +2989,6 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("ANA_PERFORM_OPERAND");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_zoperand(zoperand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3073,8 +3064,6 @@ and ana_perform_operand =
 
   /* Injections */
 
-  /* Construct */
-
   /*
    Pressing <Inj> on an expression creates an injection.
 
@@ -3110,59 +3099,40 @@ and ana_perform_operand =
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /* Delete */
+  /*
+   Pressing <Delete> before any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
 
-  // /*
-  //  Pressing <Delete> before a constant injection or before the opening or middle
-  //  delimiter of an injection with an argument hole destroys the injection.
+   |>inj[ _ ]       ==>  |?
+   inj[ _ |>]       ==>  |?
+   |>inj[ _ ]( ? )  ==>  |?
+   inj[ _ |>]( ? )  ==>  |?
+   inj[ _ ]( ? |>)  ==>  |?
+   */
+  | (
+      Delete,
+      CursorE(
+        OnDelim(_, Before),
+        Inj(_, _, None | Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  //  |>inj[ _ ]       ==>  |?
-  //  |>inj[ _ ]( ? )  ==>  |?
-  //  inj[ _ |>]( ? )  ==>  |?
-  //  */
-  // | (
-  //     Delete,
-  //     CursorE(OnDelim(0, Before), Inj(_, _, None)) |
-  //     CursorE(
-  //       OnDelim(0 | 1, Before),
-  //       Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
-  //     ),
-  //   ) =>
-  //   let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+  /*
+   Pressing <Delete> before any delimiter of an injection with an argument
+   unwraps the argument.
 
-  // /*
-  //  Pressing <Delete> before the closing delimiter of a constant injection or an
-  //  injection with an argument hole destroys the injection.
-
-  //  inj[ _ |>]       ==>  ?|
-  //  inj[ _ ]( ? |>)  ==>  ?|
-  //  */
-  // | (
-  //     Delete,
-  //     CursorE(OnDelim(1, Before), Inj(_, _, None)) |
-  //     CursorE(
-  //       OnDelim(2, Before),
-  //       Inj(_, _, Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
-  //     ),
-  //   ) =>
-  //   let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
-
-  // /*
-  //  Pressing <Delete> before any delimiter of an injection with an argument
-  //  unwraps the argument.
-
-  //  |>inj[ _ ]( 2 )  ==>  |2
-  //  inj[ _ |>]( 2 )  ==>  |2
-  //  inj[ _ ]( 2 |>)  ==>  2|
-  //  */
-  // | (Delete, CursorE(OnDelim(j, Before), Inj(_, _, Some(arg)))) =>
-  //   let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
-  //   let zexp = place_cursor(arg);
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   |>inj[ _ ]( 2 )  ==>  |2
+   inj[ _ |>]( 2 )  ==>  |2
+   inj[ _ ]( 2 |>)  ==>  2|
+   */
+  | (Delete, CursorE(OnDelim(j, Before), Inj(_, _, Some(arg)))) =>
+    let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
+    let zexp = place_cursor(arg);
+    let result = Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty);
+    Succeeded(AnaDone(result));
 
   // /*
   //  Pressing <Delete> after the opening delimiter of an injection moves the
@@ -3186,8 +3156,6 @@ and ana_perform_operand =
   //   let zoperand = ZExp.InjZE(NotInHole, tag, ZExp.place_before(arg));
   //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
   //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
-
-  // /* Backspace */
 
   // /*
   //  Pressing <Backspace> after any delimiter of a constant injection or an
@@ -3261,18 +3229,19 @@ and ana_perform_operand =
       ),
     )
       when UHTag.is_tag_char(c.[0]) =>
-    print_endline("XXX");
     let place_cursor = side == After ? ZTag.place_before : ZTag.place_after;
     let zoperand = ZExp.InjZT(status, place_cursor(tag), arg_opt);
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
 
-  // /* Zipper Cases */
+  /* Zipper Cases */
 
-  // /*
-  //  inj[ _|_ ]
-  //  inj[ _|_ ]( _ )
-  //  inj[ _ ]( _|_ )
-  //  */
+  /*
+   inj[ _|_ ]
+   inj[ _|_ ]( _ )
+   inj[ _ ]( _|_ )
+   */
+
+  /* -- End of Injections -- */
 
   /* Backspace & Delete */
 
