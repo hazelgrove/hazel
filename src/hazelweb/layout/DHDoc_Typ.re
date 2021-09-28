@@ -23,5 +23,5 @@ let mk =
     selected_tag_hole
     |> Option.map(MetaVar.eq(u))
     |> Option.value(~default=false);
-  ty |> HTypDoc.mk(~enforce_inline, ~selected_tag_hole) |> promote(selected);
+  ty |> HTypDoc.mk(~enforce_inline) |> promote(selected);
 };

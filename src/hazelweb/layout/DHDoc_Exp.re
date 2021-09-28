@@ -183,13 +183,13 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
-      | Inj((_, tag, body_opt)) =>
+      | Inj((_, tag, arg_opt)) =>
         let tag_doc = DHDoc_Tag.mk(~enforce_inline, ~selected_tag_hole, tag);
-        let padded_child_opt =
-          switch (body_opt) {
-          | Some(body) =>
+        let arg_opt =
+          switch (arg_opt) {
+          | Some(arg) =>
             let child = (~enforce_inline) =>
-              mk_cast(go(~enforce_inline, body));
+              mk_cast(go(~enforce_inline, arg));
             Some(DHDoc_common.pad_child(~enforce_inline, child));
           | None => None
           };
@@ -201,7 +201,7 @@ let rec mk =
         //     |> Option.map(MetaVar.eq(u))
         //     |> Option.value(~default=false)
         //   };
-        DHDoc_common.mk_Inj(tag_doc, padded_child_opt);
+        DHDoc_common.mk_Inj(tag_doc, arg_opt);
       | InjError(reason, u, i, _sigma, inj) =>
         go'(Inj(inj)) |> mk_cast |> annot(DHAnnot.InjHole(reason, (u, i)))
       | Ap(d1, d2) =>

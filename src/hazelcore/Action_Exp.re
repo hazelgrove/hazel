@@ -3118,17 +3118,17 @@ and ana_perform_operand =
     let result = Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty);
     Succeeded(AnaDone(result));
 
-  // /*
-  //  Pressing <Delete> after the opening delimiter of an injection moves the
-  //  cursor forward.
+  /*
+   Pressing <Delete> after the opening delimiter of an injection moves the
+   cursor forward.
 
-  //  inj[|> _ ]       ==>  inj[ |_ ]
-  //  inj[|> _ ]( _ )  ==>  inj[ |_ ]( _ )
-  //  */
-  // | (Delete, CursorE(OnDelim(0, After), Inj(_, tag, arg_opt))) =>
-  //   let zoperand = ZExp.InjZT(NotInHole, ZTag.place_before(tag), arg_opt);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[|> _ ]       ==>  inj[ |_ ]
+   inj[|> _ ]( _ )  ==>  inj[ |_ ]( _ )
+   */
+  | (Delete, CursorE(OnDelim(0, After), Inj(_, tag, arg_opt))) =>
+    let zoperand = ZExp.InjZT(NotInHole, ZTag.place_before(tag), arg_opt);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
   // /*
   //  Pressing <Delete> after the middle delimiter of an injection with an argument

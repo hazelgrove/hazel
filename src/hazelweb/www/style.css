@@ -1215,12 +1215,14 @@ h1 {
   font-size: 125%;
 }
 
-.DHCode .EmptyHole {
+.DHCode .EmptyHole,
+.DHCode .EmptyTagHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   cursor: pointer;
   border: 1px solid transparent;
 }
-.DHCode .EmptyHole.selected {
+.DHCode .EmptyHole.selected,
+.DHCode .EmptyTagHole.selected {
   box-sizing: border-box;
   border: 1px solid var(--empty-hole-color);
 }

@@ -82,7 +82,7 @@ let view =
     )
     : Node.t => {
   ty
-  |> HTypDoc.mk(~enforce_inline=false, ~selected_tag_hole)
+  |> HTypDoc.mk(~enforce_inline=false)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: vieW_of_htyp on layout failure")

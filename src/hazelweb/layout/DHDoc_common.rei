@@ -45,19 +45,9 @@ module Delim: {
   let open_FixF: DHDoc.t;
   let close_FixF: DHDoc.t;
 
-  // let open_Inj = mk("inj[");
-  // let body_inj =
-  //   fun
-  //   | Some(_) => Some(mk("]("))
-  //   | None => None;
-  // let close_Inj =
-  //   fun
-  //   | Some(_) => mk(")")
-  //   | None => mk("]");
-
   let open_Inj: DHDoc.t;
-  let body_Inj: option('a) => option(DHDoc.t);
-  let close_Inj: option('a) => DHDoc.t;
+  let middle_Inj: DHDoc.t;
+  let close_Inj: bool => DHDoc.t;
 
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;
