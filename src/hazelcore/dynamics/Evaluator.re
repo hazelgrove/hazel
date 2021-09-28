@@ -19,7 +19,7 @@ let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
 let grounded_List = NotGroundOrHole(List(Hole));
 
-let ground_cases_of = (ty: HTyp.t): ground_cases =>
+let rec ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
   | Hole => Hole
   | Bool
@@ -34,7 +34,14 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
       tys |> List.length |> grounded_Prod;
     }
   | Arrow(_, _) => grounded_Arrow
-  | Sum(tymap) => grounded_Sum(tymap)
+  | Sum(tymap) =>
+    tymap
+    |> TagMap.is_ground(
+         fun
+         | None => true
+         | Some(ty) => ground_cases_of(ty) == Ground,
+       )
+      ? Ground : grounded_Sum(tymap)
   | List(_) => grounded_List
   };
 

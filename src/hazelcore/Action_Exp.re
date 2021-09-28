@@ -603,14 +603,6 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("SYN_PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   let result =
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -627,14 +619,6 @@ let rec syn_perform =
       let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
       Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
     };
-  Sexplib.Sexp.(
-    {
-      print_endline("SYN_PERFORM =>");
-      print_endline(
-        to_string_hum(ActionOutcome.sexp_of_t(sexp_of_syn_done, result)),
-      );
-    }
-  );
   result;
 }
 

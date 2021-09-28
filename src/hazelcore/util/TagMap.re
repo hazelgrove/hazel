@@ -14,6 +14,13 @@ let is_empty: t('a) => bool =
   | [] => true
   | _ => false;
 
+let rec is_ground = (is_ground_value: 'a => bool, map: t('a)): bool =>
+  switch (map) {
+  | [] => true
+  | [(_, head), ...tail] =>
+    is_ground_value(head) && tail |> is_ground(is_ground_value)
+  };
+
 let singleton = (tag: key, value: 'a): t('a) => [(tag, value)];
 
 let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
