@@ -2205,8 +2205,8 @@ module rec M: Statics_Exp_Sig.S = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       let is_insufficient_params =
         switch (UHExp.get_err_status_operand(e)) {
-        | InHole(TypeInconsistent(Some(InsufficientParams)), _) => false
-        | _ => true
+        | InHole(TypeInconsistent(Some(InsufficientParams)), _) => true
+        | _ => false
         };
       if (is_insufficient_params) {
         (e, u_gen);
