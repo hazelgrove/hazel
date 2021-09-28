@@ -38,7 +38,8 @@ let rec ground_cases_of = (ty: HTyp.t): ground_cases =>
     tymap
     |> TagMap.is_ground(
          fun
-         | None => true
+         | None
+         | Some(HTyp.Hole) => true
          | Some(ty) => ground_cases_of(ty) == Ground,
        )
       ? Ground : grounded_Sum(tymap)
