@@ -3130,76 +3130,76 @@ and ana_perform_operand =
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /*
-  //  Pressing <Delete> after the middle delimiter of an injection with an argument
-  //  moves the cursor forward.
+  /*
+   Pressing <Delete> after the middle delimiter of an injection with an argument
+   moves the cursor forward.
 
-  //  inj[ _ ](|> _ )  ==>  inj[ _ ]( |_ )
-  //  */
-  // | (Delete, CursorE(OnDelim(1, After), Inj(_, tag, Some(arg)))) =>
-  //   let zoperand = ZExp.InjZE(NotInHole, tag, ZExp.place_before(arg));
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[ _ ](|> _ )  ==>  inj[ _ ]( |_ )
+   */
+  | (Delete, CursorE(OnDelim(1, After), Inj(_, tag, Some(arg)))) =>
+    let zoperand = ZExp.InjZE(NotInHole, tag, ZExp.place_before(arg));
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /*
-  //  Pressing <Backspace> after any delimiter of a constant injection or an
-  //  injection with an argument hole destroys the injection.
+  /*
+   Pressing <Backspace> after any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
 
-  //  inj[ _ ]<|       ==>  |?
-  //  inj[<| _ ]       ==>  |?
-  //  inj[ _ ]( ? )<|  ==>  |?
-  //  inj[ _ ](<| ? )  ==>  |?
-  //  inj[<| _ ]( ? )  ==>  |?
-  //  */
-  // | (
-  //     Backspace,
-  //     CursorE(
-  //       OnDelim(_, After),
-  //       Inj(_, _, None | Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
-  //     ),
-  //   ) =>
-  //   let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[ _ ]<|       ==>  |?
+   inj[<| _ ]       ==>  |?
+   inj[ _ ]( ? )<|  ==>  |?
+   inj[ _ ](<| ? )  ==>  |?
+   inj[<| _ ]( ? )  ==>  |?
+   */
+  | (
+      Backspace,
+      CursorE(
+        OnDelim(_, After),
+        Inj(_, _, None | Some([ExpLine(OpSeq(_, S(EmptyHole(_), E)))])),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /*
-  //  Pressing <Backspace> before the closing delimiter of a constant injection or
-  //  the middle delimiter of an injection with an argument moves the cursor
-  //  backward.
+  /*
+   Pressing <Backspace> before the closing delimiter of a constant injection or
+   the middle delimiter of an injection with an argument moves the cursor
+   backward.
 
-  //  inj[ _ <|]       ==>  inj[ _| ]
-  //  inj[ _ <|]( _ )  ==>  inj[ _| ]( _ )
-  //  */
-  // | (Backspace, CursorE(OnDelim(1, Before), Inj(_, tag, arg_opt))) =>
-  //   let ztag = ZTag.place_after(tag);
-  //   let zoperand = ZExp.InjZT(NotInHole, ztag, arg_opt);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[ _ <|]       ==>  inj[ _| ]
+   inj[ _ <|]( _ )  ==>  inj[ _| ]( _ )
+   */
+  | (Backspace, CursorE(OnDelim(1, Before), Inj(_, tag, arg_opt))) =>
+    let ztag = ZTag.place_after(tag);
+    let zoperand = ZExp.InjZT(NotInHole, ztag, arg_opt);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /*
-  //  Pressing <Backspace> after any delimiter of an injection with an argument
-  //  unwraps the argument.
+  /*
+   Pressing <Backspace> after any delimiter of an injection with an argument
+   unwraps the argument.
 
-  //  inj[ _ ]( 2 )<|  ==>  2|
-  //  inj[ _ ](<| 2 )  ==>  |2
-  //  inj[<| _ ]( 2 )  ==>  |2
-  //  */
-  // | (Backspace, CursorE(OnDelim(j, After), Inj(_, _, Some(operand)))) =>
-  //   let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
-  //   let zexp = place_cursor(operand);
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[ _ ]( 2 )<|  ==>  2|
+   inj[ _ ](<| 2 )  ==>  |2
+   inj[<| _ ]( 2 )  ==>  |2
+   */
+  | (Backspace, CursorE(OnDelim(j, After), Inj(_, _, Some(operand)))) =>
+    let place_cursor = j == 2 ? ZExp.place_after : ZExp.place_before;
+    let zexp = place_cursor(operand);
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
-  // /*
-  //  Pressing <Backspace> before the closing delimiter of an injection with an
-  //  argument moves the cursor backward.
+  /*
+   Pressing <Backspace> before the closing delimiter of an injection with an
+   argument moves the cursor backward.
 
-  //  inj[ _ ]( _ <|)  ==>  inj[ _ ]( _| )
-  //  */
-  // | (Backspace, CursorE(OnDelim(2, Before), Inj(_, tag, Some(arg)))) =>
-  //   let zarg = ZExp.place_after(arg);
-  //   let zoperand = ZExp.InjZE(NotInHole, tag, zarg);
-  //   let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
-  //   Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
+   inj[ _ ]( _ <|)  ==>  inj[ _ ]( _| )
+   */
+  | (Backspace, CursorE(OnDelim(2, Before), Inj(_, tag, Some(arg)))) =>
+    let zarg = ZExp.place_after(arg);
+    let zoperand = ZExp.InjZE(NotInHole, tag, zarg);
+    let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 
   /*
    Pressing a valid tag character next to the tag of an injection redirects the
@@ -3237,60 +3237,6 @@ and ana_perform_operand =
     let ze = operand |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
     ze |> ZExp.is_before
       ? Succeeded(AnaDone((ze, u_gen))) : CursorEscaped(After);
-
-  | (Backspace, CursorE(OnDelim(0, After), Inj(_, _, _))) =>
-    CursorEscaped(Before)
-
-  | (Backspace, CursorE(OnDelim(k, After), Inj(err, tag, Some(body)))) =>
-    switch (k) {
-    /* inj[<| tag ]( e1 )  ==>  |e1 */
-    | 0 =>
-      switch (ty) {
-      | Sum(tymap) =>
-        switch (TagMap.find_opt(tag, tymap)) {
-        | None
-        | Some(None) => Failed
-        | Some(Some(ty1)) =>
-          let body_zexp = ZExp.place_before(body);
-          Succeeded(
-            AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, body_zexp, ty1)),
-          );
-        }
-      | _ => Failed
-      }
-
-    /* inj[ tag ](<| e1 )  ==>  inj[ tag ]| */
-    | 1 =>
-      let inj_zexp =
-        ZExp.(ZBlock.wrap(place_after_operand(UHExp.Inj(err, tag, None))));
-      Succeeded(
-        AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, inj_zexp, ty)),
-      );
-
-    /* inj[ tag ]( e1 )<|  ==>  inj[ tag ]( e1 |) */
-    | _2 =>
-      let inj_zexp =
-        ZExp.(ZBlock.wrap(InjZE(err, tag, ZExp.place_after(body))));
-      Succeeded(
-        AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, inj_zexp, ty)),
-      );
-    }
-
-  | (Backspace, CursorE(OnDelim(k, After), Inj(err, tag, None))) =>
-    switch (k) {
-    /* inj[<| tag ]  ==>  |_ */
-    | 0 =>
-      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
-      Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
-
-    /* inj[ tag ]<|  ==>  inj[ tag |] */
-    | _1 =>
-      let ztag = ZTag.place_after(tag);
-      let inj_zexp = ZExp.(ZBlock.wrap(InjZT(err, ztag, None)));
-      Succeeded(
-        AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, inj_zexp, ty)),
-      );
-    }
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
