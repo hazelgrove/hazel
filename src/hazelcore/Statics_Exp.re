@@ -2205,13 +2205,11 @@ module rec M: Statics_Exp_Sig.S = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       let is_insufficient_params =
         switch (UHExp.get_err_status_operand(e)) {
-        | InHole(TypeInconsistent(Some(InsufficientParams)), _) => true
+        | InHole(TypeInconsistent(Some(InsufficientParams)), _)
         | _ => false
         };
-      if (is_insufficient_params) {
+      if (is_insufficient_params || HTyp.consistent(ty, ty')) {
         (e, u_gen);
-      } else if (HTyp.consistent(ty, ty')) {
-        (UHExp.set_err_status_operand(NotInHole, e), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
