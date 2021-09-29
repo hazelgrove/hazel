@@ -36,40 +36,72 @@ let rec perform =
   switch (a) {
   | Move(path) => move(path)
 
-  | Delete({dir, into_whitespace}) =>
-    if (into_whitespace) {
-      move(Path.next(dir, path, term));
+  | Delete({dir, into_whitespace: true}) =>
+    move(Path.next(dir, path, term))
+
+  | Delete({dir, into_whitespace: false}) =>
+    if (Path.escapes(dir, path, term)) {
+      // unregistered move
+      let next_path = Path.next(dir, path, term);
+      let edit_state = EditState.mk(Pointing(next_path), term);
+      perform(Delete({dir, into_whitespace: false}), edit_state);
     } else {
       let (subject, frame) = Path.to_zipper(cursor, term);
-      let Pointing(path) = cursor;
-      switch (subject) {
-      | Pointing(ztile, (prefix, suffix)) =>
-        let (child_step, caret_step, tile) = ztile;
-        switch (Tile.is_text_lit(tile)) {
-        | Some(s) =>
-          failwith("todo")
+      let frame_sort = Frame.sort(frame);
+      let Pointing((_, caret) as path) = cursor;
+      let Pointing({
+        current_shard,
+        rest_of_tile,
+        rest_of_subj: (prefix, suffix),
+      }) = subject;
+      switch (Shard.is_text_lit(current_shard)) {
+      | Some(s) =>
+        switch (StringUtil.delete(dir, caret, s)) {
         | None =>
-          if (Path.escapes(dir, path, term)) {
-            // unregistered move
-            let next_path = Path.next(dir, path, term);
-            let edit_state = EditState.mk(Pointing(next_path), term);
-            perform(Delete({dir, into_whitespace: false}), edit_state);
-          } else {
-            let id = Tile.id(tile);
-            let (children_pre, children_suf) = ZTile.same_sort_children(ztile);
-            let* (prefix, suffix) =
-              Parser.fix_holes(ltip, children_pre @ [prefix], children_suf @ [suffix], rtip);
-            let (ztile, (prefix, suffix)) =
-              switch (prefix, suffix) {
-              | (_, [tile, ...suffix]) =>
-                (ZTile.cursor_before(tile), (prefix, suffix))
-              | ([tile, ...prefix], _) =>
-                (ZTile.cursor_after(tile), (prefix, suffix))
-              | ([], []) =>
-                failwith("todo")
-              }
-          }
+          // caret is at end of text lit
+          // perform unregistered move and try again
+          let next = Path.next(dir, path, term);
+          perform(a, (Pointing(next), term));
+        | Some((caret, s)) =>
+          // tips should remain unaltered, no need to fix
+          let current_shard = Shard.mk_text(frame_sort, s);
+          let subject = Subject.Pointing({current_shard, rest_of_tile, rest_of_subj});
+          Path.of_zipper((subject, frame));
         }
+      | None =>
+        // remove current_shard and filter tiles in rest_of_tile
+        let (same_sort_pre, same_sort_suf) =
+          rest_of_tile
+          |> AltListFrame.filter_map_a(
+            _shard => None,
+            term =>
+              Term.sort(term) == frame_sort
+              ? Some(term)
+              : None,
+          );
+        let (same_sort_pre, same_sort_suf) =
+          (
+            List.map(term => List.rev(Term.flatten(term)), same_sort_pre),
+            List.map(Term.flatten, same_sort_suf),
+          );
+        // fix holes between remaining segments and prefix/suffix
+        let (prefix, suffix) =
+          Parser.fix_tips(
+            List.flatten(same_sort_pre) @ prefix,
+            List.flatten(same_sort_suf) @ suffix,
+          );
+        let (current_shard, rest_of_tile, rest_of_subj) =
+          switch (prefix, suffix) {
+          | ([], []) => failwith("fix_tips returned empty frame")
+          | (_, [tile, ...suffix]) =>
+            let (shard, tile) = enter(Left, tile);
+            (shard, tile, (prefix, suffix));
+          | ([tile, ...prefix], _) =>
+            let (shard, tile) = enter(Right, tile);
+            (shard, tile, (prefix, suffix));
+          };
+        let subject = Subject.Pointing({current_shard, rest_of_tile, rest_of_subj});
+        Path.of_zipper((subject, frame));
       }
     };
 
