@@ -223,8 +223,7 @@ and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
-  | CursorE(cursor, ListNil(_))
-  | CursorE(cursor, StringLit(_)) => cursor == OnDelim(0, After)
+  | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
@@ -232,6 +231,7 @@ and is_after_zoperand =
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
+  | CursorE(cursor, StringLit(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
@@ -353,14 +353,14 @@ and place_after_opseq = opseq =>
 and place_after_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_)
-  | StringLit(_) => CursorE(OnDelim(0, After), operand)
+  | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | InvalidText(_, t) => CursorE(OnText(String.length(t)), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
+  | StringLit(_) => CursorE(OnDelim(1, After), operand)
   | Lam(_) => CursorE(OnDelim(2, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
@@ -648,10 +648,12 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
+  // Move from first char of string
   | CursorE(OnText(0), StringLit(_, _) as operand) =>
     Some(CursorE(OnDelim(0, After), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
+  // Move to last char of string
   | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
     Some(CursorE(OnText(String.length(s)), operand))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
@@ -833,12 +835,14 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
+  // Move from last char of string
   | CursorE(OnText(j), StringLit(_, s) as operand)
       when j == String.length(s) =>
     Some(CursorE(OnDelim(1, Before), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  // Move to first char of string
   | CursorE(OnDelim(_zero, After), StringLit(_) as operand) =>
     Some(CursorE(OnText(0), operand))
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
