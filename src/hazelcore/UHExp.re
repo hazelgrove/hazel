@@ -334,7 +334,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
   | StringLit(InHole(_), _) => false
-  | StringLit(NotInHole, _) => false
+  | StringLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Lam(InHole(_), _, _) => false
