@@ -84,6 +84,7 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACK RBRACK
+%token EMPTY_HOLE
 %token LAMBDA
 %token CASE
 %token BAR
@@ -134,6 +135,7 @@ atomic_type:
     | "Float" -> UHTyp.Float
     | _ -> failwith ("Unknown Type: "^$1)
   }
+  | EMPTY_HOLE { UHTyp.Hole }
 ;
 
 %inline typ_op:
@@ -151,6 +153,7 @@ pat:
 pat_:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
   | IDENT { UHPat.var $1 }
+  | EMPTY_HOLE { UHPat.EmptyHole 0 }
   | pat_constant { $1 }
   | LBRACK RBRACK { UHPat.listnil () }
 ;
@@ -182,6 +185,7 @@ simple_expr:
   LPAREN line RPAREN { UHExp.Parenthesized($2) }
   | constant { $1 }
   | IDENT { UHExp.var $1 }
+  | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | fn { $1 }
   | INJL LPAREN line RPAREN { mk_inj_l $3 }
   | INJR LPAREN line RPAREN { mk_inj_r $3 }
