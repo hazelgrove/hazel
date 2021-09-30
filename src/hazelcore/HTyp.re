@@ -27,8 +27,8 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole
   | String
+  | Hole
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
