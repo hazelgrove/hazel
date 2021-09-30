@@ -128,7 +128,7 @@ let text_match_score = (ci: CursorInfo.t, result_text: string): float => {
     ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
-let opseq_report =
+let score_action =
     (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
   let* (opseq_expected_ty, old_zexp) =
     switch (enclosing_zopseq) {
@@ -159,7 +159,7 @@ let opseq_report =
   (context_consistent_after, internal_errors_before, internal_errors_after);
 };
 
-let check_suggestion =
+let mk =
     (
       action: Action.t,
       result_ty: HTyp.t,
@@ -176,7 +176,7 @@ let check_suggestion =
     internal_errors_before,
     internal_errors_after,
   ) =
-    opseq_report(action, ci);
+    score_action(action, ci);
   let context_errors =
     switch (context_consistent_after) {
     | false => (-1)
@@ -185,7 +185,6 @@ let check_suggestion =
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
   let idiomaticity = idiomaticity_score_parent(action, enclosing_zoperand);
-
   let type_specificity =
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
   let text_match = text_match_score(ci, result_text);

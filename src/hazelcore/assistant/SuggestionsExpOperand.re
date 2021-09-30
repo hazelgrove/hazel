@@ -1,4 +1,5 @@
 open SuggestionsExp;
+open Assistant_common;
 
 let mk_operand_suggestion =
     (
@@ -12,9 +13,7 @@ let mk_operand_suggestion =
   let result_text = UHExp.string_of_operand(operand);
   let action = Action.ReplaceOperand(operand, None);
   let score =
-    switch (
-      SuggestionScore.check_suggestion(action, result_ty, result_text, ci)
-    ) {
+    switch (SuggestionScore.mk(action, result_ty, result_text, ci)) {
     | None =>
       Printf.printf(
         "Warning: failed to generate a score for suggested action: %s\n",
@@ -95,17 +94,6 @@ let mk_app_suggestion =
     ~result,
     ci,
   );
-};
-
-let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
-  ctx
-  |> Contexts.gamma
-  |> VarMap.filter(((name, ty)) =>
-       switch (StringUtil.search_forward_opt(Str.regexp(str), name)) {
-       | None => false
-       | Some(_) => HTyp.consistent(ty, typ)
-       }
-     );
 };
 
 let get_wrapped_operand =

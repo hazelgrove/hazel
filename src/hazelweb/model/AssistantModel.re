@@ -20,9 +20,6 @@ type update =
   | Decrement_selection_index
   | Set_hover_index(option(int));
 
-[@deriving sexp]
-type suggestion = SuggestionsExp.suggestion;
-
 let init = {
   active: false,
   selection_index: 0,
@@ -80,141 +77,23 @@ let apply_update = (u: update, model: t) =>
   | Set_hover_index(n) => {...model, hover_index: n}
   };
 
-let get_operand_suggestions = (ci: CursorInfo.t): list(suggestion) =>
-  switch (ci.cursor_term) {
-  | ExpOperand(_) => SuggestionsExpOperand.mk(ci)
-  | _ => []
-  };
+let mk_suggestions =
+    ({filter_editor, _}: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t) =>
+  Suggestions.mk(~u_gen, ci, Editor.get_ty(filter_editor));
 
-let sort_suggestions = (suggestions: list(suggestion)): list(suggestion) => {
-  let int_score = (a: suggestion) =>
-    a.score.delta_errors + a.score.idiomaticity + a.score.type_specificity;
-  let text_match_multiplier = 2.;
-  let scorer = (a: suggestion) =>
-    float_of_int(int_score(a)) +. text_match_multiplier *. a.score.text_match;
-  let compare = (a1, a2) => Float.compare(scorer(a2), scorer(a1));
-  List.sort(compare, suggestions);
-};
-
-let renumber_suggestion_holes =
-    (ctx, u_gen, {action, result, _} as s: suggestion): suggestion => {
-  let (result, _, _) =
-    Statics_Exp.syn_fix_holes(
-      ctx,
-      u_gen - 1,
-      ~renumber_empty_holes=true,
-      result,
-    );
-  let action: Action.t =
-    switch (action) {
-    | ReplaceOperand(operand, proj_z) =>
-      let (operand, _, _) =
-        Statics_Exp.syn_fix_holes_operand(
-          ctx,
-          u_gen - 1,
-          ~renumber_empty_holes=true,
-          operand,
-        );
-      ReplaceOperand(operand, proj_z);
-    | _ => action
-    };
-  {...s, result, action};
-};
-
-let normalize_operand = (op: UHExp.operand) => {
-  let (op, _, _) =
-    Statics_Exp.syn_fix_holes_operand(
-      Contexts.empty,
-      0,
-      ~renumber_empty_holes=true,
-      op,
-    );
-  op;
-};
-
-let equality_modulo_hole_numbers = (op1: UHExp.operand, op2: UHExp.operand) =>
-  normalize_operand(op1) == normalize_operand(op2);
-
-let different_than_current =
-    (cursor_term: CursorInfo.cursor_term, {result, _}: suggestion) => {
-  switch (result, cursor_term) {
-  | ([ExpLine(OpSeq(_, S(a, E)))], ExpOperand(_, b)) =>
-    !equality_modulo_hole_numbers(a, b)
-  | _ => true
-  };
-};
-
-let get_suggestion_operand = ({action, _}: suggestion) =>
-  switch (action) {
-  | ReplaceOperand(operand, _) => operand
-  | _ => EmptyHole(-1)
-  };
-
-let equal_to_any = (s': suggestion, suggestions: list(suggestion)) => {
-  let suggestion_operand = get_suggestion_operand(s');
-  List.fold_left(
-    (acc, s) =>
-      equality_modulo_hole_numbers(
-        suggestion_operand,
-        get_suggestion_operand(s),
-      )
-      || acc,
-    false,
-    suggestions,
-  );
-};
-
-let deduplicate = (suggestions: list(suggestion)) => {
-  List.fold_left(
-    (acc, s) => equal_to_any(s, acc) ? acc : acc @ [s],
-    [],
-    suggestions,
-  );
-};
-
-let get_suggestions =
-    ({cursor_term, ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
-    : list(suggestion) => {
-  get_operand_suggestions(ci)
-  |> List.filter(different_than_current(cursor_term))
-  |> deduplicate
-  |> List.map(renumber_suggestion_holes(ctx, u_gen))
-  |> sort_suggestions;
-};
-
-let get_suggestions_of_ty =
-    (ci: CursorInfo.t, ~u_gen: MetaVarGen.t, ty: HTyp.t): list(suggestion) =>
-  ci
-  |> get_suggestions(~u_gen)
-  |> List.filter((s: suggestion) => HTyp.consistent(s.result_ty, ty));
-
-let wrap_index = (index: int, xs: list('a)): int =>
-  IntUtil.wrap(index, List.length(xs));
-
-let get_suggestions_of_ty' =
-    (
-      {filter_editor, selection_index, _}: t,
-      ci: CursorInfo.t,
-      ~u_gen: MetaVarGen.t,
-    )
-    : (list(Suggestion.t(UHExp.t)), int) => {
-  let filter_ty = Editor.get_ty(filter_editor);
-  let suggestions = get_suggestions_of_ty(~u_gen, ci, filter_ty);
-  let selection_index = wrap_index(selection_index, suggestions);
-  (suggestions, selection_index);
-};
+let wrap_index = (index, xs) => IntUtil.wrap(index, List.length(xs));
 
 let get_display_suggestions =
     (
       ci: CursorInfo.t,
       ~u_gen: MetaVarGen.t=0,
-      {choice_display_limit, _} as model: t,
+      {choice_display_limit, selection_index, _} as model: t,
     )
-    : list(suggestion) => {
-  let (suggestions, selection_index) =
-    get_suggestions_of_ty'(model, ci, ~u_gen);
+    : Suggestions.t => {
+  let suggestions = mk_suggestions(model, ci, ~u_gen);
+  let wrapped_index = wrap_index(selection_index, suggestions);
   suggestions
-  |> ListUtil.rotate_n(selection_index)
+  |> ListUtil.rotate_n(wrapped_index)
   |> ListUtil.trim(choice_display_limit);
 };
 
@@ -222,14 +101,18 @@ let num_suggestions = (ci: CursorInfo.t, model: t) =>
   List.length(get_display_suggestions(ci, model));
 
 let get_indicated_suggestion =
-    ({hover_index, _} as model: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t) => {
-  let (suggestions, selection_index) =
-    get_suggestions_of_ty'(model, ci, ~u_gen);
+    (
+      {hover_index, selection_index, _} as model: t,
+      ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t,
+    ) => {
+  let suggestions = mk_suggestions(model, ci, ~u_gen);
+  let wrapped_index = wrap_index(selection_index, suggestions);
   let index =
     switch (hover_index) {
-    | None => selection_index
+    | None => wrapped_index
     | Some(hover_index) =>
-      wrap_index(selection_index + hover_index, suggestions)
+      IntUtil.wrap(wrapped_index + hover_index, List.length(suggestions))
     };
   List.nth_opt(suggestions, index);
 };
