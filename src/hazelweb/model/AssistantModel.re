@@ -121,12 +121,65 @@ let renumber_suggestion_holes =
   {...s, result, action};
 };
 
+let normalize_operand = (op: UHExp.operand) => {
+  let (op, _, _) =
+    Statics_Exp.syn_fix_holes_operand(
+      Contexts.empty,
+      0,
+      ~renumber_empty_holes=true,
+      op,
+    );
+  op;
+};
+
+let equality_modulo_hole_numbers = (op1: UHExp.operand, op2: UHExp.operand) =>
+  normalize_operand(op1) == normalize_operand(op2);
+
+let different_than_current =
+    (cursor_term: CursorInfo.cursor_term, {result, _}: suggestion) => {
+  switch (result, cursor_term) {
+  | ([ExpLine(OpSeq(_, S(a, E)))], ExpOperand(_, b)) =>
+    !equality_modulo_hole_numbers(a, b)
+  | _ => true
+  };
+};
+
+let get_suggestion_operand = ({action, _}: suggestion) =>
+  switch (action) {
+  | ReplaceOperand(operand, _) => operand
+  | _ => EmptyHole(-1)
+  };
+
+let equal_to_any = (s': suggestion, suggestions: list(suggestion)) => {
+  let suggestion_operand = get_suggestion_operand(s');
+  List.fold_left(
+    (acc, s) =>
+      equality_modulo_hole_numbers(
+        suggestion_operand,
+        get_suggestion_operand(s),
+      )
+      || acc,
+    false,
+    suggestions,
+  );
+};
+
+let deduplicate = (suggestions: list(suggestion)) => {
+  List.fold_left(
+    (acc, s) => equal_to_any(s, acc) ? acc : acc @ [s],
+    [],
+    suggestions,
+  );
+};
+
 let get_suggestions =
-    ({/*cursor_term,*/ ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
+    ({cursor_term, ctx, _} as ci: CursorInfo.t, ~u_gen: MetaVarGen.t)
     : list(suggestion) => {
   get_operand_suggestions(ci)
+  |> List.filter(different_than_current(cursor_term))
+  |> deduplicate
   |> List.map(renumber_suggestion_holes(ctx, u_gen))
-  |> sort_suggestions /*|> sort_by_prefix(    CursorInfo_common.string_and_index_of_cursor_term(cursor_term),  )*/;
+  |> sort_suggestions;
 };
 
 let get_suggestions_of_ty =

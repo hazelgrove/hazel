@@ -194,35 +194,18 @@ let str_float_to_int = s =>
 let str_int_to_float = s =>
   s |> int_of_string |> Float.of_int |> string_of_float;
 
-let int_float_suggestions': generator =
-  ({cursor_term, _} as ci) => {
-    /* This functions handles the suggestion of both float/int literals
-       and repair conversions between the two. These could be seperated
-       out once we have a system for identifying duplicate suggestions */
+let int_float_conversion_suggestions: generator =
+  ({cursor_term, _} as ci) =>
     switch (cursor_term) {
-    | ExpOperand(_, IntLit(_, s)) when s != "0" => [
-        mk_float_lit_suggestion(s ++ ".", ci),
-        mk_int_lit_suggestion("0", ci),
-      ]
-    | ExpOperand(_, IntLit(_, s)) when s == "0" => [
+    | ExpOperand(_, IntLit(_, s)) => [
         mk_float_lit_suggestion(str_int_to_float(s), ci),
       ]
-    | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) != 0.0 =>
-      s |> float_of_string |> Float.is_integer
-        ? [
-          mk_int_lit_suggestion(str_float_to_int(s), ci),
-          mk_float_lit_suggestion("0.", ci),
-        ]
-        : [mk_int_lit_suggestion("0", ci)]
-    | ExpOperand(_, FloatLit(_, s)) when float_of_string(s) == 0.0 => [
-        mk_int_lit_suggestion("0", ci),
+    | ExpOperand(_, FloatLit(_, s))
+        when s |> float_of_string |> Float.is_integer => [
+        mk_int_lit_suggestion(str_float_to_int(s), ci),
       ]
-    | _ => [
-        mk_float_lit_suggestion("0.", ci),
-        mk_int_lit_suggestion("0", ci),
-      ]
+    | _ => []
     };
-  };
 
 let mk_wrap_case_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t): suggestion => {
@@ -239,19 +222,39 @@ let result_type_consistent_with = (expected_ty, a: suggestion) =>
 
 // GENERATORS --------------------------------------------------------
 
+let rec mk_constructors = (ci, expected_ty: HTyp.t) =>
+  switch (expected_ty) {
+  | Bool => [
+      mk_bool_lit_suggestion(true, ci),
+      mk_bool_lit_suggestion(false, ci),
+    ]
+  | Int => [mk_int_lit_suggestion("1", ci)]
+  | Float => [mk_float_lit_suggestion("1.", ci)]
+  | List(_) => [mk_nil_list_suggestion(ci), mk_list_suggestion(ci)]
+  | Sum(_, _) => [mk_inj_suggestion(L, ci), mk_inj_suggestion(R, ci)]
+  | Prod(_) => [mk_pair_suggestion(ci)] // TODO: n-tuples
+  | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas
+  | Hole =>
+    // add new types here for synthetic position
+    // ordering here is becomes default for UI
+    HTyp.[
+      Bool,
+      Int,
+      Float,
+      List(Hole),
+      Sum(Hole, Hole),
+      Prod([]),
+      Arrow(Hole, Hole),
+    ]
+    |> List.map(mk_constructors(ci))
+    |> List.concat
+  };
+
 let mk_intro_suggestions: generator =
-  // TODO: refactor into cases on expected_ty
-  ci => [
-    mk_empty_hole_suggestion(ci),
-    mk_bool_lit_suggestion(true, ci),
-    mk_bool_lit_suggestion(false, ci),
-    mk_inj_suggestion(L, ci),
-    mk_inj_suggestion(R, ci),
-    mk_nil_list_suggestion(ci),
-    mk_list_suggestion(ci),
-    mk_lambda_suggestion(ci), // TODO: nested lambdas
-    mk_pair_suggestion(ci) // TODO: n-tuples
-  ];
+  ci => mk_constructors(ci, ci.expected_ty);
+
+let mk_empty_hole_suggestions: generator =
+  ci => [mk_empty_hole_suggestion(ci)];
 
 let intro_suggestions: generator =
   ({expected_ty, _} as ci) =>
@@ -262,7 +265,7 @@ let intro_suggestions: generator =
 let int_float_suggestions: generator =
   ({expected_ty, _} as ci) =>
     ci
-    |> int_float_suggestions'
+    |> int_float_conversion_suggestions
     |> List.filter(result_type_consistent_with(expected_ty));
 
 let var_suggestions: generator =
@@ -284,6 +287,7 @@ let elim_suggestions: generator =
 let exp_operand_generators = [
   elim_suggestions,
   wrap_suggestions,
+  mk_empty_hole_suggestions,
   intro_suggestions,
   int_float_suggestions,
   var_suggestions,

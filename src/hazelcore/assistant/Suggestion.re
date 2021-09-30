@@ -80,17 +80,3 @@ let description_of_category: category => string =
   | ReplaceOperator => "Replace an operator"
   | Wrap => "Wrap the current form"
   | Delete => "Delete the current form";
-
-/* If this is failing, it means you've added a new type.
-   Consider adding suggestion generators for that type
-   for the assistant. */
-let suggestion_check: HTyp.t => unit =
-  fun
-  | Hole
-  | Int
-  | Float
-  | Bool
-  | Arrow(_)
-  | Sum(_)
-  | Prod(_)
-  | List(_) => ();
