@@ -124,7 +124,7 @@ follow these instructions instead of the shorter instructions in the
   why we do not use newer versions).
 
   ```sh
-  opam switch create 4.08.1
+  opam switch create 4.08.1 ocaml-base-compiler.4.08.1
   ```
 
 ## Clone the Source Code
