@@ -64,8 +64,12 @@ let get_cursor_info = (program: t) => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term =
-    program.is_focused
-      ? [UHDecorationShape.CurrentTerm(get_path(program))] : [];
+    if (program.is_focused) {
+      let (steps, _) = get_path(program);
+      [(steps, UHDecorationShape.CurrentTerm)];
+    } else {
+      [];
+    };
   let err_holes =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>
@@ -76,20 +80,22 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | VarErr =>
-             Some(
-               UHDecorationShape.VarErrHole(CursorPath.get_steps(hole_info)),
-             )
+             Some((
+               CursorPath.get_steps(hole_info),
+               UHDecorationShape.VarErrHole,
+             ))
            | TypeErr =>
-             Some(
-               UHDecorationShape.ErrHole(CursorPath.get_steps(hole_info)),
-             )
+             Some((
+               CursorPath.get_steps(hole_info),
+               UHDecorationShape.ErrHole,
+             ))
            }
          }
        );
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} =>
-      List.map(use_steps => UHDecorationShape.VarUse(use_steps), uses)
+      List.map(use_steps => (use_steps, UHDecorationShape.VarUse), uses)
     | _ => []
     };
   List.concat([err_holes, var_uses, current_term]);

@@ -2,7 +2,7 @@
  * A collection of paths to decorations in a given UH-term
  */
 [@deriving sexp]
-type t = list(UHDecorationShape.t);
+type t = list((CursorPath.steps, UHDecorationShape.t));
 
 let is_empty: t => bool;
 
