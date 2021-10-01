@@ -5,25 +5,6 @@ module Parse = Parser.Parse;
 module Parsing = Parser.Parsing;
 module Print = Parser.Print;
 
-let get_ast = l =>
-  try(Some(Parsing.parse(l, Parse.Incremental.main(l.lex_curr_p)))) {
-  | Parsing.SyntaxError((pos, tok)) =>
-    switch (pos) {
-    | Some((line, col)) =>
-      // Handle presenting the error
-      JSUtil.log(
-        Printf.sprintf(
-          "ERROR on line %d, column %d. Token: %s",
-          line,
-          col,
-          tok,
-        ),
-      );
-      None;
-    | None => None
-    }
-  };
-
 let export_body = (_, model) => {
   Vdom.(
     Node.div(
@@ -89,6 +70,10 @@ let import_body = (inject, _) => {
           ],
           [],
         ),
+        Node.textarea(
+          [Attr.id("parse-errors"), Attr.classes(["import-errors"])],
+          [],
+        ),
         Node.button(
           [
             Attr.on_click(_ => {
@@ -96,8 +81,8 @@ let import_body = (inject, _) => {
               let s = JSUtil.force_get_attr("value", e);
 
               let l = Lexing.from_string(s);
-              switch (get_ast(l)) {
-              | Some(ast) =>
+              switch (Parsing.ast_of_layout(l)) {
+              | (Some(ast), None) =>
                 let (ast, _, _) =
                   Statics_Exp.syn_fix_holes(
                     Contexts.empty,
@@ -106,7 +91,7 @@ let import_body = (inject, _) => {
                   );
                 JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
                 Event.Ignore;
-              | None => Event.Ignore
+              | _ => Event.Ignore
               };
             }),
           ],
@@ -117,8 +102,24 @@ let import_body = (inject, _) => {
             Attr.on_click(_ => {
               let e = JSUtil.force_get_elem_by_id("parse-text-box");
               let s = JSUtil.force_get_attr("value", e);
-
-              inject(ModelAction.Import(s));
+              let l = Lexing.from_string(s);
+              switch (Parsing.ast_of_layout(l)) {
+              | (Some(ast), _) =>
+                let (ast, _, _) =
+                  Statics_Exp.syn_fix_holes(
+                    Contexts.empty,
+                    MetaVarGen.init,
+                    ast,
+                  );
+                let e = JSUtil.force_get_elem_by_id("parse-errors");
+                e##.innerHTML := JSUtil.Js.string("");
+                inject(ModelAction.Import(ast));
+              | (_, Some(err_string)) =>
+                let e = JSUtil.force_get_elem_by_id("parse-errors");
+                e##.innerHTML := JSUtil.Js.string(err_string);
+                Event.Ignore;
+              | (None, None) => Event.Ignore
+              };
             }),
           ],
           [Node.text("Import")],

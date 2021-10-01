@@ -1,6 +1,6 @@
 open Lexing
 
-exception SyntaxError of ((int * int) option * string)
+exception SyntaxError of ((int * int) option * string option)
 
 module I = Parse.MenhirInterpreter
 
@@ -8,8 +8,8 @@ let rec parse lexbuf c =
   match c with
   | I.InputNeeded _ ->
       let token = Lex.read lexbuf in
-      let startp = lexbuf.lex_start_p
-      and endp = lexbuf.lex_curr_p in
+      let startp = lexbuf.lex_start_p in
+      let endp = lexbuf.lex_curr_p in
       let checkpoint = I.offer c (token, startp, endp) in
       parse lexbuf checkpoint
   | I.Shifting _
@@ -19,8 +19,33 @@ let rec parse lexbuf c =
       let startp = lexbuf.lex_start_p in
       let line = startp.pos_lnum in
       let col = startp.pos_cnum - startp.pos_bol + 1 in
-      let test = Lexing.lexeme lexbuf in
-      let _ = print_endline test in
-      raise (SyntaxError (Some (line, col), test))
+      let lexeme =
+        match col < lexbuf.lex_buffer_len with
+        | true ->
+          let c = Bytes.get (lexbuf.lex_buffer) startp.pos_cnum in
+          Some (String.make 1 c)
+        | false -> None
+      in
+      raise (SyntaxError (Some (line, col), lexeme))
   | I.Accepted v -> v
-  | I.Rejected -> raise (SyntaxError (None, "Rejected"))
+  | I.Rejected -> raise (SyntaxError (None, Some "Rejected"))
+
+let ast_of_layout l =
+  try
+    Some ((parse l (Parse.Incremental.main l.lex_curr_p))), None
+  with
+  | SyntaxError((Some(line, col), tok)) ->
+      let tok_string =
+        match tok with
+        | Some (c) -> Printf.sprintf "Token: %s" c
+        | None -> Printf.sprintf("End of File")
+      in
+      let err_string =
+        Printf.sprintf
+          "ERROR on line %d, column %d. %s"
+          line
+          col
+          tok_string
+      in
+      None, Some err_string
+  | SyntaxError((None, _)) -> (None, Some "Unknown Error")

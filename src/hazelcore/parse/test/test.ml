@@ -74,11 +74,9 @@ let test_parse text: bool =
 
 let thing test =
   match test with
-  | {text = t; _} ->
+  | {text = t; valid = v; _} ->
   let success = test_parse t in
-match success with
-| true -> success
-| false -> success
+success = v
 
 (*
 let%test _ =
@@ -89,3 +87,9 @@ let%test _ =
 let%test _ = thing (List.nth tests 0)
 let%test _ = thing (List.nth tests 1)
 let%test _ = thing (List.nth tests 2)
+let%test _ = thing (List.nth tests 3)
+let%test _ = thing (List.nth tests 4)
+let%test _ = thing (List.nth tests 5)
+let%test _ = thing (List.nth tests 6)
+let%test _ = thing (List.nth tests 7)
+let%test _ = thing (List.nth tests 8)
