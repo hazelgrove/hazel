@@ -72,8 +72,6 @@ module Make = (MemoTbl: MemoTbl.S) => {
           switch (l) {
           | ExternalLinebreak
           | Linebreak => [[], []]
-          // FIXME
-          // | ExternalLinebreak => [[Text(";\n")]]
           | Text(s) => [[Text(s)]]
           | Align(l) => [[mk(go(l))]]
           | Annot(ann, l) =>

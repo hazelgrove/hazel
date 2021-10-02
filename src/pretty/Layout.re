@@ -52,13 +52,11 @@ let mk_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
           let imp1 = go(indent, l1);
           let imp2 = go(indent, l2);
           text.imp_append(imp1, imp2);
+        | ExternalLinebreak
         | Linebreak =>
           // TODO: no indent if on final line break
           column := indent;
           text.imp_newline(indent);
-        | ExternalLinebreak =>
-          // TODO: no indent if on final line break
-          text.imp_of_string("hello")
         | Align(l) => go(column^, l)
         | Annot(annot, l) => text.imp_of_annot(annot, go(indent, l))
         };
