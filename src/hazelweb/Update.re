@@ -3,9 +3,6 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-module Parse = Parser.Parse;
-module Parsing = Parser.Parsing;
-module Print = Parser.Print;
 
 [@deriving sexp]
 type timestamp = {

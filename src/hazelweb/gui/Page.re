@@ -1,9 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-module Js = Js_of_ocaml.Js;
-module Vdom = Virtual_dom.Vdom;
-module Parse = Parser.Parse;
-module Print = Parser.Print;
 let logo_panel =
   a(
     [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],

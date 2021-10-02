@@ -1,7 +1,6 @@
 open Incr_dom;
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
-module Parse = Parser.Parse;
 module Parsing = Parser.Parsing;
 module Print = Parser.Print;
 
