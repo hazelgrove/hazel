@@ -39,6 +39,9 @@ type t('a) = {
 [@deriving sexp]
 type generator('a) = CursorInfo.t => list(t('a));
 
+[@deriving sexp]
+type exp = t(UHExp.t);
+
 let generate = (gs: list(generator('a)), ci: CursorInfo.t): list(t('a)) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 

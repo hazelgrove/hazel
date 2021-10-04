@@ -87,7 +87,7 @@ let subscore_view_float = (score_string: float => string, subscore: float) => {
   };
 };
 
-let suggestion_info_view = ({category, score, _}: SuggestionsExp.suggestion) => {
+let suggestion_info_view = ({category, score, _}: Suggestion.exp) => {
   div(
     [Attr.class_("suggestion-info")],
     [
@@ -139,7 +139,7 @@ let suggestion_view =
       ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, result_ty, category, result_text, score, _}: SuggestionsExp.suggestion,
+      {action, result, result_ty, category, result_text, score, _}: Suggestion.exp,
       is_selected: bool,
       is_hovered: bool,
       index: int,

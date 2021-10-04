@@ -1,5 +1,10 @@
-open SuggestionsExp;
 open Assistant_common;
+
+[@deriving sexp]
+type suggestion = Suggestion.exp;
+
+[@deriving sexp]
+type generator = Suggestion.generator(UHExp.t);
 
 let mk_operand_suggestion =
     (
@@ -280,9 +285,9 @@ let exp_operand_generators = [
   elim_suggestions,
   wrap_suggestions,
   mk_empty_hole_suggestions,
-  intro_suggestions,
   int_float_suggestions,
   var_suggestions,
+  intro_suggestions,
 ];
 
 let mk: generator = Suggestion.generate(exp_operand_generators);

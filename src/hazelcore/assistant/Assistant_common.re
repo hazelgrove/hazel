@@ -115,3 +115,18 @@ let mk_ap_iter =
   let+ holes_seq = mk_hole_seq(f_ty);
   mk_ap_uhexp(UHExp.var(f_name), holes_seq);
 };
+
+/* Make op independent of ctx and u_gen, for comparison purposes */
+let normalize_operand = (op: UHExp.operand) => {
+  let (op, _, _) =
+    Statics_Exp.syn_fix_holes_operand(
+      Contexts.empty,
+      0,
+      ~renumber_empty_holes=true,
+      op,
+    );
+  op;
+};
+
+let equals_operand = (op1: UHExp.operand, op2: UHExp.operand) =>
+  normalize_operand(op1) == normalize_operand(op2);
