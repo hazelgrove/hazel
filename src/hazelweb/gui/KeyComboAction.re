@@ -87,7 +87,7 @@ let get_model_action = (model: Model.t, kc: HazelKeyCombos.t): ModelAction.t => 
   | Some(action) when assistant_focussed => action
   | _ =>
     Chain([
-      UpdateAssistant(Reset),
+      UpdateAssistant(Reset), // reset assistant selection
       get_main_action(kc, ~cursor_on_type, ~cursor_on_comment),
     ])
   };

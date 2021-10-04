@@ -62,6 +62,7 @@
   --ci-type-info: var(--exp_accent);
   --ci-type-code: #444;
   --ci-type-bidi-arrow: #ccc;
+  --ci-type-consistent: #0f0;
   --ci-type-inconsistent: #f88;
 
   --ci-shadow-color: #6667;
@@ -862,6 +863,11 @@ body {
 
 .assistant-active .type-info-summary .consistency-symbol.inconsistent {
   color: var(--ci-type-inconsistent);
+  box-shadow: none;
+}
+
+.assistant-active .type-info-summary .consistency-symbol.consistent {
+  color: var(--ci-type-consistent);
   box-shadow: none;
 }
 

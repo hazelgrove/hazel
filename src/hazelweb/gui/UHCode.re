@@ -127,7 +127,10 @@ let click_to_move =
           ),
         ),
     };
-  MoveAction(Click(caret_pos));
+  Chain([
+    UpdateAssistant(Reset), // reset assistant selection
+    MoveAction(Click(caret_pos)),
+  ]);
 };
 
 let key_handlers =

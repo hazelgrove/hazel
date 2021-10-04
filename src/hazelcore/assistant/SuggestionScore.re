@@ -1,16 +1,5 @@
 open OptUtil.Syntax;
 
-let hole_not_empty = (hi: CursorPath.hole_info) =>
-  switch (hi.sort) {
-  | ExpHole(_, TypeErr | VarErr)
-  | PatHole(_, TypeErr | VarErr) => true
-  | _ => false
-  };
-
-let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
-  CursorPath_Exp.holes(ZExp.erase(ze), [], [])
-  |> List.filter(hole_not_empty);
-
 let type_specificity_score =
     (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t) =>
   switch (HTyp.compare(result_ty, actual_ty)) {
@@ -22,40 +11,128 @@ let type_specificity_score =
   | LT => (-1)
   };
 
-let idiomaticity_score_parent =
-    (action: Action.t, enclosing_zoperand: CursorInfo.enclosing_zoperand): int => {
-  switch (action, enclosing_zoperand) {
-  | (ReplaceOperand(operand, None), Some(parent_operand)) =>
-    switch (parent_operand) {
-    | CaseZE(_) =>
-      switch (operand) {
-      | Case(_) => (-2)
-      | Lam(_) => (-3)
-      | Inj(_) => (-1)
-      | IntLit(_)
-      | BoolLit(_)
-      | FloatLit(_)
-      | ListNil(_) => (-1)
-      | _ => 0
-      }
-    /* parenthesized apps */
-    | ParenthesizedZ((
-        [],
-        ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), (E, A(Space, _))))),
-        [],
-      )) =>
-      /* lits/inj don't really matter as the type will never match */
-      switch (operand) {
-      | Case(_) => (-3)
-      | Lam(_) => (-2)
-      | Parenthesized(_) => (-1)
-      | _ => 0
-      }
+let hole_not_empty = (hi: CursorPath.hole_info) =>
+  switch (hi.sort) {
+  | ExpHole(_, TypeErr | VarErr)
+  | PatHole(_, TypeErr | VarErr) => true
+  | _ => false
+  };
+
+let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
+  CursorPath_Exp.holes(ZExp.erase(ze), [], [])
+  |> List.filter(hole_not_empty);
+
+let errors_scores =
+    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
+  let* (opseq_expected_ty, old_zexp) =
+    switch (enclosing_zopseq) {
+    | ExpSeq(zopseq, expected_ty) =>
+      Some((HTyp.relax(expected_ty), ZExp.ZBlock.wrap'(zopseq)))
+    | _ =>
+      print_endline("Warning: opseq_report: no zopseq provided");
+      None;
+    };
+  let+ (actual_ty, new_zexp) =
+    switch (
+      Action_Exp.syn_perform(
+        ctx,
+        action,
+        (old_zexp, opseq_expected_ty, MetaVarGen.init),
+      )
+    ) {
+    | Failed
+    | CursorEscaped(_) =>
+      print_endline("Warning: opseq_report: syn_perform failure");
+      None;
+    | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
+    };
+  let context_consistent_after =
+    HTyp.consistent(opseq_expected_ty, actual_ty);
+  let internal_errors_before = old_zexp |> err_holes |> List.length;
+  let internal_errors_after = new_zexp |> err_holes |> List.length;
+  (context_consistent_after, internal_errors_before, internal_errors_after);
+};
+
+let operand_has_function_type = (operand: UHExp.operand, ctx: Contexts.t) =>
+  switch (Statics_Exp.syn_operand(ctx, operand)) {
+  | Some(Arrow(_, _)) => true
+  | _ => false
+  };
+
+let idiomaticity_score_internal =
+    (enclosing_operand: UHExp.operand, ctx: Contexts.t): int =>
+  switch (enclosing_operand) {
+  /* weird case scrutinees */
+  | Case(_, [ExpLine(OpSeq(_, S(scrut, _)))], _) =>
+    switch (scrut) {
+    | Inj(_)
+    | IntLit(_)
+    | BoolLit(_)
+    | FloatLit(_)
+    | ListNil(_) => (-1)
+    | Case(_) => (-2)
+    | _ when operand_has_function_type(scrut, ctx) => (-2)
+    | _ => 0
+    }
+  /* weird function expressions in (parenthesized) apps */
+  | Parenthesized([ExpLine(OpSeq(_, S(f_exp, A(Space, _))))]) =>
+    switch (f_exp) {
+    | Case(_) => (-2)
+    | Lam(_) => (-1)
     | _ => 0
     }
   | _ => 0
   };
-};
+
+let idiomaticity_score_context =
+    (
+      operand: UHExp.operand,
+      enclosing_zoperand: CursorInfo.enclosing_zoperand,
+      ctx: Contexts.t,
+    )
+    : int =>
+  switch (enclosing_zoperand) {
+  /* weird case scrutinees */
+  | Some(CaseZE(_)) =>
+    switch (operand) {
+    | Inj(_)
+    | IntLit(_)
+    | BoolLit(_)
+    | FloatLit(_)
+    | ListNil(_) => (-1)
+    | Case(_) => (-2)
+    | _ when operand_has_function_type(operand, ctx) => (-2)
+    | _ => 0
+    }
+  /* weird function expressions in (parenthesized) apps */
+  | Some(
+      ParenthesizedZ((
+        [],
+        ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), (E, A(Space, _))))),
+        [],
+      )),
+    ) =>
+    switch (operand) {
+    | Case(_) => (-2)
+    | Lam(_) => (-1)
+    | _ => 0
+    }
+  | _ => 0
+  };
+
+let idiomaticity_score =
+    (
+      action: Action.t,
+      enclosing_zoperand: CursorInfo.enclosing_zoperand,
+      ctx: Contexts.t,
+    )
+    : int =>
+  switch (action) {
+  | ReplaceOperand(operand, _) =>
+    idiomaticity_score_context(operand, enclosing_zoperand, ctx)
+    + idiomaticity_score_internal(operand, ctx)
+  | _ => 0
+  };
 
 let submatches_and_offsets =
     (pre: string, suf: string, target: string)
@@ -128,43 +205,12 @@ let text_match_score =
     ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
-let score_action =
-    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
-  let* (opseq_expected_ty, old_zexp) =
-    switch (enclosing_zopseq) {
-    | ExpSeq(zopseq, expected_ty) =>
-      Some((HTyp.relax(expected_ty), ZExp.ZBlock.wrap'(zopseq)))
-    | _ =>
-      print_endline("Warning: opseq_report: no zopseq provided");
-      None;
-    };
-  let+ (actual_ty, new_zexp) =
-    switch (
-      Action_Exp.syn_perform(
-        ctx,
-        action,
-        (old_zexp, opseq_expected_ty, MetaVarGen.init),
-      )
-    ) {
-    | Failed
-    | CursorEscaped(_) =>
-      print_endline("Warning: opseq_report: syn_perform failure");
-      None;
-    | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
-    };
-  let context_consistent_after =
-    HTyp.consistent(opseq_expected_ty, actual_ty);
-  let internal_errors_before = old_zexp |> err_holes |> List.length;
-  let internal_errors_after = new_zexp |> err_holes |> List.length;
-  (context_consistent_after, internal_errors_before, internal_errors_after);
-};
-
 let mk =
     (
       action: Action.t,
       result_ty: HTyp.t,
       result_str: string,
-      {enclosing_zoperand, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t,
+      {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
     : option(Suggestion.score) => {
   /*Printf.printf(
@@ -176,7 +222,7 @@ let mk =
     internal_errors_before,
     internal_errors_after,
   ) =
-    score_action(action, ci);
+    errors_scores(action, ci);
   let context_errors =
     switch (context_consistent_after) {
     | false => (-1)
@@ -184,7 +230,7 @@ let mk =
     };
   let internal_errors = internal_errors_before - internal_errors_after;
   let delta_errors = internal_errors + context_errors;
-  let idiomaticity = idiomaticity_score_parent(action, enclosing_zoperand);
+  let idiomaticity = idiomaticity_score(action, enclosing_zoperand, ctx);
   let type_specificity =
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
   let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
