@@ -53,7 +53,11 @@ let mk_inj_suggestion = (side: InjSide.t, ci: CursorInfo.t): suggestion =>
   );
 
 let mk_case_suggestion = (ci: CursorInfo.t): suggestion =>
-  mk_operand_suggestion(~category=InsertElim, ~operand=case_operand, ci);
+  mk_operand_suggestion(
+    ~category=InsertElim,
+    ~operand=mk_case(hole_exp),
+    ci,
+  );
 
 let mk_lambda_suggestion = (ci: CursorInfo.t): suggestion =>
   mk_operand_suggestion(
@@ -66,8 +70,8 @@ let mk_pair_suggestion = (ci: CursorInfo.t): suggestion => {
   let seq = mk_n_seq(Operators_Exp.Comma, 2);
   mk_operand_suggestion(
     ~category=InsertConstructor,
-    ~operand=UHExp.Parenthesized(seq_into_uhexp(seq)),
-    ~result=seq_into_uhexp(seq),
+    ~operand=UHExp.Parenthesized(seq_to_uhexp(seq)),
+    ~result=seq_to_uhexp(seq),
     ci,
   );
 };
@@ -76,8 +80,8 @@ let mk_list_suggestion = (ci: CursorInfo.t): suggestion => {
   let seq = mk_n_seq(Operators_Exp.Cons, 2);
   mk_operand_suggestion(
     ~category=InsertConstructor,
-    ~operand=UHExp.Parenthesized(seq_into_uhexp(seq)),
-    ~result=seq_into_uhexp(seq),
+    ~operand=UHExp.Parenthesized(seq_to_uhexp(seq)),
+    ~result=seq_to_uhexp(seq),
     ci,
   );
 };

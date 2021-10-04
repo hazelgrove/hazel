@@ -33,8 +33,6 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   ctx |> Contexts.gamma |> VarMap.filter(can_extract);
 };
 
-let get_type = CursorInfo_common.get_type;
-
 /**
  * Gets the type in string format.
  * Return string
@@ -69,20 +67,21 @@ let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
 
 let hole_operand = UHExp.EmptyHole(0);
 let hole_exp = UHExp.Block.wrap(hole_operand);
-let hole_pat = UHPat.EmptyHole(0) |> OpSeq.wrap;
-let lambda_operand = UHExp.lam(hole_pat, hole_exp);
-let rule = UHExp.Rule(hole_pat, hole_exp);
-let mk_case = scrut => UHExp.case(scrut, [rule]);
-let case_operand = mk_case(hole_exp);
+let lambda_operand = UHExp.lam(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp);
+let mk_case = scrut =>
+  UHExp.case(
+    scrut,
+    [UHExp.Rule(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp)],
+  );
 let mk_inj = side => UHExp.inj(side, hole_exp);
 
-let seq_into_uhexp = seq => seq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
+let seq_to_uhexp = seq => seq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 
-let ap_seq = (operand: UHExp.operand, seq: UHExp.seq): UHExp.seq =>
+let mk_ap_seq = (operand: UHExp.operand, seq: UHExp.seq): UHExp.seq =>
   Seq.S(operand, A(Space, seq));
 
 let mk_ap_uhexp = (f_exp: UHExp.operand, seq: UHExp.seq): UHExp.t =>
-  seq |> ap_seq(f_exp) |> seq_into_uhexp;
+  seq |> mk_ap_seq(f_exp) |> seq_to_uhexp;
 
 let mk_bin_ap_uhexp = (f_exp: UHExp.operand, a_exp: UHExp.operand) =>
   mk_ap_uhexp(f_exp, S(a_exp, E));
@@ -106,7 +105,7 @@ let mk_ap_iter =
       Some(Seq.wrap(hole_operand))
     | Arrow(_, out_ty) =>
       let* affix = mk_hole_seq(out_ty);
-      Some(ap_seq(hole_operand, affix));
+      Some(mk_ap_seq(hole_operand, affix));
     | _ => None
     };
   let+ holes_seq = mk_hole_seq(f_ty);
