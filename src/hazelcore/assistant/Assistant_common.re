@@ -66,14 +66,18 @@ let vars_of_type_matching_str = (ctx: Contexts.t, typ: HTyp.t, str: string) => {
  * Remember to re-number holes at assistant boundary. */
 
 let hole_operand = UHExp.EmptyHole(0);
+
 let hole_exp = UHExp.Block.wrap(hole_operand);
+
 let lambda_operand = UHExp.lam(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp);
+
+let mk_inj = side => UHExp.inj(side, hole_exp);
+
 let mk_case = scrut =>
   UHExp.case(
     scrut,
     [UHExp.Rule(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp)],
   );
-let mk_inj = side => UHExp.inj(side, hole_exp);
 
 let seq_to_uhexp = seq => seq |> UHExp.mk_OpSeq |> UHExp.Block.wrap';
 
