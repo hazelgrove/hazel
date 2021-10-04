@@ -20,7 +20,7 @@ let rec parse lexbuf c =
       let line = startp.pos_lnum in
       let col = startp.pos_cnum - startp.pos_bol + 1 in
       let lexeme =
-        match col < lexbuf.lex_buffer_len with
+        match startp.pos_cnum < lexbuf.lex_buffer_len with
         | true ->
           let c = Bytes.get (lexbuf.lex_buffer) startp.pos_cnum in
           Some (String.make 1 c)
@@ -30,7 +30,7 @@ let rec parse lexbuf c =
   | I.Accepted v -> v
   | I.Rejected -> raise (SyntaxError (None, Some "Rejected"))
 
-let ast_of_layout l =
+let ast_of_lexbuf l =
   try
     Some ((parse l (Parse.Incremental.main l.lex_curr_p))), None
   with

@@ -80,7 +80,7 @@ let import_body = (inject, _) => {
               let s = JSUtil.force_get_attr("value", e);
 
               let l = Lexing.from_string(s);
-              switch (Parsing.ast_of_layout(l)) {
+              switch (Parsing.ast_of_lexbuf(l)) {
               | (Some(ast), None) =>
                 let (ast, _, _) =
                   Statics_Exp.syn_fix_holes(
@@ -102,7 +102,7 @@ let import_body = (inject, _) => {
               let e = JSUtil.force_get_elem_by_id("parse-text-box");
               let s = JSUtil.force_get_attr("value", e);
               let l = Lexing.from_string(s);
-              switch (Parsing.ast_of_layout(l)) {
+              switch (Parsing.ast_of_lexbuf(l)) {
               | (Some(ast), _) =>
                 let (ast, _, _) =
                   Statics_Exp.syn_fix_holes(
