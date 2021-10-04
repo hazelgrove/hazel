@@ -102,14 +102,14 @@ let submatches_and_offsets =
 
 /* Returns a float between 0.00 and 1.00. First decimal place represents
    match overlap, second decimal place how close match is to beginning */
-let text_match_score = (ci: CursorInfo.t, result_text: string): float => {
-  let (str, index) =
-    CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
-  let (before_caret, after_caret) = StringUtil.split_string(index, str);
-  let cursor_text_length = String.length(str);
-  let result_length = String.length(result_text);
+let text_match_score =
+    (~term_str: string, ~term_idx: int, ~result_str: string): float => {
+  let (before_caret, after_caret) =
+    StringUtil.split_string(term_idx, term_str);
+  let cursor_text_length = String.length(term_str);
+  let result_length = String.length(result_str);
   let (total_match_length, imm) =
-    switch (submatches_and_offsets(before_caret, after_caret, result_text)) {
+    switch (submatches_and_offsets(before_caret, after_caret, result_str)) {
     | (None, None) => (0, result_length)
     | (None, Some((s, i)))
     | (Some((s, i)), None) => (String.length(s), i)
@@ -163,8 +163,8 @@ let mk =
     (
       action: Action.t,
       result_ty: HTyp.t,
-      result_text: string,
-      {enclosing_zoperand, expected_ty, actual_ty, _} as ci: CursorInfo.t,
+      result_str: string,
+      {enclosing_zoperand, expected_ty, actual_ty, cursor_term, _} as ci: CursorInfo.t,
     )
     : option(Suggestion.score) => {
   /*Printf.printf(
@@ -187,6 +187,8 @@ let mk =
   let idiomaticity = idiomaticity_score_parent(action, enclosing_zoperand);
   let type_specificity =
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
-  let text_match = text_match_score(ci, result_text);
+  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
+  let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
+  let text_match = text_match_score(~term_str, ~term_idx, ~result_str);
   Suggestion.{idiomaticity, type_specificity, delta_errors, text_match};
 };

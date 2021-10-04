@@ -43,28 +43,36 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   };
 };
 
-let string_and_index_of_cursor_term =
-    (term: CursorInfo.cursor_term): (string, int) => {
-  switch (term) {
-  | PatOperand(OnText(i), Var(_, _, s))
-  | PatOperand(OnText(i), InvalidText(_, s))
-  | PatOperand(OnText(i), IntLit(_, s))
-  | PatOperand(OnText(i), FloatLit(_, s))
-  | ExpOperand(OnText(i), Var(_, _, s))
-  | ExpOperand(OnText(i), InvalidText(_, s))
-  | ExpOperand(OnText(i), IntLit(_, s))
-  | ExpOperand(OnText(i), FloatLit(_, s)) => (s, i)
-  | ExpOperand(OnText(i), BoolLit(_, b))
-  | PatOperand(OnText(i), BoolLit(_, b)) => (string_of_bool(b), i)
-  | _ => ("", 0)
-  };
-};
+let cursor_position_of_cursor_term: CursorInfo.cursor_term => CursorPosition.t =
+  fun
+  | ExpOperand(pos, _)
+  | PatOperand(pos, _)
+  | TypOperand(pos, _)
+  | ExpOperator(pos, _)
+  | PatOperator(pos, _)
+  | TypOperator(pos, _)
+  | Line(pos, _)
+  | Rule(pos, _) => pos;
 
-let index_of_cursor_term = (term: CursorInfo.cursor_term): int => {
-  switch (term) {
-  | ExpOperand(OnText(i), _) => i
-  | PatOperand(OnText(i), _) => i
+let index_of_cursor_term = (term: CursorInfo.cursor_term): int =>
+  switch (cursor_position_of_cursor_term(term)) {
+  | OnText(i) => i
   | _ => 0
+  };
+
+let string_of_cursor_term = (term: CursorInfo.cursor_term): string => {
+  switch (term) {
+  | PatOperand(_, Var(_, _, s))
+  | PatOperand(_, InvalidText(_, s))
+  | PatOperand(_, IntLit(_, s))
+  | PatOperand(_, FloatLit(_, s))
+  | ExpOperand(_, Var(_, _, s))
+  | ExpOperand(_, InvalidText(_, s))
+  | ExpOperand(_, IntLit(_, s))
+  | ExpOperand(_, FloatLit(_, s)) => s
+  | ExpOperand(_, BoolLit(_, b))
+  | PatOperand(_, BoolLit(_, b)) => string_of_bool(b)
+  | _ => ""
   };
 };
 

@@ -203,8 +203,7 @@ let suggestions_view =
       ~ci: CursorInfo.t,
     )
     : Node.t => {
-  let (search_string, _) =
-    CursorInfo_common.string_and_index_of_cursor_term(ci.cursor_term);
+  let search_string = CursorInfo_common.string_of_cursor_term(ci.cursor_term);
   let suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant);
   let is_hovered = AssistantModel.is_active_suggestion_index(assistant);
