@@ -17,16 +17,10 @@ let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
 let mk_Inj =
     (
       tag: UHDoc_common.formatted_child,
-      body_opt: option(UHDoc_common.formatted_child),
+      arg_opt: option(UHDoc_common.formatted_child),
     )
     : UHDoc.t => {
-  // let tag_doc =
-  //   UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
-  UHDoc_common.mk_Inj(
-    ~sort=Pat,
-    tag,
-    body_opt,
-  );
+  UHDoc_common.mk_Inj(~sort=Pat, tag, arg_opt);
 };
 let mk_NTuple:
   (
@@ -86,16 +80,13 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Inj(_, tag, body_opt) =>
+        | Inj(_, tag, arg_opt) =>
           let tag_doc =
             UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
-          let body_opt =
-            switch (body_opt) {
-            | Some(body) =>
-              Some(mk_child(~memoize, ~enforce_inline, ~child_step=1, body))
-            | None => None
-            };
-          mk_Inj(tag_doc, body_opt);
+          let arg_opt =
+            arg_opt
+            |> Option.map(mk_child(~memoize, ~enforce_inline, ~child_step=1));
+          mk_Inj(tag_doc, arg_opt);
         | TypeAnn(_, op, ann) =>
           let ann_child =
             UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann);

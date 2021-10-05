@@ -1,4 +1,5 @@
 open Pretty;
+open OptUtil.Syntax;
 
 let precedence = (dp: DHPat.t) =>
   switch (dp) {
@@ -50,20 +51,14 @@ let rec mk =
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | Inj((tag, body_opt)) =>
+    | Inj((tag, arg_opt)) =>
       let tag_doc = DHDoc_Tag.mk(~enforce_inline, ~selected_tag_hole, tag);
-      let padded_child_opt =
-        switch (body_opt) {
-        | Some(body) =>
-          Some(
-            DHDoc_common.pad_child(
-              ~enforce_inline,
-              mk(~selected_tag_hole, body),
-            ),
-          )
-        | None => None
-        };
-      DHDoc_common.mk_Inj(tag_doc, padded_child_opt);
+      let arg_opt = {
+        let+ arg = arg_opt;
+        let arg_doc = mk(~selected_tag_hole, arg);
+        DHDoc_common.pad_child(~enforce_inline, arg_doc);
+      };
+      DHDoc_common.mk_Inj(tag_doc, arg_opt);
     | InjError(reason, u, i, inj) =>
       mk'(Inj(inj)) |> Doc.annot(DHAnnot.InjHole(reason, (u, i)))
     | ListNil => DHDoc_common.Delim.list_nil

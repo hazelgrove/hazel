@@ -84,8 +84,8 @@ module Delim = {
 
   let open_Inj = (): t => mk(~index=0, "inj[");
   let middle_Inj = (): t => mk(~index=1, "](");
-  let close_Inj = (has_body: bool): t =>
-    has_body ? mk(~index=2, ")") : mk(~index=1, "]");
+  let close_Inj_const = (): t => mk(~index=1, "]");
+  let close_Inj_arg = (): t => mk(~index=2, ")");
 
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
@@ -336,27 +336,30 @@ let mk_List = (body: formatted_child): t => {
 let mk_Inj =
     (
       ~sort: TermSort.t,
-      tag_doc: formatted_child,
-      body_opt: option(formatted_child),
+      tag_child: formatted_child,
+      arg_child_opt: option(formatted_child),
     )
     : t => {
-  let open_group = Delim.open_Inj() |> annot_Tessera;
-  let close_group =
-    Delim.close_Inj(Option.is_some(body_opt)) |> annot_Tessera;
-  let middle =
-    switch (body_opt) {
-    | None => []
-    | Some(body) => [
-        Delim.middle_Inj() |> annot_Tessera,
-        body |> pad_bidelimited_open_child,
-      ]
-    };
-  Doc.hcats(
-    [open_group, tag_doc |> pad_delimited_closed_child(~sort=Tag)]
-    @ middle
-    @ [close_group],
+  let open_group = {
+    let open_delim = Delim.open_Inj();
+    let close_delim =
+      Option.is_some(arg_child_opt)
+        ? Delim.middle_Inj() : Delim.close_Inj_const();
+    Doc.hcats([
+      open_delim,
+      tag_child |> pad_closed_child(~sort=Tag),
+      close_delim,
+    ])
+    |> annot_Tessera;
+  };
+  (
+    switch (arg_child_opt) {
+    | None => open_group
+    | Some(arg) =>
+      let close_group = Delim.close_Inj_arg() |> annot_Tessera;
+      Doc.hcats([open_group, arg |> pad_bidelimited_open_child, close_group]);
+    }
   )
-  |> annot_Tessera
   |> annot_Operand(~sort);
 };
 
