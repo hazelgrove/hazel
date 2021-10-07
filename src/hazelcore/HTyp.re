@@ -1,9 +1,21 @@
 open Sexplib.Std;
 
+type direction =
+  | L
+  | R;
+
+type hole_provenance =
+  | Matched_arrow(direction)
+  | Matched_sum(direction)
+  | Matched_prod(int)
+  | Matched_list;
+
+type hole_id = (MetaVar.t, list(hole_provenance));
+
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole(MetaVar.t, (list(MetaVar.t)), MetaVarGen.t) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
+  | Hole(hole_id) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
   // UHHole [1] used in (HHole [1.1] , HHole [1.2]) ; 
   // UHHole [1] used in (HHole [1.3] , HHole [1.4]) ;
   // HHole [1.3] used in (HHole [1.3.1], HHole [1.3.2])
@@ -96,17 +108,33 @@ let matched_arrow: t => (option(t, t)) =
   let pair, _ = matched_arrow_inf(typ);
   pair;
 
+/**
+ * let (x: ?0) be EHole(1) in
+ * let y be x 2 in
+ * let z be x True in
+ * z
+ */
+
+/**
+ * ?0 = ?1
+ * ?0 = Arrow(?0.matched_left, ?0.matched_right)
+ * ?0.matched_left = Num
+ * ?0 = Arrow(?0.matched_left, ?0.matched_right)
+ * ?0.matched_left = Bool
+ */
+
+//?0   unsolved   Num->?0.matched_right Bool->?0.matched_right
+//?0.matched_right   unsolved   Num//Bool
+
 let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
-    | Hole(base, tl, u_gen) =>
-      let (id_in, u_gen) = MetaVarGen.next(u_gen);
-      let (id_out, u_gen) = MetaVarGen.next(u_gen);
-      let hole_in = Hole(base, tl @ id_in, MetaVarGen.init);
-      let hole_out = Hole(base, tl @ id_out, MetaVarGen.init);
-      let pair = (hole_in, hole_out);
-      let constraint = [(typ, Arrow(hole_in, hole_out))];
-      (Some(pair), constraint);
+    | Hole(base, provenances) =>
+      let hole_left = Hole(base, provenances @ (Matched_arrow(L)));
+      let hole_right = Hole(base, provenances @ (Matched_arrow(R)));
+      let pair = (hole_left, hole_right);
+      let constraints = [(typ, Arrow(hole_left, hole_right))];
+      (Some(pair), constraints);
     | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
     | _ => (None, [])
   };
@@ -119,14 +147,12 @@ let matched_sum: t => (option(t, t)) =
 let matched_sum_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
-    | Hole(base, tl, u_gen) =>
-      let (id_in, u_gen) = MetaVarGen.next(u_gen);
-      let (id_out, u_gen) = MetaVarGen.next(u_gen);
-      let hole_in = Hole(base, tl @ id_in, MetaVarGen.init);
-      let hole_out = Hole(base, tl @ id_out, MetaVarGen.init);
-      let pair = (hole_in, hole_out);
-      let constraint = [(typ, Sum(hole_in, hole_out))];
-      (Some(pair), constraint);
+    | Hole(base, provenances) =>
+      let hole_left = Hole(base, provenances @ (Matched_sum(L)));
+      let hole_right = Hole(base, provenances @ (Matched_sum(R)));
+      let pair = (hole_left, hole_right);
+      let constraints = [(typ, Sum(hole_left, hole_right))];
+      (Some(pair), constraints);
     | Sum(ty1, ty2) => (Some((ty1, ty2)), [])
     | _ => (None, [])
   };
@@ -139,9 +165,8 @@ let matched_list: t => (option(t, t)) =
 let matched_list_inf: t => (option(t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
-    | Hole(base, tl, u_gen) =>
-      let (id_elt, u_gen) = MetaVarGen.next(u_gen);
-      let hole_elt = Hole(base, tl @ id_in, MetaVarGen.init);
+    | Hole(base, provenances) =>
+      let hole_elt = Hole(base, provenances @ Matched_list);
       let constraint = [(typ, List(hole_elt))];
       (Some(hole_elt), constraint);
     | List(ty_ls) => (Some(ty_ls), [])
