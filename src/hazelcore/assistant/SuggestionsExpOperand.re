@@ -3,40 +3,21 @@ open Assistant_common;
 [@deriving sexp]
 type generator = Suggestion.generator;
 
-let mk_result =
-    (
-      ~operand: UHExp.operand,
-      ~show_uhexp=UHExp.Block.wrap(operand),
-      ~action: Action.t,
-      ~ci: CursorInfo.t,
-    ) => {
-  let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
-  let show_text = UHExp.string_of_operand(operand);
-  let score = SuggestionScore.mk(action, ty, show_text, ci);
-  Suggestion.ExpOperand({show_uhexp, ty, show_text, score});
-};
-
-// move to sugg, make function of operand, make private
 let mk_operand_suggestion =
     (
-      ~strategy: Suggestion.strategy,
+      ~strategy: Suggestion.operand_strategy,
       ~operand: UHExp.operand,
-      ~show_uhexp=UHExp.Block.wrap(operand),
       ci: CursorInfo.t,
     )
-    : Suggestion.t => {
-  let action = Action.ReplaceOperand(operand, None);
-  let result = mk_result(~operand, ~show_uhexp, ~ci, ~action);
-  {strategy, action, result};
-};
+    : Suggestion.t =>
+  Suggestion.mk(
+    ~strategy=Suggestion.ReplaceOperand(strategy, operand),
+    ~mk_report=SuggestionReport.mk,
+    ~ci,
+  );
 
 let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>
-  mk_operand_suggestion(
-    ~strategy,
-    ~operand=UHExp.Parenthesized(uhexp),
-    ~show_uhexp=uhexp,
-    ci,
-  );
+  mk_operand_suggestion(~strategy, ~operand=UHExp.Parenthesized(uhexp), ci);
 
 let mk_lit_suggestion = mk_operand_suggestion(~strategy=InsertLit);
 
@@ -152,17 +133,15 @@ let mk_wrap_app_suggestion =
   let get_arg_type_somehow_TODO = HTyp.Hole;
   let wrapped_operand =
     get_wrapped_operand(ci, get_arg_type_somehow_TODO, name, cursor_term);
-  let show_uhexp = mk_bin_ap_uhexp(UHExp.var(name), wrapped_operand);
-  mk_operand_suggestion(
+  mk_operand_suggestion_from_uhexp(
     ~strategy=WrapApp,
-    ~operand=UHExp.Parenthesized(show_uhexp),
-    ~show_uhexp,
+    ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), wrapped_operand),
     ci,
   );
 };
 
 let result_type_consistent_with = (expected_ty, s: Suggestion.t) =>
-  switch (s.result) {
+  switch (s.report) {
   | ExpOperand({ty, _}) => HTyp.consistent(ty, expected_ty)
   };
 

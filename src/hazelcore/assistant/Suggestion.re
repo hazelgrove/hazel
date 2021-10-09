@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type strategy =
+type operand_strategy =
   | Delete
   | InsertLit
   | InsertVar
@@ -9,8 +9,11 @@ type strategy =
   | InsertCase
   | WrapApp
   | WrapCase
-  | ConvertLit
-  | ReplaceOperator;
+  | ConvertLit;
+
+[@deriving sexp]
+type strategy =
+  | ReplaceOperand(operand_strategy, UHExp.operand);
 
 [@deriving sexp]
 type score_exp_operand = {
@@ -21,26 +24,30 @@ type score_exp_operand = {
 };
 
 [@deriving sexp]
-type result_exp_operand = {
+type report_exp_operand = {
+  operand: UHExp.operand,
   ty: HTyp.t,
   score: score_exp_operand,
-  show_uhexp: UHExp.t,
   show_text: string,
 };
 
 [@deriving sexp]
-type result =
-  | ExpOperand(result_exp_operand);
+type report =
+  | ExpOperand(report_exp_operand);
 
 [@deriving sexp]
 type t = {
   strategy,
   action: Action.t,
-  result,
+  report,
 };
 
 [@deriving sexp]
 type generator = CursorInfo.t => list(t);
+
+let action_of_strategy: strategy => Action.t =
+  fun
+  | ReplaceOperand(_, operand) => Action.ReplaceOperand(operand, None);
 
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
@@ -52,8 +59,8 @@ let score_params = (score: score_exp_operand) => [
   (score.syntax_conserved, 1.5),
 ];
 
-let score = ({result, _}: t) =>
-  switch (result) {
+let score = ({report, _}: t) =>
+  switch (report) {
   | ExpOperand({score, _}) =>
     score
     |> score_params
@@ -62,3 +69,15 @@ let score = ({result, _}: t) =>
   };
 
 let compare = (a1, a2) => Float.compare(score(a2), score(a1));
+
+let mk =
+    (
+      ~strategy: strategy,
+      ~mk_report: (strategy, CursorInfo.t) => report,
+      ~ci: CursorInfo.t,
+    )
+    : t => {
+  strategy,
+  action: action_of_strategy(strategy),
+  report: mk_report(strategy, ci),
+};

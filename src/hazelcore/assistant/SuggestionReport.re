@@ -130,17 +130,13 @@ let idiomaticity_score_context =
 
 let idiomaticity_score =
     (
-      action: Action.t,
+      operand: UHExp.operand,
       enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
     )
     : float =>
-  switch (action) {
-  | ReplaceOperand(operand, _) =>
-    idiomaticity_score_context(operand, enclosing_zoperand, ctx)
-    +. idiomaticity_score_internal(operand, ctx)
-  | _ => 0.
-  };
+  idiomaticity_score_context(operand, enclosing_zoperand, ctx)
+  +. idiomaticity_score_internal(operand, ctx);
 
 let submatches_and_offsets =
     (pre: string, suf: string, target: string)
@@ -213,20 +209,20 @@ let syntax_conserved_score =
     ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
-let mk =
+let mk_exp_operand_score =
     (
       action: Action.t,
+      ~operand: UHExp.operand,
       result_ty: HTyp.t,
       result_str: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
-    )
-    : Suggestion.score_exp_operand => {
+    ) => {
   /*Printf.printf(
       "action: %s\n",
       Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),
     );*/
   let delta_errors = error_score(action, ci);
-  let idiomaticity = idiomaticity_score(action, enclosing_zoperand, ctx);
+  let idiomaticity = idiomaticity_score(operand, enclosing_zoperand, ctx);
   let type_specificity =
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
   let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
@@ -234,4 +230,15 @@ let mk =
   let syntax_conserved =
     syntax_conserved_score(~term_str, ~term_idx, ~result_str);
   Suggestion.{idiomaticity, type_specificity, delta_errors, syntax_conserved};
+};
+
+let mk = (strategy: Suggestion.strategy, ci: CursorInfo.t): Suggestion.report => {
+  switch (strategy) {
+  | ReplaceOperand(_, operand) =>
+    let action = Suggestion.action_of_strategy(strategy);
+    let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
+    let show_text = UHExp.string_of_operand(operand);
+    let score = mk_exp_operand_score(action, ~operand, ty, show_text, ci);
+    ExpOperand({operand, ty, show_text, score});
+  };
 };

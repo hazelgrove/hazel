@@ -408,7 +408,11 @@ let rec string_of_operand = (operand: operand): string => {
   | Parenthesized([
       ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),
     ]) =>
-    string_of_operand(operandA) ++ " " ++ string_of_operand(operandB)
+    "("
+    ++ string_of_operand(operandA)
+    ++ " "
+    ++ string_of_operand(operandB)
+    ++ ")"
   | Parenthesized([ExpLine(OpSeq(_, S(operandA, _)))]) =>
     string_of_operand(operandA)
   | ListNil(_) => "[]"

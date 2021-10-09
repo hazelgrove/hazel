@@ -9,8 +9,8 @@ let get_operand = (s: Suggestion.t): option(UHExp.operand) =>
   | _ => None
   };
 
-let get_operand_props = (s: Suggestion.t): Suggestion.result_exp_operand =>
-  switch (s.result) {
+let get_operand_props = (s: Suggestion.t): Suggestion.report_exp_operand =>
+  switch (s.report) {
   | ExpOperand(props) => props
   };
 
@@ -24,15 +24,15 @@ let collect_suggestions = (ci: CursorInfo.t): t =>
   };
 
 let renumber_suggestion_holes =
-    (ctx, u_gen, {action, result, _} as s: Suggestion.t): Suggestion.t =>
-  switch (result) {
-  | ExpOperand({show_uhexp, _} as props) =>
-    let (show_uhexp, _, _) =
-      Statics_Exp.syn_fix_holes(
+    (ctx, u_gen, {action, report, _} as s: Suggestion.t): Suggestion.t =>
+  switch (report) {
+  | ExpOperand({operand, _} as props) =>
+    let (operand, _, _) =
+      Statics_Exp.syn_fix_holes_operand(
         ctx,
         u_gen - 1,
         ~renumber_empty_holes=true,
-        show_uhexp,
+        operand,
       );
     let action: Action.t =
       switch (action) {
@@ -47,14 +47,14 @@ let renumber_suggestion_holes =
         ReplaceOperand(operand, proj_z);
       | _ => action
       };
-    {...s, result: ExpOperand({...props, show_uhexp}), action};
+    {...s, report: ExpOperand({...props, operand}), action};
   };
 
 let suggestion_isnt_noop =
     (cursor_term: CursorInfo.cursor_term, s: Suggestion.t): bool => {
-  switch (get_operand_props(s).show_uhexp, cursor_term) {
-  | ([ExpLine(OpSeq(_, S(op, E)))], ExpOperand(_, op')) =>
-    !Assistant_common.equals_operand(op, op')
+  switch (cursor_term) {
+  | ExpOperand(_, op') =>
+    !Assistant_common.equals_operand(get_operand_props(s).operand, op')
   | _ => true
   };
 };

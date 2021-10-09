@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-let string_of_strategy: Suggestion.strategy => string =
+let string_of_operand_strategy: Suggestion.operand_strategy => string =
   fun
   | Delete => "del"
   | InsertLit => "lit"
@@ -10,10 +10,13 @@ let string_of_strategy: Suggestion.strategy => string =
   | InsertCase => "elm"
   | WrapApp => "wra"
   | WrapCase => "wra"
-  | ConvertLit => "con"
-  | ReplaceOperator => "opr";
+  | ConvertLit => "con";
 
-let description_of_strategy: Suggestion.strategy => string =
+let string_of_strategy: Suggestion.strategy => string =
+  fun
+  | ReplaceOperand(os, _) => string_of_operand_strategy(os);
+
+let description_of_operand_strategy: Suggestion.operand_strategy => string =
   fun
   | Delete => "Delete the current form"
   | InsertLit => "Insert a literal"
@@ -22,8 +25,11 @@ let description_of_strategy: Suggestion.strategy => string =
   | InsertCase => "Insert an eliminator"
   | WrapApp => "Wrap the current form in an application"
   | WrapCase => "Wrap the current  in a case"
-  | ConvertLit => "Convert a literal to another data type"
-  | ReplaceOperator => "Replace an operator";
+  | ConvertLit => "Convert a literal to another data type";
+
+let description_of_strategy: Suggestion.strategy => string =
+  fun
+  | ReplaceOperand(os, _) => description_of_operand_strategy(os);
 
 let delta_errors_string = (delta_errors: float): string =>
   switch (delta_errors) {
@@ -139,7 +145,7 @@ let overlay_view =
     span([Attr.class_("overlay-text")], [text(s)]),
   ];
   let offset_overlay =
-    switch (SuggestionScore.submatches_and_offsets(pre, suf, result_text)) {
+    switch (SuggestionReport.submatches_and_offsets(pre, suf, result_text)) {
     | (None, None) => []
     | (Some((s0, n0)), Some((s1, n1))) =>
       let n1' = n1 - (n0 + String.length(s0));
@@ -153,8 +159,8 @@ let overlay_view =
 let suggestion_view_operand =
     (
       ~suggestion as {action, strategy, _}: Suggestion.t,
-      ~props as
-        {show_text, score, show_uhexp, ty, _}: Suggestion.result_exp_operand,
+      ~report as
+        {show_text, score, operand, ty, _}: Suggestion.report_exp_operand,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -169,7 +175,7 @@ let suggestion_view_operand =
       ~is_focused=false,
       ~settings,
       ~font_metrics,
-      Editor.mk_exp_editor(show_uhexp),
+      Editor.mk_exp_editor(UHExp.Block.wrap(operand)),
     );
   let overlay_view = overlay_view(ci, search_string, show_text);
   let perform_action = _ =>
@@ -222,10 +228,10 @@ let suggestion_view =
       ~font_metrics: FontMetrics.t,
       ~inject: ModelAction.t => Event.t,
     ) =>
-  switch (suggestion.result) {
-  | ExpOperand(props) =>
+  switch (suggestion.report) {
+  | ExpOperand(report) =>
     suggestion_view_operand(
-      ~props,
+      ~report,
       ~ci,
       ~inject,
       ~settings,
