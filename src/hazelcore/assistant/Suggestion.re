@@ -9,11 +9,11 @@ type strategy =
   | InsertCase
   | WrapApp
   | WrapCase
-  //| Convert // int-float
+  | ConvertLit
   | ReplaceOperator;
 
 [@deriving sexp]
-type score = {
+type score_exp_operand = {
   idiomaticity: float,
   type_specificity: float,
   delta_errors: float,
@@ -23,7 +23,7 @@ type score = {
 [@deriving sexp]
 type result_exp_operand = {
   ty: HTyp.t,
-  score,
+  score: score_exp_operand,
   show_uhexp: UHExp.t,
   show_text: string,
 };
@@ -45,7 +45,7 @@ type generator = CursorInfo.t => list(t);
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
-let score_params = (score: score) => [
+let score_params = (score: score_exp_operand) => [
   (score.delta_errors, 1.),
   (score.idiomaticity, 1.),
   (score.type_specificity, 1.),

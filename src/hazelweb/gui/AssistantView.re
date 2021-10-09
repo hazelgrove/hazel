@@ -10,6 +10,7 @@ let string_of_strategy: Suggestion.strategy => string =
   | InsertCase => "elm"
   | WrapApp => "wra"
   | WrapCase => "wra"
+  | ConvertLit => "con"
   | ReplaceOperator => "opr";
 
 let description_of_strategy: Suggestion.strategy => string =
@@ -21,6 +22,7 @@ let description_of_strategy: Suggestion.strategy => string =
   | InsertCase => "Insert an eliminator"
   | WrapApp => "Wrap the current form in an application"
   | WrapCase => "Wrap the current  in a case"
+  | ConvertLit => "Convert a literal to another data type"
   | ReplaceOperator => "Replace an operator";
 
 let delta_errors_string = (delta_errors: float): string =>
@@ -86,7 +88,7 @@ let strategy_view = strategy => {
 let sign_view = n =>
   div([Attr.class_(sign_label(n))], [text(sign_string(n))]);
 
-let subscore_view = ((subscore: float, score_string: float => string)) => {
+let subscore_view = ((subscore: float, score_string: float => string)) =>
   switch (subscore) {
   | 0. => []
   | _ => [
@@ -96,9 +98,8 @@ let subscore_view = ((subscore: float, score_string: float => string)) => {
       ),
     ]
   };
-};
 
-let subscore_data = (score: Suggestion.score) => [
+let subscore_data = (score: Suggestion.score_exp_operand) => [
   (score.delta_errors, delta_errors_string),
   (score.idiomaticity, idiomaticity_string),
   (score.type_specificity, type_specificity_string),

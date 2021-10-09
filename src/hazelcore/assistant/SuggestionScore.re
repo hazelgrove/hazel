@@ -220,7 +220,7 @@ let mk =
       result_str: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
-    : Suggestion.score => {
+    : Suggestion.score_exp_operand => {
   /*Printf.printf(
       "action: %s\n",
       Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),

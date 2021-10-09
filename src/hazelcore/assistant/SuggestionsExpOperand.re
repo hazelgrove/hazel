@@ -61,7 +61,7 @@ let mk_empty_hole_suggestion = (ci: CursorInfo.t): Suggestion.t =>
 let mk_inj_suggestion = (side: InjSide.t, ci: CursorInfo.t): Suggestion.t =>
   mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side), ci);
 
-let mk_case_suggestion = (ci: CursorInfo.t): Suggestion.t =>
+let _mk_case_suggestion = (ci: CursorInfo.t): Suggestion.t =>
   mk_operand_suggestion(
     ~strategy=InsertCase,
     ~operand=mk_case(hole_exp),
@@ -146,7 +146,7 @@ let get_wrapped_operand =
   };
 };
 
-let mk_wrap_suggestion =
+let mk_wrap_app_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
   // TODO(andrew): get type
   let get_arg_type_somehow_TODO = HTyp.Hole;
@@ -161,51 +161,22 @@ let mk_wrap_suggestion =
   );
 };
 
-let mk_wrap_app_suggestions: generator =
-  ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
-    switch (cursor_term) {
-    | ExpOperand(_, EmptyHole(_)) =>
-      /* Wrapping empty holes is redundant to ap. Revisit when there's
-         a mechanism to eliminate duplicate suggestions */
-      []
-    | _ =>
-      let arrow_consistent = ((_, f_ty)) =>
-        HTyp.consistent(
-          f_ty,
-          HTyp.Arrow(HTyp.relax(actual_ty), expected_ty),
-        );
-      Assistant_common.fun_vars(ctx, expected_ty)
-      |> List.filter(arrow_consistent)
-      |> List.map(mk_wrap_suggestion(ci));
-    };
+let result_type_consistent_with = (expected_ty, s: Suggestion.t) =>
+  switch (s.result) {
+  | ExpOperand({ty, _}) => HTyp.consistent(ty, expected_ty)
+  };
 
-let str_float_to_int = s =>
-  s |> float_of_string |> Float.to_int |> string_of_int;
-let str_int_to_float = s =>
-  s |> int_of_string |> Float.of_int |> string_of_float;
-
-let int_float_conversion_suggestions: generator =
-  // just use expected type
-  ({cursor_term, _} as ci) =>
-    switch (cursor_term) {
-    | ExpOperand(_, IntLit(_, s)) => [
-        mk_float_lit_suggestion(str_int_to_float(s), ci),
-      ]
-    | ExpOperand(_, FloatLit(_, s))
-        when s |> float_of_string |> Float.is_integer => [
-        mk_int_lit_suggestion(str_float_to_int(s), ci),
-      ]
-    | _ => []
-    };
-
-let mk_wrap_case_suggestions: generator =
-  ({cursor_term, _} as ci) => {
-    let operand =
-      cursor_term
-      |> get_wrapped_operand(ci, HTyp.Hole, "case")
-      |> UHExp.Block.wrap
-      |> mk_case;
-    [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
+let convert_operand = (operand: UHExp.operand): option(UHExp.operand) =>
+  switch (operand) {
+  | FloatLit(_, s) when s |> float_of_string |> Float.is_integer =>
+    Some(
+      s |> float_of_string |> Float.to_int |> string_of_int |> UHExp.intlit,
+    )
+  | IntLit(_, s) =>
+    Some(
+      s |> int_of_string |> Float.of_int |> string_of_float |> UHExp.floatlit,
+    )
+  | _ => None
   };
 
 // GENERATORS --------------------------------------------------------
@@ -241,22 +212,8 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
 
 let mk_delete_suggestions: generator = ci => [mk_empty_hole_suggestion(ci)];
 
-let result_type_consistent_with = (expected_ty, s: Suggestion.t) =>
-  switch (s.result) {
-  | ExpOperand({ty, _}) => HTyp.consistent(ty, expected_ty)
-  };
-
 let mk_insert_lit_suggestions: generator =
-  ({expected_ty, _} as ci) =>
-    ci
-    |> mk_constructors(ci.expected_ty)
-    |> List.filter(result_type_consistent_with(expected_ty));
-
-let mk_convert_suggestions: generator =
-  ({expected_ty, _} as ci) =>
-    ci
-    |> int_float_conversion_suggestions
-    |> List.filter(result_type_consistent_with(expected_ty));
+  ci => mk_constructors(ci.expected_ty, ci);
 
 let mk_insert_var_suggestions: generator =
   ({ctx, expected_ty, _} as ci) =>
@@ -270,6 +227,48 @@ let mk_insert_app_suggestions: generator =
     |> Assistant_common.fun_vars(ctx)
     |> List.map(mk_app_suggestion(ci));
   };
+
+let mk_wrap_app_suggestions: generator =
+  ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
+    switch (cursor_term) {
+    | ExpOperand(_, EmptyHole(_)) =>
+      /* Wrapping empty holes is redundant to ap. Revisit when there's
+         a mechanism to eliminate duplicate suggestions */
+      []
+    | _ =>
+      let arrow_consistent = ((_, f_ty)) =>
+        HTyp.consistent(
+          f_ty,
+          HTyp.Arrow(HTyp.relax(actual_ty), expected_ty),
+        );
+      Assistant_common.fun_vars(ctx, expected_ty)
+      |> List.filter(arrow_consistent)
+      |> List.map(mk_wrap_app_suggestion(ci));
+    };
+
+let mk_wrap_case_suggestions: generator =
+  ci => {
+    let operand =
+      ci.cursor_term
+      |> get_wrapped_operand(ci, HTyp.Hole, "case")
+      |> UHExp.Block.wrap
+      |> mk_case;
+    [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
+  };
+
+let mk_convert_suggestions: generator =
+  ci =>
+    switch (ci.cursor_term) {
+    | ExpOperand(_, operand) =>
+      switch (convert_operand(operand)) {
+      | None => []
+      | Some(operand) =>
+        // TODO(andrew): just use expected type in convert_operand?
+        [mk_operand_suggestion(~strategy=ConvertLit, ~operand, ci)]
+        |> List.filter(result_type_consistent_with(ci.expected_ty))
+      }
+    | _ => []
+    };
 
 let exp_operand_generators = [
   mk_insert_app_suggestions,
