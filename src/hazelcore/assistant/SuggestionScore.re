@@ -1,14 +1,14 @@
 open OptUtil.Syntax;
 
 let type_specificity_score =
-    (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t) =>
+    (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t): float =>
   switch (HTyp.compare(result_ty, actual_ty)) {
-  | _ when expected_ty == Hole => 0
-  | _ when !HTyp.consistent(expected_ty, result_ty) => 0
+  | _ when expected_ty == Hole => 0.
+  | _ when !HTyp.consistent(expected_ty, result_ty) => 0.
   | Incomparable
-  | Equal => 0
-  | GT => 1
-  | LT => (-1)
+  | Equal => 0.
+  | GT => 1.
+  | LT => (-1.)
   };
 
 let hole_not_empty = (hi: CursorPath.hole_info) =>
@@ -22,17 +22,14 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
-let errors_scores =
-    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t) => {
-  let* (opseq_expected_ty, old_zexp) =
-    switch (enclosing_zopseq) {
-    | ExpSeq(zopseq, expected_ty) =>
-      Some((HTyp.relax(expected_ty), ZExp.ZBlock.wrap'(zopseq)))
-    | _ =>
-      print_endline("Warning: opseq_report: no zopseq provided");
-      None;
-    };
-  let+ (actual_ty, new_zexp) =
+let error_score =
+    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t): float => {
+  switch (enclosing_zopseq) {
+  | ExpSeq(zopseq, expected_ty) =>
+    let (opseq_expected_ty, old_zexp) = (
+      HTyp.relax(expected_ty),
+      ZExp.ZBlock.wrap'(zopseq),
+    );
     switch (
       Action_Exp.syn_perform(
         ctx,
@@ -43,14 +40,25 @@ let errors_scores =
     | Failed
     | CursorEscaped(_) =>
       print_endline("Warning: opseq_report: syn_perform failure");
-      None;
-    | Succeeded((new_zexp, new_type, _)) => Some((new_type, new_zexp))
+      0.;
+    | Succeeded((new_zexp, new_type, _)) =>
+      let (actual_ty, new_zexp) = (new_type, new_zexp);
+      let context_consistent_after =
+        HTyp.consistent(opseq_expected_ty, actual_ty);
+      let internal_errors_before = old_zexp |> err_holes |> List.length;
+      let internal_errors_after = new_zexp |> err_holes |> List.length;
+      let context_errors =
+        switch (context_consistent_after) {
+        | false => (-1)
+        | true => 0
+        };
+      let internal_errors = internal_errors_before - internal_errors_after;
+      float_of_int(internal_errors + context_errors);
     };
-  let context_consistent_after =
-    HTyp.consistent(opseq_expected_ty, actual_ty);
-  let internal_errors_before = old_zexp |> err_holes |> List.length;
-  let internal_errors_after = new_zexp |> err_holes |> List.length;
-  (context_consistent_after, internal_errors_before, internal_errors_after);
+  | _ =>
+    print_endline("Warning: opseq_report: no zopseq provided");
+    0.;
+  };
 };
 
 let operand_has_function_type = (operand: UHExp.operand, ctx: Contexts.t) =>
@@ -60,7 +68,7 @@ let operand_has_function_type = (operand: UHExp.operand, ctx: Contexts.t) =>
   };
 
 let idiomaticity_score_internal =
-    (enclosing_operand: UHExp.operand, ctx: Contexts.t): int =>
+    (enclosing_operand: UHExp.operand, ctx: Contexts.t): float =>
   switch (enclosing_operand) {
   /* weird case scrutinees */
   | Case(_, [ExpLine(OpSeq(_, S(scrut, _)))], _) =>
@@ -69,19 +77,19 @@ let idiomaticity_score_internal =
     | IntLit(_)
     | BoolLit(_)
     | FloatLit(_)
-    | ListNil(_) => (-1)
-    | Case(_) => (-2)
-    | _ when operand_has_function_type(scrut, ctx) => (-2)
-    | _ => 0
+    | ListNil(_) => (-1.)
+    | Case(_) => (-2.)
+    | _ when operand_has_function_type(scrut, ctx) => (-2.)
+    | _ => 0.
     }
   /* weird function expressions in (parenthesized) apps */
   | Parenthesized([ExpLine(OpSeq(_, S(f_exp, A(Space, _))))]) =>
     switch (f_exp) {
-    | Case(_) => (-2)
-    | Lam(_) => (-1)
-    | _ => 0
+    | Case(_) => (-2.)
+    | Lam(_) => (-1.)
+    | _ => 0.
     }
-  | _ => 0
+  | _ => 0.
   };
 
 let idiomaticity_score_context =
@@ -90,7 +98,7 @@ let idiomaticity_score_context =
       enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
     )
-    : int =>
+    : float =>
   switch (enclosing_zoperand) {
   /* weird case scrutinees */
   | Some(CaseZE(_)) =>
@@ -99,10 +107,10 @@ let idiomaticity_score_context =
     | IntLit(_)
     | BoolLit(_)
     | FloatLit(_)
-    | ListNil(_) => (-1)
-    | Case(_) => (-2)
-    | _ when operand_has_function_type(operand, ctx) => (-2)
-    | _ => 0
+    | ListNil(_) => (-1.)
+    | Case(_) => (-2.)
+    | _ when operand_has_function_type(operand, ctx) => (-2.)
+    | _ => 0.
     }
   /* weird function expressions in (parenthesized) apps */
   | Some(
@@ -113,11 +121,11 @@ let idiomaticity_score_context =
       )),
     ) =>
     switch (operand) {
-    | Case(_) => (-2)
-    | Lam(_) => (-1)
-    | _ => 0
+    | Case(_) => (-2.)
+    | Lam(_) => (-1.)
+    | _ => 0.
     }
-  | _ => 0
+  | _ => 0.
   };
 
 let idiomaticity_score =
@@ -126,12 +134,12 @@ let idiomaticity_score =
       enclosing_zoperand: CursorInfo.enclosing_zoperand,
       ctx: Contexts.t,
     )
-    : int =>
+    : float =>
   switch (action) {
   | ReplaceOperand(operand, _) =>
     idiomaticity_score_context(operand, enclosing_zoperand, ctx)
-    + idiomaticity_score_internal(operand, ctx)
-  | _ => 0
+    +. idiomaticity_score_internal(operand, ctx)
+  | _ => 0.
   };
 
 let submatches_and_offsets =
@@ -179,7 +187,7 @@ let submatches_and_offsets =
 
 /* Returns a float between 0.00 and 1.00. First decimal place represents
    match overlap, second decimal place how close match is to beginning */
-let text_match_score =
+let syntax_conserved_score =
     (~term_str: string, ~term_idx: int, ~result_str: string): float => {
   let (before_caret, after_caret) =
     StringUtil.split_string(term_idx, term_str);
@@ -212,29 +220,18 @@ let mk =
       result_str: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
-    : option(Suggestion.score) => {
+    : Suggestion.score => {
   /*Printf.printf(
       "action: %s\n",
       Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),
     );*/
-  let+ (
-    context_consistent_after,
-    internal_errors_before,
-    internal_errors_after,
-  ) =
-    errors_scores(action, ci);
-  let context_errors =
-    switch (context_consistent_after) {
-    | false => (-1)
-    | true => 0
-    };
-  let internal_errors = internal_errors_before - internal_errors_after;
-  let delta_errors = internal_errors + context_errors;
+  let delta_errors = error_score(action, ci);
   let idiomaticity = idiomaticity_score(action, enclosing_zoperand, ctx);
   let type_specificity =
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
   let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
   let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
-  let text_match = text_match_score(~term_str, ~term_idx, ~result_str);
-  Suggestion.{idiomaticity, type_specificity, delta_errors, text_match};
+  let syntax_conserved =
+    syntax_conserved_score(~term_str, ~term_idx, ~result_str);
+  Suggestion.{idiomaticity, type_specificity, delta_errors, syntax_conserved};
 };

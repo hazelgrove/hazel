@@ -1,85 +1,64 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type category =
+type strategy =
+  | Delete
   | InsertLit
   | InsertVar
   | InsertApp
-  | InsertConstructor
-  | InsertElim
-  | Wrap
-  | ReplaceOperator
-  | Delete;
+  | InsertCase
+  | WrapApp
+  | WrapCase
+  //| Convert // int-float
+  | ReplaceOperator;
 
 [@deriving sexp]
 type score = {
-  idiomaticity: int,
-  type_specificity: int,
-  delta_errors: int,
-  text_match: float,
-};
-
-let blank_score: score = {
-  idiomaticity: 0,
-  type_specificity: 0,
-  delta_errors: 0,
-  text_match: 0.,
+  idiomaticity: float,
+  type_specificity: float,
+  delta_errors: float,
+  syntax_conserved: float,
 };
 
 [@deriving sexp]
-type t('a) = {
-  category,
+type result_exp_operand = {
+  ty: HTyp.t,
   score,
-  action: Action.t,
-  result: 'a,
-  result_ty: HTyp.t,
-  result_text: string,
+  show_uhexp: UHExp.t,
+  show_text: string,
 };
 
 [@deriving sexp]
-type generator('a) = CursorInfo.t => list(t('a));
+type result =
+  | ExpOperand(result_exp_operand);
 
 [@deriving sexp]
-type exp = t(UHExp.t);
+type t = {
+  strategy,
+  action: Action.t,
+  result,
+};
 
-let generate = (gs: list(generator('a)), ci: CursorInfo.t): list(t('a)) =>
+[@deriving sexp]
+type generator = CursorInfo.t => list(t);
+
+let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
-let mk =
-    (
-      ~category: category,
-      ~result_text: string,
-      ~action: Action.t,
-      ~result: 'a,
-      ~result_ty: HTyp.t,
-    )
-    : t('a) => {
-  category,
-  result_text,
-  action,
-  result,
-  result_ty,
-  score: blank_score,
-};
+let score_params = (score: score) => [
+  (score.delta_errors, 1.),
+  (score.idiomaticity, 1.),
+  (score.type_specificity, 1.),
+  (score.syntax_conserved, 1.5),
+];
 
-let string_of_category: category => string =
-  fun
-  | InsertVar => "var"
-  | InsertApp => "app"
-  | InsertLit => "lit"
-  | InsertConstructor => "con"
-  | InsertElim => "eli"
-  | ReplaceOperator => "opr"
-  | Wrap => "wra"
-  | Delete => "del";
+let score = ({result, _}: t) =>
+  switch (result) {
+  | ExpOperand({score, _}) =>
+    score
+    |> score_params
+    |> List.map(((score, param)) => param *. score)
+    |> List.fold_left((+.), 0.)
+  };
 
-let description_of_category: category => string =
-  fun
-  | InsertVar => "Insert a variable"
-  | InsertApp => "Insert an application"
-  | InsertLit => "Insert a literal"
-  | InsertConstructor => "Insert a contructor"
-  | InsertElim => "Insert an eliminator"
-  | ReplaceOperator => "Replace an operator"
-  | Wrap => "Wrap the current form"
-  | Delete => "Delete the current form";
+let compare = (a1, a2) => Float.compare(score(a2), score(a1));

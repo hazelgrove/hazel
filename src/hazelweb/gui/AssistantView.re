@@ -1,6 +1,74 @@
 open Virtual_dom.Vdom;
 open Node;
 
+let string_of_strategy: Suggestion.strategy => string =
+  fun
+  | Delete => "del"
+  | InsertLit => "lit"
+  | InsertVar => "var"
+  | InsertApp => "app"
+  | InsertCase => "elm"
+  | WrapApp => "wra"
+  | WrapCase => "wra"
+  | ReplaceOperator => "opr";
+
+let description_of_strategy: Suggestion.strategy => string =
+  fun
+  | Delete => "Delete the current form"
+  | InsertLit => "Insert a literal"
+  | InsertVar => "Insert a variable"
+  | InsertApp => "Insert an application"
+  | InsertCase => "Insert an eliminator"
+  | WrapApp => "Wrap the current form in an application"
+  | WrapCase => "Wrap the current  in a case"
+  | ReplaceOperator => "Replace an operator";
+
+let delta_errors_string = (delta_errors: float): string =>
+  switch (delta_errors) {
+  | 0. => "Same number of errors"
+  | (-1.) => "One more error"
+  | 1. => "One fewer error"
+  | n when n < 0. =>
+    "" ++ string_of_int(int_of_float(-. n)) ++ " more errors"
+  | n => "" ++ string_of_int(int_of_float(n)) ++ " fewer errors"
+  };
+
+let type_specificity_string = (type_specificity: float) =>
+  switch (type_specificity) {
+  | 0. => "Same type specificity"
+  | n when n < 0. => "Less granular type"
+  | _ => "More granular type"
+  };
+let idiomaticity_string = (idiomaticity: float) =>
+  switch (idiomaticity) {
+  | 0. => "Same idiomaticity"
+  | (-1.) => "Less idiomatic"
+  | 1. => "More idiomatic"
+  | n when n < 0. => "Much less idiomatic"
+  | _ => "Much more idiomatic"
+  };
+
+let syntax_conserved_string = (ratio: float) =>
+  switch (ratio) {
+  | x when x < 0.6 => "Syntax partially conserved"
+  | x when x < 0.9 => "Syntax mostly conserved"
+  | _ => "Existing syntax conserved"
+  };
+
+let sign_label = (n: float): string =>
+  switch (n) {
+  | n when n < 0. => "minus"
+  | n when n > 0. => "plus"
+  | _ => ""
+  };
+
+let sign_string = (n: float): string =>
+  switch (n) {
+  | n when n < 0. => "-"
+  | n when n > 0. => "+"
+  | _ => ""
+  };
+
 let icon = (~sort: TermSort.t) => {
   let base = s => "imgs/assistant/boost-0000-" ++ s ++ ".png";
   let sort = TermSort.to_string(sort);
@@ -10,62 +78,17 @@ let icon = (~sort: TermSort.t) => {
   );
 };
 
-let category_view = category => {
-  let label = Suggestion.string_of_category(category);
+let strategy_view = strategy => {
+  let label = string_of_strategy(strategy);
   div([Attr.classes(["category", label])], [text(label)]);
 };
 
-let sign_icon = n =>
-  text(
-    switch (n) {
-    | n when n < 0 => "-"
-    | n when n > 0 => "+"
-    | _ => ""
-    },
-  );
-let sign_label = n =>
-  switch (n) {
-  | n when n < 0 => "minus"
-  | n when n > 0 => "plus"
-  | _ => ""
-  };
+let sign_view = n =>
+  div([Attr.class_(sign_label(n))], [text(sign_string(n))]);
 
-let delta_errors_string = (delta_errors: int): string =>
-  switch (delta_errors) {
-  | 0 => "Same number of errors"
-  | (-1) => "One more error"
-  | 1 => "One fewer error"
-  | n when n < 0 => "" ++ string_of_int(- n) ++ " more errors"
-  | n => "" ++ string_of_int(n) ++ " fewer errors"
-  };
-
-let type_specificity_string = (type_specificity: int) =>
-  switch (type_specificity) {
-  | 0 => "Same type specificity"
-  | n when n < 0 => "Less granular type"
-  | _ => "More granular type"
-  };
-let idiomaticity_string = (idiomaticity: int) =>
-  switch (idiomaticity) {
-  | 0 => "Same idiomaticity"
-  | (-1) => "Less idiomatic"
-  | 1 => "More idiomatic"
-  | n when n < 0 => "Much less idiomatic"
-  | _ => "Much more idiomatic"
-  };
-
-let text_match_string = (ratio: float) =>
-  switch (ratio) {
-  | x when x < 0.6 => "Syntax partially conserved"
-  | x when x < 0.9 => "Syntax mostly conserved"
-  | _ => "Existing syntax conserved"
-  };
-
-let sign_view = n => div([Attr.class_(sign_label(n))], [sign_icon(n)]);
-
-let subscore_view = (score_string: int => string, subscore: int) => {
+let subscore_view = ((subscore: float, score_string: float => string)) => {
   switch (subscore) {
-  | 0 => []
+  | 0. => []
   | _ => [
       div(
         [Attr.class_("subscore")],
@@ -75,36 +98,29 @@ let subscore_view = (score_string: int => string, subscore: int) => {
   };
 };
 
-let subscore_view_float = (score_string: float => string, subscore: float) => {
-  switch (subscore) {
-  | 0. => []
-  | _ => [
-      div(
-        [Attr.class_("subscore")],
-        [sign_view(1), text(score_string(subscore))],
-      ),
-    ]
-  };
-};
+let subscore_data = (score: Suggestion.score) => [
+  (score.delta_errors, delta_errors_string),
+  (score.idiomaticity, idiomaticity_string),
+  (score.type_specificity, type_specificity_string),
+  (score.syntax_conserved, syntax_conserved_string),
+];
 
-let suggestion_info_view = ({category, score, _}: Suggestion.exp) => {
+let suggestion_info_view = ({strategy, _} as s: Suggestion.t) => {
+  let subscores = subscore_data(Suggestions.get_operand_props(s).score);
   div(
     [Attr.class_("suggestion-info")],
     [
-      span([], [category_view(category)]),
+      span([], [strategy_view(strategy)]),
       span(
         [Attr.class_("suggestion-description")],
-        [text(Suggestion.description_of_category(category))],
+        [text(description_of_strategy(strategy))],
       ),
     ]
-    @ subscore_view(delta_errors_string, score.delta_errors)
-    @ subscore_view(idiomaticity_string, score.idiomaticity)
-    @ subscore_view(type_specificity_string, score.type_specificity)
-    //@ [text(string_of_float(score.text_match))]
-    @ subscore_view_float(text_match_string, score.text_match),
+    @ List.concat(List.map(subscore_view, subscores)),
   );
 };
 
+/* Draws the matching characters overtop of suggestions */
 let overlay_view =
     (
       {cursor_term, _}: CursorInfo.t,
@@ -133,26 +149,28 @@ let overlay_view =
   div([Attr.class_("overlay")], offset_overlay);
 };
 
-let suggestion_view =
+let suggestion_view_operand =
     (
+      ~suggestion as {action, strategy, _}: Suggestion.t,
+      ~props as
+        {show_text, score, show_uhexp, ty, _}: Suggestion.result_exp_operand,
+      ~index: int,
+      ~is_hovered: bool,
+      ~is_selected: bool,
+      ~search_string: string,
       ~ci: CursorInfo.t,
-      ~inject: ModelAction.t => Event.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
-      {action, result, result_ty, category, result_text, score, _}: Suggestion.exp,
-      is_selected: bool,
-      is_hovered: bool,
-      index: int,
-      search_string: string,
+      ~inject: ModelAction.t => Event.t,
     ) => {
   let result_view =
     UHCode.codebox_view(
       ~is_focused=false,
       ~settings,
       ~font_metrics,
-      Editor.mk_exp_editor(result),
+      Editor.mk_exp_editor(show_uhexp),
     );
-  let overlay_view = overlay_view(ci, search_string, result_text);
+  let overlay_view = overlay_view(ci, search_string, show_text);
   let perform_action = _ =>
     Event.Many([
       Event.Prevent_default,
@@ -160,26 +178,24 @@ let suggestion_view =
       inject(FocusCell(MainProgram)), // prevent main editor from losing focus
       inject(ModelAction.AcceptSuggestion(action)),
     ]);
-  let set_hover = _ =>
-    inject(ModelAction.UpdateAssistant(Set_hover_index(Some(index))));
-  let unset_hover = _ =>
-    inject(ModelAction.UpdateAssistant(Set_hover_index(None)));
+  let set_hover_index = (idx: option(int)) =>
+    inject(ModelAction.UpdateAssistant(Set_hover_index(idx)));
   let color_score =
-    score.delta_errors + score.idiomaticity + score.type_specificity;
+    score.delta_errors +. score.idiomaticity +. score.type_specificity;
   let assistant_classes =
     ["choice"]
     @ (is_selected ? ["selected"] : [])
     @ (is_hovered ? ["hovered"] : [])
-    @ (color_score > 0 ? ["errors-less"] : [])
-    @ (color_score < 0 ? ["errors-more"] : []);
+    @ (color_score > 0. ? ["errors-less"] : [])
+    @ (color_score < 0. ? ["errors-more"] : []);
   div(
     [
       Attr.id(string_of_int(index)),
       Attr.classes(assistant_classes),
       Attr.create("tabindex", "0"), // necessary to make cell focusable
       Attr.on_click(perform_action),
-      Attr.on_mouseenter(set_hover),
-      Attr.on_mouseleave(unset_hover),
+      Attr.on_mouseenter(_ => set_hover_index(Some(index))),
+      Attr.on_mouseleave(_ => set_hover_index(None)),
     ],
     [
       div(
@@ -187,11 +203,39 @@ let suggestion_view =
         [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
       div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
-      category_view(category),
+      div([Attr.class_("type")], [HTypCode.view(ty)]),
+      strategy_view(strategy),
     ],
   );
 };
+
+let suggestion_view =
+    (
+      ~suggestion: Suggestion.t,
+      ~index: int,
+      ~is_hovered: bool,
+      ~is_selected: bool,
+      ~search_string: string,
+      ~ci: CursorInfo.t,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~inject: ModelAction.t => Event.t,
+    ) =>
+  switch (suggestion.result) {
+  | ExpOperand(props) =>
+    suggestion_view_operand(
+      ~props,
+      ~ci,
+      ~inject,
+      ~settings,
+      ~font_metrics,
+      ~suggestion,
+      ~is_selected,
+      ~is_hovered,
+      ~index,
+      ~search_string,
+    )
+  };
 
 let suggestions_view =
     (
@@ -203,33 +247,31 @@ let suggestions_view =
       ~ci: CursorInfo.t,
     )
     : Node.t => {
-  let search_string = CursorInfo_common.string_of_cursor_term(ci.cursor_term);
   let suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant);
-  let is_hovered = AssistantModel.is_active_suggestion_index(assistant);
   let suggestion_view = (index, suggestion) =>
     suggestion_view(
       ~ci,
       ~inject,
       ~settings,
       ~font_metrics,
-      suggestion,
-      index == 0,
-      is_hovered(index),
-      index,
-      search_string,
+      ~suggestion,
+      ~is_selected=index == 0,
+      ~is_hovered=AssistantModel.is_active_suggestion_index(assistant, index),
+      ~index,
+      ~search_string=CursorInfo_common.string_of_cursor_term(ci.cursor_term),
     );
   div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
 };
 
 let view =
     (
-      ~inject: ModelAction.t => Event.t,
-      ~font_metrics: FontMetrics.t,
-      ~settings: Settings.t,
-      ~u_gen: MetaVarGen.t,
+      ~assistant: AssistantModel.t,
       ~ci: CursorInfo.t,
-      assistant: AssistantModel.t,
+      ~u_gen: MetaVarGen.t,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~inject: ModelAction.t => Event.t,
     )
     : Node.t => {
   let suggestions_view =

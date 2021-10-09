@@ -763,7 +763,7 @@ let view =
     );
   let assistant_view =
     AssistantView.view(
-      assistant,
+      ~assistant,
       ~inject,
       ~font_metrics,
       ~settings,
