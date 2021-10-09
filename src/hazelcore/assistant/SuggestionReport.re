@@ -2,7 +2,7 @@ open OptUtil.Syntax;
 open Sexplib.Std;
 
 [@deriving sexp]
-type score_exp_operand = {
+type score_exp = {
   idiomaticity: float,
   type_specificity: float,
   delta_errors: float,
@@ -13,9 +13,16 @@ type score_exp_operand = {
 type report_exp_operand = {
   operand: UHExp.operand,
   ty: HTyp.t,
-  score: score_exp_operand,
+  score: score_exp,
   show_text: string,
 };
+
+let score_params_exp = (score: score_exp) => [
+  (score.delta_errors, 1.),
+  (score.idiomaticity, 1.),
+  (score.type_specificity, 1.),
+  (score.syntax_conserved, 1.5),
+];
 
 let type_specificity_score =
     (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t): float =>
@@ -235,7 +242,7 @@ let mk_exp_operand_score =
       result_str: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
-    : score_exp_operand => {
+    : score_exp => {
   idiomaticity: idiomaticity_score(operand, enclosing_zoperand, ctx),
   type_specificity:
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty)),

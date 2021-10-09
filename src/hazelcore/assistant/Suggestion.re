@@ -36,18 +36,13 @@ let action_of_strategy: strategy => Action.t =
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
-let score_params = (score: SuggestionReport.score_exp_operand) => [
-  (score.delta_errors, 1.),
-  (score.idiomaticity, 1.),
-  (score.type_specificity, 1.),
-  (score.syntax_conserved, 1.5),
-];
+
 
 let score = ({report, _}: t) =>
   switch (report) {
   | ExpOperand({score, _}) =>
     score
-    |> score_params
+    |> SuggestionReport.score_params_exp
     |> List.map(((score, param)) => param *. score)
     |> List.fold_left((+.), 0.)
   };
