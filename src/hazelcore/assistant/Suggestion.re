@@ -1,4 +1,4 @@
-open Sexplib.Std;
+//open Sexplib.Std;
 
 [@deriving sexp]
 type operand_strategy =
@@ -16,24 +16,8 @@ type strategy =
   | ReplaceOperand(operand_strategy, UHExp.operand);
 
 [@deriving sexp]
-type score_exp_operand = {
-  idiomaticity: float,
-  type_specificity: float,
-  delta_errors: float,
-  syntax_conserved: float,
-};
-
-[@deriving sexp]
-type report_exp_operand = {
-  operand: UHExp.operand,
-  ty: HTyp.t,
-  score: score_exp_operand,
-  show_text: string,
-};
-
-[@deriving sexp]
 type report =
-  | ExpOperand(report_exp_operand);
+  | ExpOperand(SuggestionReport.report_exp_operand);
 
 [@deriving sexp]
 type t = {
@@ -52,7 +36,7 @@ let action_of_strategy: strategy => Action.t =
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
-let score_params = (score: score_exp_operand) => [
+let score_params = (score: SuggestionReport.score_exp_operand) => [
   (score.delta_errors, 1.),
   (score.idiomaticity, 1.),
   (score.type_specificity, 1.),
@@ -70,13 +54,15 @@ let score = ({report, _}: t) =>
 
 let compare = (a1, a2) => Float.compare(score(a2), score(a1));
 
-let mk =
-    (
-      ~strategy: strategy,
-      ~mk_report: (strategy, CursorInfo.t) => report,
-      ~ci: CursorInfo.t,
-    )
-    : t => {
+let mk_report = (strategy: strategy, ci: CursorInfo.t): report => {
+  switch (strategy) {
+  | ReplaceOperand(_, operand) =>
+    let action = action_of_strategy(strategy);
+    ExpOperand(SuggestionReport.mk_exp_operand_report(action, operand, ci));
+  };
+};
+
+let mk = (~strategy: strategy, ~ci: CursorInfo.t): t => {
   strategy,
   action: action_of_strategy(strategy),
   report: mk_report(strategy, ci),

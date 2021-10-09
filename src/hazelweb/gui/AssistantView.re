@@ -105,7 +105,7 @@ let subscore_view = ((subscore: float, score_string: float => string)) =>
     ]
   };
 
-let subscore_data = (score: Suggestion.score_exp_operand) => [
+let subscore_data = (score: SuggestionReport.score_exp_operand) => [
   (score.delta_errors, delta_errors_string),
   (score.idiomaticity, idiomaticity_string),
   (score.type_specificity, type_specificity_string),
@@ -160,7 +160,7 @@ let suggestion_view_operand =
     (
       ~suggestion as {action, strategy, _}: Suggestion.t,
       ~report as
-        {show_text, score, operand, ty, _}: Suggestion.report_exp_operand,
+        {show_text, score, operand, ty, _}: SuggestionReport.report_exp_operand,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,

@@ -10,11 +10,7 @@ let mk_operand_suggestion =
       ci: CursorInfo.t,
     )
     : Suggestion.t =>
-  Suggestion.mk(
-    ~strategy=Suggestion.ReplaceOperand(strategy, operand),
-    ~mk_report=SuggestionReport.mk,
-    ~ci,
-  );
+  Suggestion.mk(~strategy=Suggestion.ReplaceOperand(strategy, operand), ~ci);
 
 let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>
   mk_operand_suggestion(~strategy, ~operand=UHExp.Parenthesized(uhexp), ci);

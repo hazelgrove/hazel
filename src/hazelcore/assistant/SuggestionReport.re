@@ -1,4 +1,21 @@
 open OptUtil.Syntax;
+open Sexplib.Std;
+
+[@deriving sexp]
+type score_exp_operand = {
+  idiomaticity: float,
+  type_specificity: float,
+  delta_errors: float,
+  syntax_conserved: float,
+};
+
+[@deriving sexp]
+type report_exp_operand = {
+  operand: UHExp.operand,
+  ty: HTyp.t,
+  score: score_exp_operand,
+  show_text: string,
+};
 
 let type_specificity_score =
     (expected_ty: HTyp.t, result_ty: HTyp.t, actual_ty: HTyp.t): float =>
@@ -183,8 +200,9 @@ let submatches_and_offsets =
 
 /* Returns a float between 0.00 and 1.00. First decimal place represents
    match overlap, second decimal place how close match is to beginning */
-let syntax_conserved_score =
-    (~term_str: string, ~term_idx: int, ~result_str: string): float => {
+let syntax_conserved_score = (~cursor_term, ~result_str: string): float => {
+  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
+  let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
   let (before_caret, after_caret) =
     StringUtil.split_string(term_idx, term_str);
   let cursor_text_length = String.length(term_str);
@@ -216,29 +234,20 @@ let mk_exp_operand_score =
       result_ty: HTyp.t,
       result_str: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
-    ) => {
-  /*Printf.printf(
-      "action: %s\n",
-      Sexplib.Sexp.to_string_hum(Action.sexp_of_t(action)),
-    );*/
-  let delta_errors = error_score(action, ci);
-  let idiomaticity = idiomaticity_score(operand, enclosing_zoperand, ctx);
-  let type_specificity =
-    type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty));
-  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
-  let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
-  let syntax_conserved =
-    syntax_conserved_score(~term_str, ~term_idx, ~result_str);
-  Suggestion.{idiomaticity, type_specificity, delta_errors, syntax_conserved};
+    )
+    : score_exp_operand => {
+  idiomaticity: idiomaticity_score(operand, enclosing_zoperand, ctx),
+  type_specificity:
+    type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty)),
+  delta_errors: error_score(action, ci),
+  syntax_conserved: syntax_conserved_score(~cursor_term, ~result_str),
 };
 
-let mk = (strategy: Suggestion.strategy, ci: CursorInfo.t): Suggestion.report => {
-  switch (strategy) {
-  | ReplaceOperand(_, operand) =>
-    let action = Suggestion.action_of_strategy(strategy);
-    let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
-    let show_text = UHExp.string_of_operand(operand);
-    let score = mk_exp_operand_score(action, ~operand, ty, show_text, ci);
-    ExpOperand({operand, ty, show_text, score});
-  };
+let mk_exp_operand_report =
+    (action: Action.t, operand: UHExp.operand, ci: CursorInfo.t)
+    : report_exp_operand => {
+  let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
+  let show_text = UHExp.string_of_operand(operand);
+  let score = mk_exp_operand_score(action, ~operand, ty, show_text, ci);
+  {operand, ty, show_text, score};
 };
