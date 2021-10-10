@@ -26,6 +26,7 @@ type t =
   | Comma
   | LeftBracket
   | Semicolon
+  | Quote
   | Alt_L
   | Alt_R
   | Alt_C
@@ -70,6 +71,7 @@ let get_details =
   | Comma => KeyCombo.comma
   | LeftBracket => KeyCombo.left_bracket
   | Semicolon => KeyCombo.semicolon
+  | Quote => KeyCombo.quote
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
@@ -111,6 +113,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(LeftParen);
   } else if (evt_matches(KeyCombo.colon)) {
     Some(Colon);
+  } else if (evt_matches(KeyCombo.quote)) {
+    Some(Quote);
   } else if (evt_matches(KeyCombo.equals)) {
     Some(Equals);
   } else if (evt_matches(KeyCombo.enter)) {

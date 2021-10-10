@@ -30,6 +30,7 @@ let minus: t;
 let asterisk: t;
 let slash: t;
 let semicolon: t;
+let quote: t;
 let comma: t;
 let vbar: t;
 let ampersand: t;
