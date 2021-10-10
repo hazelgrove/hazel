@@ -143,7 +143,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
-    | StringLit(_, str) => Len(String.length(str))
+    | StringLit(_, str) => Len(String.length(str) + 2)
     | BoolLit(_, _)
     | ListNil(_)
     | Lam(_)
