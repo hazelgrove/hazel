@@ -1641,8 +1641,8 @@ and syn_perform_operand =
 
   /* Insert a new empty string literal in an empty hole */
   | (Construct(SQuote), CursorE(OnDelim(_), EmptyHole(_))) =>
-    let ze =
-      ZExp.ZBlock.wrap(ZExp.place_after_operand(UHExp.stringlit("")));
+    let text_cursor = CursorPosition.OnText(0);
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit("")));
     Succeeded(SynDone((ze, HTyp.String, u_gen)));
   /* Insert a quote at beginning/end of string literal */
   | (
@@ -3102,8 +3102,8 @@ and ana_perform_operand =
 
   /* Construct a new empty string literal in an empty hole */
   | (Construct(SQuote), CursorE(OnDelim(_), EmptyHole(_))) =>
-    let ze =
-      ZExp.ZBlock.wrap(ZExp.place_after_operand(UHExp.stringlit("")));
+    let text_cursor = CursorPosition.OnText(0);
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit("")));
     if (HTyp.consistent(ty, HTyp.String)) {
       Succeeded(AnaDone((ze, u_gen)));
     } else {

@@ -822,7 +822,8 @@ and syn_perform_operand =
 
   /* Insert new empty string literal in an empty hole */
   | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
-    let zp = ZOpSeq.wrap(ZPat.place_after_operand(UHPat.stringlit("")));
+    let text_cursor = CursorPosition.OnText(0);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
     Succeeded((zp, String, ctx, u_gen));
   /* Insert a quote at beginning/end of string literal */
   | (
@@ -1448,7 +1449,8 @@ and ana_perform_operand =
 
   /* Construct a new empty string literal in an empty hole */
   | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
-    let zp = ZOpSeq.wrap(ZPat.place_after_operand(UHPat.stringlit("")));
+    let text_cursor = CursorPosition.OnText(0);
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
     if (HTyp.consistent(ty, HTyp.String)) {
       Succeeded((zp, ctx, u_gen));
     } else {
