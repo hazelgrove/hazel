@@ -314,13 +314,13 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_)
-  | StringLit(_) => CursorE(OnDelim(0, Before), operand)
+  | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
+  | StringLit(_)
   | Lam(_)
   | Inj(_)
   | Case(_)
@@ -649,8 +649,8 @@ and move_cursor_left_zoperand =
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
   // Move from first char of string
-  | CursorE(OnText(0), StringLit(_, _) as operand) =>
-    Some(CursorE(OnDelim(0, After), operand))
+  /* | CursorE(OnText(0), StringLit(_, _) as operand) => */
+  /* Some(CursorE(OnDelim(0, After), operand)) */
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   // Move to last char of string
@@ -836,9 +836,9 @@ and move_cursor_right_zoperand =
   | z when is_after_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
   // Move from last char of string
-  | CursorE(OnText(j), StringLit(_, s) as operand)
-      when j == String.length(s) =>
-    Some(CursorE(OnDelim(1, Before), operand))
+  /* | CursorE(OnText(j), StringLit(_, s) as operand) */
+  /* when j == String.length(s) => */
+  /* Some(CursorE(OnDelim(1, Before), operand)) */
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None

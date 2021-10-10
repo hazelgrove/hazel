@@ -13,7 +13,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) => true
+    | BoolLit(_, _)
+    | StringLit(_, _) => true
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     | _ => false
     }
@@ -24,7 +25,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) => true
+    | BoolLit(_, _)
+    | StringLit(_, _) => true
     | _ => false
     }
   | Typ(_, _)
@@ -69,6 +71,14 @@ let is_empty_line = (cursor_term): bool => {
   | PatOp(_, _)
   | TypOp(_, _)
   | Rule(_, _) => false
+  };
+};
+
+let is_text_line = (cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(_, StringLit(_, _))
+  | Pat(_, StringLit(_, _)) => true
+  | _ => false
   };
 };
 

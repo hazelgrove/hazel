@@ -182,15 +182,15 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
-  | ListNil(_)
-  | StringLit(_, _) => CursorP(OnDelim(0, Before), operand)
+  | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
-  | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
+  | Parenthesized(_)
+  | StringLit(_, _) => CursorP(OnDelim(0, Before), operand)
   | TypeAnn(err, op, ann) => TypeAnnZP(err, place_before_operand(op), ann)
   };
 let place_before_operator = (op: UHPat.operator): option(zoperator) =>
@@ -262,13 +262,13 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
-  // moving from the start of a string literal
-  | CursorP(OnText(0), StringLit(_) as operand) =>
-    Some(CursorP(OnDelim(0, After), operand))
+  // Moving from the start of a string literal
+  /* | CursorP(OnText(0), StringLit(_) as operand) => */
+  /* Some(CursorP(OnDelim(0, After), operand)) */
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
-  // moving to the end of a string literal
+  // Moving to the end of a string literal
   | CursorP(OnDelim(_one, Before), StringLit(_, s) as operand) =>
     Some(CursorP(OnText(String.length(s)), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
@@ -330,13 +330,13 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
-  // moving from the end of a string literal
-  | CursorP(OnText(j), StringLit(_, s) as operand)
-      when j == String.length(s) =>
-    Some(CursorP(OnDelim(1, Before), operand))
+  // Moving from the end of a string literal
+  /* | CursorP(OnText(j), StringLit(_, s) as operand) */
+  /* when j == String.length(s) => */
+  /* Some(CursorP(OnDelim(1, Before), operand)) */
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
-  // moving to the start of a string literal
+  // Moving to the start of a string literal
   | CursorP(OnDelim(_zero, After), StringLit(_) as operand) =>
     Some(CursorP(OnText(0), operand))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
