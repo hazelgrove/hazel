@@ -114,6 +114,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | StringLit(_, str) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("String"),
+            indicate_words_view(" literal "),
+            code_view(str),
+          ],
+        )
+      )
     | ListNil(_) => indicate_words_view("empty list")
     | Lam(_) => indicate_words_view("function")
 
@@ -190,6 +201,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             code_keywords_view("Bool"),
             indicate_words_view(" literal "),
             code_view(string_of_bool(bool_val)),
+          ],
+        )
+      )
+    | StringLit(_, str) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("String"),
+            indicate_words_view(" literal "),
+            code_view(str),
           ],
         )
       )
@@ -324,8 +346,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SCommentLine
     | SAnn
-    | SParenthesized =>
-      indicate_words_view(Action_common.shape_to_string(shape))
+    | SParenthesized
+    | SQuote => indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {

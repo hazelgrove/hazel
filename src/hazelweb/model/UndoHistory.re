@@ -501,7 +501,8 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
-      | SCase => Some(ConstructEdit(shape))
+      | SCase
+      | SQuote => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
