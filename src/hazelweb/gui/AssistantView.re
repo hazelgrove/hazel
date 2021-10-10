@@ -158,9 +158,9 @@ let overlay_view =
 
 let suggestion_view_operand =
     (
-      ~suggestion as {action, strategy, _}: Suggestion.t,
+      ~suggestion as {action, strategy, _} as suggestion: Suggestion.t,
       ~report as
-        {show_text, score, operand, ty, _}: SuggestionReport.report_exp_operand,
+        {show_text, operand, ty, _}: SuggestionReport.report_exp_operand,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -187,8 +187,7 @@ let suggestion_view_operand =
     ]);
   let set_hover_index = (idx: option(int)) =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(idx)));
-  let color_score =
-    score.delta_errors +. score.idiomaticity +. score.type_specificity;
+  let color_score = Suggestion.score(suggestion);
   let assistant_classes =
     ["choice"]
     @ (is_selected ? ["selected"] : [])
