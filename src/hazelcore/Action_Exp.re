@@ -2861,7 +2861,8 @@ and ana_perform_operand =
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
         ApPalette(_),
-      ),
+      ) |
+      CursorE(OnOp(_), StringLit(_)),
     ) =>
     Failed
 
@@ -2943,7 +2944,7 @@ and ana_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(CursorE(OnDelim(k, After), operand));
     ana_perform(ctx, Backspace, (new_ze, u_gen), ty) |> wrap_in_AnaDone;
 
-  | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
+  | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | StringLit(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
@@ -2957,6 +2958,25 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorE(OnText(j), StringLit(_, s))) =>
+    if (j == String.length(s)) {
+      /* Delete at end of string, before quotation, deletes the string */
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      let ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(AnaDone((ze, u_gen)));
+    } else {
+      /* Delete inside a string deletes the next character in the string */
+      let new_text = s |> StringUtil.delete(j);
+      let text_cursor = CursorPosition.OnText(j);
+      let ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded(AnaDone((ze, u_gen)));
+      } else {
+        let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+        Succeeded(AnaDone((ze, u_gen)));
+      };
+    }
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -2968,6 +2988,25 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorE(OnText(j), StringLit(_, s))) =>
+    if (j == 0) {
+      /* Backspace at beginning of string, after delim, deletes the string */
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      let ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(AnaDone((ze, u_gen)));
+    } else {
+      /* Backspace inside a string deletes the previous character in the string */
+      let new_text = s |> StringUtil.backspace(j);
+      let text_cursor = CursorPosition.OnText(j - 1);
+      let ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded(AnaDone((ze, u_gen)));
+      } else {
+        let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+        Succeeded(AnaDone((ze, u_gen)));
+      };
+    }
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
@@ -3039,6 +3078,17 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), StringLit(_, x))) =>
+    let new_text = x |> StringUtil.insert(j, s);
+    let text_cursor = CursorPosition.OnText(j + 1);
+    let ze =
+      ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+    if (HTyp.consistent(ty, HTyp.String)) {
+      Succeeded(AnaDone((ze, u_gen)));
+    } else {
+      let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+      Succeeded(AnaDone((ze, u_gen)));
+    };
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SCase), CursorE(_, operand)) =>
@@ -3049,6 +3099,50 @@ and ana_perform_operand =
     Succeeded(
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
     )
+
+  /* Construct a new empty string literal in an empty hole */
+  | (Construct(SQuote), CursorE(OnDelim(_), EmptyHole(_))) =>
+    let ze =
+      ZExp.ZBlock.wrap(ZExp.place_after_operand(UHExp.stringlit("")));
+    if (HTyp.consistent(ty, HTyp.String)) {
+      Succeeded(AnaDone((ze, u_gen)));
+    } else {
+      let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+      Succeeded(AnaDone((ze, u_gen)));
+    };
+  /* Insert a quote at the beginning/end of a string literal */
+  | (
+      Construct(SQuote),
+      CursorE(OnDelim(delim_idx, _side), StringLit(_, s) as operand),
+    ) =>
+    let j =
+      switch (delim_idx) {
+      | 0 => 0
+      | _1 => String.length(s)
+      };
+    ana_perform_operand(ctx, a, (CursorE(OnText(j), operand), u_gen), ty);
+  /* Disallow quotes directly next to anything */
+  | (
+      Construct(SQuote),
+      CursorE(
+        OnDelim(_, _),
+        ListNil(_) | Lam(_, _, _) | Inj(_, _, _) | Case(_, _, _) |
+        Parenthesized(_),
+      ),
+    ) =>
+    Failed
+  /* Insert a quote inside a string literal */
+  | (Construct(SQuote), CursorE(OnText(_), StringLit(_))) =>
+    ana_perform_operand(ctx, Construct(SChar("\"")), (zoperand, u_gen), ty)
+  | (
+      Construct(SQuote),
+      CursorE(
+        OnText(_),
+        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
+        BoolLit(_, _),
+      ),
+    ) =>
+    Failed
 
   // TODO consider relaxing guards and
   // merging with regular op construction
@@ -3077,6 +3171,11 @@ and ana_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
+  | (Construct(SOp(sop)), CursorE(OnText(j), StringLit(_, s)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, s, ty)
 
   | (Construct(SAnn), CursorE(_)) => Failed
 
