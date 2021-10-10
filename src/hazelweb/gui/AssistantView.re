@@ -24,7 +24,7 @@ let description_of_operand_strategy: Suggestion.operand_strategy => string =
   | InsertApp => "Insert an application"
   | InsertCase => "Insert an eliminator"
   | WrapApp => "Wrap the current form in an application"
-  | WrapCase => "Wrap the current  in a case"
+  | WrapCase => "Wrap the current form in a case"
   | ConvertLit => "Convert a literal to another data type";
 
 let description_of_strategy: Suggestion.strategy => string =
@@ -105,7 +105,7 @@ let subscore_view = ((subscore: float, score_string: float => string)) =>
     ]
   };
 
-let subscore_data = (score: SuggestionReport.score_exp_operand) => [
+let subscore_data = (score: SuggestionReport.score_exp) => [
   (score.delta_errors, delta_errors_string),
   (score.idiomaticity, idiomaticity_string),
   (score.type_specificity, type_specificity_string),

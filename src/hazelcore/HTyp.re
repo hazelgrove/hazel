@@ -215,3 +215,14 @@ let relax: option(t) => t =
   fun
   | None => Hole
   | Some(x) => x;
+
+let is_sumlike: t => bool =
+  fun
+  | Hole // debatable
+  | Int
+  | Float
+  | Bool
+  | Sum(_)
+  | List(_) => true
+  | Arrow(_)
+  | Prod(_) => false;

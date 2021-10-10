@@ -36,8 +36,6 @@ let action_of_strategy: strategy => Action.t =
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
-
-
 let score = ({report, _}: t) =>
   switch (report) {
   | ExpOperand({score, _}) =>

@@ -75,10 +75,20 @@ let mk_app_suggestion =
   mk_operand_suggestion_from_uhexp(~strategy=InsertApp, ~uhexp, ci);
 };
 
+let is_substring_of_var_name = (str, (name, _)) =>
+  switch (StringUtil.search_forward_opt(Str.regexp(str), name)) {
+  | None => false
+  | Some(_) => true
+  };
+
+let vars_satisfying_p = (ctx: Contexts.t, p) => {
+  ctx |> Contexts.gamma |> VarMap.filter(p);
+};
+
 let get_wrapped_operand =
     (
       {ctx, _}: CursorInfo.t,
-      arg_ty,
+      p,
       wrap_name: string,
       cursor_term: CursorInfo.cursor_term,
     ) => {
@@ -101,7 +111,11 @@ let get_wrapped_operand =
       if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
         suf_op;
       } else {
-        switch (vars_of_type_matching_str(ctx, arg_ty, suf)) {
+        switch (
+          vars_satisfying_p(ctx, x =>
+            p(x) && is_substring_of_var_name(suf, x)
+          )
+        ) {
         | [] => operand
         | [(name, _), ..._] =>
           // TODO: return best match rather than first
@@ -125,10 +139,8 @@ let get_wrapped_operand =
 
 let mk_wrap_app_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  // TODO(andrew): get type
-  let get_arg_type_somehow_TODO = HTyp.Hole;
-  let wrapped_operand =
-    get_wrapped_operand(ci, get_arg_type_somehow_TODO, name, cursor_term);
+  // TODO(andrew): get arg type and use for predicate
+  let wrapped_operand = get_wrapped_operand(ci, _ => true, name, cursor_term);
   mk_operand_suggestion_from_uhexp(
     ~strategy=WrapApp,
     ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), wrapped_operand),
@@ -225,7 +237,7 @@ let mk_wrap_case_suggestions: generator =
   ci => {
     let operand =
       ci.cursor_term
-      |> get_wrapped_operand(ci, HTyp.Hole, "case")
+      |> get_wrapped_operand(ci, ((_, ty)) => HTyp.is_sumlike(ty), "case")
       |> UHExp.Block.wrap
       |> mk_case;
     [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
@@ -245,14 +257,18 @@ let mk_convert_suggestions: generator =
     | _ => []
     };
 
+/*
+ * The order of the below list represents the default or tie-breaker order,
+ * in the sense the equally-ranked suggestions will appear in this order.
+ */
 let exp_operand_generators = [
+  mk_convert_suggestions,
+  mk_delete_suggestions,
+  mk_insert_lit_suggestions,
+  mk_insert_var_suggestions,
+  mk_wrap_app_suggestions,
   mk_insert_app_suggestions,
   mk_wrap_case_suggestions,
-  mk_wrap_app_suggestions,
-  mk_delete_suggestions,
-  mk_convert_suggestions,
-  mk_insert_var_suggestions,
-  mk_insert_lit_suggestions,
 ];
 
-let mk: generator = Suggestion.generate(exp_operand_generators);
+let mk: generator = Suggestion.generate(List.rev(exp_operand_generators));

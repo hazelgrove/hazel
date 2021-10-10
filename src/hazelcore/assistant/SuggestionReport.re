@@ -18,7 +18,7 @@ type report_exp_operand = {
 };
 
 let score_params_exp = (score: score_exp) => [
-  (score.delta_errors, 1.),
+  (score.delta_errors, 1.1),
   (score.idiomaticity, 1.),
   (score.type_specificity, 1.),
   (score.syntax_conserved, 1.5),
@@ -207,15 +207,16 @@ let submatches_and_offsets =
 
 /* Returns a float between 0.00 and 1.00. First decimal place represents
    match overlap, second decimal place how close match is to beginning */
-let syntax_conserved_score = (~cursor_term, ~result_str: string): float => {
+let syntax_conserved_score =
+    (~cursor_term: CursorInfo.cursor_term, ~show_text: string): float => {
   let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
   let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
   let (before_caret, after_caret) =
     StringUtil.split_string(term_idx, term_str);
   let cursor_text_length = String.length(term_str);
-  let result_length = String.length(result_str);
+  let result_length = String.length(show_text);
   let (total_match_length, imm) =
-    switch (submatches_and_offsets(before_caret, after_caret, result_str)) {
+    switch (submatches_and_offsets(before_caret, after_caret, show_text)) {
     | (None, None) => (0, result_length)
     | (None, Some((s, i)))
     | (Some((s, i)), None) => (String.length(s), i)
@@ -236,18 +237,18 @@ let syntax_conserved_score = (~cursor_term, ~result_str: string): float => {
 
 let mk_exp_operand_score =
     (
-      action: Action.t,
+      ~action: Action.t,
       ~operand: UHExp.operand,
-      result_ty: HTyp.t,
-      result_str: string,
+      ~ty: HTyp.t,
+      ~show_text: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
     : score_exp => {
   idiomaticity: idiomaticity_score(operand, enclosing_zoperand, ctx),
   type_specificity:
-    type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty)),
+    type_specificity_score(expected_ty, ty, HTyp.relax(actual_ty)),
   delta_errors: error_score(action, ci),
-  syntax_conserved: syntax_conserved_score(~cursor_term, ~result_str),
+  syntax_conserved: syntax_conserved_score(~cursor_term, ~show_text),
 };
 
 let mk_exp_operand_report =
@@ -255,6 +256,6 @@ let mk_exp_operand_report =
     : report_exp_operand => {
   let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let show_text = UHExp.string_of_operand(operand);
-  let score = mk_exp_operand_score(action, ~operand, ty, show_text, ci);
+  let score = mk_exp_operand_score(~action, ~operand, ~ty, ~show_text, ci);
   {operand, ty, show_text, score};
 };
