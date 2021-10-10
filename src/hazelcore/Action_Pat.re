@@ -1455,7 +1455,7 @@ and ana_perform_operand =
       let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
       Succeeded((zp, ctx, u_gen));
     };
-  /* Insert a quote at the beginning/end of a stirng literal */
+  /* Insert a quote at the beginning/end of a string literal */
   | (
       Construct(SQuote),
       CursorP(OnDelim(delim_idx, _side), StringLit(_, s) as operand),
