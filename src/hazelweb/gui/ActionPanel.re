@@ -494,6 +494,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
+  | Construct(SQuote) => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added
