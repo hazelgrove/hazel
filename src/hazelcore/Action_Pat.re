@@ -846,15 +846,13 @@ and syn_perform_operand =
       ),
     ) =>
     Failed
-  /* Quote inside StringLit inserts a quote into the string */
-  | (Construct(SQuote), CursorP(OnText(_), StringLit(_))) =>
-    syn_perform_operand(ctx, u_gen, Construct(SChar("\"")), zoperand)
   | (
       Construct(SQuote),
       CursorP(
         OnText(_),
         InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _),
+        BoolLit(_, _) |
+        StringLit(_, _),
       ),
     ) =>
     Failed
@@ -1478,15 +1476,13 @@ and ana_perform_operand =
       ),
     ) =>
     Failed
-  /* Quote inside StringLit inserts a quote into the string */
-  | (Construct(SQuote), CursorP(OnText(_), StringLit(_))) =>
-    ana_perform_operand(ctx, u_gen, Construct(SChar("\"")), zoperand, ty)
   | (
       Construct(SQuote),
       CursorP(
         OnText(_),
         InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _),
+        BoolLit(_, _) |
+        StringLit(_, _),
       ),
     ) =>
     Failed

@@ -1669,19 +1669,13 @@ and syn_perform_operand =
       ),
     ) =>
     Failed
-  /* Quote inside string inserts a quote into the string literal */
-  | (Construct(SQuote), CursorE(OnText(_), StringLit(_)) as ze) =>
-    syn_perform_operand(
-      ctx,
-      Construct(SChar("\"")),
-      (ze, HTyp.String, u_gen),
-    )
   | (
       Construct(SQuote),
       CursorE(
         OnText(_),
         InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _),
+        BoolLit(_, _) |
+        StringLit(_, _),
       ),
     ) =>
     Failed
@@ -3131,15 +3125,13 @@ and ana_perform_operand =
       ),
     ) =>
     Failed
-  /* Insert a quote inside a string literal */
-  | (Construct(SQuote), CursorE(OnText(_), StringLit(_))) =>
-    ana_perform_operand(ctx, Construct(SChar("\"")), (zoperand, u_gen), ty)
   | (
       Construct(SQuote),
       CursorE(
         OnText(_),
         InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _),
+        BoolLit(_, _) |
+        StringLit(_, _),
       ),
     ) =>
     Failed
