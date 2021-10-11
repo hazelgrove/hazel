@@ -17,7 +17,7 @@ type strategy =
 
 [@deriving sexp]
 type report =
-  | ExpOperand(SuggestionReport.report_exp_operand);
+  | ExpOperand(SuggestionReportExp.report_operand);
 
 [@deriving sexp]
 type t = {
@@ -27,36 +27,35 @@ type t = {
 };
 
 [@deriving sexp]
-type generator = CursorInfo.t => list(t);
+type generator' = CursorInfo.t => t;
 
-let action_of_strategy: strategy => Action.t =
-  fun
-  | ReplaceOperand(_, operand) => Action.ReplaceOperand(operand, None);
+[@deriving sexp]
+type generator = CursorInfo.t => list(t);
 
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
 
 let score = ({report, _}: t) =>
   switch (report) {
-  | ExpOperand({score, _}) =>
-    score
-    |> SuggestionReport.score_params_exp
+  | ExpOperand({scores, _}) =>
+    scores
+    |> SuggestionReportExp.scores_params
     |> List.map(((score, param)) => param *. score)
     |> List.fold_left((+.), 0.)
   };
 
-let compare = (a1, a2) => Float.compare(score(a2), score(a1));
+let compare: (t, t) => int =
+  (a1, a2) => Float.compare(score(a2), score(a1));
 
-let mk_report = (strategy: strategy, ci: CursorInfo.t): report => {
+let mk_report =
+    (action: Action.t, strategy: strategy, ci: CursorInfo.t): report =>
   switch (strategy) {
   | ReplaceOperand(_, operand) =>
-    let action = action_of_strategy(strategy);
-    ExpOperand(SuggestionReport.mk_exp_operand_report(action, operand, ci));
+    ExpOperand(SuggestionReportExp.mk_operand_report(action, operand, ci))
   };
-};
 
-let mk = (~strategy: strategy, ~ci: CursorInfo.t): t => {
+let mk = (~action: Action.t, ~strategy: strategy, ~report: report): t => {
   strategy,
-  action: action_of_strategy(strategy),
-  report: mk_report(strategy, ci),
+  action,
+  report,
 };

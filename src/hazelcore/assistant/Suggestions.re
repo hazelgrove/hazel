@@ -9,7 +9,7 @@ let get_operand = (s: Suggestion.t): option(UHExp.operand) =>
   | _ => None
   };
 
-let get_operand_props = (s: Suggestion.t): SuggestionReport.report_exp_operand =>
+let get_operand_props = (s: Suggestion.t): SuggestionReportExp.report_operand =>
   switch (s.report) {
   | ExpOperand(props) => props
   };

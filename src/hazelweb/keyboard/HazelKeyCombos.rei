@@ -50,7 +50,15 @@ type t =
   | Alt_Up
   | Alt_Down
   | Alt_Left
-  | Alt_Right;
+  | Alt_Right
+  | Shift_Up
+  | Shift_Down
+  | Shift_Left
+  | Shift_Right
+  | Ctrl_Up
+  | Ctrl_Down
+  | Ctrl_Left
+  | Ctrl_Right;
 
 let get_details: t => KeyCombo.t;
 

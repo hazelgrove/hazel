@@ -55,12 +55,18 @@ let get_main_action =
   | Alt_Left => EditAction(SwapLeft)
   | Alt_Right => EditAction(SwapRight)
   | Single(_) => EditAction(Construct(SChar(HazelKeyCombos.name(kc))))
+  | _ => Chain([])
   };
+
+let get_main_action_default =
+  get_main_action(~cursor_on_type=false, ~cursor_on_comment=false);
 
 let get_assistant_action =
     (kc: HazelKeyCombos.t, ~assistant_action: option(Action.t))
     : option(ModelAction.t) =>
   switch (kc, assistant_action) {
+  | (Shift_Down, _) => Some(get_main_action_default(Down))
+  | (Shift_Up, _) => Some(get_main_action_default(Up))
   | (Down, Some(_)) => Some(UpdateAssistant(Increment_selection_index))
   | (Up, Some(_)) => Some(UpdateAssistant(Decrement_selection_index))
   | (Enter, Some(ReplaceOperand(operand, _))) =>

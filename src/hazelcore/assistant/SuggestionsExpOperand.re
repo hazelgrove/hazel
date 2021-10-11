@@ -2,6 +2,7 @@ open Assistant_common;
 
 [@deriving sexp]
 type generator = Suggestion.generator;
+type generator' = Suggestion.generator';
 
 let mk_operand_suggestion =
     (
@@ -9,62 +10,56 @@ let mk_operand_suggestion =
       ~operand: UHExp.operand,
       ci: CursorInfo.t,
     )
-    : Suggestion.t =>
-  Suggestion.mk(~strategy=Suggestion.ReplaceOperand(strategy, operand), ~ci);
+    : Suggestion.t => {
+  let action = Action.ReplaceOperand(operand, None);
+  Suggestion.mk(
+    ~action,
+    ~strategy=ReplaceOperand(strategy, operand),
+    ~report=
+      ExpOperand(SuggestionReportExp.mk_operand_report(action, operand, ci)),
+  );
+};
 
 let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>
   mk_operand_suggestion(~strategy, ~operand=UHExp.Parenthesized(uhexp), ci);
 
 let mk_lit_suggestion = mk_operand_suggestion(~strategy=InsertLit);
 
-let mk_bool_lit_suggestion = (b: bool, ci: CursorInfo.t): Suggestion.t =>
-  mk_lit_suggestion(~operand=UHExp.boollit(b), ci);
+let mk_bool_lit_suggestion: bool => generator' =
+  b => mk_lit_suggestion(~operand=UHExp.boollit(b));
 
-let mk_int_lit_suggestion = (s: string, ci: CursorInfo.t): Suggestion.t =>
-  mk_lit_suggestion(~operand=UHExp.intlit(s), ci);
+let mk_int_lit_suggestion: string => generator' =
+  s => mk_lit_suggestion(~operand=UHExp.intlit(s));
 
-let mk_float_lit_suggestion = (s: string, ci: CursorInfo.t): Suggestion.t =>
-  mk_lit_suggestion(~operand=UHExp.floatlit(s), ci);
+let mk_float_lit_suggestion: string => generator' =
+  s => mk_lit_suggestion(~operand=UHExp.floatlit(s));
 
-let mk_nil_list_suggestion = (ci: CursorInfo.t): Suggestion.t =>
-  mk_lit_suggestion(~operand=UHExp.listnil(), ci);
+let mk_nil_list_suggestion: generator' =
+  mk_lit_suggestion(~operand=UHExp.listnil());
+
+let mk_empty_hole_suggestion: generator' =
+  mk_operand_suggestion(~strategy=Delete, ~operand=hole_operand);
+
+let mk_inj_suggestion: InjSide.t => generator' =
+  side => mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side));
+
+let mk_lambda_suggestion: generator' =
+  mk_operand_suggestion(~strategy=InsertLit, ~operand=lambda_operand);
 
 let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): Suggestion.t =>
   mk_operand_suggestion(~strategy=InsertVar, ~operand=UHExp.var(s), ci);
 
-let mk_empty_hole_suggestion = (ci: CursorInfo.t): Suggestion.t =>
-  mk_operand_suggestion(~strategy=Delete, ~operand=hole_operand, ci);
-
-let mk_inj_suggestion = (side: InjSide.t, ci: CursorInfo.t): Suggestion.t =>
-  mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side), ci);
-
-let _mk_case_suggestion = (ci: CursorInfo.t): Suggestion.t =>
-  mk_operand_suggestion(
-    ~strategy=InsertCase,
-    ~operand=mk_case(hole_exp),
-    ci,
-  );
-
-let mk_lambda_suggestion = (ci: CursorInfo.t): Suggestion.t =>
-  mk_operand_suggestion(~strategy=InsertLit, ~operand=lambda_operand, ci);
-
-let mk_pair_suggestion = (ci: CursorInfo.t): Suggestion.t => {
-  let seq = mk_n_seq(Operators_Exp.Comma, 2);
+let mk_pair_suggestion: generator' =
   mk_operand_suggestion_from_uhexp(
     ~strategy=InsertLit,
-    ~uhexp=seq_to_uhexp(seq),
-    ci,
+    ~uhexp=seq_to_uhexp(mk_n_seq(Operators_Exp.Comma, 2)),
   );
-};
 
-let mk_list_suggestion = (ci: CursorInfo.t): Suggestion.t => {
-  let seq = mk_n_seq(Operators_Exp.Cons, 2);
+let mk_list_suggestion: generator' =
   mk_operand_suggestion_from_uhexp(
     ~strategy=InsertLit,
-    ~uhexp=seq_to_uhexp(seq),
-    ci,
+    ~uhexp=seq_to_uhexp(mk_n_seq(Operators_Exp.Cons, 2)),
   );
-};
 
 let mk_app_suggestion =
     ({expected_ty, _} as ci: CursorInfo.t, (name: string, f_ty: HTyp.t))
@@ -215,6 +210,15 @@ let mk_insert_app_suggestions: generator =
     |> List.map(mk_app_suggestion(ci));
   };
 
+let _mk_insert_case_suggestions: generator =
+  ci => [
+    mk_operand_suggestion(
+      ~strategy=InsertCase,
+      ~operand=mk_case(hole_exp),
+      ci,
+    ),
+  ];
+
 let mk_wrap_app_suggestions: generator =
   ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
     switch (cursor_term) {
@@ -263,12 +267,13 @@ let mk_convert_suggestions: generator =
  */
 let exp_operand_generators = [
   mk_convert_suggestions,
-  mk_delete_suggestions,
   mk_insert_lit_suggestions,
   mk_insert_var_suggestions,
   mk_wrap_app_suggestions,
   mk_insert_app_suggestions,
+  mk_delete_suggestions,
   mk_wrap_case_suggestions,
+  //mk_insert_case_suggestions,
 ];
 
 let mk: generator = Suggestion.generate(List.rev(exp_operand_generators));

@@ -105,27 +105,28 @@ let subscore_view = ((subscore: float, score_string: float => string)) =>
     ]
   };
 
-let subscore_data = (score: SuggestionReport.score_exp) => [
+let subscore_data_exp = (score: SuggestionReportExp.scores) => [
   (score.delta_errors, delta_errors_string),
   (score.idiomaticity, idiomaticity_string),
   (score.type_specificity, type_specificity_string),
   (score.syntax_conserved, syntax_conserved_string),
 ];
 
-let suggestion_info_view = ({strategy, _} as s: Suggestion.t) => {
-  let subscores = subscore_data(Suggestions.get_operand_props(s).score);
-  div(
-    [Attr.class_("suggestion-info")],
-    [
-      span([], [strategy_view(strategy)]),
-      span(
-        [Attr.class_("suggestion-description")],
-        [text(description_of_strategy(strategy))],
-      ),
-    ]
-    @ List.concat(List.map(subscore_view, subscores)),
-  );
-};
+let suggestion_info_view = ({strategy, _} as s: Suggestion.t) =>
+  switch (s.report) {
+  | ExpOperand({scores, _}) =>
+    div(
+      [Attr.class_("suggestion-info")],
+      [
+        span([], [strategy_view(strategy)]),
+        span(
+          [Attr.class_("suggestion-description")],
+          [text(description_of_strategy(strategy))],
+        ),
+      ]
+      @ List.concat(List.map(subscore_view, subscore_data_exp(scores))),
+    )
+  };
 
 /* Draws the matching characters overtop of suggestions */
 let overlay_view =
@@ -145,7 +146,7 @@ let overlay_view =
     span([Attr.class_("overlay-text")], [text(s)]),
   ];
   let offset_overlay =
-    switch (SuggestionReport.submatches_and_offsets(pre, suf, result_text)) {
+    switch (SuggestionReportExp.submatches_and_offsets(pre, suf, result_text)) {
     | (None, None) => []
     | (Some((s0, n0)), Some((s1, n1))) =>
       let n1' = n1 - (n0 + String.length(s0));
@@ -156,11 +157,11 @@ let overlay_view =
   div([Attr.class_("overlay")], offset_overlay);
 };
 
-let suggestion_view_operand =
+let suggestion_view_exp_operand =
     (
       ~suggestion as {action, strategy, _} as suggestion: Suggestion.t,
       ~report as
-        {show_text, operand, ty, _}: SuggestionReport.report_exp_operand,
+        {show_text, operand, ty, _}: SuggestionReportExp.report_operand,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -229,7 +230,7 @@ let suggestion_view =
     ) =>
   switch (suggestion.report) {
   | ExpOperand(report) =>
-    suggestion_view_operand(
+    suggestion_view_exp_operand(
       ~report,
       ~ci,
       ~inject,

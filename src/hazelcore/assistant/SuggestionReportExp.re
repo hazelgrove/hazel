@@ -2,7 +2,7 @@ open OptUtil.Syntax;
 open Sexplib.Std;
 
 [@deriving sexp]
-type score_exp = {
+type scores = {
   idiomaticity: float,
   type_specificity: float,
   delta_errors: float,
@@ -10,14 +10,14 @@ type score_exp = {
 };
 
 [@deriving sexp]
-type report_exp_operand = {
+type report_operand = {
   operand: UHExp.operand,
   ty: HTyp.t,
-  score: score_exp,
+  scores,
   show_text: string,
 };
 
-let score_params_exp = (score: score_exp) => [
+let scores_params = (score: scores) => [
   (score.delta_errors, 1.1),
   (score.idiomaticity, 1.),
   (score.type_specificity, 1.),
@@ -46,44 +46,65 @@ let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
   |> List.filter(hole_not_empty);
 
-let error_score =
-    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t): float => {
+let update_enclosing_opseq =
+    (
+      old_zexp: ZExp.t,
+      opseq_expected_ty: HTyp.t,
+      ctx: Contexts.t,
+      action: Action.t,
+    )
+    : option((ZExp.t, HTyp.t)) =>
+  switch (
+    Action_Exp.syn_perform(
+      ctx,
+      action,
+      (old_zexp, opseq_expected_ty, MetaVarGen.init),
+    )
+  ) {
+  | Failed
+  | CursorEscaped(_) =>
+    print_endline("Warning: update_enclosing_opseq: syn_perform failure");
+    None;
+  | Succeeded((new_zexp, new_type, _)) => Some((new_zexp, new_type))
+  };
+
+let update_opseq_report =
+    (
+      action: Action.t,
+      ctx: Contexts.t,
+      enclosing_zopseq: CursorInfo.enclosing_zopseq,
+    ) => {
   switch (enclosing_zopseq) {
   | ExpSeq(zopseq, expected_ty) =>
-    let (opseq_expected_ty, old_zexp) = (
-      HTyp.relax(expected_ty),
-      ZExp.ZBlock.wrap'(zopseq),
-    );
-    switch (
-      Action_Exp.syn_perform(
-        ctx,
-        action,
-        (old_zexp, opseq_expected_ty, MetaVarGen.init),
-      )
-    ) {
-    | Failed
-    | CursorEscaped(_) =>
-      print_endline("Warning: opseq_report: syn_perform failure");
-      0.;
-    | Succeeded((new_zexp, new_type, _)) =>
-      let (actual_ty, new_zexp) = (new_type, new_zexp);
-      let context_consistent_after =
-        HTyp.consistent(opseq_expected_ty, actual_ty);
-      let internal_errors_before = old_zexp |> err_holes |> List.length;
-      let internal_errors_after = new_zexp |> err_holes |> List.length;
-      let context_errors =
-        switch (context_consistent_after) {
-        | false => (-1)
-        | true => 0
-        };
-      let internal_errors = internal_errors_before - internal_errors_after;
-      float_of_int(internal_errors + context_errors);
+    let opseq_expected_ty = HTyp.relax(expected_ty);
+    let old_zexp = ZExp.ZBlock.wrap'(zopseq);
+    switch (update_enclosing_opseq(old_zexp, opseq_expected_ty, ctx, action)) {
+    | None => None
+    | Some((new_zexp, new_type)) =>
+      Some((new_zexp, old_zexp, new_type, opseq_expected_ty))
     };
-  | _ =>
-    print_endline("Warning: opseq_report: no zopseq provided");
-    0.;
+  | _ => None
   };
 };
+
+let error_score =
+    (action: Action.t, {ctx, enclosing_zopseq, _}: CursorInfo.t): float =>
+  switch (update_opseq_report(action, ctx, enclosing_zopseq)) {
+  | None => 0.
+  | Some((new_zexp, old_zexp, new_type, opseq_expected_ty)) =>
+    let (actual_ty, new_zexp) = (new_type, new_zexp);
+    let context_consistent_after =
+      HTyp.consistent(opseq_expected_ty, actual_ty);
+    let internal_errors_before = old_zexp |> err_holes |> List.length;
+    let internal_errors_after = new_zexp |> err_holes |> List.length;
+    let context_errors =
+      switch (context_consistent_after) {
+      | false => (-1)
+      | true => 0
+      };
+    let internal_errors = internal_errors_before - internal_errors_after;
+    float_of_int(internal_errors + context_errors);
+  };
 
 let operand_has_function_type = (operand: UHExp.operand, ctx: Contexts.t) =>
   switch (Statics_Exp.syn_operand(ctx, operand)) {
@@ -235,7 +256,7 @@ let syntax_conserved_score =
     ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
-let mk_exp_operand_score =
+let mk_operand_score =
     (
       ~action: Action.t,
       ~operand: UHExp.operand,
@@ -243,7 +264,7 @@ let mk_exp_operand_score =
       ~show_text: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
-    : score_exp => {
+    : scores => {
   idiomaticity: idiomaticity_score(operand, enclosing_zoperand, ctx),
   type_specificity:
     type_specificity_score(expected_ty, ty, HTyp.relax(actual_ty)),
@@ -251,11 +272,11 @@ let mk_exp_operand_score =
   syntax_conserved: syntax_conserved_score(~cursor_term, ~show_text),
 };
 
-let mk_exp_operand_report =
+let mk_operand_report =
     (action: Action.t, operand: UHExp.operand, ci: CursorInfo.t)
-    : report_exp_operand => {
+    : report_operand => {
   let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let show_text = UHExp.string_of_operand(operand);
-  let score = mk_exp_operand_score(~action, ~operand, ~ty, ~show_text, ci);
-  {operand, ty, show_text, score};
+  let scores = mk_operand_score(~action, ~operand, ~ty, ~show_text, ci);
+  {operand, ty, show_text, scores};
 };

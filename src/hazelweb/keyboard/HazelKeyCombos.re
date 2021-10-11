@@ -52,7 +52,15 @@ type t =
   | Alt_Up
   | Alt_Down
   | Alt_Left
-  | Alt_Right;
+  | Alt_Right
+  | Shift_Up
+  | Shift_Down
+  | Shift_Left
+  | Shift_Right
+  | Ctrl_Up
+  | Ctrl_Down
+  | Ctrl_Left
+  | Ctrl_Right;
 
 let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
 
@@ -134,7 +142,15 @@ let get_details =
   | Alt_Up => KeyCombo.alt_up
   | Alt_Down => KeyCombo.alt_down
   | Alt_Left => KeyCombo.alt_left
-  | Alt_Right => KeyCombo.alt_right;
+  | Alt_Right => KeyCombo.alt_right
+  | Shift_Up => KeyCombo.shift_up
+  | Shift_Down => KeyCombo.shift_down
+  | Shift_Left => KeyCombo.shift_left
+  | Shift_Right => KeyCombo.shift_right
+  | Ctrl_Up => KeyCombo.ctrl_up
+  | Ctrl_Down => KeyCombo.ctrl_down
+  | Ctrl_Left => KeyCombo.ctrl_left
+  | Ctrl_Right => KeyCombo.ctrl_right;
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
@@ -223,6 +239,22 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_Left);
   } else if (evt_matches(KeyCombo.alt_right)) {
     Some(Alt_Right);
+  } else if (evt_matches(KeyCombo.shift_up)) {
+    Some(Shift_Up);
+  } else if (evt_matches(KeyCombo.shift_down)) {
+    Some(Shift_Down);
+  } else if (evt_matches(KeyCombo.shift_left)) {
+    Some(Shift_Left);
+  } else if (evt_matches(KeyCombo.shift_right)) {
+    Some(Shift_Right);
+  } else if (evt_matches(KeyCombo.ctrl_up)) {
+    Some(Ctrl_Up);
+  } else if (evt_matches(KeyCombo.ctrl_down)) {
+    Some(Ctrl_Down);
+  } else if (evt_matches(KeyCombo.ctrl_left)) {
+    Some(Ctrl_Left);
+  } else if (evt_matches(KeyCombo.ctrl_right)) {
+    Some(Ctrl_Right);
   } else if (single_key != None) {
     switch (single_key) {
     | None => None
