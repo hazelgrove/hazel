@@ -523,7 +523,7 @@ let summary_bar =
     | (true, _, _) => [
         summary,
         fill_space,
-        AssistantView.icon(~sort=tag_type),
+        AssistantView.icon(tag_type),
         control,
       ]
     | (_, true, true) => [summary, fill_space, arrow, fill_icon, control]

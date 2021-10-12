@@ -143,18 +143,17 @@ let mk_wrap_app_suggestion =
   );
 };
 
-let result_type_consistent_with = (expected_ty, s: Suggestion.t) =>
-  switch (s.report) {
-  | ExpOperand({ty, _}) => HTyp.consistent(ty, expected_ty)
-  };
-
-let convert_operand = (operand: UHExp.operand): option(UHExp.operand) =>
+let convert_operand =
+    (operand: UHExp.operand, expected_ty: HTyp.t): option(UHExp.operand) =>
   switch (operand) {
-  | FloatLit(_, s) when s |> float_of_string |> Float.is_integer =>
+  | FloatLit(_, s)
+      when
+        Float.is_integer(float_of_string(s))
+        && HTyp.consistent(expected_ty, Int) =>
     Some(
       s |> float_of_string |> Float.to_int |> string_of_int |> UHExp.intlit,
     )
-  | IntLit(_, s) =>
+  | IntLit(_, s) when HTyp.consistent(expected_ty, Float) =>
     Some(
       s |> int_of_string |> Float.of_int |> string_of_float |> UHExp.floatlit,
     )
@@ -175,7 +174,7 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
   | List(_) => [mk_nil_list_suggestion(ci), mk_list_suggestion(ci)]
   | Sum(_, _) => [mk_inj_suggestion(L, ci), mk_inj_suggestion(R, ci)]
   | Prod(_) => [mk_pair_suggestion(ci)] // TODO: n-tuples
-  | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas (both)
+  | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas
   | Hole =>
     // add new types here for synthetic position
     // ordering here is becomes default for UI
@@ -251,12 +250,11 @@ let mk_convert_suggestions: generator =
   ci =>
     switch (ci.cursor_term) {
     | ExpOperand(_, operand) =>
-      switch (convert_operand(operand)) {
+      switch (convert_operand(operand, ci.expected_ty)) {
       | None => []
-      | Some(operand) =>
-        // TODO(andrew): just use expected type in convert_operand?
-        [mk_operand_suggestion(~strategy=ConvertLit, ~operand, ci)]
-        |> List.filter(result_type_consistent_with(ci.expected_ty))
+      | Some(operand) => [
+          mk_operand_suggestion(~strategy=ConvertLit, ~operand, ci),
+        ]
       }
     | _ => []
     };

@@ -1,119 +1,116 @@
 open Virtual_dom.Vdom;
 open Node;
 
-let string_of_operand_strategy: Suggestion.operand_strategy => string =
+let label_operand_strategy: Suggestion.operand_strategy => string =
   fun
   | Delete => "del"
   | InsertLit => "lit"
   | InsertVar => "var"
   | InsertApp => "app"
-  | InsertCase => "elm"
+  | InsertCase => "cas"
   | WrapApp => "wra"
-  | WrapCase => "wra"
-  | ConvertLit => "con";
+  | WrapCase => "wrc"
+  | ConvertLit => "cnv";
 
-let string_of_strategy: Suggestion.strategy => string =
+let label_strategy: Suggestion.strategy => string =
   fun
-  | ReplaceOperand(os, _) => string_of_operand_strategy(os);
+  | ReplaceOperand(os, _) => label_operand_strategy(os);
 
-let description_of_operand_strategy: Suggestion.operand_strategy => string =
+let describe_operand_strategy: Suggestion.operand_strategy => string =
   fun
   | Delete => "Delete the current form"
   | InsertLit => "Insert a literal"
   | InsertVar => "Insert a variable"
   | InsertApp => "Insert an application"
   | InsertCase => "Insert an eliminator"
-  | WrapApp => "Wrap the current form in an application"
-  | WrapCase => "Wrap the current form in a case"
-  | ConvertLit => "Convert a literal to another data type";
+  | WrapApp => "Apply a functiong to the current form"
+  | WrapCase => "Match on the current form"
+  | ConvertLit => "Convert a literal to another type";
 
-let description_of_strategy: Suggestion.strategy => string =
+let describe_strategy: Suggestion.strategy => string =
   fun
-  | ReplaceOperand(os, _) => description_of_operand_strategy(os);
+  | ReplaceOperand(os, _) => describe_operand_strategy(os);
 
-let delta_errors_string = (delta_errors: float): string =>
-  switch (delta_errors) {
+let describe_delta_errors: float => string =
+  fun
   | 0. => "Same number of errors"
   | (-1.) => "One more error"
   | 1. => "One fewer error"
   | n when n < 0. =>
     "" ++ string_of_int(int_of_float(-. n)) ++ " more errors"
-  | n => "" ++ string_of_int(int_of_float(n)) ++ " fewer errors"
-  };
+  | n => "" ++ string_of_int(int_of_float(n)) ++ " fewer errors";
 
-let type_specificity_string = (type_specificity: float) =>
-  switch (type_specificity) {
+let describe_type_specificity: float => string =
+  fun
   | 0. => "Same type specificity"
   | n when n < 0. => "Less granular type"
-  | _ => "More granular type"
-  };
-let idiomaticity_string = (idiomaticity: float) =>
-  switch (idiomaticity) {
+  | _ => "More granular type";
+
+let describe_idiomaticity: float => string =
+  fun
   | 0. => "Same idiomaticity"
   | (-1.) => "Less idiomatic"
   | 1. => "More idiomatic"
   | n when n < 0. => "Much less idiomatic"
-  | _ => "Much more idiomatic"
-  };
+  | _ => "Much more idiomatic";
 
-let syntax_conserved_string = (ratio: float) =>
-  switch (ratio) {
+let describe_syntax_conserved: float => string =
+  fun
   | x when x < 0.6 => "Syntax partially conserved"
   | x when x < 0.9 => "Syntax mostly conserved"
-  | _ => "Existing syntax conserved"
-  };
+  | _ => "Existing syntax conserved";
 
-let sign_label = (n: float): string =>
-  switch (n) {
+let sign_label: float => string =
+  fun
   | n when n < 0. => "minus"
   | n when n > 0. => "plus"
-  | _ => ""
-  };
+  | _ => "";
 
-let sign_string = (n: float): string =>
-  switch (n) {
+let sign_symbol: float => string =
+  fun
   | n when n < 0. => "-"
   | n when n > 0. => "+"
-  | _ => ""
+  | _ => "";
+
+let icon: TermSort.t => Node.t =
+  sort => {
+    let base = s => "imgs/assistant/boost-0000-" ++ s ++ ".png";
+    let sort = TermSort.to_string(sort);
+    div(
+      [Attr.classes(["clickable-help-icon", sort])],
+      [create("img", [Attr.create("src", base(sort))], [])],
+    );
   };
 
-let icon = (~sort: TermSort.t) => {
-  let base = s => "imgs/assistant/boost-0000-" ++ s ++ ".png";
-  let sort = TermSort.to_string(sort);
-  Node.div(
-    [Attr.classes(["clickable-help-icon", sort])],
-    [create("img", [Attr.create("src", base(sort))], [])],
-  );
-};
+let strategy_view: Suggestion.strategy => Node.t =
+  strategy => {
+    let label = label_strategy(strategy);
+    div([Attr.classes(["category", label])], [text(label)]);
+  };
 
-let strategy_view = strategy => {
-  let label = string_of_strategy(strategy);
-  div([Attr.classes(["category", label])], [text(label)]);
-};
+let sign_view: float => Node.t =
+  n => div([Attr.class_(sign_label(n))], [text(sign_symbol(n))]);
 
-let sign_view = n =>
-  div([Attr.class_(sign_label(n))], [text(sign_string(n))]);
-
-let subscore_view = ((subscore: float, score_string: float => string)) =>
+let subscore_view = ((subscore: float, describe_subscore: float => string)) =>
   switch (subscore) {
   | 0. => []
   | _ => [
       div(
         [Attr.class_("subscore")],
-        [sign_view(subscore), text(score_string(subscore))],
+        [sign_view(subscore), text(describe_subscore(subscore))],
       ),
     ]
   };
 
 let subscore_data_exp = (score: SuggestionReportExp.scores) => [
-  (score.delta_errors, delta_errors_string),
-  (score.idiomaticity, idiomaticity_string),
-  (score.type_specificity, type_specificity_string),
-  (score.syntax_conserved, syntax_conserved_string),
+  (score.delta_errors, describe_delta_errors),
+  (score.idiomaticity, describe_idiomaticity),
+  (score.type_specificity, describe_type_specificity),
+  (score.syntax_conserved, describe_syntax_conserved),
 ];
 
-let suggestion_info_view = ({strategy, _} as s: Suggestion.t) =>
-  switch (s.report) {
+let suggestion_info_view = ({strategy, report, _}: Suggestion.t): Node.t =>
+  switch (report) {
   | ExpOperand({scores, _}) =>
     div(
       [Attr.class_("suggestion-info")],
@@ -121,7 +118,7 @@ let suggestion_info_view = ({strategy, _} as s: Suggestion.t) =>
         span([], [strategy_view(strategy)]),
         span(
           [Attr.class_("suggestion-description")],
-          [text(description_of_strategy(strategy))],
+          [text(describe_strategy(strategy))],
         ),
       ]
       @ List.concat(List.map(subscore_view, subscore_data_exp(scores))),
@@ -134,7 +131,8 @@ let overlay_view =
       {cursor_term, _}: CursorInfo.t,
       search_string: string,
       result_text: string,
-    ) => {
+    )
+    : Node.t => {
   let index =
     switch (cursor_term) {
     | ExpOperand(OnText(i), _) => i
@@ -170,7 +168,8 @@ let suggestion_view_exp_operand =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       ~inject: ModelAction.t => Event.t,
-    ) => {
+    )
+    : Node.t => {
   let result_view =
     UHCode.codebox_view(
       ~is_focused=false,
@@ -227,7 +226,8 @@ let suggestion_view =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       ~inject: ModelAction.t => Event.t,
-    ) =>
+    )
+    : Node.t =>
   switch (suggestion.report) {
   | ExpOperand(report) =>
     suggestion_view_exp_operand(

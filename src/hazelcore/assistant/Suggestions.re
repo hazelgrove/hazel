@@ -3,19 +3,10 @@ open Sexplib.Std;
 [@deriving sexp]
 type t = list(Suggestion.t);
 
-let get_operand = (s: Suggestion.t): option(UHExp.operand) =>
-  switch (s.action) {
-  | ReplaceOperand(operand, _) => Some(operand)
-  | _ => None
-  };
-
-let get_operand_props = (s: Suggestion.t): SuggestionReportExp.report_operand =>
-  switch (s.report) {
-  | ExpOperand(props) => props
-  };
-
 let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
-  HTyp.consistent(expected_ty, get_operand_props(s).ty);
+  switch (s.report) {
+  | ExpOperand({ty, _}) => HTyp.consistent(expected_ty, ty)
+  };
 
 let collect_suggestions = (ci: CursorInfo.t): t =>
   switch (ci.cursor_term) {
@@ -52,17 +43,17 @@ let renumber_suggestion_holes =
 
 let suggestion_isnt_noop =
     (cursor_term: CursorInfo.cursor_term, s: Suggestion.t): bool => {
-  switch (cursor_term) {
-  | ExpOperand(_, op') =>
-    !Assistant_common.equals_operand(get_operand_props(s).operand, op')
+  switch (cursor_term, s.report) {
+  | (ExpOperand(_, op), ExpOperand({operand: op', _})) =>
+    !Assistant_common.equals_operand(op, op')
   | _ => true
   };
 };
 
 let suggestion_result_equals = (s: Suggestion.t, s': Suggestion.t): bool =>
-  switch (get_operand(s), get_operand(s')) {
-  | (Some(op), Some(op')) => Assistant_common.equals_operand(op, op')
-  | _ => false
+  switch (s.report, s'.report) {
+  | (ExpOperand({operand: op, _}), ExpOperand({operand: op', _})) =>
+    Assistant_common.equals_operand(op, op')
   };
 
 let deduplicate_suggestions: t => t =

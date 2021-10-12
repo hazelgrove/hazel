@@ -33,7 +33,7 @@ type generator' = CursorInfo.t => t;
 type generator = CursorInfo.t => list(t);
 
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
-  List.fold_left((sugs, g) => g(ci) @ sugs, [], gs);
+  List.fold_left((suggestions, g) => g(ci) @ suggestions, [], gs);
 
 let score = ({report, _}: t) =>
   switch (report) {
@@ -46,13 +46,6 @@ let score = ({report, _}: t) =>
 
 let compare: (t, t) => int =
   (a1, a2) => Float.compare(score(a2), score(a1));
-
-let mk_report =
-    (action: Action.t, strategy: strategy, ci: CursorInfo.t): report =>
-  switch (strategy) {
-  | ReplaceOperand(_, operand) =>
-    ExpOperand(SuggestionReportExp.mk_operand_report(action, operand, ci))
-  };
 
 let mk = (~action: Action.t, ~strategy: strategy, ~report: report): t => {
   strategy,

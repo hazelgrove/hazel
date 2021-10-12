@@ -11,14 +11,14 @@ type t = {
 
 [@deriving sexp]
 type update =
-  | Toggle
   | Turn_on
   | Turn_off
-  | Set_type_editor(UHTyp.t)
+  | Toggle
   | Reset
   | Increment_selection_index
   | Decrement_selection_index
-  | Set_hover_index(option(int));
+  | Set_hover_index(option(int))
+  | Set_type_editor(UHTyp.t);
 
 let init = {
   active: false,
