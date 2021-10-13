@@ -122,19 +122,31 @@ type cursor_term =
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
+/* the zseq most immediately containing the cursor_term */
+[@deriving sexp]
+type enclosing_zopseq =
+  | ExpSeq(ZExp.zopseq, option(HTyp.t))
+  | NoSeq;
+
+[@deriving sexp]
+/* the operand (if any) most immediately containing the cursor_term */
+type enclosing_zoperand = option(ZExp.zoperand);
+
 [@deriving sexp]
 type parent_info =
   | AfterBranchClause
   | BeforeEmptyHoleLine
   | NoParentInfo;
 
-// TODO refactor into variants
-// based on term sort and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,
   ctx: Contexts.t,
+  expected_ty: HTyp.t,
+  actual_ty: option(HTyp.t),
+  enclosing_zopseq,
+  enclosing_zoperand,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
   parent_info,

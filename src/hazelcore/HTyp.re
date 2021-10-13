@@ -180,3 +180,8 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let relax: option(t) => t =
+  fun
+  | None => Hole
+  | Some(x) => x;

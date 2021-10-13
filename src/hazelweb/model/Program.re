@@ -52,7 +52,11 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
+    CursorInfo_Exp.syn_cursor_info(
+      Contexts.empty,
+      ~enclosing_zoperand=None,
+      ~enclosing_zopseq=NoSeq,
+    ),
   );
 let get_cursor_info = (program: t) => {
   program
