@@ -16,6 +16,7 @@
 - Colin de Roos
 - Utkarsh Mehta
 - Hannah Potter
+- Anand Dukkipati
 
 # Theory Contributors 
 (helped develop theory, but no code contributions to Hazel)
