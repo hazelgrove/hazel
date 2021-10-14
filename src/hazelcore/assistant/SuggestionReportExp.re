@@ -10,9 +10,8 @@ type scores = {
 };
 
 [@deriving sexp]
-type report_operand = {
-  operand: UHExp.operand,
-  ty: HTyp.t,
+type operand_report = {
+  result_ty: HTyp.t,
   scores,
   show_text: string,
 };
@@ -260,23 +259,24 @@ let mk_operand_score =
     (
       ~action: Action.t,
       ~operand: UHExp.operand,
-      ~ty: HTyp.t,
+      ~result_ty: HTyp.t,
       ~show_text: string,
       {enclosing_zoperand, expected_ty, actual_ty, cursor_term, ctx, _} as ci: CursorInfo.t,
     )
     : scores => {
   idiomaticity: idiomaticity_score(operand, enclosing_zoperand, ctx),
   type_specificity:
-    type_specificity_score(expected_ty, ty, HTyp.relax(actual_ty)),
+    type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty)),
   delta_errors: error_score(action, ci),
   syntax_conserved: syntax_conserved_score(~cursor_term, ~show_text),
 };
 
 let mk_operand_report =
     (action: Action.t, operand: UHExp.operand, ci: CursorInfo.t)
-    : report_operand => {
-  let ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
+    : operand_report => {
+  let result_ty = HTyp.relax(Statics_Exp.syn_operand(ci.ctx, operand));
   let show_text = UHExp.string_of_operand(operand);
-  let scores = mk_operand_score(~action, ~operand, ~ty, ~show_text, ci);
-  {operand, ty, show_text, scores};
+  let scores =
+    mk_operand_score(~action, ~operand, ~result_ty, ~show_text, ci);
+  {result_ty, show_text, scores};
 };

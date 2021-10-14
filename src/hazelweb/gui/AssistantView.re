@@ -109,9 +109,9 @@ let subscore_data_exp = (score: SuggestionReportExp.scores) => [
   (score.syntax_conserved, describe_syntax_conserved),
 ];
 
-let suggestion_info_view = ({strategy, report, _}: Suggestion.t): Node.t =>
-  switch (report) {
-  | ExpOperand({scores, _}) =>
+let suggestion_info_view = ({strategy, _}: Suggestion.t): Node.t =>
+  switch (strategy) {
+  | ReplaceOperand(_, {scores, _}) =>
     div(
       [Attr.class_("suggestion-info")],
       [
@@ -159,7 +159,8 @@ let suggestion_view_exp_operand =
     (
       ~suggestion as {action, strategy, _} as suggestion: Suggestion.t,
       ~report as
-        {show_text, operand, ty, _}: SuggestionReportExp.report_operand,
+        {show_text, result_ty, _}: SuggestionReportExp.operand_report,
+      ~operand: UHExp.operand,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -209,7 +210,7 @@ let suggestion_view_exp_operand =
         [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
       div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], [HTypCode.view(ty)]),
+      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
       strategy_view(strategy),
     ],
   );
@@ -228,20 +229,22 @@ let suggestion_view =
       ~inject: ModelAction.t => Event.t,
     )
     : Node.t =>
-  switch (suggestion.report) {
-  | ExpOperand(report) =>
+  switch (suggestion.action, suggestion.strategy) {
+  | (ReplaceOperand(operand, _), ReplaceOperand(_, report)) =>
     suggestion_view_exp_operand(
+      ~suggestion,
       ~report,
+      ~operand,
+      ~index,
+      ~is_hovered,
+      ~is_selected,
+      ~search_string,
       ~ci,
-      ~inject,
       ~settings,
       ~font_metrics,
-      ~suggestion,
-      ~is_selected,
-      ~is_hovered,
-      ~index,
-      ~search_string,
+      ~inject,
     )
+  | _ => failwith("suggestion_view: unsupported suggestion")
   };
 
 let suggestions_view =

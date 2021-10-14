@@ -2,6 +2,7 @@ open Assistant_common;
 
 [@deriving sexp]
 type generator = Suggestion.generator;
+[@deriving sexp]
 type generator' = Suggestion.generator';
 
 let mk_operand_suggestion =
@@ -12,12 +13,8 @@ let mk_operand_suggestion =
     )
     : Suggestion.t => {
   let action = Action.ReplaceOperand(operand, None);
-  Suggestion.mk(
-    ~action,
-    ~strategy=ReplaceOperand(strategy, operand),
-    ~report=
-      ExpOperand(SuggestionReportExp.mk_operand_report(action, operand, ci)),
-  );
+  let report = SuggestionReportExp.mk_operand_report(action, operand, ci);
+  Suggestion.mk(~action, ~strategy=ReplaceOperand(strategy, report));
 };
 
 let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>
