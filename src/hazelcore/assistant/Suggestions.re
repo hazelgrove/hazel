@@ -4,49 +4,43 @@ open Sexplib.Std;
 type t = list(Suggestion.t);
 
 let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
-  switch (s.strategy) {
-  | ReplaceOperand(_, {result_ty, _}) =>
+  switch (s) {
+  | ReplaceOperand({report: {result_ty, _}, _}) =>
     HTyp.consistent(expected_ty, result_ty)
   };
 
 let collect_suggestions = (ci: CursorInfo.t): t =>
   switch (ci.cursor_term) {
-  | ExpOperand(_) => SuggestionsExpOperand.mk(ci)
+  | ExpOperand(_) => SuggestionsExp.mk(ci)
   | _ => []
   };
 
-let renumber_suggestion_holes =
-    (ctx, u_gen, {action, _} as s: Suggestion.t): Suggestion.t => {
-  let action: Action.t =
-    switch (action) {
-    | ReplaceOperand(operand, proj_z) =>
-      let (operand, _, _) =
-        Statics_Exp.syn_fix_holes_operand(
-          ctx,
-          u_gen - 1,
-          ~renumber_empty_holes=true,
-          operand,
-        );
-      ReplaceOperand(operand, proj_z);
-    | _ => action
-    };
-  {...s, action};
-};
+let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
+  switch (s) {
+  | ReplaceOperand({operand, _} as operand_suggestion) =>
+    let (operand, _, _) =
+      Statics_Exp.syn_fix_holes_operand(
+        ctx,
+        u_gen - 1,
+        ~renumber_empty_holes=true,
+        operand,
+      );
+    ReplaceOperand({...operand_suggestion, operand});
+  };
 
 let suggestion_isnt_noop =
     (cursor_term: CursorInfo.cursor_term, s: Suggestion.t): bool => {
-  switch (cursor_term, s.action) {
-  | (ExpOperand(_, op), ReplaceOperand(op', _)) =>
+  switch (cursor_term, s) {
+  | (ExpOperand(_, op), ReplaceOperand({operand: op', _})) =>
     !Assistant_common.equals_operand(op, op')
   | _ => true
   };
 };
 
 let suggestion_result_equals = (s: Suggestion.t, s': Suggestion.t): bool =>
-  switch (s.action, s'.action) {
-  | (ReplaceOperand(op, _), ReplaceOperand(op', _)) =>
+  switch (s, s') {
+  | (ReplaceOperand({operand: op, _}), ReplaceOperand({operand: op', _})) =>
     Assistant_common.equals_operand(op, op')
-  | _ => false
   };
 
 let deduplicate_suggestions: t => t =

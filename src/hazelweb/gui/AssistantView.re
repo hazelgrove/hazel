@@ -12,9 +12,10 @@ let label_operand_strategy: Suggestion.operand_strategy => string =
   | WrapCase => "wrc"
   | ConvertLit => "cnv";
 
-let label_strategy: Suggestion.strategy => string =
+let label_strategy: Suggestion.t => string =
   fun
-  | ReplaceOperand(os, _) => label_operand_strategy(os);
+  | ReplaceOperand({operand_strategy, _}) =>
+    label_operand_strategy(operand_strategy);
 
 let describe_operand_strategy: Suggestion.operand_strategy => string =
   fun
@@ -27,9 +28,10 @@ let describe_operand_strategy: Suggestion.operand_strategy => string =
   | WrapCase => "Match on the current form"
   | ConvertLit => "Convert a literal to another type";
 
-let describe_strategy: Suggestion.strategy => string =
+let describe_strategy: Suggestion.t => string =
   fun
-  | ReplaceOperand(os, _) => describe_operand_strategy(os);
+  | ReplaceOperand({operand_strategy, _}) =>
+    describe_operand_strategy(operand_strategy);
 
 let describe_delta_errors: float => string =
   fun
@@ -82,9 +84,9 @@ let icon: TermSort.t => Node.t =
     );
   };
 
-let strategy_view: Suggestion.strategy => Node.t =
-  strategy => {
-    let label = label_strategy(strategy);
+let strategy_view: Suggestion.t => Node.t =
+  suggestion => {
+    let label = label_strategy(suggestion);
     div([Attr.classes(["category", label])], [text(label)]);
   };
 
@@ -109,16 +111,16 @@ let subscore_data_exp = (score: SuggestionReportExp.scores) => [
   (score.syntax_conserved, describe_syntax_conserved),
 ];
 
-let suggestion_info_view = ({strategy, _}: Suggestion.t): Node.t =>
-  switch (strategy) {
-  | ReplaceOperand(_, {scores, _}) =>
+let suggestion_info_view = (s: Suggestion.t): Node.t =>
+  switch (s) {
+  | ReplaceOperand({report: {scores, _}, _}) =>
     div(
       [Attr.class_("suggestion-info")],
       [
-        span([], [strategy_view(strategy)]),
+        span([], [strategy_view(s)]),
         span(
           [Attr.class_("suggestion-description")],
-          [text(describe_strategy(strategy))],
+          [text(describe_strategy(s))],
         ),
       ]
       @ List.concat(List.map(subscore_view, subscore_data_exp(scores))),
@@ -157,7 +159,7 @@ let overlay_view =
 
 let suggestion_view_exp_operand =
     (
-      ~suggestion as {action, strategy, _} as suggestion: Suggestion.t,
+      ~suggestion: Suggestion.t,
       ~report as
         {show_text, result_ty, _}: SuggestionReportExp.operand_report,
       ~operand: UHExp.operand,
@@ -184,7 +186,9 @@ let suggestion_view_exp_operand =
       Event.Prevent_default,
       Event.Stop_propagation,
       inject(FocusCell(MainProgram)), // prevent main editor from losing focus
-      inject(ModelAction.AcceptSuggestion(action)),
+      inject(
+        ModelAction.AcceptSuggestion(Suggestion.get_action(suggestion)),
+      ),
     ]);
   let set_hover_index = (idx: option(int)) =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(idx)));
@@ -211,7 +215,7 @@ let suggestion_view_exp_operand =
       ),
       div([Attr.class_("type-ann")], [text(":")]),
       div([Attr.class_("type")], [HTypCode.view(result_ty)]),
-      strategy_view(strategy),
+      strategy_view(suggestion),
     ],
   );
 };
@@ -229,8 +233,8 @@ let suggestion_view =
       ~inject: ModelAction.t => Event.t,
     )
     : Node.t =>
-  switch (suggestion.action, suggestion.strategy) {
-  | (ReplaceOperand(operand, _), ReplaceOperand(_, report)) =>
+  switch (suggestion) {
+  | ReplaceOperand({operand, report, _}) =>
     suggestion_view_exp_operand(
       ~suggestion,
       ~report,
@@ -244,7 +248,6 @@ let suggestion_view =
       ~font_metrics,
       ~inject,
     )
-  | _ => failwith("suggestion_view: unsupported suggestion")
   };
 
 let suggestions_view =

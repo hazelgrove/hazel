@@ -121,5 +121,5 @@ let get_action =
     (~u_gen: MetaVarGen.t=0, assistant_model: t, ci: CursorInfo.t)
     : option(Action.t) => {
   let+ selection = get_indicated_suggestion(assistant_model, ci, ~u_gen);
-  selection.action;
+  Suggestion.get_action(selection);
 };

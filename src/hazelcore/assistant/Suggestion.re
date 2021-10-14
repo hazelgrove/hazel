@@ -1,5 +1,3 @@
-//open Sexplib.Std;
-
 [@deriving sexp]
 type operand_strategy =
   | Delete
@@ -12,14 +10,15 @@ type operand_strategy =
   | ConvertLit;
 
 [@deriving sexp]
-type strategy =
-  | ReplaceOperand(operand_strategy, SuggestionReportExp.operand_report);
+type operand_suggestion = {
+  operand: UHExp.operand,
+  operand_strategy,
+  report: SuggestionReportExp.operand_report,
+};
 
 [@deriving sexp]
-type t = {
-  strategy,
-  action: Action.t,
-};
+type t =
+  | ReplaceOperand(operand_suggestion);
 
 [@deriving sexp]
 type generator' = CursorInfo.t => t;
@@ -30,13 +29,18 @@ type generator = CursorInfo.t => list(t);
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((suggestions, g) => g(ci) @ suggestions, [], gs);
 
-let score = ({strategy: ReplaceOperand(_, {scores, _}), _}: t) =>
-  scores
-  |> SuggestionReportExp.scores_params
-  |> List.map(((score, param)) => param *. score)
-  |> List.fold_left((+.), 0.);
+let score = (suggestion: t) =>
+  switch (suggestion) {
+  | ReplaceOperand({report: {scores, _}, _}) =>
+    scores
+    |> SuggestionReportExp.scores_params
+    |> List.map(((score, param)) => param *. score)
+    |> List.fold_left((+.), 0.)
+  };
 
 let compare: (t, t) => int =
   (a1, a2) => Float.compare(score(a2), score(a1));
 
-let mk = (~action: Action.t, ~strategy: strategy): t => {strategy, action};
+let get_action: t => Action.t =
+  fun
+  | ReplaceOperand({operand, _}) => ReplaceOperand(operand, None);
