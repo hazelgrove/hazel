@@ -63,3 +63,10 @@ let get_steps =
   to_fpos_for_aps ? ap_steps : steps;
 
 let get_sort = ({sort, _}: hole_info): hole_sort => sort;
+
+let hole_not_empty = (hi: hole_info) =>
+  switch (hi.sort) {
+  | ExpHole(_, TypeErr | VarErr)
+  | PatHole(_, TypeErr | VarErr) => true
+  | _ => false
+  };

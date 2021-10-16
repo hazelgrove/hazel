@@ -639,11 +639,30 @@ and syn_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(_) |
+      ReplaceOperand(Exp(_)) |
       ReplaceOpSeq(_),
       CursorP(_),
     ) =>
     Failed
+
+  | (ReplaceOperand(Pat(new_operand, z_proj)), CursorP(_)) =>
+    let fz_proj =
+      switch (z_proj) {
+      | None => ZPat.place_before
+      | Some(fz_proj) => fz_proj
+      };
+    let (p, _, _, _) =
+      Statics_Pat.syn_fix_holes(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        OpSeq.wrap(new_operand),
+      );
+    let zp = fz_proj(p);
+    switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
+    | None => Failed
+    | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
+    };
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1140,11 +1159,27 @@ and ana_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(_) |
+      ReplaceOperand(Exp(_)) |
       ReplaceOpSeq(_),
       CursorP(_),
     ) =>
     Failed
+
+  | (ReplaceOperand(Pat(new_operand, z_proj)), CursorP(_)) =>
+    let fz_proj =
+      switch (z_proj) {
+      | None => ZPat.place_before
+      | Some(fz_proj) => fz_proj
+      };
+    let (p, _, _, _) =
+      Statics_Pat.syn_fix_holes(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        OpSeq.wrap(new_operand),
+      );
+    let zp = fz_proj(p);
+    Succeeded((zp, ctx, u_gen));
 
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>

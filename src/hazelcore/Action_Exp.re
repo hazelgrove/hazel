@@ -1441,11 +1441,11 @@ and syn_perform_operand =
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeq(_), CursorE(_)) =>
+  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_)), CursorE(_)) =>
     // ReplaceOpSeq handled at opseq level
     Failed
 
-  | (ReplaceOperand(new_operand, z_proj), CursorE(_, _operand)) =>
+  | (ReplaceOperand(Exp(new_operand, z_proj)), CursorE(_)) =>
     let fz_proj =
       switch (z_proj) {
       | None => ZExp.place_before
@@ -2888,11 +2888,11 @@ and ana_perform_operand =
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeq(_), CursorE(_)) =>
+  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_)), CursorE(_)) =>
     // ReplaceOpSeq handled at opseq level
     Failed
 
-  | (ReplaceOperand(new_operand, z_proj), CursorE(_)) =>
+  | (ReplaceOperand(Exp(new_operand, z_proj)), CursorE(_)) =>
     let fz_proj =
       switch (z_proj) {
       | None => ZExp.place_before

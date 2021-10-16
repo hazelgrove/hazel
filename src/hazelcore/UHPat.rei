@@ -37,6 +37,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
+let inj: (~err: ErrStatus.t=?, InjSide.t, t) => operand;
 let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
@@ -77,3 +78,5 @@ let associate: seq => Skel.t(Operators_Pat.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+
+let string_of_operand: operand => string;

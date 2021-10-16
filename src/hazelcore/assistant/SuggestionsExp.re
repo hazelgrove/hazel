@@ -12,7 +12,7 @@ let mk_operand_suggestion =
       ci: CursorInfo.t,
     )
     : Suggestion.t => {
-  let action = Action.ReplaceOperand(operand, None);
+  let action = Action.ReplaceOperand(Exp(operand, None));
   let report = SuggestionReportExp.mk_operand_report(action, operand, ci);
   ReplaceOperand({operand, operand_strategy: strategy, report});
 };

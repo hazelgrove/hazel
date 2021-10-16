@@ -164,6 +164,17 @@ let rec get_types_and_mode = (typed: typed) => {
     | _ => (None, None, Synthetic)
     }
 
+  | PatAnaInvalid(expected)
+  | PatAnaKeyword(expected, _)
+  | PatAnalyzed(expected) => (Some(expected), None, Analytic)
+  | PatAnaSubsumed(expected, actual) => (
+      Some(expected),
+      Some(actual),
+      Analytic,
+    )
+  | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+
   | _ => (None, None, UnknownMode)
   };
 };

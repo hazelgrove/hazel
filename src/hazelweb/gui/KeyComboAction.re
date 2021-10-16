@@ -10,7 +10,9 @@ let get_main_action =
   | Escape => SetCursorInspectorMode(None)
   | Ctrl_Space => ToggleCursorInspectorMode
   | Ctrl_Delete =>
-    EditAction(ReplaceOperand(UHExp.EmptyHole(0), Some(ZExp.place_before)))
+    EditAction(
+      ReplaceOperand(Exp(UHExp.EmptyHole(0), Some(ZExp.place_before))),
+    )
   | Ctrl_S => SerializeToConsole(UHExp)
   | CtrlOrCmd_Z => Undo
   | CtrlOrCmd_Shift_Z => Redo
@@ -69,8 +71,18 @@ let get_assistant_action =
   | (Shift_Up, _) => Some(get_main_action_default(Up))
   | (Down, Some(_)) => Some(UpdateAssistant(Increment_selection_index))
   | (Up, Some(_)) => Some(UpdateAssistant(Decrement_selection_index))
-  | (Enter, Some(ReplaceOperand(operand, _))) =>
-    Some(AcceptSuggestion(ReplaceOperand(operand, Some(ZExp.place_after))))
+  | (Enter, Some(ReplaceOperand(Exp(operand, _)))) =>
+    Some(
+      AcceptSuggestion(
+        ReplaceOperand(Exp(operand, Some(ZExp.place_after))),
+      ),
+    )
+  | (Enter, Some(ReplaceOperand(Pat(operand, _)))) =>
+    Some(
+      AcceptSuggestion(
+        ReplaceOperand(Pat(operand, Some(ZPat.place_after))),
+      ),
+    )
   | (Enter, Some(action)) => Some(AcceptSuggestion(action))
   | (Tab, Some(action)) =>
     Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))

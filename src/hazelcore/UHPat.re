@@ -45,6 +45,9 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
+let inj = (~err: ErrStatus.t=NotInHole, side: InjSide.t, body: t): operand =>
+  Inj(err, side, body);
+
 let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>
@@ -211,5 +214,34 @@ and is_complete_operand = (operand: 'operand): bool => {
   | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
+  };
+};
+
+/* NOTE: Hacky. Should be replaced with proper to_string when parser is ready */
+let rec string_of_operand = (operand: operand): string => {
+  switch (operand) {
+  | Wild(_) => "_"
+  | InvalidText(_, s)
+  | Var(_, _, s)
+  | IntLit(_, s)
+  | FloatLit(_, s) => s
+  | BoolLit(_, b) => string_of_bool(b)
+  | Inj(_, side, OpSeq(_, S(op, _))) =>
+    "inj["
+    ++ InjSide.to_string(side)
+    ++ "]"
+    ++ "("
+    ++ string_of_operand(op)
+    ++ ")"
+  | Parenthesized(OpSeq(_, S(operandA, A(Space, S(operandB, _))))) =>
+    "("
+    ++ string_of_operand(operandA)
+    ++ " "
+    ++ string_of_operand(operandB)
+    ++ ")"
+  | Parenthesized(OpSeq(_, S(operandA, _))) => string_of_operand(operandA)
+  | ListNil(_) => "[]"
+  | TypeAnn(_)
+  | EmptyHole(_) => ""
   };
 };

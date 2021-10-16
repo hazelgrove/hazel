@@ -12,8 +12,8 @@ type scores = {
 [@deriving sexp]
 type operand_report = {
   result_ty: HTyp.t,
-  scores,
   show_text: string,
+  scores,
 };
 
 let scores_params = (score: scores) => [
@@ -34,16 +34,9 @@ let type_specificity_score =
   | LT => (-1.)
   };
 
-let hole_not_empty = (hi: CursorPath.hole_info) =>
-  switch (hi.sort) {
-  | ExpHole(_, TypeErr | VarErr)
-  | PatHole(_, TypeErr | VarErr) => true
-  | _ => false
-  };
-
 let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
-  |> List.filter(hole_not_empty);
+  |> List.filter(CursorPath.hole_not_empty);
 
 let update_enclosing_opseq =
     (

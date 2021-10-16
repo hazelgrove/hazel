@@ -220,6 +220,24 @@ let codebox_view =
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
+let patbox_view =
+    (
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~is_focused: bool,
+      program: Editor.pat,
+    )
+    : list(Node.t) => {
+  let layout = Editor.Pat.get_layout(~settings, program);
+  let code_text = layout |> UHBox.mk |> view_of_box;
+  let dpaths = Editor.Pat.get_decoration_paths(program, is_focused);
+  let decorations = decoration_views(~font_metrics, dpaths, layout);
+  let caret_pos = Editor.Pat.get_caret_position(~settings, program);
+  let caret =
+    is_focused ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+  caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
+};
+
 let typebox_view =
     (
       ~settings: Settings.t,

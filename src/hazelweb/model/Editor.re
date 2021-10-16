@@ -85,6 +85,42 @@ module EditState_Typ = {
     };
   };
 };
+module EditState_Pat = {
+  [@deriving sexp]
+  type t = (ZPat.t, HTyp.t, MetaVarGen.t);
+  type sort = UHPat.t;
+  type z_sort = ZPat.t;
+
+  let get_zstx = ((zp, _, _)) => zp;
+  let erase = Memo.general(~cache_size_bound=1000, ZPat.erase);
+  let get_uhstx = edit_state => edit_state |> get_zstx |> erase;
+  let of_z = CursorPath_Pat.of_z;
+  let mk_doc = UHDoc_Pat.mk;
+  let holes = CursorPath_Pat.holes;
+  let cursor_info = (ctx, zp) =>
+    switch (CursorInfo_Pat.syn_cursor_info(ctx, zp, ~steps=[])) {
+    // TODO (andrew): not sure what this all is
+    | None => None
+    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+    | Some(CursorOnDeferredVarPat(_, _)) => None
+    };
+  let of_steps = CursorPath_Pat.of_steps(~side=Before);
+
+  let perform_edit_action = (a, (zp, _, u_gen): t): t => {
+    switch (Action_Pat.syn_perform(Contexts.empty, u_gen, a, zp)) {
+    | Failed => raise(FailedAction)
+    | CursorEscaped(_) => raise(CursorEscaped)
+    | Succeeded((zp, ty, _ctx, u_gen)) =>
+      if (UHPat.is_complete(ZPat.erase(zp))) {
+        (zp, ty, MetaVarGen.init);
+      } else {
+        (zp, ty, u_gen);
+      }
+    };
+  };
+
+  let mk = (~hty=HTyp.Hole, ~u_gen=MetaVarGen.init, zp) => (zp, hty, u_gen);
+};
 
 module EditState_Exp = {
   [@deriving sexp]
@@ -137,13 +173,12 @@ module EditState_Exp = {
     switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
     | Failed => raise(FailedAction)
     | CursorEscaped(_) => raise(CursorEscaped)
-    | Succeeded(new_edit_state) =>
-      let (ze, ty, u_gen) = new_edit_state;
+    | Succeeded((ze, ty, u_gen)) =>
       if (UHExp.is_complete(ZExp.erase(ze))) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
-      };
+      }
     };
   };
 
@@ -407,8 +442,12 @@ module Make = (EditState: EDIT_STATE) : (S with type edit_state = EditState.t) =
 [@deriving sexp]
 type exp = t(EditState_Exp.t);
 module Exp = Make(EditState_Exp);
+[@deriving sexp]
 type typ = t(EditState_Typ.t);
 module Typ = Make(EditState_Typ);
+[@deriving sexp]
+type pat = t(EditState_Pat.t);
+module Pat = Make(EditState_Pat);
 
 let mk_typ_editor = ty => ty |> ZTyp.place_before |> Typ.mk(~width=80);
 
@@ -417,3 +456,6 @@ let get_ty = (editor: typ): HTyp.t =>
 
 let mk_exp_editor = (exp: UHExp.t): exp =>
   exp |> ZExp.place_before |> EditState_Exp.mk |> Exp.mk(~width=80);
+
+let mk_pat_editor = (exp: UHPat.t): pat =>
+  exp |> ZPat.place_before |> EditState_Pat.mk |> Pat.mk(~width=80);

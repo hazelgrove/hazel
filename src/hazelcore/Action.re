@@ -34,6 +34,11 @@ type shape =
   | SApPalette(PaletteName.t);
 
 [@deriving sexp]
+type replace_operand_of_sort =
+  | Exp(UHExp.operand, option(UHExp.t => ZExp.t))
+  | Pat(UHPat.operand, option(UHPat.t => ZPat.t));
+
+[@deriving sexp]
 type t =
   | MoveTo(CursorPath.t)
   | MoveLeft
@@ -49,5 +54,5 @@ type t =
   | SwapUp
   | SwapDown
   | Init
-  | ReplaceOperand(UHExp.operand, option(UHExp.t => ZExp.t))
+  | ReplaceOperand(replace_operand_of_sort)
   | ReplaceOpSeq(ZExp.zopseq);

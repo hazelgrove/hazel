@@ -12,10 +12,17 @@ let label_operand_strategy: Suggestion.operand_strategy => string =
   | WrapCase => "wrc"
   | ConvertLit => "cnv";
 
+let label_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
+  fun
+  | Delete => "del"
+  | InsertLit => "lit";
+
 let label_strategy: Suggestion.t => string =
   fun
   | ReplaceOperand({operand_strategy, _}) =>
-    label_operand_strategy(operand_strategy);
+    label_operand_strategy(operand_strategy)
+  | ReplacePatOperand({pat_operand_strategy, _}) =>
+    label_pat_operand_strategy(pat_operand_strategy);
 
 let describe_operand_strategy: Suggestion.operand_strategy => string =
   fun
@@ -28,10 +35,17 @@ let describe_operand_strategy: Suggestion.operand_strategy => string =
   | WrapCase => "Match on the current form"
   | ConvertLit => "Convert a literal to another type";
 
+let describe_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
+  fun
+  | Delete => "Delete the current pattern"
+  | InsertLit => "Insert a literal";
+
 let describe_strategy: Suggestion.t => string =
   fun
   | ReplaceOperand({operand_strategy, _}) =>
-    describe_operand_strategy(operand_strategy);
+    describe_operand_strategy(operand_strategy)
+  | ReplacePatOperand({pat_operand_strategy, _}) =>
+    describe_pat_operand_strategy(pat_operand_strategy);
 
 let describe_delta_errors: float => string =
   fun
@@ -126,21 +140,29 @@ let subscore_data_exp = (score: SuggestionReportExp.scores) => [
   (score.syntax_conserved, describe_syntax_conserved),
 ];
 
-let suggestion_info_view = (s: Suggestion.t): Node.t =>
-  switch (s) {
-  | ReplaceOperand({report: {scores, _}, _}) =>
-    div(
-      [Attr.class_("suggestion-info")],
-      [
-        span([], [strategy_view(s)]),
-        span(
-          [Attr.class_("suggestion-description")],
-          [text(describe_strategy(s))],
-        ),
-      ]
-      @ List.concat(List.map(subscore_view, subscore_data_exp(scores))),
-    )
-  };
+let subscore_data_pat = (score: SuggestionReportPat.scores) => [
+  (score.delta_errors, describe_delta_errors),
+];
+
+let suggestion_info_view = (s: Suggestion.t): Node.t => {
+  let subscores =
+    switch (s) {
+    | ReplaceOperand({report: {scores, _}, _}) => subscore_data_exp(scores)
+    | ReplacePatOperand({report: {scores, _}, _}) =>
+      subscore_data_pat(scores)
+    };
+  div(
+    [Attr.class_("suggestion-info")],
+    [
+      span([], [strategy_view(s)]),
+      span(
+        [Attr.class_("suggestion-description")],
+        [text(describe_strategy(s))],
+      ),
+    ]
+    @ List.concat(List.map(subscore_view, subscores)),
+  );
+};
 
 /* Draws the matching characters overtop of suggestions */
 let overlay_view =
@@ -172,12 +194,35 @@ let overlay_view =
   div([Attr.class_("overlay")], offset_overlay);
 };
 
-let suggestion_view_exp_operand =
+let result_view =
     (
       ~suggestion: Suggestion.t,
-      ~report as
-        {show_text, result_ty, _}: SuggestionReportExp.operand_report,
-      ~operand: UHExp.operand,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+    )
+    : list(Node.t) =>
+  switch (suggestion) {
+  | ReplaceOperand({operand, _}) =>
+    UHCode.codebox_view(
+      ~is_focused=false,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_exp_editor(UHExp.Block.wrap(operand)),
+    )
+  | ReplacePatOperand({operand, _}) =>
+    UHCode.patbox_view(
+      ~is_focused=false,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_pat_editor(OpSeq.wrap(operand)),
+    )
+  };
+
+let suggestion_view_operand =
+    (
+      ~suggestion: Suggestion.t,
+      ~show_text: string,
+      ~result_ty: HTyp.t,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -188,13 +233,7 @@ let suggestion_view_exp_operand =
       ~inject: ModelAction.t => Event.t,
     )
     : Node.t => {
-  let result_view =
-    UHCode.codebox_view(
-      ~is_focused=false,
-      ~settings,
-      ~font_metrics,
-      Editor.mk_exp_editor(UHExp.Block.wrap(operand)),
-    );
+  let result_view = result_view(~suggestion, ~settings, ~font_metrics);
   let overlay_view = overlay_view(ci, search_string, show_text);
   let perform_action = _ =>
     Event.Many([
@@ -249,11 +288,25 @@ let suggestion_view =
     )
     : Node.t =>
   switch (suggestion) {
-  | ReplaceOperand({operand, report, _}) =>
-    suggestion_view_exp_operand(
+  | ReplaceOperand({report: {result_ty, show_text, _}, _}) =>
+    suggestion_view_operand(
       ~suggestion,
-      ~report,
-      ~operand,
+      ~result_ty,
+      ~show_text,
+      ~index,
+      ~is_hovered,
+      ~is_selected,
+      ~search_string,
+      ~ci,
+      ~settings,
+      ~font_metrics,
+      ~inject,
+    )
+  | ReplacePatOperand({report: {result_ty, show_text, _}, _}) =>
+    suggestion_view_operand(
+      ~suggestion,
+      ~result_ty,
+      ~show_text,
       ~index,
       ~is_hovered,
       ~is_selected,

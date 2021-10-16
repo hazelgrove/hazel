@@ -96,7 +96,7 @@ let mk_bin_seq = (operand1, operator, operand2) =>
 let rec mk_n_seq = (op: Operators_Exp.t, n: int) =>
   switch (n) {
   | 0
-  | 1 => failwith("mk_n_opseq_operand: n must be 2 or more")
+  | 1 => failwith("mk_n_seq: n must be 2 or more")
   | 2 => Seq.S(hole_operand, A(op, S(hole_operand, E)))
   | _ => Seq.S(hole_operand, A(op, mk_n_seq(op, n - 1)))
   };
@@ -128,5 +128,19 @@ let normalize_operand = (op: UHExp.operand) => {
   op;
 };
 
+let normalize_pat_operand = (op: UHPat.operand) => {
+  let (op, _, _, _) =
+    Statics_Pat.syn_fix_holes_operand(
+      Contexts.empty,
+      0,
+      ~renumber_empty_holes=true,
+      op,
+    );
+  op;
+};
+
 let equals_operand = (op1: UHExp.operand, op2: UHExp.operand) =>
   normalize_operand(op1) == normalize_operand(op2);
+
+let equals_pat_operand = (op1: UHPat.operand, op2: UHPat.operand) =>
+  normalize_pat_operand(op1) == normalize_pat_operand(op2);

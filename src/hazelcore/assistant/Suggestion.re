@@ -17,8 +17,23 @@ type operand_suggestion = {
 };
 
 [@deriving sexp]
+type pat_operand_strategy =
+  | Delete
+  //| InsertVar
+  //| ConvertLit
+  | InsertLit;
+
+[@deriving sexp]
+type pat_operand_suggestion = {
+  operand: UHPat.operand,
+  pat_operand_strategy,
+  report: SuggestionReportPat.operand_report_pat,
+};
+
+[@deriving sexp]
 type t =
-  | ReplaceOperand(operand_suggestion);
+  | ReplaceOperand(operand_suggestion)
+  | ReplacePatOperand(pat_operand_suggestion);
 
 [@deriving sexp]
 type generator' = CursorInfo.t => t;
@@ -35,6 +50,11 @@ let score: t => float =
     scores
     |> SuggestionReportExp.scores_params
     |> List.map(((score, param)) => param *. score)
+    |> List.fold_left((+.), 0.)
+  | ReplacePatOperand({report: {scores, _}, _}) =>
+    scores
+    |> SuggestionReportPat.scores_params
+    |> List.map(((score, param)) => param *. score)
     |> List.fold_left((+.), 0.);
 
 let compare: (t, t) => int =
@@ -42,4 +62,5 @@ let compare: (t, t) => int =
 
 let get_action: t => Action.t =
   fun
-  | ReplaceOperand({operand, _}) => ReplaceOperand(operand, None);
+  | ReplaceOperand({operand, _}) => ReplaceOperand(Exp(operand, None))
+  | ReplacePatOperand({operand, _}) => ReplaceOperand(Pat(operand, None));

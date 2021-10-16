@@ -30,6 +30,14 @@ let codebox_view:
     Editor.exp
   ) =>
   list(Vdom.Node.t);
+let patbox_view:
+  (
+    ~settings: Settings.t,
+    ~font_metrics: FontMetrics.t,
+    ~is_focused: bool,
+    Editor.pat
+  ) =>
+  list(Vdom.Node.t);
 let typebox:
   (
     ~inject: ModelAction.t => Ui_event.t,
