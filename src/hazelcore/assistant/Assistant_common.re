@@ -75,7 +75,7 @@ let mk_inj = side => UHExp.inj(side, hole_exp);
 
 let mk_case = scrut =>
   UHExp.case(
-    scrut,
+    UHExp.Block.wrap(scrut),
     [UHExp.Rule(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp)],
   );
 

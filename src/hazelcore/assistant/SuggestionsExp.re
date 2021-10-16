@@ -22,6 +22,9 @@ let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>
 
 let mk_lit_suggestion = mk_operand_suggestion(~strategy=InsertLit);
 
+let mk_nil_list_suggestion: generator' =
+  mk_lit_suggestion(~operand=UHExp.listnil());
+
 let mk_bool_lit_suggestion: bool => generator' =
   b => mk_lit_suggestion(~operand=UHExp.boollit(b));
 
@@ -31,17 +34,14 @@ let mk_int_lit_suggestion: string => generator' =
 let mk_float_lit_suggestion: string => generator' =
   s => mk_lit_suggestion(~operand=UHExp.floatlit(s));
 
-let mk_nil_list_suggestion: generator' =
-  mk_lit_suggestion(~operand=UHExp.listnil());
-
 let mk_empty_hole_suggestion: generator' =
   mk_operand_suggestion(~strategy=Delete, ~operand=hole_operand);
 
-let mk_inj_suggestion: InjSide.t => generator' =
-  side => mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side));
-
 let mk_lambda_suggestion: generator' =
   mk_operand_suggestion(~strategy=InsertLit, ~operand=lambda_operand);
+
+let mk_inj_suggestion: InjSide.t => generator' =
+  side => mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side));
 
 let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): Suggestion.t =>
   mk_operand_suggestion(~strategy=InsertVar, ~operand=UHExp.var(s), ci);
@@ -210,7 +210,7 @@ let _mk_insert_case_suggestions: generator =
   ci => [
     mk_operand_suggestion(
       ~strategy=InsertCase,
-      ~operand=mk_case(hole_exp),
+      ~operand=mk_case(hole_operand),
       ci,
     ),
   ];
@@ -238,7 +238,6 @@ let mk_wrap_case_suggestions: generator =
     let operand =
       ci.cursor_term
       |> get_wrapped_operand(ci, ((_, ty)) => HTyp.is_sumlike(ty), "case")
-      |> UHExp.Block.wrap
       |> mk_case;
     [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
   };

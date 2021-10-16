@@ -29,14 +29,13 @@ type generator = CursorInfo.t => list(t);
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((suggestions, g) => g(ci) @ suggestions, [], gs);
 
-let score = (suggestion: t) =>
-  switch (suggestion) {
+let score: t => float =
+  fun
   | ReplaceOperand({report: {scores, _}, _}) =>
     scores
     |> SuggestionReportExp.scores_params
     |> List.map(((score, param)) => param *. score)
-    |> List.fold_left((+.), 0.)
-  };
+    |> List.fold_left((+.), 0.);
 
 let compare: (t, t) => int =
   (a1, a2) => Float.compare(score(a2), score(a1));

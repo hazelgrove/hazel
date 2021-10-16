@@ -123,3 +123,8 @@ let get_action =
   let+ selection = get_indicated_suggestion(assistant_model, ci, ~u_gen);
   Suggestion.get_action(selection);
 };
+
+let get_indicated_score = (model, ci) => {
+  let+ selection = get_indicated_suggestion(model, ci, ~u_gen=0);
+  Suggestion.score(selection);
+};

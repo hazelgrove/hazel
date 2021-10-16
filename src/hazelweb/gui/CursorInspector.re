@@ -518,12 +518,13 @@ let summary_bar =
       ~sort=tag_type,
       ~inject,
     );
+  let score = AssistantModel.get_indicated_score(assistant, ci);
   let body =
     switch (assistant_enabled, show_expansion_arrow, show_strategy_guide_icon) {
     | (true, _, _) => [
         summary,
         fill_space,
-        AssistantView.icon(tag_type),
+        AssistantView.icon(tag_type, ~score),
         control,
       ]
     | (_, true, true) => [summary, fill_space, arrow, fill_icon, control]

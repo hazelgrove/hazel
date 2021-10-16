@@ -74,15 +74,30 @@ let sign_symbol: float => string =
   | n when n > 0. => "+"
   | _ => "";
 
-let icon: TermSort.t => Node.t =
-  sort => {
-    let base = s => "imgs/assistant/boost-0000-" ++ s ++ ".png";
-    let sort = TermSort.to_string(sort);
-    div(
-      [Attr.classes(["clickable-help-icon", sort])],
-      [create("img", [Attr.create("src", base(sort))], [])],
-    );
-  };
+let icon = (~score: option(float)=None, sort: TermSort.t): Node.t => {
+  let guy =
+    switch (sort, score) {
+    | (Pat, _) => "0000-pat"
+    | (Typ, _) => "0000-typ"
+    | (Exp, None) => "0000-exp"
+    | (Exp, Some(x)) =>
+      let pre =
+        switch (x) {
+        | _ when x > 2. => "0031"
+        | _ when x > 0.5 => "0024"
+        | _ when x > (-0.5) => "0000"
+        | _ when x > (-2.0) => "0034"
+        | _ => "0007"
+        };
+      pre ++ "-exp";
+    };
+  let file = "imgs/assistant/boost-" ++ guy ++ ".png";
+  let sort = TermSort.to_string(sort);
+  div(
+    [Attr.classes(["clickable-help-icon", sort])],
+    [create("img", [Attr.create("src", file)], [])],
+  );
+};
 
 let strategy_view: Suggestion.t => Node.t =
   suggestion => {
