@@ -1148,7 +1148,13 @@ and ana_cursor_info_zoperand =
       | Some(ty') => Some(mk(AnaSubsumed(ty, ty')))
       }
     | ListNil(NotInHole)
-    | Inj(NotInHole, _, _)
+    | Inj(NotInHole, _, _) =>
+      // TODO(andrew): i made this ana_subsumed so cursor_info returned
+      // an actual_type for injs in analytic pos. probably not the right approach...
+      switch (Statics_Exp.syn_operand(ctx, e)) {
+      | None => Some(mk(Analyzed(ty)))
+      | Some(ty') => Some(mk(AnaSubsumed(ty, ty')))
+      }
     | Case(StandardErrStatus(NotInHole), _, _) => Some(mk(Analyzed(ty)))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty) |> Option.map(_ => mk(Analyzed(ty)))

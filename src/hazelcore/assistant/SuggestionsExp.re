@@ -119,23 +119,16 @@ let get_wrapped_operand =
         };
       };
     };
-  | ExpOperand(
-      _,
-      (
-        Var(NotInHole, NotInVarHole, _) |
-        Var(InHole(TypeInconsistent, _), _, _)
-      ) as operand,
-    ) =>
+  | ExpOperand(_, operand) =>
     // TODO: consider bound variables which are coincidentally wraps
-    operand
-  | ExpOperand(_, operand) => operand
+    UHExp.set_err_status_operand(NotInHole, operand)
   | _ => failwith("get_wrap_operand impossible")
   };
 };
 
 let mk_wrap_app_suggestion =
     ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  // TODO(andrew): get arg type and use for predicate
+  // TODO(andrew): get arg type (how?) and use for predicate
   let wrapped_operand = get_wrapped_operand(ci, _ => true, name, cursor_term);
   mk_operand_suggestion_from_uhexp(
     ~strategy=WrapApp,
