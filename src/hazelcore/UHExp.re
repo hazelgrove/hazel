@@ -391,7 +391,7 @@ let operand_of_string = (text: string): operand =>
   };
 
 /* NOTE: Should be replaced with proper to_string when parser is ready
-   Right now this special-cases case and binary apps for assistant
+   Right now this special-cases inj, case and binary apps for assistant
    suggestion text-matching purposes. */
 let rec string_of_operand = (operand: operand): string => {
   switch (operand) {
@@ -400,10 +400,17 @@ let rec string_of_operand = (operand: operand): string => {
   | IntLit(_, s)
   | FloatLit(_, s) => s
   | BoolLit(_, b) => string_of_bool(b)
-  | Inj(_, side, _) => "inj" ++ InjSide.to_string(side) ++ ""
+  | Inj(_, side, [ExpLine(OpSeq(_, S(op, _)))]) =>
+    "inj["
+    ++ InjSide.to_string(side)
+    ++ "]"
+    ++ "("
+    ++ string_of_operand(op)
+    ++ ")"
+  | Inj(_, side, _) => "inj[" ++ InjSide.to_string(side) ++ "]" ++ "( )"
   | Lam(_) => "\\"
-  | Case(_, [ExpLine(OpSeq(_, S(operandA, _)))], _) =>
-    "case " ++ string_of_operand(operandA)
+  | Case(_, [ExpLine(OpSeq(_, S(op, _)))], _) =>
+    "case " ++ string_of_operand(op)
   | Case(_, _, _) => "case"
   | Parenthesized([
       ExpLine(OpSeq(_, S(operandA, A(Space, S(operandB, _))))),

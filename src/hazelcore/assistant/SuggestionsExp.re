@@ -40,8 +40,12 @@ let mk_empty_hole_suggestion: generator' =
 let mk_lambda_suggestion: generator' =
   mk_operand_suggestion(~strategy=InsertLit, ~operand=lambda_operand);
 
-let mk_inj_suggestion: InjSide.t => generator' =
-  side => mk_operand_suggestion(~strategy=InsertLit, ~operand=mk_inj(side));
+let mk_inj_suggestion: (InjSide.t, UHExp.operand) => generator' =
+  (side, operand) =>
+    mk_operand_suggestion(
+      ~strategy=InsertLit,
+      ~operand=mk_inj(side, operand),
+    );
 
 let mk_var_suggestion = (ci: CursorInfo.t, (s: string, _)): Suggestion.t =>
   mk_operand_suggestion(~strategy=InsertVar, ~operand=UHExp.var(s), ci);
@@ -169,7 +173,10 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
   | Int => [mk_int_lit_suggestion("1", ci)]
   | Float => [mk_float_lit_suggestion("1.", ci)]
   | List(_) => [mk_nil_list_suggestion(ci), mk_list_suggestion(ci)]
-  | Sum(_, _) => [mk_inj_suggestion(L, ci), mk_inj_suggestion(R, ci)]
+  | Sum(_, _) => [
+      mk_inj_suggestion(L, hole_operand, ci),
+      mk_inj_suggestion(R, hole_operand, ci),
+    ]
   | Prod(_) => [mk_pair_suggestion(ci)] // TODO: n-tuples
   | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas
   | Hole =>
@@ -242,6 +249,26 @@ let mk_wrap_case_suggestions: generator =
     [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
   };
 
+let mk_wrap_inj_suggestions: generator =
+  ({expected_ty, actual_ty, cursor_term, _} as ci) => {
+    let actual_ty = HTyp.relax(actual_ty);
+    let operand = get_wrapped_operand(ci, _ => true, "inj", cursor_term);
+    switch (expected_ty) {
+    | Sum(a, b)
+        when HTyp.consistent(a, actual_ty) && HTyp.consistent(b, actual_ty) => [
+        mk_inj_suggestion(L, operand, ci),
+        mk_inj_suggestion(R, operand, ci),
+      ]
+    | Sum(a, _) when HTyp.consistent(a, actual_ty) => [
+        mk_inj_suggestion(L, operand, ci),
+      ]
+    | Sum(_, b) when HTyp.consistent(b, actual_ty) => [
+        mk_inj_suggestion(R, operand, ci),
+      ]
+    | _ => []
+    };
+  };
+
 let mk_convert_suggestions: generator =
   ci =>
     switch (ci.cursor_term) {
@@ -267,6 +294,7 @@ let exp_operand_generators = [
   mk_insert_app_suggestions,
   mk_delete_suggestions,
   mk_wrap_case_suggestions,
+  mk_wrap_inj_suggestions,
   //mk_insert_case_suggestions,
 ];
 

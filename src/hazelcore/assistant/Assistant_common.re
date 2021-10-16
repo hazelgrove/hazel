@@ -71,7 +71,7 @@ let hole_exp = UHExp.Block.wrap(hole_operand);
 
 let lambda_operand = UHExp.lam(OpSeq.wrap(UHPat.EmptyHole(0)), hole_exp);
 
-let mk_inj = side => UHExp.inj(side, hole_exp);
+let mk_inj = (side, operand) => UHExp.inj(side, UHExp.Block.wrap(operand));
 
 let mk_case = scrut =>
   UHExp.case(

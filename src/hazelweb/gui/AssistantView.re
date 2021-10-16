@@ -91,11 +91,11 @@ let icon = (~score: option(float)=None, sort: TermSort.t): Node.t => {
         };
       pre ++ "-exp";
     };
-  let file = "imgs/assistant/boost-" ++ guy ++ ".png";
+  let path = "imgs/assistant/boost-" ++ guy ++ ".png";
   let sort = TermSort.to_string(sort);
   div(
     [Attr.classes(["clickable-help-icon", sort])],
-    [create("img", [Attr.create("src", file)], [])],
+    [create("img", [Attr.create("src", path)], [])],
   );
 };
 
