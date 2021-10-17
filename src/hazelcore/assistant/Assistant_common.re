@@ -118,25 +118,25 @@ let mk_ap_iter =
 
 /* Make op independent of ctx and u_gen, for comparison purposes */
 let normalize_operand = (op: UHExp.operand) => {
-  let (op, _, _) =
+  let (operand, _, _) =
     Statics_Exp.syn_fix_holes_operand(
       Contexts.empty,
       0,
       ~renumber_empty_holes=true,
       op,
     );
-  op;
+  operand;
 };
 
 let normalize_pat_operand = (op: UHPat.operand) => {
-  let (op, _, _, _) =
+  let (operand, _, _, _) =
     Statics_Pat.syn_fix_holes_operand(
       Contexts.empty,
       0,
       ~renumber_empty_holes=true,
       op,
     );
-  op;
+  operand;
 };
 
 let equals_operand = (op1: UHExp.operand, op2: UHExp.operand) =>
@@ -144,3 +144,6 @@ let equals_operand = (op1: UHExp.operand, op2: UHExp.operand) =>
 
 let equals_pat_operand = (op1: UHPat.operand, op2: UHPat.operand) =>
   normalize_pat_operand(op1) == normalize_pat_operand(op2);
+
+let equals_typ_operand = (op1: UHTyp.operand, op2: UHTyp.operand) =>
+  op1 == op2;

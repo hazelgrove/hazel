@@ -47,6 +47,10 @@ let suggestion_isnt_noop =
   switch (cursor_term, s) {
   | (ExpOperand(_, op), ReplaceExpOperand({operand: op', _})) =>
     !Assistant_common.equals_operand(op, op')
+  | (PatOperand(_, op), ReplacePatOperand({operand: op', _})) =>
+    !Assistant_common.equals_pat_operand(op, op')
+  | (TypOperand(_, op), ReplaceTypOperand({operand: op', _})) =>
+    !Assistant_common.equals_typ_operand(op, op')
   | _ => true
   };
 };
@@ -67,7 +71,7 @@ let suggestion_result_equals = (s: Suggestion.t, s': Suggestion.t): bool =>
       ReplaceTypOperand({operand: op, _}),
       ReplaceTypOperand({operand: op', _}),
     ) =>
-    op == op'
+    Assistant_common.equals_typ_operand(op, op')
   | _ => false
   };
 
