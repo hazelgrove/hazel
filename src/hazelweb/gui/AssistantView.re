@@ -21,8 +21,9 @@ let label_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
   fun
   | Delete => "del"
   | InsertLit => "lit"
-  | AnalyzedType => "ana"
-  | PatternType => "pat";
+  | InsertExpType => "ana"
+  | InsertPatType => "pat"
+  | InsertJoin => "joi";
 
 let label_strategy: Suggestion.t => string =
   fun
@@ -53,8 +54,9 @@ let describe_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
   fun
   | Delete => "Delete the current type"
   | InsertLit => "Insert a type"
-  | AnalyzedType => "Insert the analytic type"
-  | PatternType => "Insert the pattern type";
+  | InsertExpType => "Use the expression type"
+  | InsertPatType => "Use the pattern type"
+  | InsertJoin => "Join pattern and expression types";
 
 let describe_strategy: Suggestion.t => string =
   fun
@@ -94,17 +96,21 @@ let describe_syntax_conserved: float => string =
   | x when x < 0.9 => "Syntax mostly conserved"
   | _ => "Existing syntax conserved";
 
-let describe_analysis_consistency: float => string =
+let describe_expression_consistency: float => string =
   fun
-  | 1.0 => "Consistent with analytic type"
-  | 1.5 => "Equal to analytic type"
-  | _ => "Not consistent with analytic type";
+  | (-1.0) => "Inconsistent with expression type"
+  | 0.5 => "Consistent with expression type"
+  | 1.0 => "Equal to expression type"
+  | 2.0 => "More specific than expression type"
+  | _ => "No info";
 
 let describe_pattern_consistency: float => string =
   fun
-  | 1.0 => "Consistent with pattern type"
-  | 1.5 => "Equal to pattern type"
-  | _ => "Not consistent with pattern type";
+  | (-1.0) => "Inconsistent with pattern type"
+  | 0.5 => "Consistent with pattern type"
+  | 1.0 => "Equal to pattern type"
+  | 2.0 => "More specific than pattern type"
+  | _ => "No info";
 
 let sign_label: float => string =
   fun
@@ -176,7 +182,7 @@ let subscore_data_pat = (score: SuggestionReportPat.scores) => [
 ];
 
 let subscore_data_typ = (score: SuggestionReportTyp.scores) => [
-  (score.analysis_consistency, describe_analysis_consistency),
+  (score.expression_consistency, describe_expression_consistency),
   (score.pattern_consistency, describe_pattern_consistency),
 ];
 

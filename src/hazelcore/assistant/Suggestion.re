@@ -32,8 +32,9 @@ type pat_operand_suggestion = {
 type typ_operand_strategy =
   | Delete
   | InsertLit
-  | AnalyzedType
-  | PatternType;
+  | InsertExpType
+  | InsertPatType
+  | InsertJoin;
 
 [@deriving sexp]
 type typ_operand_suggestion = {

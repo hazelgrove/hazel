@@ -3,43 +3,12 @@ open Sexplib.Std;
 [@deriving sexp]
 type t = list(Suggestion.t);
 
-let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
-  switch (s) {
-  | ReplaceExpOperand({report: {result_ty, _}, _}) =>
-    HTyp.consistent(expected_ty, result_ty)
-  | ReplacePatOperand(_) => true // TODO
-  | ReplaceTypOperand(_) => true
-  };
-
 let collect_suggestions = (ci: CursorInfo.t): t =>
   switch (ci.cursor_term) {
   | ExpOperand(_) => SuggestionsExp.mk(ci)
   | PatOperand(_) => SuggestionsPat.mk(ci)
   | TypOperand(_) => SuggestionsTyp.mk(ci)
   | _ => []
-  };
-
-let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
-  switch (s) {
-  | ReplaceExpOperand({operand, _} as operand_suggestion) =>
-    let (operand, _, _) =
-      Statics_Exp.syn_fix_holes_operand(
-        ctx,
-        u_gen - 1,
-        ~renumber_empty_holes=true,
-        operand,
-      );
-    ReplaceExpOperand({...operand_suggestion, operand});
-  | ReplacePatOperand({operand, _} as operand_suggestion) =>
-    let (operand, _, _, _) =
-      Statics_Pat.syn_fix_holes_operand(
-        ctx,
-        u_gen - 1,
-        ~renumber_empty_holes=true,
-        operand,
-      );
-    ReplacePatOperand({...operand_suggestion, operand});
-  | ReplaceTypOperand(_) => s
   };
 
 let suggestion_isnt_noop =
@@ -82,6 +51,37 @@ let deduplicate_suggestions: t => t =
         ? uniques : uniques @ [s],
     [],
   );
+
+let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
+  switch (s) {
+  | ReplaceExpOperand({operand, _} as operand_suggestion) =>
+    let (operand, _, _) =
+      Statics_Exp.syn_fix_holes_operand(
+        ctx,
+        u_gen - 1,
+        ~renumber_empty_holes=true,
+        operand,
+      );
+    ReplaceExpOperand({...operand_suggestion, operand});
+  | ReplacePatOperand({operand, _} as operand_suggestion) =>
+    let (operand, _, _, _) =
+      Statics_Pat.syn_fix_holes_operand(
+        ctx,
+        u_gen - 1,
+        ~renumber_empty_holes=true,
+        operand,
+      );
+    ReplacePatOperand({...operand_suggestion, operand});
+  | ReplaceTypOperand(_) => s
+  };
+
+let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
+  switch (s) {
+  | ReplaceExpOperand({report: {result_ty, _}, _}) =>
+    HTyp.consistent(expected_ty, result_ty)
+  | ReplacePatOperand(_) => true
+  | ReplaceTypOperand(_) => true
+  };
 
 let mk =
     (

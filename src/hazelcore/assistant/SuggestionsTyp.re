@@ -65,9 +65,9 @@ let skip_parens = (hty: HTyp.t) =>
 let mk_analytic_ty_suggestions: generator =
   ({typed, _} as ci) =>
     switch (typed) {
-    | OnType({analyzed_ty, _}) => [
+    | OnType({analyzed_ty, _}) when analyzed_ty != Hole => [
         mk_operand_suggestion(
-          ~strategy=AnalyzedType,
+          ~strategy=InsertExpType,
           ~operand=skip_parens(analyzed_ty),
           ci,
         ),
@@ -78,9 +78,9 @@ let mk_analytic_ty_suggestions: generator =
 let mk_pattern_ty_suggestions: generator =
   ({typed, _} as ci) =>
     switch (typed) {
-    | OnType({pattern_ty, _}) => [
+    | OnType({pattern_ty, _}) when pattern_ty != Hole => [
         mk_operand_suggestion(
-          ~strategy=PatternType,
+          ~strategy=InsertPatType,
           ~operand=skip_parens(pattern_ty),
           ci,
         ),
@@ -88,7 +88,26 @@ let mk_pattern_ty_suggestions: generator =
     | _ => []
     };
 
+let mk_joint_ty_suggestions: generator =
+  ({typed, _} as ci) =>
+    switch (typed) {
+    | OnType({pattern_ty, analyzed_ty, _})
+        when pattern_ty != Hole && analyzed_ty != Hole =>
+      switch (HTyp.join(LUB, pattern_ty, analyzed_ty)) {
+      | None => []
+      | Some(join_ty) => [
+          mk_operand_suggestion(
+            ~strategy=InsertJoin,
+            ~operand=skip_parens(join_ty),
+            ci,
+          ),
+        ]
+      }
+    | _ => []
+    };
+
 let typ_operand_generators = [
+  mk_joint_ty_suggestions,
   mk_analytic_ty_suggestions,
   mk_pattern_ty_suggestions,
   mk_insert_lit_suggestions,
