@@ -202,7 +202,7 @@ let focus = (editor: Model.editor) =>
     )
   };
 
-let codebox_view =
+let exp_view =
     (
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -220,7 +220,7 @@ let codebox_view =
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
-let patbox_view =
+let pat_view =
     (
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -238,7 +238,7 @@ let patbox_view =
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
-let typebox_view =
+let typ_view =
     (
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -255,7 +255,39 @@ let typebox_view =
   caret @ [Node.span([Attr.classes(["code"])], code_text)] @ decorations;
 };
 
-let typebox =
+let view_syntax =
+    (
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~is_focused: bool,
+      syntax: TermSort.syntax,
+    )
+    : list(Node.t) =>
+  switch (syntax) {
+  | Exp(uhexp) =>
+    exp_view(
+      ~is_focused,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_exp_editor(uhexp),
+    )
+  | Pat(uhpat) =>
+    pat_view(
+      ~is_focused,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_pat_editor(uhpat),
+    )
+  | Typ(uhtyp) =>
+    typ_view(
+      ~is_focused,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_typ_editor(uhtyp),
+    )
+  };
+
+let filter_typ_view =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~font_metrics: FontMetrics.t,
@@ -280,7 +312,7 @@ let typebox =
         Attr.on_blur(_ => inject(BlurCell)),
         ...key_handlers,
       ],
-      typebox_view(~settings, ~font_metrics, ~is_focused, editor),
+      typ_view(~settings, ~font_metrics, ~is_focused, editor),
     ),
   ];
 };

@@ -117,11 +117,11 @@ let get_indicated_suggestion =
   List.nth_opt(suggestions, index);
 };
 
-let get_action =
+let action =
     (~u_gen: MetaVarGen.t=0, assistant_model: t, ci: CursorInfo.t)
     : option(Action.t) => {
   let+ selection = get_indicated_suggestion(assistant_model, ci, ~u_gen);
-  Suggestion.get_action(selection);
+  Suggestion.action(selection);
 };
 
 let get_indicated_score = (model, ci) => {

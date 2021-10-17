@@ -4,6 +4,12 @@ type t =
   | Pat
   | Exp;
 
+[@deriving sexp]
+type syntax =
+  | Typ(UHTyp.t)
+  | Pat(UHPat.t)
+  | Exp(UHExp.t);
+
 let to_string: t => string =
   fun
   | Typ => "typ"

@@ -22,7 +22,16 @@ let click_to_move:
   ) =>
   ModelAction.t;
 
-let codebox_view:
+let view_syntax:
+  (
+    ~settings: Settings.t,
+    ~font_metrics: FontMetrics.t,
+    ~is_focused: bool,
+    TermSort.syntax
+  ) =>
+  list(Vdom.Node.t);
+
+let exp_view:
   (
     ~settings: Settings.t,
     ~font_metrics: FontMetrics.t,
@@ -30,23 +39,8 @@ let codebox_view:
     Editor.exp
   ) =>
   list(Vdom.Node.t);
-let patbox_view:
-  (
-    ~settings: Settings.t,
-    ~font_metrics: FontMetrics.t,
-    ~is_focused: bool,
-    Editor.pat
-  ) =>
-  list(Vdom.Node.t);
-let typebox_view:
-  (
-    ~settings: Settings.t,
-    ~font_metrics: FontMetrics.t,
-    ~is_focused: bool,
-    Editor.typ
-  ) =>
-  list(Vdom.Node.t);
-let typebox:
+
+let filter_typ_view:
   (
     ~inject: ModelAction.t => Ui_event.t,
     ~font_metrics: FontMetrics.t,

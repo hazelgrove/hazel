@@ -31,7 +31,9 @@ type pat_operand_suggestion = {
 [@deriving sexp]
 type typ_operand_strategy =
   | Delete
-  | InsertLit;
+  | InsertLit
+  | AnalyzedType
+  | PatternType;
 
 [@deriving sexp]
 type typ_operand_suggestion = {
@@ -42,7 +44,7 @@ type typ_operand_suggestion = {
 
 [@deriving sexp]
 type t =
-  | ReplaceOperand(operand_suggestion)
+  | ReplaceExpOperand(operand_suggestion)
   | ReplacePatOperand(pat_operand_suggestion)
   | ReplaceTypOperand(typ_operand_suggestion);
 
@@ -55,15 +57,39 @@ type generator = CursorInfo.t => list(t);
 let generate = (gs: list(generator), ci: CursorInfo.t): list(t) =>
   List.fold_left((suggestions, g) => g(ci) @ suggestions, [], gs);
 
-let scorer = (scores, params) =>
+let action: t => Action.t =
+  fun
+  | ReplaceExpOperand({operand, _}) => ReplaceOperand(Exp(operand, None))
+  | ReplacePatOperand({operand, _}) => ReplaceOperand(Pat(operand, None))
+  | ReplaceTypOperand({operand, _}) => ReplaceOperand(Typ(operand, None));
+
+let sort_of: t => TermSort.t =
+  fun
+  | ReplaceExpOperand(_) => Exp
+  | ReplacePatOperand(_) => Pat
+  | ReplaceTypOperand(_) => Typ;
+
+let show_text: t => string =
+  fun
+  | ReplaceExpOperand({report: {show_text, _}, _}) => show_text
+  | ReplacePatOperand({report: {show_text, _}, _}) => show_text
+  | ReplaceTypOperand({report: {show_text, _}, _}) => show_text;
+
+let show_syntax: t => TermSort.syntax =
+  fun
+  | ReplaceExpOperand({operand, _}) => Exp(UHExp.Block.wrap(operand))
+  | ReplacePatOperand({operand, _}) => Pat(OpSeq.wrap(operand))
+  | ReplaceTypOperand({operand, _}) => Typ(OpSeq.wrap(operand));
+
+let scorer = (scores: 'a, parametrize: 'a => list((float, float))) =>
   scores
-  |> params
+  |> parametrize
   |> List.map(((score, param)) => param *. score)
   |> List.fold_left((+.), 0.);
 
 let score: t => float =
   fun
-  | ReplaceOperand({report: {scores, _}, _}) =>
+  | ReplaceExpOperand({report: {scores, _}, _}) =>
     scorer(scores, SuggestionReportExp.scores_params)
   | ReplacePatOperand({report: {scores, _}, _}) =>
     scorer(scores, SuggestionReportPat.scores_params)
@@ -72,15 +98,3 @@ let score: t => float =
 
 let compare: (t, t) => int =
   (a1, a2) => Float.compare(score(a2), score(a1));
-
-let get_action: t => Action.t =
-  fun
-  | ReplaceOperand({operand, _}) => ReplaceOperand(Exp(operand, None))
-  | ReplacePatOperand({operand, _}) => ReplaceOperand(Pat(operand, None))
-  | ReplaceTypOperand({operand, _}) => ReplaceOperand(Typ(operand, None));
-
-let get_sort: t => TermSort.t =
-  fun
-  | ReplaceOperand(_) => Exp
-  | ReplacePatOperand(_) => Pat
-  | ReplaceTypOperand(_) => Typ;

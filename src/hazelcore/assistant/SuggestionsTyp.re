@@ -56,7 +56,41 @@ let mk_insert_lit_suggestions: generator =
 
 let mk_delete_suggestions: generator = ci => [mk_empty_hole_suggestion(ci)];
 
+let skip_parens = (hty: HTyp.t) =>
+  switch (UHTyp.contract(hty)) {
+  | OpSeq(_, S(operand, E)) => operand
+  | x => UHTyp.Parenthesized(x)
+  };
+
+let mk_analytic_ty_suggestions: generator =
+  ({typed, _} as ci) =>
+    switch (typed) {
+    | OnType({analyzed_ty, _}) => [
+        mk_operand_suggestion(
+          ~strategy=AnalyzedType,
+          ~operand=skip_parens(analyzed_ty),
+          ci,
+        ),
+      ]
+    | _ => []
+    };
+
+let mk_pattern_ty_suggestions: generator =
+  ({typed, _} as ci) =>
+    switch (typed) {
+    | OnType({pattern_ty, _}) => [
+        mk_operand_suggestion(
+          ~strategy=PatternType,
+          ~operand=skip_parens(pattern_ty),
+          ci,
+        ),
+      ]
+    | _ => []
+    };
+
 let typ_operand_generators = [
+  mk_analytic_ty_suggestions,
+  mk_pattern_ty_suggestions,
   mk_insert_lit_suggestions,
   mk_delete_suggestions,
 ];

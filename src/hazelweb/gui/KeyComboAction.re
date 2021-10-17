@@ -71,24 +71,14 @@ let get_assistant_action =
   | (Shift_Up, _) => Some(get_main_action_default(Up))
   | (Down, Some(_)) => Some(UpdateAssistant(Increment_selection_index))
   | (Up, Some(_)) => Some(UpdateAssistant(Decrement_selection_index))
-  | (Enter, Some(ReplaceOperand(Exp(operand, _)))) =>
-    Some(
-      AcceptSuggestion(
-        ReplaceOperand(Exp(operand, Some(ZExp.place_after))),
-      ),
-    )
-  | (Enter, Some(ReplaceOperand(Pat(operand, _)))) =>
-    Some(
-      AcceptSuggestion(
-        ReplaceOperand(Pat(operand, Some(ZPat.place_after))),
-      ),
-    )
-  | (Enter, Some(ReplaceOperand(Typ(operand, _)))) =>
-    Some(
-      AcceptSuggestion(
-        ReplaceOperand(Typ(operand, Some(ZTyp.place_after))),
-      ),
-    )
+  | (Enter, Some(ReplaceOperand(of_sort))) =>
+    let place_after: Action.replace_operand_of_sort =
+      switch (of_sort) {
+      | Exp(operand, _) => Exp(operand, Some(ZExp.place_after))
+      | Pat(operand, _) => Pat(operand, Some(ZPat.place_after))
+      | Typ(operand, _) => Typ(operand, Some(ZTyp.place_after))
+      };
+    Some(AcceptSuggestion(ReplaceOperand(place_after)));
   | (Enter, Some(action)) => Some(AcceptSuggestion(action))
   | (Tab, Some(action)) =>
     Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))
@@ -99,8 +89,7 @@ let get_model_action = (model: Model.t, kc: HazelKeyCombos.t): ModelAction.t => 
   let cursor_info = Model.get_cursor_info(model);
   let assistant_focussed =
     model.focal_editor == Model.MainProgram && model.assistant.active;
-  let assistant_action =
-    AssistantModel.get_action(model.assistant, cursor_info);
+  let assistant_action = AssistantModel.action(model.assistant, cursor_info);
   let (cursor_on_type, cursor_on_comment) =
     switch (cursor_info) {
     | {typed: OnType(_), _} => (true, false)

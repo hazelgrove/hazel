@@ -14,7 +14,7 @@ let mk_operand_suggestion =
     : Suggestion.t => {
   let action = Action.ReplaceOperand(Exp(operand, None));
   let report = SuggestionReportExp.mk_operand_report(action, operand, ci);
-  ReplaceOperand({operand, operand_strategy: strategy, report});
+  ReplaceExpOperand({operand, operand_strategy: strategy, report});
 };
 
 let mk_operand_suggestion_from_uhexp = (~strategy, ~uhexp, ci) =>

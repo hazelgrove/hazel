@@ -99,6 +99,7 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
     |> List.map(ty => mk_constructors(ty, ci))
     |> List.concat
   };
+
 let mk_insert_lit_suggestions: generator =
   ci => {
     print_endline("mk_insert_lit_suggestions");
@@ -116,6 +117,7 @@ let mk_insert_lit_suggestions: generator =
   };
 
 let mk_delete_suggestions: generator = ci => [mk_empty_hole_suggestion(ci)];
+
 let pat_operand_generators = [
   mk_insert_lit_suggestions,
   mk_delete_suggestions,

@@ -40,7 +40,7 @@ let code_view =
       let program = Model.get_program(model);
 
       let codebox =
-        UHCode.codebox_view(
+        UHCode.exp_view(
           ~settings,
           ~font_metrics,
           ~is_focused=main_editor_is_focused,

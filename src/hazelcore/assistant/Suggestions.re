@@ -5,7 +5,7 @@ type t = list(Suggestion.t);
 
 let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
   switch (s) {
-  | ReplaceOperand({report: {result_ty, _}, _}) =>
+  | ReplaceExpOperand({report: {result_ty, _}, _}) =>
     HTyp.consistent(expected_ty, result_ty)
   | ReplacePatOperand(_) => true // TODO
   | ReplaceTypOperand(_) => true
@@ -21,7 +21,7 @@ let collect_suggestions = (ci: CursorInfo.t): t =>
 
 let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
   switch (s) {
-  | ReplaceOperand({operand, _} as operand_suggestion) =>
+  | ReplaceExpOperand({operand, _} as operand_suggestion) =>
     let (operand, _, _) =
       Statics_Exp.syn_fix_holes_operand(
         ctx,
@@ -29,7 +29,7 @@ let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
         ~renumber_empty_holes=true,
         operand,
       );
-    ReplaceOperand({...operand_suggestion, operand});
+    ReplaceExpOperand({...operand_suggestion, operand});
   | ReplacePatOperand({operand, _} as operand_suggestion) =>
     let (operand, _, _, _) =
       Statics_Pat.syn_fix_holes_operand(
@@ -45,7 +45,7 @@ let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
 let suggestion_isnt_noop =
     (cursor_term: CursorInfo.cursor_term, s: Suggestion.t): bool => {
   switch (cursor_term, s) {
-  | (ExpOperand(_, op), ReplaceOperand({operand: op', _})) =>
+  | (ExpOperand(_, op), ReplaceExpOperand({operand: op', _})) =>
     !Assistant_common.equals_operand(op, op')
   | _ => true
   };
@@ -53,13 +53,21 @@ let suggestion_isnt_noop =
 
 let suggestion_result_equals = (s: Suggestion.t, s': Suggestion.t): bool =>
   switch (s, s') {
-  | (ReplaceOperand({operand: op, _}), ReplaceOperand({operand: op', _})) =>
+  | (
+      ReplaceExpOperand({operand: op, _}),
+      ReplaceExpOperand({operand: op', _}),
+    ) =>
     Assistant_common.equals_operand(op, op')
   | (
       ReplacePatOperand({operand: op, _}),
       ReplacePatOperand({operand: op', _}),
     ) =>
     Assistant_common.equals_pat_operand(op, op')
+  | (
+      ReplaceTypOperand({operand: op, _}),
+      ReplaceTypOperand({operand: op', _}),
+    ) =>
+    op == op'
   | _ => false
   };
 

@@ -114,8 +114,12 @@ let assistant_term_tag =
   /* Display operand instead of tag if it's atomic */
   switch (term) {
   | ExpOperand(_, operand) when UHExp.is_atomic_operand(operand) =>
-    let editor = operand |> UHExp.Block.wrap |> Editor.mk_exp_editor;
-    UHCode.codebox_view(~font_metrics, ~is_focused=false, ~settings, editor);
+    UHCode.view_syntax(
+      ~font_metrics,
+      ~is_focused=false,
+      ~settings,
+      Exp(UHExp.Block.wrap(operand)),
+    )
   | _ => [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])]
   };
 };

@@ -20,11 +20,13 @@ let label_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
 let label_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
   fun
   | Delete => "del"
-  | InsertLit => "lit";
+  | InsertLit => "lit"
+  | AnalyzedType => "ana"
+  | PatternType => "pat";
 
 let label_strategy: Suggestion.t => string =
   fun
-  | ReplaceOperand({operand_strategy, _}) =>
+  | ReplaceExpOperand({operand_strategy, _}) =>
     label_operand_strategy(operand_strategy)
   | ReplacePatOperand({pat_operand_strategy, _}) =>
     label_pat_operand_strategy(pat_operand_strategy)
@@ -50,11 +52,13 @@ let describe_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
 let describe_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
   fun
   | Delete => "Delete the current type"
-  | InsertLit => "Insert a type";
+  | InsertLit => "Insert a type"
+  | AnalyzedType => "Insert the analytic type"
+  | PatternType => "Insert the pattern type";
 
 let describe_strategy: Suggestion.t => string =
   fun
-  | ReplaceOperand({operand_strategy, _}) =>
+  | ReplaceExpOperand({operand_strategy, _}) =>
     describe_operand_strategy(operand_strategy)
   | ReplacePatOperand({pat_operand_strategy, _}) =>
     describe_pat_operand_strategy(pat_operand_strategy)
@@ -89,6 +93,18 @@ let describe_syntax_conserved: float => string =
   | x when x < 0.6 => "Syntax partially conserved"
   | x when x < 0.9 => "Syntax mostly conserved"
   | _ => "Existing syntax conserved";
+
+let describe_analysis_consistency: float => string =
+  fun
+  | 1.0 => "Consistent with analytic type"
+  | 1.5 => "Equal to analytic type"
+  | _ => "Not consistent with analytic type";
+
+let describe_pattern_consistency: float => string =
+  fun
+  | 1.0 => "Consistent with pattern type"
+  | 1.5 => "Equal to pattern type"
+  | _ => "Not consistent with pattern type";
 
 let sign_label: float => string =
   fun
@@ -130,7 +146,7 @@ let icon = (~score: option(float)=None, sort: TermSort.t): Node.t => {
 let strategy_view: Suggestion.t => Node.t =
   suggestion => {
     let label = label_strategy(suggestion);
-    let sort = suggestion |> Suggestion.get_sort |> TermSort.to_string;
+    let sort = suggestion |> Suggestion.sort_of |> TermSort.to_string;
     div([Attr.classes(["category", label, sort])], [text(label)]);
   };
 
@@ -159,17 +175,19 @@ let subscore_data_pat = (score: SuggestionReportPat.scores) => [
   (score.delta_errors, describe_delta_errors),
 ];
 
-let subscore_data_typ = (_: SuggestionReportTyp.scores) => [];
+let subscore_data_typ = (score: SuggestionReportTyp.scores) => [
+  (score.analysis_consistency, describe_analysis_consistency),
+  (score.pattern_consistency, describe_pattern_consistency),
+];
 
-let suggestion_info_view = (s: Suggestion.t): Node.t => {
-  let subscores =
-    switch (s) {
-    | ReplaceOperand({report: {scores, _}, _}) => subscore_data_exp(scores)
-    | ReplacePatOperand({report: {scores, _}, _}) =>
-      subscore_data_pat(scores)
-    | ReplaceTypOperand({report: {scores, _}, _}) =>
-      subscore_data_typ(scores)
-    };
+let subscorer: Suggestion.t => list((float, float => string)) =
+  fun
+  | ReplaceExpOperand({report: {scores, _}, _}) => subscore_data_exp(scores)
+  | ReplacePatOperand({report: {scores, _}, _}) => subscore_data_pat(scores)
+  | ReplaceTypOperand({report: {scores, _}, _}) =>
+    subscore_data_typ(scores);
+
+let suggestion_info_view = (s: Suggestion.t): Node.t =>
   div(
     [Attr.class_("suggestion-info")],
     [
@@ -179,9 +197,8 @@ let suggestion_info_view = (s: Suggestion.t): Node.t => {
         [text(describe_strategy(s))],
       ),
     ]
-    @ List.concat(List.map(subscore_view, subscores)),
+    @ List.concat(List.map(subscore_view, subscorer(s))),
   );
-};
 
 /* Draws the matching characters overtop of suggestions */
 let overlay_view =
@@ -216,48 +233,31 @@ let overlay_view =
 let result_view =
     (
       ~suggestion: Suggestion.t,
+      ~search_string: string,
+      ~ci: CursorInfo.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
     )
-    : list(Node.t) =>
-  switch (suggestion) {
-  | ReplaceOperand({operand, _}) =>
-    UHCode.codebox_view(
-      ~is_focused=false,
-      ~settings,
-      ~font_metrics,
-      Editor.mk_exp_editor(UHExp.Block.wrap(operand)),
-    )
-  | ReplacePatOperand({operand, _}) =>
-    UHCode.patbox_view(
-      ~is_focused=false,
-      ~settings,
-      ~font_metrics,
-      Editor.mk_pat_editor(OpSeq.wrap(operand)),
-    )
-  | ReplaceTypOperand({operand, _}) =>
-    UHCode.typebox_view(
-      ~is_focused=false,
-      ~settings,
-      ~font_metrics,
-      Editor.mk_typ_editor(OpSeq.wrap(operand)),
-    )
-  };
+    : Node.t => {
+  let syntax = Suggestion.show_syntax(suggestion);
+  let result_view =
+    UHCode.view_syntax(~is_focused=false, ~settings, ~font_metrics, syntax);
+  let show_text = Suggestion.show_text(suggestion);
+  let overlay_view = overlay_view(ci, search_string, show_text);
+  div(
+    [Attr.class_("code-container")],
+    [div([Attr.class_("code")], [overlay_view] @ result_view)],
+  );
+};
 
 let result_ty_view: Suggestion.t => list(Node.t) =
   fun
-  | ReplaceOperand({report: {result_ty, _}, _})
+  | ReplaceExpOperand({report: {result_ty, _}, _})
   | ReplacePatOperand({report: {result_ty, _}, _}) => [
       div([Attr.class_("type-ann")], [text(":")]),
       div([Attr.class_("type")], [HTypCode.view(result_ty)]),
     ]
   | ReplaceTypOperand(_) => [];
-
-let show_text: Suggestion.t => string =
-  fun
-  | ReplaceOperand({report: {show_text, _}, _}) => show_text
-  | ReplacePatOperand({report: {show_text, _}, _}) => show_text
-  | ReplaceTypOperand({report: {show_text, _}, _}) => show_text;
 
 let suggestion_view =
     (
@@ -272,16 +272,12 @@ let suggestion_view =
       ~inject: ModelAction.t => Event.t,
     )
     : Node.t => {
-  let result_view = result_view(~suggestion, ~settings, ~font_metrics);
-  let overlay_view = overlay_view(ci, search_string, show_text(suggestion));
   let perform_action = _ =>
     Event.Many([
       Event.Prevent_default,
       Event.Stop_propagation,
       inject(FocusCell(MainProgram)), // prevent main editor from losing focus
-      inject(
-        ModelAction.AcceptSuggestion(Suggestion.get_action(suggestion)),
-      ),
+      inject(ModelAction.AcceptSuggestion(Suggestion.action(suggestion))),
     ]);
   let set_hover_index = (idx: option(int)) =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(idx)));
@@ -301,12 +297,7 @@ let suggestion_view =
       Attr.on_mouseenter(_ => set_hover_index(Some(index))),
       Attr.on_mouseleave(_ => set_hover_index(None)),
     ],
-    [
-      div(
-        [Attr.class_("code-container")],
-        [div([Attr.class_("code")], [overlay_view] @ result_view)],
-      ),
-    ]
+    [result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics)]
     @ result_ty_view(suggestion)
     @ [strategy_view(suggestion)],
   );
