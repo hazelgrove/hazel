@@ -1,0 +1,10 @@
+(library
+ (name grain_utils)
+ (public_name grain_utils)
+ (synopsis "Utilities for the Grain compiler")
+ (libraries fp fs.lib cmdliner compiler-libs.common ppx_sexp_conv.runtime-lib
+   sexplib str)
+ ;Temporarily disabled due to https://github.com/janestreet/ppx_inline_test/issues/23
+ ;(inline_tests)
+ (preprocess
+  (pps ppx_sexp_conv)))

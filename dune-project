@@ -1,2 +1,150 @@
-(lang dune 2.0.0)
+(lang dune 2.3)
 (using menhir 2.0)
+
+(package
+  (name grain)
+  (synopsis "The core Grain language compiler library")
+  (depends
+    (reason (>= 3.6.0))
+    (conf-openssl (>= 2))
+    (dune-build-info (>= 2.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (cmdliner (>= 1.0.2))
+    (grain_utils (>= 0))
+    (grain_parsing (>= 0))
+    (grain_typed (>= 0))
+    (grain_middle_end (>= 0))
+    (grain_diagnostics (>= 0))
+    (grain_codegen (>= 0))))
+
+(package
+  (name grainc)
+  (synopsis "The core Grain language compiler CLI")
+  (depends
+    (reason (>= 3.6.0))
+    (js_of_ocaml-compiler (>= 3.6.0))
+    (dune-build-info (>= 2.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (binaryen (= 0.9.1))
+    (cmdliner (>= 1.0.2))
+    (grain (>= 0))))
+
+(package
+  (name graindoc)
+  (synopsis "Grain documentation generator")
+  (depends
+    (reason (>= 3.6.0))
+    (dune-build-info (>= 2.0))
+    (binaryen (= 0.9.1))
+    (cmdliner (>= 1.0.2))
+    (grain (>= 0))))
+
+(package
+  (name grainformat)
+  (synopsis "Grain formatter")
+  (depends
+    (reason (>= 3.6.0))
+    (dune-build-info (>= 2.0))
+    (binaryen (= 0.9.1))
+    (cmdliner (>= 1.0.2))
+    (grain (>= 0))))
+
+(package
+  (name grain_linking)
+  (synopsis "The Grain linker")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (binaryen (= 0.9.1))
+    (ocamlgraph (>= 2.0.0))
+    (grain_utils (>= 0))
+    (grain_codegen (>= 0))))
+
+(package
+  (name grain_codegen)
+  (synopsis "Grain WebAssembly code generation")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (cmdliner (>= 1.0.2))
+    (binaryen (= 0.9.1))
+    (grain_utils (>= 0))
+    (grain_middle_end (>= 0))))
+
+(package
+  (name grain_middle_end)
+  (synopsis "Grain itermediate representations")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (cmdliner (>= 1.0.2))
+    (grain_utils (>= 0))
+    (grain_parsing (>= 0))
+    (grain_typed (>= 0))))
+
+(package
+  (name grain_parsing)
+  (synopsis "The Grain parser")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (cmdliner (>= 1.0.2))
+    (utf8 (>= 0.0.0))
+    (ppx_deriving_yojson (>= 3.5.2))
+    (yojson (>= 1.7.0))
+    (grain_utils (>= 0))))
+
+(package
+  (name grain_typed)
+  (synopsis "The Grain typechecker")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (ocamlgraph (>= 2.0.0))
+    (cmdliner (>= 1.0.2))
+    (ppx_deriving_yojson (>= 3.5.2))
+    (yojson (>= 1.7.0))
+    (grain_utils (>= 0))
+    (grain_parsing (>= 0))))
+
+(package
+  (name grain_utils)
+  (synopsis "Various Grain utilities")
+  (depends
+    (reason (>= 3.6.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (fp (>= 0.0.0))
+    (fs (>= 0.0.0))
+    (cmdliner (>= 1.0.2))))
+
+(package
+ (name grain_diagnostics)
+ (synopsis "Diagnostics support")
+ (depends
+  (reason (>= 3.6.0))
+  (ppx_deriving_yojson (>= 3.5.2))
+  (yojson (>= 1.7.0))
+  (grain_utils (>= 0))
+  (grain_parsing (>= 0))))
+
+(package
+  (name grain-tests)
+  (synopsis "Tests")
+  (depends
+    (reason (>= 3.6.0))
+    (rely (>= 3.2.1))))
