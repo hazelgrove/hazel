@@ -31,7 +31,7 @@ type typed =
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
-  | Analyzed(HTyp.t)
+  | Analyzed(HTyp.t, option(HTyp.t))
   // none of the above and went through subsumption
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */

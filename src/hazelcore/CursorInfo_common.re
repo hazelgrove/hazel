@@ -134,8 +134,9 @@ let rec get_types_and_mode = (typed: typed) => {
   | AnaWrongLength(_, _, expected)
   | AnaFree(expected)
   | AnaInvalid(expected)
-  | AnaKeyword(expected, _)
-  | Analyzed(expected) => (Some(expected), None, Analytic)
+  | AnaKeyword(expected, _) => (Some(expected), None, Analytic)
+
+  | Analyzed(expected, actual) => (Some(expected), actual, Analytic)
 
   | SynErrorArrow(_expected, actual)
   | SynMatchingArrow(_expected, actual) => (
@@ -179,6 +180,7 @@ let rec get_types_and_mode = (typed: typed) => {
 
   | SynInconsistentBranches(_)
   | SynInconsistentBranchesArrow(_) => (None, None, Synthetic)
+
   | OnType
   | OnNonLetLine
   | OnRule => (None, None, Neither)

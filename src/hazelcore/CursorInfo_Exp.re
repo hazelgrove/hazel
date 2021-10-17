@@ -851,7 +851,7 @@ and ana_cursor_info_zblock =
           | Some () =>
             Some(
               CursorInfo_common.mk(
-                Analyzed(ty),
+                Analyzed(ty, None),
                 ctx,
                 extract_from_zline(zline),
               ),
@@ -914,7 +914,7 @@ and ana_cursor_info_zopseq =
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
     switch (err) {
-    | NotInHole => Some(mk(Analyzed(ty)))
+    | NotInHole => Some(mk(Analyzed(ty, None)))
     | InHole(WrongLength, _) =>
       let expected_length = ty |> HTyp.get_prod_elements |> List.length;
       let got_length = skel |> UHExp.get_tuple_elements |> List.length;
@@ -1014,7 +1014,7 @@ and ana_cursor_info_skel =
       switch (err) {
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
-        |> Option.map(_ => mk(Analyzed(ty)))
+        |> Option.map(_ => mk(Analyzed(ty, None)))
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
@@ -1149,16 +1149,15 @@ and ana_cursor_info_zoperand =
       }
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _) =>
-      // TODO(andrew): i made this ana_subsumed so cursor_info returned
-      // an actual_type for injs in analytic pos. probably not the right approach...
-      switch (Statics_Exp.syn_operand(ctx, e)) {
-      | None => Some(mk(Analyzed(ty)))
-      | Some(ty') => Some(mk(AnaSubsumed(ty, ty')))
-      }
-    | Case(StandardErrStatus(NotInHole), _, _) => Some(mk(Analyzed(ty)))
+      // TODO(andrew): added actual_ty to Analyzed
+      // for assistant (bad idea?)
+      Some(mk(Analyzed(ty, Statics_Exp.syn_operand(ctx, e))))
+    | Case(StandardErrStatus(NotInHole), _, _) =>
+      Some(mk(Analyzed(ty, Statics_Exp.syn_operand(ctx, e))))
     | Parenthesized(body) =>
-      Statics_Exp.ana(ctx, body, ty) |> Option.map(_ => mk(Analyzed(ty)))
-
+      // TODO(andrew): similar to above
+      Statics_Exp.ana(ctx, body, ty)
+      |> Option.map(_ => mk(Analyzed(ty, Statics_Exp.syn(ctx, body))))
     | Lam(NotInHole, p, body) =>
       let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
       let+ ty_body = Statics_Exp.syn(body_ctx, body);

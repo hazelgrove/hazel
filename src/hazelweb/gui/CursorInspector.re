@@ -135,7 +135,7 @@ let advanced_summary =
       : [TermTag.term_tag_view(tag_typ, ~show_tooltip=true, [])];
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
-    | Analyzed(ty)
+    | Analyzed(ty, _)
     | PatAnalyzed(ty) => [ana, HTypCode.view(ty)]
     | SynMatchingArrow(_, ty) => [syn, HTypCode.view(ty)]
     | Synthesized(ty)
@@ -264,7 +264,7 @@ let novice_summary =
   let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
-    | Analyzed(ty)
+    | Analyzed(ty, _)
     | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
