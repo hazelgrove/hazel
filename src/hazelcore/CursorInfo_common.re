@@ -181,7 +181,7 @@ let rec get_types_and_mode = (typed: typed) => {
   | SynInconsistentBranches(_)
   | SynInconsistentBranchesArrow(_) => (None, None, Synthetic)
 
-  | OnType
+  | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, Neither)
   };

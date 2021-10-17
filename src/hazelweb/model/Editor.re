@@ -74,7 +74,11 @@ module EditState_Typ = {
   let of_z = CursorPath_Typ.of_z;
   let mk_doc = UHDoc_Typ.mk;
   let holes = CursorPath_Typ.holes;
-  let cursor_info = CursorInfo_Typ.cursor_info(~steps=[]);
+  let cursor_info =
+    CursorInfo_Typ.cursor_info(
+      ~steps=[],
+      ~annotation_types={analyzed_ty: Hole, pattern_ty: Hole, ann_ty: Hole},
+    );
   let of_steps = CursorPath_Typ.of_steps(~side=Before);
 
   let perform_edit_action = (a, edit_state: t): t => {

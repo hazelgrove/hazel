@@ -43,5 +43,17 @@ and get_zoperand_from_ztyp_operand =
 };
 
 let cursor_info =
-    (~steps as _=[], ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
-  Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));
+    (
+      ~steps as _=[],
+      ~annotation_types: CursorInfo.annotation_types,
+      ctx: Contexts.t,
+      typ: ZTyp.t,
+    )
+    : option(CursorInfo.t) =>
+  Some(
+    CursorInfo_common.mk(
+      OnType(annotation_types),
+      ctx,
+      extract_cursor_term(typ),
+    ),
+  );

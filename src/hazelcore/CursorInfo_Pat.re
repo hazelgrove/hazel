@@ -257,10 +257,22 @@ and syn_cursor_info_zoperand =
       zop,
       UHTyp.expand(ty),
     )
-  | TypeAnnZA(_, _, zann) =>
+  | TypeAnnZA(_, operand, zann) =>
+    let annotation_types: CursorInfo.annotation_types = {
+      analyzed_ty: Hole,
+      pattern_ty:
+        Statics_Pat.syn_operand(ctx, operand)
+        |> Option.map(fst)
+        |> HTyp.relax,
+      ann_ty: zann |> ZTyp.erase |> UHTyp.expand,
+    };
     zann
-    |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
-    |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
+    |> CursorInfo_Typ.cursor_info(
+         ~annotation_types,
+         ~steps=steps @ [1],
+         ctx,
+       )
+    |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x));
   };
 }
 and ana_cursor_info =
@@ -582,15 +594,28 @@ and ana_cursor_info_zoperand =
         ty_ann,
       );
     }
-  | TypeAnnZA(err, _, zann) =>
+  | TypeAnnZA(err, operand, zann) =>
+    let annotation_types: CursorInfo.annotation_types = {
+      analyzed_ty: ty,
+      pattern_ty:
+        Statics_Pat.syn_operand(ctx, operand)
+        |> Option.map(fst)
+        |> HTyp.relax,
+      ann_ty: zann |> ZTyp.erase |> UHTyp.expand,
+    };
+
     switch (err) {
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>
       syn_cursor_info_zoperand(~pattern_context, ~steps, ctx, zoperand)
     | NotInHole =>
       zann
-      |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
+      |> CursorInfo_Typ.cursor_info(
+           ~annotation_types,
+           ~steps=steps @ [1],
+           ctx,
+         )
       |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
-    }
+    };
   };
 };

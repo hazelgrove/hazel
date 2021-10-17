@@ -8,6 +8,13 @@ type join_of_branches =
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
+type annotation_types = {
+  analyzed_ty: HTyp.t,
+  pattern_ty: HTyp.t,
+  ann_ty: HTyp.t,
+};
+
+[@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -106,7 +113,7 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
-  | OnType
+  | OnType(annotation_types)
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;

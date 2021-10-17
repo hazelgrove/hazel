@@ -242,7 +242,7 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
+    | OnType(_) => []
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
@@ -423,7 +423,7 @@ let novice_summary =
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
+    | OnType(_) => [Node.text("Got " ++ article), term_tag]
     | OnNonLetLine => /* TODO */ [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
@@ -661,7 +661,7 @@ let view =
     | AnaSubsumed(_)
     | Synthesized(_)
     | SynMatchingArrow(_)
-    | OnType
+    | OnType(_)
     | PatAnalyzed(_)
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
