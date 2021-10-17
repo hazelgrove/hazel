@@ -83,7 +83,7 @@ let contract = (ty: HTyp.t): t => {
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       };
-    if (parenthesize) {
+    if (parenthesize && !HTyp.is_atomic(ty)) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
     } else {
       seq;

@@ -248,7 +248,8 @@ let result_ty_view: Suggestion.t => list(Node.t) =
   fun
   | ReplaceOperand({report: {result_ty, _}, _})
   | ReplacePatOperand({report: {result_ty, _}, _}) => [
-      HTypCode.view(result_ty),
+      div([Attr.class_("type-ann")], [text(":")]),
+      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
     ]
   | ReplaceTypOperand(_) => [];
 
@@ -305,10 +306,9 @@ let suggestion_view =
         [Attr.class_("code-container")],
         [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
-      div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], result_ty_view(suggestion)),
-      strategy_view(suggestion),
-    ],
+    ]
+    @ result_ty_view(suggestion)
+    @ [strategy_view(suggestion)],
   );
 };
 

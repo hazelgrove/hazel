@@ -47,5 +47,6 @@ let join_all: (join, list(t)) => option(t);
 let compare: (t, t) => order;
 let relax: option(t) => t;
 let is_sumlike: t => bool;
+let is_atomic: t => bool;
 
 let to_string: t => string;

@@ -227,6 +227,17 @@ let is_sumlike: t => bool =
   | Arrow(_)
   | Prod(_) => false;
 
+let is_atomic: t => bool =
+  fun
+  | Hole
+  | Int
+  | Float
+  | Bool => true
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | List(_) => false;
+
 let rec to_string: t => string =
   fun
   | Hole => " "

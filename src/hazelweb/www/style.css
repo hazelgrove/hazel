@@ -34,6 +34,12 @@
   --pat-accent-darker-3: #5ad;
   --pat-accent-darkest: #366;
 
+  --typ-accent-lightest: #fef;
+  --typ-accent-darker-1: #c9c;
+  --typ-accent-darker-2: #959;
+  --typ-accent-darker-3: #939;
+  --typ-accent-darkest: #505;
+
   /* ROOT MISC */
 
   --exp-bg-color: var(--exp-accent);
@@ -124,6 +130,7 @@
 
   --suggestion-exp-overlay-text: var(--exp-accent);
   --suggestion-pat-overlay-text: var(--pat-accent);
+  --suggestion-typ-overlay-text: var(--typ-accent);
 
   --suggestion-exp-selected-overlay-text: #08f;
  
@@ -148,6 +155,15 @@
   --suggestion-pat-selected-hole-shadow: var(--pat-accent-darker-2);
   --suggestion-pat-selected-type-text: var(--pat-accent-darker-3);
   --suggestion-pat-selected-category-background: var(--pat-accent-lightest);
+
+  --suggestion-typ-selected-text: black;
+  --suggestion-typ-selected-top: white;
+  --suggestion-typ-selected-category-text: var(--typ-accent-darker-3);
+  --suggestion-typ-selected-background: var(--typ-accent);
+  --suggestion-typ-selected-bottom: var(--typ-accent-darkest);
+  --suggestion-typ-selected-hole-text: var(--typ-accent-darker-2);
+  --suggestion-typ-selected-hole-shadow: var(--typ-accent-darker-2);
+  --suggestion-typ-selected-category-background: var(--typ-accent-lightest);
 
   
   /* ASSISTANT suggestion info popup */
@@ -967,6 +983,13 @@ body {
   border-top-color: var(--suggestion-pat-selected-top);
 }
 
+#assistant.typ > .choice.hovered  {
+  background-color: var(--suggestion-typ-selected-background);
+  color: var(--suggestion-typ-selected-text);
+  border-bottom-color: var(--suggestion-typ-selected-bottom);
+  border-top-color: var(--suggestion-typ-selected-top);
+}
+
 #assistant .errors-more   {
   color: var(--suggestion-more-errors-text);
   background-color: var(--suggestion-more-errors-background);
@@ -999,6 +1022,10 @@ body {
 
 #assistant.pat > .choice > .code-container .overlay .overlay-text {
   color: var(--suggestion-pat-overlay-text);
+}
+
+#assistant.typ > .choice > .code-container .overlay .overlay-text {
+  color: var(--suggestion-typ-overlay-text);
 }
 
 #assistant > .choice.hovered > .code-container .overlay .overlay-text {
@@ -1037,6 +1064,11 @@ body {
   background-color: var(--suggestion-pat-selected-category-background);
 }
 
+#assistant.typ > .choice.hovered > .category  {
+  color: var(--suggestion-typ-selected-category-text);
+  background-color: var(--suggestion-typ-selected-category-background);
+}
+
 #assistant > .choice > .code-container {
   min-height: 2.25em;
   padding-left: 0.4em;
@@ -1063,8 +1095,13 @@ body {
 #assistant.pat > .choice.hovered .code .HoleLabel  {
   background-color: var(--suggestion-pat-selected-category-background);
   color: var(--suggestion-pat-selected-hole-text);
-  border-radius: 4px;
   box-shadow: inset 1px 1px 0 var(--suggestion-pat-selected-hole-shadow);
+}
+
+#assistant.typ > .choice.hovered .code .HoleLabel  {
+  background-color: var(--suggestion-typ-selected-category-background);
+  color: var(--suggestion-typ-selected-hole-text);
+  box-shadow: inset 1px 1px 0 var(--suggestion-typ-selected-hole-shadow);
 }
 
 #assistant > .choice > .type {
@@ -1328,16 +1365,20 @@ body {
   color: var(--suggestion-pat-selected-category-text);
 }
 
+#assistant-wrapper.typ .suggestion-info .category {
+  color: var(--suggestion-typ-selected-category-text);
+}
+
 #assistant-wrapper.exp .suggestion-info .category.exp {
   background-color: var(--suggestion-exp-selected-category-background);
 }
 
-#assistant-wrapper.pat .suggestion-info .category.exp {
+#assistant-wrapper.pat .suggestion-info .category.pat {
   background-color: var(--suggestion-pat-selected-category-background);
 }
 
-#assistant-wrapper .suggestion-info .category.pat {
-  background-color: var(--pat-accent);
+#assistant-wrapper.typ .suggestion-info .category.typ {
+  background-color: var(--suggestion-typ-selected-category-background);
 }
 
 #assistant-wrapper .suggestion-info .suggestion-description {
