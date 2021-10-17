@@ -124,27 +124,38 @@ let sign_symbol: float => string =
   | n when n > 0. => "+"
   | _ => "";
 
-let icon = (~score: option(float)=None, sort: TermSort.t): Node.t => {
+let icon =
+    (~score: option(float)=None, ~num_suggestions: int=0, sort: TermSort.t)
+    : Node.t => {
+  let blank_guy = "0001";
+  let cool_guy = "0031";
+  let eager_guy = "0024";
+  let tense_guy = "0034";
+  let baffled_guy = "0011";
+  let neutral_guy: TermSort.t => string =
+    fun
+    | Exp => "0000"
+    | Pat => "0032"
+    | Typ => "0042";
+  let emotive_guy: (TermSort.t, float) => string =
+    (sort, score) =>
+      switch (score) {
+      | _ when score > 2. => cool_guy
+      | _ when score > 0.5 => eager_guy
+      | _ when score > (-0.5) => neutral_guy(sort)
+      | _ when score > (-2.0) => tense_guy
+      | _ => baffled_guy
+      };
   let guy =
-    switch (sort, score) {
-    | (Pat, _) => "0000-pat"
-    | (Typ, _) => "0000-typ"
-    | (Exp, None) => "0000-exp"
-    | (Exp, Some(x)) =>
-      let pre =
-        switch (x) {
-        | _ when x > 2. => "0031"
-        | _ when x > 0.5 => "0024"
-        | _ when x > (-0.5) => "0000"
-        | _ when x > (-2.0) => "0034"
-        | _ => "0007"
-        };
-      pre ++ "-exp";
+    switch (sort, num_suggestions, score) {
+    | (_, 0, _) => blank_guy
+    | (_, _, None) => neutral_guy(sort)
+    | (_, _, Some(score)) => emotive_guy(sort, score)
     };
-  let path = "imgs/assistant/boost-" ++ guy ++ ".png";
-  let sort = TermSort.to_string(sort);
+  let sort_str = TermSort.to_string(sort);
+  let path = "imgs/assistant/boost-" ++ guy ++ "-" ++ sort_str ++ ".png";
   div(
-    [Attr.classes(["clickable-help-icon", sort])],
+    [Attr.classes(["clickable-help-icon", sort_str])],
     [create("img", [Attr.create("src", path)], [])],
   );
 };

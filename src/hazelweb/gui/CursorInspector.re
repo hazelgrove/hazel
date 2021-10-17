@@ -523,12 +523,13 @@ let summary_bar =
       ~inject,
     );
   let score = AssistantModel.get_indicated_score(assistant, ci);
+  let num_suggestions = AssistantModel.num_suggestions(ci, assistant);
   let body =
     switch (assistant_enabled, show_expansion_arrow, show_strategy_guide_icon) {
     | (true, _, _) => [
         summary,
         fill_space,
-        AssistantView.icon(tag_type, ~score),
+        AssistantView.icon(~score, ~num_suggestions, tag_type),
         control,
       ]
     | (_, true, true) => [summary, fill_space, arrow, fill_icon, control]
@@ -536,9 +537,7 @@ let summary_bar =
     | (_, false, true) => [summary, fill_space, fill_icon, control]
     | (_, false, false) => [summary, control]
     };
-  let assistant_classes =
-    AssistantModel.num_suggestions(ci, assistant) == 0
-      ? ["no-suggestions"] : [];
+  let assistant_classes = num_suggestions == 0 ? ["no-suggestions"] : [];
   Node.div(
     [
       Attr.create("title", "Click to toggle form of message"),
