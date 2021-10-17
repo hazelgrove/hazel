@@ -7,13 +7,15 @@ let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
   switch (s) {
   | ReplaceOperand({report: {result_ty, _}, _}) =>
     HTyp.consistent(expected_ty, result_ty)
-  | ReplacePatOperand(_) => true
+  | ReplacePatOperand(_) => true // TODO
+  | ReplaceTypOperand(_) => true
   };
 
 let collect_suggestions = (ci: CursorInfo.t): t =>
   switch (ci.cursor_term) {
   | ExpOperand(_) => SuggestionsExp.mk(ci)
   | PatOperand(_) => SuggestionsPat.mk(ci)
+  | TypOperand(_) => SuggestionsTyp.mk(ci)
   | _ => []
   };
 
@@ -37,6 +39,7 @@ let renumber_suggestion_holes = (ctx, u_gen, s: Suggestion.t): Suggestion.t =>
         operand,
       );
     ReplacePatOperand({...operand_suggestion, operand});
+  | ReplaceTypOperand(_) => s
   };
 
 let suggestion_isnt_noop =

@@ -38,6 +38,14 @@ let patbox_view:
     Editor.pat
   ) =>
   list(Vdom.Node.t);
+let typebox_view:
+  (
+    ~settings: Settings.t,
+    ~font_metrics: FontMetrics.t,
+    ~is_focused: bool,
+    Editor.typ
+  ) =>
+  list(Vdom.Node.t);
 let typebox:
   (
     ~inject: ModelAction.t => Ui_event.t,

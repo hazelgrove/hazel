@@ -115,12 +115,13 @@ and perform_opseq =
       ) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(_) |
       ReplaceOpSeq(_),
       _,
     )
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+  | (ReplaceOperand(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -235,11 +236,19 @@ and perform_operand =
       ) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(_) |
+      ReplaceOperand(Pat(_) | Exp(_)) |
       ReplaceOpSeq(_),
       _,
     ) =>
     Failed
+
+  | (ReplaceOperand(Typ(new_operand, z_proj)), CursorT(_)) =>
+    let fz_proj =
+      switch (z_proj) {
+      | None => ZTyp.place_before
+      | Some(fz_proj) => fz_proj
+      };
+    Succeeded(fz_proj(OpSeq.wrap(new_operand)));
 
   /* Invalid cursor positions */
   | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed

@@ -17,12 +17,19 @@ let label_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
   | Delete => "del"
   | InsertLit => "lit";
 
+let label_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
+  fun
+  | Delete => "del"
+  | InsertLit => "lit";
+
 let label_strategy: Suggestion.t => string =
   fun
   | ReplaceOperand({operand_strategy, _}) =>
     label_operand_strategy(operand_strategy)
   | ReplacePatOperand({pat_operand_strategy, _}) =>
-    label_pat_operand_strategy(pat_operand_strategy);
+    label_pat_operand_strategy(pat_operand_strategy)
+  | ReplaceTypOperand({typ_operand_strategy, _}) =>
+    label_typ_operand_strategy(typ_operand_strategy);
 
 let describe_operand_strategy: Suggestion.operand_strategy => string =
   fun
@@ -40,12 +47,19 @@ let describe_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
   | Delete => "Delete the current pattern"
   | InsertLit => "Insert a literal";
 
+let describe_typ_operand_strategy: Suggestion.typ_operand_strategy => string =
+  fun
+  | Delete => "Delete the current type"
+  | InsertLit => "Insert a type";
+
 let describe_strategy: Suggestion.t => string =
   fun
   | ReplaceOperand({operand_strategy, _}) =>
     describe_operand_strategy(operand_strategy)
   | ReplacePatOperand({pat_operand_strategy, _}) =>
-    describe_pat_operand_strategy(pat_operand_strategy);
+    describe_pat_operand_strategy(pat_operand_strategy)
+  | ReplaceTypOperand({typ_operand_strategy, _}) =>
+    describe_typ_operand_strategy(typ_operand_strategy);
 
 let describe_delta_errors: float => string =
   fun
@@ -145,12 +159,16 @@ let subscore_data_pat = (score: SuggestionReportPat.scores) => [
   (score.delta_errors, describe_delta_errors),
 ];
 
+let subscore_data_typ = (_: SuggestionReportTyp.scores) => [];
+
 let suggestion_info_view = (s: Suggestion.t): Node.t => {
   let subscores =
     switch (s) {
     | ReplaceOperand({report: {scores, _}, _}) => subscore_data_exp(scores)
     | ReplacePatOperand({report: {scores, _}, _}) =>
       subscore_data_pat(scores)
+    | ReplaceTypOperand({report: {scores, _}, _}) =>
+      subscore_data_typ(scores)
     };
   div(
     [Attr.class_("suggestion-info")],
@@ -217,13 +235,32 @@ let result_view =
       ~font_metrics,
       Editor.mk_pat_editor(OpSeq.wrap(operand)),
     )
+  | ReplaceTypOperand({operand, _}) =>
+    UHCode.typebox_view(
+      ~is_focused=false,
+      ~settings,
+      ~font_metrics,
+      Editor.mk_typ_editor(OpSeq.wrap(operand)),
+    )
   };
 
-let suggestion_view_operand =
+let result_ty_view: Suggestion.t => list(Node.t) =
+  fun
+  | ReplaceOperand({report: {result_ty, _}, _})
+  | ReplacePatOperand({report: {result_ty, _}, _}) => [
+      HTypCode.view(result_ty),
+    ]
+  | ReplaceTypOperand(_) => [];
+
+let show_text: Suggestion.t => string =
+  fun
+  | ReplaceOperand({report: {show_text, _}, _}) => show_text
+  | ReplacePatOperand({report: {show_text, _}, _}) => show_text
+  | ReplaceTypOperand({report: {show_text, _}, _}) => show_text;
+
+let suggestion_view =
     (
       ~suggestion: Suggestion.t,
-      ~show_text: string,
-      ~result_ty: HTyp.t,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
@@ -235,7 +272,7 @@ let suggestion_view_operand =
     )
     : Node.t => {
   let result_view = result_view(~suggestion, ~settings, ~font_metrics);
-  let overlay_view = overlay_view(ci, search_string, show_text);
+  let overlay_view = overlay_view(ci, search_string, show_text(suggestion));
   let perform_action = _ =>
     Event.Many([
       Event.Prevent_default,
@@ -269,55 +306,11 @@ let suggestion_view_operand =
         [div([Attr.class_("code")], [overlay_view] @ result_view)],
       ),
       div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
+      div([Attr.class_("type")], result_ty_view(suggestion)),
       strategy_view(suggestion),
     ],
   );
 };
-
-let suggestion_view =
-    (
-      ~suggestion: Suggestion.t,
-      ~index: int,
-      ~is_hovered: bool,
-      ~is_selected: bool,
-      ~search_string: string,
-      ~ci: CursorInfo.t,
-      ~settings: Settings.t,
-      ~font_metrics: FontMetrics.t,
-      ~inject: ModelAction.t => Event.t,
-    )
-    : Node.t =>
-  switch (suggestion) {
-  | ReplaceOperand({report: {result_ty, show_text, _}, _}) =>
-    suggestion_view_operand(
-      ~suggestion,
-      ~result_ty,
-      ~show_text,
-      ~index,
-      ~is_hovered,
-      ~is_selected,
-      ~search_string,
-      ~ci,
-      ~settings,
-      ~font_metrics,
-      ~inject,
-    )
-  | ReplacePatOperand({report: {result_ty, show_text, _}, _}) =>
-    suggestion_view_operand(
-      ~suggestion,
-      ~result_ty,
-      ~show_text,
-      ~index,
-      ~is_hovered,
-      ~is_selected,
-      ~search_string,
-      ~ci,
-      ~settings,
-      ~font_metrics,
-      ~inject,
-    )
-  };
 
 let suggestions_view =
     (

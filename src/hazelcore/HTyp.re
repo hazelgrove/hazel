@@ -226,3 +226,14 @@ let is_sumlike: t => bool =
   | List(_) => true
   | Arrow(_)
   | Prod(_) => false;
+
+let rec to_string: t => string =
+  fun
+  | Hole => " "
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | Arrow(t, t') => "(" ++ to_string(t) ++ "->" ++ to_string(t') ++ ")"
+  | Sum(t, t') => "(" ++ to_string(t) ++ "|" ++ to_string(t') ++ ")"
+  | Prod(ts) => "(" ++ String.concat(",", List.map(to_string, ts)) ++ ")"
+  | List(t) => "[" ++ to_string(t) ++ "]";

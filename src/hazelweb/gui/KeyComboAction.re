@@ -83,6 +83,12 @@ let get_assistant_action =
         ReplaceOperand(Pat(operand, Some(ZPat.place_after))),
       ),
     )
+  | (Enter, Some(ReplaceOperand(Typ(operand, _)))) =>
+    Some(
+      AcceptSuggestion(
+        ReplaceOperand(Typ(operand, Some(ZTyp.place_after))),
+      ),
+    )
   | (Enter, Some(action)) => Some(AcceptSuggestion(action))
   | (Tab, Some(action)) =>
     Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))

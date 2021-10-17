@@ -639,7 +639,7 @@ and syn_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(Exp(_)) |
+      ReplaceOperand(Exp(_) | Typ(_)) |
       ReplaceOpSeq(_),
       CursorP(_),
     ) =>
@@ -1159,7 +1159,7 @@ and ana_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown |
-      ReplaceOperand(Exp(_)) |
+      ReplaceOperand(Exp(_) | Typ(_)) |
       ReplaceOpSeq(_),
       CursorP(_),
     ) =>

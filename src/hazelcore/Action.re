@@ -36,7 +36,8 @@ type shape =
 [@deriving sexp]
 type replace_operand_of_sort =
   | Exp(UHExp.operand, option(UHExp.t => ZExp.t))
-  | Pat(UHPat.operand, option(UHPat.t => ZPat.t));
+  | Pat(UHPat.operand, option(UHPat.t => ZPat.t))
+  | Typ(UHTyp.operand, option(UHTyp.t => ZTyp.t));
 
 [@deriving sexp]
 type t =

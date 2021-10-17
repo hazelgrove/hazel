@@ -1441,7 +1441,7 @@ and syn_perform_operand =
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_)), CursorE(_)) =>
+  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_) | Typ(_)), CursorE(_)) =>
     // ReplaceOpSeq handled at opseq level
     Failed
 
@@ -2888,7 +2888,7 @@ and ana_perform_operand =
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
 
-  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_)), CursorE(_)) =>
+  | (ReplaceOpSeq(_) | ReplaceOperand(Pat(_) | Typ(_)), CursorE(_)) =>
     // ReplaceOpSeq handled at opseq level
     Failed
 
