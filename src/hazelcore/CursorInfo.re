@@ -151,3 +151,16 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
   parent_info,
 };
+
+let get_sort: t => TermSort.t =
+  ci =>
+    switch (ci.cursor_term) {
+    | ExpOperand(_)
+    | ExpOperator(_)
+    | Line(_)
+    | Rule(_) => Exp
+    | PatOperand(_)
+    | PatOperator(_) => Pat
+    | TypOperator(_)
+    | TypOperand(_) => Typ
+    };

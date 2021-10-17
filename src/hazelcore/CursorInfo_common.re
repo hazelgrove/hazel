@@ -119,7 +119,7 @@ let is_comment_line = (cursor_term): bool => {
 type mode =
   | Analytic
   | Synthetic
-  | UnknownMode;
+  | Neither;
 
 let rec get_types_and_mode = (typed: typed) => {
   switch (typed) {
@@ -164,9 +164,11 @@ let rec get_types_and_mode = (typed: typed) => {
     | _ => (None, None, Synthetic)
     }
 
+  | PatAnaWrongLength(_, _, expected)
   | PatAnaInvalid(expected)
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
+  | PatAnaTypeInconsistent(expected, actual)
   | PatAnaSubsumed(expected, actual) => (
       Some(expected),
       Some(actual),
@@ -175,7 +177,11 @@ let rec get_types_and_mode = (typed: typed) => {
   | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
-  | _ => (None, None, UnknownMode)
+  | SynInconsistentBranches(_)
+  | SynInconsistentBranchesArrow(_) => (None, None, Synthetic)
+  | OnType
+  | OnNonLetLine
+  | OnRule => (None, None, Neither)
   };
 };
 /**

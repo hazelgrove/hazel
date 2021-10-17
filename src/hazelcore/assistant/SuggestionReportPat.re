@@ -1,9 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type scores = {
-  delta_errors: float,
-};
+type scores = {delta_errors: float};
 
 [@deriving sexp]
 type operand_report_pat = {

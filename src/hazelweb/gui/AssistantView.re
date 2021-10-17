@@ -116,7 +116,8 @@ let icon = (~score: option(float)=None, sort: TermSort.t): Node.t => {
 let strategy_view: Suggestion.t => Node.t =
   suggestion => {
     let label = label_strategy(suggestion);
-    div([Attr.classes(["category", label])], [text(label)]);
+    let sort = suggestion |> Suggestion.get_sort |> TermSort.to_string;
+    div([Attr.classes(["category", label, sort])], [text(label)]);
   };
 
 let sign_view: float => Node.t =
@@ -342,7 +343,11 @@ let suggestions_view =
       ~index,
       ~search_string=CursorInfo_common.string_of_cursor_term(ci.cursor_term),
     );
-  div([Attr.id("assistant")], List.mapi(suggestion_view, suggestions));
+  let sort = TermSort.to_string(CursorInfo.get_sort(ci));
+  div(
+    [Attr.id("assistant"), Attr.class_(sort)],
+    List.mapi(suggestion_view, suggestions),
+  );
 };
 
 let view =
@@ -371,8 +376,9 @@ let view =
       ]
     | _ => []
     };
+  let sort = TermSort.to_string(CursorInfo.get_sort(ci));
   div(
-    [Attr.id("assistant-wrapper")],
+    [Attr.id("assistant-wrapper"), Attr.class_(sort)],
     [suggestions_view] @ suggestion_info_view,
   );
 };

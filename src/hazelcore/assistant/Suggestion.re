@@ -64,3 +64,8 @@ let get_action: t => Action.t =
   fun
   | ReplaceOperand({operand, _}) => ReplaceOperand(Exp(operand, None))
   | ReplacePatOperand({operand, _}) => ReplaceOperand(Pat(operand, None));
+
+let get_sort: t => TermSort.t =
+  fun
+  | ReplaceOperand(_) => Exp
+  | ReplacePatOperand(_) => Pat;

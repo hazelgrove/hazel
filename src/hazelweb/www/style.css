@@ -13,6 +13,40 @@
 }
 
 :root {
+
+  /* MAIN COLORS */
+
+  --ui-accent: wheat;
+
+  --exp-accent: #bfb;
+  --pat-accent: #aef;
+  --typ-accent: #fcf;
+
+  --exp-accent-lightest: #aea;
+  --exp-accent-darker-1: #8c8;
+  --exp-accent-darker-3: #6a6;
+  --exp-accent-darker-2: #6c6;
+  --exp-accent-darkest: #262;
+
+  --pat-accent-lightest: #8de;
+  --pat-accent-darker-1: #5ac;
+  --pat-accent-darker-2: #7ac;
+  --pat-accent-darker-3: #5ad;
+  --pat-accent-darkest: #366;
+
+  /* ROOT MISC */
+
+  --exp-bg-color: var(--exp-accent);
+  --exp-shadow-color: var(--exp-accent-darker-1);
+
+  --pat-bg-color: var(--pat-accent);
+  --pat-shadow-color: rgb(130, 176, 202);
+  --pat-bright-shadow-color: rgb(117, 187, 228);
+
+  --typ-bg-color: var(--typ-accent);
+  --typ-shadow-color: rgb(173, 154, 202);
+  --typ-bright-shadow-color: rgb(192, 159, 241);
+
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
   --page-padding: 15px;
@@ -32,17 +66,6 @@
 
   --code-radius: 4px;
 
-  --exp-bg-color: rgb(197, 253, 197);
-  --exp-shadow-color: rgb(135, 204, 135);
-
-  --pat-bg-color: #baf1fe;
-  --pat-shadow-color: rgb(130, 176, 202);
-  --pat-bright-shadow-color: rgb(117, 187, 228);
-
-  --typ-bg-color: rgb(233, 221, 253);
-  --typ-shadow-color: rgb(173, 154, 202);
-  --typ-bright-shadow-color: rgb(192, 159, 241);
-
   --current-term-z: 0;
   --var-use-z: 0;
   --err-hole-z: 1;
@@ -53,13 +76,7 @@
 
   /* CURSOR INSPECTOR */
 
-  --ui-accent: wheat;
-
-  --exp_accent: #c8ffc8;
-  --pat_accent: #b4e4f9;
-  --typ_accent: #e7ddfb;
-
-  --ci-type-info: var(--exp_accent);
+  --ci-type-info: var(--exp-accent);
   --ci-type-code: #444;
   --ci-type-bidi-arrow: #ccc;
   --ci-type-consistent: #0f0;
@@ -72,7 +89,7 @@
   /* CI/ASSISTANT control pane */
 
   --assistant-control-background: var(--suggestion-info-background);
-  --assistant-control-background-selected: var(--exp_accent);
+  --assistant-control-background-selected: var(--exp-accent);
   --assistant-control-text-selected: black;
   --assistant-control-mode-switch-text: var(--ui-accent);
   --assistant-control-divider: #444;
@@ -92,34 +109,47 @@
 
   --assistant-background-color: #aaa;
   --assistant-text-color: #333;
-  
-  --suggestion-selected-background: var(--exp_accent);
-  --suggestion-selected-text: black;
-  --suggestion-selected-top: white;
-  --suggestion-selected-bottom: #242;
 
   --suggestion-less-errors-text: #0c5b64;
   --suggestion-more-errors-text: #b00;
   --suggestion-less-errors-background: #8cb4be;
   --suggestion-more-errors-background: #c8a0a0;
   
-  --suggestion-selected-hole-text: #6b5;
-  --suggestion-selected-type-text: #4a7;
-  
   --suggestion-type-text: #ccc;
   --suggestion-type-ann-colon: #999;
   --suggestion-type-hole-text: #ccc;
-  --suggestion-selected-type-hole-text: #888;
 
   --suggestion-category-background: #888;
   --suggestion-category-text: #bbb;
-  --suggestion-selected-category-background: #aea;
-  --suggestion-selected-category-text: #666;
 
-  --suggestion-overlay-text: #bfb;
-  --suggestion-selected-overlay-text: #08f;
-  --suggestion-selected-hole-shadow: #6c5;
+  --suggestion-exp-overlay-text: var(--exp-accent);
+  --suggestion-pat-overlay-text: var(--pat-accent);
 
+  --suggestion-exp-selected-overlay-text: #08f;
+ 
+  --suggestion-exp-selected-text: black;
+  --suggestion-exp-selected-top: white;
+  --suggestion-exp-selected-type-hole-text: var(--exp-accent-darker-1);
+  --suggestion-exp-selected-category-text: var(--exp-accent-darker-3);
+  --suggestion-exp-selected-background: var(--exp-accent);
+  --suggestion-exp-selected-bottom: var(--exp-accent-darkest);
+  --suggestion-exp-selected-hole-text: var(--exp-accent-darker-2);
+  --suggestion-exp-selected-hole-shadow: var(--exp-accent-darker-2);
+  --suggestion-exp-selected-type-text: var(--exp-accent-darker-3);
+  --suggestion-exp-selected-category-background: var(--exp-accent-lightest);
+  
+  --suggestion-pat-selected-text: black;
+  --suggestion-pat-selected-top: white;
+  --suggestion-pat-selected-type-hole-text: var(--pat-accent-darker-1);
+  --suggestion-pat-selected-category-text: var(--pat-accent-darker-3);
+  --suggestion-pat-selected-background: var(--pat-accent);
+  --suggestion-pat-selected-bottom: var(--pat-accent-darkest);
+  --suggestion-pat-selected-hole-text: var(--pat-accent-darker-2);
+  --suggestion-pat-selected-hole-shadow: var(--pat-accent-darker-2);
+  --suggestion-pat-selected-type-text: var(--pat-accent-darker-3);
+  --suggestion-pat-selected-category-background: var(--pat-accent-lightest);
+
+  
   /* ASSISTANT suggestion info popup */
 
   --suggestion-info-background: #666666f8;
@@ -839,13 +869,13 @@ body {
 }
 
 .assistant-active .type-info-summary.exp {
-  color: var(--exp_accent);
+  color: var(--exp-accent);
 }
 .assistant-active .type-info-summary.pat {
-  color: var(--pat_accent);
+  color: var(--pat-accent);
 }
 .assistant-active .type-info-summary.typ {
-  color: var(--typ_accent);
+  color: var(--typ-accent);
 }
 
 .assistant-active .type-info-summary.no-suggestions {
@@ -914,13 +944,27 @@ body {
   box-sizing: border-box;
   left: -0.35em;
   width: 105%;
-  background-color: var(--suggestion-selected-background);
-  color: var(--suggestion-selected-text);
-  border-bottom: solid 1px var(--suggestion-selected-bottom);
-  border-top: solid 1px var(--suggestion-selected-top);
   border-radius: 0.5em;
   transition-property: width, border-radius;
   transition-duration: 0.2s;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+
+#assistant.exp > .choice.hovered  {
+  background-color: var(--suggestion-exp-selected-background);
+  color: var(--suggestion-exp-selected-text);
+  border-bottom-color: var(--suggestion-exp-selected-bottom);
+  border-top-color: var(--suggestion-exp-selected-top);
+}
+
+#assistant.pat > .choice.hovered  {
+  background-color: var(--suggestion-pat-selected-background);
+  color: var(--suggestion-pat-selected-text);
+  border-bottom-color: var(--suggestion-pat-selected-bottom);
+  border-top-color: var(--suggestion-pat-selected-top);
 }
 
 #assistant .errors-more   {
@@ -946,12 +990,19 @@ body {
 }
 
 #assistant > .choice > .code-container .overlay .overlay-text {
-  color: var(--suggestion-overlay-text);
   text-decoration: underline;
 }
 
+#assistant.exp > .choice > .code-container .overlay .overlay-text {
+  color: var(--suggestion-exp-overlay-text);
+}
+
+#assistant.pat > .choice > .code-container .overlay .overlay-text {
+  color: var(--suggestion-pat-overlay-text);
+}
+
 #assistant > .choice.hovered > .code-container .overlay .overlay-text {
-  color:  var(--suggestion-selected-overlay-text);
+  color:  var(--suggestion-exp-selected-overlay-text);
 }
 
 #assistant > .choice .code .code-delim {
@@ -973,9 +1024,17 @@ body {
 }
 
 #assistant > .choice.hovered > .category  {
-  color: var(--suggestion-selected-category-text);
   border-radius: 0.75em;
-  background-color: var(--suggestion-selected-category-background);
+}
+
+#assistant.exp > .choice.hovered > .category  {
+  color: var(--suggestion-exp-selected-category-text);
+  background-color: var(--suggestion-exp-selected-category-background);
+}
+
+#assistant.pat > .choice.hovered > .category  {
+  color: var(--suggestion-pat-selected-category-text);
+  background-color: var(--suggestion-pat-selected-category-background);
 }
 
 #assistant > .choice > .code-container {
@@ -992,10 +1051,20 @@ body {
 }
 
 #assistant > .choice.hovered .code .HoleLabel  {
-  background-color: var(--suggestion-selected-category-background);
-  color: var(--suggestion-selected-hole-text);
   border-radius: 4px;
-  box-shadow: inset 1px 1px 0 var(--suggestion-selected-hole-shadow);
+}
+
+#assistant.exp > .choice.hovered .code .HoleLabel  {
+  background-color: var(--suggestion-exp-selected-category-background);
+  color: var(--suggestion-exp-selected-hole-text);
+  box-shadow: inset 1px 1px 0 var(--suggestion-exp-selected-hole-shadow);
+}
+
+#assistant.pat > .choice.hovered .code .HoleLabel  {
+  background-color: var(--suggestion-pat-selected-category-background);
+  color: var(--suggestion-pat-selected-hole-text);
+  border-radius: 4px;
+  box-shadow: inset 1px 1px 0 var(--suggestion-pat-selected-hole-shadow);
 }
 
 #assistant > .choice > .type {
@@ -1004,20 +1073,32 @@ body {
   color: var(--suggestion-type-text);
 }
 
-#assistant > .choice.hovered > .type  {
-  color: var(--suggestion-selected-type-text);
+#assistant.exp > .choice.hovered > .type  {
+  color: var(--suggestion-exp-selected-type-text);
 }
 
-#assistant > .choice > .type .HoleLabel {
+#assistant.pat > .choice.hovered > .type  {
+  color: var(--suggestion-pat-selected-type-text);
+}
+
+#assistant.exp > .choice > .type .HoleLabel {
   background-color: #0000;
   color: var( --suggestion-type-hole-text);
   box-shadow: none;
 }
 
-#assistant > .choice.hovered > .type .HoleLabel  {
-  background-color: #0000;
-  color: var(--suggestion-selected-type-hole-text);
-  box-shadow: none;
+#assistant > .choice > .type .HoleLabel  {
+  /* hack important; need to make selector more specific than exp,pat */
+  background-color: #0000 !important;
+  box-shadow: none !important;
+}
+
+#assistant.exp > .choice.hovered > .type .HoleLabel  {
+  color: var(--suggestion-exp-selected-type-hole-text);
+}
+
+#assistant.pat > .choice.hovered > .type .HoleLabel  {
+  color: var(--suggestion-pat-selected-type-hole-text);
 }
 
 #assistant > .choice > .type-ann {
@@ -1170,13 +1251,13 @@ body {
   color: var(--assistant-control-text-selected);
 }
 .ci-control-pane .typ.mode:hover {
-  background-color: var(--typ_accent);
+  background-color: var(--typ-accent);
 }
 .ci-control-pane .pat.mode:hover {
-  background-color: var(--pat_accent);
+  background-color: var(--pat-accent);
 }
 .ci-control-pane .exp.mode:hover {
-  background-color: var(--exp_accent);
+  background-color: var(--exp-accent);
 }
 
 .ci-control-pane #ci-control-pane-mode-switch {
@@ -1233,12 +1314,30 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--suggestion-selected-category-background);
-  color: var(--suggestion-selected-category-text);
   border-radius: 6px;
   font-size: 0.4em;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+#assistant-wrapper.exp .suggestion-info .category {
+  color: var(--suggestion-exp-selected-category-text);
+}
+
+#assistant-wrapper.pat .suggestion-info .category {
+  color: var(--suggestion-pat-selected-category-text);
+}
+
+#assistant-wrapper.exp .suggestion-info .category.exp {
+  background-color: var(--suggestion-exp-selected-category-background);
+}
+
+#assistant-wrapper.pat .suggestion-info .category.exp {
+  background-color: var(--suggestion-pat-selected-category-background);
+}
+
+#assistant-wrapper .suggestion-info .category.pat {
+  background-color: var(--pat-accent);
 }
 
 #assistant-wrapper .suggestion-info .suggestion-description {
@@ -2199,11 +2298,11 @@ h1 {
 }
 
 .term-tag-typ{
-  background-color:rgb(233, 221, 253);
+  background-color: var(--typ-accent);
 }
 .term-tag-pat{
-  background-color:#baf1fe;
+  background-color: var(--pat-accent);
 }
 .term-tag-exp{
-  background-color:rgb(197, 253, 197);
+  background-color: var(--exp-accent);
 }

@@ -372,7 +372,7 @@ module CurrentTerm = {
             "feDropShadow",
             [
               Attr.classes(["current-term-drop-shadow", sort_cls(sort)]),
-              Attr.create("dx", "0.1"),
+              Attr.create("dx", "0" /*"0.1"*/),
               Attr.create("dy", "0.04"),
               Attr.create("stdDeviation", "0"),
             ],
