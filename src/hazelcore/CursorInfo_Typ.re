@@ -50,7 +50,7 @@ let cursor_info =
       typ: ZTyp.t,
     )
     : option(CursorInfo.t) =>
-  // TODO(andrew): recurse through type
+  // TODO(andrew): recurse through type. remove hack at callsites
   Some(
     CursorInfo_common.mk(
       OnType(annotation_types),

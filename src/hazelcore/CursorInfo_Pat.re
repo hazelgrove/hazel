@@ -266,6 +266,12 @@ and syn_cursor_info_zoperand =
         |> HTyp.relax,
       ann_ty: zann |> ZTyp.erase |> UHTyp.expand,
     };
+    // TODO(andrew): temporary hack. improve CursorInfo_Typ.cursor_info
+    let annotation_types =
+      switch (zann) {
+      | ZOpSeq(_, ZOperand(CursorT(_), _)) => annotation_types
+      | _ => CursorInfo.default_annotation_types
+      };
     zann
     |> CursorInfo_Typ.cursor_info(
          ~annotation_types,
@@ -603,7 +609,12 @@ and ana_cursor_info_zoperand =
         |> HTyp.relax,
       ann_ty: zann |> ZTyp.erase |> UHTyp.expand,
     };
-
+    // TODO(andrew): temporary hack. improve CursorInfo_Typ.cursor_info
+    let annotation_types =
+      switch (zann) {
+      | ZOpSeq(_, ZOperand(CursorT(_), _)) => annotation_types
+      | _ => CursorInfo.default_annotation_types
+      };
     switch (err) {
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>

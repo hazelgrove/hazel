@@ -77,7 +77,7 @@ module EditState_Typ = {
   let cursor_info =
     CursorInfo_Typ.cursor_info(
       ~steps=[],
-      ~annotation_types={analyzed_ty: Hole, pattern_ty: Hole, ann_ty: Hole},
+      ~annotation_types=CursorInfo.default_annotation_types,
     );
   let of_steps = CursorPath_Typ.of_steps(~side=Before);
 

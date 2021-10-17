@@ -14,6 +14,12 @@ type annotation_types = {
   ann_ty: HTyp.t,
 };
 
+let default_annotation_types = {
+  analyzed_ty: Hole,
+  pattern_ty: Hole,
+  ann_ty: Hole,
+};
+
 [@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
