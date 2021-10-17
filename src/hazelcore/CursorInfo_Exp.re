@@ -327,7 +327,8 @@ and syn_cursor_info_line =
   | LetLineZP(zp, def) =>
     let ty_def = HTyp.relax(Statics_Exp.syn(ctx, def));
     switch (
-      CursorInfo_Pat.ana_cursor_info_zopseq(
+      CursorInfo_Pat.ana_cursor_info(
+        ~pattern_context=Some(Let),
         ~steps=steps @ [0],
         ctx,
         zp,
@@ -375,7 +376,7 @@ and syn_cursor_info_zopseq =
   // but we want all comma operators in an opseq to
   // show the complete product type
 
-  // NOTE(andrew): overwrite existing enclosing_zopseq
+  // NOTE: overwrite existing enclosing_zopseq
   let enclosing_zopseq = CursorInfo.ExpSeq(zopseq, None);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
@@ -722,7 +723,13 @@ and syn_cursor_info_zoperand =
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty);
+      CursorInfo_Pat.ana_cursor_info(
+        ~pattern_context=Some(Lambda),
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        ty,
+      );
     switch (defferrable) {
     | CursorNotOnDeferredVarPat(ci) => ci
     | CursorOnDeferredVarPat(deferred_ci, x) =>
@@ -1197,6 +1204,7 @@ and ana_cursor_info_zoperand =
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
     let+ defferrable =
       CursorInfo_Pat.ana_cursor_info(
+        ~pattern_context=Some(Lambda),
         ~steps=steps @ [0],
         ctx,
         zp,
@@ -1278,7 +1286,13 @@ and syn_cursor_info_rule =
     )
   | RuleZP(zp, clause) =>
     switch (
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
+      CursorInfo_Pat.ana_cursor_info(
+        ~pattern_context=Some(Case),
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        pat_ty,
+      )
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
@@ -1367,7 +1381,13 @@ and ana_cursor_info_rule =
     )
   | RuleZP(zp, clause) =>
     switch (
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
+      CursorInfo_Pat.ana_cursor_info(
+        ~pattern_context=Some(Case),
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        pat_ty,
+      )
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)

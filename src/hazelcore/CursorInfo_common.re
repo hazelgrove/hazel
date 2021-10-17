@@ -228,6 +228,7 @@ let mk =
       ~parent_info=NoParentInfo,
       ~enclosing_zopseq=CursorInfo.NoSeq,
       ~enclosing_zoperand=None,
+      ~pattern_context=None,
       typed,
       ctx,
       cursor_term,
@@ -244,6 +245,7 @@ let mk =
     actual_ty,
     enclosing_zopseq,
     enclosing_zoperand,
+    pattern_context,
     parent_info,
   };
 };

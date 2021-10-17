@@ -133,6 +133,12 @@ type enclosing_zopseq =
 type enclosing_zoperand = option(ZExp.zoperand);
 
 [@deriving sexp]
+type pattern_context =
+  | Let
+  | Lambda
+  | Case;
+
+[@deriving sexp]
 type parent_info =
   | AfterBranchClause
   | BeforeEmptyHoleLine
@@ -147,6 +153,7 @@ type t = {
   actual_ty: option(HTyp.t),
   enclosing_zopseq,
   enclosing_zoperand,
+  pattern_context: option(pattern_context),
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
   parent_info,
