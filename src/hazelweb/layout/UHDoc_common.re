@@ -314,6 +314,7 @@ let mk_FloatLit = (~sort: TermSort.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
+/* TODO: Handle line breaks */
 let mk_StringLit = (~sort: TermSort.t, s: string): t =>
   mk_text(s) |> annot_Tessera |> annot_Operand(~sort);
 
