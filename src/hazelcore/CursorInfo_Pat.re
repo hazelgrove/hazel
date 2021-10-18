@@ -284,7 +284,7 @@ and syn_cursor_info_zoperand =
 and ana_cursor_info =
     (
       ~steps,
-      ~pattern_context: option(CursorInfo.pattern_context)=None,
+      ~pattern_context: option(CursorInfo.pattern_context),
       ctx: Contexts.t,
       zp: ZPat.t,
       ty: HTyp.t,
@@ -581,10 +581,16 @@ and ana_cursor_info_zoperand =
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
+      ana_cursor_info(
+        ~pattern_context,
+        ~steps=steps @ [0],
+        ctx,
+        zbody,
+        ty_body,
+      );
     }
   | ParenthesizedZ(zbody) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+    ana_cursor_info(~pattern_context, ~steps=steps @ [0], ctx, zbody, ty)
   | TypeAnnZP(err, zop, ann) =>
     switch (err) {
     | InHole(WrongLength, _) => None

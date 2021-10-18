@@ -16,7 +16,7 @@ let cursor_inspector_panel =
   div(
     [Attr.id("assistant-panel"), Attr.on_click(toggle_cursor_inspector)],
     [
-      AssistantView.icon(Exp),
+      AssistantView.icon(Exp, ~num_suggestions=1),
       CursorInspectorControl.view(mode, ~sort=Exp, ~inject),
     ],
   );

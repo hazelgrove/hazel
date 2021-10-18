@@ -959,7 +959,7 @@ body {
 #assistant > .choice.hovered  {
   box-sizing: border-box;
   left: -0.35em;
-  width: 105%;
+  width: calc(100% + 0.7em);
   border-radius: 0.5em;
   transition-property: width, border-radius;
   transition-duration: 0.2s;
