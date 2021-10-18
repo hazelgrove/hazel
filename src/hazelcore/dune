@@ -11,6 +11,8 @@
  (preprocess
   (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
+(ocamllex StringLitLexer)
+
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
