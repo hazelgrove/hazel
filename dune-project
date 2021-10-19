@@ -5,6 +5,9 @@
   (name hazelcore))
 
 (package
+  (name pretty))
+
+(package
   (name grain)
   (synopsis "The core Grain language compiler library")
   (depends

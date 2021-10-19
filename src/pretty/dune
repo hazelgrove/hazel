@@ -2,6 +2,7 @@
 
 (library
  (name pretty)
+ (public_name pretty)
  (libraries sexplib)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
