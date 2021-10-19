@@ -2,6 +2,9 @@
 (using menhir 2.0)
 
 (package
+  (name hazelcore))
+
+(package
   (name grain)
   (synopsis "The core Grain language compiler library")
   (depends
