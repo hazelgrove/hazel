@@ -157,7 +157,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
         | Token({shape, _}) =>
           let clss =
             switch (shape) {
-            | Text => ["code-text"]
+            | Text(_) => ["code-text"]
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
             };

@@ -119,13 +119,15 @@ and mk_line =
         switch (line) {
         | EmptyLine =>
           UHDoc_common.empty_
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+          |> Doc.annot(
+               UHAnnot.mk_Token(~shape=Text({start_idx: 0}), ~len=0, ()),
+             )
         | CommentLine(comment) =>
           let comment_doc =
             UHDoc_common.mk_text(comment)
             |> Doc.annot(
                  UHAnnot.mk_Token(
-                   ~shape=Text,
+                   ~shape=Text({start_idx: 0}),
                    ~len=StringUtil.utf8_length(comment),
                    (),
                  ),
