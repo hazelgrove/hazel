@@ -1,0 +1,30 @@
+{
+  "name": "@hazel/hazel",
+  "private": true,
+  "version": "0.4.2",
+  "bin": {
+    "grainc": "_esy/default/build/install/default/bin/grainc"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "devDependencies": {
+    "esy": "0.6.11"
+  },
+  "scripts": {
+    "link": "yarn link",
+    "clean": "esy clean",
+    "prepare": "esy install",
+    "build": "esy",
+    "postbuild": "esy copy:exe",
+    "build:js": "esy b dune build --no-buffer --profile jsoo",
+    "postbuild:js": "esy copy:js",
+    "pretest": "esy",
+    "test": "esy test",
+    "format": "esy format",
+    "check-format": "esy check-format",
+    "import-dependencies": "esy import-dependencies _export",
+    "export-dependencies": "esy export-dependencies",
+    "build-dependencies": "esy build-dependencies"
+  }
+}

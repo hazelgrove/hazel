@@ -1,0 +1,14 @@
+let counter = {
+  let count = box(0)
+  let rec counterHelp = () => {
+    let new = unbox(count) + 1
+    count := new
+    new
+  }
+  counterHelp
+}
+{
+  print(counter())
+  print(counter())
+  print(counter())
+}

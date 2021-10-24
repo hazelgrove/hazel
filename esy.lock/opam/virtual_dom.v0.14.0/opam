@@ -1,0 +1,31 @@
+opam-version: "2.0"
+maintainer: "Jane Street developers"
+authors: ["Jane Street Group, LLC"]
+homepage: "https://github.com/janestreet/virtual_dom"
+bug-reports: "https://github.com/janestreet/virtual_dom/issues"
+dev-repo: "git+https://github.com/janestreet/virtual_dom.git"
+doc: "https://ocaml.janestreet.com/ocaml-core/latest/doc/virtual_dom/index.html"
+license: "MIT"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "ocaml"           {>= "4.08.0"}
+  "base"            {>= "v0.14" & < "v0.15"}
+  "core_kernel"     {>= "v0.14" & < "v0.15"}
+  "ppx_jane"        {>= "v0.14" & < "v0.15"}
+  "dune"            {>= "2.0.0"}
+  "js_of_ocaml"     {>= "3.4.1"}
+  "js_of_ocaml-ppx"
+  "lambdasoup"      {>= "0.6.3"}
+  "tyxml"           {>= "4.3.0"}
+]
+synopsis: "OCaml bindings for the virtual-dom library"
+description: "
+The library itself may be found at
+https://github.com/Matt-Esch/virtual-dom.
+"
+url {
+  src: "https://ocaml.janestreet.com/ocaml-core/v0.14/files/virtual_dom-v0.14.0.tar.gz"
+  checksum: "md5=fdfe48cea9cb5df272f2462672e0de72"
+}

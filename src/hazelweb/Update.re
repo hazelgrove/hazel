@@ -226,7 +226,7 @@ let apply_action =
         };
         model;
       | Compile =>
-        
+        model;
       };
     },
   );

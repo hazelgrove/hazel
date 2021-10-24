@@ -1,0 +1,13 @@
+let counter = {
+  let mut count = 0
+  let rec counterHelp = () => {
+    count += 1
+    count
+  }
+  counterHelp
+}
+{
+  print(counter())
+  print(counter())
+  print(counter())
+}

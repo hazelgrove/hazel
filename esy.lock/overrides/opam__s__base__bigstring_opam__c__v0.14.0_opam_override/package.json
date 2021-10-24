@@ -1,0 +1,10 @@
+{
+  "build": [
+    [
+      "bash",
+      "-c",
+      "#{os == 'windows' ? 'patch -p1 < remove-endian-h.patch' : 'true' }"
+    ],
+    "dune build -p base_bigstring -j 4"
+  ]
+}
