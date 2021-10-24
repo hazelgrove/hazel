@@ -74,14 +74,6 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let is_text_line = (cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(_, StringLit(_, _))
-  | Pat(_, StringLit(_, _)) => true
-  | _ => false
-  };
-};
-
 let mk = (~uses=?, typed, ctx, cursor_term) => {
   typed,
   ctx,
