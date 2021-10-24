@@ -349,7 +349,7 @@ let get_elaboration = (program: t): DHExp.t =>
 exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
+let get_result = (program: t): EvaluateResult.t =>
   switch (program |> get_elaboration |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
