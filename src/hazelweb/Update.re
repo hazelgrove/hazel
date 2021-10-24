@@ -219,20 +219,14 @@ let apply_action =
           model
           |> Model.get_program
           |> Program.get_elaboration
-          |> Comp.compile
-          |> Comp.compilation_state_desc.sexp_of_t
+          |> Grain.Comp.compile
+          |> Grain.Comp.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log
         };
         model;
       | Compile =>
-        model
-        |> Model.get_program
-        |> CHExp.sexp_of_t
-        |> Sexplib.Sexp.to_string
-        |> Js.string
-        |> JSUtil.log
         model;
       };
     },
