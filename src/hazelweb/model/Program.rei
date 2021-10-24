@@ -48,8 +48,6 @@ let get_elaboration: t => DHExp.t;
 exception InvalidInput;
 let get_result: t => Result.t;
 
-let get_compiled: t => CHExp.t;
-
 /**
  * Raised when an attempted edit action does not succeed
  */

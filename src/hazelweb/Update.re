@@ -218,14 +218,21 @@ let apply_action =
         | CHExp =>
           model
           |> Model.get_program
-          |> Program.get_compiled
-          |> CHExp.sexp_of_t
+          |> Program.get_elaboration
+          |> Comp.compile
+          |> Comp.compilation_state_desc.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log
         };
         model;
       | Compile =>
+        model
+        |> Model.get_program
+        |> CHExp.sexp_of_t
+        |> Sexplib.Sexp.to_string
+        |> Js.string
+        |> JSUtil.log
         model;
       };
     },

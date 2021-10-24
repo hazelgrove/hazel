@@ -1,4 +1,4 @@
-HTML_DIR=_build/default/src/hazelweb/www
+HTML_DIR=_esy/default/build/default/src/hazelweb/www
 HTML_FILE=$(HTML_DIR)/index.html
 
 all: dev
