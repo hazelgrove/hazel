@@ -41,7 +41,7 @@ let describe_operand_strategy: Suggestion.operand_strategy => string =
   | InsertVar => "Insert a variable"
   | InsertApp => "Insert an application"
   | InsertCase => "Insert an eliminator"
-  | WrapApp => "Apply a functiong to the current form"
+  | WrapApp => "Apply a function to the current form"
   | WrapCase => "Match on the current form"
   | ConvertLit => "Convert a literal to another type";
 
@@ -377,14 +377,6 @@ let view =
       ]
     | _ => []
     };
-  switch (ci.typed) {
-  | OnType({analyzed_ty, pattern_ty, ann_ty}) =>
-    print_endline("OnType: analyzed pattern ann");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(analyzed_ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(pattern_ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ann_ty)));
-  | _ => ()
-  };
   let sort = TermSort.to_string(CursorInfo.get_sort(ci));
   div(
     [Attr.id("assistant-wrapper"), Attr.class_(sort)],
