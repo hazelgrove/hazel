@@ -168,7 +168,10 @@ let generate_panel_body = (is_action_allowed, model: Model.t, inject) => {
 
   let action_of_combo = combo =>
     switch (KeyComboAction.get_model_action(model, combo)) {
-    | EditAction(action) => action
+    | EditAction(action)
+    | Chain([_, EditAction(action)]) =>
+      // see get_model_action assistant case
+      action
     | _ =>
       failwith(
         __LOC__
