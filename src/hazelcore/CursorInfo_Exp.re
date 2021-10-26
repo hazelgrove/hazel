@@ -408,6 +408,11 @@ and syn_cursor_info_skel =
       | Some(_) as result => result
       | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
       }
+    | BinOp(_, Caret, skel1, skel2) =>
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, String)) {
+      | Some(_) as result => result
+      | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, String)
+      }
     | BinOp(_, Space, Placeholder(n) as skel1, skel2) =>
       if (ZOpSeq.skel_contains_cursor(skel1, zseq)) {
         let zoperand =
@@ -776,6 +781,7 @@ and ana_cursor_info_skel =
         FLessThan |
         FGreaterThan |
         FEquals |
+        Caret |
         And |
         Or |
         Space,

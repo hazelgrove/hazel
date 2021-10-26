@@ -27,6 +27,7 @@ let shape_to_string = (shape: shape): string => {
     | SLessThan => "<"
     | SGreaterThan => ">"
     | SEquals => "=="
+    | SCaret => "^"
     | SSpace => "space"
     | SComma => ","
     | SArrow => Unicode.typeArrowSym

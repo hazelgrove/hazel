@@ -12,6 +12,7 @@ let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   | SLessThan
   | SGreaterThan
   | SEquals
+  | SCaret
   | SArrow
   | SVBar => None;
 

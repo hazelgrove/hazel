@@ -9,6 +9,7 @@ type operator_shape =
   | SLessThan
   | SGreaterThan
   | SEquals
+  | SCaret
   | SSpace
   | SComma
   | SArrow
