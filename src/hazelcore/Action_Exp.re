@@ -10,7 +10,7 @@ let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   | SSpace => Some(Space)
   | SComma => Some(Comma)
   | SCons => Some(Cons)
-  | SCaret => Some(Caret)
+  | SCaret => Some(SCaret)
   | SAnd => Some(And)
   | SOr => Some(Or)
   | SArrow
@@ -26,7 +26,7 @@ let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   | LessThan => Some(SLessThan)
   | GreaterThan => Some(SGreaterThan)
   | Equals => Some(SEquals)
-  | Caret => Some(SCaret)
+  | SCaret => Some(SCaret)
   | Space => Some(SSpace)
   | Comma => Some(SComma)
   | Cons => Some(SCons)

@@ -15,7 +15,7 @@ type t =
   | FLessThan
   | FGreaterThan
   | FEquals
-  | Caret
+  | SCaret
   | Comma
   | Cons
   | And
@@ -38,7 +38,7 @@ let to_string =
   | FLessThan => "<."
   | FGreaterThan => ">."
   | FEquals => "==."
-  | Caret => "^"
+  | SCaret => "^"
   | Comma => ","
   | Cons => "::"
   | And => "&&"
@@ -60,7 +60,7 @@ let precedence =
   | FLessThan => 5
   | FGreaterThan => 5
   | FEquals => 5
-  | Caret => 6
+  | SCaret => 6
   | Cons => 7
   | Plus => 8
   | Minus => 8

@@ -408,7 +408,7 @@ and syn_cursor_info_skel =
       | Some(_) as result => result
       | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
       }
-    | BinOp(_, Caret, skel1, skel2) =>
+    | BinOp(_, SCaret, skel1, skel2) =>
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, String)) {
       | Some(_) as result => result
       | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, String)
@@ -781,7 +781,7 @@ and ana_cursor_info_skel =
         FLessThan |
         FGreaterThan |
         FEquals |
-        Caret |
+        SCaret |
         And |
         Or |
         Space,
