@@ -207,10 +207,10 @@ let rec evaluate = (d: DHExp.t): result =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(StringLit(s2)) => BoxedValue(eval_bin_str_op(op, s1, s2))
-      | BoxedValue(_) => InvalidInput(9)
+      | BoxedValue(_) => InvalidInput(10)
       | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(10)
+    | BoxedValue(_) => InvalidInput(9)
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
