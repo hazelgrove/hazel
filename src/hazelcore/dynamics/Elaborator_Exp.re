@@ -819,7 +819,13 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
-  | StringLit(NotInHole, s) => Elaborates(StringLit(s), String, delta)
+  | StringLit(NotInHole, s) =>
+    let (unescaped, errors) = s |> UnescapedString.from_string;
+    switch (errors) {
+    | [] => Elaborates(StringLit(unescaped), String, delta)
+    // TODO: Actual error handling
+    | _ => DoesNotElaborate
+    };
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);

@@ -19,7 +19,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, EscapedString.t)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)

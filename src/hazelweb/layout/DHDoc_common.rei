@@ -78,7 +78,7 @@ let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
 
-let mk_StringLit: string => Pretty.Doc.t('a);
+let mk_StringLit: UnescapedString.t => Pretty.Doc.t('a);
 
 let mk_Inj: (InjSide.t, Pretty.Doc.t(DHAnnot.t)) => Pretty.Doc.t(DHAnnot.t);
 

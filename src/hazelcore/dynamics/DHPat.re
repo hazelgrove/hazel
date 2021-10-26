@@ -12,7 +12,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
-  | StringLit(string)
+  | StringLit(UnescapedString.t)
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)
