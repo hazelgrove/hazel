@@ -18,6 +18,7 @@ let inline_padding_of_operator: UHExp.operator => (UHDoc.t, UHDoc.t) =
   | FLessThan
   | FGreaterThan
   | FEquals
+  | SCaret
   | And
   | Or => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);

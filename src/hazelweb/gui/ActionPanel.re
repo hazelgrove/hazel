@@ -483,6 +483,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(STimes)) => Added
   | Construct(SOp(SDivide)) => Added
   | Construct(SOp(SLessThan)) => Added
+  | Construct(SOp(SCaret)) => Added
   | Construct(SOp(SSpace)) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added

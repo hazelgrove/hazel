@@ -13,6 +13,7 @@ let precedence_Cons = Operators_Exp.precedence(Cons);
 let precedence_Equals = Operators_Exp.precedence(Equals);
 let precedence_LessThan = Operators_Exp.precedence(LessThan);
 let precedence_GreaterThan = Operators_Exp.precedence(GreaterThan);
+let precedence_Caret = Operators_Exp.precedence(SCaret);
 let precedence_And = Operators_Exp.precedence(And);
 let precedence_Or = Operators_Exp.precedence(Or);
 let precedence_Comma = Operators_Exp.precedence(Comma);

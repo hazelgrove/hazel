@@ -26,6 +26,10 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FLessThan => DHDoc_common.precedence_LessThan
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
   };
+let precedence_bin_str_op = (bso: DHExp.BinStrOp.t) =>
+  switch (bso) {
+  | SCaret => DHDoc_common.precedence_Caret
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -53,6 +57,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinStrOp(op, _, _) => precedence_bin_str_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
@@ -91,6 +96,13 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FLessThan => "<."
     | FGreaterThan => ">."
     | FEquals => "==."
+    },
+  );
+
+let mk_bin_str_op = (op: DHExp.BinStrOp.t): DHDoc.t =>
+  Doc.text(
+    switch (op) {
+    | SCaret => "^"
     },
   );
 
@@ -208,6 +220,10 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
+      | BinStrOp(op, d1, d2) =>
+        let (doc1, doc2) =
+          mk_right_associative_operands(precedence_bin_str_op(op), d1, d2);
+        hseps([mk_cast(doc1), mk_bin_str_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
       | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>

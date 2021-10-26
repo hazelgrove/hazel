@@ -10,6 +10,7 @@ let precedence_Cons: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
 let precedence_GreaterThan: int;
+let precedence_Caret: int;
 let precedence_And: int;
 let precedence_Or: int;
 let precedence_Comma: int;

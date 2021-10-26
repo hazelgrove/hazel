@@ -566,6 +566,7 @@ let get_new_action_group =
         | SLessThan
         | SGreaterThan
         | SEquals
+        | SCaret
         | SComma
         | SArrow
         | SVBar
