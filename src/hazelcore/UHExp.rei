@@ -22,6 +22,7 @@ and operand =
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
+  | Subscript(ErrStatus.t, t, t, t)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)

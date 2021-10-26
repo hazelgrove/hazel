@@ -24,6 +24,7 @@ and operand =
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
+  | Subscript(ErrStatus.t, t, t, t)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
@@ -191,6 +192,7 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | Subscript(err, _, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -217,6 +219,7 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
+  | Subscript(_, s, n1, n2) => Subscript(err, s, n1, n2)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -252,6 +255,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -268,6 +272,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
@@ -345,6 +350,8 @@ and is_complete_operand = (operand: 'operand): bool => {
     false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
+  | Subscript(InHole(_), _, _, _) => false
+  | Subscript(NotInHole, _, _, _) => true
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
