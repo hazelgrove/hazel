@@ -70,6 +70,16 @@ let eval_bin_float_op =
   };
 };
 
+let eval_bin_str_op =
+    (op: DHExp.BinStrOp.t, s1: UnescapedString.t, s2: UnescapedString.t)
+    : DHExp.t => {
+  switch (op) {
+  | SCaret =>
+    let s3 = UnescapedString.concat(s1, s2);
+    StringLit(s3);
+  };
+};
+
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
@@ -188,6 +198,24 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      }
+    }
+  | BinStrOp(op, d1, d2) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(StringLit(s1) as d1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(StringLit(s2)) => BoxedValue(eval_bin_str_op(op, s1, s2))
+      | BoxedValue(_) => InvalidInput(9)
+      | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
+      }
+    | BoxedValue(_) => InvalidInput(10)
+    | Indet(d1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
       }
     }
   | Inj(ty, side, d1) =>
