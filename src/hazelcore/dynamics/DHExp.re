@@ -24,6 +24,7 @@ module BinBoolOp = {
     | FLessThan
     | FGreaterThan
     | FEquals
+    | SCaret
     | Space
     | Cons
     | Comma => None
@@ -65,6 +66,7 @@ module BinIntOp = {
     | FEquals
     | And
     | Or
+    | SCaret
     | Space
     | Cons
     | Comma => None
@@ -109,6 +111,7 @@ module BinFloatOp = {
     | LessThan
     | GreaterThan
     | Equals
+    | SCaret
     | And
     | Or
     | Space
@@ -125,6 +128,41 @@ module BinFloatOp = {
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
+    };
+};
+
+module BinStrOp = {
+  [@deriving sexp]
+  type t =
+    | SCaret;
+
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | SCaret => Some((SCaret, String))
+    | Plus
+    | Minus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals
+    | And
+    | Or
+    | Space
+    | Cons
+    | Comma => None
+    };
+
+  let to_op = (bfo: t): UHExp.operator =>
+    switch (bfo) {
+    | SCaret => SCaret
     };
 };
 
@@ -154,6 +192,7 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | BinStrOp(BinStrOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -188,6 +227,7 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | BinStrOp(_, _, _) => "BinStrOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

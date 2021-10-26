@@ -41,6 +41,16 @@ module BinFloatOp: {
   let to_op: t => UHExp.operator;
 };
 
+module BinStrOp: {
+  [@deriving sexp]
+  type t =
+    | SCaret;
+
+  let of_op: UHExp.operator => option((t, HTyp.t));
+
+  let to_op: t => UHExp.operator;
+};
+
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
@@ -67,6 +77,7 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | BinStrOp(BinStrOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)

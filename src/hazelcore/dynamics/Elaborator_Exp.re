@@ -60,6 +60,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | BinStrOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinStrOp(op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -306,6 +310,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -372,6 +377,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -444,6 +450,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -688,6 +695,23 @@ and syn_elab_skel =
         | None => DoesNotElaborate
         | Some((op, ty)) =>
           let d = DHExp.BinFloatOp(op, dc1, dc2);
+          Elaborates(d, ty, delta);
+        };
+      }
+    }
+  | BinOp(NotInHole, SCaret as op, skel1, skel2) =>
+    switch (ana_elab_skel(ctx, delta, skel1, seq, String)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      switch (ana_elab_skel(ctx, delta, skel2, seq, String)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2, delta) =>
+        let dc1 = DHExp.cast(d1, ty1, String);
+        let dc2 = DHExp.cast(d2, ty2, String);
+        switch (DHExp.BinStrOp.of_op(op)) {
+        | None => DoesNotElaborate
+        | Some((op, ty)) =>
+          let d = DHExp.BinStrOp(op, dc1, dc2);
           Elaborates(d, ty, delta);
         };
       }
@@ -1122,6 +1146,7 @@ and ana_elab_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
+      SCaret |
       And |
       Or |
       Space,
@@ -1355,6 +1380,10 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinStrOp(op, d1, d2) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1454,6 +1483,10 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinStrOp(op, d1, d2) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
