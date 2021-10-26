@@ -822,9 +822,9 @@ and syn_elab_operand =
   | StringLit(NotInHole, s) =>
     let (unescaped, errors) = s |> UnescapedString.from_string;
     switch (errors) {
-    | [] => Elaborates(StringLit(unescaped), String, delta)
+    | _ => Elaborates(StringLit(unescaped), String, delta)
     // TODO: Actual error handling
-    | _ => DoesNotElaborate
+    // | _ => DoesNotElaborate
     };
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;

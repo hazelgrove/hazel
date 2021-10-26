@@ -5,6 +5,7 @@ type t = string;
 
 let to_string = s => s;
 
+// FIXME: Lexing is repeating escape sequences literally ("\090" -> "Z\\090")
 let from_string = s =>
   s |> Lexing.from_string |> StringLitLexer.stringlit_body;
 

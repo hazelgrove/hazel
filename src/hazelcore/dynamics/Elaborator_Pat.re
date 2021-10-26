@@ -161,9 +161,9 @@ and syn_elab_operand =
   | StringLit(NotInHole, s) =>
     let (unescaped, errors) = UnescapedString.from_string(s);
     switch (errors) {
-    | [] => Elaborates(StringLit(unescaped), String, ctx, delta)
+    | _ => Elaborates(StringLit(unescaped), String, ctx, delta)
     // TODO: Actual error handling
-    | _ => DoesNotElaborate
+    // | _ => DoesNotElaborate
     };
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
