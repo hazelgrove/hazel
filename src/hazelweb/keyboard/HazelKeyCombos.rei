@@ -27,6 +27,7 @@ type t =
   | LeftBracket
   | Semicolon
   | Quote
+  | Caret
   | Alt_L
   | Alt_R
   | Alt_C

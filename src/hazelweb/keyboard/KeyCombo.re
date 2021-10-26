@@ -44,6 +44,7 @@ let asterisk = no_ctrlOrCmd_alt(Key.the_key("*"));
 let slash = no_ctrlOrCmd_alt(Key.the_key("/"));
 let semicolon = no_ctrlOrCmd_alt(Key.the_key(";"));
 let quote = no_ctrlOrCmd_alt(Key.the_key("\""));
+let caret = no_ctrlOrCmd_alt(Key.the_key("^"));
 let comma = no_ctrlOrCmd_alt(Key.the_key(","));
 let vbar = no_ctrlOrCmd_alt(Key.the_key("|"));
 let ampersand = no_ctrlOrCmd_alt(Key.the_key("&"));
