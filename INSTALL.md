@@ -12,8 +12,7 @@ follow these instructions instead of the shorter instructions in the
 
   - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
 
-    - From the start menu or task bar, open the "PowerShell" application. This will
-      open a PowerShell command prompt.
+    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu). This will open a PowerShell command prompt.
 
     - Run the following command at the PowerShell prompt:
 
@@ -34,7 +33,7 @@ follow these instructions instead of the shorter instructions in the
 
 - Make sure `gcc`, `git`, `make`, and `m4` are installed.
 
-  - If you are on Linux or Windows, you can do this by running the following
+  - If you are on Ubuntu or Windows, you can do this by running the following
     commands:
 
     ```sh
@@ -42,7 +41,7 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    sudo apt install gcc git make m4
+    sudo apt install gcc git make m4 pkg-config
     ```
 
   - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
@@ -55,28 +54,12 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    brew install gcc git make
+    brew install gcc git make pkg-config
     ```
 
 ## Install and Initialize `opam`
 
 - Install the most recent version of `opam` (which must be at least 2.0):
-
-  - If you are on Windows or Ubuntu Linux 18.11 (cosmic) or earlier,
-    you can do this by running the following commands:
-
-    ```sh
-    sudo add-apt-repository ppa:avsm/ppa
-    ```
-
-    ```sh
-    sudo apt update
-    ```
-
-    ```sh
-    sudo apt install opam
-    ```
-
   - If you are on Ubuntu Linux 19.04 (disco) or later, you can do this
     by running the following commands:
 
@@ -136,12 +119,12 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 4.08.1 (some older versions such as may also work, but see the
+- Install OCaml 4.08.1 (some older versions may also work, but see the
   ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
   why we do not use newer versions).
 
   ```sh
-  opam switch create 4.08.1
+  opam switch create 4.08.1 ocaml-base-compiler.4.08.1
   ```
 
 ## Clone the Source Code
@@ -207,20 +190,11 @@ follow these instructions instead of the shorter instructions in the
 
 - You can now compile Hazel by running one of the following.
 
-  - If you want to compile a development version of Hazel, run the following command:
+  - If you want to compile a development version of Hazel, run `make` (or equivalently, `make dev`)
 
-    ```sh
-    make dev
-    ```
+  - If you want to compile a release version of Hazel, which optimizes more aggressively, run `make release`
 
-  - If you want to compile a release version of Hazel, run the following command:
-
-    ```sh
-    make release
-    ```
-
-If the build fails, it sometimes helps to do a `make clean` before running `make
-dev` or `make release` again.
+If the build fails, it sometimes helps to do a `make clean`.
 
 ## Run Hazel
 
@@ -261,5 +235,7 @@ You can also launch Hazel directly by opening
 echo-html` echos that path to the terminal, so that you don't have to remember
 it.
 
-You can also run `make repl` to get a REPL in which you can play with the core
-Hazel functions.
+You can also run `make repl` to get a REPL in which you can play with the definitions
+in `hazelcore`. The definitions in `hazelweb` cannot be used in the REPL because that
+package needs a browser environment to run.
+

@@ -26,6 +26,7 @@ let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
  * produces a new context with bindings introduced by `p` if successful
  */
 let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
+let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);
 
@@ -48,9 +49,29 @@ let ana_fix_holes:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
   (UHPat.t, Contexts.t, IDGen.t);
 let ana_fix_holes_opseq:
+<<<<<<< HEAD
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq, HTyp.t) =>
   (UHPat.opseq, Contexts.t, IDGen.t);
 
+=======
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHPat.opseq,
+    HTyp.t
+  ) =>
+  (UHPat.opseq, Contexts.t, MetaVarGen.t);
+let ana_fix_holes_operand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHPat.operand,
+    HTyp.t
+  ) =>
+  (UHPat.operand, Contexts.t, MetaVarGen.t);
+>>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
 let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Contexts.t, IDGen.t);
 

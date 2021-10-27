@@ -1,10 +1,15 @@
-[@deriving sexp]
-type t('a) = SpliceInfo.t(UHExp.t) => ('a, SpliceInfo.t(UHExp.t));
-let return = (x, psi) => (x, psi);
-let bind = (cmd, f, psi) => {
-  let (a, psi') = cmd(psi);
-  f(a, psi');
+module T = {
+  [@deriving sexp]
+  type t('a) = SpliceInfo.t(UHExp.t) => ('a, SpliceInfo.t(UHExp.t));
+  let return = (x, psi) => (x, psi);
+  let bind = (cmd, f, psi) => {
+    let (a, psi') = cmd(psi);
+    f(a, psi');
+  };
+  let map = Monads.MapDefinition.Define_using_bind;
 };
+include T;
+include Monads.Make(T);
 
 let exec = (cmd, psi, id_gen) => {
   let (a, psi) = cmd(psi);
