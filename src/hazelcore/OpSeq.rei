@@ -43,10 +43,8 @@ let mk_inconsistent:
   (t('operand, 'operator), IDGen.t);
 
 /**
- * `is_complete(is_complete_operand, opseq, check_type_holes)` returns
+ * `is_complete(is_complete_operand, opseq)` returns
  * whether `opseq` is complete, using `is_complete_operand` to check
- * completeness of operands, the flag `check_type_holes` indicating
- * whether to consider type holes in this check.
+ * completeness of operands.
  */
-let is_complete:
-  (('operand, bool) => bool, t('operand, 'operator), bool) => bool;
+let is_complete: ('operand => bool, t('operand, 'operator)) => bool;

@@ -6,6 +6,7 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       ~selected_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
+      ~font_metrics: FontMetrics.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -54,6 +55,7 @@ let view =
                   ~inject,
                   ~settings,
                   ~selected_instance,
+                  ~font_metrics,
                   ~width=30,
                   d,
                   AssertMap.empty,
@@ -98,6 +100,7 @@ let view =
                     ~width=30,
                     ~selected_instance,
                     ~settings,
+                    ~font_metrics,
                     inst,
                   ),
                 ],
@@ -203,6 +206,7 @@ let view =
               ~width=30,
               ~selected_instance,
               ~settings,
+              ~font_metrics,
               inst,
             ),
           ],
@@ -249,6 +253,7 @@ let view =
                     ~width=30,
                     ~selected_instance,
                     ~settings,
+                    ~font_metrics,
                     inst,
                   ),
                 ],
@@ -282,18 +287,18 @@ let view =
       if (settings.evaluate) {
         let (_, hii, _) = fst(program |> Program.get_result);
         switch (selected_instance) {
-        | None => Elaborator_Exp.id_env(ctx)
+        | None => Environment.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
-            Elaborator_Exp.id_env(ctx);
+            Environment.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Elaborator_Exp.id_env(ctx);
+        Environment.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>

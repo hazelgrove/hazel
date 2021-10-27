@@ -145,8 +145,12 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListNil(_)
+<<<<<<< HEAD
     | AssertLit(_, _)
     | Lam(_, _, _, _)
+=======
+    | Lam(_)
+>>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
@@ -163,6 +167,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
+    | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
   | Typ(_, operand) =>
@@ -183,7 +188,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (line) {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
-    | LetLine(_, _, _)
+    | LetLine(_)
     | ExpLine(_) => MaxLen
     }
   };
@@ -205,12 +210,12 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
     switch (exp) {
-    | Lam(_, _, _, _) => true
+    | Lam(_) => true
     | _ => false
     }
   | Line(_, line_content) =>
     switch (line_content) {
-    | LetLine(_, _, _) => true
+    | LetLine(_) => true
     | _ => false
     }
   | _ => false

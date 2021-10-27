@@ -35,7 +35,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     switch (line) {
     | EmptyLine
     | CommentLine(_) => true
-    | LetLine(_, _, _)
+    | LetLine(_)
     | ExpLine(_) => false
     }
   | Rule(_, _) => false

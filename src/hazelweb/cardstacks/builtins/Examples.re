@@ -1,6 +1,3 @@
-module StringMap = Map.Make(String);
-open Sexplib.Std;
-
 let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 
 let holey_lambda: UHExp.t = {
@@ -10,7 +7,6 @@ let holey_lambda: UHExp.t = {
         Block.wrap(
           lam(
             OpSeq.wrap(UHPat.EmptyHole(0)),
-            ~ann=OpSeq.wrap(UHTyp.Hole),
             Block.wrap(UHExp.EmptyHole(1)),
           ),
         ),
@@ -85,20 +81,24 @@ let map_example: UHExp.t = {
   let letline_node =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("map")),
-        ~ann=
-          Operators_Typ.(
-            UHTyp.(
-              Seq.mk(
-                Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
-                [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (Arrow, List(OpSeq.wrap(Int))),
-                ],
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("map"),
+            Operators_Typ.(
+              UHTyp.(
+                Seq.mk(
+                  Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
+                  [
+                    (Arrow, List(OpSeq.wrap(Int))),
+                    (Arrow, List(OpSeq.wrap(Int))),
+                  ],
+                )
+                |> mk_OpSeq
               )
-              |> mk_OpSeq
-            )
+            ),
           ),
+        ),
         Block.wrap(lam_node),
       )
     );
@@ -155,24 +155,25 @@ let qsort_example: UHExp.t = {
   let append_letline =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("append")),
-        ~ann=
-          UHTyp.(
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("append"),
             Operators_Typ.(
               Seq.mk(
-                List(OpSeq.wrap(Int)),
+                UHTyp.List(OpSeq.wrap(UHTyp.Int)),
                 [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (Arrow, List(OpSeq.wrap(Int))),
+                  (Arrow, List(OpSeq.wrap(UHTyp.Int))),
+                  (Arrow, List(OpSeq.wrap(UHTyp.Int))),
                 ],
               )
-              |> mk_OpSeq
-            )
+              |> UHTyp.mk_OpSeq
+            ),
           ),
+        ),
         Block.wrap(append_lam),
       )
     );
-
   let partition_case =
     UHExp.(
       Operators_Exp.(
@@ -271,29 +272,33 @@ let qsort_example: UHExp.t = {
   let partition_letline =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("partition")),
-        ~ann=
-          UHTyp.(
-            Operators_Typ.(
-              Seq.mk(
-                Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq),
-                [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (
-                    Arrow,
-                    Parenthesized(
-                      Seq.mk(
-                        List(OpSeq.wrap(Int)),
-                        [(Prod, List(OpSeq.wrap(Int)))],
-                      )
-                      |> mk_OpSeq,
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("partition"),
+            UHTyp.(
+              Operators_Typ.(
+                Seq.mk(
+                  Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq),
+                  [
+                    (Arrow, List(OpSeq.wrap(Int))),
+                    (
+                      Arrow,
+                      Parenthesized(
+                        Seq.mk(
+                          List(OpSeq.wrap(Int)),
+                          [(Prod, List(OpSeq.wrap(Int)))],
+                        )
+                        |> mk_OpSeq,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                )
+                |> mk_OpSeq
               )
-              |> mk_OpSeq
-            )
+            ),
           ),
+        ),
         Block.wrap(partition_lam),
       )
     );
@@ -348,19 +353,32 @@ let rec qsort_n = (n: int): UHExp.t =>
     ];
   };
 
-[@deriving sexp]
-type id = string;
-let examples =
-  StringMap.(
-    empty
-    |> add("just_hole", just_hole)
-    |> add("holey_lambda", holey_lambda)
-    |> add("let_line", let_line)
-    |> add("map_example", map_example)
-    |> add("qsort_example", qsort_example)
-    |> add("qsort_example_3", qsort_n(3))
-    |> add("qsort_example_10", qsort_n(10))
-    |> add("qsort_example_30", qsort_n(30))
-    |> add("qsort_example_100", qsort_n(100))
-  );
-let get = id => StringMap.find(id, examples);
+let examples = [
+  ("hole", just_hole),
+  ("lambda", holey_lambda),
+  ("let", let_line),
+  ("map", map_example),
+  ("quicksort", qsort_example),
+];
+
+let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
+  name,
+  caption: Virtual_dom.Vdom.Node.div([], []),
+  init_zexp: ZExp.place_before(e),
+};
+
+let cardstack: CardstackInfo.t = {
+  title: "examples",
+  cards: List.map(example_to_card, examples),
+};
+
+let tests = [
+  ("quicksort x1", qsort_n(1)),
+  ("quicksort x10", qsort_n(10)),
+  ("quicksort x100", qsort_n(100)),
+];
+
+let teststack: CardstackInfo.t = {
+  title: "tests",
+  cards: List.map(example_to_card, tests),
+};

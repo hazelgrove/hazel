@@ -7,7 +7,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, option(UHTyp.t), t)
+  | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -18,8 +18,12 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+<<<<<<< HEAD
   | AssertLit(ErrStatus.t, AssertNumber.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+=======
+  | Lam(ErrStatus.t, UHPat.t, t)
+>>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -38,7 +42,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
+let letline: (UHPat.t, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
@@ -48,9 +52,13 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
+<<<<<<< HEAD
 let assertlit: (~err: ErrStatus.t=?, AssertNumber.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
+=======
+let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
+>>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
@@ -113,4 +121,4 @@ let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete: (t, bool) => bool;
+let is_complete: t => bool;

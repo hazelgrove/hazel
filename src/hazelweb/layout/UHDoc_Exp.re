@@ -139,21 +139,11 @@ and mk_line =
           |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
-        | LetLine(p, ann, def) =>
+        | LetLine(p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let ann =
-            ann
-            |> Option.map(ann =>
-                 UHDoc_Typ.mk_child(
-                   ~memoize,
-                   ~enforce_inline,
-                   ~child_step=1,
-                   ann,
-                 )
-               );
-          let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
-          UHDoc_common.mk_LetLine(p, ann, def);
+          let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
+          UHDoc_common.mk_LetLine(p, def);
         }: UHDoc.t
       )
     )
@@ -190,21 +180,11 @@ and mk_operand =
         | BoolLit(_, b) => mk_BoolLit(b)
         | AssertLit(_, n) => mk_AssertLit(n)
         | ListNil(_) => mk_ListNil()
-        | Lam(_, p, ann, body) =>
+        | Lam(_, p, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
-          let ann =
-            ann
-            |> Option.map(ann =>
-                 UHDoc_Typ.mk_child(
-                   ~memoize,
-                   ~enforce_inline,
-                   ~child_step=1,
-                   ann,
-                 )
-               );
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=2, body);
-          UHDoc_common.mk_Lam(p, ann, body);
+          let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
+          UHDoc_common.mk_Lam(p, body);
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
