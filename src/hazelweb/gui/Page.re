@@ -85,7 +85,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let selected_instance = Model.get_selected_hole_instance(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
-      CursorInspector.view(~inject, model),
       ContextInspector.view(
         ~inject,
         ~selected_instance,
