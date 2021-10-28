@@ -3,6 +3,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Collapsed
+  | Step(int)
+  | Term
   | HoleLabel
   | Delim
   | EmptyHole(bool, HoleInstance.t)

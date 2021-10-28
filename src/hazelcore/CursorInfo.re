@@ -108,19 +108,25 @@ type typed =
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
-  | OnLine
+  | OnNonLetLine
   | OnRule;
 
 [@deriving sexp]
 type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
+  | ExpOperand(CursorPosition.t, UHExp.operand)
+  | PatOperand(CursorPosition.t, UHPat.operand)
+  | TypOperand(CursorPosition.t, UHTyp.operand)
+  | ExpOperator(CursorPosition.t, UHExp.operator)
+  | PatOperator(CursorPosition.t, UHPat.operator)
+  | TypOperator(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
+
+[@deriving sexp]
+type parent_info =
+  | AfterBranchClause
+  | BeforeEmptyHoleLine
+  | NoParentInfo;
 
 // TODO refactor into variants
 // based on term sort and shape
@@ -131,4 +137,5 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  parent_info,
 };
