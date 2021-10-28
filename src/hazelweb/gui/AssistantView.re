@@ -216,11 +216,7 @@ let overlay_view =
       result_text: string,
     )
     : Node.t => {
-  let index =
-    switch (cursor_term) {
-    | ExpOperand(OnText(i), _) => i
-    | _ => String.length(search_string)
-    };
+  let index = CursorInfo_common.index_of_cursor_term(cursor_term);
   let (pre, suf) = StringUtil.split_string(index, search_string);
   let overlay = (n, s) => [
     text(String.make(n, ' ')),
@@ -259,17 +255,18 @@ let result_view =
 };
 
 let result_ty_view: Suggestion.t => Node.t =
-  fun
-  | ReplaceExpOperand({report: {result_ty, _}, _})
-  | ReplacePatOperand({report: {result_ty, _}, _}) =>
-    div(
-      [Attr.class_("type-ann")],
-      [
-        div([Attr.class_("type-ann-colon")], [text(":")]),
-        div([Attr.class_("type-container")], [HTypCode.view(result_ty)]),
-      ],
-    )
-  | ReplaceTypOperand(_) => div([], []);
+  s =>
+    switch (Suggestion.result_ty(s)) {
+    | None => div([], [])
+    | Some(ty) =>
+      div(
+        [Attr.class_("type-ann")],
+        [
+          div([Attr.class_("type-ann-colon")], [text(":")]),
+          div([Attr.class_("type-container")], [HTypCode.view(ty)]),
+        ],
+      )
+    };
 
 let suggestion_view =
     (

@@ -82,6 +82,12 @@ let show_syntax: t => TermSort.syntax =
   | ReplacePatOperand({operand, _}) => Pat(OpSeq.wrap(operand))
   | ReplaceTypOperand({operand, _}) => Typ(OpSeq.wrap(operand));
 
+let result_ty: t => option(HTyp.t) =
+  fun
+  | ReplaceExpOperand({report: {result_ty, _}, _})
+  | ReplacePatOperand({report: {result_ty, _}, _}) => Some(result_ty)
+  | ReplaceTypOperand(_) => None;
+
 let scorer = (scores: 'a, parametrize: 'a => list((float, float))) =>
   scores
   |> parametrize
