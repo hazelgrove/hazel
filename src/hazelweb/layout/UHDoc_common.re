@@ -86,7 +86,6 @@ module Delim = {
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
-
   let assertlit = (n) /*numbering: string*/: t => {
     //Doc.(hcats([text("assert"),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
     //let doc1 = Doc.text("assert") |> Doc.annot(UHAnnot.AssertNumber);

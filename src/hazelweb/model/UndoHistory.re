@@ -163,7 +163,7 @@ let get_delete_action_group =
             elt.cursor_term_info.cursor_term_before,
             elt.cursor_term_info.cursor_term_after,
           ) {
-          | (Exp(_, exp_1), Exp(_, exp_2)) =>
+          | (ExpOperand(_, exp_1), ExpOperand(_, exp_2)) =>
             switch (exp_1, exp_2) {
             | (Var(_, _, _), Var(_, _, _))
             | (IntLit(_, _), IntLit(_, _))
@@ -183,7 +183,7 @@ let get_delete_action_group =
                 elt.cursor_term_info.cursor_term_after,
               )
             }
-          | (Pat(_, pat_1), Pat(_, pat_2)) =>
+          | (PatOperand(_, pat_1), PatOperand(_, pat_2)) =>
             switch (pat_1, pat_2) {
             | (Var(_, _, _), Var(_, _, _))
             | (IntLit(_, _), IntLit(_, _))
@@ -574,7 +574,7 @@ let get_new_action_group =
         | SOr => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
-          | Exp(pos, uexp_operand) =>
+          | ExpOperand(pos, uexp_operand) =>
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {

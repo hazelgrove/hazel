@@ -498,6 +498,20 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
     Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, new_zseq));
 
+  | (
+      Backspace,
+      ZOperand(
+        TypeAnnZP(err, CursorP(_, EmptyHole(_)), ann) as zpann,
+        (A(Space, prefix_tl), suffix),
+      ),
+    )
+      when ZPat.is_before_zoperand(zpann) =>
+    let S(operand, new_prefix) = prefix_tl;
+    let zoperand =
+      ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, new_zseq));
+
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
       Delete,
@@ -954,6 +968,20 @@ and ana_perform_opseq =
       when ZPat.is_before_zoperand(zhole) =>
     let S(operand, new_prefix) = prefix_tl;
     let zoperand = operand |> ZPat.place_after_operand;
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, id_gen, new_zseq, ty));
+
+  | (
+      Backspace,
+      ZOperand(
+        TypeAnnZP(err, CursorP(_, EmptyHole(_)), ann) as zpann,
+        (A(Space, prefix_tl), suffix),
+      ),
+    )
+      when ZPat.is_before_zoperand(zpann) =>
+    let S(operand, new_prefix) = prefix_tl;
+    let zoperand =
+      ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
     Succeeded(mk_and_ana_fix_ZOpSeq(ctx, id_gen, new_zseq, ty));
 
@@ -1472,6 +1500,7 @@ and ana_perform_operand =
         Succeeded((new_zopseq, ctx, id_gen));
       };
     }
+
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
