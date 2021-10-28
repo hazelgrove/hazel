@@ -155,7 +155,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
       assert_results,
       current_term,
     };
-  print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));
+  //print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));
   d;
 };
 
@@ -207,7 +207,7 @@ let perform_edit_action = (a, program) => {
     let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
-        (ze, ty, IDGen.init);
+        (ze, ty, IDGen.reset_metavar(id_gen));
       } else {
         (ze, ty, id_gen);
       };

@@ -42,31 +42,35 @@ let rec to_list = (map: t): list(string) => {
   };
 };
 
-let rec check = (result: list(AssertResult.t)): AssertResult.t =>
-  switch (result) {
-  | [x, ...xs] =>
-    switch (x) {
-    | Pass =>
-      if (xs == []) {
-        Pass;
-      } else {
-        switch (check(xs)) {
-        | Pass => Pass
-        | _ => Comp
-        };
-      }
-    | Fail =>
-      if (xs == []) {
-        Fail;
-      } else {
-        switch (check(xs)) {
-        | Fail => Fail
-        | _ => Comp
-        };
-      }
-    | Indet => Indet
-    | Comp => Comp
-    //| _ => failwith("unexpected on check")
-    }
-  | [] => Indet
-  };
+/*
+ let rec check = (result: list(AssertResult.t)): AssertResult.t =>
+   switch (result) {
+   | [x, ...xs] =>
+     switch (x) {
+     | Pass =>
+       if (xs == []) {
+         Pass;
+       } else {
+         switch (check(xs)) {
+         | Pass => Pass
+         | _ => Comp
+         };
+       }
+     | Fail =>
+       if (xs == []) {
+         Fail;
+       } else {
+         switch (check(xs)) {
+         | Fail => Fail
+         | _ => Comp
+         };
+       }
+     | Indet => Indet
+     | Comp => Comp
+     //| _ => failwith("unexpected on check")
+     }
+   | [] => Indet
+   };
+   */
+
+let check = AssertResult.join_all;

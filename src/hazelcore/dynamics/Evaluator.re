@@ -734,9 +734,6 @@ let rec evaluate =
         assert_map,
       )
     | ((BoxedValue(d1), _), (BoxedValue(d2), _)) =>
-      print_endline(
-        Sexplib.Sexp.to_string(AssertMap.sexp_of_t(assert_map)),
-      );
       (BoxedValue(Pair(d1, d2)), assert_map);
     }*/
   | Cons(d1, d2) =>
