@@ -21,13 +21,9 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-<<<<<<< HEAD
 let evaluate: (DHExp.t, AssertMap.t) => (result, AssertMap.t);
-=======
-let evaluate: DHExp.t => result;
 
 /* closed substitution [d1/x]d2*/
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
 
 let subst: (Environment.t, DHExp.t) => DHExp.t;
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b

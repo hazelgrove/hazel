@@ -1,75 +1,6 @@
 open Virtual_dom.Vdom;
 open Pretty;
 
-<<<<<<< HEAD
-let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
-  open Vdom;
-  let rec go = (l: DHLayout.t) =>
-    switch (l) {
-    | Text(s) => [Node.text(s)]
-    | Cat(l1, l2) => go(l1) @ go(l2)
-    | Linebreak => [Node.br([])]
-    | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-    | Annot(Collapsed, l) => [
-        Node.span([Attr.classes(["Collapsed"])], go(l)),
-      ]
-    | Annot(HoleLabel, l) => [
-        Node.span([Attr.classes(["HoleLabel"])], go(l)),
-      ]
-    | Annot(Delim, l) => [
-        Node.span([Attr.classes(["code-delim"])], go(l)),
-      ]
-    | Annot(NonEmptyHole(_), l) => [
-        Node.span([Attr.classes(["InHole"])], go(l)),
-      ]
-    | Annot(InconsistentBranches(_), l) => [
-        Node.span([Attr.classes(["InconsistentBranches"])], go(l)),
-      ]
-    | Annot(Invalid(_), l) => [
-        Node.span([Attr.classes(["InHole"])], go(l)),
-      ]
-    | Annot(VarHole(_), l) => [
-        Node.span([Attr.classes(["InVarHole"])], go(l)),
-      ]
-    | Annot(EmptyHole(selected, inst), l) => [
-        Node.span(
-          [
-            Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
-            Attr.on_click(_ => inject(ModelAction.SelectHoleInstance(inst))),
-          ],
-          go(l),
-        ),
-      ]
-    | Annot(FailedCastDelim, l) => [
-        Node.span([Attr.classes(["FailedCastDelim"])], go(l)),
-      ]
-    | Annot(AssertionFail, l) => [
-        Node.span([Attr.classes(["AssertionFail"])], go(l)),
-      ]
-    | Annot(AssertPass, l) => [
-        Node.span([Attr.classes(["AssertPass"])], go(l)),
-      ]
-    | Annot(AssertFail, l) => [
-        Node.span([Attr.classes(["AssertFail"])], go(l)),
-      ]
-    | Annot(AssertIndet, l) => [
-        Node.span([Attr.classes(["AssertIndet"])], go(l)),
-      ]
-    | Annot(AssertComp, l) => [
-        Node.span([Attr.classes(["AssertComp"])], go(l)),
-      ]
-    | Annot(FailedCastDecoration, l) => [
-        Node.span([Attr.classes(["FailedCastDecoration"])], go(l)),
-      ]
-    | Annot(CastDecoration, l) => [
-        Node.div([Attr.classes(["CastDecoration"])], go(l)),
-      ]
-    | Annot(DivideByZero, l) => [
-        Node.span([Attr.classes(["DivideByZero"])], go(l)),
-      ]
-    };
-  Node.div([Attr.classes(["code", "DHCode"])], go(l));
-=======
 let with_cls = cls => Node.span([Attr.classes([cls])]);
 
 let view_of_layout =
@@ -109,6 +40,11 @@ let view_of_layout =
                  ds,
                )
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
+             | AssertionFail => ([with_cls("AssertionFail", txt)], ds)
+             | AssertPass => ([with_cls("AssertPass", txt)], ds)
+             | AssertFail => ([with_cls("AssertFail", txt)], ds)
+             | AssertIndet => ([with_cls("AssertIndet", txt)], ds)
+             | AssertComp => ([with_cls("AssertComp", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],
                  ds,
@@ -137,7 +73,6 @@ let view_of_layout =
     [Attr.classes(["DHCode"])],
     [with_cls("code", text), ...decorations],
   );
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
 };
 
 let view =

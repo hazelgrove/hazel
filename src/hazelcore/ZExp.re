@@ -227,12 +227,8 @@ and is_after_zoperand =
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-<<<<<<< HEAD
   | CursorE(cursor, AssertLit(_)) => cursor == OnText(6)
-  | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
-=======
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(2, After)
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
@@ -360,12 +356,8 @@ and place_after_operand = operand =>
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
-<<<<<<< HEAD
   | AssertLit(_) => CursorE(OnText(6), operand)
-  | Lam(_) => CursorE(OnDelim(3, After), operand)
-=======
   | Lam(_) => CursorE(OnDelim(2, After), operand)
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)

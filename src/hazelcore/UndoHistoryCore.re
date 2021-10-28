@@ -145,16 +145,12 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListNil(_)
-<<<<<<< HEAD
-    | AssertLit(_, _)
-    | Lam(_, _, _, _)
-=======
+    | AssertLit(_)
     | Lam(_)
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
-    | Inj(_, _, _)
-    | Case(_, _, _)
+    | Inj(_)
+    | Case(_)
     | Parenthesized(_) => MaxLen
-    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    | ApPalette(_) => failwith("ApPalette not implemented")
     }
   | Pat(_, operand) =>
     switch (operand) {
@@ -168,7 +164,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | ListNil(_)
     | Parenthesized(_)
     | TypeAnn(_)
-    | Inj(_, _, _) => MaxLen
+    | Inj(_) => MaxLen
     }
   | Typ(_, operand) =>
     switch (operand) {

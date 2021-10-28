@@ -91,21 +91,16 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), id_gen);
   | ParenthesizedZ(zp) =>
-<<<<<<< HEAD
     let (zp, id_gen) = zp |> mk_inconsistent(id_gen);
     (ParenthesizedZ(zp), id_gen);
-=======
-    let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
-    (ParenthesizedZ(zp), u_gen);
-  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
-  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
+    (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), id_gen);
+  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), u_gen);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
+    (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), id_gen);
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
