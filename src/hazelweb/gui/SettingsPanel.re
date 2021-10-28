@@ -93,18 +93,18 @@ let view =
             evaluation.show_casts,
           ),
           labeled_checkbox(
-            ~id="show_unevaluated_expansion",
+            ~id="show_unevaluated_elaboration",
             ~classes=["indented-option"],
-            ~label="Show unevaluated expansion",
+            ~label="Show unevaluated elaboration",
             ~on_change=
               () =>
                 inject(
                   UpdateSettings(
-                    Evaluation(Toggle_show_unevaluated_expansion),
+                    Evaluation(Toggle_show_unevaluated_elaboration),
                   ),
                 ),
             ~disabled=!evaluation.evaluate,
-            evaluation.show_unevaluated_expansion,
+            evaluation.show_unevaluated_elaboration,
           ),
           //
           labeled_checkbox(

@@ -71,7 +71,7 @@ let expand =
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
   );
-let get_expansion = (program: t): DHExp.t =>
+let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
   | DoesNotElaborate => raise(DoesNotElaborate)
   | Elaborates(d, _, _) => d
@@ -83,7 +83,7 @@ let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 let get_result = (program: t): (Result.t, AssertMap.t) =>
   //check if map is resetted here
-  switch (AssertMap.empty |> evaluate(get_expansion(program))) {
+  switch (AssertMap.empty |> evaluate(get_elaboration(program))) {
   | (InvalidInput(_), _) => raise(InvalidInput)
   | (BoxedValue(d), assert_map) =>
     let (d_renumbered, hii) =
@@ -99,9 +99,9 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
-         switch (sort) {
-         | Assert(_, _)
+    |> List.filter_map(hole_info =>
+         switch (CursorPath.get_sort(hole_info)) {
+         | Assert(_) => None // TODO(andrew)
          | TypHole => None
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
@@ -109,7 +109,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | Empty
            | Assertlit => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
            }
          }
        )
@@ -126,7 +126,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     };
   let assert_results =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
          | TypHole
          | PatHole(_, _)
@@ -138,7 +138,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | TypeErr => None
            | Assertlit =>
              let assertmap =
-               snd(AssertMap.empty |> evaluate(get_expansion(program)));
+               snd(AssertMap.empty |> evaluate(get_elaboration(program)));
              switch (AssertMap.lookup(num, assertmap)) {
              | Some(t) => Some((steps, t))
              | _ => None
@@ -158,6 +158,258 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));
   d;
 };
+
+/*
+ let rec renumber_result_only =
+         (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
+         : (DHExp.t, HoleInstanceInfo.t) =>
+   switch (d) {
+   | BoundVar(_)
+   | InvalidText(_)
+   | BoolLit(_)
+   | FailedAssert(_)
+   | AssertLit(_)
+   | Sequence(_, _)
+   | IntLit(_)
+   | FloatLit(_)
+   | ListNil(_)
+   | Triv => (d, hii)
+   | Let(dp, d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (Let(dp, d1, d2), hii);
+   | FixF(x, ty, d1) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (FixF(x, ty, d1), hii);
+   | Lam(x, ty, d1) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (Lam(x, ty, d1), hii);
+   | Ap(d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (Ap(d1, d2), hii);
+   | BinBoolOp(op, d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (BinBoolOp(op, d1, d2), hii);
+   | BinIntOp(op, d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (BinIntOp(op, d1, d2), hii);
+   | BinFloatOp(op, d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (BinFloatOp(op, d1, d2), hii);
+   | Inj(ty, side, d1) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (Inj(ty, side, d1), hii);
+   | Pair(d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (Pair(d1, d2), hii);
+   | Cons(d1, d2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (d2, hii) = renumber_result_only(path, hii, d2);
+     (Cons(d1, d2), hii);
+   | ConsistentCase(Case(d1, rules, n)) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
+     (ConsistentCase(Case(d1, drules, n)), hii);
+   | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
+     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
+     (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
+   | EmptyHole(u, _, sigma) =>
+     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+     (EmptyHole(u, i, sigma), hii);
+   | NonEmptyHole(reason, u, _, sigma, d1) =>
+     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (NonEmptyHole(reason, u, i, sigma, d1), hii);
+   | FreeVar(u, _, sigma, x) =>
+     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+     (FreeVar(u, i, sigma, x), hii);
+   | Keyword(u, _, sigma, k) =>
+     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+     (Keyword(u, i, sigma, k), hii);
+   | Cast(d1, ty1, ty2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (Cast(d1, ty1, ty2), hii);
+   | FailedCast(d1, ty1, ty2) =>
+     let (d1, hii) = renumber_result_only(path, hii, d1);
+     (FailedCast(d1, ty1, ty2), hii);
+   | InvalidOperation(d, err) =>
+     let (d, hii) = renumber_result_only(path, hii, d);
+     (InvalidOperation(d, err), hii);
+   }
+ and renumber_result_only_rules =
+     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
+     : (list(DHExp.rule), HoleInstanceInfo.t) =>
+   rules
+   |> List.fold_left(
+        (b, r: DHExp.rule) => {
+          let (rs, hii) = b;
+          switch (r) {
+          | Rule(dp, d) =>
+            let (dp, hii) =
+              Elaborator_Pat.renumber_result_only(path, hii, dp);
+            let (d, hii) = renumber_result_only(path, hii, d);
+            (rs @ [DHExp.Rule(dp, d)], hii);
+          };
+        },
+        ([], hii),
+      );
+
+ let rec renumber_sigmas_only =
+         (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
+         : (DHExp.t, HoleInstanceInfo.t) =>
+   switch (d) {
+   | BoundVar(_)
+   | InvalidText(_)
+   | BoolLit(_)
+   | FailedAssert(_)
+   | AssertLit(_)
+   | Sequence(_, _)
+   | IntLit(_)
+   | FloatLit(_)
+   | ListNil(_)
+   | Triv => (d, hii)
+   | Let(dp, d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (Let(dp, d1, d2), hii);
+   | FixF(x, ty, d1) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (FixF(x, ty, d1), hii);
+   | Lam(x, ty, d1) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (Lam(x, ty, d1), hii);
+   | Ap(d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (Ap(d1, d2), hii);
+   | BinBoolOp(op, d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (BinBoolOp(op, d1, d2), hii);
+   | BinIntOp(op, d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (BinIntOp(op, d1, d2), hii);
+   | BinFloatOp(op, d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (BinFloatOp(op, d1, d2), hii);
+   | Inj(ty, side, d1) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (Inj(ty, side, d1), hii);
+   | Pair(d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (Pair(d1, d2), hii);
+   | Cons(d1, d2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+     (Cons(d1, d2), hii);
+   | ConsistentCase(Case(d1, rules, n)) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
+     (ConsistentCase(Case(d1, rules, n)), hii);
+   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
+     (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
+   | EmptyHole(u, i, sigma) =>
+     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+     (EmptyHole(u, i, sigma), hii);
+   | NonEmptyHole(reason, u, i, sigma, d1) =>
+     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (NonEmptyHole(reason, u, i, sigma, d1), hii);
+   | FreeVar(u, i, sigma, x) =>
+     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+     (FreeVar(u, i, sigma, x), hii);
+   | Keyword(u, i, sigma, k) =>
+     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+     (Keyword(u, i, sigma, k), hii);
+   | Cast(d1, ty1, ty2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (Cast(d1, ty1, ty2), hii);
+   | FailedCast(d1, ty1, ty2) =>
+     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+     (FailedCast(d1, ty1, ty2), hii);
+   | InvalidOperation(d, err) =>
+     let (d, hii) = renumber_sigmas_only(path, hii, d);
+     (InvalidOperation(d, err), hii);
+   }
+ and renumber_sigmas_only_rules =
+     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
+     : (list(DHExp.rule), HoleInstanceInfo.t) =>
+   rules
+   |> List.fold_left(
+        (b, r: DHExp.rule) => {
+          let (rs, hii) = b;
+          switch (r) {
+          | Rule(dp, d) =>
+            /* pattern holes don't have environments */
+            let (d, hii) = renumber_sigmas_only(path, hii, d);
+            (rs @ [DHExp.Rule(dp, d)], hii);
+          };
+        },
+        ([], hii),
+      )
+ and renumber_sigma =
+     (
+       path: InstancePath.t,
+       u: MetaVar.t,
+       i: MetaVarInst.t,
+       hii: HoleInstanceInfo.t,
+       sigma: Environment.t,
+     )
+     : (Environment.t, HoleInstanceInfo.t) => {
+   let (sigma, hii) =
+     List.fold_right(
+       (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+         let (x, d) = xd;
+         let (sigma_in, hii) = acc;
+         let path = [((u, i), x), ...path];
+         let (d, hii) = renumber_result_only(path, hii, d);
+         let sigma_out = [(x, d), ...sigma_in];
+         (sigma_out, hii);
+       },
+       sigma,
+       ([], hii),
+     );
+
+   List.fold_right(
+     (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+       let (x, d) = xd;
+       let (sigma_in, hii) = acc;
+       let path = [((u, i), x), ...path];
+       let (d, hii) = renumber_sigmas_only(path, hii, d);
+       let sigma_out = [(x, d), ...sigma_in];
+       (sigma_out, hii);
+     },
+     sigma,
+     ([], hii),
+   );
+ };
+
+
+  let renumber =
+      (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
+      : (DHExp.t, HoleInstanceInfo.t) => {
+    let (d, hii) = renumber_result_only(path, hii, d);
+    renumber_sigmas_only(path, hii, d);
+  };
+  */
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
@@ -206,8 +458,8 @@ let perform_edit_action = (a, program) => {
   | Succeeded(new_edit_state) =>
     let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        (ze, ty, IDGen.init_hole(id_gen));
+      if (UHExp.is_complete(ZExp.erase(ze))) {
+        (ze, ty, IDGen.init);
       } else {
         (ze, ty, id_gen);
       };

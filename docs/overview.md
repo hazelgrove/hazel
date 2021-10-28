@@ -14,7 +14,7 @@ Code in `hazelcore`should be pure OCaml.
 ## Module Organization
 
 Users edit external expressions, of type `UHExp.t`, via edit actions. External
-expressions are expanded to internal expressions, of type `DHExp.t`, for
+expressions are elaborated to internal expressions, of type `DHExp.t`, for
 evaluation. The external and internal languages share a type system. Types are
 of type `HTyp.t`.
 
@@ -41,15 +41,15 @@ of type `HTyp.t`.
   - edit action semantics:
     - `Action_common`, `Action_Exp`, `Action_Pat`, `Action_Typ`
     - `ExpandingKeyword`
-    - `MetaVarGen`
+    - `IDGen`
     - `TextShape`
   - dynamics
     - internal syntax: `DHExp`, `DHPat`
       - external expressions are for editing
-      - need to expand external expressions to internal in order to insert casts
+      - need to elaborate external expressions to internal in order to insert casts
         and closure information
       - see POPL 2019, external expressions use variable e, internal use variable d
-    - expansion from external syntax to internal syntax:
+    - elaboration from external syntax to internal syntax:
       - `Dynamics`
       - `MetaVarMap`
       - `Delta`

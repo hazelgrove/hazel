@@ -497,7 +497,7 @@ let get_new_action_group =
       | SCommentLine
       | SParenthesized
       | SList
-      | SAsc
+      | SAnn
       | SLam
       | SListNil
       | SInj(_)
