@@ -78,13 +78,14 @@ let decoration_views =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let cls = decoration_cls(dshape);
-               print_endline("current");
-               print_endline(
-                 Sexplib.Sexp.to_string(UHDecorationShape.sexp_of_t(dshape)),
-               );
-               /*print_endline(
-                   Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
-                 );*/
+               /*
+                print_endline("current");
+                print_endline(
+                  Sexplib.Sexp.to_string(UHDecorationShape.sexp_of_t(dshape)),
+                );
+                print_endline(
+                    Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
+                  );*/
                let view =
                  decoration_view(
                    ~contains_current_term=Option.is_some(dpaths.current_term),
@@ -265,9 +266,11 @@ let view =
       let code_text = view_of_box(program, UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
-        print_endline(
-          Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
-        );
+        /*
+         print_endline(
+           Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
+         );
+         */
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
