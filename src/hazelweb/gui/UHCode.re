@@ -182,6 +182,28 @@ let rec view_of_box = (program: Program.t, box: UHBox.t): list(Vdom.Node.t) => {
           ];
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | AssertNum({num}) =>
+          let assert_map = program |> Program.get_result |> snd;
+          switch (AssertMap.lookup(num, assert_map)) {
+          | None => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+            ]
+          | Some(a) =>
+            switch (AssertMap.check(a)) {
+            | Pass => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+              ]
+            | Fail => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+              ]
+            | Comp => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+              ]
+            | Indet => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+              ]
+            }
+          };
         | _ => vs
         };
       }
