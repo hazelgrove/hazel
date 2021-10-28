@@ -131,6 +131,28 @@ module ZBlock = {
   let wrap = (zoperand: zoperand): zblock => wrap'(ZOpSeq.wrap(zoperand));
 };
 
+let rec is_opseq =
+        (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  ze |> is_opseq_zblock
+and is_opseq_zblock =
+    ((_, zline, _): zblock)
+    : option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  zline |> is_opseq_zline
+and is_opseq_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
+  | LetLineZP(_) => None
+  | LetLineZE(_, zdef) => zdef |> is_opseq
+and is_opseq_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
+    switch (prefix) {
+    | Seq.A(Space, _) => Some(zseq)
+    | _ => None
+    }
+  | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
+
 let rec is_before = (ze: t): bool => ze |> is_before_zblock
 and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   switch (prefix) {
