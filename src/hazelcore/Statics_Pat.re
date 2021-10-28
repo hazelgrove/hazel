@@ -414,16 +414,12 @@ and syn_fix_holes_operand =
       | L => HTyp.Sum(ty1, Hole)
       | R => HTyp.Sum(Hole, ty1)
       };
-<<<<<<< HEAD
     (p, ty, ctx, id_gen);
-=======
-    (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
     let ty = UHTyp.expand(ann);
-    let (op, ctx, u_gen) =
-      ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
-    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+    let (op, ctx, id_gen) =
+      ana_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, op, ty);
+    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, id_gen);
   };
 }
 and ana_fix_holes =
@@ -705,20 +701,20 @@ and ana_fix_holes_operand =
   | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     if (HTyp.consistent(ty, ty_ann)) {
-      let (op, ctx, u_gen) =
-        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
-      (TypeAnn(NotInHole, op, ann), ctx, u_gen);
+      let (op, ctx, id_gen) =
+        ana_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, op, ty_ann);
+      (TypeAnn(NotInHole, op, ann), ctx, id_gen);
     } else {
-      let (op, _, _, u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
-      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (op, _, _, id_gen) =
+        syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, op);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHPat.set_err_status_operand(
           InHole(TypeInconsistent, u),
           TypeAnn(err, op, ann),
         ),
         ctx,
-        u_gen,
+        id_gen,
       );
     };
   };

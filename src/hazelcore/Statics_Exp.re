@@ -578,36 +578,15 @@ and syn_fix_holes_line =
       syn_fix_holes_opseq(ctx, id_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, id_gen);
   | EmptyLine
-<<<<<<< HEAD
   | CommentLine(_) => (line, ctx, id_gen)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let (ctx_def, _) = ctx_for_let(ctx, p, ty1, def);
-      let (def, id_gen) =
-        ana_fix_holes(ctx_def, id_gen, ~renumber_empty_holes, def, ty1);
-      let (p, ctx, id_gen) =
-        Statics_Pat.ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p, ty1);
-      (LetLine(p, ann, def), ctx, id_gen);
-    | None =>
-      let (def, ty1, id_gen) =
-        syn_fix_holes(~renumber_empty_holes, ctx, id_gen, def);
-      let (p, ctx, id_gen) =
-        Statics_Pat.ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p, ty1);
-      (LetLine(p, ann, def), ctx, id_gen);
-    }
-=======
-  | CommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, def) =>
-    let (p, ty_p, _, u_gen) =
-      Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+    let (p, ty_p, _, id_gen) =
+      Statics_Pat.syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
-    let (def, u_gen) =
-      ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+    let (def, id_gen) =
+      ana_fix_holes(def_ctx, id_gen, ~renumber_empty_holes, def, ty_p);
     let body_ctx = extend_let_body_ctx(ctx, p, def);
-    (LetLine(p, def), body_ctx, u_gen);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+    (LetLine(p, def), body_ctx, id_gen);
   }
 and syn_fix_holes_opseq =
     (
@@ -837,32 +816,15 @@ and syn_fix_holes_operand =
   | AssertLit(_, _) => (e_nih, Arrow(Bool, Prod([])), id_gen)
   | ListNil(_) => (e_nih, List(Hole), id_gen)
   | Parenthesized(body) =>
-<<<<<<< HEAD
     let (block, ty, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, id_gen);
-  | Lam(_, p, ann, body) =>
-    let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => HTyp.Hole
-      };
-    let (p, ctx, id_gen) =
-      Statics_Pat.ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p, ty1);
-    let (body, ty2, id_gen) =
-      syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, ann, body), Arrow(ty1, ty2), id_gen);
-=======
-    let (block, ty, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
-    (Parenthesized(block), ty, u_gen);
   | Lam(_, p, body) =>
-    let (p, ty_p, ctx_body, u_gen) =
-      Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-    let (body, ty_body, u_gen) =
-      syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+    let (p, ty_p, ctx_body, id_gen) =
+      Statics_Pat.syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
+    let (body, ty_body, id_gen) =
+      syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
+    (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), id_gen);
   | Inj(_, side, body) =>
     let (body, ty1, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
@@ -1263,69 +1225,23 @@ and ana_fix_holes_operand =
       (ListNil(InHole(TypeInconsistent, u)), id_gen);
     }
   | Parenthesized(body) =>
-<<<<<<< HEAD
     let (body, id_gen) =
       ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), id_gen);
-  | Lam(_, p, ann, def) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
-        if (HTyp.consistent(ty1_ann, ty1_given)) {
-          let (p, ctx, id_gen) =
-            Statics_Pat.ana_fix_holes(
-              ctx,
-              id_gen,
-              ~renumber_empty_holes,
-              p,
-              ty1_ann,
-            );
-          let (def, id_gen) =
-            ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, def, ty2);
-          (UHExp.Lam(NotInHole, p, ann, def), id_gen);
-        } else {
-          let (e', _, id_gen) =
-            syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
-          let (u, id_gen) = IDGen.next_hole(id_gen);
-          (
-            UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-            id_gen,
-          );
-        };
-      | None =>
-        let (p, ctx, id_gen) =
-          Statics_Pat.ana_fix_holes(
-            ctx,
-            id_gen,
-            ~renumber_empty_holes,
-            p,
-            ty1_given,
-          );
-        let (def, id_gen) =
-          ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, def, ty2);
-        (UHExp.Lam(NotInHole, p, ann, def), id_gen);
-      }
-=======
-    let (body, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
-    (Parenthesized(body), u_gen);
   | Lam(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
-      let (p, ctx, u_gen) =
+      let (p, ctx, id_gen) =
         Statics_Pat.ana_fix_holes(
           ctx,
-          u_gen,
+          id_gen,
           ~renumber_empty_holes,
           p,
           ty1_given,
         );
-      let (def, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-      (UHExp.Lam(NotInHole, p, def), u_gen);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+      let (def, id_gen) =
+        ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, def, ty2);
+      (UHExp.Lam(NotInHole, p, def), id_gen);
     | None =>
       let (e', _, id_gen) =
         syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);

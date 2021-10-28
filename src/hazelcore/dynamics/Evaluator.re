@@ -224,6 +224,9 @@ and matches_cast_Inj =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Sequence(_)
+  | AssertLit(_)
+  | FailedAssert(_) => DoesNotMatch //TODO(andrew)
   }
 and matches_cast_Pair =
     (
@@ -289,6 +292,9 @@ and matches_cast_Pair =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Sequence(_)
+  | AssertLit(_)
+  | FailedAssert(_) => DoesNotMatch //TODO(andrew)
   }
 and matches_cast_Cons =
     (
@@ -360,6 +366,9 @@ and matches_cast_Cons =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
+  | Sequence(_)
+  | AssertLit(_)
+  | FailedAssert(_) => DoesNotMatch //TODO(andrew)
   };
 
 /* closed substitution [d1/x]d2*/
@@ -455,6 +464,14 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
+  | Sequence(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Sequence(d3, d4);
+  | AssertLit(n) => AssertLit(n)
+  | FailedAssert(n, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    FailedAssert(n, d3);
   }
 
 and subst_var_rules =
@@ -527,19 +544,17 @@ let rec evaluate =
   | FailedAssert(_, d1) => (Indet(d1), assert_map)
   | AssertLit(_) => (BoxedValue(d), assert_map)
   | Let(dp, d1, d2) =>
-<<<<<<< HEAD
     switch (evaluate(d1, assert_map)) {
     | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
     | (BoxedValue(d1), map1)
     | (Indet(d1), map1) =>
-      switch (Elaborator_Exp.matches(dp, d1)) {
+      switch (matches(dp, d1)) {
       | Indet => (Indet(d), map1)
       | DoesNotMatch => (Indet(d), map1)
-      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2), map1)
+      | Matches(env) => evaluate(subst(env, d2), map1)
       }
     }
-  | FixF(x, _, d1) =>
-    evaluate(Elaborator_Exp.subst_var(d, x, d1), assert_map)
+  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), assert_map)
   | Lam(_, _, _) => (BoxedValue(d), assert_map)
   | Sequence(d1, d2) =>
     switch (evaluate(d1, assert_map)) {
@@ -579,40 +594,12 @@ let rec evaluate =
       | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
       | (BoxedValue(d2), map2)
       | (Indet(d2), map2) =>
-        switch (Elaborator_Exp.matches(dp, d2)) {
+        switch (matches(dp, d2)) {
         | DoesNotMatch => (Indet(d), map2)
         | Indet => (Indet(d), map2)
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator_Exp.subst(env, d3), map2)
-=======
-    switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(d1)
-    | Indet(d1) =>
-      switch (matches(dp, d1)) {
-      | Indet => Indet(d)
-      | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(subst(env, d2))
-      }
-    }
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Lam(_, _, _) => BoxedValue(d)
-  | Ap(d1, d2) =>
-    switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(Lam(dp, _, d3)) =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d2)
-      | Indet(d2) =>
-        switch (matches(dp, d2)) {
-        | DoesNotMatch => Indet(d)
-        | Indet => Indet(d)
-        | Matches(env) =>
-          /* beta rule */
-          evaluate(subst(env, d3))
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+          evaluate(subst(env, d3), map2)
         }
       }
     | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), _)
@@ -879,16 +866,12 @@ let rec evaluate =
     | (BoxedValue(d1'), _)
     | (Indet(d1'), _) => (Indet(FailedCast(d1', ty, ty')), assert_map)
     }
-<<<<<<< HEAD
   | InvalidOperation(d, err) =>
     switch (evaluate(d, assert_map)) {
     | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
     | (BoxedValue(d'), _)
     | (Indet(d'), _) => (Indet(InvalidOperation(d', err)), assert_map)
     }
-=======
-  | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
   }
 and evaluate_case =
     (
@@ -920,12 +903,7 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-<<<<<<< HEAD
-      | Matches(env) =>
-        fst(evaluate(Elaborator_Exp.subst(env, d), assert_map))
-=======
-      | Matches(env) => evaluate(subst(env, d))
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+      | Matches(env) => fst(evaluate(subst(env, d), assert_map))
       | DoesNotMatch =>
         evaluate_case(
           inconsistent_info,

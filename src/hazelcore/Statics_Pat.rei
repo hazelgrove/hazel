@@ -49,29 +49,17 @@ let ana_fix_holes:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
   (UHPat.t, Contexts.t, IDGen.t);
 let ana_fix_holes_opseq:
-<<<<<<< HEAD
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq, HTyp.t) =>
   (UHPat.opseq, Contexts.t, IDGen.t);
-
-=======
-  (
-    Contexts.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHPat.opseq,
-    HTyp.t
-  ) =>
-  (UHPat.opseq, Contexts.t, MetaVarGen.t);
 let ana_fix_holes_operand:
   (
     Contexts.t,
-    MetaVarGen.t,
+    IDGen.t,
     ~renumber_empty_holes: bool=?,
     UHPat.operand,
     HTyp.t
   ) =>
-  (UHPat.operand, Contexts.t, MetaVarGen.t);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+  (UHPat.operand, Contexts.t, IDGen.t);
 let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Contexts.t, IDGen.t);
 

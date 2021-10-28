@@ -20,12 +20,8 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-<<<<<<< HEAD
   | AssertLit(ErrStatus.t, AssertNumber.t)
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
-=======
   | Lam(ErrStatus.t, UHPat.t, t)
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -63,23 +59,11 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
-<<<<<<< HEAD
 let assertlit = (~err: ErrStatus.t=NotInHole, n: AssertNumber.t): operand =>
   AssertLit(err, n);
 
-let lam =
-    (
-      ~err: ErrStatus.t=NotInHole,
-      p: UHPat.t,
-      ~ann: option(UHTyp.t)=?,
-      body: t,
-    )
-    : operand =>
-  Lam(err, p, ann, body);
-=======
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Lam(err, p, body);
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
 
 let case =
     (

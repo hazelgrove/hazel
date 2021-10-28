@@ -133,12 +133,8 @@ and mk_inconsistent_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-<<<<<<< HEAD
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, id_gen)
-=======
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
-  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, id_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -146,14 +142,9 @@ and mk_inconsistent_operand =
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-<<<<<<< HEAD
-  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
-    let (u, id_gen) = IDGen.next_hole(id_gen);
-=======
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
->>>>>>> 52706d44e926e57ad234412b9cb02109860cb18b
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (set_operand, id_gen);

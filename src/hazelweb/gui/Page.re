@@ -61,21 +61,16 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
         [Attr.classes(["result-view"])],
         [
           DHCode.view(
-                    ~inject,
-                    ~selected_instance,
-                    ~settings=settings.evaluation,
-                    ~width=80,
-                    settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
-                      : program |> Program.get_result |> Result.get_dhexp,
-                    settings.evaluation.show_unevaluated_expansion
-                      ? AssertMap.empty
-                      : snd(
-                          program
-                          |> Program.get_result
-                          |> Result.get_dhexp_assert,
-                        ),
-                  ),
+            ~inject,
+            ~selected_instance,
+            ~font_metrics=model.font_metrics,
+            ~settings=settings.evaluation,
+            ~width=80,
+            result,
+            settings.evaluation.show_unevaluated_elaboration
+              ? AssertMap.empty
+              : snd(program |> Program.get_result |> Result.get_dhexp_assert),
+          ),
         ],
       ),
     ],

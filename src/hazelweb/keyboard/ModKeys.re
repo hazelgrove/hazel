@@ -38,18 +38,18 @@ let ctrlOrCmd_alt = ignore_cmd_vs_ctrl(Held, NotHeld, Held);
 
 let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) => {
   let req_matches = (req, mk) => {
-    let mod_matches = ModKey.matches(mk, evt);
+    let mod_matches = Key.matches(mk, evt);
     switch (req) {
     | Any => true
     | Held => mod_matches
     | NotHeld => !mod_matches
     };
   };
-
-  req_matches(mks.ctrl, ModKey.Ctrl)
-  && req_matches(mks.shift, ModKey.Shift)
-  && req_matches(mks.alt, ModKey.Alt)
-  && req_matches(mks.meta, ModKey.Meta);
+  //TODO(andrew): merge fixes?
+  req_matches(mks.ctrl, Key.the_key("Ctrl") /*ModKey.Ctrl*/)
+  && req_matches(mks.shift, Key.the_key("Shift") /*ModKey.Shift*/)
+  && req_matches(mks.alt, Key.the_key("Alt") /*ModKey.Alt*/)
+  && req_matches(mks.meta, Key.the_key("Meta") /*ModKey.Meta*/);
 };
 
 let mod_prefix = mk => {
