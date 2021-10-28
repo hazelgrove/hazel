@@ -86,10 +86,16 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
   switch (AssertMap.empty |> evaluate(get_elaboration(program))) {
   | (InvalidInput(_), _) => raise(InvalidInput)
   | (BoxedValue(d), assert_map) =>
+    print_endline(
+      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(assert_map)),
+    );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
     ((d_renumbered, hii, BoxedValue(d_renumbered)), assert_map);
   | (Indet(d), assert_map) =>
+    print_endline(
+      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(assert_map)),
+    );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
     ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
@@ -137,9 +143,9 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | VarErr
            | TypeErr => None
            | Assertlit =>
-             let assertmap =
-               snd(AssertMap.empty |> evaluate(get_elaboration(program)));
-             switch (AssertMap.lookup(num, assertmap)) {
+             let assert_map =
+               AssertMap.empty |> evaluate(get_elaboration(program)) |> snd;
+             switch (AssertMap.lookup(num, assert_map)) {
              | Some(t) => Some((steps, t))
              | _ => None
              };

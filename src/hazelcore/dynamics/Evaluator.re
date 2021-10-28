@@ -545,34 +545,37 @@ let rec evaluate =
   | AssertLit(_) => (BoxedValue(d), assert_map)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(d1), map1)
-    | (Indet(d1), map1) =>
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(d1), assert_map)
+    | (Indet(d1), assert_map) =>
       switch (matches(dp, d1)) {
-      | Indet => (Indet(d), map1)
-      | DoesNotMatch => (Indet(d), map1)
-      | Matches(env) => evaluate(subst(env, d2), map1)
+      | Indet => (Indet(d), assert_map)
+      | DoesNotMatch => (Indet(d), assert_map)
+      | Matches(env) => evaluate(subst(env, d2), assert_map)
       }
     }
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), assert_map)
   | Lam(_, _, _) => (BoxedValue(d), assert_map)
   | Sequence(d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(_), map1) => evaluate(d2, map1)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(_), assert_map) => evaluate(d2, assert_map)
     | (Indet(d1), map1) =>
       switch (evaluate(d2, map1)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
-      | (BoxedValue(d2), map2) => (Indet(Sequence(d1, d2)), map2)
-      | (Indet(d2), map2) => (Indet(Sequence(d1, d2)), map2)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(d2), assert_map) => (
+          Indet(Sequence(d1, d2)),
+          assert_map,
+        )
+      | (Indet(d2), assert_map) => (Indet(Sequence(d1, d2)), assert_map)
       }
     }
   | Ap(d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(AssertLit(n)), _) =>
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(AssertLit(n)), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (BoxedValue(BoolLit(b)), _) =>
+      | (BoxedValue(BoolLit(b)), assert_map) =>
         b
           ? {
             let assert_result =
@@ -589,23 +592,29 @@ let rec evaluate =
           AssertMap.extend((n, AssertResult.Indet), assert_map);
         (Indet(Ap(AssertLit(n), d2)), assert_result);
       }
-    | (BoxedValue(Lam(dp, _, d3)), map1) =>
-      switch (evaluate(d2, map1)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
-      | (BoxedValue(d2), map2)
-      | (Indet(d2), map2) =>
+    | (BoxedValue(Lam(dp, _, d3)), assert_map) =>
+      switch (evaluate(d2, assert_map)) {
+      | (InvalidInput(msg), assert_map'') => (
+          InvalidInput(msg),
+          assert_map'',
+        )
+      | (BoxedValue(d2), assert_map)
+      | (Indet(d2), assert_map) =>
         switch (matches(dp, d2)) {
-        | DoesNotMatch => (Indet(d), map2)
-        | Indet => (Indet(d), map2)
+        | DoesNotMatch => (Indet(d), assert_map)
+        | Indet => (Indet(d), assert_map)
         | Matches(env) =>
           /* beta rule */
-          evaluate(subst(env, d3), map2)
+          evaluate(subst(env, d3), assert_map)
         }
       }
-    | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), _)
-    | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), _) =>
+    | (
+        BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))),
+        assert_map,
+      )
+    | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
       | (BoxedValue(d2'), assert_map)
       | (Indet(d2'), assert_map) =>
         /* ap cast rule */
@@ -614,12 +623,12 @@ let rec evaluate =
           assert_map,
         )
       }
-    | (BoxedValue(_), _) => (InvalidInput(2), assert_map)
-    | (Indet(d1'), _) =>
+    | (BoxedValue(_), assert_map) => (InvalidInput(2), assert_map)
+    | (Indet(d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(d2'), _)
-      | (Indet(d2'), _) => (Indet(Ap(d1', d2')), assert_map)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(d2'), assert_map)
+      | (Indet(d2'), assert_map) => (Indet(Ap(d1', d2')), assert_map)
       }
     }
   | ListNil(_)
@@ -629,32 +638,38 @@ let rec evaluate =
   | Triv => (BoxedValue(d), assert_map)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
     | (BoxedValue(BoolLit(b1) as d1'), _) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(BoolLit(b2)), _) => (
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(BoolLit(b2)), assert_map) => (
           BoxedValue(eval_bin_bool_op(op, b1, b2)),
           assert_map,
         )
-      | (BoxedValue(_), _) => (InvalidInput(3), assert_map)
-      | (Indet(d2'), _) => (Indet(BinBoolOp(op, d1', d2')), assert_map)
+      | (BoxedValue(_), assert_map) => (InvalidInput(3), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinBoolOp(op, d1', d2')),
+          assert_map,
+        )
       }
-    | (BoxedValue(_), _) => (InvalidInput(4), assert_map)
-    | (Indet(d1'), _) =>
+    | (BoxedValue(_), assert_map) => (InvalidInput(4), assert_map)
+    | (Indet(d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(d2'), _)
-      | (Indet(d2'), _) => (Indet(BinBoolOp(op, d1', d2')), assert_map)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(d2'), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinBoolOp(op, d1', d2')),
+          assert_map,
+        )
       }
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(IntLit(n1) as d1'), _) =>
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(IntLit(n1) as d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(IntLit(n2)), _) =>
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(IntLit(n2)), assert_map) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) => (
             Indet(
@@ -667,89 +682,87 @@ let rec evaluate =
           )
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), assert_map)
         }
-      | (BoxedValue(_), _) => (InvalidInput(3), assert_map)
-      | (Indet(d2'), _) => (Indet(BinIntOp(op, d1', d2')), assert_map)
+      | (BoxedValue(_), assert_map) => (InvalidInput(3), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinIntOp(op, d1', d2')),
+          assert_map,
+        )
       }
-    | (BoxedValue(_), _) => (InvalidInput(4), assert_map)
-    | (Indet(d1'), _) =>
+    | (BoxedValue(_), assert_map) => (InvalidInput(4), assert_map)
+    | (Indet(d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(d2'), _)
-      | (Indet(d2'), _) => (Indet(BinIntOp(op, d1', d2')), assert_map)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(d2'), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinIntOp(op, d1', d2')),
+          assert_map,
+        )
       }
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(FloatLit(f1) as d1'), _) =>
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(FloatLit(f1) as d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(FloatLit(f2)), _) => (
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(FloatLit(f2)), assert_map) => (
           BoxedValue(eval_bin_float_op(op, f1, f2)),
           assert_map,
         )
-      | (BoxedValue(_), _) => (InvalidInput(8), assert_map)
-      | (Indet(d2'), _) => (Indet(BinFloatOp(op, d1', d2')), assert_map)
+      | (BoxedValue(_), assert_map) => (InvalidInput(8), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinFloatOp(op, d1', d2')),
+          assert_map,
+        )
       }
-    | (BoxedValue(_), _) => (InvalidInput(7), assert_map)
-    | (Indet(d1'), _) =>
+    | (BoxedValue(_), assert_map) => (InvalidInput(7), assert_map)
+    | (Indet(d1'), assert_map) =>
       switch (evaluate(d2, assert_map)) {
-      | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-      | (BoxedValue(d2'), _)
-      | (Indet(d2'), _) => (Indet(BinFloatOp(op, d1', d2')), assert_map)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      | (BoxedValue(d2'), assert_map)
+      | (Indet(d2'), assert_map) => (
+          Indet(BinFloatOp(op, d1', d2')),
+          assert_map,
+        )
       }
     }
   | Inj(ty, side, d1) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
     | (BoxedValue(d1'), map1) => (BoxedValue(Inj(ty, side, d1')), map1)
     | (Indet(d1'), map1) => (Indet(Inj(ty, side, d1')), map1)
     }
   | Pair(d1, d2) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
     | (Indet(d1), map1) =>
       switch (evaluate(d2, map1)) {
       | (Indet(d2), map2)
       | (BoxedValue(d2), map2) => (Indet(Pair(d1, d2)), map2)
-      | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
       }
     | (BoxedValue(d1), map1) =>
       switch (evaluate(d2, map1)) {
       | (Indet(d2), map2) => (Indet(Pair(d1, d2)), map2)
       | (BoxedValue(d2), map2) => (BoxedValue(Pair(d1, d2)), map2)
-      | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
       }
-    //maybe need to be sequetial?
     }
-  /*| Pair(d1, d2) =>
-    switch (evaluate(d1, assert_map), evaluate(d2, assert_map)) {
-    //maybe need to be sequetial?
-    | ((InvalidInput(msg), _), _)
-    | (_, (InvalidInput(msg), _)) => (InvalidInput(msg), assert_map)
-    | ((Indet(d1), map1), (Indet(d2), map2))
-    | ((Indet(d1), map1), (BoxedValue(d2), map2))
-    | ((BoxedValue(d1), _), (Indet(d2), _)) => (
-        Indet(Pair(d1, d2)),
-        assert_map,
-      )
-    | ((BoxedValue(d1), _), (BoxedValue(d2), _)) =>
-      (BoxedValue(Pair(d1, d2)), assert_map);
-    }*/
   | Cons(d1, d2) =>
-    switch (evaluate(d1, assert_map), evaluate(d2, assert_map)) {
-    | ((InvalidInput(msg), _), _)
-    | (_, (InvalidInput(msg), _)) => (InvalidInput(msg), assert_map)
-    | ((Indet(d1), _), (Indet(d2), _))
-    | ((Indet(d1), _), (BoxedValue(d2), _))
-    | ((BoxedValue(d1), _), (Indet(d2), _)) => (
-        Indet(Cons(d1, d2)),
-        assert_map,
-      )
-    | ((BoxedValue(d1), _), (BoxedValue(d2), _)) => (
-        BoxedValue(Cons(d1, d2)),
-        assert_map,
-      )
+    switch (evaluate(d1, assert_map)) {
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (Indet(d1), map1) =>
+      switch (evaluate(d2, map1)) {
+      | (Indet(d2), map2)
+      | (BoxedValue(d2), map2) => (Indet(Cons(d1, d2)), map2)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      }
+    | (BoxedValue(d1), map1) =>
+      switch (evaluate(d2, map1)) {
+      | (Indet(d2), map2) => (Indet(Cons(d1, d2)), map2)
+      | (BoxedValue(d2), map2) => (BoxedValue(Cons(d1, d2)), map2)
+      | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+      }
     }
   | ConsistentCase(Case(d1, rules, n)) => (
       evaluate_case(None, d1, rules, n, assert_map),
@@ -762,9 +775,9 @@ let rec evaluate =
   | EmptyHole(_) => (Indet(d), assert_map)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(d1'), _)
-    | (Indet(d1'), _) => (
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(d1'), assert_map)
+    | (Indet(d1'), assert_map) => (
         Indet(NonEmptyHole(reason, u, i, sigma, d1')),
         assert_map,
       )
@@ -774,8 +787,8 @@ let rec evaluate =
   | InvalidText(_) => (Indet(d), assert_map)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(d1') as result, _) =>
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(d1') as result, assert_map) =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => (result, assert_map)
       | (Ground, Ground) =>
@@ -817,7 +830,7 @@ let rec evaluate =
           (BoxedValue(Cast(d1', ty, ty')), assert_map);
         }
       }
-    | (Indet(d1') as result, _) =>
+    | (Indet(d1') as result, assert_map) =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => (result, assert_map)
       | (Ground, Ground) =>
@@ -859,15 +872,21 @@ let rec evaluate =
     }
   | FailedCast(d1, ty, ty') =>
     switch (evaluate(d1, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(d1'), _)
-    | (Indet(d1'), _) => (Indet(FailedCast(d1', ty, ty')), assert_map)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(d1'), assert_map)
+    | (Indet(d1'), assert_map) => (
+        Indet(FailedCast(d1', ty, ty')),
+        assert_map,
+      )
     }
   | InvalidOperation(d, err) =>
     switch (evaluate(d, assert_map)) {
-    | (InvalidInput(msg), _) => (InvalidInput(msg), assert_map)
-    | (BoxedValue(d'), _)
-    | (Indet(d'), _) => (Indet(InvalidOperation(d', err)), assert_map)
+    | (InvalidInput(msg), assert_map) => (InvalidInput(msg), assert_map)
+    | (BoxedValue(d'), assert_map)
+    | (Indet(d'), assert_map) => (
+        Indet(InvalidOperation(d', err)),
+        assert_map,
+      )
     }
   }
 and evaluate_case =

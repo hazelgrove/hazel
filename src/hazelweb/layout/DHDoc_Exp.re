@@ -96,13 +96,20 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
+let annot_of_assert_result: AssertResult.t => DHAnnot.t =
+  fun
+  | Pass => AssertPass
+  | Fail => AssertFail
+  | Indet => AssertIndet
+  | Comp => AssertComp;
+
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
-          map: AssertMap.t,
+          assert_map: AssertMap.t,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -180,16 +187,9 @@ let rec mk =
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | AssertLit(n) =>
-        switch (AssertMap.lookup(n, map)) {
-        | Some(a) =>
-          switch (AssertMap.check(a)) {
-          | Pass => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
-          | Fail => Doc.text("assert") |> Doc.annot(DHAnnot.AssertFail)
-          | Indet => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
-          | Comp => Doc.text("assert") |> Doc.annot(DHAnnot.AssertComp)
-          }
-        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
-        }
+        let annot =
+          annot_of_assert_result(AssertMap.lookup_and_join(n, assert_map));
+        Doc.annot(annot, Doc.text("assert"));
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

@@ -5,13 +5,20 @@ type t =
   | Indet
   | Comp /*only used for chec*/;
 
+let to_string: t => string =
+  fun
+  | Pass => "Pass"
+  | Fail => "Fail"
+  | Indet => "Indet"
+  | Comp => "Comp";
+
 // TODO(andrew): this is wrong
 let join: (t, t) => t =
   (a, b) =>
     switch (a, b) {
     | (Pass, x) => x
     | (Fail, _) => Fail
-    | (Indet, _) => Indet
+    | (Indet, x) => x
     | (Comp, _) => Comp
     };
 

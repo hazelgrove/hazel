@@ -3,9 +3,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type t = list((AssertNumber.t, list(AssertResult.t)));
 
-let lookup = (x: AssertNumber.t, lst: t) => List.assoc_opt(x, lst);
-
-let empty = [];
+let lookup = List.assoc_opt;
+let empty: t = [];
 
 let extend = (xa: (AssertNumber.t, AssertResult.t), ctx: t): t => {
   let (x, res) = xa;
@@ -14,23 +13,7 @@ let extend = (xa: (AssertNumber.t, AssertResult.t), ctx: t): t => {
   | None => [(x, [res]), ...ctx]
   };
 };
-/*
- let rec combine = (map1: t, map2: t) : t => {
-   switch(map1){
-     |[x, ...xs] =>
-       let part2 = lookup(fst(x), map2);
-       switch(part2){
-         |Some(part2_2) =>
-           if (snd(x) == part2_2){
-             [x, ...combine(xs, List.remove_assoc(fst(x), map2))]
-           }
-           else if (List.length{
 
-           }
-         |None => [x, ... xs] @ map2
-       }
-   }
- }*/
 let rec to_list = (map: t): list(string) => {
   switch (map) {
   | [x, ...xs] =>
@@ -74,3 +57,15 @@ let rec to_list = (map: t): list(string) => {
    */
 
 let check = AssertResult.join_all;
+
+let lookup_and_join = (n, assert_map): AssertResult.t =>
+  switch (lookup(n, assert_map)) {
+  | None => Indet
+  | Some(a) =>
+    switch (check(a)) {
+    | Pass => Pass
+    | Fail => Fail
+    | Comp => Comp
+    | Indet => Indet
+    }
+  };
