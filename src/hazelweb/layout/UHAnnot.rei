@@ -23,10 +23,6 @@ type open_child_format =
 [@deriving sexp]
 type t =
   | HoleLabel({len: int})
-  /*| AssertPass
-    | AssertFail
-    | AssertIndet
-    | AssertComp*/
   | AssertNum({num: int})
   | Token(token_data)
   | UserNewline
