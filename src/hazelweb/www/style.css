@@ -1104,43 +1104,48 @@ body {
   box-shadow: inset 1px 1px 0 var(--suggestion-typ-selected-hole-shadow);
 }
 
-#assistant > .choice > .type {
+
+#assistant > .choice > .type-ann {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#assistant > .choice > .type-ann > .type-container {
   display: flex;
   align-items: center;
   color: var(--suggestion-type-text);
 }
 
-#assistant.exp > .choice.hovered > .type  {
+#assistant.exp > .choice.hovered > .type-ann > .type-container {
   color: var(--suggestion-exp-selected-type-text);
 }
 
-#assistant.pat > .choice.hovered > .type  {
+#assistant.pat > .choice.hovered > .type-ann > .type-container {
   color: var(--suggestion-pat-selected-type-text);
 }
 
-#assistant.exp > .choice > .type .HoleLabel {
+#assistant.exp > .choice > .type-ann > .type-container .HoleLabel {
   background-color: #0000;
   color: var( --suggestion-type-hole-text);
   box-shadow: none;
 }
 
-#assistant > .choice > .type .HoleLabel  {
+#assistant > .choice > .type-ann > .type-container .HoleLabel  {
   /* hack important; need to make selector more specific than exp,pat */
   background-color: #0000 !important;
   box-shadow: none !important;
 }
 
-#assistant.exp > .choice.hovered > .type .HoleLabel  {
+#assistant.exp > .choice.hovered > .type-ann > .type-container .HoleLabel  {
   color: var(--suggestion-exp-selected-type-hole-text);
 }
 
-#assistant.pat > .choice.hovered > .type .HoleLabel  {
+#assistant.pat > .choice.hovered > .type-ann > .type-container .HoleLabel  {
   color: var(--suggestion-pat-selected-type-hole-text);
 }
 
-#assistant > .choice > .type-ann {
-  display: flex;
-  align-items: center;
+#assistant > .choice > .type-ann > .type-ann-colon {
   color: var(--suggestion-type-ann-colon);
 }
 

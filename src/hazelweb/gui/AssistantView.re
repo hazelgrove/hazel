@@ -147,10 +147,10 @@ let icon =
       | _ => baffled_guy
       };
   let guy =
-    switch (sort, num_suggestions, score) {
-    | (_, 0, _) => blank_guy
-    | (_, _, None) => neutral_guy(sort)
-    | (_, _, Some(score)) => emotive_guy(sort, score)
+    switch (num_suggestions, score) {
+    | (0, _) => blank_guy
+    | (_, None) => neutral_guy(sort)
+    | (_, Some(score)) => emotive_guy(sort, score)
     };
   let sort_str = TermSort.to_string(sort);
   let path = "imgs/assistant/boost-" ++ guy ++ "-" ++ sort_str ++ ".png";
@@ -170,39 +170,30 @@ let strategy_view: Suggestion.t => Node.t =
 let sign_view: float => Node.t =
   n => div([Attr.class_(sign_label(n))], [text(sign_symbol(n))]);
 
-let subscore_view = ((subscore: float, describe_subscore: float => string)) =>
-  switch (subscore) {
-  | 0. => []
-  | _ => [
-      div(
-        [Attr.class_("subscore")],
-        [sign_view(subscore), text(describe_subscore(subscore))],
-      ),
-    ]
-  };
+let score_view = (subscore: float, describe_subscore: float => string) =>
+  div(
+    [Attr.class_("subscore")],
+    switch (subscore) {
+    | 0. => []
+    | _ => [sign_view(subscore), text(describe_subscore(subscore))]
+    },
+  );
 
-let subscore_data_exp = (score: SuggestionReportExp.scores) => [
-  (score.delta_errors, describe_delta_errors),
-  (score.idiomaticity, describe_idiomaticity),
-  (score.type_specificity, describe_type_specificity),
-  (score.syntax_conserved, describe_syntax_conserved),
-];
-
-let subscore_data_pat = (score: SuggestionReportPat.scores) => [
-  (score.delta_errors, describe_delta_errors),
-];
-
-let subscore_data_typ = (score: SuggestionReportTyp.scores) => [
-  (score.expression_consistency, describe_expression_consistency),
-  (score.pattern_consistency, describe_pattern_consistency),
-];
-
-let subscorer: Suggestion.t => list((float, float => string)) =
+let scores_view: Suggestion.t => list(Node.t) =
   fun
-  | ReplaceExpOperand({report: {scores, _}, _}) => subscore_data_exp(scores)
-  | ReplacePatOperand({report: {scores, _}, _}) => subscore_data_pat(scores)
-  | ReplaceTypOperand({report: {scores, _}, _}) =>
-    subscore_data_typ(scores);
+  | ReplaceExpOperand({report: {scores: s, _}, _}) => [
+      score_view(s.delta_errors, describe_delta_errors),
+      score_view(s.idiomaticity, describe_idiomaticity),
+      score_view(s.type_specificity, describe_type_specificity),
+      score_view(s.syntax_conserved, describe_syntax_conserved),
+    ]
+  | ReplacePatOperand({report: {scores: s, _}, _}) => [
+      score_view(s.delta_errors, describe_delta_errors),
+    ]
+  | ReplaceTypOperand({report: {scores: s, _}, _}) => [
+      score_view(s.expression_consistency, describe_expression_consistency),
+      score_view(s.pattern_consistency, describe_pattern_consistency),
+    ];
 
 let suggestion_info_view = (s: Suggestion.t): Node.t =>
   div(
@@ -214,7 +205,7 @@ let suggestion_info_view = (s: Suggestion.t): Node.t =>
         [text(describe_strategy(s))],
       ),
     ]
-    @ List.concat(List.map(subscore_view, subscorer(s))),
+    @ scores_view(s),
   );
 
 /* Draws the matching characters overtop of suggestions */
@@ -267,14 +258,18 @@ let result_view =
   );
 };
 
-let result_ty_view: Suggestion.t => list(Node.t) =
+let result_ty_view: Suggestion.t => Node.t =
   fun
   | ReplaceExpOperand({report: {result_ty, _}, _})
-  | ReplacePatOperand({report: {result_ty, _}, _}) => [
-      div([Attr.class_("type-ann")], [text(":")]),
-      div([Attr.class_("type")], [HTypCode.view(result_ty)]),
-    ]
-  | ReplaceTypOperand(_) => [];
+  | ReplacePatOperand({report: {result_ty, _}, _}) =>
+    div(
+      [Attr.class_("type-ann")],
+      [
+        div([Attr.class_("type-ann-colon")], [text(":")]),
+        div([Attr.class_("type-container")], [HTypCode.view(result_ty)]),
+      ],
+    )
+  | ReplaceTypOperand(_) => div([], []);
 
 let suggestion_view =
     (
@@ -314,9 +309,11 @@ let suggestion_view =
       Attr.on_mouseenter(_ => set_hover_index(Some(index))),
       Attr.on_mouseleave(_ => set_hover_index(None)),
     ],
-    [result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics)]
-    @ result_ty_view(suggestion)
-    @ [strategy_view(suggestion)],
+    [
+      result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics),
+      result_ty_view(suggestion),
+      strategy_view(suggestion),
+    ],
   );
 };
 
