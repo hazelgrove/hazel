@@ -83,7 +83,7 @@ let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 let get_result = (program: t): (Result.t, AssertMap.t) =>
   //check if map is resetted here
-  switch (AssertMap.empty |> evaluate(get_elaboration(program))) {
+  switch (evaluate(get_elaboration(program))) {
   | (InvalidInput(_), _) => raise(InvalidInput)
   | (BoxedValue(d), assert_map) =>
     print_endline(
@@ -143,8 +143,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | VarErr
            | TypeErr => None
            | Assertlit =>
-             let assert_map =
-               AssertMap.empty |> evaluate(get_elaboration(program)) |> snd;
+             let assert_map = program |> get_elaboration |> evaluate |> snd;
              switch (AssertMap.lookup(num, assert_map)) {
              | Some(t) => Some((steps, t))
              | _ => None
