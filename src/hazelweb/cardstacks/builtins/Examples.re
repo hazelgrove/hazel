@@ -377,6 +377,11 @@ let inconsistent_branches: UHExp.t =
     )
   );
 
+let asserts_test =
+  {|((LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(AssertLit NotInHole 1)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Equals(S(EmptyHole 1)E)))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(AssertLit NotInHole 2)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Equals(S(IntLit NotInHole 0)E)))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(AssertLit NotInHole 3)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Equals(S(IntLit NotInHole 1)E)))))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole test)E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n)E))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(AssertLit NotInHole 4)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole n)(A Equals(S(IntLit NotInHole 2)E)))))))E)))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole test)(A Space(S(IntLit NotInHole 2)E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole test)(A Space(S(IntLit NotInHole 1)E))))))|}
+  |> Sexplib.Sexp.of_string
+  |> UHExp.t_of_sexp;
+
 let examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
@@ -384,6 +389,7 @@ let examples = [
   ("map", map_example),
   ("quicksort", qsort_example),
   ("inconsistent branches", inconsistent_branches),
+  ("asserts", asserts_test),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
