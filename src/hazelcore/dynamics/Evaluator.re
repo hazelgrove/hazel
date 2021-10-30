@@ -863,15 +863,15 @@ and eval_assert = (n, d, state) =>
     let (r4, _) = evaluate(d4, ~state);
     let dop: DHExp.t = BinIntOp(op, yoink(r3), yoink(r4));
     switch (evaluate(d, ~state)) {
-    | (BoxedValue(BoolLit(true)), state) => (
-        BoxedValue(Triv),
-        add_assert_eq(state, n, dop),
-      )
-    | (BoxedValue(BoolLit(false)), state) => (
-        Indet(FailedAssert(n, d)),
-        add_assert_eq(state, n, dop),
-      )
-    | _ => (Indet(Ap(AssertLit(n), d)), add_assert_eq(state, n, dop))
+    | (BoxedValue(BoolLit(true)), state) =>
+      let state = add_assert(state, n, Pass);
+      (BoxedValue(Triv), add_assert_eq(state, n, dop));
+    | (BoxedValue(BoolLit(false)), state) =>
+      let state = add_assert(state, n, Fail);
+      (Indet(FailedAssert(n, d)), add_assert_eq(state, n, dop));
+    | _ =>
+      let state = add_assert(state, n, Indet);
+      (Indet(Ap(AssertLit(n), d)), add_assert_eq(state, n, dop));
     };
   | _ =>
     switch (evaluate(d, ~state)) {
