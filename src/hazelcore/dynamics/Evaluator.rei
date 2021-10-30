@@ -1,17 +1,18 @@
-/**  Invalid Input codes:
-     0 = out of fuel
-     1 = free or invalid variable
-     2 = ap invalid boxed function val
-     3 = boxed value not a int literal 2
-     4 = boxed value not a int literal 1
-     5 = bad pattern match
-     6 = Cast BV Hole Ground
-     7 = boxed value not a float literal 1
-     8 = boxed value not a float literal 2 */
+[@deriving sexp]
+type invalid_input =
+  //| OutOfFuel // 0
+  | FreeOrInvalidVariable // 1
+  | ApInvalidBoxedFunctionVal // 2
+  | BoxedNotIntLit2 // 3
+  | BoxedNotIntLit1 // 4
+  //| BadPatternMatch // 5
+  | CastBVHoleGround // 6
+  | BoxedNotFloatLit1 // 7
+  | BoxedNotFloatLit2; //8
 
 [@deriving sexp]
 type result =
-  | InvalidInput(int)
+  | InvalidInput(invalid_input)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
@@ -21,7 +22,13 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let evaluate: (~assert_map: AssertMap.t=?, DHExp.t) => (result, AssertMap.t);
+[@deriving sexp]
+type state = {assert_map: AssertMap.t};
+
+[@deriving sexp]
+type report = (result, state);
+
+let evaluate: (~state: state=?, DHExp.t) => report;
 
 /* closed substitution [d1/x]d2*/
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
