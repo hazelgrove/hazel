@@ -18,4 +18,4 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | DivideByZero;
+  | OperationError(InvalidOperationError.t);

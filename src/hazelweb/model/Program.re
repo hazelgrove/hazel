@@ -84,7 +84,10 @@ let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): (Result.t, AssertMap.t) =>
   //check if map is resetted here
   switch (evaluate(get_elaboration(program))) {
-  | (InvalidInput(_), _) => raise(InvalidInput)
+  | (InvalidInput(_), _state) =>
+    //print_endline("ERROR: InvalidInput")
+    //((Triv, HoleInstanceInfo.empty, Indet(Triv)), state.assert_map)
+    raise(InvalidInput)
   | (BoxedValue(d), state) =>
     print_endline(
       Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
