@@ -30,7 +30,7 @@ type report = (result, state);
 
 let init_state = {assert_map: []};
 
-let extend_assert_map = ({assert_map, _}: state, n, result): state => {
+let add_assert = ({assert_map, _}: state, n, result): state => {
   assert_map: AssertMap.extend((n, result), assert_map),
 };
 
@@ -569,28 +569,25 @@ let bind' =
   | (BoxedValue(d'), state) => boxed((d', state))
   | (Indet(d'), state) => indet((d', state))
   };
-let bind_both = (x: report, f: eval_input => report): report =>
+let bind = (x: report, f: eval_input => report): report =>
   bind'(x, ~boxed=f, ~indet=f);
 
-let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
+let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
+  let _eval = ((d, state)) => evaluate(~state, d);
   switch (d) {
   | BoolLit(_)
   | ListNil(_)
   | IntLit(_)
   | FloatLit(_)
   | Triv
-  | Lam(_, _, _)
+  | Lam(_)
   | AssertLit(_) => (BoxedValue(d), state)
   | FreeVar(_)
   | Keyword(_)
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
-  | BoundVar(_) => (InvalidInput(FreeOrInvalidVariable), state)
   | FailedAssert(_, d1) => (Indet(d1), state)
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), ~state)
-  | NonEmptyHole(reason, u, i, sigma, d1) =>
-    let mk_none_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
-    evalbind_indet((d1, state), mk_none_empty);
+  | BoundVar(_) => (InvalidInput(FreeOrInvalidVariable), state)
   | Inj(ty, side, d1) =>
     eval_unary_constructor((d1, state), d1' => DHExp.Inj(ty, side, d1'))
   | Pair(d1, d2) =>
@@ -599,8 +596,9 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
   | Cons(d1, d2) =>
     let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_cons);
+  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), ~state)
   | Let(dp, d1, d2) =>
-    evalbind_both((d1, state), ((d1', state)) =>
+    eval_bind((d1, state), ((d1', state)) =>
       switch (matches(dp, d1')) {
       | Matches(env) => evaluate(subst(env, d2), ~state)
       | Indet
@@ -612,7 +610,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
     | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(_), state) => evaluate(d2, ~state)
     | (Indet(d1), state) =>
-      evalbind_indet((d2, state), d2 => Sequence(d1, d2))
+      eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
     }
   | Ap(d1, d2) =>
     switch (evaluate(d1, ~state)) {
@@ -621,20 +619,17 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
       switch (evaluate(d2, ~state)) {
       | (BoxedValue(BoolLit(true)), state) => (
           BoxedValue(Triv),
-          extend_assert_map(state, n, AssertResult.Pass),
+          add_assert(state, n, Pass),
         )
       | (BoxedValue(BoolLit(false)), state) => (
           Indet(FailedAssert(n, d2)),
-          extend_assert_map(state, n, AssertResult.Fail),
+          add_assert(state, n, Fail),
         )
-      | _ => (
-          Indet(Ap(AssertLit(n), d2)),
-          extend_assert_map(state, n, AssertResult.Indet),
-        )
+      | _ => (Indet(Ap(AssertLit(n), d2)), add_assert(state, n, Indet))
       }
     | (BoxedValue(Lam(dp, _, d3)), state) =>
-      evalbind_both((d2, state), ((d2, state)) =>
-        switch (matches(dp, d2)) {
+      eval_bind((d2, state), ((d2', state)) =>
+        switch (matches(dp, d2')) {
         | DoesNotMatch
         | Indet => (Indet(d), state)
         | Matches(env) =>
@@ -644,7 +639,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
       )
     | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
     | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
-      evalbind_both((d2, state), ((d2', state)) =>
+      eval_bind((d2, state), ((d2', state)) =>
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
       )
     | (BoxedValue(_), state) => (
@@ -652,7 +647,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
         state,
       )
     | (Indet(d1'), state) =>
-      evalbind_indet((d2, state), (d2') => (Ap(d1', d2'): DHExp.t))
+      eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
     }
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
@@ -669,7 +664,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
       }
     | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit1), state)
     | (Indet(d1'), state) =>
-      evalbind_indet((d2, state), (d2') =>
+      eval_bind_indet((d2, state), (d2') =>
         (BinBoolOp(op, d1', d2'): DHExp.t)
       )
     }
@@ -677,10 +672,11 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
     switch (evaluate(d1, ~state)) {
     | (InvalidInput(_), _) as ii => ii
     | (Indet(d1'), state) =>
-      evalbind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
+      eval_bind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
     | (BoxedValue(IntLit(n1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (InvalidInput(_), _) as ii => ii
+      | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       | (BoxedValue(IntLit(n2)), state) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) => (
@@ -695,7 +691,6 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), state)
         }
       | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit2), state)
-      | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       }
     | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit1), state)
     }
@@ -703,74 +698,60 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report =>
     switch (evaluate(d1, ~state)) {
     | (InvalidInput(_), _) as ii => ii
     | (Indet(d1'), state) =>
-      evalbind_indet((d2, state), d2 => BinFloatOp(op, d1', d2))
+      eval_bind_indet((d2, state), d2 => BinFloatOp(op, d1', d2))
     | (BoxedValue(FloatLit(f1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (InvalidInput(_), _) as ii => ii
+      | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       | (BoxedValue(FloatLit(f2)), state) => (
           BoxedValue(eval_bin_float_op(op, f1, f2)),
           state,
         )
       | (BoxedValue(_), state) => (InvalidInput(BoxedNotFloatLit2), state)
-      | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       }
     | (BoxedValue(_), state) => (InvalidInput(BoxedNotFloatLit1), state)
     }
+  | NonEmptyHole(reason, u, i, sigma, d1) =>
+    let mk_none_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
+    eval_bind_indet((d1, state), mk_none_empty);
   | FailedCast(d1, ty, ty') =>
-    evalbind_indet((d1, state), d1' => FailedCast(d1', ty, ty'))
+    eval_bind_indet((d1, state), d1' => FailedCast(d1', ty, ty'))
   | InvalidOperation(d, err) =>
-    evalbind_indet((d, state), d' => InvalidOperation(d', err))
-  | ConsistentCase(Case(d1, rules, n)) => (
-      evaluate_case(None, d1, rules, n, state),
-      state,
-    )
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) => (
-      evaluate_case(Some((u, i, sigma)), d1, rules, n, state),
-      state,
-    )
+    eval_bind_indet((d, state), d' => InvalidOperation(d', err))
+  | ConsistentCase(Case(d1, rules, n)) =>
+    evaluate_case(None, d1, rules, n, state)
+  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+    evaluate_case(Some((u, i, sigma)), d1, rules, n, state)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
     | (InvalidInput(_), _) as ii => ii
-    | (BoxedValue(boxed_val) as result, state) =>
-      eval_cast_boxed(ty, ty', result, state, boxed_val)
-    | (Indet(indet_val) as result, state) =>
-      eval_cast_indet(ty, ty', result, state, indet_val)
+    | (BoxedValue(boxed_val), state) =>
+      eval_cast(d => BoxedValue(d), ty, ty', state, boxed_val)
+    | (Indet(indet_val), state) =>
+      eval_cast(d => Indet(d), ty, ty', state, indet_val)
     }
-  }
-and eval_unary_constructor = ((d1: DHExp.t, state: state), cons1) =>
+  };
+}
+and eval_unary_constructor = ((d1, state): eval_input, cons) =>
   switch (evaluate(d1, ~state)) {
   | (InvalidInput(_), _) as ii => ii
-  | (Indet(d1'), map1) => (Indet(cons1(d1')), map1)
-  | (BoxedValue(d1'), map1) => (BoxedValue(cons1(d1')), map1)
+  | (Indet(d1'), map1) => (Indet(cons(d1')), map1)
+  | (BoxedValue(d1'), map1) => (BoxedValue(cons(d1')), map1)
   }
-and eval_unary_constructor' =
-    (cons, d2: DHExp.t, (d1': DHExp.t, state: state)) =>
-  eval_unary_constructor((d2, state), d2' => cons(d1', d2'))
-and evalbind_indet' = (cons, d2: DHExp.t, (d1', state)) =>
-  evalbind_indet((d2, state), d2' => cons(d1', d2'))
-and eval_binary_constructor = ((d1, state: state), d2, cons) =>
-  evalbind_sep(
-    (d1, state),
-    ~indet=evalbind_indet'(cons, d2),
-    ~boxed=eval_unary_constructor'(cons, d2),
-  )
-and evalbind_both =
-    ((d: DHExp.t, state: state), f: eval_input => report): report =>
-  bind_both(evaluate(d, ~state), f)
-and evalbind_stateless =
-    ((d: DHExp.t, state: state), f: DHExp.t => result): report =>
-  evalbind_both((d, state), ((d', state)) => (f(d'), state))
-and evalbind_indet =
-    ((d: DHExp.t, state: state), f: DHExp.t => DHExp.t): report =>
-  evalbind_stateless((d, state), d' => Indet(f(d')))
-and evalbind_sep =
-    (
-      (d: DHExp.t, state: state),
-      ~boxed: eval_input => report,
-      ~indet: eval_input => report,
-    )
-    : report =>
-  bind'(evaluate(d, ~state), ~boxed, ~indet)
+and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
+  switch (evaluate(d1, ~state)) {
+  | (InvalidInput(_), _) as ii => ii
+  | (Indet(d1'), state) =>
+    eval_bind_indet((d2, state), d2' => cons(d1', d2'))
+  | (BoxedValue(d1'), state) =>
+    eval_unary_constructor((d2, state), d2' => cons(d1', d2'))
+  }
+and eval_bind = ((d, state): eval_input, f: eval_input => report): report =>
+  bind(evaluate(d, ~state), f)
+and eval_bind_stateless = (d_s: eval_input, f: DHExp.t => result): report =>
+  eval_bind(d_s, ((d', state)) => (f(d'), state))
+and eval_bind_indet = (d_s: eval_input, f: DHExp.t => DHExp.t): report =>
+  eval_bind_stateless(d_s, d' => Indet(f(d')))
 and evaluate_case =
     (
       inconsistent_info,
@@ -779,11 +760,12 @@ and evaluate_case =
       current_rule_index: int,
       state: state,
     )
-    : result =>
+    : (result, state) =>
   switch (evaluate(scrut, ~state)) {
-  | (InvalidInput(msg), _) => InvalidInput(msg)
-  | (BoxedValue(scrut), _)
-  | (Indet(scrut), _) =>
+  | (InvalidInput(msg), state) => (InvalidInput(msg), state)
+  | (BoxedValue(scrut), state)
+  | (Indet(scrut), state) =>
+  //TODO(andrew): why does the case have the current_rule_index?
     let case = DHExp.Case(scrut, rules, current_rule_index);
     let none_or_indet: result =
       switch (inconsistent_info) {
@@ -792,11 +774,11 @@ and evaluate_case =
         Indet(InconsistentBranches(u, i, sigma, case))
       };
     switch (List.nth_opt(rules, current_rule_index)) {
-    | None => none_or_indet
+    | None => (none_or_indet, state)
     | Some(Rule(dp, d)) =>
       switch (matches(dp, scrut)) {
-      | Indet => none_or_indet
-      | Matches(env) => fst(evaluate(subst(env, d), ~state))
+      | Indet => (none_or_indet, state)
+      | Matches(env) => (fst(evaluate(subst(env, d), ~state)), state)
       | DoesNotMatch =>
         evaluate_case(
           inconsistent_info,
@@ -808,85 +790,42 @@ and evaluate_case =
       }
     };
   }
-and eval_cast_boxed = (ty, ty', result, state, d1') =>
+and eval_cast =
+    (cons: DHExp.t => result, ty: HTyp.t, ty': HTyp.t, state, indet_val) => {
   switch (ground_cases_of(ty), ground_cases_of(ty')) {
-  | (Hole, Hole) => (result, state)
+  | (Hole, Hole)
   | (Ground, Ground) =>
     /* if two types are ground and consistent, then they are eq */
-    (result, state)
+    (cons(indet_val), state)
   | (Ground, Hole) =>
     /* can't remove the cast or do anything else here, so we're done */
-    (BoxedValue(Cast(d1', ty, ty')), state)
-  | (Hole, Ground) =>
-    /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-    switch (d1') {
-    | Cast(d1'', ty'', Hole) =>
-      if (HTyp.eq(ty'', ty')) {
-        (BoxedValue(d1''), state);
-      } else {
-        (Indet(FailedCast(d1', ty, ty')), state);
-      }
-    | _ =>
-      // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-      (InvalidInput(CastBVHoleGround), state)
-    }
-  | (Hole, NotGroundOrHole(ty'_grounded)) =>
-    /* ITExpand rule */
-    let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-    evaluate(d', ~state);
-  | (NotGroundOrHole(ty_grounded), Hole) =>
-    /* ITGround rule */
-    let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-    evaluate(d', ~state);
+    (cons(Cast(indet_val, ty, ty')), state)
+  | (NotGroundOrHole(_), NotGroundOrHole(_)) when HTyp.eq(ty, ty') => (
+      cons(indet_val),
+      state,
+    )
   | (Ground, NotGroundOrHole(_))
-  | (NotGroundOrHole(_), Ground) =>
-    /* can't do anything when casting between diseq, non-hole types */
-    (BoxedValue(Cast(d1', ty, ty')), state)
+  | (NotGroundOrHole(_), Ground)
   | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-    /* they might be eq in this case, so remove cast if so */
-    if (HTyp.eq(ty, ty')) {
-      (result, state);
-    } else {
-      (BoxedValue(Cast(d1', ty, ty')), state);
-    }
-  }
-and eval_cast_indet = (ty, ty', result, state, indet_val) =>
-  switch (ground_cases_of(ty), ground_cases_of(ty')) {
-  | (Hole, Hole) => (result, state)
-  | (Ground, Ground) =>
-    /* if two types are ground and consistent, then they are eq */
-    (result, state)
-  | (Ground, Hole) =>
-    /* can't remove the cast or do anything else here, so we're done */
-    (Indet(Cast(indet_val, ty, ty')), state)
+    /* can't do anything when casting between diseq, non-hole types */
+    (cons(Cast(indet_val, ty, ty')), state)
   | (Hole, Ground) =>
     switch (indet_val) {
-    | Cast(d1'', ty'', Hole) =>
-      if (HTyp.eq(ty'', ty')) {
-        (Indet(d1''), state);
-      } else {
-        (Indet(FailedCast(indet_val, ty, ty')), state);
-      }
-    | _ => (Indet(Cast(indet_val, ty, ty')), state)
+    | Cast(d1'', ty'', Hole) when HTyp.eq(ty'', ty') => (cons(d1''), state)
+    | Cast(_, _, Hole) => (cons(FailedCast(indet_val, ty, ty')), state)
+    | _ =>
+      //TODO(andrew): this was the only case with diff logic for the boxed component
+      //old: TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
+      //old: (InvalidInput(CastBVHoleGround), state)
+      (cons(Cast(indet_val, ty, ty')), state)
     }
-  | (Hole, NotGroundOrHole(ty'_grounded)) =>
+  | (Hole, NotGroundOrHole(ty_grounded)) =>
     /* ITExpand rule */
-    let d' =
-      DHExp.Cast(Cast(indet_val, ty, ty'_grounded), ty'_grounded, ty');
+    let d' = DHExp.Cast(Cast(indet_val, ty, ty_grounded), ty_grounded, ty');
     evaluate(d', ~state);
   | (NotGroundOrHole(ty_grounded), Hole) =>
     /* ITGround rule */
     let d' = DHExp.Cast(Cast(indet_val, ty, ty_grounded), ty_grounded, ty');
     evaluate(d', ~state);
-  | (Ground, NotGroundOrHole(_))
-  | (NotGroundOrHole(_), Ground) =>
-    /* can't do anything when casting between diseq, non-hole types */
-    (Indet(Cast(indet_val, ty, ty')), state)
-  | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-    /* it might be eq in this case, so remove cast if so */
-    if (HTyp.eq(ty, ty')) {
-      (result, state);
-    } else {
-      (Indet(Cast(indet_val, ty, ty')), state);
-    }
   };
+};
