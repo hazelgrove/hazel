@@ -89,15 +89,25 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
     //((Triv, HoleInstanceInfo.empty, Indet(Triv)), state.assert_map)
     raise(InvalidInput)
   | (BoxedValue(d), state) =>
+    //print_endline(
+    //  Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
+    //);
     print_endline(
-      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
+      Sexplib.Sexp.to_string_hum(
+        Evaluator.sexp_of_assert_eq_map(state.assert_eqs),
+      ),
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
     ((d_renumbered, hii, BoxedValue(d_renumbered)), state.assert_map);
   | (Indet(d), state) =>
+    //print_endline(
+    //  Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
+    //);
     print_endline(
-      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
+      Sexplib.Sexp.to_string_hum(
+        Evaluator.sexp_of_assert_eq_map(state.assert_eqs),
+      ),
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
