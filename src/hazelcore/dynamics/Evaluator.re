@@ -23,8 +23,12 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 [@deriving sexp]
+type assert_eq_map = list((AssertNumber.t, DHExp.t));
+
+[@deriving sexp]
 type state = {
   assert_map: AssertMap.t,
+  assert_eqs: assert_eq_map,
   fuel: int,
 };
 
@@ -33,11 +37,20 @@ type report = (result, state);
 
 let init_fuel = 256;
 
-let init_state = {assert_map: AssertMap.empty, fuel: init_fuel};
+let init_state = {
+  assert_map: AssertMap.empty,
+  fuel: init_fuel,
+  assert_eqs: [],
+};
 
 let add_assert = ({assert_map, _} as state: state, n, result): state => {
   ...state,
   assert_map: AssertMap.extend((n, result), assert_map),
+};
+
+let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
+  ...state,
+  assert_eqs: [(n, dop), ...assert_eqs],
 };
 
 let burn_fuel = ({fuel, _} as state: state): state => {
@@ -633,16 +646,41 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     switch (evaluate(d1, ~state)) {
     | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(AssertLit(n)), state) =>
-      switch (evaluate(d2, ~state)) {
-      | (BoxedValue(BoolLit(true)), state) => (
-          BoxedValue(Triv),
-          add_assert(state, n, Pass),
-        )
-      | (BoxedValue(BoolLit(false)), state) => (
-          Indet(FailedAssert(n, d2)),
-          add_assert(state, n, Fail),
-        )
-      | _ => (Indet(Ap(AssertLit(n), d2)), add_assert(state, n, Indet))
+      switch (d2) {
+      | BinIntOp((Equals | LessThan | GreaterThan) as op, d3, d4) =>
+        //TODO (andrew): floats
+        let yoink = (r: result) =>
+          switch (r) {
+          | InvalidInput(_) => DHExp.Triv
+          | Indet(d)
+          | BoxedValue(d) => d
+          };
+        let (r3, _) = evaluate(d3, ~state);
+        let (r4, _) = evaluate(d4, ~state);
+        let dop: DHExp.t = BinIntOp(op, yoink(r3), yoink(r4));
+        switch (evaluate(d2, ~state)) {
+        | (BoxedValue(BoolLit(true)), state) => (
+            BoxedValue(Triv),
+            add_assert_eq(state, n, dop),
+          )
+        | (BoxedValue(BoolLit(false)), state) => (
+            Indet(FailedAssert(n, d2)),
+            add_assert_eq(state, n, dop),
+          )
+        | _ => (Indet(Ap(AssertLit(n), d2)), add_assert_eq(state, n, dop))
+        };
+      | _ =>
+        switch (evaluate(d2, ~state)) {
+        | (BoxedValue(BoolLit(true)), state) => (
+            BoxedValue(Triv),
+            add_assert(state, n, Pass),
+          )
+        | (BoxedValue(BoolLit(false)), state) => (
+            Indet(FailedAssert(n, d2)),
+            add_assert(state, n, Fail),
+          )
+        | _ => (Indet(Ap(AssertLit(n), d2)), add_assert(state, n, Indet))
+        }
       }
     | (BoxedValue(Lam(dp, _, d3)), state) =>
       eval_bind((d2, state), ((d2', state)) =>
