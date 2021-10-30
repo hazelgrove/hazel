@@ -176,7 +176,8 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box =
-        (~assert_map: AssertMap.t, box: UHBox.t): list(Vdom.Node.t) => {
+        (~state: Evaluator.state, box: UHBox.t): list(Vdom.Node.t) => {
+  let {assert_map, assert_eqs, _}: Evaluator.state = state;
   Vdom.(
     switch (WeakMap.get(box_table, box)) {
     | Some(vs) => vs
@@ -184,16 +185,16 @@ let rec view_of_box =
       switch (box) {
       | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
       | HBox(boxes) =>
-        boxes |> List.map(view_of_box(~assert_map)) |> List.flatten
+        boxes |> List.map(view_of_box(~state)) |> List.flatten
       | VBox(boxes) =>
         let vs =
           boxes
-          |> List.map(view_of_box(~assert_map))
+          |> List.map(view_of_box(~state))
           |> ListUtil.join([Node.br([])])
           |> List.flatten;
         [Node.div([Attr.classes(["VBox"])], vs)];
       | Annot(annot, box) =>
-        let vs = view_of_box(~assert_map, box);
+        let vs = view_of_box(~state, box);
         switch (annot) {
         | Token({shape, _}) =>
           let clss =
@@ -215,9 +216,27 @@ let rec view_of_box =
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
         | AssertNum({num}) =>
           let assert_result = AssertMap.lookup_and_join(num, assert_map);
+          let assert_eq =
+            switch (List.assoc_opt(num, assert_eqs)) {
+            | None => DHExp.Triv
+            | Some(d) => d
+            };
+          let assert_eq_string =
+            Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(assert_eq));
           let assert_class =
             "Assert" ++ AssertResult.to_string(assert_result);
-          [Vdom.Node.span([Vdom.Attr.class_(assert_class)], vs)];
+          [
+            Vdom.Node.span(
+              [Vdom.Attr.classes([assert_class, "UHAssert"])],
+              [
+                Vdom.Node.div(
+                  [Vdom.Attr.class_("assertpop")],
+                  [Vdom.Node.text(assert_eq_string)],
+                ),
+              ]
+              @ vs,
+            ),
+          ];
         | _ => vs
         };
       }
@@ -246,8 +265,8 @@ let view =
       open Vdom;
 
       let l = Program.get_layout(~settings, program);
-      let assert_map = program |> Program.get_result |> snd;
-      let code_text = view_of_box(~assert_map, UHBox.mk(l));
+      let state = program |> Program.get_result |> snd;
+      let code_text = view_of_box(~state, UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
         /*

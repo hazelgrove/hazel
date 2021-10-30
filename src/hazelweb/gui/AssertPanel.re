@@ -41,8 +41,8 @@ let view = (program: Program.t): Vdom.Node.t => {
     Node.div([Attr.classes(["context-entry"])], children);
   };
   let context_view = {
-    let assert_map = snd(program |> Program.get_result);
-    switch (AssertMap.to_list(assert_map)) {
+    let state = snd(program |> Program.get_result);
+    switch (AssertMap.to_list(state.assert_map)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
@@ -56,7 +56,7 @@ let view = (program: Program.t): Vdom.Node.t => {
     | ast_lst =>
       Node.div(
         [Attr.classes(["the-context"])],
-        List.map(context_entry(assert_map), ast_lst),
+        List.map(context_entry(state.assert_map), ast_lst),
       )
     };
   };

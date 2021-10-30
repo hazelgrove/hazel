@@ -1474,6 +1474,18 @@ h1 {
   vertical-align: top;
   position: absolute;
 }
+.UHAssert .assertpop {
+  display: none;
+  position: absolute;
+  top: 1.5rem;
+  left: 0rem;
+  color: white;
+  background-color: #333;
+  border-radius: 0.3em;
+}
+.UHAssert:hover .assertpop {
+  display: inline-block;
+}
 
 
 #code-container .HoleLabel span {

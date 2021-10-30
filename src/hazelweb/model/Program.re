@@ -81,7 +81,7 @@ exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
-let get_result = (program: t): (Result.t, AssertMap.t) =>
+let get_result = (program: t): (Result.t, Evaluator.state) =>
   //check if map is resetted here
   switch (evaluate(get_elaboration(program))) {
   | (InvalidInput(_), _state) =>
@@ -99,7 +99,7 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    ((d_renumbered, hii, BoxedValue(d_renumbered)), state.assert_map);
+    ((d_renumbered, hii, BoxedValue(d_renumbered)), state);
   | (Indet(d), state) =>
     //print_endline(
     //  Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
@@ -111,7 +111,7 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    ((d_renumbered, hii, Indet(d_renumbered)), state.assert_map);
+    ((d_renumbered, hii, Indet(d_renumbered)), state);
   };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
