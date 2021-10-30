@@ -48,7 +48,7 @@ let get_elaboration: t => DHExp.t;
  * because Action needs to return a well-typed edit state)
  */
 exception InvalidInput;
-let get_result: t => (Result.t, AssertMap.t);
+let get_result: t => (Result.t, Evaluator.state);
 
 /**
  * Raised when an attempted edit action does not succeed
