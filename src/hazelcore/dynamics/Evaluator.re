@@ -1,11 +1,11 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type invalid_input =
-  //| OutOfFuel // 0
   | FreeOrInvalidVariable // 1
   | ApInvalidBoxedFunctionVal // 2
   | BoxedNotIntLit2 // 3
   | BoxedNotIntLit1 // 4
-  //| BadPatternMatch // 5
   | CastBVHoleGround // 6
   | BoxedNotFloatLit1 // 7
   | BoxedNotFloatLit2; //8
@@ -23,15 +23,26 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 [@deriving sexp]
-type state = {assert_map: AssertMap.t};
+type state = {
+  assert_map: AssertMap.t,
+  fuel: int,
+};
 
 [@deriving sexp]
 type report = (result, state);
 
-let init_state = {assert_map: []};
+let init_fuel = 256;
 
-let add_assert = ({assert_map, _}: state, n, result): state => {
+let init_state = {assert_map: AssertMap.empty, fuel: init_fuel};
+
+let add_assert = ({assert_map, _} as state: state, n, result): state => {
+  ...state,
   assert_map: AssertMap.extend((n, result), assert_map),
+};
+
+let burn_fuel = ({fuel, _} as state: state): state => {
+  ...state,
+  fuel: fuel - 1,
 };
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
@@ -596,7 +607,13 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   | Cons(d1, d2) =>
     let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_cons);
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), ~state)
+  | FixF(_) when state.fuel <= 0 => (
+      Indet(InvalidOperation(d, OutOfFuel)),
+      state,
+    )
+  | FixF(x, _, d1) =>
+    let state = burn_fuel(state);
+    evaluate(subst_var(d, x, d1), ~state);
   | Let(dp, d1, d2) =>
     eval_bind((d1, state), ((d1', state)) =>
       switch (matches(dp, d1')) {
@@ -765,7 +782,7 @@ and evaluate_case =
   | (InvalidInput(msg), state) => (InvalidInput(msg), state)
   | (BoxedValue(scrut), state)
   | (Indet(scrut), state) =>
-  //TODO(andrew): why does the case have the current_rule_index?
+    //TODO(andrew): why does the case have the current_rule_index?
     let case = DHExp.Case(scrut, rules, current_rule_index);
     let none_or_indet: result =
       switch (inconsistent_info) {
@@ -812,12 +829,13 @@ and eval_cast =
   | (Hole, Ground) =>
     switch (indet_val) {
     | Cast(d1'', ty'', Hole) when HTyp.eq(ty'', ty') => (cons(d1''), state)
-    | Cast(_, _, Hole) => (cons(FailedCast(indet_val, ty, ty')), state)
+    | Cast(_, _, Hole) => (Indet(FailedCast(indet_val, ty, ty')), state)
     | _ =>
-      //TODO(andrew): this was the only case with diff logic for the boxed component
-      //old: TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-      //old: (InvalidInput(CastBVHoleGround), state)
-      (cons(Cast(indet_val, ty, ty')), state)
+      switch (cons(Triv)) {
+      | BoxedValue(_) => (InvalidInput(CastBVHoleGround), state)
+      //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
+      | _ => (cons(Cast(indet_val, ty, ty')), state)
+      }
     }
   | (Hole, NotGroundOrHole(ty_grounded)) =>
     /* ITExpand rule */

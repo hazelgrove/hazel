@@ -1,5 +1,6 @@
 [@deriving sexp]
 type t =
-  | DivideByZero;
+  | DivideByZero
+  | OutOfFuel;
 
 let err_msg: t => string;

@@ -52,7 +52,15 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
+             | OperationError(DivideByZero) => (
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
+             | OperationError(OutOfFuel) => (
+                 //TODO: custom class
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
