@@ -24,7 +24,11 @@ let get_model_action =
         true,
         false,
       )
-    | {cursor_term: Exp(_), _} => (false, false, false, true)
+    | {cursor_term: Exp(_, operand), _} =>
+      switch (operand) {
+      | EmptyHole(_) => (false, false, false, false)
+      | _ => (false, false, false, true)
+      }
 
     | _ => (false, false, false, false)
     };
