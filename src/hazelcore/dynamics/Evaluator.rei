@@ -9,7 +9,11 @@
      7 = boxed value not a float literal 1
      8 = boxed value not a float literal 2
      9 = boxed value not a string literal 1
-    10 = boxed value not a string literal 2 */
+    10 = boxed value not a string literal 2
+    11 = boxed value not a subscript string literal 1
+    12 = boxed value not a subscript int literal 1
+    13 = boxed value not a subscript int literal 2
+ */
 
 [@deriving sexp]
 type result =

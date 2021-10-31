@@ -80,6 +80,14 @@ let eval_bin_str_op =
   };
 };
 
+let eval_subscript =
+    (d: DHExp.t, s: UnescapedString.t, n1: int, n2: int): DHExp.t => {
+  switch (UnescapedString.subscript(s, n1, n2)) {
+  | Ok(s') => StringLit(s')
+  | Err(err) => InvalidOperation(d, SubscriptOutOfBounds(err))
+  };
+};
+
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
@@ -216,6 +224,40 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
+      }
+    }
+  | Subscript(d1, d2, d3) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(StringLit(s) as d1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(IntLit(n1) as d2') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(IntLit(n2)) => BoxedValue(eval_subscript(d, s, n1, n2))
+        | BoxedValue(_) => InvalidInput(13)
+        | Indet(d3') => Indet(Subscript(d1', d2', d3'))
+        }
+      | BoxedValue(_) => InvalidInput(12)
+      | Indet(d2') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d3')
+        | Indet(d3') => Indet(Subscript(d1', d2', d3'))
+        }
+      }
+    | BoxedValue(_) => InvalidInput(11)
+    | Indet(d1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d2')
+      | Indet(d2') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d3')
+        | Indet(d3') => Indet(Subscript(d1', d2', d3'))
+        }
       }
     }
   | Inj(ty, side, d1) =>
