@@ -20,18 +20,19 @@ let err_msg = (err: t): string =>
     let msg =
       switch (err) {
       | StartIndexOutOfBounds({idx, lower, upper}) =>
-        subscript_err_msg("start", idx, lower, upper)
+        subscript_err_msg("Start", idx, lower, upper)
       | EndIndexOutOfBounds({idx, lower, upper}) =>
-        subscript_err_msg("end", idx, lower, upper)
+        subscript_err_msg("End", idx, lower, upper)
       | BothIndicesOutOfBounds(
           {idx: idx1, lower: lower1, upper: upper1},
           {idx: idx2, lower: lower2, upper: upper2},
         ) =>
-        subscript_err_msg("start", idx1, lower1, upper1)
+        subscript_err_msg("Start", idx1, lower1, upper1)
         ++ ", "
         ++ subscript_err_msg("end", idx2, lower2, upper2)
       | EndIndexBeforeStart({idx, lower, upper}) =>
-        subscript_err_msg("end", idx, lower, upper)
+        subscript_err_msg("End", idx, lower, upper)
+      | EmptyString => "Subscript empty string"
       };
     "Error: " ++ msg;
   };

@@ -23,7 +23,8 @@ type subscript_error =
   | StartIndexOutOfBounds(out_of_bounds_error)
   | EndIndexOutOfBounds(out_of_bounds_error)
   | BothIndicesOutOfBounds(out_of_bounds_error, out_of_bounds_error)
-  | EndIndexBeforeStart(out_of_bounds_error);
+  | EndIndexBeforeStart(out_of_bounds_error)
+  | EmptyString;
 
 type subscript_result =
   | Ok(t)

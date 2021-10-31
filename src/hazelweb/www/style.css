@@ -916,6 +916,10 @@ h1 {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+.DHCode .SubscriptOutOfBounds {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .code {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
