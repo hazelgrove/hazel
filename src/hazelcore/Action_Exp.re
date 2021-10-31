@@ -1459,18 +1459,13 @@ and syn_perform_operand =
     let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
     syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
-  | (
-      Backspace,
-      CursorE(
-        OnDelim(_, After),
-        ListNil(_) | StringLit(_) |
-        // TODO: Come back to this (see strings3)
-        Subscript(_),
-      ),
-    ) =>
+  | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | StringLit(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, u_gen)));
+  | (Backspace, CursorE(OnDelim(_, After), Subscript(_, s, _, _))) =>
+    let new_ze = s |> ZExp.place_after;
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
