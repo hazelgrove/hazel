@@ -28,8 +28,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
   | SubscriptZE1(_, zs, _, _) => cons'(0, of_z(zs))
-  | SubscriptZE2(_, _, zn1, _) => cons'(0, of_z(zn1))
-  | SubscriptZE3(_, _, _, zn2) => cons'(0, of_z(zn2))
+  | SubscriptZE2(_, _, zn1, _) => cons'(1, of_z(zn1))
+  | SubscriptZE3(_, _, _, zn2) => cons'(2, of_z(zn2))
   | ApPaletteZ(_, _, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
@@ -736,26 +736,19 @@ and holes_zoperand =
       };
     let holes_s = holes(s, [0, ...rev_steps], []);
     let holes_n1 = holes(n1, [1, ...rev_steps], []);
-    let holes_end = holes(n2, [2, ...rev_steps], []);
+    let holes_n2 = holes(n2, [2, ...rev_steps], []);
     switch (k) {
     | 0 =>
       CursorPath_common.mk_zholes(
-        ~holes_before=holes_s,
         ~hole_selected,
-        ~holes_after=holes_n1 @ holes_end,
+        ~holes_after=holes_s @ holes_n1 @ holes_n2,
         (),
       )
     | 1 =>
       CursorPath_common.mk_zholes(
         ~holes_before=holes_s @ holes_n1,
         ~hole_selected,
-        ~holes_after=holes_end,
-        (),
-      )
-    | 2 =>
-      CursorPath_common.mk_zholes(
-        ~holes_before=holes_s @ holes_n1 @ holes_end,
-        ~hole_selected,
+        ~holes_after=holes_n2,
         (),
       )
     | _ => CursorPath_common.no_holes

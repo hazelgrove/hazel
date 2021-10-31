@@ -1709,7 +1709,7 @@ and syn_perform_operand =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
-              ZExp.ZBlock.wrap(zoperand),
+              ZExp.ZBlock.wrap(ZExp.place_before_operand(operand)),
               UHExp.Block.wrap(hole1),
               UHExp.Block.wrap(hole2),
             ),
