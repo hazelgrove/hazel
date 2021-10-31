@@ -107,6 +107,10 @@ module Delim = {
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
 
+  let open_Subscript = (): t => mk(~index=0, "[");
+  let delim_Subscript_idx = (): t => mk(~index=1, ":");
+  let close_Subscript = (): t => mk(~index=2, "]");
+
   let let_LetLine = (): t => mk(~index=0, "let");
   let eq_LetLine = (): t => mk(~index=1, "=");
   let in_LetLine = (): t => mk(~index=2, "in");
@@ -581,6 +585,19 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
     clause |> pad_left_delimited_open_child(~with_border=false),
   ])
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
+};
+
+let mk_Subscript =
+    (s: formatted_child, n1: formatted_child, n2: formatted_child): t => {
+  Doc.hcats([
+    s |> pad_right_delimited_open_child(~with_border=false),
+    Delim.open_Subscript(),
+    n1 |> pad_bidelimited_open_child,
+    Delim.delim_Subscript_idx(),
+    n2 |> pad_bidelimited_open_child,
+    Delim.close_Subscript(),
+  ])
+  |> annot_Operand(~sort=Exp);
 };
 
 let mk_LetLine = (p: formatted_child, def: formatted_child): t => {

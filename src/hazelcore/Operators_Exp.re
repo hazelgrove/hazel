@@ -74,6 +74,7 @@ let precedence =
 
 let precedence_const = 0;
 let precedence_Ap = 1;
+let precedence_Subscript = 1;
 let precedence_max = 10;
 
 let associativity =

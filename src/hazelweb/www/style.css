@@ -895,7 +895,8 @@ h1 {
 }
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
-.DHCode .DivideByZero {
+.DHCode .DivideByZero,
+.DHCode .SubscriptOutOfBounds {
   display: inline-block;
   position: relative;
   font-size: 75%;

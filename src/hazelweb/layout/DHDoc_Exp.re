@@ -58,6 +58,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | BinStrOp(op, _, _) => precedence_bin_str_op(op)
+  | Subscript(_, _, _) => DHDoc_common.precedence_Subscript
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
@@ -224,6 +225,15 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_str_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_str_op(op), mk_cast(doc2)]);
+      | Subscript(d1, d2, d3) =>
+        hcats([
+          mk_cast(go(~enforce_inline, d1)),
+          Doc.text("["),
+          mk_cast(go(~enforce_inline, d2)),
+          Doc.text(":"),
+          mk_cast(go(~enforce_inline, d3)),
+          Doc.text("]"),
+        ])
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
       | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
@@ -276,6 +286,12 @@ let rec mk =
           let decoration =
             Doc.text(InvalidOperationError.err_msg(err))
             |> annot(DHAnnot.DivideByZero);
+          hcats([d_doc, decoration]);
+        | SubscriptOutOfBounds(_) =>
+          let (d_doc, _) = go'(d);
+          let decoration =
+            Doc.text(InvalidOperationError.err_msg(err))
+            |> annot(DHAnnot.SubscriptOutOfBounds);
           hcats([d_doc, decoration]);
         }
       /*

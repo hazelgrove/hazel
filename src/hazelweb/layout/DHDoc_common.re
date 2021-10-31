@@ -5,6 +5,7 @@ type formattable_child = (~enforce_inline: bool) => t;
 
 let precedence_const = Operators_Exp.precedence_const;
 let precedence_Ap = Operators_Exp.precedence_Ap;
+let precedence_Subscript = Operators_Exp.precedence_Subscript;
 let precedence_Times = Operators_Exp.precedence(Times);
 let precedence_Divide = Operators_Exp.precedence(Divide);
 let precedence_Plus = Operators_Exp.precedence(Plus);

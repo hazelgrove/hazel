@@ -207,6 +207,11 @@ and mk_operand =
                  );
             UHDoc_common.mk_Case(scrut, rules);
           }
+        | Subscript(_, s, n1, n2) =>
+          let s = mk_child(~memoize, ~enforce_inline, ~child_step=0, s);
+          let n1 = mk_child(~memoize, ~enforce_inline, ~child_step=0, n1);
+          let n2 = mk_child(~memoize, ~enforce_inline, ~child_step=0, n2);
+          UHDoc_common.mk_Subscript(s, n1, n2);
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
       )
