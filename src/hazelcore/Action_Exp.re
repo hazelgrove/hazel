@@ -1703,29 +1703,27 @@ and syn_perform_operand =
     let (ctx, u_gen, ze) =
       switch (operand) {
       | EmptyHole(_) =>
-        let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let (hole2, u_gen) = u_gen |> UHExp.new_EmptyHole;
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
+              ZExp.ZBlock.wrap(zoperand),
               UHExp.Block.wrap(hole1),
               UHExp.Block.wrap(hole2),
             ),
           );
         (ctx, u_gen, ze);
       | _ =>
-        let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let (hole2, u_gen) = u_gen |> UHExp.new_EmptyHole;
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
               NotInHole,
               UHExp.Block.wrap(operand),
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              ZExp.ZBlock.wrap(ZExp.place_before_operand(hole1)),
               UHExp.Block.wrap(hole2),
             ),
           );
@@ -3409,21 +3407,19 @@ and ana_perform_operand =
     let (ctx, u_gen, ze) =
       switch (operand) {
       | EmptyHole(_) =>
-        let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
         let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
+              ZExp.ZBlock.wrap(zoperand),
               UHExp.Block.wrap(hole1),
               UHExp.Block.wrap(hole2),
             ),
           );
         (ctx, u_gen, ze);
       | _ =>
-        let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
         let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
@@ -3431,7 +3427,7 @@ and ana_perform_operand =
             SubscriptZE2(
               NotInHole,
               UHExp.Block.wrap(operand),
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              ZExp.ZBlock.wrap(ZExp.place_before_operand(hole1)),
               UHExp.Block.wrap(hole2),
             ),
           );
