@@ -591,12 +591,13 @@ let mk_Subscript =
     (s: formatted_child, n1: formatted_child, n2: formatted_child): t => {
   Doc.hcats([
     s |> pad_closed_child(~sort=Exp),
-    Delim.open_Subscript(),
+    Delim.open_Subscript() |> annot_Tessera,
     n1 |> pad_bidelimited_open_child,
-    Delim.delim_Subscript_idx(),
+    Delim.delim_Subscript_idx() |> annot_Tessera,
     n2 |> pad_bidelimited_open_child,
-    Delim.close_Subscript(),
+    Delim.close_Subscript() |> annot_Tessera,
   ])
+  |> annot_Tessera
   |> annot_Operand(~sort=Exp);
 };
 
