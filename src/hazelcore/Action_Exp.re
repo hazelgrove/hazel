@@ -3038,17 +3038,12 @@ and ana_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(CursorE(OnDelim(k, After), operand));
     ana_perform(ctx, Backspace, (new_ze, u_gen), ty) |> wrap_in_AnaDone;
 
-  | (
-      Backspace,
-      CursorE(
-        OnDelim(_, After),
-        ListNil(_) | StringLit(_) |
-        // TODO: Come back to this (see strings3)
-        Subscript(_),
-      ),
-    ) =>
+  | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | StringLit(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+  | (Backspace, CursorE(OnDelim(_, After), Subscript(_, s, _, _))) =>
+    let new_ze = s |> ZExp.place_after;
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
