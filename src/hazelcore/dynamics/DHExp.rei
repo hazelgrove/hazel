@@ -78,6 +78,7 @@ type t =
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
   | BinStrOp(BinStrOp.t, t, t)
+  | Subscript(t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)

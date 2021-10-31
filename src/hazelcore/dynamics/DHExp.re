@@ -193,6 +193,7 @@ type t =
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
   | BinStrOp(BinStrOp.t, t, t)
+  | Subscript(t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -228,6 +229,7 @@ let constructor_string = (d: t): string =>
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
   | BinStrOp(_, _, _) => "BinStrOp"
+  | Subscript(_, _, _) => "Subscript"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
