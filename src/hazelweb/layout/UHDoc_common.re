@@ -590,7 +590,7 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
 let mk_Subscript =
     (s: formatted_child, n1: formatted_child, n2: formatted_child): t => {
   Doc.hcats([
-    s |> pad_right_delimited_open_child(~with_border=false),
+    s |> pad_closed_child(~sort=Exp),
     Delim.open_Subscript(),
     n1 |> pad_bidelimited_open_child,
     Delim.delim_Subscript_idx(),
