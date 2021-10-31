@@ -343,6 +343,16 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
+    | SSubscript =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("subscript"),
+            indicate_words_view(" expression"),
+          ],
+        )
+      )
     | SList
     | SListNil
     | SLine
