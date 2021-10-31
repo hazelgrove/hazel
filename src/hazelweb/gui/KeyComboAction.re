@@ -3,20 +3,30 @@ let get_model_action =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (cursor_on_type, cursor_on_comment, cursor_on_stringlit) =
+  let (cursor_on_type, cursor_on_comment, cursor_on_stringlit, cursor_on_exp) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true, false)
-    | {
-        cursor_term:
-          Exp(OnText(_), StringLit(_)) | Pat(OnText(_), StringLit(_)),
-        _,
-      } => (
+    | {typed: OnType, _} => (true, false, false, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (
+        false,
+        true,
+        false,
+        false,
+      )
+    | {cursor_term: Exp(OnText(_), StringLit(_)), _} => (
         false,
         false,
         true,
+        true,
       )
-    | _ => (false, false, false)
+    | {cursor_term: Pat(OnText(_), StringLit(_)), _} => (
+        false,
+        false,
+        true,
+        false,
+      )
+    | {cursor_term: Exp(_), _} => (false, false, false, true)
+
+    | _ => (false, false, false, false)
     };
 
   switch (kc) {
@@ -61,6 +71,7 @@ let get_model_action =
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
   | LeftBracket when cursor_on_stringlit => construct(SChar("["))
+  | LeftBracket when cursor_on_exp => construct(SSubscript)
   | LeftBracket => construct(SListNil)
   | Semicolon when cursor_on_stringlit => construct(SChar(";"))
   | Semicolon => construct(SOp(SCons))

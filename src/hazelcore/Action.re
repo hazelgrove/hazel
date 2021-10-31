@@ -32,6 +32,7 @@ type shape =
   | SLet
   | SLine
   | SCase
+  | SSubscript
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 

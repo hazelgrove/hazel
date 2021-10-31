@@ -1698,6 +1698,42 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
   | (Construct(SListNil), CursorE(_)) => Failed
 
+  | (Construct(SSubscript), CursorE(_, operand))
+      when ZExp.is_after_zoperand(zoperand) =>
+    let (ctx, u_gen, ze) =
+      switch (operand) {
+      | EmptyHole(_) =>
+        let delim_cursor = CursorPosition.OnDelim(0, Before);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            SubscriptZE1(
+              NotInHole,
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
+              UHExp.Block.wrap(hole1),
+              UHExp.Block.wrap(hole2),
+            ),
+          );
+        (ctx, u_gen, ze);
+      | _ =>
+        let delim_cursor = CursorPosition.OnDelim(0, Before);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            SubscriptZE2(
+              NotInHole,
+              UHExp.Block.wrap(operand),
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              UHExp.Block.wrap(hole2),
+            ),
+          );
+        (ctx, u_gen, ze);
+      };
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
+  | (Construct(SSubscript), CursorE(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorE(_)) =>
     let new_ze =
       ZExp.ZBlock.wrap(ParenthesizedZ(ZExp.ZBlock.wrap(zoperand)));
@@ -3367,6 +3403,42 @@ and ana_perform_operand =
     );
     Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
+
+  | (Construct(SSubscript), CursorE(_, operand))
+      when ZExp.is_after_zoperand(zoperand) =>
+    let (ctx, u_gen, ze) =
+      switch (operand) {
+      | EmptyHole(_) =>
+        let delim_cursor = CursorPosition.OnDelim(0, Before);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            SubscriptZE1(
+              NotInHole,
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
+              UHExp.Block.wrap(hole1),
+              UHExp.Block.wrap(hole2),
+            ),
+          );
+        (ctx, u_gen, ze);
+      | _ =>
+        let delim_cursor = CursorPosition.OnDelim(0, Before);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            SubscriptZE2(
+              NotInHole,
+              UHExp.Block.wrap(operand),
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              UHExp.Block.wrap(hole2),
+            ),
+          );
+        (ctx, u_gen, ze);
+      };
+    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
+  | (Construct(SSubscript), CursorE(_, _)) => Failed
 
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_)) => Failed
