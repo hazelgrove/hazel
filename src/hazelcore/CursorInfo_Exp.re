@@ -980,7 +980,6 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
-  // TODO: Not sure if these are right
   | SubscriptZE1(NotInHole, zs, _, _) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zs, ty)
   | SubscriptZE2(NotInHole, _, zn1, _) =>

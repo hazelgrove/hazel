@@ -726,7 +726,6 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  // TODO: Unsure about this
   | CursorE(OnDelim(k, _), Subscript(err, s, n1, n2)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {

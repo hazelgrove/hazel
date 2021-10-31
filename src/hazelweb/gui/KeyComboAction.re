@@ -53,7 +53,7 @@ let get_model_action =
   | Colon => construct(SAnn)
   | Equals when cursor_on_stringlit => construct(SChar("="))
   | Equals => construct(SOp(SEquals))
-  // TODO: Enter when cursor_on_stringlit
+  // TODO: Enter when cursor_on_stringlit?
   | Enter => construct(SLine)
   | Shift_Enter => construct(SCommentLine)
   | Backslash when cursor_on_stringlit => construct(SChar("\\"))
