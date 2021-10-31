@@ -10,6 +10,8 @@ let get_model_action =
     | _ => (false, false)
     };
 
+  /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */
   switch (kc) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
@@ -42,6 +44,7 @@ let get_model_action =
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
+  | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole(UHExp))
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)

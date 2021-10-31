@@ -51,6 +51,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | UpdateSettings(_)
+  | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | FocusCell
@@ -198,6 +199,11 @@ let apply_action =
       | UpdateSettings(u) => {
           ...model,
           settings: Settings.apply_update(u, model.settings),
+        }
+      | UpdateCursorInspector(u) => {
+          ...model,
+          cursor_inspector:
+            CursorInspectorModel.apply_update(u, model.cursor_inspector),
         }
       | SerializeToConsole(obj) =>
         switch (obj) {
