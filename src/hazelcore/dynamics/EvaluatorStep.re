@@ -902,16 +902,6 @@ let quick_step_evaluate =
   | InvalidInput(i) => InvalidInput(i)
   };
 
-let rec step_evaluate_record =
-        (d: DHExp.t, opt: evaluator_option): list(DHExp.t) => {
-  let d' = ctx_step(d, opt);
-  if (is_final(d', opt)) {
-    [d'];
-  } else {
-    [d', ...step_evaluate_record(d', opt)];
-  };
-};
-
 let ctx_step_index = (d: DHExp.t, opt: evaluator_option, index: int): DHExp.t =>
   if (is_final(d, opt)) {
     d;
