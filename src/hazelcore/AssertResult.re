@@ -27,3 +27,8 @@ let join_all: list(t) => t = xs => List.fold_left(join, Pass, xs);
 let assert_ty: HTyp.t = Arrow(Bool, Prod([]));
 
 let name: string = "assert";
+let add_assert_eq = (n, assert_eqs) =>
+  switch (List.assoc_opt(n, assert_eqs)) {
+  | None => []
+  | Some(curr_eqs) => curr_eqs
+  };
