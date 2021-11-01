@@ -5,6 +5,7 @@ module Vdom = Virtual_dom.Vdom;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
+open Sexplib.Std;
 
 let decoration_cls: UHDecorationShape.t => string =
   fun
@@ -216,13 +217,15 @@ let rec view_of_box =
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
         | AssertNum({num}) =>
           let assert_result = AssertMap.lookup_and_join(num, assert_map);
-          let assert_eq =
+          let assert_eqs =
             switch (List.assoc_opt(num, assert_eqs)) {
-            | None => DHExp.Triv
-            | Some(d) => d
+            | None => []
+            | Some(d) => List.rev(d)
             };
           let assert_eq_string =
-            Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(assert_eq));
+            Sexplib.Sexp.to_string_hum(
+              sexp_of_list(DHExp.sexp_of_t, assert_eqs),
+            );
           let assert_class =
             "Assert" ++ AssertResult.to_string(assert_result);
           [

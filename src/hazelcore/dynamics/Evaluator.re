@@ -23,12 +23,13 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 [@deriving sexp]
-type assert_eq_map = list((AssertNumber.t, DHExp.t));
+type assert_eq_map = list((AssertNumber.t, list(DHExp.t)));
 
 [@deriving sexp]
 type state = {
   assert_map: AssertMap.t,
   assert_eqs: assert_eq_map,
+  step: int,
   fuel: int,
 };
 
@@ -39,8 +40,9 @@ let init_fuel = 256;
 
 let init_state = {
   assert_map: AssertMap.empty,
-  fuel: init_fuel,
   assert_eqs: [],
+  step: 0,
+  fuel: init_fuel,
 };
 
 let add_assert = ({assert_map, _} as state: state, n, result): state => {
@@ -49,13 +51,22 @@ let add_assert = ({assert_map, _} as state: state, n, result): state => {
 };
 
 let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
-  ...state,
-  assert_eqs: [(n, dop), ...assert_eqs],
+  let curr_assert_eqs =
+    switch (List.assoc_opt(n, assert_eqs)) {
+    | None => [dop]
+    | Some(curr_eqs) => [dop, ...curr_eqs]
+    };
+  {...state, assert_eqs: [(n, curr_assert_eqs), ...assert_eqs]};
 };
 
 let burn_fuel = ({fuel, _} as state: state): state => {
   ...state,
   fuel: fuel - 1,
+};
+
+let take_step = ({step, _} as state: state): state => {
+  ...state,
+  step: step + 1,
 };
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
@@ -598,6 +609,7 @@ let bind = (x: report, f: eval_input => report): report =>
 
 let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   let _eval = ((d, state)) => evaluate(~state, d);
+  let state = take_step(state);
   switch (d) {
   | BoolLit(_)
   | ListNil(_)
@@ -810,42 +822,42 @@ and evaluate_case =
     };
   }
 and eval_cast =
-    (cons: DHExp.t => result, ty: HTyp.t, ty': HTyp.t, state, indet_val) => {
+    (cons: DHExp.t => result, ty: HTyp.t, ty': HTyp.t, state, value: DHExp.t) => {
   switch (ground_cases_of(ty), ground_cases_of(ty')) {
   | (Hole, Hole)
   | (Ground, Ground) =>
     /* if two types are ground and consistent, then they are eq */
-    (cons(indet_val), state)
+    (cons(value), state)
   | (Ground, Hole) =>
     /* can't remove the cast or do anything else here, so we're done */
-    (cons(Cast(indet_val, ty, ty')), state)
+    (cons(Cast(value, ty, ty')), state)
   | (NotGroundOrHole(_), NotGroundOrHole(_)) when HTyp.eq(ty, ty') => (
-      cons(indet_val),
+      cons(value),
       state,
     )
   | (Ground, NotGroundOrHole(_))
   | (NotGroundOrHole(_), Ground)
   | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
     /* can't do anything when casting between diseq, non-hole types */
-    (cons(Cast(indet_val, ty, ty')), state)
+    (cons(Cast(value, ty, ty')), state)
   | (Hole, Ground) =>
-    switch (indet_val) {
+    switch (value) {
     | Cast(d1'', ty'', Hole) when HTyp.eq(ty'', ty') => (cons(d1''), state)
-    | Cast(_, _, Hole) => (Indet(FailedCast(indet_val, ty, ty')), state)
+    | Cast(_, _, Hole) => (Indet(FailedCast(value, ty, ty')), state)
     | _ =>
       switch (cons(Triv)) {
       | BoxedValue(_) => (InvalidInput(CastBVHoleGround), state)
       //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-      | _ => (cons(Cast(indet_val, ty, ty')), state)
+      | _ => (cons(Cast(value, ty, ty')), state)
       }
     }
   | (Hole, NotGroundOrHole(ty_grounded)) =>
     /* ITExpand rule */
-    let d' = DHExp.Cast(Cast(indet_val, ty, ty_grounded), ty_grounded, ty');
+    let d' = DHExp.Cast(Cast(value, ty, ty_grounded), ty_grounded, ty');
     evaluate(d', ~state);
   | (NotGroundOrHole(ty_grounded), Hole) =>
     /* ITGround rule */
-    let d' = DHExp.Cast(Cast(indet_val, ty, ty_grounded), ty_grounded, ty');
+    let d' = DHExp.Cast(Cast(value, ty, ty_grounded), ty_grounded, ty');
     evaluate(d', ~state);
   };
 }
