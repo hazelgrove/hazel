@@ -87,8 +87,8 @@ module Delim = {
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
   let assertlit = (n) /*numbering: string*/: t => {
-    //Doc.(hcats([text("assert"),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
-    //let doc1 = Doc.text("assert") |> Doc.annot(UHAnnot.AssertNumber);
+    //Doc.(hcats([text(AssertResult.name),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
+    //let doc1 = Doc.text(AssertResult.name) |> Doc.annot(UHAnnot.AssertNumber);
     //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.AssertNumber);
     /*switch(Assertresult.lookup(int_of_string(numbering))){ //0 = pass, 1= fail, 2= not yet determined
         |0 => Doc.text(checkmark) |>Doc.annot(UHAnnot.AssertPass)✔
@@ -101,24 +101,24 @@ module Delim = {
       | Some(a) =>
         switch (AssertMap.check(a)) {
         | Pass =>
-          Doc.text("assert")
+          Doc.text(AssertResult.name)
           |> Doc.annot(UHAnnot.AssertPass)
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
         | Fail =>
-          Doc.text("assert")
+          Doc.text(AssertResult.name)
           |> Doc.annot(UHAnnot.AssertFail)
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
         | Indet =>
-          Doc.text("assert")
+          Doc.text(AssertResult.name)
           |> Doc.annot(UHAnnot.AssertIndet)
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
         | Comp =>
-          Doc.text("assert")
+          Doc.text(AssertResult.name)
           |> Doc.annot(UHAnnot.AssertComp)
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
         }
       | None =>*/
-    Doc.text("assert")
+    Doc.text(AssertResult.name)
     |> Doc.annot(UHAnnot.AssertNum({num: n}))
     |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()));
                                                              //};

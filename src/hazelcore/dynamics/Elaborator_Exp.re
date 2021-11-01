@@ -318,7 +318,7 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | AssertLit(NotInHole, n) =>
-    Elaborates(AssertLit(n), HTyp.Arrow(Bool, Prod([])), delta)
+    Elaborates(AssertLit(n), AssertResult.assert_ty, delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);

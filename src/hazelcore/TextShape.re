@@ -30,7 +30,7 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
   };
 
 let is_assert = (text: string) => {
-  String.equal("assert", text);
+  String.equal(AssertResult.name, text);
 };
 
 let of_text = (text: string): t =>

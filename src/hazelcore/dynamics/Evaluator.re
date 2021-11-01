@@ -53,10 +53,10 @@ let add_assert = ({assert_map, _} as state: state, n, result): state => {
 let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
   let curr_assert_eqs =
     switch (List.assoc_opt(n, assert_eqs)) {
-    | None => [dop]
-    | Some(curr_eqs) => [dop, ...curr_eqs]
+    | None => []
+    | Some(curr_eqs) => curr_eqs
     };
-  {...state, assert_eqs: [(n, curr_assert_eqs), ...assert_eqs]};
+  {...state, assert_eqs: [(n, [dop, ...curr_assert_eqs]), ...assert_eqs]};
 };
 
 let burn_fuel = ({fuel, _} as state: state): state => {
@@ -625,7 +625,8 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   | FailedAssert(_, d1) => (Indet(d1), state)
   | BoundVar(_) => (InvalidInput(FreeOrInvalidVariable), state)
   | Inj(ty, side, d1) =>
-    eval_unary_constructor((d1, state), d1' => DHExp.Inj(ty, side, d1'))
+    let mk_inj = d1' => DHExp.Inj(ty, side, d1');
+    eval_unary_constructor((d1, state), mk_inj);
   | Pair(d1, d2) =>
     let mk_pair = (d1', d2') => DHExp.Pair(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_pair);
@@ -750,9 +751,9 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   | InvalidOperation(d, err) =>
     eval_bind_indet((d, state), d' => InvalidOperation(d', err))
   | ConsistentCase(Case(d1, rules, n)) =>
-    evaluate_case(None, d1, rules, n, state)
+    eval_case(None, d1, rules, n, state)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(Some((u, i, sigma)), d1, rules, n, state)
+    eval_case(Some((u, i, sigma)), d1, rules, n, state)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
     | (InvalidInput(_), _) as ii => ii
@@ -779,11 +780,11 @@ and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
   }
 and eval_bind = ((d, state): eval_input, f: eval_input => report): report =>
   bind(evaluate(d, ~state), f)
-and eval_bind_stateless = (d_s: eval_input, f: DHExp.t => result): report =>
+and eval_bind_same_state = (d_s: eval_input, f: DHExp.t => result): report =>
   eval_bind(d_s, ((d', state)) => (f(d'), state))
 and eval_bind_indet = (d_s: eval_input, f: DHExp.t => DHExp.t): report =>
-  eval_bind_stateless(d_s, d' => Indet(f(d')))
-and evaluate_case =
+  eval_bind_same_state(d_s, d' => Indet(f(d')))
+and eval_case =
     (
       inconsistent_info,
       scrut: DHExp.t,
@@ -811,7 +812,7 @@ and evaluate_case =
       | IndetMatch => (none_or_indet, state)
       | Matches(env) => (fst(evaluate(subst(env, d), ~state)), state)
       | DoesNotMatch =>
-        evaluate_case(
+        eval_case(
           inconsistent_info,
           scrut,
           rules,
@@ -861,30 +862,36 @@ and eval_cast =
     evaluate(d', ~state);
   };
 }
+
+/* Note that this RE-EVALUATES d, d3 and d4 */
+and eval_assert_binop = (d, bin_op_fn, d3, d4, n, state): (result, state) => {
+  let unboxed_res = (r: result) =>
+    switch (r) {
+    | InvalidInput(_) => DHExp.Triv
+    | Indet(d)
+    | BoxedValue(d) => d
+    };
+  let (r3, _) = evaluate(d3, ~state);
+  let (r4, _) = evaluate(d4, ~state);
+  let eq = bin_op_fn(unboxed_res(r3), unboxed_res(r4));
+  let (res, state) = evaluate(d, ~state);
+  let (res, assert_result: AssertResult.t) =
+    switch (res) {
+    | BoxedValue(BoolLit(true)) => (BoxedValue(Triv), Pass)
+    | BoxedValue(BoolLit(false)) => (Indet(FailedAssert(n, d)), Fail)
+    | _ => (Indet(Ap(AssertLit(n), d)), Indet)
+    };
+  let state = add_assert_eq(add_assert(state, n, assert_result), n, eq);
+  (res, state);
+}
 and eval_assert = (n, d, state) =>
   switch (d) {
   | BinIntOp((Equals | LessThan | GreaterThan) as op, d3, d4) =>
-    //TODO (andrew): floats
-    let yoink = (r: result) =>
-      switch (r) {
-      | InvalidInput(_) => DHExp.Triv
-      | Indet(d)
-      | BoxedValue(d) => d
-      };
-    let (r3, _) = evaluate(d3, ~state);
-    let (r4, _) = evaluate(d4, ~state);
-    let dop: DHExp.t = BinIntOp(op, yoink(r3), yoink(r4));
-    switch (evaluate(d, ~state)) {
-    | (BoxedValue(BoolLit(true)), state) =>
-      let state = add_assert(state, n, Pass);
-      (BoxedValue(Triv), add_assert_eq(state, n, dop));
-    | (BoxedValue(BoolLit(false)), state) =>
-      let state = add_assert(state, n, Fail);
-      (Indet(FailedAssert(n, d)), add_assert_eq(state, n, dop));
-    | _ =>
-      let state = add_assert(state, n, Indet);
-      (Indet(Ap(AssertLit(n), d)), add_assert_eq(state, n, dop));
-    };
+    let mk_bin_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
+    eval_assert_binop(d, mk_bin_op, d3, d4, n, state);
+  | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d3, d4) =>
+    let mk_float_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
+    eval_assert_binop(d, mk_float_op, d3, d4, n, state);
   | _ =>
     switch (evaluate(d, ~state)) {
     | (BoxedValue(BoolLit(true)), state) => (
