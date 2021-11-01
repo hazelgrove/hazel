@@ -263,3 +263,22 @@ it.
 
 You can also run `make repl` to get a REPL in which you can play with the core
 Hazel functions.
+
+## (Optional) Install fswatch for automatic reformatting & recompilation
+
+Do this if you want to be able to run `make watch` to automatically watch
+the hazel source for changes, triggering reformatting and recompilation.
+
+  - If you are on Ubuntu/Debian, you can do this by running the following commands:
+
+    ```sh
+    sudo apt install fswatch
+    opam install fswatch
+    ```
+
+  - If you are on MacOS, you can do this by running the following commands:
+
+    ```sh
+    brew install fswatch
+    opam install fswatch
+    ```
