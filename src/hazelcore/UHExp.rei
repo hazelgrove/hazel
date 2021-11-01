@@ -19,6 +19,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | AssertLit(ErrStatus.t, AssertNumber.t)
+  // type builtin = | AssertLit(ErrStatus.t, AssertNumber.t) | ProbeLit(...)
+  // | BuiltIn(builtin)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)

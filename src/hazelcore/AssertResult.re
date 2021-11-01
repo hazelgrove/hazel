@@ -23,3 +23,7 @@ let join: (t, t) => t =
     };
 
 let join_all: list(t) => t = xs => List.fold_left(join, Pass, xs);
+
+let assert_ty: HTyp.t = Arrow(Bool, Prod([]));
+
+let name: string = "assert";

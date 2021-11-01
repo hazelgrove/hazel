@@ -189,7 +189,7 @@ let rec mk =
       | AssertLit(n) =>
         let annot =
           annot_of_assert_result(AssertMap.lookup_and_join(n, assert_map));
-        Doc.annot(annot, Doc.text("assert"));
+        Doc.annot(annot, Doc.text(AssertResult.name));
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
