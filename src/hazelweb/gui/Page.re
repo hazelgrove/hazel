@@ -79,7 +79,8 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
       ),
     ]
     @ (
-      if (settings.evaluation.show_evaluate_steps) {
+      if (settings.evaluation.stepper_mode
+          && settings.evaluation.show_evaluate_steps) {
         List.map(
           d =>
             Node.div(
