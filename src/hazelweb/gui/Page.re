@@ -95,11 +95,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
                 ),
               ],
             ),
-          program
-          |> Program.get_evaluate_steps(
-               _,
-               settings.evaluation.step_evaluator_option,
-             ),
+          model.result_states |> List.rev,
         );
       } else {
         [];
