@@ -134,6 +134,10 @@ The `make dev` and `make release` commands do three things:
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+
+For a more seamless dev experience, use `make watch` to automatically watch 
+for file changes, triggering autoformat and recompilation. This will require a local
+installation of fswatch e.g. on macOS do `brew install fswatch; opam install fswatch`
    
 ### Debugging
 
