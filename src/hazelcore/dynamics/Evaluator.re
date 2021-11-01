@@ -495,6 +495,14 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   | Or => BoolLit(b1 || b2)
   };
 
+let eval_bin_bool_op_short_circuit =
+    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+  switch (op, b1) {
+  | (Or, true) => Some(BoxedValue(BoolLit(true)))
+  | (And, false) => Some(BoxedValue(BoolLit(false)))
+  | _ => None
+  };
+
 let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   switch (op) {
   | Minus => IntLit(n1 - n2)
@@ -578,11 +586,16 @@ let rec evaluate = (d: DHExp.t): result =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(BoolLit(b1) as d1') =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(BoolLit(b2)) => BoxedValue(eval_bin_bool_op(op, b1, b2))
-      | BoxedValue(_) => InvalidInput(3)
-      | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+      switch (eval_bin_bool_op_short_circuit(op, b1)) {
+      | Some(b3) => b3
+      | None =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(BoolLit(b2)) =>
+          BoxedValue(eval_bin_bool_op(op, b1, b2))
+        | BoxedValue(_) => InvalidInput(3)
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+        }
       }
     | BoxedValue(_) => InvalidInput(4)
     | Indet(d1') =>
