@@ -406,7 +406,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
   | ApBuiltin(x, args) =>
-    let args = subst_var_list(d1, x, args);
+    let args = List.map(subst_var(d1, x), args);
     ApBuiltin(x, args);
   | BoolLit(_)
   | IntLit(_)
@@ -483,14 +483,7 @@ and subst_var_env =
   |> List.map(xd => {
        let (y, d) = xd;
        (y, subst_var(d1, x, d));
-     })
-
-and subst_var_list =
-    (d1: DHExp.t, x: Var.t, d2l: list(DHExp.t)): list(DHExp.t) =>
-  switch (d2l) {
-  | [d3, ...d3l] => [subst_var(d1, x, d3), ...subst_var_list(d1, x, d3l)]
-  | [] => []
-  };
+     });
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
