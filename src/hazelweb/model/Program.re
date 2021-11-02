@@ -116,6 +116,17 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(x, args) =>
+    let (hii, args) =
+      List.fold_right(
+        (d1, (hii, acc)) => {
+          let (d1, hii) = renumber_result_only(path, hii, d1);
+          (hii, [d1, ...acc]);
+        },
+        List.rev(args),
+        (hii, []),
+      );
+    (ApBuiltin(x, args), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -214,6 +225,17 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(x, args) =>
+    let (hii, args) =
+      List.fold_right(
+        (d1, (hii, acc)) => {
+          let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+          (hii, [d1, ...acc]);
+        },
+        List.rev(args),
+        (hii, []),
+      );
+    (ApBuiltin(x, args), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
