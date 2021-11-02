@@ -7,7 +7,9 @@
      5 = bad pattern match
      6 = Cast BV Hole Ground
      7 = boxed value not a float literal 1
-     8 = boxed value not a float literal 2 */
+     8 = boxed value not a float literal 2
+     9 = builtin function name was not found
+     10 = builtin function arguments are wrong */
 
 [@deriving sexp]
 type result =

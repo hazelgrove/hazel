@@ -208,6 +208,7 @@ and matches_cast_Inj =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -273,6 +274,7 @@ and matches_cast_Pair =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -344,6 +346,7 @@ and matches_cast_Cons =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -402,6 +405,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | ApBuiltin(x, args) =>
+    let args = subst_var_list(d1, x, args);
+    ApBuiltin(x, args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -477,7 +483,14 @@ and subst_var_env =
   |> List.map(xd => {
        let (y, d) = xd;
        (y, subst_var(d1, x, d));
-     });
+     })
+
+and subst_var_list =
+    (d1: DHExp.t, x: Var.t, d2l: list(DHExp.t)): list(DHExp.t) =>
+  switch (d2l) {
+  | [d3, ...d3l] => [subst_var(d1, x, d3), ...subst_var_list(d1, x, d3l)]
+  | [] => []
+  };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
@@ -577,6 +590,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
+  | ApBuiltin(x, args) => evaluate_ap_builtin(x, args)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
@@ -816,4 +830,33 @@ and evaluate_case =
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
+  }
+and evaluate_ap_builtin = (ident: string, args: list(DHExp.t)): result => {
+  switch (ident) {
+  | "int_of_float" =>
+    switch (args) {
+    | [] => Indet(ApBuiltin(ident, args))
+    | [d1] =>
+      switch (evaluate(d1)) {
+      | BoxedValue(FloatLit(f)) =>
+        let i = int_of_float(f);
+        BoxedValue(IntLit(i));
+      | _ => InvalidInput(10)
+      }
+    | _ => InvalidInput(10)
+    }
+  | "float_of_int" =>
+    switch (args) {
+    | [] => Indet(ApBuiltin(ident, args))
+    | [d1] =>
+      switch (evaluate(d1)) {
+      | BoxedValue(IntLit(i)) =>
+        let f = float_of_int(i);
+        BoxedValue(FloatLit(f));
+      | _ => InvalidInput(10)
+      }
+    | _ => InvalidInput(10)
+    }
+  | _ => InvalidInput(9)
   };
+};
