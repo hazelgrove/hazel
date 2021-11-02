@@ -536,7 +536,12 @@ let eval_bin_float_op =
 
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
-  | BoundVar(_) => InvalidInput(1)
+  | BoundVar(x) =>
+    switch (Builtins.lookup(x)) {
+    | Some(ty) =>
+      evaluate(Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])))
+    | None => InvalidInput(1)
+    }
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -834,9 +839,9 @@ and evaluate_ap_builtin = (ident: string, args: list(DHExp.t)): result => {
       | BoxedValue(FloatLit(f)) =>
         let i = int_of_float(f);
         BoxedValue(IntLit(i));
-      | _ => InvalidInput(10)
+      | _ => Indet(ApBuiltin(ident, args))
       }
-    | _ => InvalidInput(10)
+    | _ => Indet(ApBuiltin(ident, args))
     }
   | "float_of_int" =>
     switch (args) {
@@ -846,9 +851,9 @@ and evaluate_ap_builtin = (ident: string, args: list(DHExp.t)): result => {
       | BoxedValue(IntLit(i)) =>
         let f = float_of_int(i);
         BoxedValue(FloatLit(f));
-      | _ => InvalidInput(10)
+      | _ => Indet(ApBuiltin(ident, args))
       }
-    | _ => InvalidInput(10)
+    | _ => Indet(ApBuiltin(ident, args))
     }
   | _ => InvalidInput(9)
   };
