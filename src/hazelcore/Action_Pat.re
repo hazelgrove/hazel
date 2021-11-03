@@ -84,11 +84,13 @@ let mk_syn_text =
   | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, id_gen));
-  | Keyword(AssertLit(_)) =>
+  | Keyword(kw) =>
     //TODO(andrew): correlate with other relevant TODOs
-    let (_, id_gen) = IDGen.next_assert(id_gen);
+    let (_, id_gen) = IDGen.next_kw(id_gen);
     let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(AssertStatus.name)));
+      ZOpSeq.wrap(
+        ZPat.CursorP(text_cursor, UHPat.var(Keyword.string_of_kw(kw))),
+      );
     Succeeded((zp, AssertStatus.assert_ty, ctx, id_gen));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
@@ -131,7 +133,8 @@ let mk_ana_text =
     Succeeded((zp, ctx, id_gen));
   | IntLit(_)
   | FloatLit(_)
-  | BoolLit(_) =>
+  | BoolLit(_)
+  | Keyword(_) =>
     switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>
@@ -139,23 +142,6 @@ let mk_ana_text =
         Succeeded((zp, ctx, id_gen));
       } else {
         let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
-        Succeeded((zp, ctx, id_gen));
-      }
-    }
-  | Keyword(AssertLit(_)) =>
-    switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, id_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        //let (_, id_gen) = id_gen |> IDGen.next_assert;
-        Succeeded((
-          zp,
-          ctx,
-          id_gen,
-        ));
-      } else {
-        let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
-        //let (_, id_gen) = id_gen |> IDGen.next_assert;
         Succeeded((zp, ctx, id_gen));
       }
     }

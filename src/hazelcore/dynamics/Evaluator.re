@@ -25,7 +25,7 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 [@deriving sexp]
-type assert_eq_map = list((AssertNumber.t, list(DHExp.t)));
+type assert_eq_map = list((KeywordID.t, list(DHExp.t)));
 
 [@deriving sexp]
 type state = {

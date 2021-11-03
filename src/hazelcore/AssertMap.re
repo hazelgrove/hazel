@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = list((AssertNumber.t, list(AssertStatus.t)));
+type t = list((KeywordID.t, list(AssertStatus.t)));
 
 let lookup = List.assoc_opt;
 let empty: t = [];
 
-let extend = (xa: (AssertNumber.t, AssertStatus.t), ctx: t): t => {
+let extend = (xa: (KeywordID.t, AssertStatus.t), ctx: t): t => {
   let (x, res) = xa;
   switch (List.assoc_opt(x, ctx)) {
   | Some(a) => [(x, List.append(a, [res])), ...List.remove_assoc(x, ctx)]

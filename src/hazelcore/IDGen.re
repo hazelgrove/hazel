@@ -1,6 +1,6 @@
 /* A simple IDVariable generator */
 [@deriving sexp]
-type t = (MetaVar.t, AssertNumber.t);
+type t = (MetaVar.t, KeywordID.t);
 let init: t = (0, 0);
 
 let reset_metavar: t => t =
@@ -11,5 +11,4 @@ let reset_metavar: t => t =
   };
 let next_hole: t => (MetaVar.t, t) = ((u, an)) => (u + 1, (u + 1, an));
 
-let next_assert: t => (AssertNumber.t, t) =
-  ((u, an)) => (an + 1, (u, an + 1));
+let next_kw: t => (KeywordID.t, t) = ((u, an)) => (an + 1, (u, an + 1));

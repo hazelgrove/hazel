@@ -28,7 +28,7 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_AssertLit: AssertNumber.t => UHDoc.t =
+let mk_AssertLit: KeywordID.t => UHDoc.t =
   UHDoc_common.mk_AssertLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
@@ -178,7 +178,7 @@ and mk_operand =
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
-        | Keyword(AssertLit(_, n)) => mk_AssertLit(n)
+        | Keyword(Typed(Assert, _, id)) => mk_AssertLit(id)
         | ListNil(_) => mk_ListNil()
         | Lam(_, p, body) =>
           let p =
