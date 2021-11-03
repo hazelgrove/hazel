@@ -284,19 +284,19 @@ let rec mk =
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
           hcats([
-            DHDoc_common.Delim.sym_Lam,
+            DHDoc_common.Delim.sym_Fun,
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
                  ~enforce_inline,
                ),
-            DHDoc_common.Delim.colon_Lam,
+            DHDoc_common.Delim.colon_Fun,
             space(),
             DHDoc_Typ.mk(~enforce_inline=true, ty),
             space(),
-            DHDoc_common.Delim.open_Lam,
+            DHDoc_common.Delim.open_Fun,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Lam,
+            DHDoc_common.Delim.close_Fun,
           ]);
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));

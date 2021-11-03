@@ -1,6 +1,6 @@
 module Delim: {
-  let sym_Lam: string;
-  let colon_Lam: string;
-  let open_Lam: string;
-  let close_Lam: string;
+  let sym_Fun: string;
+  let colon_Fun: string;
+  let open_Fun: string;
+  let close_Fun: string;
 };
