@@ -298,7 +298,7 @@ let mk_syn_text =
     let (u, id_gen) = IDGen.next_kw(id_gen);
     let ze =
       ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.keyword_typed(~kw, u)));
-    Succeeded(SynDone((ze, AssertStatus.assert_ty, id_gen)));
+    Succeeded(SynDone((ze, Keyword.type_of_kw(kw), id_gen)));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =

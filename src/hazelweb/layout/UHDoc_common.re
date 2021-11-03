@@ -86,39 +86,8 @@ module Delim = {
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
-  let assertlit = (n) /*numbering: string*/: t => {
-    //Doc.(hcats([text(AssertStatus.name),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
-    //let doc1 = Doc.text(AssertStatus.name) |> Doc.annot(UHAnnot.KeywordID);
-    //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.KeywordID);
-    /*switch(Assertresult.lookup(int_of_string(numbering))){ //0 = pass, 1= fail, 2= not yet determined
-        |0 => Doc.text(checkmark) |>Doc.annot(UHAnnot.AssertPass)✔
-        |1 => Doc.text(x mark) |> Doc.annot(UHAnnot.AssertFail)✘
-        |2 => Doc.text(grey box) |> Doc.annot(UHAnnot.AssertIndet)△
-      }*/
-    //|> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()));
-    //Doc.(hcats([doc1, doc2]))
-    /*switch (AssertMap.lookup(n, map)) {
-      | Some(a) =>
-        switch (AssertMap.check(a)) {
-        | Pass =>
-          Doc.text(AssertStatus.name)
-          |> Doc.annot(UHAnnot.AssertPass)
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
-        | Fail =>
-          Doc.text(AssertStatus.name)
-          |> Doc.annot(UHAnnot.AssertFail)
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
-        | Indet =>
-          Doc.text(AssertStatus.name)
-          |> Doc.annot(UHAnnot.AssertIndet)
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
-        | Comp =>
-          Doc.text(AssertStatus.name)
-          |> Doc.annot(UHAnnot.AssertComp)
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
-        }
-      | None =>*/
-    Doc.text(AssertStatus.name)
+  let keyword = (~kw: Keyword.kw, n: int): t => {
+    Doc.text(Keyword.string_of_kw(kw))
     |> Doc.annot(UHAnnot.AssertNum({num: n}))
     |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()));
                                                              //};
@@ -348,11 +317,11 @@ let mk_FloatLit = (~sort: TermSort.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_AssertLit =
-    (~sort: TermSort.t, n: KeywordID.t)
+let mk_keyword =
+    (~sort: TermSort.t, ~kw: Keyword.kw, n: KeywordID.t)
     //map: AssertMap.t /*numbering: string*/,
     : t =>
-  Delim.assertlit(n) |> annot_Tessera |> annot_Operand(~sort);
+  Delim.keyword(~kw, n) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
