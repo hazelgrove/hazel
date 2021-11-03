@@ -1,22 +1,14 @@
-open Sexplib.Std;
-
 [@deriving sexp]
 type invalid_input =
-  | FreeOrInvalidVariable // 1
-  | ApInvalidBoxedFunctionVal // 2
-  | BoxedNotIntLit2(DHExp.t) // 3
-  | BoxedNotIntLit1(DHExp.t) // 4
-  | CastBVHoleGround // 6
-  | BoxedNotFloatLit1(DHExp.t) // 7
-  | BoxedNotFloatLit2(DHExp.t); // 8
+  | FreeOrInvalidVariable
+  | ApInvalidBoxedFunctionVal
+  | CastBVHoleGround
+  | BoxedNotIntLit2(DHExp.t)
+  | BoxedNotIntLit1(DHExp.t)
+  | BoxedNotFloatLit1(DHExp.t)
+  | BoxedNotFloatLit2(DHExp.t);
 
 exception InvalidInput(invalid_input);
-
-[@deriving sexp]
-type result =
-  //| InvalidInput(invalid_input)
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
 
 [@deriving sexp]
 type ground_cases =
@@ -24,16 +16,18 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-[@deriving sexp]
-type assert_eq_map = list((KeywordID.t, list(DHExp.t)));
+type match_result =
+  | Matches(Environment.t)
+  | DoesNotMatch
+  | IndetMatch;
 
 [@deriving sexp]
-type state = {
-  assert_map: AssertMap.t,
-  assert_eqs: assert_eq_map,
-  step: int,
-  fuel: int,
-};
+type result =
+  | BoxedValue(DHExp.t)
+  | Indet(DHExp.t);
+
+[@deriving sexp]
+type state = EvalState.t;
 
 [@deriving sexp]
 type report = (result, state);
@@ -41,61 +35,27 @@ type report = (result, state);
 [@deriving sexp]
 type eval_input = (DHExp.t, state);
 
-let init_fuel = 256;
-
-let init_state = {
-  assert_map: AssertMap.empty,
-  assert_eqs: [],
-  step: 0,
-  fuel: init_fuel,
-};
-
-let take_step = ({step, _} as state: state): state => {
-  ...state,
-  step: step + 1,
-};
-
-let burn_fuel = ({fuel, _} as state: state): state => {
-  ...state,
-  fuel: fuel - 1,
-};
-
-let add_assert = ({assert_map, _} as state: state, n, result): state => {
-  ...state,
-  assert_map: AssertMap.extend((n, result), assert_map),
-};
-
-//TODO(andrew): move somewhere
-let add_assert_eq' = (n, assert_eqs) =>
-  switch (List.assoc_opt(n, assert_eqs)) {
-  | None => []
-  | Some(curr_eqs) => curr_eqs
-  };
-let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
-  let curr_assert_eqs = add_assert_eq'(n, assert_eqs);
-  {...state, assert_eqs: [(n, [dop, ...curr_assert_eqs]), ...assert_eqs]};
-};
-
 let unbox_result: result => DHExp.t =
   fun
   | Indet(d)
   | BoxedValue(d) => d;
 
-let assert_status_of_dhexp: DHExp.t => AssertStatus.t =
-  fun
-  | BoolLit(true) => Pass
-  | BoolLit(false) => Fail
-  | _ => Indet;
-
-let dhexp_result_of_assert = (n: int, d: DHExp.t, d_res: DHExp.t): result =>
-  switch (d_res) {
-  | BoolLit(true) => BoxedValue(Triv)
-  // TODO(andrew): do we want failedasserts as a seperate form?
-  // in principle can get same info from assert results (? check this)
-  // do we even want to emit these are part of the result?
-  | BoolLit(false) => BoxedValue(Triv) /*Indet(FailedAssert(n, d))*/
-  | _ => Indet(Ap(AssertLit(n), d))
-  };
+let report_assert = (res_d: result, d: DHExp.t, state, n): report => {
+  let d_res = unbox_result(res_d);
+  let eval_res =
+    switch (d_res) {
+    | BoolLit(_) => BoxedValue(Triv)
+    | _ => Indet(Ap(AssertLit(n), d))
+    };
+  let assert_status: AssertStatus.t =
+    switch (d_res) {
+    | BoolLit(true) => Pass
+    | BoolLit(false) => Fail
+    | _ => Indet
+    };
+  let state = EvalState.add_assert(state, n, (d, assert_status));
+  (eval_res, state);
+};
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
@@ -122,11 +82,6 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
-
-type match_result =
-  | Matches(Environment.t)
-  | DoesNotMatch
-  | IndetMatch;
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
@@ -634,8 +589,8 @@ let bind' =
 let bind = (x: report, f: eval_input => report): report =>
   bind'(x, ~boxed=f, ~indet=f);
 
-let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
-  let state = take_step(state);
+let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
+  let state = EvalState.take_step(state);
   switch (d) {
   | BoolLit(_)
   | ListNil(_)
@@ -663,7 +618,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
       state,
     )
   | FixF(x, _, d1) =>
-    let state = burn_fuel(state);
+    let state = EvalState.burn_fuel(state);
     evaluate(subst_var(d, x, d1), ~state);
   | Let(dp, d1, d2) =>
     eval_bind((d1, state), ((d1', state)) =>
@@ -770,8 +725,8 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     let indet_res = Indet(ConsistentCase(case));
     eval_case(indet_res, scrut, rules, index, state);
   | InconsistentBranches(u, i, sigma, Case(scrut, rules, index) as case) =>
-    let none_or_indet = Indet(InconsistentBranches(u, i, sigma, case));
-    eval_case(none_or_indet, scrut, rules, index, state);
+    let indet_res = Indet(InconsistentBranches(u, i, sigma, case));
+    eval_case(indet_res, scrut, rules, index, state);
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(boxed_val), state) =>
@@ -873,36 +828,24 @@ and eval_assert_eq =
       bin_op_fn: (DHExp.t, DHExp.t) => DHExp.t,
       d1: DHExp.t,
       d2: DHExp.t,
-      n: int,
       state: state,
     )
     : report => {
   let (d1, state) = evaluate(d1, ~state);
   let (d2, state) = evaluate(d2, ~state);
-  let d1 = unbox_result(d1);
-  let d2 = unbox_result(d2);
-  let d = bin_op_fn(d1, d2);
-  let (res_d, state) = evaluate(d, ~state);
-  let d_res = unbox_result(res_d);
-  let eval_res = dhexp_result_of_assert(n, d, d_res);
-  let assert_status = assert_status_of_dhexp(d_res);
-  let state = add_assert(state, n, assert_status);
-  let state = add_assert_eq(state, n, d);
-  (eval_res, state);
+  let d = bin_op_fn(unbox_result(d1), unbox_result(d2));
+  evaluate(d, ~state);
 }
-and eval_assert = (n: int, d: DHExp.t, state: state): report =>
-  switch (d) {
-  | BinIntOp((Equals | LessThan | GreaterThan) as op, d1, d2) =>
-    let mk_bin_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
-    eval_assert_eq(mk_bin_op, d1, d2, n, state);
-  | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d1, d2) =>
-    let mk_float_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
-    eval_assert_eq(mk_float_op, d1, d2, n, state);
-  | _ =>
-    let (res_d, state) = evaluate(d, ~state);
-    let d_res = unbox_result(res_d);
-    let eval_res = dhexp_result_of_assert(n, d, d_res);
-    let assert_status = assert_status_of_dhexp(d_res);
-    let state = add_assert(state, n, assert_status);
-    (eval_res, state);
-  };
+and eval_assert = (n: int, d: DHExp.t, state: state): report => {
+  let (res_d, state) =
+    switch (d) {
+    | BinIntOp((Equals | LessThan | GreaterThan) as op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
+      eval_assert_eq(mk_op, d1, d2, state);
+    | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
+      eval_assert_eq(mk_op, d1, d2, state);
+    | _ => evaluate(d, ~state)
+    };
+  report_assert(res_d, d, state, n);
+};

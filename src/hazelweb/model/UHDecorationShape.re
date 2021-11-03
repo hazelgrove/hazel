@@ -6,4 +6,4 @@ type t =
   | VarErrHole
   | VarUse
   | CurrentTerm
-  | AssertStatus(list(AssertStatus.t));
+  | AssertStatus(list(AssertMap.assert_instance_report));

@@ -5,7 +5,8 @@ type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  assert_statuss: list((CursorPath.steps, list(AssertStatus.t))),
+  assert_statuses:
+    list((CursorPath.steps, list(AssertMap.assert_instance_report))),
   current_term: option(CursorPath.t),
 };
 
@@ -16,7 +17,7 @@ let is_empty = (dpaths: t): bool =>
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, var_uses, assert_statuss, current_term} = dpaths;
+  let {err_holes, var_err_holes, var_uses, assert_statuses, current_term} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -35,8 +36,8 @@ let take_step = (step: int, dpaths: t): t => {
       | [step', ...stepd] when step == step' => Some((stepd, lst))
       | _ => None
       };
-  let assert_statuss = assert_statuss |> List.filter_map(remove_pair);
-  {err_holes, var_err_holes, var_uses, assert_statuss, current_term};
+  let assert_statuses = assert_statuses |> List.filter_map(remove_pair);
+  {err_holes, var_err_holes, var_uses, assert_statuses, current_term};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
@@ -82,8 +83,8 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  let assert_statuss =
-    dpaths.assert_statuss
+  let assert_statuses =
+    dpaths.assert_statuses
     |> List.find_opt(is_current_pair)  // findopt for pair case
     |> Option.map(((_, lst)) => UHDecorationShape.AssertStatus(lst))
     |> Option.to_list;
@@ -91,7 +92,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     err_holes,
     var_err_holes,
     var_uses,
-    assert_statuss,
+    assert_statuses,
     current_term,
   ]);
 } /*taking precedent on the current term*/;

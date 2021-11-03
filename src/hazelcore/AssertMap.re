@@ -1,32 +1,30 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = list((KeywordID.t, list(AssertStatus.t)));
+type assert_instance_report = (DHExp.t, AssertStatus.t);
 
-let lookup = List.assoc_opt;
+[@deriving sexp]
+type assert_report = (KeywordID.t, list(assert_instance_report));
+
+[@deriving sexp]
+type t = list(assert_report);
 let empty: t = [];
 
-let extend = ((x, res): (KeywordID.t, AssertStatus.t), ctx: t): t => {
-  switch (List.assoc_opt(x, ctx)) {
-  | Some(a) => [(x, List.append(a, [res])), ...List.remove_assoc(x, ctx)]
-  | None => [(x, [res]), ...ctx]
+let lookup = List.assoc_opt;
+
+let extend =
+    ((id, report): (KeywordID.t, assert_instance_report), assert_map: t): t => {
+  switch (List.assoc_opt(id, assert_map)) {
+  | Some(a) => [(id, a @ [report]), ...assert_map]
+  | None => [(id, [report]), ...assert_map]
   };
 };
 
-let rec to_list = (map: t): list(string) => {
-  switch (map) {
-  | [x, ...xs] =>
-    switch (x) {
-    | (num, _) => [string_of_int(num), ...to_list(xs)]
-    }
-  | [] => []
-  };
-};
+let join_statuses: list(assert_instance_report) => AssertStatus.t =
+  reports => AssertStatus.join_all(List.map(snd, reports));
 
-let check = AssertStatus.join_all;
-
-let lookup_and_join = (n, assert_map): AssertStatus.t =>
+let lookup_and_join = (n: int, assert_map: t): AssertStatus.t =>
   switch (lookup(n, assert_map)) {
   | None => Indet
-  | Some(a) => check(a)
+  | Some(reports) => join_statuses(reports)
   };
