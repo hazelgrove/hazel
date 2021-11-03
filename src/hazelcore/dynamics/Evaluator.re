@@ -529,7 +529,7 @@ let eval_bin_float_op =
 let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   switch (d) {
   | BoundVar(x) =>
-    switch (Builtins.lookup(x)) {
+    switch (Builtins.lookup_type(x)) {
     | Some(ty) =>
       // TODO: Assumes all builtins are functions
       evaluate(Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])))
@@ -824,29 +824,8 @@ and evaluate_case =
   }
 and evaluate_ap_builtin =
     (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
-  switch (ident) {
-  | "int_of_float" =>
-    switch (args) {
-    | [] => Indet(ApBuiltin(ident, args))
-    | [d1, ..._] =>
-      switch (evaluate(d1)) {
-      | BoxedValue(FloatLit(f)) =>
-        let i = int_of_float(f);
-        BoxedValue(IntLit(i));
-      | _ => Indet(ApBuiltin(ident, args))
-      }
-    }
-  | "float_of_int" =>
-    switch (args) {
-    | [] => Indet(ApBuiltin(ident, args))
-    | [d1, ..._] =>
-      switch (evaluate(d1)) {
-      | BoxedValue(IntLit(i)) =>
-        let f = float_of_int(i);
-        BoxedValue(FloatLit(f));
-      | _ => Indet(ApBuiltin(ident, args))
-      }
-    }
-  | _ => InvalidInput(9)
+  switch (Builtins.lookup_impl(ident)) {
+  | Some(impl) => impl(args, evaluate)
+  | None => InvalidInput(9)
   };
 };
