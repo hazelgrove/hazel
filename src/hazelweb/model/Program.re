@@ -434,8 +434,10 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, u_gen);
       };
+    ();
     program |> put_edit_state(new_edit_state);
   };
+  // };
 };
 
 exception HoleNotFound;
