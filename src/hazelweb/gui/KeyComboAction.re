@@ -85,14 +85,12 @@ let get_model_action =
   let key_combo = HazelKeyCombos.of_evt(evt);
 
   let alpha_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
-  // add edge cases to regexp
-  let char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
+  let comment_char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
   let single_key = JSUtil.is_single_key(evt, alpha_regexp);
-  let single_key_in_comment = JSUtil.is_single_key(evt, char_regexp);
+  let single_key_in_comment = JSUtil.is_single_key(evt, comment_char_regexp);
 
   switch (key_combo, single_key, single_key_in_comment) {
   | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
-    // JSUtil.log(single_key_in_comment);
     construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
   | (Some(key_combo), _, _) =>
     get_model_action_from_kc(cursor_info, key_combo)

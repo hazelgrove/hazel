@@ -289,7 +289,7 @@ type single_key =
 let is_single_key:
   (Js.t(Dom_html.keyboardEvent), Js_of_ocaml.Regexp.regexp) =>
   option(single_key) =
-  (evt, regexp) => {
+  (evt, char_regexp) => {
     let ctrlKey = Js.to_bool(evt##.ctrlKey);
     // let altKey = Js.to_bool(evt##.altKey);
     let metaKey = Js.to_bool(evt##.metaKey);
@@ -300,7 +300,7 @@ let is_single_key:
       switch (int_of_string_opt(key)) {
       | Some(n) => Some(Number(n))
       | None =>
-        switch (Js_of_ocaml.Regexp.string_match(regexp, key, 0)) {
+        switch (Js_of_ocaml.Regexp.string_match(char_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
         | None =>
           /* could be later refactored to a separate regex */
