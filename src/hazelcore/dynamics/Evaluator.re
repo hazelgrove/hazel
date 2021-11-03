@@ -539,6 +539,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | BoundVar(x) =>
     switch (Builtins.lookup(x)) {
     | Some(ty) =>
+      // TODO: Assumes all builtins are functions
       evaluate(Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])))
     | None => InvalidInput(1)
     }
