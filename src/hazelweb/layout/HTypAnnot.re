@@ -1,3 +1,5 @@
 type t =
   | HoleLabel
-  | Delim;
+  | Delim
+  | Step(int)
+  | Term;

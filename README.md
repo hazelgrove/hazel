@@ -1,4 +1,4 @@
-# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: trunk](https://img.shields.io/travis/hazelgrove/hazel/trunk?label=build:%20trunk)](https://travis-ci.org/hazelgrove/hazel)
+# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
@@ -83,6 +83,34 @@ breadcrumbs bar visible:
   on and off.
 - Press `Ctrl+Shift+.` to start breadcrumbs navigation.
 
+### Suggested Setup for NeoVim
+
+If you enjoy your Vim binding and Vim setup, the following may help you set up your Reason IDE in NeoVim.
+
+If you use vim, I recommend you to switch to NeoVim since it has a better support for multi-thread,
+and thus less likely to block you when you are programming.
+
+To set up the LSP(Language Server Protocal), you need to set up your Language Client for Neovim and Language Server for ocaml.
+- [ocaml-language-server](https://www.npmjs.com/package/ocaml-language-server)
+- [LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
+
+After installing the previous two, you may want to copy the following to your neovim config file. 
+(assuming `npm` have ocaml-language-server installed under `/usr/bin`)
+```
+let g:LanguageClient_serverCommands = {
+    \ 'ocaml': ['/usr/bin/ocaml-language-server', '--stdio'],
+    \ 'reason': ['/usr/bin/ocaml-language-server', '--stdio']
+    \ }
+" LanguageClient-neovim
+nnoremap <F5> :call LanguageClient_contextMenu()<CR>
+" Or map each action separately
+nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
+nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
+nnoremap <silent> gr :call LanguageClient#textDocument_references()<CR>
+nnoremap <silent> gf :call LanguageClient#textDocument_formatting()<cr>
+nnoremap <silent> <F2> :call LanguageClient#textDocument_rename()<CR>
+```
+
 ### Build System Details
 
 Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
@@ -106,6 +134,9 @@ The `make dev` and `make release` commands do three things:
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+
+For a smoother dev experience, use `make watch` to automatically watch 
+for file changes. This will require installing fswatch (see INSTALL.md).
    
 ### Debugging
 
@@ -120,3 +151,14 @@ You can run all of the unit tests located in `src/hazelcore/test` by running `ma
 Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
 
 If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
+
+### Continuous Integration
+
+When you push your branch to the main `hazelgrove/hazel` repository, we 
+have a GitHub Action setup (see `.github/workflows/deploy_branches.yml`) 
+that will build that branch (in `release` mode) and deploy it to the URL 
+`https://hazel.org/build/<branch name>`, assuming the build succeeds.
+
+It usually takes about 2 minutes if the build environment cache hits, or 
+20+ minutes if not. You can view the status of the build in the [Actions 
+tab on Github](https://github.com/hazelgrove/hazel/actions).
