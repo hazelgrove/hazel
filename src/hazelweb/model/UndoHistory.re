@@ -167,7 +167,7 @@ let get_delete_action_group =
             switch (exp_1, exp_2) {
             | (Var(_, _, _), Var(_, _, _))
             | (IntLit(_, _), IntLit(_, _))
-            | (AssertLit(_, _), AssertLit(_, _))
+            | (Keyword(_), Keyword(_))
             | (FloatLit(_, _), FloatLit(_, _))
             | (BoolLit(_, _), BoolLit(_, _)) =>
               cursor_term_len_larger(

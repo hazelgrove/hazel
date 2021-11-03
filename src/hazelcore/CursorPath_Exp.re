@@ -111,7 +111,7 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | AssertLit(_, _)
+    | Keyword(_)
     | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
@@ -292,7 +292,7 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | AssertLit(_, _)
+    | Keyword(_)
     | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
@@ -430,7 +430,7 @@ and holes_operand =
     ]
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-  | AssertLit(_, num) => [
+  | Keyword(AssertLit(_, num)) => [
       CursorPath.mk_hole_sort(Assert(num, Assertlit), List.rev(rev_steps)),
       ...hs,
     ]
@@ -599,7 +599,7 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorE(_, AssertLit(err, num)) =>
+  | CursorE(_, Keyword(AssertLit(err, num))) =>
     switch (err) {
     | NotInHole =>
       CursorPath_common.mk_zholes(
