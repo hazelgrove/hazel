@@ -1,17 +1,6 @@
 [@deriving sexp]
-type eval_error =
-  | OutOfFuel
-  | FreeInvalidVar(Var.t)
-  | BadPatternMatch
-  | CastBVHoleGround(DHExp.t)
-  | InvalidBoxedLam(DHExp.t)
-  | InvalidBoxedBoolLit(DHExp.t)
-  | InvalidBoxedIntLit(DHExp.t)
-  | InvalidBoxedFloatLit(DHExp.t);
-
-[@deriving sexp]
 type result =
-  | InvalidInput(eval_error)
+  | InvalidInput(EvaluatorError.t)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 

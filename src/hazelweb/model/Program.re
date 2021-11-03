@@ -346,8 +346,7 @@ let get_elaboration = (program: t): DHExp.t =>
   | Elaborates(d, _, _) => d
   };
 
-[@deriving sexp]
-exception InvalidInput(Evaluator.eval_error);
+exception InvalidInput(EvaluatorError.t);
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
