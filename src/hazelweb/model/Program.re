@@ -346,12 +346,13 @@ let get_elaboration = (program: t): DHExp.t =>
   | Elaborates(d, _, _) => d
   };
 
-exception InvalidInput;
+[@deriving sexp]
+exception InvalidInput(Evaluator.eval_error);
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_elaboration |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
+  | InvalidInput(err) => raise(InvalidInput(err))
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));

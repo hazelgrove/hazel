@@ -46,7 +46,8 @@ let get_elaboration: t => DHExp.t;
  * (indicates a bug, either in that function or in Action
  * because Action needs to return a well-typed edit state)
  */
-exception InvalidInput;
+[@deriving sexp]
+exception InvalidInput(Evaluator.eval_error);
 let get_result: t => Result.t;
 
 /**
