@@ -64,7 +64,6 @@ type t =
   | IntLit(int)
   | Sequence(t, t)
   | AssertLit(AssertNumber.t)
-  | FailedAssert(AssertNumber.t, t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
