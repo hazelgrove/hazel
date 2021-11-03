@@ -4,15 +4,17 @@ open Sexplib.Std;
 type invalid_input =
   | FreeOrInvalidVariable // 1
   | ApInvalidBoxedFunctionVal // 2
-  | BoxedNotIntLit2 // 3
-  | BoxedNotIntLit1 // 4
+  | BoxedNotIntLit2(DHExp.t) // 3
+  | BoxedNotIntLit1(DHExp.t) // 4
   | CastBVHoleGround // 6
-  | BoxedNotFloatLit1 // 7
-  | BoxedNotFloatLit2; // 8
+  | BoxedNotFloatLit1(DHExp.t) // 7
+  | BoxedNotFloatLit2(DHExp.t); // 8
+
+exception InvalidInput(invalid_input);
 
 [@deriving sexp]
 type result =
-  | InvalidInput(invalid_input)
+  //| InvalidInput(invalid_input)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
@@ -70,7 +72,6 @@ let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
 
 let unbox_result: result => DHExp.t =
   fun
-  | InvalidInput(_) => failwith("unbox_res: InvalidInput")
   | Indet(d)
   | BoxedValue(d) => d;
 
@@ -80,20 +81,15 @@ let assert_result_of_dhexp: DHExp.t => AssertResult.t =
   | BoolLit(false) => Fail
   | _ => Indet;
 
-let result_of_assert_dhexp = (n: int, d: DHExp.t, d_res: DHExp.t): result =>
+let dhexp_result_of_assert = (n: int, d: DHExp.t, d_res: DHExp.t): result =>
   switch (d_res) {
   | BoolLit(true) => BoxedValue(Triv)
   // TODO(andrew): do we want failedasserts as a seperate form?
   // in principle can get same info from assert results (? check this)
+  // do we even want to emit these are part of the result?
   | BoolLit(false) => Indet(FailedAssert(n, d))
   | _ => Indet(Ap(AssertLit(n), d))
   };
-
-let get_assert_res =
-    (res: result, n: int, d: DHExp.t): (result, AssertResult.t) => {
-  let d_res = unbox_result(res);
-  (result_of_assert_dhexp(n, d, d_res), assert_result_of_dhexp(d_res));
-};
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
@@ -624,7 +620,6 @@ let bind' =
     (x: report, ~boxed: eval_input => report, ~indet: eval_input => report)
     : report =>
   switch (x) {
-  | (InvalidInput(_), _) as ii => ii
   | (BoxedValue(d'), state) => boxed((d', state))
   | (Indet(d'), state) => indet((d', state))
   };
@@ -646,7 +641,7 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
   | FailedAssert(_, d1) => (Indet(d1), state)
-  | BoundVar(_) => (InvalidInput(FreeOrInvalidVariable), state)
+  | BoundVar(_) => raise(InvalidInput(FreeOrInvalidVariable))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
     eval_unary_constructor((d1, state), mk_inj);
@@ -673,14 +668,12 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     )
   | Sequence(d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(_), state) => evaluate(d2, ~state)
     | (Indet(d1), state) =>
       eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
     }
   | Ap(d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
     | (BoxedValue(Lam(dp, _, d3)), state) =>
       eval_bind((d2, state), ((d2', state)) =>
@@ -697,27 +690,22 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
       eval_bind((d2, state), ((d2', state)) =>
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
       )
-    | (BoxedValue(_), state) => (
-        InvalidInput(ApInvalidBoxedFunctionVal),
-        state,
-      )
+    | (BoxedValue(_), _) => raise(InvalidInput(ApInvalidBoxedFunctionVal))
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
     }
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(BoolLit(b1) as d1'), _) =>
       switch (evaluate(d2, ~state)) {
-      | (InvalidInput(_), _) as ii => ii
       | (BoxedValue(BoolLit(b2)), state) => (
           BoxedValue(eval_bin_bool_op(op, b1, b2)),
           state,
         )
-      | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit2), state)
+      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
       | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
       }
-    | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit1), state)
+    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit1(d)))
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), (d2') =>
         (BinBoolOp(op, d1', d2'): DHExp.t)
@@ -725,12 +713,10 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
     | (BoxedValue(IntLit(n1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
-      | (InvalidInput(_), _) as ii => ii
       | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       | (BoxedValue(IntLit(n2)), state) =>
         switch (op, n1, n2) {
@@ -745,26 +731,24 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
           )
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), state)
         }
-      | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit2), state)
+      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
       }
-    | (BoxedValue(_), state) => (InvalidInput(BoxedNotIntLit1), state)
+    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit1(d)))
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2 => BinFloatOp(op, d1', d2))
     | (BoxedValue(FloatLit(f1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
-      | (InvalidInput(_), _) as ii => ii
       | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       | (BoxedValue(FloatLit(f2)), state) => (
           BoxedValue(eval_bin_float_op(op, f1, f2)),
           state,
         )
-      | (BoxedValue(_), state) => (InvalidInput(BoxedNotFloatLit2), state)
+      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotFloatLit2(d)))
       }
-    | (BoxedValue(_), state) => (InvalidInput(BoxedNotFloatLit1), state)
+    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotFloatLit1(d)))
     }
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let mk_non_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
@@ -779,7 +763,6 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     eval_case(Some((u, i, sigma)), d1, rules, n, state)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
-    | (InvalidInput(_), _) as ii => ii
     | (BoxedValue(boxed_val), state) =>
       eval_cast(d => BoxedValue(d), ty, ty', state, boxed_val)
     | (Indet(indet_val), state) =>
@@ -789,13 +772,11 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
 }
 and eval_unary_constructor = ((d1, state): eval_input, cons) =>
   switch (evaluate(d1, ~state)) {
-  | (InvalidInput(_), _) as ii => ii
   | (Indet(d1'), map1) => (Indet(cons(d1')), map1)
   | (BoxedValue(d1'), map1) => (BoxedValue(cons(d1')), map1)
   }
 and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
   switch (evaluate(d1, ~state)) {
-  | (InvalidInput(_), _) as ii => ii
   | (Indet(d1'), state) =>
     eval_bind_indet((d2, state), d2' => cons(d1', d2'))
   | (BoxedValue(d1'), state) =>
@@ -817,7 +798,6 @@ and eval_case =
     )
     : report =>
   switch (evaluate(scrut, ~state)) {
-  | (InvalidInput(msg), state) => (InvalidInput(msg), state)
   | (BoxedValue(scrut), state)
   | (Indet(scrut), state) =>
     //TODO(andrew): why does the case have the current_rule_index?
@@ -877,7 +857,7 @@ and eval_cast =
     | Cast(_, _, Hole) => (Indet(FailedCast(value, ty, ty')), state)
     | _ =>
       switch (cons(Triv)) {
-      | BoxedValue(_) => (InvalidInput(CastBVHoleGround), state)
+      | BoxedValue(_) => raise(InvalidInput(CastBVHoleGround))
       //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
       | _ => (cons(Cast(value, ty, ty')), state)
       }
@@ -906,11 +886,13 @@ and eval_assert_eq =
   let d1 = unbox_result(d1);
   let d2 = unbox_result(d2);
   let d = bin_op_fn(d1, d2);
-  let (res, state) = evaluate(d, ~state);
-  let (res, assert_result) = get_assert_res(res, n, d);
+  let (res_d, state) = evaluate(d, ~state);
+  let d_res = unbox_result(res_d);
+  let eval_res = dhexp_result_of_assert(n, d, d_res);
+  let assert_result = assert_result_of_dhexp(d_res);
   let state = add_assert(state, n, assert_result);
   let state = add_assert_eq(state, n, d);
-  (res, state);
+  (eval_res, state);
 }
 and eval_assert = (n: int, d: DHExp.t, state: state): report =>
   switch (d) {
@@ -921,8 +903,10 @@ and eval_assert = (n: int, d: DHExp.t, state: state): report =>
     let mk_float_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
     eval_assert_eq(mk_float_op, d1, d2, n, state);
   | _ =>
-    let (res, state) = evaluate(d, ~state);
-    let (res, assert_result) = get_assert_res(res, n, d);
+    let (res_d, state) = evaluate(d, ~state);
+    let d_res = unbox_result(res_d);
+    let eval_res = dhexp_result_of_assert(n, d, d_res);
+    let assert_result = assert_result_of_dhexp(d_res);
     let state = add_assert(state, n, assert_result);
-    (res, state);
+    (eval_res, state);
   };
