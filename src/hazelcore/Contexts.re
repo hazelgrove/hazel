@@ -1,6 +1,6 @@
 [@deriving sexp]
 type t = (VarCtx.t, PaletteCtx.t);
-let empty = (Builtins.ctx, PaletteCtx.empty);
+let initial = (Builtins.ctx, PaletteCtx.empty);
 
 let gamma = ((gamma, _): t): VarCtx.t => gamma;
 let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
