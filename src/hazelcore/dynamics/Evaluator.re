@@ -591,6 +591,14 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   | Or => BoolLit(b1 || b2)
   };
 
+let eval_bin_bool_op_short_circuit =
+    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+  switch (op, b1) {
+  | (Or, true) => Some(BoxedValue(BoolLit(true)))
+  | (And, false) => Some(BoxedValue(BoolLit(false)))
+  | _ => None
+  };
+
 let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   switch (op) {
   | Minus => IntLit(n1 - n2)
@@ -695,20 +703,22 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     }
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (BoxedValue(BoolLit(b1) as d1'), _) =>
-      switch (evaluate(d2, ~state)) {
-      | (BoxedValue(BoolLit(b2)), state) => (
-          BoxedValue(eval_bin_bool_op(op, b1, b2)),
-          state,
-        )
-      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
-      | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
+    | (BoxedValue(BoolLit(b1) as d1'), state) =>
+      switch (eval_bin_bool_op_short_circuit(op, b1)) {
+      | Some(b) => (b, state)
+      | None =>
+        switch (evaluate(d2, ~state)) {
+        | (BoxedValue(BoolLit(b2)), state) => (
+            BoxedValue(eval_bin_bool_op(op, b1, b2)),
+            state,
+          )
+        | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
+        | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
+        }
       }
     | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit1(d)))
     | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), (d2') =>
-        (BinBoolOp(op, d1', d2'): DHExp.t)
-      )
+      eval_bind_indet((d2, state), d2' => BinBoolOp(op, d1', d2'))
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
