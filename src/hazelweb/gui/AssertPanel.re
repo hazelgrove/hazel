@@ -21,7 +21,7 @@ let view = (program: Program.t): Vdom.Node.t => {
   /**
    * Shows runtime value for a context entry.
    */
-  let dynamic_info = assert_status =>
+  let _dynamic_info = assert_status =>
     Node.div(
       [Attr.classes(["dynamic-info"])],
       [Node.div([], [Node.span([], [Node.text(assert_status)])])],
@@ -33,7 +33,7 @@ let view = (program: Program.t): Vdom.Node.t => {
       switch (AssertMap.lookup(int_of_string(assert_number), assert_map)) {
       | Some(a) =>
         switch (AssertMap.check(a)) {
-        | Comp => [static_info, dynamic_info("Comp")]
+        //| Comp => [static_info, dynamic_info("Comp")]
         | _ => [static_info]
         }
       | None => [static_info]

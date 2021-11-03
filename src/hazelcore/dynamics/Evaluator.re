@@ -65,8 +65,14 @@ let add_assert = ({assert_map, _} as state: state, n, result): state => {
   assert_map: AssertMap.extend((n, result), assert_map),
 };
 
+//TODO(andrew): move somewhere
+let add_assert_eq' = (n, assert_eqs) =>
+  switch (List.assoc_opt(n, assert_eqs)) {
+  | None => []
+  | Some(curr_eqs) => curr_eqs
+  };
 let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
-  let curr_assert_eqs = AssertStatus.add_assert_eq(n, assert_eqs);
+  let curr_assert_eqs = add_assert_eq'(n, assert_eqs);
   {...state, assert_eqs: [(n, [dop, ...curr_assert_eqs]), ...assert_eqs]};
 };
 

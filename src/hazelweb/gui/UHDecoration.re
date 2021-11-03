@@ -470,8 +470,6 @@ module AssertStatus = {
 
               | Fail => classes(["AssertFail"])
 
-              | Comp => classes(["AssertComp"])
-
               | Indet => classes(["AssertIndet"])
               },
             ],

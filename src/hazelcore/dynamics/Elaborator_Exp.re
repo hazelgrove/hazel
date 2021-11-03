@@ -317,8 +317,8 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | Keyword(Typed(Assert, NotInHole, n)) =>
-    Elaborates(AssertLit(n), AssertStatus.assert_ty, delta)
+  | Keyword(Typed(Assert as kw, NotInHole, n)) =>
+    Elaborates(AssertLit(n), Keyword.type_of_kw(kw), delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);

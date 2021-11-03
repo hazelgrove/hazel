@@ -91,7 +91,7 @@ let mk_syn_text =
       ZOpSeq.wrap(
         ZPat.CursorP(text_cursor, UHPat.var(Keyword.string_of_kw(kw))),
       );
-    Succeeded((zp, AssertStatus.assert_ty, ctx, id_gen));
+    Succeeded((zp, Keyword.type_of_kw(kw), ctx, id_gen));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
