@@ -2271,6 +2271,38 @@ and ana_perform_block =
     ana_move(ctx, a, (zblock, u_gen), ty)
 
   /* Backspace & Delete */
+  | (Backspace, _) when ZExp.is_begin_of_comment(zblock) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((new_prefix, pre_zline)) =>
+      switch (pre_zline, zline) {
+      | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
+        let new_zline =
+          ZExp.CursorL(
+            OnText(String.length(pre_comment)),
+            CommentLine(pre_comment ++ comment),
+          );
+        let new_ze = (new_prefix, new_zline, suffix);
+        Succeeded(AnaDone((new_ze, u_gen)));
+      | _ => Failed
+      }
+    | _ => Failed
+    }
+
+  | (Delete, _) when ZExp.is_end_of_comment(zblock) =>
+    switch (suffix, zline) {
+    | (
+        [CommentLine(post_comment), ...new_suffix],
+        CursorL(_, CommentLine(comment)),
+      ) =>
+      let new_zline =
+        ZExp.CursorL(
+          OnText(String.length(comment)),
+          CommentLine(comment ++ post_comment),
+        );
+      let new_ze = (prefix, new_zline, new_suffix);
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | _ => Failed
+    }
 
   | (Delete, _) when ZExp.is_after_zline(zline) =>
     switch (zline |> ZExp.erase_zline, suffix) {
