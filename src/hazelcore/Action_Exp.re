@@ -1068,6 +1068,8 @@ and syn_perform_line =
       | Succeeded((new_zdef, u_gen)) =>
         let new_zline = ZExp.LetLineZE(p, new_zdef);
         let new_def = ZExp.erase(new_zdef);
+        let (new_def, _, u_gen) =
+          Statics_Exp.syn_fix_holes(def_ctx, u_gen, new_def);
         let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
         Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
       };
