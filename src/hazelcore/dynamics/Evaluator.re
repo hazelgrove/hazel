@@ -405,9 +405,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | ApBuiltin(x, args) =>
+  | ApBuiltin(x', args) =>
     let args = List.map(subst_var(d1, x), args);
-    ApBuiltin(x, args);
+    ApBuiltin(x', args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -834,26 +834,24 @@ and evaluate_ap_builtin = (ident: string, args: list(DHExp.t)): result => {
   | "int_of_float" =>
     switch (args) {
     | [] => Indet(ApBuiltin(ident, args))
-    | [d1] =>
+    | [d1, ..._] =>
       switch (evaluate(d1)) {
       | BoxedValue(FloatLit(f)) =>
         let i = int_of_float(f);
         BoxedValue(IntLit(i));
       | _ => Indet(ApBuiltin(ident, args))
       }
-    | _ => Indet(ApBuiltin(ident, args))
     }
   | "float_of_int" =>
     switch (args) {
     | [] => Indet(ApBuiltin(ident, args))
-    | [d1] =>
+    | [d1, ..._] =>
       switch (evaluate(d1)) {
       | BoxedValue(IntLit(i)) =>
         let f = float_of_int(i);
         BoxedValue(FloatLit(f));
       | _ => Indet(ApBuiltin(ident, args))
       }
-    | _ => Indet(ApBuiltin(ident, args))
     }
   | _ => InvalidInput(9)
   };
