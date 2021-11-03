@@ -1398,7 +1398,7 @@ and syn_perform_operand =
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1423,6 +1423,7 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), CursorE(_)) => Failed
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1627,6 +1628,75 @@ and syn_perform_operand =
         LamZP(NotInHole, ZOpSeq.wrap(zhole), UHExp.Block.wrap(operand)),
       );
     Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), u_gen)));
+
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
+
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        ty,
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      SynDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        ty,
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseBraces), CursorE(_)) => Failed
 
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1913,8 +1983,7 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2832,6 +2901,8 @@ and ana_perform_operand =
   /* Invalid actions at the expression level */
   | (Construct(SList), CursorE(_)) => Failed
 
+  | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
+
   /* Backspace & Delete */
 
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
@@ -3044,6 +3115,71 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, u_gen)));
     };
+
+  | (Construct(SCloseBraces), LamZE(_, _, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.place_after_operand(ZExp.erase_zoperand(zoperand)),
+        ),
+        u_gen,
+      )),
+    )
+  | (
+      Construct(SCloseBraces),
+      CursorE(OnDelim(2, Before), Lam(_, _, _) as lam),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(2, After), lam)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseBraces), CursorE(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Inj(err, side, ZExp.erase(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (Construct(SCloseParens), ParenthesizedZ(zblock))
+      when ZExp.is_after_zblock(zblock) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(
+          ZExp.CursorE(
+            OnDelim(1, After),
+            Parenthesized(ZExp.erase_zblock(zblock)),
+          ),
+        ),
+        u_gen,
+      )),
+    )
+
+  | (
+      Construct(SCloseParens),
+      CursorE(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded(
+      AnaDone((
+        ZExp.ZBlock.wrap(ZExp.CursorE(OnDelim(1, After), operand)),
+        u_gen,
+      )),
+    )
+  | (Construct(SCloseParens), CursorE(_, _)) => Failed
 
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>

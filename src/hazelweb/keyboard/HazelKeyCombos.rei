@@ -12,6 +12,9 @@ type t =
   | Ampersand
   | VBar
   | LeftParen
+  | RightParen
+  | RightBrace
+  | RightSquareBracket
   | Colon
   | Equals
   | Enter
