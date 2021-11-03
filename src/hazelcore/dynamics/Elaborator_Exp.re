@@ -340,7 +340,7 @@ and syn_elab_operand =
     let d =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
-      | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | ExpandingKeyword(k) => DHExp.ExpandingKeyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -723,7 +723,7 @@ and ana_elab_operand =
     let d: DHExp.t =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
-      | Keyword(k) => Keyword(u, 0, sigma, k)
+      | ExpandingKeyword(k) => ExpandingKeyword(u, 0, sigma, k)
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
@@ -914,9 +914,9 @@ let rec renumber_result_only =
   | FreeVar(u, _, sigma, x) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, _, sigma, k) =>
+  | ExpandingKeyword(u, _, sigma, k) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Keyword(u, i, sigma, k), hii);
+    (ExpandingKeyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -1018,10 +1018,10 @@ let rec renumber_sigmas_only =
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, i, sigma, k) =>
+  | ExpandingKeyword(u, i, sigma, k) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Keyword(u, i, sigma, k), hii);
+    (ExpandingKeyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
