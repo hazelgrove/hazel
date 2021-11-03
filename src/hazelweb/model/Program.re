@@ -160,36 +160,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-  // switch (edit_state) {
-  // | ((l, CursorL(OnText(j), CommentLine(comment)), r), ty, u_gen) =>
-  //   print_endline("gotcha");
-  //   switch (a) {
-  //   | Action.Construct(SChar(s)) =>
-  //     let new_comment = comment |> StringUtil.insert(j, s);
-  //     program
-  //     |> put_edit_state((
-  //          (l, CursorL(OnText(j + 1), CommentLine(new_comment)), r),
-  //          ty,
-  //          u_gen,
-  //        ));
-  //   | _ =>
-  //     print_endline("gotcha 2");
-  //     switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-  //     | Failed => raise(FailedAction)
-  //     | CursorEscaped(_) => raise(CursorEscaped)
-  //     | Succeeded(new_edit_state) =>
-  //       let (ze, ty, u_gen) = new_edit_state;
-  //       let new_edit_state =
-  //         if (UHExp.is_complete(ZExp.erase(ze))) {
-  //           (ze, ty, MetaVarGen.init);
-  //         } else {
-  //           (ze, ty, u_gen);
-  //         };
-  //       ();
-  //       program |> put_edit_state(new_edit_state);
-  //     };
-  //   };
-  // | _ =>
+  
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
