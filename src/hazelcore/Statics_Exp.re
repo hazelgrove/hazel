@@ -803,8 +803,8 @@ and syn_fix_holes_operand =
         let (u, id_gen) = IDGen.next_hole(id_gen);
         let reason: VarErrStatus.HoleReason.t =
           switch (Var.is_let(x), Var.is_case(x)) {
-          | (true, _) => Keyword(Let)
-          | (_, true) => Keyword(Case)
+          | (true, _) => ExpandingKeyword(Let)
+          | (_, true) => ExpandingKeyword(Case)
           | _ => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, id_gen);
