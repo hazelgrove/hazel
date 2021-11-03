@@ -12,6 +12,9 @@ type t =
   | Ampersand
   | VBar
   | LeftParen
+  | RightParen
+  | RightBrace
+  | RightSquareBracket
   | Colon
   | Equals
   | Enter
@@ -56,7 +59,10 @@ let get_details =
   | GT => KeyCombo.gt
   | Ampersand => KeyCombo.ampersand
   | VBar => KeyCombo.vbar
-  | LeftParen => KeyCombo.left_parens
+  | LeftParen => KeyCombo.left_paren
+  | RightParen => KeyCombo.right_paren
+  | RightBrace => KeyCombo.right_brace
+  | RightSquareBracket => KeyCombo.right_square_bracket
   | Colon => KeyCombo.colon
   | Equals => KeyCombo.equals
   | Enter => KeyCombo.enter
@@ -109,8 +115,14 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Ampersand);
   } else if (evt_matches(KeyCombo.vbar)) {
     Some(VBar);
-  } else if (evt_matches(KeyCombo.left_parens)) {
+  } else if (evt_matches(KeyCombo.left_paren)) {
     Some(LeftParen);
+  } else if (evt_matches(KeyCombo.right_paren)) {
+    Some(RightParen);
+  } else if (evt_matches(KeyCombo.right_brace)) {
+    Some(RightBrace);
+  } else if (evt_matches(KeyCombo.right_square_bracket)) {
+    Some(RightSquareBracket);
   } else if (evt_matches(KeyCombo.colon)) {
     Some(Colon);
   } else if (evt_matches(KeyCombo.equals)) {
