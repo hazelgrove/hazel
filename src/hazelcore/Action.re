@@ -23,6 +23,9 @@ type shape =
   | SCommentLine
   | SList
   | SParenthesized
+  | SCloseParens
+  | SCloseBraces
+  | SCloseSquareBracket
   | SChar(string)
   | SQuote
   | SAnn
