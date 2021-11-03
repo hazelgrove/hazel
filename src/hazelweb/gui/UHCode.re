@@ -103,6 +103,35 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
+let view_of_cursor_inspector =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      (steps, cursor): CursorPath.t,
+      cursor_inspector: CursorInspectorModel.t,
+      cursor_info: CursorInfo.t,
+      l: UHLayout.t,
+    ) => {
+  let cursor =
+    switch (cursor) {
+    | OnText(_) => CursorPosition.OnText(0)
+    | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
+    | OnOp(_) => CursorPosition.OnOp(Before)
+    };
+  let m = UHMeasuredLayout.mk(l);
+  let cursor_pos =
+    UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
+    |> OptUtil.get(() => failwith("could not find caret"));
+  let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
+  let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
+  CursorInspector.view(
+    ~inject,
+    ~loc=(cursor_x, cursor_y),
+    cursor_inspector,
+    cursor_info,
+  );
+};
+
 let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
@@ -110,7 +139,6 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      // remove below, move key determination to later
       let model_action: option(ModelAction.t) =
         KeyComboAction.get_model_action(cursor_info, evt);
 
@@ -177,6 +205,7 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
+      ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -198,6 +227,23 @@ let view =
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
+      let cursor_inspector =
+        if (program.is_focused && cursor_inspector.visible) {
+          let path = Program.get_path(program);
+          let ci = Program.get_cursor_info(program);
+          [
+            view_of_cursor_inspector(
+              ~inject,
+              ~font_metrics,
+              path,
+              cursor_inspector,
+              ci,
+              l,
+            ),
+          ];
+        } else {
+          [];
+        };
 
       let key_handlers =
         program.is_focused
@@ -244,6 +290,7 @@ let view =
           ...key_handlers,
         ],
         caret
+        @ cursor_inspector
         @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },

@@ -14,6 +14,8 @@ let get_model_action_from_kc =
     | _ => (false, false)
     };
 
+  /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */
   switch (key_combo) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
@@ -26,6 +28,9 @@ let get_model_action_from_kc =
   | VBar when cursor_on_type => construct(SOp(SVBar))
   | VBar => construct(SOp(SOr))
   | LeftParen => construct(SParenthesized)
+  | RightParen => construct(SCloseParens)
+  | RightBrace => construct(SCloseBraces)
+  | RightSquareBracket => construct(SCloseSquareBracket)
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)
@@ -46,6 +51,7 @@ let get_model_action_from_kc =
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
+  | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole(UHExp))
   | Ctrl_Shift_S => Some(SerializeToConsole(ZExp))
   | CtrlOrCmd_Z => Some(Undo)
@@ -83,9 +89,6 @@ let get_model_action =
   let char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
   let single_key = JSUtil.is_single_key(evt, alpha_regexp);
   let single_key_in_comment = JSUtil.is_single_key(evt, char_regexp);
-
-  /* JSUtil.log(evt##.key); */
-  /* JSUtil.log(Key.get_key(evt)); */
 
   switch (key_combo, single_key, single_key_in_comment) {
   | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
