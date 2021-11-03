@@ -288,7 +288,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
   let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
-    | SLam => indicate_words_view("function")
+    | SFun => indicate_words_view("function")
     | SInj(side) =>
       switch (side) {
       | L => indicate_words_view("left injection")
@@ -367,7 +367,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             [indicate_words_view("construct "), code_keywords_view("case")],
           )
         )
-      | SLam => indicate_words_view("construct function")
+      | SFun => indicate_words_view("construct function")
       | _ =>
         Vdom.(
           Node.span(
@@ -443,7 +443,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam => Some(Exp)
+      | SFun => Some(Exp)
       | SAnn => Some(Pat)
       | _ =>
         Some(

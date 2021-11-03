@@ -501,7 +501,7 @@ let get_new_action_group =
     | SCloseSquareBracket
     | SList
     | SAnn
-    | SLam
+    | SFun
     | SListNil
     | SInj(_)
     | SLet
@@ -597,7 +597,7 @@ let get_new_action_group =
           switch (uexp_operand) {
           | Var(_, InVarHole(Keyword(k), _), _) =>
             switch (k) {
-            | Lam
+            | Fun
             | Let =>
               switch (
                 UndoHistoryCore.get_cursor_pos(
@@ -610,7 +610,7 @@ let get_new_action_group =
                   Some(
                     ConstructEdit(
                       switch (k) {
-                      | Lam => SLam
+                      | Fun => SFun
                       | Let => SLet
                       /* the below case will never happen */
                       | _ => failwith("impossible")

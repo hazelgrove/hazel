@@ -480,7 +480,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added
-  | Construct(SLam) => Added
+  | Construct(SFun) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added
   | Construct(SOp(STimes)) => Added
