@@ -102,8 +102,11 @@ let apply_action =
         | exception Program.MissingCursorInfo =>
           JSUtil.log("[Program.MissingCursorInfo]");
           model;
-        | exception Program.InvalidInput =>
+        | exception (Evaluator.InvalidInput(ii)) =>
           JSUtil.log("[Program.InvalidInput");
+          JSUtil.log(
+            Sexplib.Sexp.to_string_hum(Evaluator.sexp_of_invalid_input(ii)),
+          );
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");

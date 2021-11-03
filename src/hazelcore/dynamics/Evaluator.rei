@@ -2,15 +2,16 @@
 type invalid_input =
   | FreeOrInvalidVariable // 1
   | ApInvalidBoxedFunctionVal // 2
-  | BoxedNotIntLit2 // 3
-  | BoxedNotIntLit1 // 4
+  | BoxedNotIntLit2(DHExp.t) // 3
+  | BoxedNotIntLit1(DHExp.t) // 4
   | CastBVHoleGround // 6
-  | BoxedNotFloatLit1 // 7
-  | BoxedNotFloatLit2; //8
+  | BoxedNotFloatLit1(DHExp.t) // 7
+  | BoxedNotFloatLit2(DHExp.t); // 8
+
+exception InvalidInput(invalid_input);
 
 [@deriving sexp]
 type result =
-  | InvalidInput(invalid_input)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 

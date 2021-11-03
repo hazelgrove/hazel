@@ -1482,6 +1482,7 @@ h1 {
   color: white;
   background-color: #333;
   border-radius: 0.3em;
+  z-index: 10000000;
 }
 .UHAssert:hover .assertpop {
   display: inline-block;
