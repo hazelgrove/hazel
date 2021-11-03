@@ -294,7 +294,7 @@ let mk_syn_text =
   | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, id_gen)));
-  | AssertLit =>
+  | Keyword(_) =>
     let (u, id_gen) = IDGen.next_assert(id_gen);
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit(u)));
     Succeeded(SynDone((ze, AssertStatus.assert_ty, id_gen)));
@@ -356,7 +356,7 @@ let mk_ana_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(AnaDone((ze, id_gen)));
-  | AssertLit =>
+  | Keyword(_) =>
     switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
@@ -1416,7 +1416,7 @@ and syn_perform_operand =
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_) |
-        AssertLit(_),
+        Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1481,9 +1481,10 @@ and syn_perform_operand =
     syn_delete_text(ctx, id_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, id_gen, j, string_of_bool(b))
-  | (Delete, CursorE(OnText(j), AssertLit(_, _))) =>
+  | (Delete, CursorE(OnText(j), Keyword(kw))) =>
+    //TODO(andrew): investigate below
     //let (_, id_gen) = IDGen.next_assert(id_gen);
-    syn_delete_text(ctx, id_gen, j, AssertStatus.name)
+    syn_delete_text(ctx, id_gen, j, Keyword.to_string(kw))
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, id_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1494,9 +1495,10 @@ and syn_perform_operand =
     syn_backspace_text(ctx, id_gen, j, f)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
-  | (Backspace, CursorE(OnText(j), AssertLit(_, _))) =>
+  | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
+    //TODO(andrew): investigate below
     //let (_, id_gen) = IDGen.next_assert(id_gen);
-    syn_backspace_text(ctx, id_gen, j, AssertStatus.name)
+    syn_backspace_text(ctx, id_gen, j, Keyword.to_string(kw))
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
@@ -1612,9 +1614,10 @@ and syn_perform_operand =
     syn_insert_text(ctx, id_gen, (j, s), f)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
-  | (Construct(SChar(s)), CursorE(OnText(j), AssertLit(_, _))) =>
+  | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
+    //TODO(andrew): investigate below
     //let (_, id_gen) = IDGen.next_assert(id_gen);
-    syn_insert_text(ctx, id_gen, (j, s), AssertStatus.name)
+    syn_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw))
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
@@ -2788,7 +2791,7 @@ and ana_perform_operand =
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_) |
-        AssertLit(_),
+        Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -2891,8 +2894,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, id_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, id_gen, j, string_of_bool(b), ty)
-  | (Delete, CursorE(OnText(j), AssertLit(_, _))) =>
-    ana_delete_text(ctx, id_gen, j, AssertStatus.name, ty)
+  | (Delete, CursorE(OnText(j), Keyword(kw))) =>
+    ana_delete_text(ctx, id_gen, j, Keyword.to_string(kw), ty)
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, id_gen, j, t, ty)
@@ -2904,8 +2907,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, id_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, id_gen, j, string_of_bool(b), ty)
-  | (Backspace, CursorE(OnText(j), AssertLit(_, _))) =>
-    ana_backspace_text(ctx, id_gen, j, AssertStatus.name, ty)
+  | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
+    ana_backspace_text(ctx, id_gen, j, Keyword.to_string(kw), ty)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
@@ -2979,10 +2982,10 @@ and ana_perform_operand =
     ana_insert_text(ctx, id_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ty)
-  | (Construct(SChar(s)), CursorE(OnText(j), AssertLit(_, _))) =>
+  | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
     //let (_, id_gen) = id_gen |> IDGen.next_assert;
     //(Sexplib.Sexp.to_string(IDVar.sexp_of_t(id_gen)));
-    ana_insert_text(ctx, id_gen, (j, s), AssertStatus.name, ty)
+    ana_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw), ty)
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SCase), CursorE(_, operand)) =>

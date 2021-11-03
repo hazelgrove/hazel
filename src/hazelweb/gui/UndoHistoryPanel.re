@@ -99,14 +99,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(num);
       }
-    | AssertLit(_) =>
+    | Keyword(kw) =>
       Vdom.(
         Node.span(
           [],
           [
-            code_keywords_view("Assert"),
+            code_keywords_view(Keyword.to_string(kw)),
             indicate_words_view(" literal "),
-            code_view(AssertStatus.name),
+            code_view(Keyword.to_string(kw)),
           ],
         )
       )

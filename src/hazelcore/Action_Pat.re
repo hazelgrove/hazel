@@ -84,7 +84,8 @@ let mk_syn_text =
   | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, id_gen));
-  | AssertLit =>
+  | Keyword(AssertLit(_)) =>
+    //TODO(andrew): correlate with other relevant TODOs
     let (_, id_gen) = IDGen.next_assert(id_gen);
     let zp =
       ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(AssertStatus.name)));
@@ -141,7 +142,7 @@ let mk_ana_text =
         Succeeded((zp, ctx, id_gen));
       }
     }
-  | AssertLit =>
+  | Keyword(AssertLit(_)) =>
     switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>

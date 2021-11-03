@@ -849,7 +849,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | AssertLit(InHole(TypeInconsistent, _), _)
+    | Keyword(AssertLit(InHole(TypeInconsistent, _), _))
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
@@ -874,7 +874,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | AssertLit(InHole(WrongLength, _), _)
+    | Keyword(AssertLit(InHole(WrongLength, _), _))
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
@@ -890,7 +890,7 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | AssertLit(NotInHole, _)
+    | Keyword(AssertLit(NotInHole, _))
     | ApPalette(NotInHole, _, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None

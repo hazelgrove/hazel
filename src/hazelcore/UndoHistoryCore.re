@@ -145,7 +145,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListNil(_)
-    | AssertLit(_)
+    | Keyword(_)
     | Lam(_)
     | Inj(_)
     | Case(_)
