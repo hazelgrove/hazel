@@ -23,7 +23,8 @@ type group_id = int;
 [@deriving sexp]
 type serialize_object =
   | UHExp
-  | DHExp;
+  | DHExp
+  | ZExp;
 
 [@deriving sexp]
 type t =
@@ -47,5 +48,4 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole(serialize_object)
-  | SerializeZexpToConsole;
+  | SerializeToConsole(serialize_object);

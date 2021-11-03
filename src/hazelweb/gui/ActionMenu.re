@@ -21,7 +21,7 @@ let menu_entries: list(menu_entry) = [
   {
     label: "Serialize Zexp to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_S)),
-    action: SerializeZexpToConsole,
+    action: SerializeToConsole(ZExp),
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},

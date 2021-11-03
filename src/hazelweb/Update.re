@@ -68,12 +68,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
         sexp_of_timestamped_action(mk_timestamped_action(action)),
       ),
     )
-  | SerializeZexpToConsole =>
-    Logger.append(
-      Sexp.to_string(
-        sexp_of_timestamped_action(mk_timestamped_action(action)),
-      ),
-    )
   };
 };
 
@@ -220,15 +214,14 @@ let apply_action =
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log;
+        | ZExp =>
+          model
+          |> Model.get_program
+          |> Program.get_zexp
+          |> Serialization.string_of_zexp
+          |> Js.string
+          |> JSUtil.log
         };
-        model;
-      | SerializeZexpToConsole =>
-        model
-        |> Model.get_program
-        |> Program.get_zexp
-        |> Serialization.string_of_zexp
-        |> Js.string
-        |> JSUtil.log;
         model;
       };
     },
