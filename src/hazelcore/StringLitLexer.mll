@@ -53,13 +53,14 @@ let int_of_hex_escape a b =
   int_of_hex (int_of_hex_char a) (int_of_hex_char b)
 
 let add_decimal_code lexbuf i = 
-  begin if (i > 0 && i < 256) then 
+  if (i > 0 && i < 256) then 
     add_char (Char.chr i)
   else 
+    begin 
     add_char '\\';
     add_string (Lexing.lexeme lexbuf);
     invalid_escape lexbuf
-  end
+    end
 
 let escapechar c =
   match c with
