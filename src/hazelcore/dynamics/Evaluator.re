@@ -1,11 +1,3 @@
-open Sexplib.Std;
-
-[@deriving sexp]
-type result =
-  | InvalidInput(int)
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
 [@deriving sexp]
 type ground_cases =
   | Hole
@@ -502,7 +494,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoxedValue(BoolLit(true)))
   | (And, false) => Some(BoxedValue(BoolLit(false)))
@@ -534,7 +526,7 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (d: DHExp.t): result =>
+let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   switch (d) {
   | BoundVar(x) =>
     switch (Builtins.lookup(x)) {
@@ -802,7 +794,7 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : result =>
+    : EvaluatorResult.t =>
   switch (evaluate(scrut)) {
   | InvalidInput(msg) => InvalidInput(msg)
   | BoxedValue(scrut)
@@ -830,7 +822,8 @@ and evaluate_case =
       }
     }
   }
-and evaluate_ap_builtin = (ident: string, args: list(DHExp.t)): result => {
+and evaluate_ap_builtin =
+    (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
   switch (ident) {
   | "int_of_float" =>
     switch (args) {
