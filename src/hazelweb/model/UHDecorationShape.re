@@ -6,4 +6,4 @@ type t =
   | VarErrHole
   | VarUse
   | CurrentTerm
-  | AssertResult(list(AssertResult.t));
+  | AssertStatus(list(AssertStatus.t));

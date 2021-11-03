@@ -13,7 +13,7 @@ let decoration_cls: UHDecorationShape.t => string =
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
   | CurrentTerm => "current-term"
-  | AssertResult(_) => "assert-result";
+  | AssertStatus(_) => "assert-result";
 
 let decoration_view =
     (
@@ -30,7 +30,7 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | AssertResult(lst) => AssertResult.view(~assert_map=lst)
+    | AssertStatus(lst) => AssertStatus.view(~assert_map=lst)
     }
   );
 
@@ -216,7 +216,7 @@ let rec view_of_box =
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
         | AssertNum({num}) =>
-          let assert_result = AssertMap.lookup_and_join(num, assert_map);
+          let assert_status = AssertMap.lookup_and_join(num, assert_map);
           let assert_eqs =
             switch (List.assoc_opt(num, assert_eqs)) {
             | None => []
@@ -227,7 +227,7 @@ let rec view_of_box =
               sexp_of_list(DHExp.sexp_of_t, assert_eqs),
             );
           let assert_class =
-            "Assert" ++ AssertResult.to_string(assert_result);
+            "Assert" ++ AssertStatus.to_string(assert_status);
           [
             Vdom.Node.span(
               [Vdom.Attr.classes([assert_class, "UHAssert"])],

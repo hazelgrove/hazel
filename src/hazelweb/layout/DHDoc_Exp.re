@@ -95,7 +95,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
-let annot_of_assert_result: AssertResult.t => DHAnnot.t =
+let annot_of_assert_status: AssertStatus.t => DHAnnot.t =
   fun
   | Pass => AssertPass
   | Fail => AssertFail
@@ -187,8 +187,8 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | AssertLit(n) =>
         let annot =
-          annot_of_assert_result(AssertMap.lookup_and_join(n, assert_map));
-        Doc.annot(annot, Doc.text(AssertResult.name));
+          annot_of_assert_status(AssertMap.lookup_and_join(n, assert_map));
+        Doc.annot(annot, Doc.text(AssertStatus.name));
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

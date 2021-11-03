@@ -106,7 +106,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [
             code_keywords_view("Assert"),
             indicate_words_view(" literal "),
-            code_view(AssertResult.name),
+            code_view(AssertStatus.name),
           ],
         )
       )

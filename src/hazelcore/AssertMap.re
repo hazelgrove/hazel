@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = list((AssertNumber.t, list(AssertResult.t)));
+type t = list((AssertNumber.t, list(AssertStatus.t)));
 
 let lookup = List.assoc_opt;
 let empty: t = [];
 
-let extend = (xa: (AssertNumber.t, AssertResult.t), ctx: t): t => {
+let extend = (xa: (AssertNumber.t, AssertStatus.t), ctx: t): t => {
   let (x, res) = xa;
   switch (List.assoc_opt(x, ctx)) {
   | Some(a) => [(x, List.append(a, [res])), ...List.remove_assoc(x, ctx)]
@@ -26,7 +26,7 @@ let rec to_list = (map: t): list(string) => {
 };
 
 /*
- let rec check = (result: list(AssertResult.t)): AssertResult.t =>
+ let rec check = (result: list(AssertStatus.t)): AssertStatus.t =>
    switch (result) {
    | [x, ...xs] =>
      switch (x) {
@@ -56,9 +56,9 @@ let rec to_list = (map: t): list(string) => {
    };
    */
 
-let check = AssertResult.join_all;
+let check = AssertStatus.join_all;
 
-let lookup_and_join = (n, assert_map): AssertResult.t =>
+let lookup_and_join = (n, assert_map): AssertStatus.t =>
   switch (lookup(n, assert_map)) {
   | None => Indet
   | Some(a) =>

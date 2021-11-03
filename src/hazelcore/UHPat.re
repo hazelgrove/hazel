@@ -161,7 +161,7 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | BoolLit(b) => (boollit(b), id_gen)
   | AssertLit =>
     //let (_, id_gen) = id_gen |> IDGen.next_assert;
-    (var(AssertResult.name), id_gen)
+    (var(AssertStatus.name), id_gen)
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
