@@ -191,13 +191,13 @@ let rec mk =
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(x, args) =>
         switch (args) {
-        // TODO: How to handle tl?
-        | [hd, ..._] =>
+        | [hd, ...tl] =>
+          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
           let (doc1, doc2) =
             mk_left_associative_operands(
               DHDoc_common.precedence_Ap,
               BoundVar(x),
-              hd,
+              d',
             );
           DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | [] => text(x)
