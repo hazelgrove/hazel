@@ -66,7 +66,7 @@ let add_assert = ({assert_map, _} as state: state, n, result): state => {
 };
 
 let add_assert_eq = ({assert_eqs, _} as state: state, n, dop): state => {
-  let curr_assert_eqs = AssertResult.add_assert_eq(n, assert_eqs);
+  let curr_assert_eqs = AssertStatus.add_assert_eq(n, assert_eqs);
   {...state, assert_eqs: [(n, [dop, ...curr_assert_eqs]), ...assert_eqs]};
 };
 
@@ -75,7 +75,7 @@ let unbox_result: result => DHExp.t =
   | Indet(d)
   | BoxedValue(d) => d;
 
-let assert_result_of_dhexp: DHExp.t => AssertResult.t =
+let assert_status_of_dhexp: DHExp.t => AssertStatus.t =
   fun
   | BoolLit(true) => Pass
   | BoolLit(false) => Fail
@@ -869,8 +869,8 @@ and eval_assert_eq =
   let (res_d, state) = evaluate(d, ~state);
   let d_res = unbox_result(res_d);
   let eval_res = dhexp_result_of_assert(n, d, d_res);
-  let assert_result = assert_result_of_dhexp(d_res);
-  let state = add_assert(state, n, assert_result);
+  let assert_status = assert_status_of_dhexp(d_res);
+  let state = add_assert(state, n, assert_status);
   let state = add_assert_eq(state, n, d);
   (eval_res, state);
 }
@@ -886,7 +886,7 @@ and eval_assert = (n: int, d: DHExp.t, state: state): report =>
     let (res_d, state) = evaluate(d, ~state);
     let d_res = unbox_result(res_d);
     let eval_res = dhexp_result_of_assert(n, d, d_res);
-    let assert_result = assert_result_of_dhexp(d_res);
-    let state = add_assert(state, n, assert_result);
+    let assert_status = assert_status_of_dhexp(d_res);
+    let state = add_assert(state, n, assert_status);
     (eval_res, state);
   };

@@ -87,8 +87,8 @@ let mk_syn_text =
   | AssertLit =>
     let (_, id_gen) = IDGen.next_assert(id_gen);
     let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(AssertResult.name)));
-    Succeeded((zp, AssertResult.assert_ty, ctx, id_gen));
+      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(AssertStatus.name)));
+    Succeeded((zp, AssertStatus.assert_ty, ctx, id_gen));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =

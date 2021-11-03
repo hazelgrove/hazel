@@ -428,10 +428,10 @@ module VarErrHole = {
       );
 };
 
-module AssertResult = {
+module AssertStatus = {
   let view =
       (
-        ~assert_map: list(AssertResult.t),
+        ~assert_map: list(AssertStatus.t),
         (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Node.t => {

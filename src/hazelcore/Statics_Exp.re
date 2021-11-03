@@ -167,7 +167,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
-  | AssertLit(NotInHole, _) => Some(AssertResult.assert_ty)
+  | AssertLit(NotInHole, _) => Some(AssertStatus.assert_ty)
   | ListNil(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
@@ -813,7 +813,7 @@ and syn_fix_holes_operand =
   | IntLit(_, _) => (e_nih, Int, id_gen)
   | FloatLit(_, _) => (e_nih, Float, id_gen)
   | BoolLit(_, _) => (e_nih, Bool, id_gen)
-  | AssertLit(_, _) => (e_nih, AssertResult.assert_ty, id_gen)
+  | AssertLit(_, _) => (e_nih, AssertStatus.assert_ty, id_gen)
   | ListNil(_) => (e_nih, List(Hole), id_gen)
   | Parenthesized(body) =>
     let (block, ty, id_gen) =
