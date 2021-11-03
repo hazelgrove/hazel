@@ -59,8 +59,9 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
-let assertlit = (~err: ErrStatus.t=NotInHole, n: AssertNumber.t): operand =>
-  Keyword(AssertLit(err, n));
+let keyword_typed =
+    (~kw: Keyword.kw, ~err: ErrStatus.t=NotInHole, n: KeywordID.t): operand =>
+  Keyword(Typed(kw, err, n));
 
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Lam(err, p, body);
@@ -185,7 +186,7 @@ and get_err_status_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  | Keyword(AssertLit(err, _))
+  | Keyword(Typed(_, err, _))
   | ListNil(err)
   | Lam(err, _, _)
   | Inj(err, _, _)
@@ -211,7 +212,7 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
-  | Keyword(AssertLit(_, n)) => Keyword(AssertLit(err, n))
+  | Keyword(Typed(kw, _, n)) => Keyword(Typed(kw, err, n))
   | ListNil(_) => ListNil(err)
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
@@ -245,7 +246,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | Keyword(AssertLit(InHole(TypeInconsistent, _), _))
+  | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -256,7 +257,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | Keyword(AssertLit(NotInHole | InHole(WrongLength, _), _))
+  | Keyword(Typed(_, NotInHole | InHole(WrongLength, _), _))
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
@@ -283,9 +284,9 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | IntLit(n) => (intlit(n), id_gen)
   | FloatLit(f) => (floatlit(f), id_gen)
   | BoolLit(b) => (boollit(b), id_gen)
-  | Keyword(AssertLit(_)) =>
-    let (u, id_gen) = IDGen.next_assert(id_gen);
-    (assertlit(u), id_gen);
+  | Keyword(kw) =>
+    let (u, id_gen) = IDGen.next_kw(id_gen);
+    (keyword_typed(~kw, u), id_gen);
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -333,8 +334,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
-  | Keyword(AssertLit(InHole(_), _)) => false
-  | Keyword(AssertLit(NotInHole, _)) => true
+  | Keyword(Typed(_, InHole(_), _)) => false
+  | Keyword(Typed(_, NotInHole, _)) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Lam(InHole(_), _, _) => false

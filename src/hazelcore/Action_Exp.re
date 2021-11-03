@@ -294,9 +294,10 @@ let mk_syn_text =
   | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, id_gen)));
-  | Keyword(_) =>
-    let (u, id_gen) = IDGen.next_assert(id_gen);
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit(u)));
+  | Keyword(kw) =>
+    let (u, id_gen) = IDGen.next_kw(id_gen);
+    let ze =
+      ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.keyword_typed(~kw, u)));
     Succeeded(SynDone((ze, AssertStatus.assert_ty, id_gen)));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
@@ -1483,7 +1484,7 @@ and syn_perform_operand =
     syn_delete_text(ctx, id_gen, j, string_of_bool(b))
   | (Delete, CursorE(OnText(j), Keyword(kw))) =>
     //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_assert(id_gen);
+    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_delete_text(ctx, id_gen, j, Keyword.to_string(kw))
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, id_gen, j, t)
@@ -1497,7 +1498,7 @@ and syn_perform_operand =
     syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
     //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_assert(id_gen);
+    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_backspace_text(ctx, id_gen, j, Keyword.to_string(kw))
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
@@ -1616,7 +1617,7 @@ and syn_perform_operand =
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
     //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_assert(id_gen);
+    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw))
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
@@ -2983,7 +2984,7 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
-    //let (_, id_gen) = id_gen |> IDGen.next_assert;
+    //let (_, id_gen) = id_gen |> IDGen.next_kw;
     //(Sexplib.Sexp.to_string(IDVar.sexp_of_t(id_gen)));
     ana_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw), ty)
   | (Construct(SChar(_)), CursorE(_)) => Failed

@@ -1132,12 +1132,6 @@ h1 {
   font-size: 70%;
   vertical-align: top;
 }
-.DHCode .AssertIndet:after{
-  content: "△";
-  color: brown;
-  font-size: 70%;
-  vertical-align: top;
-}
 .DHCode .AssertComp:after{
   content: "?";
   color: #BBB;
@@ -1461,15 +1455,8 @@ h1 {
   position: absolute;
 }
 .AssertIndet:after{
-  content: "△";
-  color: brown;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
-}
-.AssertComp:after{
   content: "?";
-  color: #BBB;
+  color: brown;
   font-size: 70%;
   vertical-align: top;
   position: absolute;

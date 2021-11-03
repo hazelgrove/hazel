@@ -127,7 +127,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | Keyword(AssertLit(InHole(TypeInconsistent, _), _))
+  | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -140,7 +140,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(AssertLit(InHole(WrongLength, _), _))
+  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -167,7 +167,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
-  | Keyword(AssertLit(NotInHole, _)) => Some(AssertStatus.assert_ty)
+  | Keyword(Typed(kw, NotInHole, _)) => Some(Keyword.type_of_kw(kw))
   | ListNil(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
@@ -295,7 +295,7 @@ and ana_operand =
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | Keyword(AssertLit(InHole(TypeInconsistent, _), _))
+  | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -308,7 +308,7 @@ and ana_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(AssertLit(InHole(WrongLength, _), _))
+  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -323,7 +323,7 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | Keyword(AssertLit(NotInHole, _))
+  | Keyword(Typed(_, NotInHole, _))
   | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
@@ -813,7 +813,7 @@ and syn_fix_holes_operand =
   | IntLit(_, _) => (e_nih, Int, id_gen)
   | FloatLit(_, _) => (e_nih, Float, id_gen)
   | BoolLit(_, _) => (e_nih, Bool, id_gen)
-  | Keyword(AssertLit(_, _)) => (e_nih, AssertStatus.assert_ty, id_gen)
+  | Keyword(Typed(kw, _, _)) => (e_nih, Keyword.type_of_kw(kw), id_gen)
   | ListNil(_) => (e_nih, List(Hole), id_gen)
   | Parenthesized(body) =>
     let (block, ty, id_gen) =

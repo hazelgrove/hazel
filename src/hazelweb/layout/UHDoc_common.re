@@ -88,8 +88,8 @@ module Delim = {
   let close_Lam = (): t => mk(~index=2, "}");
   let assertlit = (n) /*numbering: string*/: t => {
     //Doc.(hcats([text(AssertStatus.name),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
-    //let doc1 = Doc.text(AssertStatus.name) |> Doc.annot(UHAnnot.AssertNumber);
-    //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.AssertNumber);
+    //let doc1 = Doc.text(AssertStatus.name) |> Doc.annot(UHAnnot.KeywordID);
+    //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.KeywordID);
     /*switch(Assertresult.lookup(int_of_string(numbering))){ //0 = pass, 1= fail, 2= not yet determined
         |0 => Doc.text(checkmark) |>Doc.annot(UHAnnot.AssertPass)✔
         |1 => Doc.text(x mark) |> Doc.annot(UHAnnot.AssertFail)✘
@@ -349,7 +349,7 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_AssertLit =
-    (~sort: TermSort.t, n: AssertNumber.t)
+    (~sort: TermSort.t, n: KeywordID.t)
     //map: AssertMap.t /*numbering: string*/,
     : t =>
   Delim.assertlit(n) |> annot_Tessera |> annot_Operand(~sort);

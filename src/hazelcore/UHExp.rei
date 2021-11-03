@@ -48,7 +48,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let assertlit: (~err: ErrStatus.t=?, AssertNumber.t) => operand;
+let keyword_typed:
+  (~kw: Keyword.kw, ~err: ErrStatus.t=?, KeywordID.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 

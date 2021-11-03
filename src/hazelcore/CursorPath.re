@@ -24,7 +24,7 @@ type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape)
-  | Assert(AssertNumber.t, hole_shape);
+  | Assert(KeywordID.t, hole_shape);
 
 [@deriving sexp]
 type hole_info = {
