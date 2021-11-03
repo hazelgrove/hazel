@@ -151,7 +151,6 @@ type t =
   | IntLit(int)
   | Sequence(t, t)
   | AssertLit(AssertNumber.t)
-  | FailedAssert(AssertNumber.t, t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -200,7 +199,6 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
-  | FailedAssert(_, _) => "FailedAssert"
   | AssertLit(_) => "AssertLit"
   };
 

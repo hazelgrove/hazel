@@ -87,7 +87,7 @@ let dhexp_result_of_assert = (n: int, d: DHExp.t, d_res: DHExp.t): result =>
   // TODO(andrew): do we want failedasserts as a seperate form?
   // in principle can get same info from assert results (? check this)
   // do we even want to emit these are part of the result?
-  | BoolLit(false) => Indet(FailedAssert(n, d))
+  | BoolLit(false) => BoxedValue(Triv) /*Indet(FailedAssert(n, d))*/
   | _ => Indet(Ap(AssertLit(n), d))
   };
 
@@ -304,8 +304,7 @@ and matches_cast_Inj =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   }
 and matches_cast_Pair =
     (
@@ -372,8 +371,7 @@ and matches_cast_Pair =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   }
 and matches_cast_Cons =
     (
@@ -446,8 +444,7 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   };
 
 /* closed substitution [d1/x]d2*/
@@ -548,9 +545,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
   | AssertLit(n) => AssertLit(n)
-  | FailedAssert(n, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    FailedAssert(n, d3);
   }
 
 and subst_var_rules =
@@ -640,7 +634,6 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
   | Keyword(_)
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
-  | FailedAssert(_, d1) => (Indet(d1), state)
   | BoundVar(_) => raise(InvalidInput(FreeOrInvalidVariable))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
@@ -757,10 +750,12 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
     eval_bind_indet((d1, state), d1' => FailedCast(d1', ty, ty'))
   | InvalidOperation(d, err) =>
     eval_bind_indet((d, state), d' => InvalidOperation(d', err))
-  | ConsistentCase(Case(d1, rules, n)) =>
-    eval_case(None, d1, rules, n, state)
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    eval_case(Some((u, i, sigma)), d1, rules, n, state)
+  | ConsistentCase(Case(scrut, rules, index) as case) =>
+    let indet_res = Indet(ConsistentCase(case));
+    eval_case(indet_res, scrut, rules, index, state);
+  | InconsistentBranches(u, i, sigma, Case(scrut, rules, index) as case) =>
+    let none_or_indet = Indet(InconsistentBranches(u, i, sigma, case));
+    eval_case(none_or_indet, scrut, rules, index, state);
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(boxed_val), state) =>
@@ -772,8 +767,8 @@ let rec evaluate = (~state: state=init_state, d: DHExp.t): report => {
 }
 and eval_unary_constructor = ((d1, state): eval_input, cons) =>
   switch (evaluate(d1, ~state)) {
-  | (Indet(d1'), map1) => (Indet(cons(d1')), map1)
-  | (BoxedValue(d1'), map1) => (BoxedValue(cons(d1')), map1)
+  | (Indet(d1'), state) => (Indet(cons(d1')), state)
+  | (BoxedValue(d1'), state) => (BoxedValue(cons(d1')), state)
   }
 and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
   switch (evaluate(d1, ~state)) {
@@ -790,41 +785,26 @@ and eval_bind_indet = (d_s: eval_input, f: DHExp.t => DHExp.t): report =>
   eval_bind_nofx(d_s, d' => Indet(f(d')))
 and eval_case =
     (
-      inconsistent_info,
+      indet_res: result,
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
       state: state,
     )
-    : report =>
-  switch (evaluate(scrut, ~state)) {
-  | (BoxedValue(scrut), state)
-  | (Indet(scrut), state) =>
-    //TODO(andrew): why does the case have the current_rule_index?
-    let case = DHExp.Case(scrut, rules, current_rule_index);
-    let none_or_indet: result =
-      switch (inconsistent_info) {
-      | None => Indet(ConsistentCase(case))
-      | Some((u, i, sigma)) =>
-        Indet(InconsistentBranches(u, i, sigma, case))
-      };
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None => (none_or_indet, state)
-    | Some(Rule(dp, d)) =>
-      switch (matches(dp, scrut)) {
-      | IndetMatch => (none_or_indet, state)
-      | Matches(env) => (fst(evaluate(subst(env, d), ~state)), state)
-      | DoesNotMatch =>
-        eval_case(
-          inconsistent_info,
-          scrut,
-          rules,
-          current_rule_index + 1,
-          state,
-        )
-      }
-    };
-  }
+    : report => {
+  let (res', state) = evaluate(scrut, ~state);
+  let scrut = unbox_result(res');
+  switch (List.nth_opt(rules, current_rule_index)) {
+  | None => (indet_res, state) // TODO(andrew):should this be an InvalidOperation?
+  | Some(Rule(dp, d)) =>
+    switch (matches(dp, scrut)) {
+    | IndetMatch => (indet_res, state)
+    | Matches(env) => evaluate(subst(env, d), ~state)
+    | DoesNotMatch =>
+      eval_case(indet_res, scrut, rules, current_rule_index + 1, state)
+    }
+  };
+}
 and eval_cast =
     (
       cons: DHExp.t => result,

@@ -34,7 +34,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidText(_)
   | Keyword(_)
   | BoolLit(_)
-  | FailedAssert(_)
   | AssertLit(_)
   | IntLit(_)
   | Sequence(_, _)
@@ -232,14 +231,17 @@ let rec mk =
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
-      | FailedAssert(_, x) =>
-        //let (d_doc, _) = go'(x);
-        let (d_doc, _) = go'(x);
-        let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
-        /*let decoration =
-          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);*/
-        //hcats([d_doc2, _]);
-        d_doc2;
+      /*
+         //TODO(andrew): reuse decos for popup/bench
+       | FailedAssert(_, x) =>
+         //let (d_doc, _) = go'(x);
+         let (d_doc, _) = go'(x);
+         let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
+         /*let decoration =
+           Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);*/
+         //hcats([d_doc2, _]);
+         d_doc2;
+         */
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
           mk_cast(go(~enforce_inline, ddef));
