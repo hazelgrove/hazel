@@ -8,3 +8,5 @@ type t =
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t);
+
+exception Exception(t);

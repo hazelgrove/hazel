@@ -1,6 +1,5 @@
 [@deriving sexp]
 type result =
-  | InvalidInput(EvaluatorError.t)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 

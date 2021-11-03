@@ -8,3 +8,6 @@ type t =
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t);
+
+[@deriving sexp]
+exception Exception(t);
