@@ -83,25 +83,16 @@ let get_result = (program: t): (Result.t, Evaluator.state) =>
   //check if map is resetted here
   switch (evaluate(get_elaboration(program))) {
   | (BoxedValue(d), state) =>
-    //print_endline(
-    //  Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
-    //);
     print_endline(
-      Sexplib.Sexp.to_string_hum(
-        Evaluator.sexp_of_assert_eq_map(state.assert_eqs),
-      ),
+      //TODO(andrew)
+      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
     ((d_renumbered, hii, BoxedValue(d_renumbered)), state);
   | (Indet(d), state) =>
-    //print_endline(
-    //  Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
-    //);
     print_endline(
-      Sexplib.Sexp.to_string_hum(
-        Evaluator.sexp_of_assert_eq_map(state.assert_eqs),
-      ),
+      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
     );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
@@ -137,7 +128,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  let assert_statuss =
+  //TODO(andrew)
+  let _assert_statuses =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
@@ -164,7 +156,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
       err_holes,
       var_uses,
       var_err_holes,
-      assert_statuss,
+      assert_statuses: [], //TODO(andrew)
       current_term,
     };
   //print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));

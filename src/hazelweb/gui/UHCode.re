@@ -30,7 +30,7 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | AssertStatus(lst) => AssertStatus.view(~assert_map=lst)
+    | AssertStatus(assert_instances) => AssertStatus.view(~assert_instances)
     }
   );
 
@@ -164,7 +164,7 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box =
         (~state: Evaluator.state, box: UHBox.t): list(Vdom.Node.t) => {
-  let {assert_map, assert_eqs, _}: Evaluator.state = state;
+  let {assert_map, _}: Evaluator.state = state;
   Vdom.(
     switch (WeakMap.get(box_table, box)) {
     | Some(vs) => vs
@@ -204,13 +204,16 @@ let rec view_of_box =
         | AssertNum({num}) =>
           let assert_status = AssertMap.lookup_and_join(num, assert_map);
           let assert_eqs =
-            switch (List.assoc_opt(num, assert_eqs)) {
+            switch (List.assoc_opt(num, assert_map)) {
             | None => []
             | Some(d) => List.rev(d)
             };
           let assert_eq_string =
             Sexplib.Sexp.to_string_hum(
-              sexp_of_list(DHExp.sexp_of_t, assert_eqs),
+              sexp_of_list(
+                AssertMap.sexp_of_assert_instance_report,
+                assert_eqs,
+              ),
             );
           let assert_class =
             "Assert" ++ AssertStatus.to_string(assert_status);

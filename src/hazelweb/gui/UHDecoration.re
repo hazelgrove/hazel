@@ -431,13 +431,13 @@ module VarErrHole = {
 module AssertStatus = {
   let view =
       (
-        ~assert_map: list(AssertStatus.t),
+        ~assert_instances: list(AssertMap.assert_instance_report),
         (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Node.t => {
     let total_offset = offset + List.hd(subject.metrics).width;
     let symbol =
-      switch (AssertMap.check(assert_map)) {
+      switch (AssertMap.join_statuses(assert_instances)) {
       | _ => "✔"
       };
     Node.create_svg(

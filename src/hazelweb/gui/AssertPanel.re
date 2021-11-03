@@ -31,8 +31,8 @@ let view = (program: Program.t): Vdom.Node.t => {
     let static_info = static_info(assert_number);
     let children =
       switch (AssertMap.lookup(int_of_string(assert_number), assert_map)) {
-      | Some(a) =>
-        switch (AssertMap.check(a)) {
+      | Some(_a) =>
+        switch () /*AssertMap.check(a)*/ {
         //| Comp => [static_info, dynamic_info("Comp")]
         | _ => [static_info]
         }
@@ -42,7 +42,7 @@ let view = (program: Program.t): Vdom.Node.t => {
   };
   let context_view = {
     let state = snd(program |> Program.get_result);
-    switch (AssertMap.to_list(state.assert_map)) {
+    switch ([] /*AssertMap.to_list(state.assert_map)*/) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
