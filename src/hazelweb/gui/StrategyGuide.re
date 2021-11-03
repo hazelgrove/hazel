@@ -76,6 +76,7 @@ let lit_msg = (ty: HTyp.t) => {
       int_lit,
       float_lit,
       bool_lit,
+      string_lit,
       fun_lit,
       sum_lit,
       prod_lit,
