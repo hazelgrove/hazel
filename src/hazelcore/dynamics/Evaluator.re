@@ -1,8 +1,17 @@
-open Sexplib.Std;
+[@deriving sexp]
+type eval_error =
+  | OutOfFuel
+  | FreeInvalidVar(Var.t)
+  | BadPatternMatch
+  | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedLam(DHExp.t)
+  | InvalidBoxedBoolLit(DHExp.t)
+  | InvalidBoxedIntLit(DHExp.t)
+  | InvalidBoxedFloatLit(DHExp.t);
 
 [@deriving sexp]
 type result =
-  | InvalidInput(int)
+  | InvalidInput(eval_error)
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
@@ -530,7 +539,7 @@ let eval_bin_float_op =
 
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
-  | BoundVar(_) => InvalidInput(1)
+  | BoundVar(x) => InvalidInput(FreeInvalidVar(x))
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -569,7 +578,7 @@ let rec evaluate = (d: DHExp.t): result =>
         /* ap cast rule */
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
-    | BoxedValue(_) => InvalidInput(2)
+    | BoxedValue(d1') => InvalidInput(InvalidBoxedLam(d1'))
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -593,11 +602,11 @@ let rec evaluate = (d: DHExp.t): result =>
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b2)) =>
           BoxedValue(eval_bin_bool_op(op, b1, b2))
-        | BoxedValue(_) => InvalidInput(3)
+        | BoxedValue(d2') => InvalidInput(InvalidBoxedBoolLit(d2'))
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       }
-    | BoxedValue(_) => InvalidInput(4)
+    | BoxedValue(d1') => InvalidInput(InvalidBoxedBoolLit(d1'))
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -622,10 +631,10 @@ let rec evaluate = (d: DHExp.t): result =>
           )
         | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
         }
-      | BoxedValue(_) => InvalidInput(3)
+      | BoxedValue(d2') => InvalidInput(InvalidBoxedIntLit(d2'))
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(4)
+    | BoxedValue(d1') => InvalidInput(InvalidBoxedIntLit(d1'))
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -641,10 +650,10 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(FloatLit(f2)) =>
         BoxedValue(eval_bin_float_op(op, f1, f2))
-      | BoxedValue(_) => InvalidInput(8)
+      | BoxedValue(d2') => InvalidInput(InvalidBoxedFloatLit(d2'))
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(7)
+    | BoxedValue(d1') => InvalidInput(InvalidBoxedFloatLit(d1'))
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -712,7 +721,7 @@ let rec evaluate = (d: DHExp.t): result =>
           }
         | _ =>
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-          InvalidInput(6)
+          InvalidInput(CastBVHoleGround(d1'))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
