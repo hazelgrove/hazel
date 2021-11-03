@@ -401,6 +401,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
+
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
@@ -412,8 +413,10 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, u_gen);
       };
+    ();
     program |> put_edit_state(new_edit_state);
   };
+  // };
 };
 
 exception HoleNotFound;

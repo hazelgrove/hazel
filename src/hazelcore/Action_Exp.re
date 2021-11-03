@@ -632,6 +632,11 @@ and syn_perform_block =
   /* Backspace & Delete */
   // Handle 2 special cases for CommentLines
   // Case 1
+  // e.g.,
+  //  #  comment 1
+  //  #| comment 2
+  //    =( Backspace )=>
+  //  #  comment 1|comment 2
   | Backspace when ZExp.is_begin_of_comment(zblock) =>
     switch (prefix |> ListUtil.split_last_opt) {
     | Some((new_prefix, pre_zline)) =>
@@ -650,6 +655,11 @@ and syn_perform_block =
     }
 
   // Case 2
+  // e.g.,
+  //  # comment 1|
+  //  # comment 2
+  //    =( Delete )=>
+  //  # comment 1|comment 2
   | Delete when ZExp.is_end_of_comment(zblock) =>
     switch (suffix, zline) {
     | (
@@ -917,10 +927,19 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
+  /* #| some comment => | */
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
     mk_result(u_gen, new_zblock);
 
+  /*
+     # some comment|
+     _
+       =( Delete )=>
+     # some comment
+     |_
+   */
+  /* # some co|mment => # some co|ment */
   | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == String.length(comment)) {
       escape(u_gen, After);
@@ -933,6 +952,14 @@ and syn_perform_line =
       mk_result(u_gen, new_zblock);
     }
 
+  /*
+     x
+     |# some comment
+       =( Backspace )=>
+     x|
+     # some comment
+   */
+  /* # some co|mment => # some c|mment */
   | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
     if (j == 0) {
       escape(u_gen, Before);
@@ -967,8 +994,8 @@ and syn_perform_line =
     mk_result(u_gen, new_zblock);
 
   | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
+    let new_comment = comment |> StringUtil.insert(j, s);
     let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, s);
       let new_line: UHExp.line = CommentLine(new_comment);
       ([], ZExp.CursorL(OnText(j + 1), new_line), []);
     };
@@ -2313,6 +2340,38 @@ and ana_perform_block =
     ana_move(ctx, a, (zblock, u_gen), ty)
 
   /* Backspace & Delete */
+  | (Backspace, _) when ZExp.is_begin_of_comment(zblock) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((new_prefix, pre_zline)) =>
+      switch (pre_zline, zline) {
+      | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
+        let new_zline =
+          ZExp.CursorL(
+            OnText(String.length(pre_comment)),
+            CommentLine(pre_comment ++ comment),
+          );
+        let new_ze = (new_prefix, new_zline, suffix);
+        Succeeded(AnaDone((new_ze, u_gen)));
+      | _ => Failed
+      }
+    | _ => Failed
+    }
+
+  | (Delete, _) when ZExp.is_end_of_comment(zblock) =>
+    switch (suffix, zline) {
+    | (
+        [CommentLine(post_comment), ...new_suffix],
+        CursorL(_, CommentLine(comment)),
+      ) =>
+      let new_zline =
+        ZExp.CursorL(
+          OnText(String.length(comment)),
+          CommentLine(comment ++ post_comment),
+        );
+      let new_ze = (prefix, new_zline, new_suffix);
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | _ => Failed
+    }
 
   | (Delete, _) when ZExp.is_after_zline(zline) =>
     switch (zline |> ZExp.erase_zline, suffix) {
