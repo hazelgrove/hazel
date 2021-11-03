@@ -89,11 +89,10 @@ let assert_status_of_dhexp: DHExp.t => AssertStatus.t =
 
 let dhexp_result_of_assert = (n: int, d: DHExp.t, d_res: DHExp.t): result =>
   switch (d_res) {
-  | BoolLit(true) => BoxedValue(Triv)
   // TODO(andrew): do we want failedasserts as a seperate form?
   // in principle can get same info from assert results (? check this)
   // do we even want to emit these are part of the result?
-  | BoolLit(false) => BoxedValue(Triv) /*Indet(FailedAssert(n, d))*/
+  | BoolLit(_) => BoxedValue(Triv) /*Indet(FailedAssert(n, d))*/
   | _ => Indet(Ap(AssertLit(n), d))
   };
 
