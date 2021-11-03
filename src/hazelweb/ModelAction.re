@@ -23,7 +23,8 @@ type group_id = int;
 [@deriving sexp]
 type serialize_object =
   | UHExp
-  | DHExp;
+  | DHExp
+  | ZExp;
 
 [@deriving sexp]
 type t =

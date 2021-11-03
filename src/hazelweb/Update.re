@@ -220,6 +220,13 @@ let apply_action =
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log;
+        | ZExp =>
+          model
+          |> Model.get_program
+          |> Program.get_zexp
+          |> Serialization.string_of_zexp
+          |> Js.string
+          |> JSUtil.log
         };
         model;
       };

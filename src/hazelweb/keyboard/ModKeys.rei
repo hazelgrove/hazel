@@ -20,6 +20,7 @@ let not_held: t;
 let ctrlOrCmd: t;
 let ctrl: t;
 let shift: t;
+let ctrl_shift: t;
 let alt: t;
 let no_ctrlOrCmd_alt: t;
 let ctrlOrCmd_shift: t;
