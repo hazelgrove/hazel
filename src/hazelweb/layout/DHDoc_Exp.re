@@ -35,6 +35,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ExpandingKeyword(_)
   | BoolLit(_)
   | AssertLit(_)
+  | SameLit(_)
   | IntLit(_)
   | Sequence(_, _)
   | FloatLit(_)
@@ -188,6 +189,10 @@ let rec mk =
         let annot =
           annot_of_assert_status(AssertMap.lookup_and_join(n, assert_map));
         Doc.annot(annot, Doc.text(Keyword.string_of_kw(Assert)));
+      | SameLit(n) =>
+        let annot =
+          annot_of_assert_status(AssertMap.lookup_and_join(n, assert_map));
+        Doc.annot(annot, Doc.text(Keyword.string_of_kw(Same)));
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

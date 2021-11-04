@@ -155,6 +155,7 @@ type t =
   | IntLit(int)
   | Sequence(t, t)
   | AssertLit(KeywordID.t)
+  | SameLit(KeywordID.t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -191,7 +192,8 @@ let rec dhexp_diff_value =
     );
   // slightly more restrictive that structural equality, except more permissive in the empty hole case
   switch (d1, d2) {
-  | (EmptyHole(_), EmptyHole(_))
+  | (EmptyHole(_), _)
+  | (_, EmptyHole(_))
   | (Triv, Triv)
   | (ListNil(_), ListNil(_)) => ([], [])
   | (BoolLit(a), BoolLit(b)) when a == b => ([], [])
@@ -237,6 +239,7 @@ let constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | AssertLit(_) => "AssertLit"
+  | SameLit(_) => "SameLit"
   };
 
 let rec mk_tuple: list(t) => t =
