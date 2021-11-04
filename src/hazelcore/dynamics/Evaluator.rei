@@ -1,8 +1,8 @@
 [@deriving sexp]
 type invalid_input =
-  | FreeOrInvalidVariable
-  | ApInvalidBoxedFunctionVal
-  | CastBVHoleGround
+  | FreeOrInvalidVariable(DHExp.t)
+  | CastBVHoleGround(DHExp.t)
+  | ApInvalidBoxedFunctionVal(DHExp.t)
   | BoxedNotIntLit2(DHExp.t)
   | BoxedNotIntLit1(DHExp.t)
   | BoxedNotFloatLit1(DHExp.t)
