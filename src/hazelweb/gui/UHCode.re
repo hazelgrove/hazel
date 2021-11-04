@@ -215,6 +215,39 @@ let rec view_of_box =
                 assert_eqs,
               ),
             );
+          let _blog =
+            List.map(
+              ((assert_eq, _)) => {
+                switch (assert_eq) {
+                /*
+                 | DHExp.BinIntOp(Equals, d1, d2) =>
+                   let d1_s = DHExp.strip_casts_value(d1);
+                   let d2_s = DHExp.strip_casts_value(d2);
+                   let (p1, p1') = DHExp.dhexp_diff_value(d1_s, d2_s);
+                   print_endline("BLOOOOOGGGGG");
+                   print_endline(
+                     Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1_s)),
+                   );
+                   print_endline(
+                     Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2_s)),
+                   );
+                   print_endline(
+                     Sexplib.Sexp.to_string_hum(
+                       sexp_of_list(CursorPath.sexp_of_steps, p1),
+                     ),
+                   );
+                   print_endline(
+                     Sexplib.Sexp.to_string_hum(
+                       sexp_of_list(CursorPath.sexp_of_steps, p1'),
+                     ),
+                   );
+                   ();
+                   */
+                | _ => ()
+                }
+              },
+              assert_eqs,
+            );
           let assert_class =
             "Assert" ++ AssertStatus.to_string(assert_status);
           [
