@@ -871,7 +871,7 @@ and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
   let d: DHExp.t = Ap(Ap(SameLit(n), d1_clean), d2_clean);
   let assert_status: AssertStatus.t =
     switch (DHExp.dhexp_diff_value(d1_clean, d2_clean)) {
-    | ([], _) => Pass
+    | ([], _) => d1_clean == d2_clean ? Pass : Indet
     | _ => Fail
     };
   let eval_res = BoxedValue(DHExp.Triv); //BoxedValue(d);
