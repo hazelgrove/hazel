@@ -89,8 +89,14 @@ module Delim = {
   let keyword = (~kw: Keyword.kw, n: int): t => {
     Doc.text(Keyword.string_of_kw(kw))
     |> Doc.annot(UHAnnot.AssertNum({num: n}))
-    |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()));
-                                                             //};
+    |> Doc.annot(
+         UHAnnot.mk_Token(
+           ~shape=Text,
+           ~len=String.length(Keyword.string_of_kw(kw)),
+           (),
+         ),
+       );
+        //};
   };
 
   let open_Case = (): t => mk(~index=0, "case");
