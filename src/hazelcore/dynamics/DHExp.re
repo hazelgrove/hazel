@@ -174,6 +174,39 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
+let rec strip_casts_value: t => t =
+  fun
+  | Cast(d, _, _) => strip_casts_value(d)
+  | Inj(a, b, d) => Inj(a, b, strip_casts_value(d))
+  | Pair(d1, d2) => Pair(strip_casts_value(d1), strip_casts_value(d2))
+  | Cons(d1, d2) => Cons(strip_casts_value(d1), strip_casts_value(d2))
+  | d => d;
+
+let rec dhexp_diff_value =
+        (d1: t, d2: t): (list(CursorPath.steps), list(CursorPath.steps)) => {
+  let diff_sub_dhs = (subtype_step, (ty1, ty2)) =>
+    TupleUtil.map2(
+      List.map(List.cons(subtype_step)),
+      dhexp_diff_value(ty1, ty2),
+    );
+  // slightly more restrictive that structural equality, except more permissive in the empty hole case
+  switch (d1, d2) {
+  | (EmptyHole(_), EmptyHole(_))
+  | (Triv, Triv)
+  | (ListNil(_), ListNil(_)) => ([], [])
+  | (BoolLit(a), BoolLit(b)) when a == b => ([], [])
+  | (IntLit(a), IntLit(b)) when a == b => ([], [])
+  | (FloatLit(a), FloatLit(b)) when a == b => ([], [])
+  | (Inj(_, _, d1'), Inj(_, _, d2')) => diff_sub_dhs(0, (d1', d2'))
+  | (Pair(d1', d1''), Pair(d2', d2''))
+  | (Cons(d1', d1''), Cons(d2', d2'')) =>
+    let (steps1, steps1') = diff_sub_dhs(0, (d1', d2'));
+    let (steps2, steps2') = diff_sub_dhs(1, (d1'', d2''));
+    (steps1 @ steps2, steps1' @ steps2');
+  | _ => ([[]], [[]])
+  };
+};
+
 let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
