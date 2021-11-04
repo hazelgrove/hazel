@@ -1,8 +1,8 @@
 [@deriving sexp]
 type invalid_input =
-  | FreeOrInvalidVariable
-  | ApInvalidBoxedFunctionVal
-  | CastBVHoleGround
+  | FreeOrInvalidVariable(DHExp.t)
+  | CastBVHoleGround(DHExp.t)
+  | ApInvalidBoxedFunctionVal(DHExp.t)
   | BoxedNotIntLit2(DHExp.t)
   | BoxedNotIntLit1(DHExp.t)
   | BoxedNotFloatLit1(DHExp.t)
@@ -608,7 +608,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | ExpandingKeyword(_)
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
-  | BoundVar(_) => raise(InvalidInput(FreeOrInvalidVariable))
+  | BoundVar(d) => raise(InvalidInput(FreeOrInvalidVariable(BoundVar(d))))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
     eval_unary_constructor((d1, state), mk_inj);
@@ -639,30 +639,37 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     | (Indet(d1), state) =>
       eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
     }
-  | Ap(Ap(SameLit(n), d1), d2) => eval_same(n, d1, d2, state)
-  | Ap(SameLit(_), _) => (BoxedValue(DHExp.Triv), state)
+  //| Ap(Ap(SameLit(n), d1), d2) => eval_same(n, d1, d2, state)
+  //| Ap(SameLit(_), _) => (BoxedValue(DHExp.EmptyHole(0, 0, [])), state)
   | Ap(d1, d2) =>
-    switch (evaluate(d1, ~state)) {
-    | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
-    | (BoxedValue(Lam(dp, _, d3)), state) =>
-      eval_bind((d2, state), ((d2', state)) =>
-        switch (matches(dp, d2')) {
-        | DoesNotMatch
-        | IndetMatch => (Indet(d), state)
-        | Matches(env) =>
-          /* beta rule */
-          evaluate(subst(env, d3), ~state)
-        }
-      )
-    | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
-    | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
-      eval_bind((d2, state), ((d2', state)) =>
-        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
-      )
-    | (BoxedValue(_), _) => raise(InvalidInput(ApInvalidBoxedFunctionVal))
-    | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
+    switch (DHExp.strip_casts_value(d1)) {
+    | Ap(SameLit(n), d1) => eval_same(n, d1, d2, state)
+    | _ =>
+      switch (evaluate(d1, ~state)) {
+      | (BoxedValue(SameLit(_)), _) => (BoxedValue(DHExp.Triv), state)
+      | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
+      | (BoxedValue(Lam(dp, _, d3)), state) =>
+        eval_bind((d2, state), ((d2', state)) =>
+          switch (matches(dp, d2')) {
+          | DoesNotMatch
+          | IndetMatch => (Indet(d), state)
+          | Matches(env) =>
+            /* beta rule */
+            evaluate(subst(env, d3), ~state)
+          }
+        )
+      | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
+      | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
+        eval_bind((d2, state), ((d2', state)) =>
+          evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
+        )
+      | (BoxedValue(d), _) =>
+        raise(InvalidInput(ApInvalidBoxedFunctionVal(d)))
+      | (Indet(d1'), state) =>
+        eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
+      }
     }
+
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(BoolLit(b1) as d1'), state) =>
@@ -813,9 +820,9 @@ and eval_cast =
     switch (value) {
     | Cast(d1'', ty'', Hole) when HTyp.eq(ty'', ty') => (cons(d1''), state)
     | Cast(_, _, Hole) => (Indet(FailedCast(value, ty, ty')), state)
-    | _ =>
+    | d =>
       switch (cons(Triv)) {
-      | BoxedValue(_) => raise(InvalidInput(CastBVHoleGround))
+      | BoxedValue(_) => raise(InvalidInput(CastBVHoleGround(d)))
       //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
       | _ => (cons(Cast(value, ty, ty')), state)
       }
@@ -867,7 +874,7 @@ and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
     | ([], _) => Pass
     | _ => Fail
     };
-  let eval_res = BoxedValue(d);
+  let eval_res = BoxedValue(DHExp.Triv); //BoxedValue(d);
   let state = EvalState.add_assert(state, n, (d, assert_status));
   (eval_res, state);
 };

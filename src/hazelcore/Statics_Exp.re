@@ -101,23 +101,15 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel1, seq, Float)
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
-  | BinOp(
-      NotInHole,
-      Space,
-      BinOp(NotInHole, Space, Placeholder(n), skel1') as skel1,
-      skel2,
-    ) =>
+  | BinOp(NotInHole, Space, Placeholder(n) as skel1, skel2) =>
     //TODO(andrew)
     let en = Seq.nth_operand(n, seq);
     switch (en) {
     | Keyword(Typed(Same, _, _)) =>
-      let* ty1 = syn_skel(ctx, skel1', seq);
-      let* ty2 = syn_skel(ctx, skel2, seq);
-      let* _ = ana_skel(ctx, skel2, seq, ty1);
-      switch (HTyp.join(GLB, ty1, ty2)) {
-      | Some(ty) => Some(ty)
-      | None => None
-      };
+      switch (syn_skel(ctx, skel2, seq)) {
+      | Some(ty_in) => Some(HTyp.Arrow(ty_in, Prod([])))
+      | None => Some(HTyp.Arrow(HTyp.Hole, Prod([])))
+      }
     | _ =>
       let* ty1 = syn_skel(ctx, skel1, seq);
       let* (ty2, ty) = HTyp.matched_arrow(ty1);
@@ -739,68 +731,6 @@ and syn_fix_holes_skel =
         HTyp.Float,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, id_gen);
-  | BinOp(
-      _,
-      Space,
-      BinOp(NotInHole, Space, Placeholder(n), skel1') as skel1,
-      skel2,
-    ) =>
-    //TODO(andrew)
-    let en = Seq.nth_operand(n, seq);
-    switch (en) {
-    | Keyword(Typed(Same, _, _)) =>
-      let (skel1', seq, ty1, id_gen) =
-        syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel1', seq);
-      let (skel2, seq, id_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          id_gen,
-          ~renumber_empty_holes,
-          skel2,
-          seq,
-          ty1,
-        );
-      (
-        BinOp(
-          NotInHole,
-          Space,
-          BinOp(NotInHole, Space, Placeholder(n), skel1'),
-          skel2,
-        ),
-        seq,
-        Hole,
-        id_gen,
-      );
-    | _ =>
-      let (skel1, seq, ty1, id_gen) =
-        syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel1, seq);
-      switch (HTyp.matched_arrow(ty1)) {
-      | Some((ty2, ty)) =>
-        let (skel2, seq, id_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            id_gen,
-            ~renumber_empty_holes,
-            skel2,
-            seq,
-            ty2,
-          );
-        (BinOp(NotInHole, Space, skel1, skel2), seq, ty, id_gen);
-      | None =>
-        let (skel2, seq, id_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            id_gen,
-            ~renumber_empty_holes,
-            skel2,
-            seq,
-            HTyp.Hole,
-          );
-        let (OpSeq(skel1, seq), id_gen) =
-          UHExp.mk_inconsistent_opseq(id_gen, OpSeq(skel1, seq));
-        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, id_gen);
-      };
-    };
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ty1, id_gen) =
       syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel1, seq);
