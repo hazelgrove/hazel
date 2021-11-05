@@ -42,6 +42,11 @@ let get_decoration_paths: t => UHDecorationPaths.t;
 exception DoesNotElaborate;
 let get_elaboration: t => DHExp.t;
 
+/**
+ * Raised when evaluation fails (indicates a bug, either in that function or in
+ * Action because Action needs to return a well-typed edit state)
+ */
+exception EvalError(EvaluatorError.t);
 let get_result: t => (Result.t, Evaluator.state);
 
 /**

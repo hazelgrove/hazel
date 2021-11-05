@@ -1,16 +1,4 @@
 [@deriving sexp]
-type invalid_input =
-  | FreeOrInvalidVariable(DHExp.t)
-  | CastBVHoleGround(DHExp.t)
-  | ApInvalidBoxedFunctionVal(DHExp.t)
-  | BoxedNotIntLit2(DHExp.t)
-  | BoxedNotIntLit1(DHExp.t)
-  | BoxedNotFloatLit1(DHExp.t)
-  | BoxedNotFloatLit2(DHExp.t);
-
-exception InvalidInput(invalid_input);
-
-[@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
@@ -608,7 +596,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | ExpandingKeyword(_)
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
-  | BoundVar(d) => raise(InvalidInput(FreeOrInvalidVariable(BoundVar(d))))
+  | BoundVar(s) => raise(EvaluatorError.Exception(FreeInvalidVar(s)))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
     eval_unary_constructor((d1, state), mk_inj);
@@ -678,7 +666,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
         )
       | (BoxedValue(d), _) =>
-        raise(InvalidInput(ApInvalidBoxedFunctionVal(d)))
+        raise(EvaluatorError.Exception(InvalidBoxedLam(d)))
       | (Indet(d1'), state) =>
         eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
       }
@@ -695,11 +683,13 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
             BoxedValue(eval_bin_bool_op(op, b1, b2)),
             state,
           )
-        | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
+        | (BoxedValue(d), _) =>
+          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
         | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
         }
       }
-    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit1(d)))
+    | (BoxedValue(d), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => BinBoolOp(op, d1', d2'))
     }
@@ -723,9 +713,11 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           )
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), state)
         }
-      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit2(d)))
+      | (BoxedValue(d), _) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
       }
-    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotIntLit1(d)))
+    | (BoxedValue(d), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
@@ -738,9 +730,11 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           BoxedValue(eval_bin_float_op(op, f1, f2)),
           state,
         )
-      | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotFloatLit2(d)))
+      | (BoxedValue(d), _) =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d)))
       }
-    | (BoxedValue(d), _) => raise(InvalidInput(BoxedNotFloatLit1(d)))
+    | (BoxedValue(d), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d)))
     }
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let mk_non_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
@@ -836,7 +830,8 @@ and eval_cast =
     | Cast(_, _, Hole) => (Indet(FailedCast(value, ty, ty')), state)
     | d =>
       switch (cons(Triv)) {
-      | BoxedValue(_) => raise(InvalidInput(CastBVHoleGround(d)))
+      | BoxedValue(_) =>
+        raise(EvaluatorError.Exception(CastBVHoleGround(d)))
       //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
       | _ => (cons(Cast(value, ty, ty')), state)
       }
