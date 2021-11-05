@@ -346,18 +346,17 @@ let get_elaboration = (program: t): DHExp.t =>
   | Elaborates(d, _, _) => d
   };
 
-exception InvalidInput;
-
+exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_elaboration |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
+  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 
 let get_doc = (~settings: Settings.t, program) => {
