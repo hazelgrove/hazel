@@ -102,8 +102,10 @@ let apply_action =
         | exception Program.MissingCursorInfo =>
           JSUtil.log("[Program.MissingCursorInfo]");
           model;
-        | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
+        | exception (Program.EvalError(reason)) =>
+          let serialized =
+            reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+          JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
