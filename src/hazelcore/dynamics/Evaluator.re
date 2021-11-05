@@ -870,9 +870,14 @@ and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
   let d2_clean = DHExp.strip_casts_value(unbox_result(d2));
   let d: DHExp.t = Ap(Ap(SameLit(n), d1_clean), d2_clean);
   let assert_status: AssertStatus.t =
-    switch (DHExp.dhexp_diff_value(d1_clean, d2_clean)) {
-    | ([], _) => d1_clean == d2_clean ? Pass : Indet
-    | _ => Fail
+    switch (d1, d2) {
+    | (Indet(_), _)
+    | (_, Indet(_)) => Indet
+    | (BoxedValue(_), BoxedValue(_)) =>
+      switch (DHExp.dhexp_diff_value(d1_clean, d2_clean)) {
+      | ([], _) => Pass
+      | _ => Fail
+      }
     };
   let eval_res = BoxedValue(DHExp.Triv); //BoxedValue(d);
   let state = EvalState.add_assert(state, n, (d, assert_status));
