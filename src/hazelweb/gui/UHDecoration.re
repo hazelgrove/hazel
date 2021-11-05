@@ -428,6 +428,35 @@ module VarErrHole = {
       );
 };
 
+open Sexplib.Std;
+module Vdom = Virtual_dom.Vdom;
+let assert_view = assert_instances => {
+  let assert_status = AssertMap.join_statuses(assert_instances);
+  let assert_eqs = assert_instances |> List.rev;
+  let assert_eq_string =
+    Sexplib.Sexp.to_string_hum(
+      sexp_of_list(AssertMap.sexp_of_assert_instance_report, assert_eqs),
+    );
+  let _blog =
+    List.map(
+      ((assert_eq, _)) => {
+        switch (assert_eq) {
+        | _ => ()
+        }
+      },
+      assert_eqs,
+    );
+  let assert_class = "Assert" ++ AssertStatus.to_string(assert_status);
+  Vdom.Node.span(
+    [Vdom.Attr.classes([assert_class, "UHAssert"])],
+    [
+      Vdom.Node.div(
+        [Vdom.Attr.class_("assertpop")],
+        [Vdom.Node.text(assert_eq_string), Vdom.Node.text("BLAH")],
+      ),
+    ],
+  );
+};
 module AssertStatus = {
   let view =
       (
@@ -435,23 +464,27 @@ module AssertStatus = {
         (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Node.t => {
-    let total_offset = offset + List.hd(subject.metrics).width;
-    let symbol =
+    let _total_offset = offset + List.hd(subject.metrics).width;
+    let _symbol =
       switch (AssertMap.join_statuses(assert_instances)) {
       | _ => "✔"
       };
-    Node.create_svg(
-      "assert-result",
-      [
-        Attr.classes(["AssertPass"]),
-        Attr.create("x", string_of_int(total_offset)),
-        Attr.create("y", "0"),
-        Attr.create("text-anchor", "middle"),
-        Attr.create("text-align", "middle"),
-        Attr.create("fill", "black"),
-      ],
-      [Node.text(symbol)],
-    );
+    print_endline("VIEWWWWWWWWXXX");
+    assert_view(assert_instances);
+    /*
+     Node.create_svg(
+       "assert-result",
+       [
+         Attr.classes(["AssertPass"]),
+         Attr.create("x", string_of_int(total_offset)),
+         Attr.create("y", "0"),
+         Attr.create("text-anchor", "middle"),
+         Attr.create("text-align", "middle"),
+         Attr.create("fill", "black"),
+       ],
+       [Node.text(symbol), Node.text("BALH")],
+     );
+     */
   };
   /*
      subject

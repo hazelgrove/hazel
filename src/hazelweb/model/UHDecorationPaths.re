@@ -1,12 +1,15 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type asserts =
+  list((CursorPath.steps, list(AssertMap.assert_instance_report)));
+
+[@deriving sexp]
 type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  assert_statuses:
-    list((CursorPath.steps, list(AssertMap.assert_instance_report))),
+  asserts,
   current_term: option(CursorPath.t),
 };
 
@@ -17,7 +20,7 @@ let is_empty = (dpaths: t): bool =>
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, var_uses, assert_statuses, current_term} = dpaths;
+  let {err_holes, var_err_holes, var_uses, asserts, current_term} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -36,8 +39,8 @@ let take_step = (step: int, dpaths: t): t => {
       | [step', ...stepd] when step == step' => Some((stepd, lst))
       | _ => None
       };
-  let assert_statuses = assert_statuses |> List.filter_map(remove_pair);
-  {err_holes, var_err_holes, var_uses, assert_statuses, current_term};
+  let asserts = asserts |> List.filter_map(remove_pair);
+  {err_holes, var_err_holes, var_uses, asserts, current_term};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
@@ -51,7 +54,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | Case
     | Rule => steps == []
     };
-  let is_current_pair = ((steps, _)) =>
+  let _is_current_pair = ((steps, _)) =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
@@ -83,16 +86,20 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  let assert_statuses =
-    dpaths.assert_statuses
-    |> List.find_opt(is_current_pair)  // findopt for pair case
+  print_endline("ASSERTS1");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(sexp_of_asserts(dpaths.asserts)),
+  );
+  let asserts =
+    dpaths.asserts
+    |> List.find_opt(_ => true /*is_current_pair*/)  // findopt for pair case
     |> Option.map(((_, lst)) => UHDecorationShape.AssertStatus(lst))
     |> Option.to_list;
-  List.concat([
-    err_holes,
-    var_err_holes,
-    var_uses,
-    assert_statuses,
-    current_term,
-  ]);
+  print_endline("ASSERTS2");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      sexp_of_list(UHDecorationShape.sexp_of_t, asserts),
+    ),
+  );
+  List.concat([err_holes, var_err_holes, var_uses, asserts, current_term]);
 } /*taking precedent on the current term*/;

@@ -30,7 +30,9 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | AssertStatus(assert_instances) => AssertStatus.view(~assert_instances)
+    | AssertStatus(assert_instances) =>
+      //assert_view(assert_instances)
+      AssertStatus.view(~assert_instances)
     }
   );
 
@@ -96,14 +98,18 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               Decoration_common.container(
-                 ~font_metrics,
-                 ~height=MeasuredLayout.height(m),
-                 ~width=MeasuredLayout.width(~offset, m),
-                 ~origin=MeasuredPosition.{row: start.row, col: indent},
-                 ~cls,
-                 [view],
-               );
+               switch (dshape) {
+               | AssertStatus(a) => UHDecoration.assert_view(a)
+               | _ =>
+                 Decoration_common.container(
+                   ~font_metrics,
+                   ~height=MeasuredLayout.height(m),
+                   ~width=MeasuredLayout.width(~offset, m),
+                   ~origin=MeasuredPosition.{row: start.row, col: indent},
+                   ~cls,
+                   [view],
+                 )
+               };
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
@@ -294,11 +300,11 @@ let view =
       let code_text = view_of_box(~state, UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
-        /*
-         print_endline(
-           Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
-         );
-         */
+        print_endline("INTRODUCING... THE NEW dPATHS");
+        print_endline(
+          Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
+        );
+
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {

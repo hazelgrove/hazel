@@ -129,7 +129,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | _ => []
     };
   //TODO(andrew)
-  let _assert_statuses =
+  let asserts =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
@@ -156,7 +156,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
       err_holes,
       var_uses,
       var_err_holes,
-      assert_statuses: [], //TODO(andrew)
+      asserts, //: [], //TODO(andrew)
       current_term,
     };
   //print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));
