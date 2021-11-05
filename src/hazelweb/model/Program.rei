@@ -42,11 +42,10 @@ exception DoesNotElaborate;
 let get_elaboration: t => DHExp.t;
 
 /**
- * Raised when evaluation fails with the InvalidInput output
- * (indicates a bug, either in that function or in Action
- * because Action needs to return a well-typed edit state)
+ * Raised when evaluation fails (indicates a bug, either in that function or in
+ * Action because Action needs to return a well-typed edit state)
  */
-exception InvalidInput;
+exception EvalError(EvaluatorError.t);
 let get_result: t => Result.t;
 
 /**
