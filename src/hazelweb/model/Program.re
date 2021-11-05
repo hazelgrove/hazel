@@ -79,6 +79,8 @@ let get_elaboration = (program: t): DHExp.t =>
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
+exception EvalError(EvaluatorError.t);
+
 let get_result = (program: t): (Result.t, Evaluator.state) =>
   //check if map is resetted here
   switch (evaluate(get_elaboration(program))) {
