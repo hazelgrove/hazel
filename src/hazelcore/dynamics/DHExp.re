@@ -192,8 +192,9 @@ let rec dhexp_diff_value =
     );
   // slightly more restrictive that structural equality, except more permissive in the empty hole case
   switch (d1, d2) {
-  | (EmptyHole(_), _)
-  | (_, EmptyHole(_))
+  // TODO(andrew): still collect paths down to indetness
+  //| (EmptyHole(_), _)
+  //| (_, EmptyHole(_))
   | (Triv, Triv)
   | (ListNil(_), ListNil(_)) => ([], [])
   | (BoolLit(a), BoolLit(b)) when a == b => ([], [])
