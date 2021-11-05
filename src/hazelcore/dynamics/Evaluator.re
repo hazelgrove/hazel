@@ -528,13 +528,7 @@ let eval_bin_float_op =
 
 let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   switch (d) {
-  | BoundVar(x) =>
-    switch (Builtins.lookup_type(x)) {
-    | Some(ty) =>
-      // TODO: Assumes all builtins are functions
-      evaluate(Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])))
-    | None => InvalidInput(1)
-    }
+  | BoundVar(_) => InvalidInput(1)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)

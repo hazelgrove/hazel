@@ -360,7 +360,7 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.initial, Delta.empty),
+    Elaborator_Exp.elab(Contexts.initial, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
