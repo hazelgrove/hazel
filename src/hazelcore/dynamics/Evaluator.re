@@ -639,14 +639,28 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     | (Indet(d1), state) =>
       eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
     }
-  //| Ap(Ap(SameLit(n), d1), d2) => eval_same(n, d1, d2, state)
-  //| Ap(SameLit(_), _) => (BoxedValue(DHExp.EmptyHole(0, 0, [])), state)
   | Ap(d1, d2) =>
     switch (DHExp.strip_casts_value(d1)) {
     | Ap(SameLit(n), d1) => eval_same(n, d1, d2, state)
     | _ =>
       switch (evaluate(d1, ~state)) {
-      | (BoxedValue(SameLit(_)), _) => (BoxedValue(DHExp.Triv), state)
+      | (BoxedValue(SameLit(_) as sl), _) =>
+        evaluate(
+          Lam(Var("@"), Hole, Ap(Ap(sl, d2), BoundVar("@"))),
+          ~state,
+        )
+      //TODO(andrew): decide whether to partially evaluate
+      /*
+       | (BoxedValue(SameLit(_) as sl), _) =>
+       switch (evaluate(~state, d2)) {
+       | (BoxedValue(d2), state) =>
+         evaluate(
+           Lam(Var("@"), Hole, Ap(Ap(sl, d2), BoundVar("@"))),
+           ~state,
+         )
+       | (Indet(d2'), state) => (Indet(Ap(sl, d2')), state)
+       }
+        */
       | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
       | (BoxedValue(Lam(dp, _, d3)), state) =>
         eval_bind((d2, state), ((d2', state)) =>

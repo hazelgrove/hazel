@@ -10,12 +10,12 @@ let type_of_kw: kw => HTyp.t =
 
 let string_of_kw: kw => string =
   fun
-  | Assert => "assert"
+  | Assert => "test"
   | Same => "same";
 
 let kw_of_string: string => option(kw) =
   fun
-  | "assert" => Some(Assert)
+  | "test" => Some(Assert)
   | "same" => Some(Same)
   | _ => None;
 

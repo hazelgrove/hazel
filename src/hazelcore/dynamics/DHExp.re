@@ -195,6 +195,9 @@ let rec dhexp_diff_value =
   // TODO(andrew): still collect paths down to indetness
   //| (EmptyHole(_), _)
   //| (_, EmptyHole(_))
+  // or should we just test structural equality??
+  // strcutural equality vs possible consistency
+  // (differs in treatment of indets)
   | (Triv, Triv)
   | (ListNil(_), ListNil(_)) => ([], [])
   | (BoolLit(a), BoolLit(b)) when a == b => ([], [])
