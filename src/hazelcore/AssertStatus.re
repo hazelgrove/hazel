@@ -14,7 +14,9 @@ let join: (t, t) => t =
   (a, b) =>
     switch (a, b) {
     | (Fail, _) => Fail
-    | (_, x) => x
+    | (Indet, Fail) => Fail
+    | (Indet, _) => Indet
+    | (Pass, x) => x
     };
 
 let join_all: list(t) => t = List.fold_left(join, Pass);
