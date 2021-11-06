@@ -11,12 +11,12 @@ let type_of_kw: kw => HTyp.t =
 let string_of_kw: kw => string =
   fun
   | Assert => "test"
-  | Same => "same";
+  | Same => "testequals";
 
 let kw_of_string: string => option(kw) =
   fun
   | "test" => Some(Assert)
-  | "same" => Some(Same)
+  | "testequals" => Some(Same)
   | _ => None;
 
 [@deriving sexp]
