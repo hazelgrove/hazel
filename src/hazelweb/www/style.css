@@ -438,12 +438,12 @@ body {
 }
 
 .import-text-area {
-	width: 756px;
-	height: 580px;
+	width: 726px;
+	height: 560px;
 	resize: none;
 	border: solid 2px gray;
 	outline: none;
-	padding: 0;
+	padding: 15px;
 	font-family: var(--code-font-family);
 }
 

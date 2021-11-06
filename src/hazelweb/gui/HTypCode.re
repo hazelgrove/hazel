@@ -13,6 +13,7 @@ let view_of_layout =
   let col: ref(int) = ref(0);
   let rec go = (indent: int, dpaths, l: HTypLayout.t) =>
     switch (l) {
+    | ExternalLinebreak => go(indent, dpaths, l)
     | Linebreak =>
       col := indent;
       [
