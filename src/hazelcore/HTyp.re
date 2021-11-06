@@ -191,7 +191,7 @@ let rec join = (j, ty1, ty2) =>
   | (Sum(tys), Sum(tys')) =>
     /* if tys != tys', then sort them first */
     let (tys, tys') =
-      TagMap.equal_tags(tys, tys')
+      TagMap.tags_equal(tys, tys')
         ? (tys, tys') : (TagMap.sort(tys), TagMap.sort(tys'));
     Option.map(
       joined_tys => Sum(joined_tys),
@@ -254,3 +254,19 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let rec valid = (theta: TypVarCtx.t, ty: t): bool =>
+  switch (ty) {
+  | Hole
+  | Int
+  | Float
+  | Bool => true
+  | Arrow(ty1, ty2) => valid(theta, ty1) && valid(theta, ty2)
+  | Sum(tymap) =>
+    tymap
+    |> TagMap.for_all(((_, ty_opt)) =>
+         ty_opt |> Option.map(valid(theta)) |> Option.value(~default=true)
+       )
+  | Prod(tys) => List.for_all(valid(theta), tys)
+  | List(ty) => valid(theta, ty)
+  };
