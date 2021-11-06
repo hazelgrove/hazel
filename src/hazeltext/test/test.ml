@@ -1,6 +1,6 @@
-module Parsing = Parser.Parsing
-module Parse = Parser.Parse
-module Print = Parser.Print
+module Parsing = Hazeltext.Parsing
+module Parse = Hazeltext.Parse
+module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make(Memo.DummyMemo)
 
 let parse text: UHExp.block option =

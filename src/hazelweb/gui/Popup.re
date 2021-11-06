@@ -1,8 +1,8 @@
 open Incr_dom;
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
-module Parsing = Parser.Parsing;
-module Print = Parser.Print;
+module Parsing = Hazeltext.Parsing;
+module Print = Hazeltext.Print;
 
 let extract_program_string = model => {
   let prog = Model.get_program(model);

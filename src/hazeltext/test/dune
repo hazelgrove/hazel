@@ -3,6 +3,6 @@
 (library
  (name parse_test)
  (inline_tests)
- (libraries parser)
+ (libraries hazeltext)
  (preprocess
   (pps ppx_let ppx_inline_test)))

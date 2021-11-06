@@ -1,7 +1,7 @@
 (include_subdirs no)
 
 (library
- (name parser)
+ (name hazeltext)
  (libraries pretty hazelcore menhirLib)
  (preprocess
   (pps ppx_let)))
