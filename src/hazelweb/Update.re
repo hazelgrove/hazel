@@ -284,12 +284,21 @@ let rec apply_action =
           |> apply(UpdateCursorInspector(Set_guide(false)))
           |> apply(UpdateCursorInspector(Set_novice_mode(false)))
           |> apply(UpdateAssistant(Turn_on))
+          |> apply(UpdateAssistant(Set_display_mode(Normal)))
+        | Some(AssistantMinimal) =>
+          model
+          |> apply(UpdateCursorInspector(Set_visible(true)))
+          |> apply(UpdateCursorInspector(Set_guide(false)))
+          |> apply(UpdateCursorInspector(Set_novice_mode(false)))
+          |> apply(UpdateAssistant(Turn_on))
+          |> apply(UpdateAssistant(Set_display_mode(Minimal)))
         };
       | ToggleCursorInspectorMode =>
         let cursor_inspector_mode: option(Model.cursor_inspector_mode) =
           switch (Model.get_cursor_inspector_mode(model)) {
           | None => Some(Assistant)
-          | Some(Assistant) => Some(Tutor)
+          | Some(Assistant) => Some(AssistantMinimal)
+          | Some(AssistantMinimal) => Some(Tutor)
           | Some(Tutor) => Some(Simple)
           | Some(Simple) => None
           };

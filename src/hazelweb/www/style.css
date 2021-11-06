@@ -931,6 +931,33 @@ body {
   text-decoration: none;
 }
 
+/* assistant minimal mode */
+
+.assistant-active.assistant-minimal .cursor-inspector {
+  display: flex;
+  flex-flow: row-reverse;
+  align-items: flex-start;
+}
+
+.assistant-active.assistant-minimal .clickable-help-icon {
+  filter: drop-shadow(0px 0px 1px#497);
+  padding: 0px;
+  margin-left: 0.5em;
+  margin-top: 0.5em;
+  border-radius: 0.2em;
+}
+
+.assistant-active.assistant-minimal .suggestion-info {
+  margin-left: 2.8em !important;
+  margin-top: 2.1em !important;
+}
+
+.assistant-active.assistant-minimal #assistant > .choice.hovered {
+  left: -0.1em;
+  width: calc(100% + 0.2em);
+  border-radius: 0.2em;
+}
+
 /* assistant top-level styles */
 
 #assistant-wrapper {
@@ -1072,6 +1099,7 @@ body {
 #assistant > .choice > .code-container {
   min-height: 2.25em;
   padding-left: 0.4em;
+  padding-right: 0.4em;
   display: flex;
   align-items: center;
 }

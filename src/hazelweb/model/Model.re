@@ -8,7 +8,8 @@ type editor =
 type cursor_inspector_mode =
   | Simple
   | Tutor
-  | Assistant;
+  | Assistant
+  | AssistantMinimal;
 
 type t = {
   cardstacks: ZCardstacks.t,

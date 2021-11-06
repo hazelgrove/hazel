@@ -443,6 +443,15 @@ let novice_summary =
   message(typed);
 };
 
+let minimal_assistant_icon_view = (assistant, ci) => {
+  let score = AssistantModel.get_indicated_score(assistant, ci);
+  let num_suggestions = AssistantModel.num_suggestions(ci, assistant); //DANGER
+  let tag_type = TermTag.get_cursor_term_sort(ci.cursor_term);
+  num_suggestions == 0
+    ? Node.div([], [])
+    : AssistantView.icon(~score, ~num_suggestions, tag_type);
+};
+
 let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
@@ -452,11 +461,11 @@ let summary_bar =
       novice_mode: bool,
       show_strategy_guide_icon: bool,
       assistant: AssistantModel.t,
-      assistant_enabled: bool,
       cursor_inspector_mode,
       ~font_metrics,
       ~settings,
     ) => {
+  let assistant_enabled = assistant.active;
   let toggle_cursor_inspector_event = toggle =>
     Event.Many([
       Event.Prevent_default,
@@ -564,7 +573,7 @@ let view =
     : Node.t => {
   let cursor_inspector_mode = Model.get_cursor_inspector_mode(model);
   let program = Model.get_program(model);
-  let cursor_info = Editor.Exp.get_cursor_info(program);
+  let ci = Editor.Exp.get_cursor_info(program);
   let u_gen = Editor.EditState_Exp.get_ugen(program.edit_state);
 
   let inconsistent_branches_ty_bar =
@@ -633,7 +642,7 @@ let view =
     );
 
   let expanded_msg =
-    switch (cursor_info.typed) {
+    switch (ci.typed) {
     | SynBranchClause(
         InconsistentBranchTys(rule_types, path_to_case),
         _,
@@ -702,7 +711,7 @@ let view =
       }
     };
 
-  let err_state_b = get_err_state_b(cursor_info.typed);
+  let err_state_b = get_err_state_b(ci.typed);
 
   // this determines the color
   let cls_of_err_state_b =
@@ -720,22 +729,20 @@ let view =
       ),
     );
   let above_or_below =
-    switch (cursor_info.cursor_term) {
+    switch (ci.cursor_term) {
     | ExpOperand(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
   let (show_strategy_guide_icon, strategy_guide) =
-    switch (cursor_info.cursor_term, cursor_info.parent_info) {
+    switch (ci.cursor_term, ci.parent_info) {
     | (ExpOperand(_, EmptyHole(_)), _) => (
         true,
-        Some(
-          StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
-        ),
+        Some(StrategyGuide.exp_hole_view(~inject, cursor_inspector, ci)),
       )
     | (Rule(_), _)
     | (ExpOperand(_, Case(_)), _)
     | (_, AfterBranchClause) =>
-      switch (StrategyGuide.rules_view(cursor_info)) {
+      switch (StrategyGuide.rules_view(ci)) {
       | None => (false, None)
       | Some(sg_rules) => (true, Some(sg_rules))
       }
@@ -754,13 +761,12 @@ let view =
   let summary =
     summary_bar(
       ~inject,
-      cursor_info,
+      ci,
       show_expansion_arrow,
       cursor_inspector.show_expanded,
       cursor_inspector.novice_mode,
       show_strategy_guide_icon,
       assistant,
-      assistant.active,
       cursor_inspector_mode,
       ~font_metrics,
       ~settings,
@@ -772,12 +778,21 @@ let view =
       ~font_metrics,
       ~settings,
       ~u_gen,
-      ~ci=cursor_info,
+      ~ci,
     );
   let content =
-    switch (assistant.active, cursor_inspector.strategy_guide, strategy_guide) {
-    | (true, _, _) => [summary, assistant_view]
-    | (_, true, Some(strategy_guide)) => [summary, strategy_guide]
+    switch (
+      assistant.active,
+      assistant.display_mode,
+      cursor_inspector.strategy_guide,
+      strategy_guide,
+    ) {
+    | (true, Minimal, _, _) => [
+        minimal_assistant_icon_view(assistant, ci),
+        assistant_view,
+      ]
+    | (true, Normal, _, _) => [summary, assistant_view]
+    | (_, _, true, Some(strategy_guide)) => [summary, strategy_guide]
     | _ => [summary]
     };
   Node.div(
@@ -785,7 +800,8 @@ let view =
       Attr.id("cursor-inspector"),
       Attr.classes(
         ["cursor-inspector-outer", above_or_below]
-        @ (assistant.active ? ["assistant-active"] : []),
+        @ (assistant.active ? ["assistant-active"] : [])
+        @ (assistant.display_mode == Minimal ? ["assistant-minimal"] : []),
       ),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),

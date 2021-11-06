@@ -1,11 +1,17 @@
 open OptUtil.Syntax;
 open Sexplib.Std;
 
+[@deriving sexp]
+type display_mode =
+  | Minimal
+  | Normal;
+
 type t = {
   active: bool,
   selection_index: int,
   hover_index: option(int),
   choice_display_limit: int,
+  display_mode,
   filter_editor: Editor.typ,
 };
 
@@ -18,13 +24,15 @@ type update =
   | Increment_selection_index
   | Decrement_selection_index
   | Set_hover_index(option(int))
+  | Set_display_mode(display_mode)
   | Set_type_editor(UHTyp.t);
 
 let init = {
   active: false,
+  display_mode: Normal,
+  choice_display_limit: 6,
   selection_index: 0,
   hover_index: None,
-  choice_display_limit: 6,
   filter_editor: Editor.mk_typ_editor(OpSeq.wrap(UHTyp.Hole)),
 };
 
@@ -46,6 +54,11 @@ let set_hover_index = (hover_index: option(int), model: t): t => {
   hover_index,
 };
 
+let set_display_mode = (display_mode: display_mode, model: t): t => {
+  ...model,
+  display_mode,
+};
+
 let is_active_suggestion_index = (model: t, i: int) =>
   switch (model.hover_index) {
   | None => i == 0 // select first by default
@@ -58,12 +71,17 @@ let is_hovering = (model: t) =>
   | Some(_) => true
   };
 
-let apply_update = (u: update, model: t) =>
+let rec apply_update = (u: update, model: t) =>
   switch (u) {
-  | Turn_off => init
-  | Turn_on => {...init, active: true}
+  | Reset => {
+      ...init,
+      active: model.active,
+      display_mode: model.display_mode,
+      choice_display_limit: model.choice_display_limit,
+    }
+  | Turn_off => {...apply_update(Reset, model), active: false}
+  | Turn_on => {...apply_update(Reset, model), active: true}
   | Toggle => {...model, active: !model.active}
-  | Reset => {...init, active: model.active}
   | Increment_selection_index => {
       ...model,
       selection_index: model.selection_index + 1,
@@ -72,9 +90,18 @@ let apply_update = (u: update, model: t) =>
       ...model,
       selection_index: model.selection_index - 1,
     }
+  | Set_hover_index(n) => {...model, hover_index: n}
+  | Set_display_mode(m) => {
+      ...model,
+      display_mode: m,
+      choice_display_limit:
+        switch (m) {
+        | Minimal => 4
+        | Normal => 6
+        },
+    }
   | Set_type_editor(uty) =>
     put_filter_editor(model, Editor.mk_typ_editor(uty))
-  | Set_hover_index(n) => {...model, hover_index: n}
   };
 
 let mk_suggestions =

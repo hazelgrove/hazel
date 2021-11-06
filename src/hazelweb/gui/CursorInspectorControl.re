@@ -6,6 +6,7 @@ let string_of_cursor_inspector_mode =
   switch (mode) {
   | Some(Simple) => "inspector"
   | Some(Assistant) => "assistant"
+  | Some(AssistantMinimal) => "μ-assist"
   | Some(Tutor) => "tutor"
   | None => "off"
   };
@@ -74,6 +75,7 @@ let view =
     menu_title,
     hr([]),
     menu_option(Some(Assistant)),
+    menu_option(Some(AssistantMinimal)),
     menu_option(Some(Tutor)),
     menu_option(Some(Simple)),
     menu_option(None, ~body=[close_key]),

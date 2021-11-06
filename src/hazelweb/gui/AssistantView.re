@@ -268,19 +268,14 @@ let result_ty_view: Suggestion.t => Node.t =
       )
     };
 
-let suggestion_view =
+let suggestion_view_logic =
     (
       ~suggestion: Suggestion.t,
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
-      ~search_string: string,
-      ~ci: CursorInfo.t,
-      ~settings: Settings.t,
-      ~font_metrics: FontMetrics.t,
       ~inject: ModelAction.t => Event.t,
-    )
-    : Node.t => {
+    ) => {
   let perform_action = _ =>
     Event.Many([
       Event.Prevent_default,
@@ -297,20 +292,44 @@ let suggestion_view =
     @ (is_hovered ? ["hovered"] : [])
     @ (color_score > 0. ? ["errors-less"] : [])
     @ (color_score < 0. ? ["errors-more"] : []);
+  [
+    Attr.id(string_of_int(index)),
+    Attr.classes(assistant_classes),
+    Attr.create("tabindex", "0"), // necessary to make cell focusable
+    Attr.on_click(perform_action),
+    Attr.on_mouseenter(_ => set_hover_index(Some(index))),
+    Attr.on_mouseleave(_ => set_hover_index(None)),
+  ];
+};
+
+let suggestion_view =
+    (
+      ~suggestion: Suggestion.t,
+      ~display_mode: AssistantModel.display_mode,
+      ~index: int,
+      ~is_hovered: bool,
+      ~is_selected: bool,
+      ~search_string: string,
+      ~ci: CursorInfo.t,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      ~inject: ModelAction.t => Event.t,
+    ) => {
   div(
-    [
-      Attr.id(string_of_int(index)),
-      Attr.classes(assistant_classes),
-      Attr.create("tabindex", "0"), // necessary to make cell focusable
-      Attr.on_click(perform_action),
-      Attr.on_mouseenter(_ => set_hover_index(Some(index))),
-      Attr.on_mouseleave(_ => set_hover_index(None)),
-    ],
-    [
-      result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics),
-      result_ty_view(suggestion),
-      strategy_view(suggestion),
-    ],
+    suggestion_view_logic(
+      ~suggestion,
+      ~index,
+      ~is_hovered,
+      ~is_selected,
+      ~inject,
+    ),
+    [result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics)]
+    @ (
+      switch (display_mode) {
+      | Minimal => []
+      | Normal => [result_ty_view(suggestion), strategy_view(suggestion)]
+      }
+    ),
   );
 };
 
@@ -333,6 +352,7 @@ let suggestions_view =
       ~settings,
       ~font_metrics,
       ~suggestion,
+      ~display_mode=assistant.display_mode,
       ~is_selected=index == 0,
       ~is_hovered=AssistantModel.is_active_suggestion_index(assistant, index),
       ~index,
