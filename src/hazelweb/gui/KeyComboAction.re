@@ -124,6 +124,7 @@ let get_assistant_action =
         UpdateAssistant(Reset), // reset assistant selection
         main_action,
       ])*/
+    //TODO(andrew): cleanup
     };
   let cond =
     definitely_stays_on_operand(main_action, ci) || kc == Down || kc == Up;

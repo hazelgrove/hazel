@@ -83,42 +83,15 @@ let vars_satisfying_p = (ctx: Contexts.t, p) => {
 
 let get_wrapped_operand =
     (
-      {ctx, _}: CursorInfo.t,
-      p,
-      wrap_name: string,
+      _ /*{ctx, _}*/: CursorInfo.t,
+      _p,
+      _wrap_name: string,
       cursor_term: CursorInfo.cursor_term,
     ) => {
   switch (cursor_term) {
-  | ExpOperand(
-      OnText(i),
-      (Var(_, InVarHole(_), s) | InvalidText(_, s)) as operand,
-    ) =>
-    /*
-      If we're on an unbound variable or invalidtext, try to interpret
-      it as the user attempting to wrap the current operand, splitting
-      the cursortext at the cursor and trying to match the wrapper to
-      the prefix and find a wrappee matching the suffix
-     */
-    let (pre, suf) = StringUtil.split_string(i, s);
-    switch (StringUtil.search_forward_opt(Str.regexp(pre), wrap_name)) {
-    | None => operand
-    | Some(_) =>
-      let suf_op = UHExp.operand_of_string(suf);
-      if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
-        suf_op;
-      } else {
-        switch (
-          vars_satisfying_p(ctx, x =>
-            p(x) && is_substring_of_var_name(suf, x)
-          )
-        ) {
-        | [] => operand
-        | [(name, _), ..._] =>
-          // TODO: return best match rather than first
-          UHExp.operand_of_string(name)
-        };
-      };
-    };
+  | ExpOperand(OnText(_), Var(_, InVarHole(_), _) | InvalidText(_)) =>
+  // don't bother suggesting wrapping unknown stuff
+  hole_operand // TODO: optionify
   | ExpOperand(_, operand) =>
     // TODO: consider bound variables which are coincidentally wraps
     UHExp.set_err_status_operand(NotInHole, operand)
