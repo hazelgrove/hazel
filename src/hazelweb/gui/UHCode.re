@@ -128,8 +128,8 @@ let click_to_move =
         ),
     };
   Chain([
-    UpdateAssistant(Reset), // reset assistant selection
     MoveAction(Click(caret_pos)),
+    UpdateAssistant(Reset) // reset assistant selection
   ]);
 };
 

@@ -254,12 +254,6 @@ let update_filter_editor = (a: Action.t, new_editor, model: t): t => {
   |> put_assistant_model(model);
 };
 
-/*
- let set_assistant_hover_index = (hover_index, model: t) => {
-   AssistantModel.set_hover_index(hover_index, model.assistant)
-   |> put_assistant_model(model);
- };*/
-
 let nth_card = (n, model) => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.nth_card(n)))

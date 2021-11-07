@@ -280,8 +280,15 @@ let suggestion_view_logic =
     Event.Many([
       Event.Prevent_default,
       Event.Stop_propagation,
-      inject(FocusCell(MainProgram)), // prevent main editor from losing focus
-      inject(ModelAction.AcceptSuggestion(Suggestion.action(suggestion))),
+      inject(
+        Chain([
+          FocusCell(MainProgram),
+          AcceptSuggestion(Suggestion.action(suggestion)),
+          UpdateAssistant(Reset),
+        ]),
+      ),
+      //inject(FocusCell(MainProgram)), // prevent main editor from losing focus
+      //inject(ModelAction.AcceptSuggestion(Suggestion.action(suggestion))),
     ]);
   let set_hover_index = (idx: option(int)) =>
     inject(ModelAction.UpdateAssistant(Set_hover_index(idx)));

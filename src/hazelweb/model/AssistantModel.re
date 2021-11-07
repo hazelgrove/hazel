@@ -12,6 +12,7 @@ type t = {
   hover_index: option(int),
   choice_display_limit: int,
   display_mode,
+  retained_ci: option(CursorInfo.t),
   filter_editor: Editor.typ,
 };
 
@@ -25,6 +26,7 @@ type update =
   | Decrement_selection_index
   | Set_hover_index(option(int))
   | Set_display_mode(display_mode)
+  | Set_retained_ci(option(CursorInfo.t))
   | Set_type_editor(UHTyp.t);
 
 let init = {
@@ -33,6 +35,7 @@ let init = {
   choice_display_limit: 6,
   selection_index: 0,
   hover_index: None,
+  retained_ci: None,
   filter_editor: Editor.mk_typ_editor(OpSeq.wrap(UHTyp.Hole)),
 };
 
@@ -49,16 +52,6 @@ let update_filter_editor = (a: Action.t, new_editor, assistant_model: t): t => {
   put_filter_editor(assistant_model, {...new_editor, edit_state});
 };
 
-let set_hover_index = (hover_index: option(int), model: t): t => {
-  ...model,
-  hover_index,
-};
-
-let set_display_mode = (display_mode: display_mode, model: t): t => {
-  ...model,
-  display_mode,
-};
-
 let is_active_suggestion_index = (model: t, i: int) =>
   switch (model.hover_index) {
   | None => i == 0 // select first by default
@@ -71,16 +64,19 @@ let is_hovering = (model: t) =>
   | Some(_) => true
   };
 
-let rec apply_update = (u: update, model: t) =>
+let rec apply_update = (u: update, model: t, ci: CursorInfo.t) =>
   switch (u) {
-  | Reset => {
+  | Reset =>
+    print_endline("Resetting incl. retained_ci");
+    {
       ...init,
+      retained_ci: Some(ci),
       active: model.active,
       display_mode: model.display_mode,
       choice_display_limit: model.choice_display_limit,
-    }
-  | Turn_off => {...apply_update(Reset, model), active: false}
-  | Turn_on => {...apply_update(Reset, model), active: true}
+    };
+  | Turn_off => {...apply_update(Reset, model, ci), active: false}
+  | Turn_on => {...apply_update(Reset, model, ci), active: true}
   | Toggle => {...model, active: !model.active}
   | Increment_selection_index => {
       ...model,
@@ -100,13 +96,26 @@ let rec apply_update = (u: update, model: t) =>
         | Normal => 6
         },
     }
+  | Set_retained_ci(retained_ci) =>
+    print_endline("Setting_retained_ci");
+    {...model, retained_ci};
   | Set_type_editor(uty) =>
     put_filter_editor(model, Editor.mk_typ_editor(uty))
   };
 
 let mk_suggestions =
-    ({filter_editor, _}: t, ci: CursorInfo.t, ~u_gen: MetaVarGen.t) =>
+    (
+      {filter_editor, retained_ci, _}: t,
+      ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t,
+    ) => {
+  let ci =
+    switch (retained_ci) {
+    | None => ci
+    | Some(ci) => ci
+    };
   Suggestions.mk(~u_gen, ci, Editor.get_ty(filter_editor));
+};
 
 let wrap_index = (index, xs) => IntUtil.wrap(index, List.length(xs));
 

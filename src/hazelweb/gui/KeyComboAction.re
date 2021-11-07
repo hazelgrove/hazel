@@ -63,49 +63,91 @@ let get_main_action =
 let get_main_action_default =
   get_main_action(~cursor_on_type=false, ~cursor_on_comment=false);
 
-let get_assistant_action =
-    (kc: HazelKeyCombos.t, ~assistant_action: option(Action.t))
-    : option(ModelAction.t) =>
-  switch (kc, assistant_action) {
-  | (Shift_Down, _) => Some(get_main_action_default(Down))
-  | (Shift_Up, _) => Some(get_main_action_default(Up))
-  | (Down, Some(_)) => Some(UpdateAssistant(Increment_selection_index))
-  | (Up, Some(_)) => Some(UpdateAssistant(Decrement_selection_index))
-  | (Enter, Some(ReplaceOperand(of_sort))) =>
-    let place_after: Action.replace_operand_of_sort =
-      switch (of_sort) {
-      | Exp(operand, _) => Exp(operand, Some(ZExp.place_after))
-      | Pat(operand, _) => Pat(operand, Some(ZPat.place_after))
-      | Typ(operand, _) => Typ(operand, Some(ZTyp.place_after))
-      };
-    Some(AcceptSuggestion(ReplaceOperand(place_after)));
-  | (Enter, Some(action)) => Some(AcceptSuggestion(action))
-  | (Tab, Some(action)) =>
-    Some(Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)]))
-  | _ => None
+let definitely_stays_on_operand =
+    (action: ModelAction.t, ci: CursorInfo.t): bool => {
+  //an altenate approach: reset retained whenever operand
+  //isnt invalidtext or freevar
+  let ct = ci.cursor_term;
+  let on_text = CursorInfo_common.cursor_is_on_text(ct);
+  let at_end = CursorInfo_common.cursor_at_end(ct);
+  let at_start = CursorInfo_common.cursor_at_start(ct);
+  let single_char = CursorInfo_common.cursor_is_on_single_char_text(ct);
+  print_endline(string_of_bool(single_char));
+  switch (action) {
+  | MoveAction(Key(ArrowLeft)) => on_text && !at_end
+  | MoveAction(Key(ArrowRight)) => on_text && !at_start
+  | EditAction(ea) =>
+    switch (ea) {
+    | MoveLeft => on_text && !at_end
+    | MoveRight => on_text && !at_start
+    | Backspace => on_text && !at_end && !(single_char && at_start)
+    | Delete => on_text && !at_start && !(single_char && at_end)
+    | Construct(shape) =>
+      switch (shape) {
+      | SChar(_string) => true
+      | SListNil //TODO (maybe true?)
+      | _ => false
+      }
+    | _ => false
+    }
+  | _ => false
   };
+};
+
+let get_assistant_action =
+    (
+      kc: HazelKeyCombos.t,
+      ~ci: CursorInfo.t,
+      ~assistant_action: option(Action.t),
+      ~main_action: ModelAction.t,
+    )
+    : ModelAction.t => {
+  let base_action: ModelAction.t =
+    switch (kc, assistant_action) {
+    | (Down, Some(_)) => UpdateAssistant(Increment_selection_index)
+    | (Up, Some(_)) => UpdateAssistant(Decrement_selection_index)
+    | (Enter, Some(ReplaceOperand(of_sort))) =>
+      let place_after: Action.replace_operand_of_sort =
+        switch (of_sort) {
+        | Exp(operand, _) => Exp(operand, Some(ZExp.place_after))
+        | Pat(operand, _) => Pat(operand, Some(ZPat.place_after))
+        | Typ(operand, _) => Typ(operand, Some(ZTyp.place_after))
+        };
+      AcceptSuggestion(ReplaceOperand(place_after));
+    | (Enter, Some(action)) => AcceptSuggestion(action)
+    | (Tab, Some(action)) =>
+      Chain([AcceptSuggestion(action), EditAction(MoveToNextHole)])
+    | (Shift_Down, _) => get_main_action_default(Down)
+    | (Shift_Up, _) => get_main_action_default(Up)
+    | _ => main_action /*
+      Chain([
+        UpdateAssistant(Reset), // reset assistant selection
+        main_action,
+      ])*/
+    };
+  let cond =
+    definitely_stays_on_operand(main_action, ci) || kc == Down || kc == Up;
+  cond
+    ? base_action
+    : Chain([
+        base_action,
+        UpdateAssistant(Reset) /*UpdateAssistant(Set_retained_ci(Some(ci)))*/,
+      ]);
+};
 
 let get_model_action = (model: Model.t, kc: HazelKeyCombos.t): ModelAction.t => {
-  let cursor_info = Model.get_cursor_info(model);
+  let ci = Model.get_cursor_info(model);
   let assistant_focussed =
     model.focal_editor == Model.MainProgram && model.assistant.active;
-  let assistant_action = AssistantModel.action(model.assistant, cursor_info);
+  let assistant_action = AssistantModel.action(model.assistant, ci);
   let (cursor_on_type, cursor_on_comment) =
-    switch (cursor_info) {
+    switch (ci) {
     | {typed: OnType(_), _} => (true, false)
     | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
     | _ => (false, false)
     };
-  switch (get_assistant_action(kc, ~assistant_action)) {
-  | Some(action) when assistant_focussed => action
-  | _ =>
-    let main_action =
-      get_main_action(kc, ~cursor_on_type, ~cursor_on_comment);
-    model.assistant.active
-      ? Chain([
-          UpdateAssistant(Reset), // reset assistant selection
-          main_action,
-        ])
-      : main_action;
-  };
+  let main_action = get_main_action(kc, ~cursor_on_type, ~cursor_on_comment);
+  let assistant_action =
+    get_assistant_action(kc, ~ci, ~assistant_action, ~main_action);
+  assistant_focussed ? assistant_action : main_action;
 };

@@ -1,119 +1,11 @@
 open OptUtil.Syntax;
 open CursorInfo;
 
+[@deriving sexp]
 type zoperand =
   | ZExp(ZExp.zoperand)
   | ZTyp(ZTyp.zoperand)
   | ZPat(ZPat.zoperand);
-
-let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | ExpOperand(_, exp) =>
-    switch (exp) {
-    | EmptyHole(_)
-    | Var(_, _, _)
-    | IntLit(_, _)
-    | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-    | _ => false
-    }
-  | PatOperand(_, pat) =>
-    switch (pat) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | IntLit(_, _)
-    | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | _ => false
-    }
-  | TypOperand(_, _)
-  | ExpOperator(_, _)
-  | PatOperator(_, _)
-  | TypOperator(_, _) => false
-  | Line(_, line) =>
-    switch (line) {
-    | EmptyLine
-    | CommentLine(_) => true
-    | LetLine(_)
-    | ExpLine(_) => false
-    }
-  | Rule(_, _) => false
-  };
-};
-
-let cursor_position_of_cursor_term: CursorInfo.cursor_term => CursorPosition.t =
-  fun
-  | ExpOperand(pos, _)
-  | PatOperand(pos, _)
-  | TypOperand(pos, _)
-  | ExpOperator(pos, _)
-  | PatOperator(pos, _)
-  | TypOperator(pos, _)
-  | Line(pos, _)
-  | Rule(pos, _) => pos;
-
-let index_of_cursor_term = (term: CursorInfo.cursor_term): int =>
-  switch (cursor_position_of_cursor_term(term)) {
-  | OnText(i) => i
-  | _ => 0
-  };
-
-let string_of_cursor_term = (term: CursorInfo.cursor_term): string => {
-  switch (term) {
-  | PatOperand(_, Var(_, _, s))
-  | PatOperand(_, InvalidText(_, s))
-  | PatOperand(_, IntLit(_, s))
-  | PatOperand(_, FloatLit(_, s))
-  | ExpOperand(_, Var(_, _, s))
-  | ExpOperand(_, InvalidText(_, s))
-  | ExpOperand(_, IntLit(_, s))
-  | ExpOperand(_, FloatLit(_, s)) => s
-  | ExpOperand(_, BoolLit(_, b))
-  | PatOperand(_, BoolLit(_, b)) => string_of_bool(b)
-  | _ => ""
-  };
-};
-
-let is_empty_hole = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | ExpOperand(_, EmptyHole(_))
-  | TypOperand(_, Hole)
-  | PatOperand(_, EmptyHole(_)) => true
-  | ExpOperand(_)
-  | PatOperand(_)
-  | TypOperand(_)
-  | ExpOperator(_)
-  | PatOperator(_)
-  | TypOperator(_)
-  | Line(_)
-  | Rule(_) => false
-  };
-};
-
-let is_op = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | ExpOperator(_, _)
-  | PatOperator(_, _)
-  | TypOperator(_, _) => true
-  | _ => false
-  };
-};
-
-let is_empty_line = (cursor_term): bool => {
-  switch (cursor_term) {
-  | Line(_, EmptyLine) => true
-  | _ => false
-  };
-};
-
-let is_comment_line = (cursor_term): bool => {
-  switch (cursor_term) {
-  | Line(_, CommentLine(_)) => true
-  | _ => false
-  };
-};
 
 [@deriving sexp]
 type mode =
@@ -196,7 +88,130 @@ let get_type = (cursor_info: t): option(HTyp.t) => {
   expected_ty;
 };
 
-let on_empty_expr_hole: CursorInfo.cursor_term => bool =
+let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | ExpOperand(_, exp) =>
+    switch (exp) {
+    | EmptyHole(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    | _ => false
+    }
+  | PatOperand(_, pat) =>
+    switch (pat) {
+    | EmptyHole(_)
+    | Wild(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | _ => false
+    }
+  | TypOperand(_, _)
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _) => false
+  | Line(_, line) =>
+    switch (line) {
+    | EmptyLine
+    | CommentLine(_) => true
+    | LetLine(_)
+    | ExpLine(_) => false
+    }
+  | Rule(_, _) => false
+  };
+};
+
+let cursor_position_of_cursor_term: CursorInfo.cursor_term => CursorPosition.t =
+  fun
+  | ExpOperand(pos, _)
+  | PatOperand(pos, _)
+  | TypOperand(pos, _)
+  | ExpOperator(pos, _)
+  | PatOperator(pos, _)
+  | TypOperator(pos, _)
+  | Line(pos, _)
+  | Rule(pos, _) => pos;
+
+let index_of_cursor_term = (term: cursor_term): int =>
+  switch (cursor_position_of_cursor_term(term)) {
+  | OnText(i) => i
+  | _ => 0
+  };
+
+let cursor_is_on_text = (term: cursor_term): bool =>
+  switch (cursor_position_of_cursor_term(term)) {
+  | OnText(_) => true
+  | _ => false
+  };
+
+let cursor_is_on_single_char_text: cursor_term => bool =
+  fun
+  //| ExpOperand(_, ListNil(_)) => true // debatably
+  //| PatOperand(_, ListNil(_)) => true
+  //| PatOperand(_, Wild(_)) => true
+  | ExpOperand(_, InvalidText(_, t))
+  | ExpOperand(_, Var(_, _, t))
+  | ExpOperand(_, IntLit(_, t))
+  | ExpOperand(_, FloatLit(_, t))
+  | PatOperand(_, InvalidText(_, t))
+  | PatOperand(_, Var(_, _, t))
+  | PatOperand(_, IntLit(_, t))
+  | PatOperand(_, FloatLit(_, t)) => 1 == String.length(t)
+  | _ => false;
+
+let string_of_cursor_term = (term: cursor_term): string => {
+  switch (term) {
+  | PatOperand(_, Var(_, _, s))
+  | PatOperand(_, InvalidText(_, s))
+  | PatOperand(_, IntLit(_, s))
+  | PatOperand(_, FloatLit(_, s))
+  | ExpOperand(_, Var(_, _, s))
+  | ExpOperand(_, InvalidText(_, s))
+  | ExpOperand(_, IntLit(_, s))
+  | ExpOperand(_, FloatLit(_, s)) => s
+  | ExpOperand(_, BoolLit(_, b))
+  | PatOperand(_, BoolLit(_, b)) => string_of_bool(b)
+  | _ => ""
+  };
+};
+
+let is_empty_hole = (term: cursor_term): bool => {
+  switch (term) {
+  | ExpOperand(_, EmptyHole(_))
+  | TypOperand(_, Hole)
+  | PatOperand(_, EmptyHole(_)) => true
+  | _ => false
+  };
+};
+
+let is_op = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _) => true
+  | _ => false
+  };
+};
+
+let is_empty_line = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Line(_, EmptyLine) => true
+  | _ => false
+  };
+};
+
+let is_comment_line = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Line(_, CommentLine(_)) => true
+  | _ => false
+  };
+};
+
+let on_empty_expr_hole: cursor_term => bool =
   fun
   | ExpOperand(_, EmptyHole(_)) => true
   | ExpOperand(_)
@@ -208,14 +223,35 @@ let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   | Line(_)
   | Rule(_) => false;
 
-let on_expr_var: CursorInfo.cursor_term => bool =
+let on_expr_var: cursor_term => bool =
   fun
   | ExpOperand(_, Var(_)) => true
   | ExpOperand(_, _) => false
   | _ => false;
 
-let is_end_keyword =
-    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
+let cursor_at_end: cursor_term => bool =
+  fun
+  | ExpOperand(cp, op) => ZExp.is_before_zoperand(CursorE(cp, op))
+  | PatOperand(cp, op) => ZPat.is_before_zoperand(CursorP(cp, op))
+  | TypOperand(cp, op) => ZTyp.is_before_zoperand(CursorT(cp, op))
+  | ExpOperator(cp, op) => ZExp.is_before_zoperator((cp, op))
+  | PatOperator(cp, op) => ZPat.is_before_zoperator((cp, op))
+  | TypOperator(cp, op) => ZTyp.is_before_zoperator((cp, op))
+  | Line(cp, line) => ZExp.is_before_zline(CursorL(cp, line))
+  | Rule(cp, rule) => ZExp.is_before_zrule(CursorR(cp, rule));
+
+let cursor_at_start: cursor_term => bool =
+  fun
+  | ExpOperand(cp, op) => ZExp.is_after_zoperand(CursorE(cp, op))
+  | PatOperand(cp, op) => ZPat.is_after_zoperand(CursorP(cp, op))
+  | TypOperand(cp, op) => ZTyp.is_after_zoperand(CursorT(cp, op))
+  | ExpOperator(cp, op) => ZExp.is_after_zoperator((cp, op))
+  | PatOperator(cp, op) => ZPat.is_after_zoperator((cp, op))
+  | TypOperator(cp, op) => ZTyp.is_after_zoperator((cp, op))
+  | Line(cp, line) => ZExp.is_after_zline(CursorL(cp, line))
+  | Rule(cp, rule) => ZExp.is_after_zrule(CursorR(cp, rule));
+
+let is_end_keyword = (term: cursor_term, keyword: ExpandingKeyword.t) =>
   switch (term) {
   | ExpOperand(OnText(index), _) =>
     index == String.length(ExpandingKeyword.to_string(keyword))

@@ -164,12 +164,11 @@ type t = {
   ctx: Contexts.t,
   expected_ty: HTyp.t,
   actual_ty: option(HTyp.t),
+  parent_info,
   enclosing_zopseq,
   enclosing_zoperand,
   pattern_context: option(pattern_context),
-  // hack while merging
   uses: option(UsageAnalysis.uses_list),
-  parent_info,
 };
 
 let get_sort: t => TermSort.t =

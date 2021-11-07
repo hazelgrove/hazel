@@ -101,20 +101,11 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
   };
 
 let mk_insert_lit_suggestions: generator =
-  ci => {
-    print_endline("mk_insert_lit_suggestions");
-    switch (ci.pattern_context) {
-    | None => print_endline("no pattern context")
-    | Some(pc) =>
-      print_endline(
-        Sexplib.Sexp.to_string_hum(CursorInfo.sexp_of_pattern_context(pc)),
-      )
-    };
+  ci =>
     switch (ci.pattern_context) {
     | Some(Let | Lambda) when HTyp.is_sumlike(ci.expected_ty) => []
     | _ => mk_constructors(ci.expected_ty, ci)
     };
-  };
 
 let mk_delete_suggestions: generator = ci => [mk_empty_hole_suggestion(ci)];
 

@@ -86,6 +86,7 @@ let rec apply_action =
         )
         : Model.t => {
   let settings = model.settings;
+  let ci = Model.get_cursor_info(model);
   let apply = (a, m) => apply_action(m, a, state, ~schedule_action);
   if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
@@ -226,7 +227,7 @@ let rec apply_action =
       | AcceptSuggestion(action) => Model.perform_edit_action(action, model)
       | UpdateAssistant(u) => {
           ...model,
-          assistant: AssistantModel.apply_update(u, model.assistant),
+          assistant: AssistantModel.apply_update(u, model.assistant, ci),
         }
       | Chain([]) => model
       | Chain([x, ...xs]) =>
