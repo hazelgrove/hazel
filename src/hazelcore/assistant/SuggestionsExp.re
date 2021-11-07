@@ -142,8 +142,6 @@ let prefix_matcher = (prefix: string, operand_text: string): option(string) =>
 let rec prefix_matcher' =
         (ctx, target_type, prefix: string, operand_text: string)
         : option(UHExp.operand) => {
-  print_endline("TRYING PREFIX");
-  print_endline(prefix);
   let rec_case =
     switch (String.length(prefix)) {
     | 0 => None
@@ -168,8 +166,8 @@ let rec prefix_matcher' =
         })
       ) {
       | [] =>
-        print_endline("NONE first");
-        rec_case;
+        //print_endline("NONE first");
+        rec_case
       | [(name, _), ..._] =>
         // TODO: return best match rather than first?
         // instead of just stropping, could continue to recurse and collect all potentials
@@ -177,8 +175,8 @@ let rec prefix_matcher' =
       };
     };
   | None =>
-    print_endline("NONE second");
-    rec_case;
+    //rint_endline("NONE second");
+    rec_case
   };
 };
 
@@ -258,8 +256,8 @@ let get_wrapped_operand_2 =
    };
    */
   | _ =>
-    print_endline("NONE third");
-    None;
+    //print_endline("NONE third");
+    None
   };
 };
 

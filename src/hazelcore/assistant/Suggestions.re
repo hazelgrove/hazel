@@ -83,6 +83,14 @@ let consistent_with_context = (expected_ty: HTyp.t, s: Suggestion.t) =>
   | ReplaceTypOperand(_) => true
   };
 
+let dont_make_more_errors = (s: Suggestion.t) =>
+  switch (s) {
+  | ReplaceExpOperand({report: {scores: {delta_errors, _}, _}, _}) =>
+    delta_errors >= 0.
+  | ReplacePatOperand(_) => true
+  | ReplaceTypOperand(_) => true
+  };
+
 let mk =
     (
       {cursor_term, ctx, _} as ci: CursorInfo.t,
@@ -92,6 +100,7 @@ let mk =
     : list(Suggestion.t) =>
   ci
   |> collect_suggestions
+  |> List.filter(dont_make_more_errors)
   |> List.filter(suggestion_isnt_noop(cursor_term))
   |> deduplicate_suggestions
   |> List.map(renumber_suggestion_holes(ctx, u_gen))
