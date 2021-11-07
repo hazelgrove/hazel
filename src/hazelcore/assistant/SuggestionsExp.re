@@ -91,7 +91,7 @@ let get_wrapped_operand =
   switch (cursor_term) {
   | ExpOperand(
       OnText(i),
-      (Var(_, InVarHole(_), s) | InvalidText(_, s)) as operand,
+      (Var(_, InVarHole(_), s) | InvalidText(_, s)) as _operand,
     ) =>
     /*
       If we're on an unbound variable or invalidtext, try to interpret
@@ -101,40 +101,33 @@ let get_wrapped_operand =
      */
     let (pre, suf) = StringUtil.split_string(i, s);
     switch (StringUtil.search_forward_opt(Str.regexp(pre), wrap_name)) {
-    | None => operand
+    | None => None
+    //don't bother suggesting unknowns
+    //operand
     | Some(_) =>
       let suf_op = UHExp.operand_of_string(suf);
       if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
-        suf_op;
+        Some(suf_op);
       } else {
         switch (
           vars_satisfying_p(ctx, x =>
             p(x) && is_substring_of_var_name(suf, x)
           )
         ) {
-        | [] => operand
+        | [] => None
+        //don't bother suggesting unknowns
+        //operand
         | [(name, _), ..._] =>
           // TODO: return best match rather than first
-          UHExp.operand_of_string(name)
+          Some(UHExp.operand_of_string(name))
         };
       };
     };
   | ExpOperand(_, operand) =>
     // TODO: consider bound variables which are coincidentally wraps
-    UHExp.set_err_status_operand(NotInHole, operand)
+    Some(UHExp.set_err_status_operand(NotInHole, operand))
   | _ => failwith("get_wrap_operand impossible")
   };
-};
-
-let mk_wrap_app_suggestion =
-    ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
-  // TODO(andrew): get arg type (how?) and use for predicate
-  let wrapped_operand = get_wrapped_operand(ci, _ => true, name, cursor_term);
-  mk_operand_suggestion_from_uhexp(
-    ~strategy=WrapApp,
-    ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), wrapped_operand),
-    ci,
-  );
 };
 
 let convert_operand =
@@ -206,15 +199,20 @@ let mk_insert_app_suggestions: generator =
     |> List.map(mk_app_suggestion(ci));
   };
 
-let _mk_insert_case_suggestions: generator =
-  ci => [
-    mk_operand_suggestion(
-      ~strategy=InsertCase,
-      ~operand=mk_case(hole_operand),
-      ci,
-    ),
-  ];
-
+let mk_wrap_app_suggestion =
+    ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
+  // TODO(andrew): get arg type (how?) and use for predicate
+  switch (get_wrapped_operand(ci, _ => true, name, cursor_term)) {
+  | Some(op) => [
+      mk_operand_suggestion_from_uhexp(
+        ~strategy=WrapApp,
+        ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), op),
+        ci,
+      ),
+    ]
+  | None => []
+  };
+};
 let mk_wrap_app_suggestions: generator =
   ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
     switch (cursor_term) {
@@ -230,32 +228,55 @@ let mk_wrap_app_suggestions: generator =
         );
       Assistant_common.fun_vars(ctx, expected_ty)
       |> List.filter(arrow_consistent)
-      |> List.map(mk_wrap_app_suggestion(ci));
+      |> List.map(mk_wrap_app_suggestion(ci))
+      |> List.flatten;
     };
 
 let mk_wrap_case_suggestions: generator =
   ci => {
-    let operand =
-      ci.cursor_term
-      |> get_wrapped_operand(ci, ((_, ty)) => HTyp.is_sumlike(ty), "case")
-      |> mk_case;
-    [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];
+    switch (
+      get_wrapped_operand(
+        ci,
+        ((_, ty)) => HTyp.is_sumlike(ty),
+        "case",
+        ci.cursor_term,
+      )
+    ) {
+    | None => [
+        mk_operand_suggestion(
+          ~strategy=InsertCase,
+          ~operand=mk_case(hole_operand),
+          ci,
+        ),
+      ]
+    | Some(op) => [
+        mk_operand_suggestion(~strategy=WrapCase, ~operand=mk_case(op), ci),
+      ]
+    /*
+     let operand =
+       ci.cursor_term
+       |> get_wrapped_operand(ci, ((_, ty)) => HTyp.is_sumlike(ty), "case")
+       |> mk_case;
+     [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];*/
+    };
   };
 
 let mk_wrap_inj_suggestions: generator =
   ({expected_ty, actual_ty, cursor_term, _} as ci) => {
     let actual_ty = HTyp.relax(actual_ty);
-    let operand = get_wrapped_operand(ci, _ => true, "inj", cursor_term);
-    switch (expected_ty) {
-    | Sum(a, b)
+    switch (
+      get_wrapped_operand(ci, _ => true, "inj", cursor_term),
+      expected_ty,
+    ) {
+    | (Some(operand), Sum(a, b))
         when HTyp.consistent(a, actual_ty) && HTyp.consistent(b, actual_ty) => [
         mk_inj_suggestion(L, operand, ci),
         mk_inj_suggestion(R, operand, ci),
       ]
-    | Sum(a, _) when HTyp.consistent(a, actual_ty) => [
+    | (Some(operand), Sum(a, _)) when HTyp.consistent(a, actual_ty) => [
         mk_inj_suggestion(L, operand, ci),
       ]
-    | Sum(_, b) when HTyp.consistent(b, actual_ty) => [
+    | (Some(operand), Sum(_, b)) when HTyp.consistent(b, actual_ty) => [
         mk_inj_suggestion(R, operand, ci),
       ]
     | _ => []
