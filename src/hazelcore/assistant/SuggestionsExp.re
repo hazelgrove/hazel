@@ -130,6 +130,139 @@ let get_wrapped_operand =
   };
 };
 
+let prefix_matcher = (prefix: string, operand_text: string): option(string) =>
+  if (StringUtil.match_prefix(prefix, operand_text)) {
+    let (_, last) =
+      StringUtil.split_string(String.length(prefix), operand_text);
+    Some(last);
+  } else {
+    None;
+  };
+
+let rec prefix_matcher' =
+        (ctx, target_type, prefix: string, operand_text: string)
+        : option(UHExp.operand) => {
+  print_endline("TRYING PREFIX");
+  print_endline(prefix);
+  let rec_case =
+    switch (String.length(prefix)) {
+    | 0 => None
+    | n =>
+      prefix_matcher'(
+        ctx,
+        target_type,
+        String.sub(prefix, 0, n - 1),
+        operand_text,
+      )
+    };
+  switch (prefix_matcher(prefix, operand_text)) {
+  //| _ when prefix == "" => Some(operand_text)
+  | Some(target_second) =>
+    let suf_op = UHExp.operand_of_string(target_second);
+    if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
+      Some(suf_op);
+    } else {
+      switch (
+        vars_satisfying_p(ctx, ((var_name, var_type)) => {
+          HTyp.consistent(var_type, target_type) && var_name == target_second
+        })
+      ) {
+      | [] =>
+        print_endline("NONE first");
+        rec_case;
+      | [(name, _), ..._] =>
+        // TODO: return best match rather than first?
+        // instead of just stropping, could continue to recurse and collect all potentials
+        Some(UHExp.operand_of_string(name))
+      };
+    };
+  | None =>
+    print_endline("NONE second");
+    rec_case;
+  };
+};
+
+// get_wrapped_operand_2(ci, "case", HTyp.Hole)
+let get_wrapped_operand_2 =
+    (
+      {ctx, cursor_term, _}: CursorInfo.t,
+      target_first: string,
+      target_type: HTyp.t,
+    )
+    : option(UHExp.operand) => {
+  /*
+    new strategy: try:
+    whenever on any text operand (as judged by cursorpos = OnText(..))
+    (alternatively: only invalidtext or freevar or keywordvar)
+    take the operand text string
+    and try to split into into a operand_first and operand_second
+    such that the operand_first is a MAXIMAL prefix of our target_first
+    and operand_second is an exact string match against a var from the context
+    (for uniqueness; weaken later) consistent with a provided type_restriction
+    OR a literal consistent with the type restriction
+
+    so for example:
+    target_first: "case"
+    operand_text: "casfoo"
+    ctx: [("foo", Int)]
+    type_restriction: Hole
+
+    target_first: "inj"
+    operand_text: "infoo"
+    ctx: [("foo", Int)]
+    type_restriction: Int
+
+    concerns:
+
+    1. do we accept the case of an empty prefix match?
+    maybe yes; then this just becomes the regular wrap strategy
+
+    NOW A CRITICAL BUG!!!!
+    2. what if we have a var which starts with (a prefix of the) target?
+    e.g. casefoo, or simple cfoo. do we suggest both wrappings?
+
+    2'. what if we have many vars cfoo, cafoo, casfoo, casefoo....
+
+    2''. what if we create a match eg var in numFleens, want to wrap
+    in int2Float. when start typing i "inumFleens", it will now find
+    an overlapping prefix "in" and try looking for "umFleens"
+   */
+  switch (CursorInfo_common.cursor_position_of_cursor_term(cursor_term)) {
+  | OnText(_) =>
+    let operand_text = CursorInfo_common.string_of_cursor_term(cursor_term);
+    prefix_matcher'(ctx, target_type, target_first, operand_text);
+  /*
+   switch (prefix_matcher'(ctx, target_type,target_first, operand_text)) {
+   | None =>
+     print_endline("NONE first");
+     None;
+   | Some(target_second) =>
+     let suf_op = UHExp.operand_of_string(target_second);
+     if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
+       Some(suf_op);
+     } else {
+       switch (
+         vars_satisfying_p(ctx, ((var_name, var_type)) => {
+           HTyp.consistent(var_type, target_type)
+           && var_name == target_second
+         })
+       ) {
+       | [] =>
+         print_endline("NONE second");
+         None;
+       | [(name, _), ..._] =>
+         // TODO: return best match rather than first?
+         Some(UHExp.operand_of_string(name))
+       };
+     };
+   };
+   */
+  | _ =>
+    print_endline("NONE third");
+    None;
+  };
+};
+
 let convert_operand =
     (operand: UHExp.operand, expected_ty: HTyp.t): option(UHExp.operand) =>
   switch (operand) {
@@ -159,10 +292,13 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
   | Int => [mk_int_lit_suggestion("1", ci)]
   | Float => [mk_float_lit_suggestion("1.", ci)]
   | List(_) => [mk_nil_list_suggestion(ci), mk_list_suggestion(ci)]
-  | Sum(_, _) => [
-      mk_inj_suggestion(L, hole_operand, ci),
-      mk_inj_suggestion(R, hole_operand, ci),
-    ]
+  | Sum(_, _) => []
+  // wrap cases handles this
+  /*
+   [
+       mk_inj_suggestion(L, hole_operand, ci),
+       mk_inj_suggestion(R, hole_operand, ci),
+     ]*/
   | Prod(_) => [mk_pair_suggestion(ci)] // TODO: n-tuples
   | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas
   | Hole =>
@@ -199,18 +335,21 @@ let mk_insert_app_suggestions: generator =
     |> List.map(mk_app_suggestion(ci));
   };
 
-let mk_wrap_app_suggestion =
-    ({cursor_term, _} as ci: CursorInfo.t, (name: string, _)) => {
+let mk_wrap_app_suggestion = (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)) => {
   // TODO(andrew): get arg type (how?) and use for predicate
-  switch (get_wrapped_operand(ci, _ => true, name, cursor_term)) {
-  | Some(op) => [
-      mk_operand_suggestion_from_uhexp(
-        ~strategy=WrapApp,
-        ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), op),
-        ci,
-      ),
-    ]
-  | None => []
+  switch (f_ty) {
+  | Arrow(arg_ty, _) =>
+    switch (get_wrapped_operand_2(ci, name, arg_ty)) {
+    | Some(op) => [
+        mk_operand_suggestion_from_uhexp(
+          ~strategy=WrapApp,
+          ~uhexp=mk_bin_ap_uhexp(UHExp.var(name), op),
+          ci,
+        ),
+      ]
+    | None => []
+    }
+  | _ => []
   };
 };
 let mk_wrap_app_suggestions: generator =
@@ -234,14 +373,7 @@ let mk_wrap_app_suggestions: generator =
 
 let mk_wrap_case_suggestions: generator =
   ci => {
-    switch (
-      get_wrapped_operand(
-        ci,
-        ((_, ty)) => HTyp.is_sumlike(ty),
-        "case",
-        ci.cursor_term,
-      )
-    ) {
+    switch (get_wrapped_operand_2(ci, "case", HTyp.Hole)) {
     | None => [
         mk_operand_suggestion(
           ~strategy=InsertCase,
@@ -252,34 +384,38 @@ let mk_wrap_case_suggestions: generator =
     | Some(op) => [
         mk_operand_suggestion(~strategy=WrapCase, ~operand=mk_case(op), ci),
       ]
-    /*
-     let operand =
-       ci.cursor_term
-       |> get_wrapped_operand(ci, ((_, ty)) => HTyp.is_sumlike(ty), "case")
-       |> mk_case;
-     [mk_operand_suggestion(~strategy=WrapCase, ~operand, ci)];*/
     };
   };
 
 let mk_wrap_inj_suggestions: generator =
-  ({expected_ty, actual_ty, cursor_term, _} as ci) => {
-    let actual_ty = HTyp.relax(actual_ty);
-    switch (
-      get_wrapped_operand(ci, _ => true, "inj", cursor_term),
-      expected_ty,
-    ) {
-    | (Some(operand), Sum(a, b))
-        when HTyp.consistent(a, actual_ty) && HTyp.consistent(b, actual_ty) => [
-        mk_inj_suggestion(L, operand, ci),
-        mk_inj_suggestion(R, operand, ci),
-      ]
-    | (Some(operand), Sum(a, _)) when HTyp.consistent(a, actual_ty) => [
-        mk_inj_suggestion(L, operand, ci),
-      ]
-    | (Some(operand), Sum(_, b)) when HTyp.consistent(b, actual_ty) => [
-        mk_inj_suggestion(R, operand, ci),
-      ]
-    | _ => []
+  ({expected_ty, _} as ci) => {
+    //TODO(andrew): clarify wrap versus insert suggestions
+    let mk_wrap_sug = (side, operand) =>
+      mk_operand_suggestion(
+        ~strategy=WrapCase, // TODO(andrew): new case
+        ~operand=mk_inj(side, operand),
+        ci,
+      );
+    let mk_insert_sug = (side, operand) =>
+      mk_operand_suggestion(
+        ~strategy=InsertLit,
+        ~operand=mk_inj(side, operand),
+        ci,
+      );
+    switch (HTyp.matched_sum(expected_ty)) {
+    | None => []
+    | Some((l_ty, r_ty)) =>
+      let l_sug =
+        switch (get_wrapped_operand_2(ci, "inj", l_ty)) {
+        | None => mk_insert_sug(L, hole_operand)
+        | Some(guy) => mk_wrap_sug(L, guy)
+        };
+      let r_sug =
+        switch (get_wrapped_operand_2(ci, "inj", r_ty)) {
+        | None => mk_insert_sug(R, hole_operand)
+        | Some(guy) => mk_wrap_sug(R, guy)
+        };
+      [l_sug, r_sug];
     };
   };
 
