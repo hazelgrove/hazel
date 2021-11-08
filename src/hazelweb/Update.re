@@ -261,6 +261,7 @@ let rec apply_action =
         };
         model;
       | SetCursorInspectorMode(cursor_inspector_mode) =>
+        //TODO(andrew): simplify this somehow
         let model = {...model, cursor_inspector_mode};
         switch (cursor_inspector_mode) {
         | None =>
@@ -296,9 +297,9 @@ let rec apply_action =
       | ToggleCursorInspectorMode =>
         let cursor_inspector_mode: option(Model.cursor_inspector_mode) =
           switch (Model.get_cursor_inspector_mode(model)) {
-          | None => Some(Assistant)
-          | Some(Assistant) => Some(AssistantMinimal)
-          | Some(AssistantMinimal) => Some(Tutor)
+          | None => Some(AssistantMinimal)
+          | Some(AssistantMinimal) => Some(Assistant)
+          | Some(Assistant) => Some(Tutor)
           | Some(Tutor) => Some(Simple)
           | Some(Simple) => None
           };

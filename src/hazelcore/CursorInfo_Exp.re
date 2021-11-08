@@ -1156,13 +1156,10 @@ and ana_cursor_info_zoperand =
       }
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _) =>
-      // TODO(andrew): added actual_ty to Analyzed
-      // for assistant (bad idea?)
       Some(mk(Analyzed(ty, Statics_Exp.syn_operand(ctx, e))))
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(mk(Analyzed(ty, Statics_Exp.syn_operand(ctx, e))))
     | Parenthesized(body) =>
-      // TODO(andrew): similar to above
       Statics_Exp.ana(ctx, body, ty)
       |> Option.map(_ => mk(Analyzed(ty, Statics_Exp.syn(ctx, body))))
     | Lam(NotInHole, p, body) =>

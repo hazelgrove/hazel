@@ -40,7 +40,7 @@ let syntax_conserved_score = (search: string, result: string): float => {
   let dist = string_dist(search, result) |> fst |> float_of_int;
   let len_larger =
     float_of_int(max(String.length(search), String.length(result)));
-  (len_larger -. dist) /. len_larger;
+  len_larger == 0. ? 0. : (len_larger -. dist) /. len_larger;
 };
 
 let syntax_conserved_overlay = (search: string, result: string): string =>

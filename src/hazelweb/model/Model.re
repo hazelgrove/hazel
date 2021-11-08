@@ -371,12 +371,13 @@ let load_undo_history =
 };
 
 let get_cursor_inspector_mode = (model: t): option(cursor_inspector_mode) =>
+  //TODO(andrew): obviate the need for this
   if (model.cursor_inspector.visible) {
     Some(
       if (model.cursor_inspector.strategy_guide) {
         Tutor;
       } else if (model.assistant.active) {
-        Assistant;
+        model.assistant.display_mode == Minimal ? AssistantMinimal : Assistant;
       } else {
         Simple;
       },

@@ -118,13 +118,13 @@ let sign_label: float => string =
   fun
   | n when n < 0. => "minus"
   | n when n > 0. => "plus"
-  | _ => "";
+  | _ => "zero";
 
 let sign_symbol: float => string =
   fun
   | n when n < 0. => "-"
   | n when n > 0. => "+"
-  | _ => "";
+  | _ => " ";
 
 let icon =
     (~score: option(float)=None, ~num_suggestions: int=0, sort: TermSort.t)
@@ -176,7 +176,7 @@ let score_view = (subscore: float, describe_subscore: float => string) =>
   div(
     [Attr.class_("subscore")],
     switch (subscore) {
-    | 0. => []
+    | n when n < 0.01 && n > (-0.01) => []
     | _ => [sign_view(subscore), text(describe_subscore(subscore))]
     },
   );

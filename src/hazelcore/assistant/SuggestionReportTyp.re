@@ -41,9 +41,6 @@ let mk_operand_report =
     (operand: UHTyp.operand, ci: CursorInfo.t): operand_report => {
   let show_text = HTyp.to_string(UHTyp.expand_operand(operand));
   let result_ty = UHTyp.expand_operand(operand);
-  // TODO(andrew): this isn't quite working.
-  // CursorInfo_typ needs to actually process the provided analytic/pattern
-  // types as we move down thru the type
   let scores = mk_operand_score(~result_ty, ci);
   {show_text, scores};
 };

@@ -19,7 +19,6 @@ type t = {
 type update =
   | Turn_on
   | Turn_off
-  | Toggle
   | Reset
   | Increment_selection_index
   | Decrement_selection_index
@@ -81,7 +80,6 @@ let rec apply_update = (u: update, model: t) =>
     }
   | Turn_off => {...apply_update(Reset, model), active: false}
   | Turn_on => {...apply_update(Reset, model), active: true}
-  | Toggle => {...model, active: !model.active}
   | Increment_selection_index => {
       ...model,
       selection_index: model.selection_index + 1,
@@ -96,8 +94,8 @@ let rec apply_update = (u: update, model: t) =>
       display_mode: m,
       choice_display_limit:
         switch (m) {
-        | Minimal => 4
-        | Normal => 6
+        | Minimal => 5
+        | Normal => 7
         },
     }
   | Set_type_editor(uty) =>
