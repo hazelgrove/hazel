@@ -217,6 +217,8 @@ and matches_cast_Inj =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -282,6 +284,8 @@ and matches_cast_Pair =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -353,6 +357,8 @@ and matches_cast_Cons =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | ConsistentIf(_)
+  | InconsistentBranchesIf(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -436,6 +442,17 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let rules = subst_var_rules(d1, x, rules);
     let sigma' = subst_var_env(d1, x, sigma);
     InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+  | ConsistentIf(If(d3, d4, d5)) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    ConsistentIf(If(d3, d4, d5));
+  | InconsistentBranchesIf(u, i, sigma, If(d3, d4, d5)) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    let sigma' = subst_var_env(d1, x, sigma);
+    InconsistentBranchesIf(u, i, sigma', If(d3, d4, d5));
   | EmptyHole(u, i, sigma) =>
     let sigma' = subst_var_env(d1, x, sigma);
     EmptyHole(u, i, sigma');

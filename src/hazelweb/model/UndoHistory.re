@@ -505,7 +505,8 @@ let get_new_action_group =
     | SListNil
     | SInj(_)
     | SLet
-    | SCase => Some(ConstructEdit(shape))
+    | SCase
+    | SIf => Some(ConstructEdit(shape))
     | SChar(_) =>
       if (group_entry(
             ~prev_group,
@@ -627,6 +628,25 @@ let get_new_action_group =
                   /* the caret is at the end of "case" */
                   Some(
                     ConstructEdit(SCase),
+                  );
+                } else {
+                  Some(ConstructEdit(SOp(SSpace)));
+                }
+              | OnDelim(_, _)
+              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+              }
+
+            | If =>
+              switch (
+                UndoHistoryCore.get_cursor_pos(
+                  new_cursor_term_info.cursor_term_before,
+                )
+              ) {
+              | OnText(pos) =>
+                if (pos == 2) {
+                  /* the caret is at the end of "if" */
+                  Some(
+                    ConstructEdit(SIf),
                   );
                 } else {
                   Some(ConstructEdit(SOp(SSpace)));
