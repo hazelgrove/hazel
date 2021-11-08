@@ -68,3 +68,37 @@ let escape_regexp_special_chars = (s: string): string => {
   let replacer = _ => "\\.";
   Str.global_substitute(re, replacer, s);
 };
+
+let levenshtein_dist = (a: string, b: string): (int, string) => {
+  let placeholder = ' ';
+  let placeholder_str = String.make(1, placeholder);
+  let a_max = String.length(a);
+  let b_max = String.length(b);
+  let dist = Array.make_matrix(a_max + 1, b_max + 1, (0, ""));
+  for (a_idx in 0 to a_max) {
+    dist[a_idx][0] = (a_idx, "");
+  };
+  for (j in 0 to b_max) {
+    dist[0][j] = (j, String.make(j, placeholder));
+  };
+  for (b_idx in 1 to b_max) {
+    for (a_idx in 1 to a_max) {
+      if (a.[a_idx - 1] == b.[b_idx - 1]) {
+        let (n, str) = dist[a_idx - 1][b_idx - 1];
+        dist[a_idx][b_idx] = (n, str ++ String.make(1, a.[a_idx - 1]));
+      } else {
+        let (n_del, str_del) = dist[a_idx - 1][b_idx];
+        let (n_ins, str_ins) = dist[a_idx][b_idx - 1];
+        let (n_rep, str_rep) = dist[a_idx - 1][b_idx - 1];
+        if (n_del <= n_ins && n_del <= n_rep) {
+          dist[a_idx][b_idx] = (1 + n_del, str_del);
+        } else if (n_ins <= n_rep) {
+          dist[a_idx][b_idx] = (1 + n_ins, str_ins ++ placeholder_str);
+        } else {
+          dist[a_idx][b_idx] = (1 + n_rep, str_rep ++ placeholder_str);
+        };
+      };
+    };
+  };
+  dist[a_max][b_max];
+};

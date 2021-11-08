@@ -175,7 +175,7 @@ let idiomaticity_score =
   idiomaticity_score_context(operand, enclosing_zoperand, ctx)
   +. idiomaticity_score_internal(operand, ctx);
 
-let submatches_and_offsets =
+let _submatches_and_offsets =
     (pre: string, suf: string, target: string)
     : (option((string, int)), option((string, int))) => {
   let mog = (n: int): option((string, int)) => {
@@ -220,7 +220,7 @@ let submatches_and_offsets =
 
 /* Returns a float between 0.00 and 1.00. First decimal place represents
    match overlap, second decimal place how close match is to beginning */
-let syntax_conserved_score =
+let _syntax_conserved_score =
     (~cursor_term: CursorInfo.cursor_term, ~show_text: string): float => {
   let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
   let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
@@ -229,7 +229,7 @@ let syntax_conserved_score =
   let cursor_text_length = String.length(term_str);
   let result_length = String.length(show_text);
   let (total_match_length, imm) =
-    switch (submatches_and_offsets(before_caret, after_caret, show_text)) {
+    switch (_submatches_and_offsets(before_caret, after_caret, show_text)) {
     | (None, None) => (0, result_length)
     | (None, Some((s, i)))
     | (Some((s, i)), None) => (String.length(s), i)
@@ -248,6 +248,20 @@ let syntax_conserved_score =
     ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
 };
 
+let syntax_conserved_score = (term_str: string, show_text: string): float => {
+  let (ld, _) = StringUtil.levenshtein_dist(term_str, show_text);
+  let ld = float_of_int(ld);
+  let len_larger =
+    float_of_int(max(String.length(term_str), String.length(show_text)));
+  let _len_orig = float_of_int(String.length(term_str));
+  (len_larger -. ld) /. len_larger;
+};
+
+let syntax_conserved_overlay = (term_str: string, show_text: string): string => {
+  let (_, overlay_str) = StringUtil.levenshtein_dist(term_str, show_text);
+  overlay_str;
+};
+
 let mk_operand_score =
     (
       ~action: Action.t,
@@ -261,7 +275,11 @@ let mk_operand_score =
   type_specificity:
     type_specificity_score(expected_ty, result_ty, HTyp.relax(actual_ty)),
   delta_errors: error_score(action, ci),
-  syntax_conserved: syntax_conserved_score(~cursor_term, ~show_text),
+  syntax_conserved:
+    syntax_conserved_score(
+      CursorInfo_common.string_of_cursor_term(cursor_term),
+      show_text,
+    ),
 };
 
 let mk_operand_report =

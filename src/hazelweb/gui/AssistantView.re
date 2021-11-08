@@ -209,7 +209,7 @@ let suggestion_info_view = (s: Suggestion.t): Node.t =>
   );
 
 /* Draws the matching characters overtop of suggestions */
-let overlay_view =
+let _overlay_view =
     (
       {cursor_term, _}: CursorInfo.t,
       search_string: string,
@@ -223,7 +223,9 @@ let overlay_view =
     span([Attr.class_("overlay-text")], [text(s)]),
   ];
   let offset_overlay =
-    switch (SuggestionReportExp.submatches_and_offsets(pre, suf, result_text)) {
+    switch (
+      SuggestionReportExp._submatches_and_offsets(pre, suf, result_text)
+    ) {
     | (None, None) => []
     | (Some((s0, n0)), Some((s1, n1))) =>
       let n1' = n1 - (n0 + String.length(s0));
@@ -232,6 +234,25 @@ let overlay_view =
     | (_, Some((s, n))) => overlay(n, s)
     };
   div([Attr.class_("overlay")], offset_overlay);
+};
+let overlay_view =
+    (
+      {cursor_term, _}: CursorInfo.t,
+      _search_string: string,
+      result_text: string,
+    )
+    : Node.t => {
+  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
+  let overlay_str =
+    SuggestionReportExp.syntax_conserved_overlay(term_str, result_text);
+  div(
+    [
+      Attr.class_("overlay"),
+      // TODO(andrew): reflect score in highlighting
+      //Attr.create("style", "opacity: " ++ "80" ++ "%;"),
+    ],
+    [span([Attr.class_("overlay-text")], [text(overlay_str)])],
+  );
 };
 
 let result_view =

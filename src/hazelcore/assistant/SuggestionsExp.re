@@ -180,6 +180,10 @@ let rec prefix_matcher' =
   };
 };
 
+open Sexplib.Std;
+[@deriving sexp]
+type blah = (int, string);
+
 // get_wrapped_operand_2(ci, "case", HTyp.Hole)
 let get_wrapped_operand_2 =
     (
@@ -188,6 +192,29 @@ let get_wrapped_operand_2 =
       target_type: HTyp.t,
     )
     : option(UHExp.operand) => {
+  /*
+     print_endline("XXX");
+     print_endline(
+       Sexplib.Sexp.to_string_hum(
+         sexp_of_blah(StringUtil.levenshtein_dist("blah", "blahg")),
+       ),
+     );
+     print_endline(
+       Sexplib.Sexp.to_string_hum(
+         sexp_of_blah(StringUtil.levenshtein_dist("fblah", "blah")),
+       ),
+     );
+     print_endline(
+       Sexplib.Sexp.to_string_hum(
+         sexp_of_blah(StringUtil.levenshtein_dist("numfleens", "num fleens")),
+       ),
+     );
+     print_endline(
+       Sexplib.Sexp.to_string_hum(
+         sexp_of_blah(StringUtil.levenshtein_dist("carry", "bark")),
+       ),
+     );
+   */
   /*
     new strategy: try:
     whenever on any text operand (as judged by cursorpos = OnText(..))
