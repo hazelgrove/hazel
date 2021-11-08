@@ -13,39 +13,59 @@ let is_held =
   | Any => false;
 
 type t = {
-  c: req,
-  s: req,
-  a: req,
-  m: req,
+  ctrl: req,
+  shift: req,
+  alt: req,
+  meta: req,
 };
 
-let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
-let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
-let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
-let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
-let meta = {c: NotHeld, s: NotHeld, a: NotHeld, m: Held};
-let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
-let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
-let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
-let meta_shift = {c: NotHeld, s: Held, a: NotHeld, m: Held};
-
-let req_matches = (req, mk, evt) =>
-  switch (req) {
-  | Any => true
-  | Held => ModKey.matches(mk, evt)
-  | NotHeld => !ModKey.matches(mk, evt)
+// Uses Ctrl if on a non-Mac and Cmd if on a Mac
+let ignore_cmd_vs_ctrl = (ctrlOrCmd, shift, alt) =>
+  if (IsMac.is_mac) {
+    {ctrl: NotHeld, meta: ctrlOrCmd, shift, alt};
+  } else {
+    {ctrl: ctrlOrCmd, meta: NotHeld, shift, alt};
   };
 
-let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) =>
-  req_matches(mks.c, ModKey.Ctrl, evt)
-  && req_matches(mks.s, ModKey.Shift, evt)
-  && req_matches(mks.a, ModKey.Alt, evt)
-  && req_matches(mks.m, ModKey.Meta, evt);
+let not_held = ignore_cmd_vs_ctrl(NotHeld, NotHeld, NotHeld);
+let ctrlOrCmd = ignore_cmd_vs_ctrl(Held, NotHeld, NotHeld);
+let ctrl = {ctrl: Held, meta: NotHeld, shift: NotHeld, alt: NotHeld};
+let shift = ignore_cmd_vs_ctrl(NotHeld, Held, NotHeld);
+let ctrl_shift = {ctrl: Held, meta: NotHeld, shift: Held, alt: NotHeld};
+let alt = ignore_cmd_vs_ctrl(NotHeld, Any, Held);
+let no_ctrlOrCmd_alt = ignore_cmd_vs_ctrl(NotHeld, Any, NotHeld);
+let ctrlOrCmd_shift = ignore_cmd_vs_ctrl(Held, Held, NotHeld);
+let ctrlOrCmd_alt = ignore_cmd_vs_ctrl(Held, NotHeld, Held);
+
+let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) => {
+  let req_matches = (req, mk) => {
+    let mod_matches = ModKey.matches(mk, evt);
+    switch (req) {
+    | Any => true
+    | Held => mod_matches
+    | NotHeld => !mod_matches
+    };
+  };
+
+  req_matches(mks.ctrl, ModKey.Ctrl)
+  && req_matches(mks.shift, ModKey.Shift)
+  && req_matches(mks.alt, ModKey.Alt)
+  && req_matches(mks.meta, ModKey.Meta);
+};
 
 let mod_prefix = mk => {
-  let ctrl_text = is_held(mk.c) ? "Ctrl + " : "";
-  let shift_text = is_held(mk.s) ? "Shift + " : "";
-  let alt_text = is_held(mk.a) ? "Alt + " : "";
-  let meta_text = is_held(mk.m) ? "Meta + " : "";
-  meta_text ++ ctrl_text ++ alt_text ++ shift_text;
+  let conditional_text = (req, name) => is_held(req) ? name ++ " " : "";
+
+  if (IsMac.is_mac) {
+    let ctrl_text = conditional_text(mk.ctrl, Unicode.ctrl);
+    let option_text = conditional_text(mk.alt, Unicode.option);
+    let shift_text = conditional_text(mk.shift, Unicode.shift);
+    let command_text = conditional_text(mk.meta, Unicode.command);
+    ctrl_text ++ option_text ++ shift_text ++ command_text;
+  } else {
+    let ctrl_text = conditional_text(mk.ctrl, "Ctrl +");
+    let shift_text = conditional_text(mk.shift, "Shift +");
+    let alt_text = conditional_text(mk.alt, "Alt +");
+    ctrl_text ++ alt_text ++ shift_text;
+  };
 };

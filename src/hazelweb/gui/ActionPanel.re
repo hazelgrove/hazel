@@ -58,7 +58,7 @@ let action_button =
       inject: ModelAction.t => Event.t,
       a: Action.t,
       lbl: list(Node.t),
-      key_combo,
+      key_combo: KeyCombo.t,
     ) => {
   let can_perform = is_action_allowed(a);
   Node.div(
@@ -165,8 +165,20 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     sub_panel(title, children);
   };
 
+  let action_of_combo = combo =>
+    switch (KeyComboAction.get_model_action_from_kc(cursor_info, combo)) {
+    | Some(EditAction(action)) => action
+    | _ =>
+      failwith(
+        __LOC__
+        ++ ": "
+        ++ HazelKeyCombos.name(combo)
+        ++ " does not correspond to an EditAction in KeyComboAction.get_model_action_from_kc",
+      )
+    };
+
   let combo_element = (is_allowed_action, combo, description) => {
-    let action = KeyComboAction.get(cursor_info, combo);
+    let action = action_of_combo(combo);
     action_button(
       is_allowed_action,
       inject,
@@ -204,7 +216,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     let actions =
       List.map(
         combo => {
-          let action = KeyComboAction.get(cursor_info, combo);
+          let action = action_of_combo(combo);
           (HazelKeyCombos.get_details(combo), action);
         },
         combos,
@@ -214,7 +226,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let keyboard_button = combo => {
-    let action = KeyComboAction.get(cursor_info, combo);
+    let action = action_of_combo(combo);
     let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
@@ -263,11 +275,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ),
         single_line_multiple_actions(
           "Swap line up / down",
-          [keyboard_button(Ctrl_Alt_I), keyboard_button(Ctrl_Alt_K)],
+          [keyboard_button(Alt_Up), keyboard_button(Alt_Down)],
         ),
         single_line_multiple_actions(
           "Swap operand left / right",
-          [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
+          [keyboard_button(Alt_Left), keyboard_button(Alt_Right)],
         ),
         combo(Enter, simple("Create new line ")),
         single_line_multiple_actions(
@@ -461,6 +473,9 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SAnd)) => Added
   | Construct(SOp(SOr)) => Added
   | Construct(SParenthesized) => Added
+  | Construct(SCloseParens) => Added
+  | Construct(SCloseBraces) => Added
+  | Construct(SCloseSquareBracket) => Added
   | Construct(SAnn) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added

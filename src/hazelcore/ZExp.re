@@ -433,6 +433,18 @@ let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
     )
   };
 
+let is_before_empty_hole_line = (zli: zline): bool =>
+  switch (zli) {
+  | ExpLineZ(
+      ZOpSeq(
+        _,
+        ZOperand(CursorE(OnDelim(0, Before), EmptyHole(_)), (E, E)),
+      ),
+    ) =>
+    true
+  | _ => false
+  };
+
 let rec erase = (ze: t): UHExp.t => ze |> erase_zblock
 and erase_zblock = ((prefix, zline, suffix): zblock): UHExp.block =>
   prefix @ [zline |> erase_zline] @ suffix
@@ -1071,3 +1083,10 @@ and cursor_on_EmptyHole_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+
+let zline_is_just_empty_hole = (zline: zline): bool =>
+  switch (zline) {
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))) =>
+    true
+  | _ => false
+  };
