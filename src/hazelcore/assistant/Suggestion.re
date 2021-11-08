@@ -7,6 +7,7 @@ type operand_strategy =
   | InsertCase
   | WrapApp
   | WrapCase
+  | WrapInj
   | ConvertLit;
 
 [@deriving sexp]

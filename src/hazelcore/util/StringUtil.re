@@ -69,9 +69,25 @@ let escape_regexp_special_chars = (s: string): string => {
   Str.global_substitute(re, replacer, s);
 };
 
-let levenshtein_dist = (a: string, b: string): (int, string) => {
-  let placeholder = ' ';
-  let placeholder_str = String.make(1, placeholder);
+let explode: string => list(char) =
+  s => List.init(String.length(s), String.get(s));
+
+/*
+ * Calculate the levenshtein (edit) distance between two strings.
+ * Returns a pair, where the first element is the minimum number
+ * of deletes, replacements, and insertions required to transform
+ * string a into string b. The second element of the pair is a
+ * 'mask string', which is basically the string b with certain
+ * characters replaced by spaces. The missing characters are those
+ * which were removed or replaced from string a.
+ */
+let levenshtein_dist =
+    (~case_sensitive: bool=true, a: string, b: string): (int, string) => {
+  let placeholder_ch = ' ';
+  let placeholder_str = String.make(1, placeholder_ch);
+  let compare = (c1, c2) =>
+    case_sensitive
+      ? c1 == c2 : Char.lowercase_ascii(c1) == Char.lowercase_ascii(c2);
   let a_max = String.length(a);
   let b_max = String.length(b);
   let dist = Array.make_matrix(a_max + 1, b_max + 1, (0, ""));
@@ -79,13 +95,13 @@ let levenshtein_dist = (a: string, b: string): (int, string) => {
     dist[a_idx][0] = (a_idx, "");
   };
   for (j in 0 to b_max) {
-    dist[0][j] = (j, String.make(j, placeholder));
+    dist[0][j] = (j, String.make(j, placeholder_ch));
   };
   for (b_idx in 1 to b_max) {
     for (a_idx in 1 to a_max) {
-      if (a.[a_idx - 1] == b.[b_idx - 1]) {
+      if (compare(a.[a_idx - 1], b.[b_idx - 1])) {
         let (n, str) = dist[a_idx - 1][b_idx - 1];
-        dist[a_idx][b_idx] = (n, str ++ String.make(1, a.[a_idx - 1]));
+        dist[a_idx][b_idx] = (n, str ++ String.make(1, b.[b_idx - 1]));
       } else {
         let (n_del, str_del) = dist[a_idx - 1][b_idx];
         let (n_ins, str_ins) = dist[a_idx][b_idx - 1];

@@ -10,6 +10,7 @@ let label_operand_strategy: Suggestion.operand_strategy => string =
   | InsertCase => "cas"
   | WrapApp => "wra"
   | WrapCase => "wrc"
+  | WrapInj => "wri"
   | ConvertLit => "cnv";
 
 let label_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
@@ -40,9 +41,10 @@ let describe_operand_strategy: Suggestion.operand_strategy => string =
   | InsertLit => "Insert a literal"
   | InsertVar => "Insert a variable"
   | InsertApp => "Insert an application"
-  | InsertCase => "Insert an eliminator"
+  | InsertCase => "Insert a case"
   | WrapApp => "Apply a function to the current form"
-  | WrapCase => "Match on the current form"
+  | WrapCase => "Case on the current form"
+  | WrapInj => "Inject the current form"
   | ConvertLit => "Convert a literal to another type";
 
 let describe_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
@@ -208,57 +210,29 @@ let suggestion_info_view = (s: Suggestion.t): Node.t =>
     @ scores_view(s),
   );
 
-/* Draws the matching characters overtop of suggestions */
-let _overlay_view =
-    (
-      {cursor_term, _}: CursorInfo.t,
-      search_string: string,
-      result_text: string,
-    )
-    : Node.t => {
-  let index = CursorInfo_common.index_of_cursor_term(cursor_term);
-  let (pre, suf) = StringUtil.split_string(index, search_string);
-  let overlay = (n, s) => [
-    text(String.make(n, ' ')),
-    span([Attr.class_("overlay-text")], [text(s)]),
-  ];
-  let offset_overlay =
-    switch (
-      SuggestionReportExp._submatches_and_offsets(pre, suf, result_text)
-    ) {
-    | (None, None) => []
-    | (Some((s0, n0)), Some((s1, n1))) =>
-      let n1' = n1 - (n0 + String.length(s0));
-      overlay(n0, s0) @ overlay(n1', s1);
-    | (Some((s, n)), _)
-    | (_, Some((s, n))) => overlay(n, s)
-    };
-  div([Attr.class_("overlay")], offset_overlay);
-};
-let overlay_view =
-    (
-      {cursor_term, _}: CursorInfo.t,
-      _search_string: string,
-      result_text: string,
-    )
-    : Node.t => {
-  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
+let overlay_view = (search_str: string, result_str: string): Node.t => {
   let overlay_str =
-    SuggestionReportExp.syntax_conserved_overlay(term_str, result_text);
+    SuggestionReportExp.syntax_conserved_overlay(search_str, result_str);
   div(
     [
       Attr.class_("overlay"),
-      // TODO(andrew): reflect score in highlighting
-      //Attr.create("style", "opacity: " ++ "80" ++ "%;"),
+      // TODO(andrew): reflect score in highlighting?
+      // Attr.create("style", "opacity: " ++ "80" ++ "%;"),
     ],
-    [span([Attr.class_("overlay-text")], [text(overlay_str)])],
+    // Necessary to avoid underlining whitespace
+    List.map(
+      fun
+      | ' ' => text(" ")
+      | c =>
+        span([Attr.class_("overlay-text")], [text(String.make(1, c))]),
+      StringUtil.explode(overlay_str),
+    ),
   );
 };
 
 let result_view =
     (
       ~suggestion: Suggestion.t,
-      ~search_string: string,
       ~ci: CursorInfo.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -267,8 +241,9 @@ let result_view =
   let syntax = Suggestion.show_syntax(suggestion);
   let result_view =
     UHCode.view_syntax(~is_focused=false, ~settings, ~font_metrics, syntax);
-  let show_text = Suggestion.show_text(suggestion);
-  let overlay_view = overlay_view(ci, search_string, show_text);
+  let result_str = Suggestion.show_text(suggestion);
+  let search_str = CursorInfo_common.string_of_cursor_term(ci.cursor_term);
+  let overlay_view = overlay_view(search_str, result_str);
   div(
     [Attr.class_("code-container")],
     [div([Attr.class_("code")], [overlay_view] @ result_view)],
@@ -330,7 +305,6 @@ let suggestion_view =
       ~index: int,
       ~is_hovered: bool,
       ~is_selected: bool,
-      ~search_string: string,
       ~ci: CursorInfo.t,
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
@@ -344,7 +318,7 @@ let suggestion_view =
       ~is_selected,
       ~inject,
     ),
-    [result_view(~suggestion, ~search_string, ~ci, ~settings, ~font_metrics)]
+    [result_view(~suggestion, ~ci, ~settings, ~font_metrics)]
     @ (
       switch (display_mode) {
       | Minimal => []
@@ -377,7 +351,6 @@ let suggestions_view =
       ~is_selected=index == 0,
       ~is_hovered=AssistantModel.is_active_suggestion_index(assistant, index),
       ~index,
-      ~search_string=CursorInfo_common.string_of_cursor_term(ci.cursor_term),
     );
   let sort = TermSort.to_string(CursorInfo.get_sort(ci));
   div(

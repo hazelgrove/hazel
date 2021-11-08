@@ -28,4 +28,6 @@ let matched_group_opt: (int, string) => option(string);
 let group_beginning_opt: int => option(int);
 let search_forward_opt: (Str.regexp, string) => option(int);
 let escape_regexp_special_chars: string => string;
-let levenshtein_dist: (string, string) => (int, string);
+let explode: string => list(char);
+let levenshtein_dist:
+  (~case_sensitive: bool=?, string, string) => (int, string);

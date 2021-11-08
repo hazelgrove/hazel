@@ -1045,10 +1045,7 @@ body {
 }
 
 #assistant > .choice > .code-container .overlay .overlay-text {
-  /*
-  I want there to be an underline here, but I don't want to underline blanks...
-  */
-  /*text-decoration: underline;*/
+  text-decoration: underline;
 }
 
 #assistant.exp > .choice > .code-container .overlay .overlay-text {

@@ -1,4 +1,4 @@
-open OptUtil.Syntax;
+//open OptUtil.Syntax;
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -33,6 +33,18 @@ let type_specificity_score =
   | GT => 1.
   | LT => (-1.)
   };
+
+let string_dist = StringUtil.levenshtein_dist(~case_sensitive=false);
+
+let syntax_conserved_score = (search: string, result: string): float => {
+  let dist = string_dist(search, result) |> fst |> float_of_int;
+  let len_larger =
+    float_of_int(max(String.length(search), String.length(result)));
+  (len_larger -. dist) /. len_larger;
+};
+
+let syntax_conserved_overlay = (search: string, result: string): string =>
+  snd(string_dist(search, result));
 
 let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])
@@ -174,93 +186,6 @@ let idiomaticity_score =
     : float =>
   idiomaticity_score_context(operand, enclosing_zoperand, ctx)
   +. idiomaticity_score_internal(operand, ctx);
-
-let _submatches_and_offsets =
-    (pre: string, suf: string, target: string)
-    : (option((string, int)), option((string, int))) => {
-  let mog = (n: int): option((string, int)) => {
-    let* m = StringUtil.matched_group_opt(n, target);
-    let+ i = StringUtil.group_beginning_opt(n);
-    (m, i);
-  };
-  let pre = StringUtil.escape_regexp_special_chars(pre);
-  let suf = StringUtil.escape_regexp_special_chars(suf);
-  switch (pre, suf) {
-  | ("", "") => (None, None)
-  | ("", _) =>
-    let rs = "\\(" ++ suf ++ "\\)";
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1), None);
-  | (_, "") =>
-    let rs = "\\(" ++ pre ++ "\\)";
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    (mog(1), None);
-  | _ =>
-    let pre' = "\\(" ++ pre ++ "\\)";
-    let suf' = "\\(" ++ suf ++ "\\)";
-    let both = "\\(" ++ pre' ++ ".*" ++ suf' ++ "\\)";
-    let rs = both ++ "\\|" ++ pre' ++ "\\|" ++ suf';
-    let _ = StringUtil.search_forward_opt(Str.regexp(rs), target);
-    switch (mog(1)) {
-    | Some(_) =>
-      switch (mog(2), mog(3)) {
-      | (Some(p0), Some(p1)) => (Some(p0), Some(p1))
-      | _ => (None, None)
-      }
-    | None =>
-      switch (mog(4), mog(5)) {
-      | (Some(p), _) => (Some(p), None)
-      | (_, Some(p)) => (None, Some(p))
-
-      | _ => (None, None)
-      }
-    };
-  };
-};
-
-/* Returns a float between 0.00 and 1.00. First decimal place represents
-   match overlap, second decimal place how close match is to beginning */
-let _syntax_conserved_score =
-    (~cursor_term: CursorInfo.cursor_term, ~show_text: string): float => {
-  let term_str = CursorInfo_common.string_of_cursor_term(cursor_term);
-  let term_idx = CursorInfo_common.index_of_cursor_term(cursor_term);
-  let (before_caret, after_caret) =
-    StringUtil.split_string(term_idx, term_str);
-  let cursor_text_length = String.length(term_str);
-  let result_length = String.length(show_text);
-  let (total_match_length, imm) =
-    switch (_submatches_and_offsets(before_caret, after_caret, show_text)) {
-    | (None, None) => (0, result_length)
-    | (None, Some((s, i)))
-    | (Some((s, i)), None) => (String.length(s), i)
-    | (Some((s1, i)), Some((s2, _))) => (String.length(s1 ++ s2), i)
-    };
-  let length_ratio =
-    result_length == 0
-      ? 0.
-      : float_of_int(total_match_length) /. float_of_int(cursor_text_length);
-  let length_rounded = Float.round(10. *. length_ratio) /. 10.;
-  let immediacy_ratio =
-    result_length == 0
-      ? 0. : 1.0 -. float_of_int(imm) /. float_of_int(result_length);
-  let immediacy_ratio_rounded = Float.round(10. *. immediacy_ratio) /. 10.;
-  cursor_text_length == 0
-    ? 0. : length_rounded +. 0.1 *. immediacy_ratio_rounded;
-};
-
-let syntax_conserved_score = (term_str: string, show_text: string): float => {
-  let (ld, _) = StringUtil.levenshtein_dist(term_str, show_text);
-  let ld = float_of_int(ld);
-  let len_larger =
-    float_of_int(max(String.length(term_str), String.length(show_text)));
-  let _len_orig = float_of_int(String.length(term_str));
-  (len_larger -. ld) /. len_larger;
-};
-
-let syntax_conserved_overlay = (term_str: string, show_text: string): string => {
-  let (_, overlay_str) = StringUtil.levenshtein_dist(term_str, show_text);
-  overlay_str;
-};
 
 let mk_operand_score =
     (
