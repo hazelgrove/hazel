@@ -940,11 +940,16 @@ body {
 }
 
 .assistant-active.assistant-minimal .clickable-help-icon {
+  display: none;
   filter: drop-shadow(0px 0px 1px#497);
   padding: 0px;
   margin-left: 0.5em;
   margin-top: 0.5em;
   border-radius: 0.2em;
+}
+
+.assistant-active.assistant-minimal:hover .clickable-help-icon {
+  display: block !important;
 }
 
 .assistant-active.assistant-minimal .suggestion-info {
