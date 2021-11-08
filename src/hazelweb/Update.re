@@ -214,25 +214,21 @@ let apply_action =
           |> Serialization.string_of_exp
           |> Js.string
           |> JSUtil.log
-        | DHExp =>
+        | DHExp
+        | CHExp =>
           let (d, _, _) = model |> Model.get_program |> Program.get_result;
           d
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log;
-        | CHExp =>
-          model
-          |> Model.get_program
-          |> Program.get_elaboration
-          |> Grain.Comp.compile
-          |> Grain.Comp.sexp_of_t
-          |> Sexplib.Sexp.to_string
-          |> Js.string
-          |> JSUtil.log
         };
         model;
       | Compile =>
+        model
+        |> Model.get_program
+        |> Program.get_elaboration
+        |> Grain.Comp.compile;
         model;
       };
     },

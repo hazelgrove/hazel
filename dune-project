@@ -5,6 +5,9 @@
   (name hazelcore))
 
 (package
+  (name hazelweb))
+
+(package
   (name pretty))
 
 (package
@@ -17,7 +20,7 @@
     (ppx_sexp_conv (>= 0.14.0))
     (sexplib (>= 0.14.0))
     (grain_dypgen (= 0.1))
-    (cmdliner (>= 1.0.2))
+    (cmdliner (>= 1.10.0))
     (grain_utils (>= 0))
     (grain_parsing (>= 0))
     (grain_typed (>= 0))
@@ -35,7 +38,7 @@
     (ppx_sexp_conv (>= 0.14.0))
     (sexplib (>= 0.14.0))
     (grain_dypgen (= 0.1))
-    (binaryen (= 0.9.1))
+    (binaryen (= 0.10.0))
     (cmdliner (>= 1.0.2))
     (grain (>= 0))))
 
@@ -45,7 +48,7 @@
   (depends
     (reason (>= 3.6.0))
     (dune-build-info (>= 2.0))
-    (binaryen (= 0.9.1))
+    (binaryen (= 0.10.0))
     (cmdliner (>= 1.0.2))
     (grain (>= 0))))
 
@@ -55,7 +58,7 @@
   (depends
     (reason (>= 3.6.0))
     (dune-build-info (>= 2.0))
-    (binaryen (= 0.9.1))
+    (binaryen (= 0.10.0))
     (cmdliner (>= 1.0.2))
     (grain (>= 0))))
 

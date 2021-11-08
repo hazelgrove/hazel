@@ -66,7 +66,13 @@ type cmi_infos = {
 type config_opt =
   | Cmi_config_opt('a): config_opt;
 
-let hazel_cmi = {cmi_name: "hazelcmi", cmi_sign: [], cmi_crcs: [], cmi_flags: [], cmi_config_sum: ""};
+let hazel_cmi = {
+  cmi_name: "hazelcmi",
+  cmi_sign: [],
+  cmi_crcs: [],
+  cmi_flags: [],
+  cmi_config_sum: "",
+};
 
 let config_sum = Config.get_root_config_digest;
 
