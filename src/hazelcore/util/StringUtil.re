@@ -74,15 +74,28 @@ let explode: string => list(char) =
 
 /*
  * Calculate the levenshtein (edit) distance between two strings.
- * Returns a pair, where the first element is the minimum number
+ * Returns a triple, where the first element is the minimum number
  * of deletes, replacements, and insertions required to transform
  * string a into string b. The second element of the pair is a
  * 'mask string', which is basically the string b with certain
  * characters replaced by spaces. The missing characters are those
- * which were removed or replaced from string a.
+ * which were removed or replaced from string a. The third element
+ * is the same kind of mask except for string a.
  */
 let levenshtein_dist =
-    (~case_sensitive: bool=true, a: string, b: string): (int, string) => {
+    (~case_sensitive: bool=true, a: string, b: string): (int, string, string) => {
+  //TODO(andrew): clean up. reversing so its greedy and doesn't skip chars
+  //eg if looking for "fe" in "fee" it would otherwise indicate "f_e" instead of "fe_"
+  let a =
+    a
+    |> explode
+    |> List.rev
+    |> (x => String.init(List.length(x), List.nth(x)));
+  let b =
+    b
+    |> explode
+    |> List.rev
+    |> (x => String.init(List.length(x), List.nth(x)));
   let placeholder_ch = ' ';
   let placeholder_str = String.make(1, placeholder_ch);
   let compare = (c1, c2) =>
@@ -90,31 +103,58 @@ let levenshtein_dist =
       ? c1 == c2 : Char.lowercase_ascii(c1) == Char.lowercase_ascii(c2);
   let a_max = String.length(a);
   let b_max = String.length(b);
-  let dist = Array.make_matrix(a_max + 1, b_max + 1, (0, ""));
+  let dist = Array.make_matrix(a_max + 1, b_max + 1, (0, "", ""));
   for (a_idx in 0 to a_max) {
-    dist[a_idx][0] = (a_idx, "");
+    dist[a_idx][0] = (a_idx, "", String.make(a_idx, placeholder_ch));
   };
   for (j in 0 to b_max) {
-    dist[0][j] = (j, String.make(j, placeholder_ch));
+    dist[0][j] = (j, String.make(j, placeholder_ch), "");
   };
   for (b_idx in 1 to b_max) {
     for (a_idx in 1 to a_max) {
       if (compare(a.[a_idx - 1], b.[b_idx - 1])) {
-        let (n, str) = dist[a_idx - 1][b_idx - 1];
-        dist[a_idx][b_idx] = (n, str ++ String.make(1, b.[b_idx - 1]));
+        let (n, str1, str2) = dist[a_idx - 1][b_idx - 1];
+        dist[a_idx][b_idx] = (
+          n,
+          str1 ++ String.make(1, b.[b_idx - 1]),
+          str2 ++ String.make(1, a.[a_idx - 1]),
+        );
       } else {
-        let (n_del, str_del) = dist[a_idx - 1][b_idx];
-        let (n_ins, str_ins) = dist[a_idx][b_idx - 1];
-        let (n_rep, str_rep) = dist[a_idx - 1][b_idx - 1];
+        let (n_del, str_del1, str_del2) = dist[a_idx - 1][b_idx];
+        let (n_ins, str_ins1, str_ins2) = dist[a_idx][b_idx - 1];
+        let (n_rep, str_rep1, str_rep2) = dist[a_idx - 1][b_idx - 1];
         if (n_del <= n_ins && n_del <= n_rep) {
-          dist[a_idx][b_idx] = (1 + n_del, str_del);
+          dist[a_idx][b_idx] = (
+            1 + n_del,
+            str_del1,
+            str_del2 ++ placeholder_str,
+          );
         } else if (n_ins <= n_rep) {
-          dist[a_idx][b_idx] = (1 + n_ins, str_ins ++ placeholder_str);
+          dist[a_idx][b_idx] = (
+            1 + n_ins,
+            str_ins1 ++ placeholder_str,
+            str_ins2,
+          );
         } else {
-          dist[a_idx][b_idx] = (1 + n_rep, str_rep ++ placeholder_str);
+          dist[a_idx][b_idx] = (
+            1 + n_rep,
+            str_rep1 ++ placeholder_str,
+            str_rep2 ++ placeholder_str,
+          );
         };
       };
     };
   };
-  dist[a_max][b_max];
+  let (q, r1, r2) = dist[a_max][b_max];
+  (
+    q,
+    r1
+    |> explode
+    |> List.rev
+    |> (x => String.init(List.length(x), List.nth(x))),
+    r2
+    |> explode
+    |> List.rev
+    |> (x => String.init(List.length(x), List.nth(x))),
+  );
 };

@@ -36,15 +36,45 @@ let type_specificity_score =
 
 let string_dist = StringUtil.levenshtein_dist(~case_sensitive=false);
 
+let rec _trim = (list_chars: list(char)) => {
+  switch (list_chars) {
+  | [] => []
+  | [' ', ...cs] => _trim(cs)
+  | _ => list_chars
+  };
+};
+
+let rec _grouper = (mask: list(char), acc: list((int, int)), cur: int) => {
+  switch (mask, acc) {
+  | ([], _) => acc
+  | ([' ', ...cs], _) => _grouper(cs, acc, cur + 1)
+  | ([_, ...cs], [(a, b), ...acs]) when b == cur - 1 =>
+    _grouper(cs, [(a, cur), ...acs], cur + 1)
+  | ([_, ...cs], _) => _grouper(cs, [(cur, cur), ...acc], cur + 1)
+  };
+};
+
+let _num_trailing_spaces = (str: string): float => {
+  let str2 = StringUtil.explode(str) |> List.rev;
+  float_of_int(List.length(str2) - (_trim(str2) |> List.length));
+};
 let syntax_conserved_score = (search: string, result: string): float => {
-  let dist = string_dist(search, result) |> fst |> float_of_int;
+  let dist =
+    string_dist(search, result) |> (((d, _, _)) => d |> float_of_int);
+  /* let mask' = StringUtil.explode(mask);
+     let groups = grouper(mask', [], 0);
+     print_endline(search);
+     print_endline(result);
+     print_endline(mask);
+     print_endline("GROUPS:");
+     print_endline(Sexplib.Sexp.to_string_hum(sexp_of_blah(groups)));*/
   let len_larger =
     float_of_int(max(String.length(search), String.length(result)));
   len_larger == 0. ? 0. : (len_larger -. dist) /. len_larger;
 };
 
 let syntax_conserved_overlay = (search: string, result: string): string =>
-  snd(string_dist(search, result));
+  (((_, m1, _)) => m1)(string_dist(search, result));
 
 let err_holes = (ze: ZExp.t): list(CursorPath.hole_info) =>
   CursorPath_Exp.holes(ZExp.erase(ze), [], [])

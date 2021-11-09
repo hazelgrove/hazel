@@ -30,4 +30,4 @@ let search_forward_opt: (Str.regexp, string) => option(int);
 let escape_regexp_special_chars: string => string;
 let explode: string => list(char);
 let levenshtein_dist:
-  (~case_sensitive: bool=?, string, string) => (int, string);
+  (~case_sensitive: bool=?, string, string) => (int, string, string);

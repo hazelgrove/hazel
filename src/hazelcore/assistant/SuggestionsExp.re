@@ -152,7 +152,9 @@ let get_wrapped_operand =
   | OnText(_) =>
     let operand_text = CursorInfo_common.string_of_cursor_term(cursor_term);
     get_wrapped_operand'(ctx, target_type, target_first, operand_text);
-  | _ => []
+  | _ =>
+    // TODO: handle wrapping composite things e.g. parenthesized
+    []
   };
 };
 
