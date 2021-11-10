@@ -112,8 +112,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
-           | Empty
-           | Assertlit => None
+           | Empty => None
            | VarErr
            | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
            }
@@ -136,20 +135,14 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
          | TypHole
-         | PatHole(_, _)
-         | ExpHole(_, _) => None
-         | Assert(num, shape) =>
-           switch (shape) {
-           | Empty
-           | VarErr
-           | TypeErr => None
-           | Assertlit =>
-             let state = program |> get_elaboration |> evaluate |> snd;
-             switch (AssertMap.lookup(num, state.assert_map)) {
-             | Some(assert_data) => Some((steps, assert_data))
-             | _ => None
-             };
-           }
+         | PatHole(_)
+         | ExpHole(_) => None
+         | Assert(num) =>
+           let state = program |> get_elaboration |> evaluate |> snd;
+           switch (AssertMap.lookup(num, state.assert_map)) {
+           | Some(assert_data) => Some((steps, assert_data))
+           | _ => None
+           };
          }
        );
 
