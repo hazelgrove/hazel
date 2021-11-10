@@ -136,7 +136,10 @@ let create =
           };
         },
       model,
-      Page.view(~inject, model),
+      TimeUtil.measure_time(
+        "Page.view", performance.measure && performance.page_view, () =>
+        Page.view(~inject, model)
+      ),
     )
   );
 };

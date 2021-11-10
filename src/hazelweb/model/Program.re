@@ -109,6 +109,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          switch (CursorPath.get_sort(hole_info)) {
          | Assert(_) => None // TODO(andrew)
          | TypHole => None
+         //| Assert(_, shape) // added this lol dunno?
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
@@ -122,6 +123,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     |> List.partition(
          fun
          | (CursorPath.TypeErr, _) => true
+         //| (CursorPath.Assertlit, _) => true //TODO(andrew): added this. dunno
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
@@ -146,7 +148,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | Assertlit =>
              let state = program |> get_elaboration |> evaluate |> snd;
              switch (AssertMap.lookup(num, state.assert_map)) {
-             | Some(t) => Some((steps, t))
+             | Some(assert_data) => Some((steps, assert_data))
              | _ => None
              };
            }

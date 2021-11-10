@@ -14,9 +14,11 @@ type t = {
 };
 
 let is_empty = (dpaths: t): bool =>
+  // remember to add a case here if you add a new dpaths field
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
+  && ListUtil.is_empty(dpaths.asserts)
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
@@ -32,6 +34,7 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
+  //TODO(andrew): clean up
   let remove_pair =
     fun
     | (steps, lst) =>
@@ -54,7 +57,8 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | Case
     | Rule => steps == []
     };
-  let _is_current_pair = ((steps, _)) =>
+  //TODO(andrew): clean up
+  let is_current_pair = ((steps, _)) =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
@@ -86,20 +90,10 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  print_endline("ASSERTS1");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(sexp_of_asserts(dpaths.asserts)),
-  );
   let asserts =
     dpaths.asserts
-    |> List.find_opt(_ => true /*is_current_pair*/)  // findopt for pair case
+    |> List.find_opt(is_current_pair)
     |> Option.map(((_, lst)) => UHDecorationShape.AssertStatus(lst))
     |> Option.to_list;
-  print_endline("ASSERTS2");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(
-      sexp_of_list(UHDecorationShape.sexp_of_t, asserts),
-    ),
-  );
   List.concat([err_holes, var_err_holes, var_uses, asserts, current_term]);
 } /*taking precedent on the current term*/;

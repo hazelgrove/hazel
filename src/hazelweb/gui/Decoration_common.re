@@ -69,6 +69,50 @@ let container =
   );
 };
 
+let container_non_svg =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~origin: MeasuredPosition.t,
+      ~height: int,
+      ~width: int,
+      ~cls: string,
+      contents: list(Node.t),
+    )
+    : Node.t => {
+  let buffered_height = height + 1;
+  let buffered_width = width + 1;
+
+  let buffered_height_px =
+    Float.of_int(buffered_height) *. font_metrics.row_height;
+  let buffered_width_px =
+    Float.of_int(buffered_width) *. font_metrics.col_width;
+
+  let container_origin_x =
+    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
+  let container_origin_y =
+    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+
+  Node.div(
+    [
+      Attr.classes([
+        "decoration-container",
+        Printf.sprintf("%s-container", cls),
+      ]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "top: calc(%fpx - 1px); left: %fpx; width: %fpx; height: %fpx;",
+          container_origin_x,
+          container_origin_y,
+          buffered_width_px,
+          buffered_height_px,
+        ),
+      ),
+    ],
+    contents,
+  );
+};
+
 let corner_radii = (font_metrics: FontMetrics.t) => {
   let r = 2.5;
   (r /. font_metrics.col_width, r /. font_metrics.row_height);
