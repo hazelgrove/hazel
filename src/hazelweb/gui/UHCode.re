@@ -5,7 +5,7 @@ module Vdom = Virtual_dom.Vdom;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
-open Sexplib.Std;
+//open Sexplib.Std;
 
 let decoration_cls: UHDecorationShape.t => string =
   fun
@@ -17,30 +17,44 @@ let decoration_cls: UHDecorationShape.t => string =
 
 let decoration_view =
     (
-      ~contains_current_term: bool,
-      ~corner_radii: (float, float),
-      ~term_sort: TermSort.t,
-      ~term_shape: TermShape.t,
-      shape: UHDecorationShape.t,
-    ) =>
-  UHDecoration.(
-    switch (shape) {
-    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
-    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
-    | VarUse => VarUse.view(~corner_radii)
-    | CurrentTerm =>
-      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | AssertStatus(assert_instances) =>
-      //assert_view(assert_instances)
-      AssertStatus.view(~assert_instances)
-    }
-  );
+      dshape: UHDecorationShape.t,
+      m,
+      offset,
+      dpaths: UHDecorationPaths.t,
+      corner_radii,
+      shape,
+      sort,
+      svg_container,
+      non_svg_container,
+      _font_metrics: FontMetrics.t,
+    ) => {
+  switch (dshape) {
+  | AssertStatus(a) =>
+    //let container_origin_x = float_of_int(offset) *. font_metrics.col_width;
+    let view = UHDecoration.AssertStatus.view(a);
+    non_svg_container(view((offset, m)));
+  | ErrHole =>
+    let contains_current_term = Option.is_some(dpaths.current_term);
+    let view =
+      UHDecoration.ErrHole.view(~contains_current_term, ~corner_radii);
+    svg_container(view((offset, m)));
+  | VarErrHole =>
+    let contains_current_term = Option.is_some(dpaths.current_term);
+    let view =
+      UHDecoration.VarErrHole.view(~contains_current_term, ~corner_radii);
+    svg_container(view((offset, m)));
+  | VarUse =>
+    let view = UHDecoration.VarUse.view(~corner_radii);
+    svg_container(view((offset, m)));
+  | CurrentTerm =>
+    let view = UHDecoration.CurrentTerm.view(~corner_radii, ~sort, ~shape);
+    svg_container(view((offset, m)));
+  };
+};
 
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
-  let corner_radii = Decoration_common.corner_radii(font_metrics);
-
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[], // tail-recursive
@@ -81,35 +95,42 @@ let decoration_views =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let cls = decoration_cls(dshape);
-               /*
-                print_endline("current");
-                print_endline(
-                  Sexplib.Sexp.to_string(UHDecorationShape.sexp_of_t(dshape)),
-                );
-                print_endline(
-                    Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
-                  );*/
-               let view =
-                 decoration_view(
-                   ~contains_current_term=Option.is_some(dpaths.current_term),
-                   ~corner_radii,
-                   ~term_shape=shape,
-                   ~term_sort=sort,
-                   dshape,
-                   (offset, m),
-                 );
-               switch (dshape) {
-               | AssertStatus(a) => UHDecoration.assert_view(a)
-               | _ =>
+               let corner_radii =
+                 Decoration_common.corner_radii(font_metrics);
+               let height = MeasuredLayout.height(m);
+               let width = MeasuredLayout.width(~offset, m);
+               let origin = MeasuredPosition.{row: start.row, col: indent};
+               //TODO(andrew): clean up
+               let svg_container = view =>
                  Decoration_common.container(
                    ~font_metrics,
-                   ~height=MeasuredLayout.height(m),
-                   ~width=MeasuredLayout.width(~offset, m),
-                   ~origin=MeasuredPosition.{row: start.row, col: indent},
+                   ~height,
+                   ~width,
+                   ~origin,
                    ~cls,
                    [view],
-                 )
-               };
+                 );
+               let non_svg_container = view =>
+                 Decoration_common.container_non_svg(
+                   ~font_metrics,
+                   ~height,
+                   ~width,
+                   ~origin,
+                   ~cls,
+                   [view],
+                 );
+               decoration_view(
+                 dshape,
+                 m,
+                 offset,
+                 dpaths,
+                 corner_radii,
+                 shape,
+                 sort,
+                 svg_container,
+                 non_svg_container,
+                 font_metrics,
+               );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
@@ -158,7 +179,6 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
     Attr.on_keydown(evt => {
       let model_action: option(ModelAction.t) =
         KeyComboAction.get_model_action(cursor_info, evt);
-
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
       | None => Event.Ignore
@@ -168,26 +188,23 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
 };
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
-let rec view_of_box =
-        (~state: Evaluator.state, box: UHBox.t): list(Vdom.Node.t) => {
-  let {assert_map, _}: Evaluator.state = state;
+let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   Vdom.(
     switch (WeakMap.get(box_table, box)) {
     | Some(vs) => vs
     | None =>
       switch (box) {
       | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) =>
-        boxes |> List.map(view_of_box(~state)) |> List.flatten
+      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
       | VBox(boxes) =>
         let vs =
           boxes
-          |> List.map(view_of_box(~state))
+          |> List.map(view_of_box)
           |> ListUtil.join([Node.br([])])
           |> List.flatten;
         [Node.div([Attr.classes(["VBox"])], vs)];
       | Annot(annot, box) =>
-        let vs = view_of_box(~state, box);
+        let vs = view_of_box(box);
         switch (annot) {
         | Token({shape, _}) =>
           let clss =
@@ -207,67 +224,6 @@ let rec view_of_box =
           ];
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | AssertNum({num}) =>
-          let assert_status = AssertMap.lookup_and_join(num, assert_map);
-          let assert_eqs =
-            switch (List.assoc_opt(num, assert_map)) {
-            | None => []
-            | Some(d) => List.rev(d)
-            };
-          let assert_eq_string =
-            Sexplib.Sexp.to_string_hum(
-              sexp_of_list(
-                AssertMap.sexp_of_assert_instance_report,
-                assert_eqs,
-              ),
-            );
-          let _blog =
-            List.map(
-              ((assert_eq, _)) => {
-                switch (assert_eq) {
-                /*
-                 | DHExp.BinIntOp(Equals, d1, d2) =>
-                   let d1_s = DHExp.strip_casts_value(d1);
-                   let d2_s = DHExp.strip_casts_value(d2);
-                   let (p1, p1') = DHExp.dhexp_diff_value(d1_s, d2_s);
-                   print_endline("BLOOOOOGGGGG");
-                   print_endline(
-                     Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1_s)),
-                   );
-                   print_endline(
-                     Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2_s)),
-                   );
-                   print_endline(
-                     Sexplib.Sexp.to_string_hum(
-                       sexp_of_list(CursorPath.sexp_of_steps, p1),
-                     ),
-                   );
-                   print_endline(
-                     Sexplib.Sexp.to_string_hum(
-                       sexp_of_list(CursorPath.sexp_of_steps, p1'),
-                     ),
-                   );
-                   ();
-                   */
-                | _ => ()
-                }
-              },
-              assert_eqs,
-            );
-          let assert_class =
-            "Assert" ++ AssertStatus.to_string(assert_status);
-          [
-            Vdom.Node.span(
-              [Vdom.Attr.classes([assert_class, "UHAssert"])],
-              [
-                Vdom.Node.div(
-                  [Vdom.Attr.class_("assertpop")],
-                  [Vdom.Node.text(assert_eq_string)],
-                ),
-              ]
-              @ vs,
-            ),
-          ];
         | _ => vs
         };
       }
@@ -296,15 +252,9 @@ let view =
       open Vdom;
 
       let l = Program.get_layout(~settings, program);
-      let state = program |> Program.get_result |> snd;
-      let code_text = view_of_box(~state, UHBox.mk(l));
+      let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
-        print_endline("INTRODUCING... THE NEW dPATHS");
-        print_endline(
-          Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(dpaths)),
-        );
-
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {

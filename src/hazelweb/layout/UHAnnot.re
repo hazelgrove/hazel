@@ -26,7 +26,7 @@ type open_child_format =
 [@deriving sexp]
 type t =
   | HoleLabel({len: int})
-  | AssertNum({num: int})
+  //| AssertNum({num: int})
   | Token(token_data)
   | UserNewline
   | OpenChild(open_child_format)

@@ -633,22 +633,11 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     | _ =>
       switch (evaluate(d1, ~state)) {
       | (BoxedValue(SameLit(_) as sl), _) =>
+        //TODO(andrew): figure out if there's a nicer way to do this
         evaluate(
           Lam(Var("@"), Hole, Ap(Ap(sl, d2), BoundVar("@"))),
           ~state,
         )
-      //TODO(andrew): decide whether to partially evaluate
-      /*
-       | (BoxedValue(SameLit(_) as sl), _) =>
-       switch (evaluate(~state, d2)) {
-       | (BoxedValue(d2), state) =>
-         evaluate(
-           Lam(Var("@"), Hole, Ap(Ap(sl, d2), BoundVar("@"))),
-           ~state,
-         )
-       | (Indet(d2'), state) => (Indet(Ap(sl, d2')), state)
-       }
-        */
       | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
       | (BoxedValue(Lam(dp, _, d3)), state) =>
         eval_bind((d2, state), ((d2', state)) =>
@@ -832,8 +821,7 @@ and eval_cast =
       switch (cons(Triv)) {
       | BoxedValue(_) =>
         raise(EvaluatorError.Exception(CastBVHoleGround(d)))
-      //TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-      | _ => (cons(Cast(value, ty, ty')), state)
+      | Indet(_) => (cons(Cast(value, ty, ty')), state)
       }
     }
   | (Hole, NotGroundOrHole(ty_grounded)) =>
@@ -878,8 +866,14 @@ and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
   let d1_clean = DHExp.strip_casts_value(unbox_result(d1));
   let d2_clean = DHExp.strip_casts_value(unbox_result(d2));
   let d: DHExp.t = Ap(Ap(SameLit(n), d1_clean), d2_clean);
+  let is_type_error =
+    switch (d2_clean) {
+    | NonEmptyHole(_) => true
+    | _ => false
+    };
   let assert_status: AssertStatus.t =
     switch (d1, d2) {
+    | _ when is_type_error => Fail // types are wrong
     | (Indet(_), _)
     | (_, Indet(_)) => Indet
     | (BoxedValue(_), BoxedValue(_)) =>

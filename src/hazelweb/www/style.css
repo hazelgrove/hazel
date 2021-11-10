@@ -1461,6 +1461,16 @@ h1 {
   vertical-align: top;
   position: absolute;
 }
+/*
+.UHAssert {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 3.2em;
+  height: 1em;
+}
+*/
 .UHAssert .assertpop {
   display: none;
   position: absolute;

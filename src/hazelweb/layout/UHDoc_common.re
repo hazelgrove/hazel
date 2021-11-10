@@ -86,9 +86,9 @@ module Delim = {
   let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
-  let keyword = (~kw: Keyword.kw, n: int): t => {
+  let keyword = (~kw: Keyword.kw, _n: int): t => {
     Doc.text(Keyword.string_of_kw(kw))
-    |> Doc.annot(UHAnnot.AssertNum({num: n}))
+    //|> Doc.annot(UHAnnot.AssertNum({num: n}))
     |> Doc.annot(
          UHAnnot.mk_Token(
            ~shape=Text,
