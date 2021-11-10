@@ -858,6 +858,32 @@ body {
   opacity: 0.5;
 }
 
+/* test bench */
+
+.test-panel {
+  flex-grow: 1;
+}
+
+.test-reports {
+  display: grid;
+  grid-template-rows:
+    /*1fr*/
+    auto;
+}
+
+.test-report {
+  display: flex;
+  gap: 1em;
+  /*font-size: 125%;*/
+  border: 1px outset #ffffff;
+  border-left: 0px;
+  border-right: 0px;
+}
+
+.test-report .DHCode {
+  display: inline-block;
+}
+
 /* context inspector */
 
 .context-inspector-panel {

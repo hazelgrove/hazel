@@ -1,79 +1,58 @@
 module Vdom = Virtual_dom.Vdom;
 open Vdom;
+open Node;
+
+let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
+
+let assert_instance_view =
+    (dhcode_view, (d, status): AssertMap.assert_instance_report) => {
+  let status = AssertStatus.to_string(status);
+  div(
+    [Attr.classes(["test-instance", "Assert" ++ status])],
+    [dhcode_view(d)],
+  );
+};
+
+let assert_report_view =
+    (dhcode_view, (id, instance_reports): AssertMap.assert_report) => {
+  let status =
+    instance_reports |> AssertMap.joint_status |> AssertStatus.to_string;
+  div(
+    [Attr.class_("test-report")],
+    [div([Attr.class_("Assert" ++ status)], [text(string_of_int(id))])]
+    @ List.map(assert_instance_view(dhcode_view), instance_reports),
+  );
+};
+
+let test_reports_view = (dhcode_view, assert_map) =>
+  div(
+    [Attr.classes(["panel-body", "test-reports"])],
+    List.map(assert_report_view(dhcode_view), assert_map),
+  );
 
 let view =
     (
-      ~inject as _: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Event.t,
       ~model: Model.t,
-      ~assert_map as _: AssertMap.t,
+      ~assert_map: AssertMap.t,
     )
-    : Vdom.Node.t => {
-  let program = Model.get_program(model);
-  /**
-   * Shows typing info for a context entry.
-   */
-  let static_info = assert_num =>
-    Node.div(
-      [Attr.classes(["static-info"])],
-      [
-        Node.div(
-          [Attr.classes(["code"])],
-          [Node.span([Attr.classes(["var"])], [Node.text(assert_num)])],
-        ),
-      ],
+    : t => {
+  let assert_map =
+    List.sort(((id, _), (id', _)) => compare(id, id'), assert_map);
+  let dhcode_view =
+    DHCode.view(
+      ~inject,
+      ~settings=model.settings.evaluation,
+      ~selected_instance=None,
+      ~font_metrics=model.font_metrics,
+      ~width=30,
     );
-
-  /**
-   * Shows runtime value for a context entry.
-   */
-  let _dynamic_info = assert_status =>
-    Node.div(
-      [Attr.classes(["dynamic-info"])],
-      [Node.div([], [Node.span([], [Node.text(assert_status)])])],
-    );
-
-  let context_entry = (assert_map, assert_number) => {
-    let static_info = static_info(assert_number);
-    let children =
-      switch (AssertMap.lookup(int_of_string(assert_number), assert_map)) {
-      | Some(_a) =>
-        switch () /*AssertMap.check(a)*/ {
-        //| Comp => [static_info, dynamic_info("Comp")]
-        | _ => [static_info]
-        }
-      | None => [static_info]
-      };
-    Node.div([Attr.classes(["context-entry"])], children);
-  };
-  let context_view = {
-    let state = snd(program |> Program.get_result);
-    switch ([] /*AssertMap.to_list(state.assert_map)*/) {
-    | [] =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        [
-          Node.div(
-            [Attr.classes(["context-is-empty-msg"])],
-            [Node.text("no assertion in scope")],
-          ),
-        ],
-      )
-    | ast_lst =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        List.map(context_entry(state.assert_map), ast_lst),
-      )
-    };
-  };
-
-  Node.div(
-    [Attr.classes(["panel", "context-inspector-panel"])], //TODO
+  div_if(
+    assert_map != [],
+    [Attr.classes(["panel", "test-panel"])],
     [
       Panel.view_of_main_title_bar("Test Bench"),
-      Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])], //TODO
-        [context_view],
-      ),
+      test_reports_view(dhcode_view, assert_map),
     ],
   );
 };
