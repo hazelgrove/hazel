@@ -21,3 +21,5 @@ let evaluate: (~state: state=?, DHExp.t) => report;
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
 
 let subst: (Environment.t, DHExp.t) => DHExp.t;
+
+let unbox_result: result => DHExp.t;

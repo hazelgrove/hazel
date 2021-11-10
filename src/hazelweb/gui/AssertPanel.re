@@ -1,9 +1,14 @@
 module Vdom = Virtual_dom.Vdom;
+open Vdom;
 
-exception InvalidInstance;
-let view = (program: Program.t): Vdom.Node.t => {
-  open Vdom;
-
+let view =
+    (
+      ~inject as _: ModelAction.t => Event.t,
+      ~model: Model.t,
+      ~assert_map as _: AssertMap.t,
+    )
+    : Vdom.Node.t => {
+  let program = Model.get_program(model);
   /**
    * Shows typing info for a context entry.
    */
@@ -62,11 +67,11 @@ let view = (program: Program.t): Vdom.Node.t => {
   };
 
   Node.div(
-    [Attr.classes(["panel", "context-inspector-panel"])],
+    [Attr.classes(["panel", "context-inspector-panel"])], //TODO
     [
-      Panel.view_of_main_title_bar("Assert"),
+      Panel.view_of_main_title_bar("Test Bench"),
       Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
+        [Attr.classes(["panel-body", "context-inspector-body"])], //TODO
         [context_view],
       ),
     ],
