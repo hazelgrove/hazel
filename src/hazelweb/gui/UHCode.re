@@ -5,7 +5,6 @@ module Vdom = Virtual_dom.Vdom;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
-//open Sexplib.Std;
 
 let decoration_cls: UHDecorationShape.t => string =
   fun
@@ -18,37 +17,32 @@ let decoration_cls: UHDecorationShape.t => string =
 let decoration_view =
     (
       dshape: UHDecorationShape.t,
-      m,
-      offset,
       dpaths: UHDecorationPaths.t,
       corner_radii,
       shape,
       sort,
-      svg_container,
-      non_svg_container,
-      _font_metrics: FontMetrics.t,
+      font_metrics: FontMetrics.t,
     ) => {
   switch (dshape) {
   | AssertStatus(a) =>
-    //let container_origin_x = float_of_int(offset) *. font_metrics.col_width;
-    let view = UHDecoration.AssertStatus.view(a);
-    non_svg_container(view((offset, m)));
+    let view = UHDecoration.AssertStatus.view(a, font_metrics);
+    (Decoration_common.Div, view);
   | ErrHole =>
     let contains_current_term = Option.is_some(dpaths.current_term);
     let view =
       UHDecoration.ErrHole.view(~contains_current_term, ~corner_radii);
-    svg_container(view((offset, m)));
+    (Decoration_common.Svg, view);
   | VarErrHole =>
     let contains_current_term = Option.is_some(dpaths.current_term);
     let view =
       UHDecoration.VarErrHole.view(~contains_current_term, ~corner_radii);
-    svg_container(view((offset, m)));
+    (Decoration_common.Svg, view);
   | VarUse =>
     let view = UHDecoration.VarUse.view(~corner_radii);
-    svg_container(view((offset, m)));
+    (Decoration_common.Svg, view);
   | CurrentTerm =>
     let view = UHDecoration.CurrentTerm.view(~corner_radii, ~sort, ~shape);
-    svg_container(view((offset, m)));
+    (Decoration_common.Svg, view);
   };
 };
 
@@ -100,36 +94,23 @@ let decoration_views =
                let height = MeasuredLayout.height(m);
                let width = MeasuredLayout.width(~offset, m);
                let origin = MeasuredPosition.{row: start.row, col: indent};
-               //TODO(andrew): clean up
-               let svg_container = view =>
-                 Decoration_common.container(
-                   ~font_metrics,
-                   ~height,
-                   ~width,
-                   ~origin,
-                   ~cls,
-                   [view],
+               let (container_type, view) =
+                 decoration_view(
+                   dshape,
+                   dpaths,
+                   corner_radii,
+                   shape,
+                   sort,
+                   font_metrics,
                  );
-               let non_svg_container = view =>
-                 Decoration_common.container_non_svg(
-                   ~font_metrics,
-                   ~height,
-                   ~width,
-                   ~origin,
-                   ~cls,
-                   [view],
-                 );
-               decoration_view(
-                 dshape,
-                 m,
-                 offset,
-                 dpaths,
-                 corner_radii,
-                 shape,
-                 sort,
-                 svg_container,
-                 non_svg_container,
-                 font_metrics,
+               Decoration_common.container(
+                 ~container_type,
+                 ~font_metrics,
+                 ~origin,
+                 ~height,
+                 ~width,
+                 ~cls,
+                 [view((offset, m))],
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);

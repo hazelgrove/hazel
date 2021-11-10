@@ -85,7 +85,6 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, id_gen));
   | Keyword(kw) =>
-    //TODO(andrew): correlate with other relevant TODOs
     let (_, id_gen) = IDGen.next_kw(id_gen);
     let zp =
       ZOpSeq.wrap(

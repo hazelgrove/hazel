@@ -58,7 +58,6 @@ let view =
                   ~font_metrics,
                   ~width=30,
                   d,
-                  AssertMap.empty,
                 ),
               ],
             ),

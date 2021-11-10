@@ -432,94 +432,44 @@ open Sexplib.Std;
 module Vdom = Virtual_dom.Vdom;
 module AssertStatus = {
   let view =
-      (assert_instances, (offset, subject): UHMeasuredLayout.with_offset) => {
-    let total_offset = offset + List.hd(subject.metrics).width;
+      (
+        assert_instances: list(AssertMap.assert_instance_report),
+        font_metrics: FontMetrics.t,
+        (offset, subject): UHMeasuredLayout.with_offset,
+      ) => {
+    let total_offset =
+      float_of_int(offset + List.hd(subject.metrics).width)
+      *. font_metrics.col_width;
     let assert_status = AssertMap.join_statuses(assert_instances);
     let assert_eqs = assert_instances |> List.rev;
     let assert_eq_string =
       Sexplib.Sexp.to_string_hum(
         sexp_of_list(AssertMap.sexp_of_assert_instance_report, assert_eqs),
       );
-    let _blog =
-      List.map(
-        ((assert_eq, _)) => {
-          switch (assert_eq) {
-          | _ => ()
-          }
-        },
-        assert_eqs,
-      );
     let assert_class = "Assert" ++ AssertStatus.to_string(assert_status);
+    let magic_x = 6.;
+    let magic_y = 8.;
     Vdom.Node.div(
       [
         Vdom.Attr.classes([assert_class, "UHAssert"]),
         Vdom.Attr.create(
           "style",
-          "position:relative; left:" ++ string_of_int(total_offset) ++ "px;",
+          Printf.sprintf(
+            "position:relative; top: %fpx; left: %fpx;",
+            magic_y,
+            total_offset +. magic_x,
+          ),
         ),
       ],
       [
         Vdom.Node.div(
           [Vdom.Attr.class_("assertpop")],
-          [Vdom.Node.text(assert_eq_string), Vdom.Node.text("BLAH")],
+          [Vdom.Node.text(assert_eq_string)],
         ),
       ],
     );
   };
 };
-
-//TODO(andrew): clean
-/*
- module AssertStatus = {
-   let view =
-       (
-         ~assert_instances: list(AssertMap.assert_instance_report),
-         (offset, subject): UHMeasuredLayout.with_offset,
-       )
-       : Node.t => {
-     let total_offset = offset + List.hd(subject.metrics).width;
-     let symbol =
-       switch (AssertMap.join_statuses(assert_instances)) {
-       | _ => "✔"
-       };
-     print_endline("VIEWWWWWWWWXXX");
-     //assert_view(assert_instances);
-
-     Node.create_svg(
-       "assert-result",
-       [
-         Attr.classes(["AssertPass"]),
-         Attr.create("x", string_of_int(total_offset)),
-         Attr.create("y", "0"),
-         Attr.create("text-anchor", "middle"),
-         Attr.create("text-align", "middle"),
-         Attr.create("fill", "black"),
-       ],
-       [Node.text(symbol), Node.text("BALH")],
-     );
-     /*
-        subject
-      |> rects(
-           ~vtrim=
-             contains_current_term
-               ? 0.0 : CurrentTerm.inline_open_child_border_height,
-           {row: 0, col: offset},
-         )
-      |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-      |> SvgUtil.Path.view(
-           ~attrs=
-             Attr.[
-               switch (AssertMap.check(assert_map)) {
-               | Pass => classes(["AssertPass"])
-
-               | Fail => classes(["AssertFail"])
-
-               | Indet => classes(["AssertIndet"])
-               },
-             ], */
-   };
- };
- */
 
 module Caret = {
   let view =

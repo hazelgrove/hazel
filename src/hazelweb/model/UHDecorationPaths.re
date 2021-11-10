@@ -34,31 +34,14 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  //TODO(andrew): clean up
-  let remove_pair =
-    fun
-    | (steps, lst) =>
-      switch (steps) {
-      | [step', ...stepd] when step == step' => Some((stepd, lst))
-      | _ => None
-      };
-  let asserts = asserts |> List.filter_map(remove_pair);
+  let remove_step' = ((steps, x)) =>
+    steps |> remove_step |> Option.map(s => (s, x));
+  let asserts = asserts |> List.filter_map(remove_step');
   {err_holes, var_err_holes, var_uses, asserts, current_term};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let is_current = steps =>
-    switch (shape) {
-    | SubBlock({hd_index, _}) => steps == [hd_index]
-    | NTuple({comma_indices, _}) =>
-      List.exists(n => steps == [n], comma_indices)
-    | BinOp({op_index, _}) => steps == [op_index]
-    | Operand
-    | Case
-    | Rule => steps == []
-    };
-  //TODO(andrew): clean up
-  let is_current_pair = ((steps, _)) =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
@@ -92,7 +75,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     };
   let asserts =
     dpaths.asserts
-    |> List.find_opt(is_current_pair)
+    |> List.find_opt(((steps, _)) => is_current(steps))
     |> Option.map(((_, lst)) => UHDecorationShape.AssertStatus(lst))
     |> Option.to_list;
   List.concat([err_holes, var_err_holes, var_uses, asserts, current_term]);

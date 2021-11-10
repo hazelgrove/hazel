@@ -22,7 +22,6 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,
-    DHExp.t,
-    AssertMap.t
+    DHExp.t
   ) =>
   Vdom.Node.t;

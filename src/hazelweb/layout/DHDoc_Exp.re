@@ -96,19 +96,12 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
-let annot_of_assert_status: AssertStatus.t => DHAnnot.t =
-  fun
-  | Pass => AssertPass
-  | Fail => AssertFail
-  | Indet => AssertIndet;
-
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
-          assert_map: AssertMap.t,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -185,14 +178,8 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | AssertLit(n) =>
-        let annot =
-          annot_of_assert_status(AssertMap.lookup_and_join(n, assert_map));
-        Doc.annot(annot, Doc.text(Keyword.string_of_kw(Assert)));
-      | SameLit(n) =>
-        let annot =
-          annot_of_assert_status(AssertMap.lookup_and_join(n, assert_map));
-        Doc.annot(annot, Doc.text(Keyword.string_of_kw(Same)));
+      | AssertLit(_) => Doc.text(Keyword.string_of_kw(Assert))
+      | SameLit(_) => Doc.text(Keyword.string_of_kw(Same))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
@@ -235,17 +222,6 @@ let rec mk =
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
-      /*
-         //TODO(andrew): reuse decos for popup/bench
-       | FailedAssert(_, x) =>
-         //let (d_doc, _) = go'(x);
-         let (d_doc, _) = go'(x);
-         let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
-         /*let decoration =
-           Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);*/
-         //hcats([d_doc2, _]);
-         d_doc2;
-         */
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
           mk_cast(go(~enforce_inline, ddef));
@@ -357,7 +333,7 @@ let rec mk =
 and mk_rule =
     (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance, AssertMap.empty);
+  let mk' = mk(~settings, ~selected_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses
