@@ -431,7 +431,7 @@ and holes_operand =
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | Keyword(Typed(_, _, id)) => [
-      CursorPath.mk_hole_sort(Assert(id, Assertlit), List.rev(rev_steps)),
+      CursorPath.mk_hole_sort(Assert(id), List.rev(rev_steps)),
       ...hs,
     ]
   | IntLit(err, _)
@@ -606,12 +606,7 @@ and holes_zoperand =
     | NotInHole =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some(
-            CursorPath.mk_hole_sort(
-              Assert(id, Assertlit),
-              List.rev(rev_steps),
-            ),
-          ),
+          Some(CursorPath.mk_hole_sort(Assert(id), List.rev(rev_steps))),
         (),
       )
     | InHole(_, u) =>
