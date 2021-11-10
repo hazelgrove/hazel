@@ -84,7 +84,10 @@ let rec get_wrapped_operand' =
         )
         : list(UHExp.operand) => {
   let prefix_match =
-    if (StringUtil.match_prefix(prefix, operand_str)) {
+    if (StringUtil.match_prefix(
+          String.lowercase_ascii(prefix),
+          String.lowercase_ascii(operand_str),
+        )) {
       let (_, last) =
         StringUtil.split_string(String.length(prefix), operand_str);
       Some(last);
@@ -110,13 +113,15 @@ let rec get_wrapped_operand' =
     } else {
       switch (
         vars_satisfying_p(ctx, ((name, ty)) => {
-          HTyp.consistent(ty, target_type) && name == target_second
+          HTyp.consistent(ty, target_type)
+          && String.lowercase_ascii(name)
+          == String.lowercase_ascii(target_second)
         })
       ) {
       | [] => rec_case
       | [(name, _), ..._] =>
         // TODO:
-        // 1. right now result muse be unique bc exact name match. relax?
+        // 1. right now result must be unique bc exact name match. relax?
         // 2. instead of just stopping, could continue to recurse and collect all
         [UHExp.operand_of_string(name)]
       };
