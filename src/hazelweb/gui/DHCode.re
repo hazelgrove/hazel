@@ -42,11 +42,6 @@ let view_of_layout =
                  ds,
                )
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
-             | AssertionFail => ([with_cls("AssertionFail", txt)], ds)
-             | AssertPass => ([with_cls("AssertPass", txt)], ds)
-             | AssertFail => ([with_cls("AssertFail", txt)], ds)
-             | AssertIndet => ([with_cls("AssertIndet", txt)], ds)
-             | AssertComp => ([with_cls("AssertComp", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],
                  ds,
@@ -68,6 +63,7 @@ let view_of_layout =
                let offset = start.col - indent;
                let decoration =
                  Decoration_common.container(
+                   ~container_type=Svg,
                    ~font_metrics,
                    ~height=MeasuredLayout.height(m),
                    ~width=MeasuredLayout.width(~offset, m),
@@ -94,11 +90,10 @@ let view =
       ~width: int,
       ~pos=0,
       d: DHExp.t,
-      map: AssertMap.t,
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance, map)
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -125,7 +120,6 @@ let view_of_hole_instance =
     ~width,
     ~pos,
     DHExp.EmptyHole(u, i, []),
-    AssertMap.empty,
   );
 
 let view_of_var = x => Node.text(x);

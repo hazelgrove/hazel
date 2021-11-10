@@ -121,7 +121,6 @@ and syn_skel =
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty2);
-    //TODO(andrew): above line is what returns none in our case
     ty;
   | BinOp(NotInHole, Comma, _, _) =>
     skel
@@ -734,7 +733,7 @@ and syn_fix_holes_skel =
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, id_gen);
   | BinOp(err, Space, Placeholder(n) as skel1, skel2) =>
-    //TODO(andrew): akward sort of case here
+    //TODO(andrew): awkward sort of case here
     let en = Seq.nth_operand(n, seq);
     switch (en) {
     | Keyword(Typed(Same, _, _)) =>

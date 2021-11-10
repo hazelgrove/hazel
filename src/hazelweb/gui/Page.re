@@ -67,14 +67,11 @@ let type_indicator_view = (ty: HTyp.t): Node.t => {
 
 let result_view = (~settings: Settings.t, ~model: Model.t, ~inject): Node.t => {
   let program = Model.get_program(model);
-  let result = program |> Program.get_result;
-  let selected_instance = Model.get_selected_hole_instance(model);
-  let (_, ty, _) = program.edit_state;
-  //TODO(andrew): clean
-  let (result_dhexp, assert_map) =
+  let result =
     settings.evaluation.show_unevaluated_elaboration
-      ? (program |> Program.get_elaboration, AssertMap.empty)
-      : (result |> Result.get_dhexp, result |> Result.get_dhexp_assert |> snd);
+      ? program |> Program.get_elaboration
+      : program |> Program.get_result |> Result.get_dhexp;
+  let (_, ty, _) = program.edit_state;
   div(
     [],
     [
@@ -84,12 +81,11 @@ let result_view = (~settings: Settings.t, ~model: Model.t, ~inject): Node.t => {
         [
           DHCode.view(
             ~inject,
-            ~selected_instance,
+            ~selected_instance=Model.get_selected_hole_instance(model),
             ~font_metrics=model.font_metrics,
             ~settings=settings.evaluation,
             ~width=80,
-            result_dhexp,
-            assert_map //TODO(andrew): clean
+            result,
           ),
         ],
       ),

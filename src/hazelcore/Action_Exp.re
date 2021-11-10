@@ -1511,8 +1511,6 @@ and syn_perform_operand =
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, id_gen, j, string_of_bool(b))
   | (Delete, CursorE(OnText(j), Keyword(kw))) =>
-    //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_delete_text(ctx, id_gen, j, Keyword.to_string(kw))
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, id_gen, j, t)
@@ -1525,8 +1523,6 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
-    //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_backspace_text(ctx, id_gen, j, Keyword.to_string(kw))
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
@@ -1644,8 +1640,6 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
-    //TODO(andrew): investigate below
-    //let (_, id_gen) = IDGen.next_kw(id_gen);
     syn_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw))
   | (Construct(SChar(_)), CursorE(_)) => Failed
 

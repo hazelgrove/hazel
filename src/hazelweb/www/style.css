@@ -1114,31 +1114,6 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
-
-.DHCode .AssertionFail{
-  color: red;
-  border: 2px dotted;
-  margin: -1px;
-}
-.DHCode .AssertPass:after{
-  content: "✔";
-  color: green;
-  font-size: 70%;
-  vertical-align: top;
-}
-.DHCode .AssertFail:after{
-  content: "✘";
-  color:red;
-  font-size: 70%;
-  vertical-align: top;
-}
-.DHCode .AssertIndet:after{
-  content: "?";
-  color: brown;
-  font-size: 70%;
-  vertical-align: top;
-}
-
 .DHCode .FailedCastDelim {
   color: red;
 }

@@ -3,6 +3,10 @@ open Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+type container_type =
+  | Svg
+  | Div;
+
 /**
  * A buffered container for SVG elements so that strokes along
  * the bounding box of the elements do not get clipped by the
@@ -10,67 +14,7 @@ module MeasuredLayout = Pretty.MeasuredLayout;
  */
 let container =
     (
-      ~font_metrics: FontMetrics.t,
-      ~origin: MeasuredPosition.t,
-      ~height: int,
-      ~width: int,
-      ~cls: string,
-      svgs: list(Node.t),
-    )
-    : Node.t => {
-  let buffered_height = height + 1;
-  let buffered_width = width + 1;
-
-  let buffered_height_px =
-    Float.of_int(buffered_height) *. font_metrics.row_height;
-  let buffered_width_px =
-    Float.of_int(buffered_width) *. font_metrics.col_width;
-
-  let container_origin_x =
-    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
-  let container_origin_y =
-    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
-
-  Node.div(
-    [
-      Attr.classes([
-        "decoration-container",
-        Printf.sprintf("%s-container", cls),
-      ]),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "top: calc(%fpx - 1px); left: %fpx;",
-          container_origin_x,
-          container_origin_y,
-        ),
-      ),
-    ],
-    [
-      Node.create_svg(
-        "svg",
-        [
-          Attr.classes([cls]),
-          Attr.create(
-            "viewBox",
-            Printf.sprintf(
-              "-0.5 -0.5 %d %d",
-              buffered_width,
-              buffered_height,
-            ),
-          ),
-          Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-          Attr.create("height", Printf.sprintf("%fpx", buffered_height_px)),
-          Attr.create("preserveAspectRatio", "none"),
-        ],
-        svgs,
-      ),
-    ],
-  );
-};
-
-let container_non_svg =
-    (
+      ~container_type: container_type,
       ~font_metrics: FontMetrics.t,
       ~origin: MeasuredPosition.t,
       ~height: int,
@@ -92,6 +36,46 @@ let container_non_svg =
   let container_origin_y =
     (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
 
+  let inner =
+    switch (container_type) {
+    | Div =>
+      Node.div(
+        [
+          Attr.classes([
+            "decoration-container",
+            Printf.sprintf("%s-container", cls),
+          ]),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "width: %fpx; height: %fpx;",
+              buffered_width_px,
+              buffered_height_px,
+            ),
+          ),
+        ],
+        contents,
+      )
+    | Svg =>
+      Node.create_svg(
+        "svg",
+        [
+          Attr.classes([cls]),
+          Attr.create(
+            "viewBox",
+            Printf.sprintf(
+              "-0.5 -0.5 %d %d",
+              buffered_width,
+              buffered_height,
+            ),
+          ),
+          Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+          Attr.create("height", Printf.sprintf("%fpx", buffered_height_px)),
+          Attr.create("preserveAspectRatio", "none"),
+        ],
+        contents,
+      )
+    };
   Node.div(
     [
       Attr.classes([
@@ -101,15 +85,13 @@ let container_non_svg =
       Attr.create(
         "style",
         Printf.sprintf(
-          "top: calc(%fpx - 1px); left: %fpx; width: %fpx; height: %fpx;",
+          "top: calc(%fpx - 1px); left: %fpx;",
           container_origin_x,
           container_origin_y,
-          buffered_width_px,
-          buffered_height_px,
         ),
       ),
     ],
-    contents,
+    [inner],
   );
 };
 
