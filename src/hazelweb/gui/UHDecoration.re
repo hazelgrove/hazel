@@ -440,7 +440,7 @@ module AssertStatus = {
     let total_offset =
       float_of_int(offset + List.hd(subject.metrics).width)
       *. font_metrics.col_width;
-    let assert_status = AssertMap.join_statuses(assert_instances);
+    let assert_status = AssertMap.joint_status(assert_instances);
     let assert_eqs = assert_instances |> List.rev;
     let assert_eq_string =
       Sexplib.Sexp.to_string_hum(
