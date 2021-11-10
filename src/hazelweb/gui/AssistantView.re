@@ -177,7 +177,12 @@ let score_view = (subscore: float, describe_subscore: float => string) =>
     [Attr.class_("subscore")],
     switch (subscore) {
     | n when n < 0.01 && n > (-0.01) => []
-    | _ => [sign_view(subscore), text(describe_subscore(subscore))]
+    | _ => [
+        sign_view(subscore),
+        text(describe_subscore(subscore)),
+        //TODO(andrew): remove debug print
+        text(Printf.sprintf(" %.2f", subscore)),
+      ]
     },
   );
 
