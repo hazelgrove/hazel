@@ -129,7 +129,6 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  //TODO(andrew): clean up
   let asserts =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
@@ -145,17 +144,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            };
          }
        );
-
-  let d =
-    UHDecorationPaths.{
-      err_holes,
-      var_uses,
-      var_err_holes,
-      asserts, //: [], //TODO(andrew)
-      current_term,
-    };
-  //print_endline(Sexplib.Sexp.to_string(UHDecorationPaths.sexp_of_t(d)));
-  d;
+  {err_holes, var_uses, var_err_holes, asserts, current_term};
 };
 
 let get_doc = (~settings: Settings.t, program) => {
@@ -214,7 +203,6 @@ let perform_edit_action = (a, program) => {
     ();
     program |> put_edit_state(new_edit_state);
   };
-  // };
 };
 
 exception HoleNotFound;
