@@ -22,26 +22,30 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
     [ActionPanel.view(~inject, model)]
   );
 
-let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
-  let settings = model.settings;
+let right_sidebar =
+    (
+      ~inject: ModelAction.t => Event.t,
+      ~model: Model.t,
+      ~assert_map: AssertMap.t,
+    ) => {
   let program = Model.get_program(model);
-  let selected_instance = Model.get_selected_hole_instance(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
+      AssertPanel.view(~inject, ~model, ~assert_map),
       ContextInspector.view(
         ~inject,
-        ~selected_instance,
-        ~settings=settings.evaluation,
+        ~selected_instance=Model.get_selected_hole_instance(model),
+        ~settings=model.settings.evaluation,
         ~font_metrics=model.font_metrics,
         program,
       ),
       UndoHistoryPanel.view(~inject, model),
-      SettingsPanel.view(~inject, settings),
+      SettingsPanel.view(~inject, model.settings),
     ]
   );
 };
 
-let branch_panel = {
+let git_panel = {
   let git_str =
     Printf.sprintf(
       "[%s @ %s (%s)]",
@@ -62,8 +66,7 @@ let type_view = (ty: HTyp.t): Node.t => {
   );
 };
 
-let result_view =
-    (~settings: Settings.t, ~model: Model.t, ~inject, result): Node.t =>
+let result_view = (~model: Model.t, ~inject, ~result: DHExp.t): Node.t =>
   div(
     [Attr.classes(["result-view"])],
     [
@@ -71,31 +74,23 @@ let result_view =
         ~inject,
         ~selected_instance=Model.get_selected_hole_instance(model),
         ~font_metrics=model.font_metrics,
-        ~settings=settings.evaluation,
+        ~settings=model.settings.evaluation,
         ~width=80,
         result,
       ),
     ],
   );
 
-let status_view = (~settings: Settings.t, ~model: Model.t, ~inject): Node.t => {
-  let program = Model.get_program(model);
-  let result =
-    settings.evaluation.show_unevaluated_elaboration
-      ? program |> Program.get_elaboration
-      : program |> Program.get_result |> Result.get_dhexp;
-  let (_, ty, _) = program.edit_state;
+let status_view =
+    (~model: Model.t, ~inject, ~result_ty: HTyp.t, ~result: DHExp.t): Node.t =>
   div(
     [],
-    [type_view(ty), result_view(~settings, ~model, ~inject, result)],
+    model.settings.evaluation.evaluate
+      ? [type_view(result_ty), result_view(~model, ~inject, ~result)] : [],
   );
-};
 
-let page = (~inject: ModelAction.t => Event.t, ~model: Model.t): Node.t => {
-  let settings = model.settings;
-  let result_view =
-    !settings.evaluation.evaluate
-      ? div([], []) : status_view(~settings, ~model, ~inject);
+let page =
+    (~inject, ~model: Model.t, ~result_ty: HTyp.t, ~result: DHExp.t): Node.t => {
   let card_caption =
     div(
       [Attr.class_("card-caption")],
@@ -103,20 +98,38 @@ let page = (~inject: ModelAction.t => Event.t, ~model: Model.t): Node.t => {
     );
   div(
     [Attr.class_("page")],
-    [card_caption, Cell.view(~inject, model), result_view],
+    [
+      card_caption,
+      Cell.view(~inject, model),
+      status_view(~model, ~inject, ~result_ty, ~result),
+    ],
   );
 };
 
+let run_program = (model: Model.t): (DHExp.t, HTyp.t, AssertMap.t) => {
+  let program = Model.get_program(model);
+  let (result, state) =
+    model.settings.evaluation.show_unevaluated_elaboration
+      ? (program |> Program.get_elaboration, EvalState.init)
+      : program |> Program.get_result |> ((((r, _, _), s)) => (r, s));
+  let (_, result_ty, _) = program.edit_state;
+  (result, result_ty, state.assert_map);
+};
+
 let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
+  let (result, result_ty, assert_map) = run_program(model);
   let page_area =
-    div([Attr.id("page-area")], [page(~inject, ~model), branch_panel]);
+    div(
+      [Attr.id("page-area")],
+      [page(~inject, ~model, ~result_ty, ~result), git_panel],
+    );
   let main_area =
     div(
       [Attr.class_("main-area")],
       [
         left_sidebar(~inject, ~model),
         div([Attr.classes(["flex-wrapper"])], [page_area]),
-        right_sidebar(~inject, ~model),
+        right_sidebar(~inject, ~model, ~assert_map),
       ],
     );
   div([Attr.id("root")], [top_bar(~inject, ~model), main_area]);
