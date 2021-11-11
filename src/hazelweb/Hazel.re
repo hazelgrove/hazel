@@ -22,7 +22,7 @@ let on_startup = (~schedule_action, _) => {
      element resizes. */
   let _ =
     ResizeObserver.observe(
-      ~node=JSUtil.force_get_elem_by_id("font-specimen"),
+      ~node=JSUtil.force_get_elem_by_id(ViewUtil.font_specimen_id),
       ~f=
         (entries, _) => {
           let array = Js_of_ocaml.Js.to_array(entries);
@@ -82,7 +82,7 @@ let move_cursor_inspector_in_view = ci_elem => {
 
 let scroll_history_panel_entry = entry_elem => {
   let panel_rect =
-    JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id(ViewUtil.history_body_id)##getBoundingClientRect;
 
   let entry_rect = entry_elem##getBoundingClientRect;
   if (entry_rect##.top < panel_rect##.top) {
@@ -113,7 +113,7 @@ let create =
       ~on_display=
         (_, ~schedule_action as _) => {
           if (!Model.get_undo_history(model).disable_auto_scrolling) {
-            switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
+            switch (JSUtil.get_elem_by_id(ViewUtil.cur_selected_id)) {
             | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
             | None => ()
             };
@@ -126,13 +126,12 @@ let create =
               ()
             | _ => UHCode.focus()
             };
-            let caret_elem = JSUtil.force_get_elem_by_id("caret");
+            let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
             restart_cursor_animation(caret_elem);
-            //TODO(andrew)
-            //scroll_cursor_into_view_if_needed(caret_elem);
+            scroll_cursor_into_view_if_needed(caret_elem);
 
             if (model.cursor_inspector.visible) {
-              let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
+              let ci_elem = JSUtil.force_get_elem_by_id(ViewUtil.ci_id);
               move_cursor_inspector_in_view(ci_elem);
             };
           };

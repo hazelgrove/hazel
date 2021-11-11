@@ -476,7 +476,7 @@ module Caret = {
       (~font_metrics: FontMetrics.t, {row, col}: MeasuredPosition.t): Node.t => {
     Node.span(
       [
-        Attr.id("caret"),
+        Attr.id(ViewUtil.caret_id),
         Attr.create(
           "style",
           Printf.sprintf(

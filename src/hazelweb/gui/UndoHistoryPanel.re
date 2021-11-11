@@ -1107,7 +1107,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           if (model.undo_history.preview_on_hover) {
             [
               Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
+              Attr.id(ViewUtil.history_body_id),
               Attr.on_mousemove(evt => {
                 /* update mouse position */
                 model.mouse_position := JSUtil.get_mouse_position(evt);
@@ -1136,7 +1136,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           } else {
             [
               Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
+              Attr.id(ViewUtil.history_body_id),
             ];
           },
           [history_view(model)],

@@ -704,7 +704,7 @@ let view =
     };
   Node.div(
     [
-      Attr.id("cursor-inspector"),
+      Attr.id(ViewUtil.ci_id),
       Attr.classes(["cursor-inspector-outer", above_or_below]),
       // stop propagation to code click handler
       Attr.on_mousedown(_ => Event.Stop_propagation),
