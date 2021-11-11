@@ -87,7 +87,9 @@ module Delim = {
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
   let keyword = (~kw: Keyword.kw, _n: int): t => {
-    Doc.text(Keyword.string_of_kw(kw))
+    mk(~index=0, Keyword.string_of_kw(kw))
+    //TODO(andrew): make sure there are no issues with making this a (display) delim
+    //Doc.text(Keyword.string_of_kw(kw))
     //|> Doc.annot(UHAnnot.AssertNum({num: n}))
     |> Doc.annot(
          UHAnnot.mk_Token(
