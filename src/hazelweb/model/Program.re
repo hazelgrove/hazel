@@ -81,38 +81,27 @@ let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 exception EvalError(EvaluatorError.t);
 
-let get_result = (program: t): Result.t =>
-  switch (evaluate(get_elaboration(program))) {
-  | (BoxedValue(d), state) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    let assert_map =
-      List.sort(
-        ((id, _), (id', _)) => compare(id, id'),
-        state.assert_map,
-      );
-    let (_, result_ty, _) = program.edit_state;
-    let boxed_result = Evaluator.BoxedValue(d_renumbered);
-    let result = d_renumbered;
-    Result.{result, result_ty, boxed_result, hii, assert_map};
-  | (Indet(d), state) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    let assert_map =
-      List.sort(
-        ((id, _), (id', _)) => compare(id, id'),
-        state.assert_map,
-      );
-    let (_, result_ty, _) = program.edit_state;
-    let boxed_result = Evaluator.Indet(d_renumbered);
-    let result = d_renumbered;
-    Result.{result, result_ty, boxed_result, hii, assert_map};
-  };
+let get_result = (program: t): Result.t => {
+  let (result', state) = evaluate(get_elaboration(program));
+  let d = Evaluator.unbox_result(result');
+  let (d_renumbered, hii) =
+    Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+  let result = d_renumbered;
+  let boxed_result =
+    switch (result') {
+    | BoxedValue(_) => Evaluator.BoxedValue(d_renumbered)
+    | Indet(_) => Indet(d_renumbered)
+    };
+  let (_, result_ty, _) = program.edit_state;
+  let assert_map =
+    List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
+  {result, result_ty, boxed_result, hii, assert_map};
+};
 
 let elaborate_only = (program: t): Result.t => {
   let elaboration = get_elaboration(program);
   let (_, result_ty, _) = program.edit_state;
-  Result.{
+  {
     result: elaboration,
     boxed_result: Indet(elaboration),
     result_ty,
