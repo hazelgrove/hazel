@@ -163,12 +163,6 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let run_program = (model: t): Result.t => {
-  let program = get_program(model);
-  model.settings.evaluation.show_unevaluated_elaboration
-    ? Program.elaborate_only(program) : Program.get_result(program);
-};
-
 let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
