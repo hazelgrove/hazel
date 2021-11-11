@@ -25,6 +25,7 @@
  (modules grainc_js)
  ; exe is only here so dune-build-info works
  (modes exe js)
+ ;(flags (:standard -ccopt -- -ccopt -static))
  (libraries grain grain_diagnostics binaryen.js dune-build-info)
  (js_of_ocaml
   (flags --no-sourcemap --no-extern-fs --quiet)))

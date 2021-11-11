@@ -1,5 +1,5 @@
 {
-  "checksum": "40e931bf6418eed1cefd3a95ea2aa1fa",
+  "checksum": "fc37dc80fc911810d0976e9c71feb8fe",
   "root": "@hazel/hazel@link-dev:./esy.json",
   "node": {
     "yarn-pkg-config@github:esy-ocaml/yarn-pkg-config#db3a0b63883606dd57c54a7158d560d6cba8cd79@d41d8cd9": {
@@ -3091,6 +3091,40 @@
         "@opam/dune@opam:2.9.1@1e504822"
       ]
     },
+    "@opam/binaryen@opam:0.10.0@d2495b25": {
+      "id": "@opam/binaryen@opam:0.10.0@d2495b25",
+      "name": "@opam/binaryen",
+      "version": "opam:0.10.0",
+      "source": {
+        "type": "install",
+        "source": [
+          "archive:https://opam.ocaml.org/cache/md5/a7/a72ff934127c2f06588bdc0620f61276#md5:a72ff934127c2f06588bdc0620f61276",
+          "archive:https://github.com/grain-lang/binaryen.ml/releases/download/v0.10.0/binaryen-archive-v0.10.0.tar.gz#md5:a72ff934127c2f06588bdc0620f61276"
+        ],
+        "opam": {
+          "name": "binaryen",
+          "version": "0.10.0",
+          "path": "esy.lock/opam/binaryen.0.10.0"
+        }
+      },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.11.0@d41d8cd9",
+        "@opam/js_of_ocaml-ppx@opam:3.11.0@4edaf441",
+        "@opam/js_of_ocaml-compiler@opam:3.11.0@ec469e8e",
+        "@opam/js_of_ocaml@opam:3.11.0@93e18d4d",
+        "@opam/dune-configurator@opam:2.9.1@b7cf7a02",
+        "@opam/dune@opam:2.9.1@1e504822", "@esy-ocaml/substs@0.0.1@d41d8cd9"
+      ],
+      "devDependencies": [
+        "ocaml@4.11.0@d41d8cd9",
+        "@opam/js_of_ocaml-ppx@opam:3.11.0@4edaf441",
+        "@opam/js_of_ocaml-compiler@opam:3.11.0@ec469e8e",
+        "@opam/js_of_ocaml@opam:3.11.0@93e18d4d",
+        "@opam/dune-configurator@opam:2.9.1@b7cf7a02",
+        "@opam/dune@opam:2.9.1@1e504822"
+      ]
+    },
     "@opam/bin_prot@opam:v0.14.0@2d7601e9": {
       "id": "@opam/bin_prot@opam:v0.14.0@2d7601e9",
       "name": "@opam/bin_prot",
@@ -3500,34 +3534,13 @@
         "@opam/dune@opam:2.9.1@1e504822",
         "@opam/cmdliner@opam:1.0.4@93208aac",
         "@opam/camomile@opam:1.0.2@42017332",
-        "@grain/binaryen.ml@0.10.0@d41d8cd9"
+        "@opam/binaryen@opam:0.10.0@d2495b25"
       ],
       "devDependencies": [
         "@reason-native/rely@3.2.1@d41d8cd9",
         "@opam/ocaml-lsp-server@opam:1.4.1@cd85c376",
         "@opam/js_of_ocaml-compiler@opam:3.11.0@ec469e8e"
       ],
-      "installConfig": { "pnp": false }
-    },
-    "@grain/binaryen.ml@0.10.0@d41d8cd9": {
-      "id": "@grain/binaryen.ml@0.10.0@d41d8cd9",
-      "name": "@grain/binaryen.ml",
-      "version": "0.10.0",
-      "source": {
-        "type": "install",
-        "source": [
-          "archive:https://registry.npmjs.org/@grain/binaryen.ml/-/binaryen.ml-0.10.0.tgz#sha1:41aeb0f3c6def2fa13b63557fe50d29a7e3a57f1"
-        ]
-      },
-      "overrides": [],
-      "dependencies": [
-        "ocaml@4.11.0@d41d8cd9",
-        "@opam/js_of_ocaml-ppx@opam:3.11.0@4edaf441",
-        "@opam/js_of_ocaml@opam:3.11.0@93e18d4d",
-        "@opam/dune-configurator@opam:2.9.1@b7cf7a02",
-        "@opam/dune@opam:2.9.1@1e504822"
-      ],
-      "devDependencies": [],
       "installConfig": { "pnp": false }
     },
     "@esy-ocaml/substs@0.0.1@d41d8cd9": {

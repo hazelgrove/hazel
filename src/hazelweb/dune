@@ -18,7 +18,7 @@
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
  (modules :standard \ Main)
- (libraries hazelcore incr_dom grain binaryen.js)
+ (libraries hazelcore incr_dom grain)
  (wrapped false)
  (js_of_ocaml
   (flags
@@ -29,7 +29,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries hazelweb)
+ (libraries hazelweb binaryen.js)
  (modes js)
  (js_of_ocaml
   (flags --no-sourcemap --no-extern-fs

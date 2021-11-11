@@ -98,6 +98,37 @@ let trans_float_op = (op: DHExp.BinFloatOp.t): Parsetree.prim2 => {
 };
 
 open Ast_helper;
+let rec trans_pattern = (p : DHPat.t): Parsetree.pattern =>
+  switch(p) {
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | Keyword(_)
+  | InvalidText(_)
+  | Ap(_) => raise(NotImplemented)
+  | Wild => Ast_helper.Pat.any()
+  | Var(v) =>
+    let vstr : string = v;
+    let id = Location.mknoloc(vstr);
+    Ast_helper.Pat.var(id)
+  | BoolLit(b) =>
+    let c0 = Ast_helper.Const.bool(b);
+    Ast_helper.Pat.constant(c0);
+  | IntLit(i) =>
+    let output = Printf.sprintf("%d", i);
+    let c0 = Ast_helper.Const.int64(output);
+    Ast_helper.Pat.constant(c0);
+  | FloatLit(f) =>
+    let output = Printf.sprintf("%f", f);
+    let c0 = Ast_helper.Const.float64(output);
+    Ast_helper.Pat.constant(c0);
+  | _ => raise(NotImplemented)
+  // | Inj(InjSide.t, t)
+  // | ListNil
+  // | Cons(t, t)
+  // | Pair(t, t)
+  // | Triv
+  }
+
 let rec trans_expression = (d: DHExp.t): Parsetree.expression =>
   switch (d) {
   | EmptyHole(_)
@@ -144,14 +175,32 @@ let rec trans_expression = (d: DHExp.t): Parsetree.expression =>
     let e2 = trans_expression(d2);
     let op0 = trans_float_op(op);
     Ast_helper.Exp.prim2(op0, e1, e2);
+  | Let(pat, d1, d2) =>
+    let p0 = trans_pattern(pat);
+    let e1 = trans_expression(d1);
+    let e2 = trans_expression(d2);
+    let vb0 = Ast_helper.Vb.mk(p0, e1);
+    let elet = Ast_helper.Exp.let_(Nonrecursive, Immutable, [vb0]);
+    Ast_helper.Exp.block([elet, e2])
+  | Lam(pat, _, d0) =>
+    let p0 = trans_pattern(pat);
+    let e0 = trans_expression(d0);
+    Ast_helper.Exp.lambda([p0], e0)
+  | Pair(d1, d2) =>
+    let e1 = trans_expression(d1);
+    let e2 = trans_expression(d2);
+    Ast_helper.Exp.tuple([e1, e2])
+  | FixF(v, _, d0) =>
+    let v0 = trans_pattern(Var(v));
+    let e0 = trans_expression(d0);
+    let vb0 = Ast_helper.Vb.mk(v0, e0);
+    let elet = Ast_helper.Exp.let_(Recursive, Immutable, [vb0]);
+    Ast_helper.Exp.block([elet, trans_expression(BoundVar(v))])
   | _ => raise(NotImplemented)
-  // | Let(pat, d1, d2)
   // | FixF(v, ty, d)
-  // | Lam(pat, ty, d)
   // | ListNil(ty)
   // | Cons(d1, d2)
   // | Inj(ty, side, d)
-  // | Pair(d1, d2)
   // | Triv
   // | ConsistentCase(case)
   };
