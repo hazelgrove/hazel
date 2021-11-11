@@ -1648,20 +1648,23 @@ body {
 /* test panel */
 
 .test-panel {
+  position: relative;
   flex-grow: 1;
 }
 
 .test-reports {
+  /*
   display: grid;
-  grid-template-rows:
-    /*1fr*/
-    auto;
+  grid-template-rows: 1fr auto;
+    */
 }
 
 .test-report {
   display: flex;
   gap: 1em;
-  font-size: 125%;
+  padding: 0.3em;
+  align-items: baseline;
+  background-color: #f0fff3;
   border: 1px outset #ffffff;
   border-left: 0px;
   border-right: 0px;
