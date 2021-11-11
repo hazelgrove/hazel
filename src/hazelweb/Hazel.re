@@ -15,6 +15,10 @@ module Model = Model;
 module Action = ModelAction;
 module State = State;
 
+let focus_code_root = () => {
+  JSUtil.force_get_elem_by_id(ViewUtil.code_root_id)##focus;
+};
+
 // see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
   /* we need line heights + character widths for various layout computations,
@@ -44,10 +48,10 @@ let on_startup = (~schedule_action, _) => {
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      UHCode.focus();
+      focus_code_root();
       Js._true;
     });
-  UHCode.focus();
+  focus_code_root();
 
   Async_kernel.Deferred.return(State.State);
 };
@@ -124,7 +128,7 @@ let create =
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
             | Some(elem) when Js.to_string(elem##.id) == ViewUtil.cell_id =>
               ()
-            | _ => UHCode.focus()
+            | _ => focus_code_root()
             };
             let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
             restart_cursor_animation(caret_elem);

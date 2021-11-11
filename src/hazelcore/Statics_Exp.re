@@ -117,7 +117,6 @@ and syn_skel =
       ty;
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    print_endline("SPACE CASE");
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty2);

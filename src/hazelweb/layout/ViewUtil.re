@@ -10,5 +10,6 @@ let history_body_id = "history-body";
 let caret_id = "caret";
 let ci_id = "cursor-inspector";
 let cur_selected_id = "cur-selected-entry";
+let code_root_id = "code-root";
 
 let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
