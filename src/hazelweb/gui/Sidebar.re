@@ -4,6 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 
 let mk_sidebar =
     (
+      side_class: string,
       panels_thunk,
       collapsible_sidebar_id: string,
       tab_id: string,
@@ -20,7 +21,7 @@ let mk_sidebar =
       [
         Attr.id(collapsible_sidebar_id),
         Attr.classes(
-          ["collapsible-sidebar"]
+          ["collapsible-sidebar", side_class]
           @ (sidebar_open ? [] : ["collapsed-sidebar"]),
         ),
       ],
@@ -78,6 +79,7 @@ let left_side_bar_icon_opened =
   );
 let left = (~inject, ~is_open: bool, left_panels) => {
   mk_sidebar(
+    "sidebar-left",
     left_panels,
     "collapsible-left-bar",
     "left-tab",
@@ -93,6 +95,7 @@ let left = (~inject, ~is_open: bool, left_panels) => {
 
 let right = (~inject, ~is_open: bool, right_panels) => {
   mk_sidebar(
+    "sidebar-right",
     right_panels,
     "collapsible-right-bar",
     "right-tab",

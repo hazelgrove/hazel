@@ -1,8 +1,6 @@
-module Vdom = Virtual_dom.Vdom;
-open Vdom;
+open Virtual_dom.Vdom;
 open Node;
-
-let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
+open ViewUtil;
 
 let assert_instance_view =
     (dhcode_view, (d, status): AssertMap.assert_instance_report) => {

@@ -1,18 +1,17 @@
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 exception InvalidInstance;
 let view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_instance: option(HoleInstance.t),
-      ~settings: Settings.Evaluation.t,
-      ~font_metrics: FontMetrics.t,
+      ~inject: ModelAction.t => Event.t,
+      ~model: Model.t,
       ~hii: HoleInstanceInfo.t,
-      program: Program.t,
     )
-    : Vdom.Node.t => {
-  open Vdom;
-
+    : Node.t => {
+  let program = Model.get_program(model);
+  let selected_instance = Model.get_selected_hole_instance(model);
+  let settings = model.settings.evaluation;
+  let font_metrics = model.font_metrics;
   /**
    * Shows typing info for a context entry.
    */

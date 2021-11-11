@@ -62,7 +62,7 @@ let restart_cursor_animation = caret_elem => {
 
 let scroll_cursor_into_view_if_needed = caret_elem => {
   let page_rect =
-    JSUtil.force_get_elem_by_id(ViewUtil.page_area_id)##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id(ViewUtil.card_dom_id)##getBoundingClientRect;
   let caret_rect = caret_elem##getBoundingClientRect;
   if (caret_rect##.top < page_rect##.top) {
     caret_elem##scrollIntoView(Js._true);
@@ -128,7 +128,8 @@ let create =
             };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
-            scroll_cursor_into_view_if_needed(caret_elem);
+            //TODO(andrew)
+            //scroll_cursor_into_view_if_needed(caret_elem);
 
             if (model.cursor_inspector.visible) {
               let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
