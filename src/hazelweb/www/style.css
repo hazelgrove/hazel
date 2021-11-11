@@ -256,7 +256,7 @@ body {
 
 /* arrangement of main area */
 
-.main-area {
+#main-area {
   flex-grow: 1;
   background-color: wheat;
   display: flex;
@@ -265,7 +265,7 @@ body {
   height: 100%;
 }
 
-.flex-wrapper {
+#page-container {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -1083,29 +1083,23 @@ h1 {
   background-color: #EEE;
 }
 
-.result-label {
-  padding: 3px
-}
-
-.result-view {
+.cell-result {
   padding-left: 25px;
   padding-bottom: 5px;
-  background-color: #EEE;
 }
 
-.type-indicator {
+.cell-status .type {
   width: 100%;
   font-size: 12pt;
 }
 
-.type-label {
-  background-color: #EEE;
-  padding: 3px;
+.cell-status .type .label {
   display: inline-block;
+  padding: 3px;
   padding-right: 5px;
+  font-size: 11pt;
   text-transform: uppercase;
   font-weight: bold;
-  font-size: 11pt;
   color: gray;
 }
 

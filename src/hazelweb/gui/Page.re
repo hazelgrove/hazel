@@ -6,7 +6,7 @@ let logo_panel =
     [text("Hazel")],
   );
 
-let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
+let top_bar = (~inject, ~model: Model.t) => {
   div(
     [Attr.classes(["top-bar"])],
     [
@@ -17,7 +17,7 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   );
 };
 
-let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
+let left_sidebar = (~inject, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
     [ActionPanel.view(~inject, model)]
   );
@@ -26,8 +26,7 @@ let right_sidebar =
     (
       ~inject: ModelAction.t => Event.t,
       ~model: Model.t,
-      ~hii: HoleInstanceInfo.t,
-      ~assert_map: AssertMap.t,
+      ~result as {assert_map, hii, _}: Result.t,
     ) => {
   let program = Model.get_program(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
@@ -60,17 +59,14 @@ let git_panel = {
 
 let type_view = (ty: HTyp.t): Node.t => {
   let type_label =
-    div([Attr.class_("type-label")], [text("Result of type: ")]);
+    div([Attr.class_("label")], [text("Result of type: ")]);
   let type_view = div([Attr.class_("htype-view")], [HTypCode.view(ty)]);
-  div(
-    [Attr.class_("cell-status")],
-    [div([Attr.class_("type-indicator")], [type_label, type_view])],
-  );
+  div([Attr.class_("type")], [type_label, type_view]);
 };
 
-let result_view = (~model: Model.t, ~inject, ~result: DHExp.t): Node.t =>
+let result_view = (~inject, ~model: Model.t, ~result: DHExp.t): Node.t =>
   div(
-    [Attr.classes(["result-view"])],
+    [Attr.classes(["cell-result"])],
     [
       DHCode.view(
         ~inject,
@@ -84,15 +80,15 @@ let result_view = (~model: Model.t, ~inject, ~result: DHExp.t): Node.t =>
   );
 
 let status_view =
-    (~model: Model.t, ~inject, ~result_ty: HTyp.t, ~result: DHExp.t): Node.t =>
+    (~inject, ~model: Model.t, ~result as {result, result_ty, _}: Result.t)
+    : Node.t =>
   div(
-    [],
+    [Attr.class_("cell-status")],
     model.settings.evaluation.evaluate
       ? [type_view(result_ty), result_view(~model, ~inject, ~result)] : [],
   );
 
-let page =
-    (~inject, ~model: Model.t, ~result_ty: HTyp.t, ~result: DHExp.t): Node.t => {
+let page = (~inject, ~model: Model.t, ~result: Result.t): Node.t => {
   let card_caption =
     div(
       [Attr.class_("card-caption")],
@@ -103,26 +99,24 @@ let page =
     [
       card_caption,
       Cell.view(~inject, model),
-      status_view(~model, ~inject, ~result_ty, ~result),
+      status_view(~model, ~inject, ~result),
     ],
   );
 };
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
-  let Result.{result, result_ty, assert_map, hii, _} =
-    Model.run_program(model);
+let view = (~inject, ~model: Model.t, ~result: Result.t): Node.t => {
   let page_area =
     div(
-      [Attr.id("page-area")],
-      [page(~inject, ~model, ~result_ty, ~result), git_panel],
+      [Attr.id(ViewUtil.page_area_id)],
+      [page(~inject, ~model, ~result), git_panel],
     );
   let main_area =
     div(
-      [Attr.class_("main-area")],
+      [Attr.id("main-area")],
       [
         left_sidebar(~inject, ~model),
-        div([Attr.classes(["flex-wrapper"])], [page_area]),
-        right_sidebar(~inject, ~model, ~hii, ~assert_map),
+        div([Attr.id("page-container")], [page_area]),
+        right_sidebar(~inject, ~model, ~result),
       ],
     );
   div([Attr.id("root")], [top_bar(~inject, ~model), main_area]);

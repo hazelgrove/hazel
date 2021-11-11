@@ -62,7 +62,7 @@ let restart_cursor_animation = caret_elem => {
 
 let scroll_cursor_into_view_if_needed = caret_elem => {
   let page_rect =
-    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id(ViewUtil.page_area_id)##getBoundingClientRect;
   let caret_rect = caret_elem##getBoundingClientRect;
   if (caret_rect##.top < page_rect##.top) {
     caret_elem##scrollIntoView(Js._true);
@@ -122,7 +122,8 @@ let create =
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
-            | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
+            | Some(elem) when Js.to_string(elem##.id) == ViewUtil.cell_id =>
+              ()
             | _ => UHCode.focus()
             };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
@@ -137,8 +138,15 @@ let create =
         },
       model,
       TimeUtil.measure_time(
-        "Page.view", performance.measure && performance.page_view, () =>
-        Page.view(~inject, model)
+        "Page.view",
+        performance.measure && performance.page_view,
+        () => {
+          let program = Model.get_program(model);
+          let result =
+            model.settings.evaluation.show_unevaluated_elaboration
+              ? Program.elaborate_only(program) : Program.get_result(program);
+          Page.view(~inject, ~model, ~result);
+        },
       ),
     )
   );

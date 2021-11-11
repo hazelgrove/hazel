@@ -41,7 +41,7 @@ let view =
     DHCode.view(
       ~inject,
       ~settings=model.settings.evaluation,
-      ~selected_instance=None,
+      ~selected_instance=Model.get_selected_hole_instance(model),
       ~font_metrics=model.font_metrics,
       ~width=30,
     );
@@ -49,7 +49,7 @@ let view =
     assert_map != [],
     [Attr.classes(["panel", "test-panel"])],
     [
-      Panel.view_of_main_title_bar("Test Bench"),
+      Panel.view_of_main_title_bar("Tests"),
       test_reports_view(dhcode_view, assert_map),
     ],
   );
