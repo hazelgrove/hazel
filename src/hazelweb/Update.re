@@ -216,8 +216,9 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | DHExp =>
-          let Result.{result: d, _} = Model.run_program(model);
-          d
+          let Result.{result, _} =
+            model |> Model.get_program |> Program.get_result;
+          result
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string
           |> Js.string
