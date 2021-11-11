@@ -1,8 +1,5 @@
 open Virtual_dom;
 
-let root_id: string;
-let focus: unit => unit;
-
 /**
  * Code representation of UHExp.
  */
@@ -12,6 +9,6 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,
-    Program.t
+    ~program: Program.t
   ) =>
   Vdom.Node.t;

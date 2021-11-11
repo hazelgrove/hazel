@@ -211,11 +211,6 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
     }
   );
 };
-let root_id = "code-root";
-
-let focus = () => {
-  JSUtil.force_get_elem_by_id(root_id)##focus;
-};
 
 let view =
     (
@@ -223,7 +218,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
-      program: Program.t,
+      ~program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -271,7 +266,7 @@ let view =
 
       let click_handler = evt => {
         let container_rect =
-          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+          JSUtil.force_get_elem_by_id(ViewUtil.code_root_id)##getBoundingClientRect;
         let (target_x, target_y) = (
           float_of_int(evt##.clientX),
           float_of_int(evt##.clientY),
@@ -294,7 +289,7 @@ let view =
 
       Node.div(
         [
-          Attr.id(root_id),
+          Attr.id(ViewUtil.code_root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler

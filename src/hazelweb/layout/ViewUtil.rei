@@ -10,5 +10,6 @@ let history_body_id: string;
 let caret_id: string;
 let ci_id: string;
 let cur_selected_id: string;
+let code_root_id: string;
 
 let div_if: (bool, list(Attr.t), list(t)) => t;
