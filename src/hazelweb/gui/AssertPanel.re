@@ -37,8 +37,6 @@ let view =
       ~assert_map: AssertMap.t,
     )
     : t => {
-  let assert_map =
-    List.sort(((id, _), (id', _)) => compare(id, id'), assert_map);
   let dhcode_view =
     DHCode.view(
       ~inject,

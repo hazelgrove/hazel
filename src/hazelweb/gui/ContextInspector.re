@@ -7,6 +7,7 @@ let view =
       ~selected_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
+      ~hii: HoleInstanceInfo.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -284,7 +285,6 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let (_, hii, _) = fst(program |> Program.get_result);
         switch (selected_instance) {
         | None => Environment.id_env(ctx)
         | Some(inst) =>
@@ -328,7 +328,6 @@ let view =
         |> Program.get_cursor_info
         |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
-      let (_, hii, _) = fst(program |> Program.get_result);
       if (VarMap.is_empty(ctx)) {
         Node.div([], []);
       } else {

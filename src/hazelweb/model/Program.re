@@ -81,25 +81,45 @@ let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 exception EvalError(EvaluatorError.t);
 
-let get_result = (program: t): (Result.t, Evaluator.state) =>
-  //check if map is resetted here
+let get_result = (program: t): Result.t =>
   switch (evaluate(get_elaboration(program))) {
   | (BoxedValue(d), state) =>
-    print_endline(
-      //TODO(andrew)
-      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
-    );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    ((d_renumbered, hii, BoxedValue(d_renumbered)), state);
+    let assert_map =
+      List.sort(
+        ((id, _), (id', _)) => compare(id, id'),
+        state.assert_map,
+      );
+    let (_, result_ty, _) = program.edit_state;
+    let boxed_result = Evaluator.BoxedValue(d_renumbered);
+    let result = d_renumbered;
+    Result.{result, result_ty, boxed_result, hii, assert_map};
   | (Indet(d), state) =>
-    print_endline(
-      Sexplib.Sexp.to_string_hum(AssertMap.sexp_of_t(state.assert_map)),
-    );
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    ((d_renumbered, hii, Indet(d_renumbered)), state);
+    let assert_map =
+      List.sort(
+        ((id, _), (id', _)) => compare(id, id'),
+        state.assert_map,
+      );
+    let (_, result_ty, _) = program.edit_state;
+    let boxed_result = Evaluator.Indet(d_renumbered);
+    let result = d_renumbered;
+    Result.{result, result_ty, boxed_result, hii, assert_map};
   };
+
+let elaborate_only = (program: t): Result.t => {
+  let elaboration = get_elaboration(program);
+  let (_, result_ty, _) = program.edit_state;
+  Result.{
+    result: elaboration,
+    boxed_result: Indet(elaboration),
+    result_ty,
+    hii: HoleInstanceInfo.empty,
+    assert_map: AssertMap.empty,
+  };
+};
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;

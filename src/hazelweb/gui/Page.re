@@ -26,6 +26,7 @@ let right_sidebar =
     (
       ~inject: ModelAction.t => Event.t,
       ~model: Model.t,
+      ~hii: HoleInstanceInfo.t,
       ~assert_map: AssertMap.t,
     ) => {
   let program = Model.get_program(model);
@@ -37,6 +38,7 @@ let right_sidebar =
         ~selected_instance=Model.get_selected_hole_instance(model),
         ~settings=model.settings.evaluation,
         ~font_metrics=model.font_metrics,
+        ~hii,
         program,
       ),
       UndoHistoryPanel.view(~inject, model),
@@ -106,18 +108,9 @@ let page =
   );
 };
 
-let run_program = (model: Model.t): (DHExp.t, HTyp.t, AssertMap.t) => {
-  let program = Model.get_program(model);
-  let (result, state) =
-    model.settings.evaluation.show_unevaluated_elaboration
-      ? (program |> Program.get_elaboration, EvalState.init)
-      : program |> Program.get_result |> ((((r, _, _), s)) => (r, s));
-  let (_, result_ty, _) = program.edit_state;
-  (result, result_ty, state.assert_map);
-};
-
 let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
-  let (result, result_ty, assert_map) = run_program(model);
+  let Result.{result, result_ty, assert_map, hii, _} =
+    Model.run_program(model);
   let page_area =
     div(
       [Attr.id("page-area")],
@@ -129,7 +122,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       [
         left_sidebar(~inject, ~model),
         div([Attr.classes(["flex-wrapper"])], [page_area]),
-        right_sidebar(~inject, ~model, ~assert_map),
+        right_sidebar(~inject, ~model, ~hii, ~assert_map),
       ],
     );
   div([Attr.id("root")], [top_bar(~inject, ~model), main_area]);

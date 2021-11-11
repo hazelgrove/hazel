@@ -874,7 +874,7 @@ body {
 .test-report {
   display: flex;
   gap: 1em;
-  /*font-size: 125%;*/
+  font-size: 125%;
   border: 1px outset #ffffff;
   border-left: 0px;
   border-right: 0px;
