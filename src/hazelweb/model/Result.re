@@ -1,9 +1,8 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleInstanceInfo.t, Evaluator.result);
-
-let get_dhexp = (((d, _, _): t, _)) => d;
-
-let get_dhexp_assert = (((d, _, _): t, map: Evaluator.state)) => (
-  d,
-  map.assert_map,
-);
+type t = {
+  boxed_result: Evaluator.result,
+  result: DHExp.t,
+  result_ty: HTyp.t,
+  hii: HoleInstanceInfo.t,
+  assert_map: AssertMap.t,
+};
