@@ -15,6 +15,7 @@
 :root {
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
+  --card-background: #fff8ea;
 
   --code-font-family: "Fira Code", monospace;
   --code-font-size: 13pt;
@@ -120,11 +121,11 @@ body {
   grid-row: 2 / 3;
   grid-column: 2 / 3;
   align-self: start;
-  min-width: 30em;
+  min-width: 40em;
   max-width: 50em;
   margin: 2em;
   border-radius: 0.75em;
-  background-color: rgb(255, 248, 234);
+  background-color: var(--card-background);
   box-shadow: #e2c296 0px 2px;
 }
 
@@ -1115,7 +1116,8 @@ body {
 }
 
 .code-closed-child {
-  fill: white;
+  fill: var(--card-background)
+  /*fill: white;*/
 }
 
 #code-root,

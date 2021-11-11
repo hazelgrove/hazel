@@ -15,7 +15,7 @@ let view = (~inject, model: Model.t) => {
         [Attr.id(cell_id)],
         [
           /* font-specimen used to gather font metrics for caret positioning and other things */
-          div([Attr.id("font-specimen")], [text("X")]),
+          div([Attr.id(ViewUtil.font_specimen_id)], [text("X")]),
           div(
             [Attr.id("code-container")],
             [
