@@ -12,17 +12,21 @@ let test_parse text: bool =
  (*Get the first AST*)
   let ast_a = parse text in
   match ast_a with
-  | Some(ast) ->
+  | Some(ast) -> (
     let doc = Lazy.force UHDoc_Exp.mk ~memoize:true ~enforce_inline:false ast in
     let lay = Pretty.LayoutOfDoc.layout_of_doc ~width:100 ~pos:0 doc in
-    let l = match lay with
-    | Some l -> l
-    | None -> Pretty.Layout.Text("")
-    in
-    let printed_text = Print.string_of_layout l in
-    (*Get the seconds AST*)
-    let ast_b = parse printed_text in
-    ast_a = ast_b
+    try
+      let l = match lay with
+      | Some l -> l
+      | None -> raise Print.NoLayout
+      in
+      let printed_text = Print.string_of_layout l in
+      (*Get the seconds AST*)
+      let ast_b = parse printed_text in
+      ast_a = ast_b
+    with
+    | Print.NoLayout -> false
+  )
   | None -> false
 
 let%test "basic types" =

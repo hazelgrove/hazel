@@ -1,4 +1,7 @@
 open Pretty;
+module UHDoc_Exp = UHDoc_Exp.Make(Memo.DummyMemo);
+
+exception NoLayout;
 
 let string_of_layout = (l: Layout.t('a)): string => {
   let rec go = (indent: int, col: int, l: Layout.t('a)): (string, int) =>
@@ -16,4 +19,14 @@ let string_of_layout = (l: Layout.t('a)): string => {
     };
   let (s, _) = go(0, 0, l);
   s;
+};
+
+let print_exp = (exp: UHExp.t): string => {
+  let doc =
+    Lazy.force(UHDoc_Exp.mk, ~memoize=true, ~enforce_inline=false, exp);
+  let layout = Pretty.LayoutOfDoc.layout_of_doc(~width=100, ~pos=0, doc);
+  switch (layout) {
+  | Some(layout) => string_of_layout(layout)
+  | None => raise(NoLayout)
+  };
 };
