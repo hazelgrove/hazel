@@ -15,7 +15,6 @@
 :root {
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
-  --page-padding: 15px;
 
   --code-font-family: "Fira Code", monospace;
   --code-font-size: 13pt;
@@ -84,33 +83,103 @@ body {
   overflow-x: auto;
 }
 
-#container {
-  height: 100%;
-}
-
 #root {
   height: 100%;
   width: 100%;
   display: grid;
   grid-template-rows: 1fr 200fr;
+  grid-template-columns: auto 1fr auto;
   overflow-y: auto;
+  background-color: wheat;
+}
+
+.sidebar-left{
+  grid-row: 2 / 3;
+  grid-column: 1 / 2;
+  justify-self: start;
+}
+
+.sidebar-right{
+  grid-row: 2 / 3;
+  grid-column: 3 / 4;
+  justify-self: end;
+}
+
+.branch-panel {
+  grid-row: 2 / 3;
+  grid-column: 2 / 3;
+  justify-self: center;
+  align-self: end;
+  color: rgba(0,0,0,0);
+  font-family: monospace;
+}
+
+/* card */
+
+#card {
+  grid-row: 2 / 3;
+  grid-column: 2 / 3;
+  align-self: start;
+  min-width: 30em;
+  max-width: 50em;
+  margin: 2em;
+  border-radius: 0.75em;
+  background-color: rgb(255, 248, 234);
+  box-shadow: #e2c296 0px 2px;
+}
+
+.card-caption {
+  max-width: 9in;
+}
+
+/* cell */
+
+#cell {
+  padding: 2em;
+}
+
+#cell:focus {
+  outline: 0px;
+}
+
+.cell-status {
+  background-color: #f2e9d5;
+  border-radius: 0 0 0.75em 0.75em;
+  padding: 1em 2em 1em 2em;
+}
+
+.cell-result {
+  background-color: #f2e9d5;
+  padding: 1em 2em 1em 2em;
+}
+
+.cell-type {
+  background-color: #e6ddc7;
+  border-radius: 0 0 0.75em 0.75em;
+  padding: 0.5em 2em 0.5em 2em;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+.cell-type .label {
+  text-transform: uppercase;
+  font-weight: bold;
+  color: #b29a79;
 }
 
 /* top bar */
 
 .top-bar {
-  padding-top: 10px;
-  padding-bottom: 10px;
-  padding-left: var(--page-padding);
-  padding-right: var(--page-padding);
-  background-color: var(--title-bar-color);
-   width: 100%;
-  height: min-content;
+  grid-row: 1 / 2;
+  grid-column: 1 / 4;
+  padding: 0.8em;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
   gap: 1em;
   align-items: center;
+  background-color: var(--title-bar-color);
 }
 
 .logo-text {
@@ -120,13 +189,6 @@ body {
   font-weight: bold;
   text-decoration: none;
 }
-
-.branch-panel {
-  color: rgba(0,0,0,0);
-  font-size: 10pt;
-  font-family: monospace;
-}
-
 
 /* menu panel */
 
@@ -254,35 +316,6 @@ body {
   white-space: pre;
 }
 
-/* arrangement of main area */
-
-#main-area {
-  flex-grow: 1;
-  background-color: wheat;
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  height: 100%;
-}
-
-#page-container {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-#page-area {
-  flex-grow: 1;
-  /* enable scroll */
-  height: 100%;
-  width: 100%;
-  overflow-y: auto;
-
-  padding-left: var(--page-padding);
-  padding-right: var(--page-padding);
-  padding-top: var(--page-padding);
-}
-
 /* sidebars */
 
 .collapsible-sidebar {
@@ -313,7 +346,7 @@ body {
   width: auto;
   height: 100%;
   direction: ltr; /* reset text direction */
-  background-color: tan;
+  background-color: #e4c7a0;
   display: grid;
   grid-template-rows: 1fr auto;
   padding-top: 7px;
@@ -858,32 +891,6 @@ body {
   opacity: 0.5;
 }
 
-/* test bench */
-
-.test-panel {
-  flex-grow: 1;
-}
-
-.test-reports {
-  display: grid;
-  grid-template-rows:
-    /*1fr*/
-    auto;
-}
-
-.test-report {
-  display: flex;
-  gap: 1em;
-  font-size: 125%;
-  border: 1px outset #ffffff;
-  border-left: 0px;
-  border-right: 0px;
-}
-
-.test-report .DHCode {
-  display: inline-block;
-}
-
 /* context inspector */
 
 .context-inspector-panel {
@@ -1053,73 +1060,6 @@ body {
 }
 #SettingsPanel label[disabled] {
   opacity: 0.5;
-}
-
-/* page */
-
-.page {
-  background-color: white;
-  width: 100%;
-  padding: 0.25in;
-  margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
-  box-shadow: 3px 3px tan;
-  min-width: 450px;
-  /* border: 1px solid tan; */
-  max-width: 100ch;
-}
-
-.card-caption {
-  max-width: 9in;
-}
-
-h1 {
-  margin-top: 0pt;
-  padding-top: 0pt;
-  margin-bottom: 0pt;
-  color: #444;
-}
-
-.cell-status {
-  background-color: #EEE;
-}
-
-.cell-result {
-  padding-left: 25px;
-  padding-bottom: 5px;
-}
-
-.cell-status .type {
-  width: 100%;
-  font-size: 12pt;
-}
-
-.cell-status .type .label {
-  display: inline-block;
-  padding: 3px;
-  padding-right: 5px;
-  font-size: 11pt;
-  text-transform: uppercase;
-  font-weight: bold;
-  color: gray;
-}
-
-.htype-view {
-  padding: 3px;
-  background-color: #EEE;
-  display: inline-block;
-}
-
-.typeLbl {
-  font-weight: bold;
-  font-size: 12pt;
-}
-
-.HZElem{
-  float: left;
-}
-
-.HZElem img{
-  float: left;
 }
 
 .DHCode * {
@@ -1389,18 +1329,6 @@ h1 {
   stroke-width: 0;
 }
 
-#cell {
-  position: relative;
-  width: auto;
-  margin-top: 20px;
-  background-color: white;
-  padding: 10px;
-  border: 2px solid #CCC;
-}
-#cell:focus {
-  outline: 0px;
-}
-
 .InVarHole.Keyword {
 	font-weight: bold;
 }
@@ -1434,52 +1362,6 @@ h1 {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   /* line-height: initial; */
 }
-
-.AssertPass:after{
-  content: "✔";
-  color:green;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
-}
-.AssertFail:after{
-  content: "✘";
-  color: red;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
-}
-.AssertIndet:after{
-  content: "?";
-  color: brown;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
-}
-/*
-.UHAssert {
-  display: flex;
-  flex-direction: row-reverse;
-  align-items: flex-start;
-  justify-content: flex-start;
-  width: 3.2em;
-  height: 1em;
-}
-*/
-.UHAssert .assertpop {
-  display: none;
-  position: absolute;
-  top: 1.5rem;
-  left: 0rem;
-  color: white;
-  background-color: #333;
-  border-radius: 0.3em;
-  z-index: 10000000;
-}
-.UHAssert:hover .assertpop {
-  display: inline-block;
-}
-
 
 #code-container .HoleLabel span {
   font-size: 65%;
@@ -1717,4 +1599,72 @@ h1 {
 }
 .term-tag-exp{
   background-color:rgb(197, 253, 197);
+}
+
+
+/* tests */
+
+.AssertPass:after{
+  content: "✔";
+  color:green;
+  font-size: 70%;
+  vertical-align: top;
+  position: absolute;
+}
+
+.AssertFail:after{
+  content: "✘";
+  color: red;
+  font-size: 70%;
+  vertical-align: top;
+  position: absolute;
+}
+
+.AssertIndet:after{
+  content: "?";
+  color: brown;
+  font-size: 70%;
+  vertical-align: top;
+  position: absolute;
+}
+
+.UHAssert .assertpop {
+  display: none;
+  position: absolute;
+  top: 1.5rem;
+  left: 0rem;
+  color: white;
+  background-color: #333;
+  border-radius: 0.3em;
+  z-index: 10000000;
+}
+
+.UHAssert:hover .assertpop {
+  display: inline-block;
+}
+
+/* test panel */
+
+.test-panel {
+  flex-grow: 1;
+}
+
+.test-reports {
+  display: grid;
+  grid-template-rows:
+    /*1fr*/
+    auto;
+}
+
+.test-report {
+  display: flex;
+  gap: 1em;
+  font-size: 125%;
+  border: 1px outset #ffffff;
+  border-left: 0px;
+  border-right: 0px;
+}
+
+.test-report .DHCode {
+  display: inline-block;
 }
