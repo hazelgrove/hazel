@@ -46,7 +46,7 @@ and get_zoperand_from_zpat_operand =
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
   | InjZP(_, _, zpat) => get_zoperand_from_zpat(zpat)
-  | InjZT(_, ztag, _) => Some(ZTag(ztag))
+  | InjZT(_, ztag, _) => CursorInfo_Tag.get_zoperand(ztag)
   | TypeAnnZP(_, zop, _) => get_zoperand_from_zpat_operand(zop)
   | TypeAnnZA(_, _, zann) => CursorInfo_Typ.get_zoperand_from_ztyp(zann)
   };
@@ -462,6 +462,7 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
+    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
     | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
       Some(
         CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -478,7 +479,7 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaInjUnexpectedBody, ctx, cursor_term),
         ),
       )
-    | Inj(InHole(ExpectedBody, _), tag, _) =>
+    | Inj(InHole(ExpectedBody, _), tag, None) =>
       switch (ty) {
       | Sum(tymap) =>
         let* ty_opt = TagMap.find_opt(tag, tymap);
@@ -494,7 +495,7 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaInjBadTag(tag), ctx, cursor_term),
         ),
       )
-    | Inj(InHole(_, _), _, _)
+    | Inj(InHole(_), _, _) => None
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
@@ -548,7 +549,12 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
         ),
       )
-    | Inj(NotInHole, _, _) => None
+    | Inj(NotInHole, _, _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+        ),
+      )
     | Parenthesized(body) =>
       Statics_Pat.ana(ctx, body, ty)
       |> Option.map(_ =>
@@ -570,12 +576,15 @@ and ana_cursor_info_zoperand =
       CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag);
     CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
   | InjZP(_, tag, zpat) =>
-    let* ty_pat =
-      switch (ty) {
-      | Sum(tymap) => tymap |> TagMap.find_opt(tag) |> Option.join
-      | _ => None
-      };
-    ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_pat);
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap) |> Option.join) {
+      | Some(ty_arg) =>
+        ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_arg)
+      | None => ana_cursor_info(~steps=steps @ [1], ctx, zpat, HTyp.Hole)
+      }
+    | _ => None
+    }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
   | TypeAnnZP(err, zop, ann) =>

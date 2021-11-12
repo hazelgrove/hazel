@@ -45,7 +45,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Var(y) => Var.eq(x, y)
   | Inj((_, Some(dp1))) => binds_var(x, dp1)
   | Inj((_, None)) => false
-  | InjError(_, _, _, (_, Some(dp))) => binds_var(x, dp)
+  | InjError(_, _, _, (_, Some(dp1))) => binds_var(x, dp1)
   | InjError(_, _, _, (_, None)) => false
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)

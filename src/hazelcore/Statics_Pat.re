@@ -55,8 +55,10 @@ and syn_operand =
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, gamma) = syn_operand(ctx, operand');
     (HTyp.Hole, gamma);
-  | Inj(InHole(InjectionInSyntheticPosition, _), _, body_opt) =>
-    let+ ctx = inj_body_valid(ctx, body_opt);
+  // adapted from SInjErr
+  | Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt)
+      when UHTag.is_valid(tag) =>
+    let+ ctx = inj_body_valid(ctx, arg_opt);
     (HTyp.Hole, ctx);
   | Inj(InHole(_, _), _, _) => None
   | Wild(InHole(WrongLength, _))
@@ -79,6 +81,10 @@ and syn_operand =
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
+  // adapted from SInjTagErr
+  | Inj(NotInHole, tag, arg_opt) when !UHTag.is_valid(tag) =>
+    let+ ctx = inj_body_valid(ctx, arg_opt);
+    (HTyp.Hole, ctx);
   | Inj(NotInHole, _, _) => None
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
@@ -154,40 +160,52 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
+
   | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
-  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, body_opt) =>
+
+  // adapted from SInjErr
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), tag, arg_opt)
+      when UHTag.is_valid(tag) =>
     switch (ty) {
     | Hole
     | Sum(_) => None
-    | _ => inj_body_valid(ctx, body_opt)
+    | _ => inj_body_valid(ctx, arg_opt)
     }
-  | Inj(InHole(UnexpectedBody, _), tag, body_opt) =>
-    switch (ty) {
-    | Sum(tymap) =>
-      switch (TagMap.find_opt(tag, tymap), body_opt) {
-      | (Some(None), Some(_)) => Some(ctx)
-      | (_, _) => None
-      }
-    | _ => None
-    }
-  | Inj(InHole(ExpectedBody, _), tag, body_opt) =>
-    switch (ty) {
-    | Sum(tymap) =>
-      switch (TagMap.find_opt(tag, tymap), body_opt) {
-      | (Some(Some(_)), None) => Some(ctx)
-      | (_, _) => None
-      }
-    | _ => None
-    }
-  | Inj(InHole(BadTag, _), tag, body_opt) =>
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) => None
+
+  | Inj(InHole(BadTag, _), tag, arg_opt) when UHTag.is_valid(tag) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
-      | None => inj_body_valid(ctx, body_opt)
+      | None => inj_body_valid(ctx, arg_opt)
       | Some(_) => None
       }
     | _ => None
     }
+  | Inj(InHole(BadTag, _), _, _) => None
+
+  | Inj(InHole(UnexpectedBody, _), tag, Some(arg)) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(None) => ana(ctx, arg, Hole)
+      | _ => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(UnexpectedBody, _), _, None) => None
+
+  | Inj(InHole(ExpectedBody, _), tag, None) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(Some(_)) => Some(ctx)
+      | _ => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(ExpectedBody, _), _, Some(_)) => None
+
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)

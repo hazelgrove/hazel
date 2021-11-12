@@ -81,12 +81,12 @@ and mk_operand =
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
         | Inj(_, tag, arg_opt) =>
-          let tag_doc =
+          let tag' =
             UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
-          let arg_opt =
+          let arg_opt' =
             arg_opt
             |> Option.map(mk_child(~memoize, ~enforce_inline, ~child_step=1));
-          mk_Inj(tag_doc, arg_opt);
+          mk_Inj(tag', arg_opt');
         | TypeAnn(_, op, ann) =>
           let ann_child =
             UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann);

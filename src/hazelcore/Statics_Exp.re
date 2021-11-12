@@ -134,8 +134,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
-  | Inj(InHole(InjectionInSyntheticPosition, _), _, body_opt) =>
-    let+ _ = inj_body_valid(ctx, body_opt);
+  // SInjErr
+  | Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt)
+      when UHTag.is_valid(tag) =>
+    let+ _ = inj_body_valid(ctx, arg_opt);
     HTyp.Hole;
   | Inj(InHole(_), _, _) => None
   | Var(InHole(WrongLength, _), _, _)
@@ -172,6 +174,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
+  // SInjTagErr
+  | Inj(NotInHole, tag, arg_opt) when !UHTag.is_valid(tag) =>
+    let+ _ = inj_body_valid(ctx, arg_opt);
+    HTyp.Hole;
+  | Inj(NotInHole, _, _) => None
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
@@ -184,7 +191,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
     let expansion = expand(serialized_model);
     let+ _ = ana(splice_ctx, expansion, expansion_ty);
     expansion_ty;
-  | Inj(NotInHole, _, _) => None
   | Parenthesized(body) => syn(ctx, body)
   };
 }
@@ -307,40 +313,52 @@ and ana_operand =
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
+
   | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
-  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, body_opt) =>
+
+  // same as SInjErr (we should probably model this case explicitly, e.g., a new rule named AInjNotSum)
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), tag, arg_opt)
+      when UHTag.is_valid(tag) =>
     switch (ty) {
     | Hole
     | Sum(_) => None
-    | _ => inj_body_valid(ctx, body_opt)
+    | _ => inj_body_valid(ctx, arg_opt)
     }
-  | Inj(InHole(UnexpectedBody, _), tag, body_opt) =>
-    switch (ty) {
-    | Sum(tymap) =>
-      switch (TagMap.find_opt(tag, tymap), body_opt) {
-      | (Some(None), Some(_)) => Some()
-      | (_, _) => None
-      }
-    | _ => None
-    }
-  | Inj(InHole(ExpectedBody, _), tag, body_opt) =>
-    switch (ty) {
-    | Sum(tymap) =>
-      switch (TagMap.find_opt(tag, tymap), body_opt) {
-      | (Some(Some(_)), None) => Some()
-      | (_, _) => None
-      }
-    | _ => None
-    }
-  | Inj(InHole(BadTag, _), tag, body_opt) =>
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) => None
+
+  | Inj(InHole(BadTag, _), tag, arg_opt) when UHTag.is_valid(tag) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
-      | None => inj_body_valid(ctx, body_opt)
+      | None => inj_body_valid(ctx, arg_opt)
       | Some(_) => None
       }
     | _ => None
     }
+  | Inj(InHole(BadTag, _), _, _) => None
+
+  | Inj(InHole(UnexpectedBody, _), tag, Some(arg)) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(None) => ana(ctx, arg, Hole)
+      | _ => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(UnexpectedBody, _), _, None) => None
+
+  | Inj(InHole(ExpectedBody, _), tag, None) =>
+    switch (ty) {
+    | Sum(tymap) =>
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(Some(_)) => Some()
+      | _ => None
+      }
+    | _ => None
+    }
+  | Inj(InHole(ExpectedBody, _), _, Some(_)) => None
+
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -356,14 +374,23 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
-  | Inj(NotInHole, tag, body_opt) =>
+
+  | Inj(NotInHole, tag, arg_opt) =>
     switch (ty) {
-    | Hole => inj_body_valid(ctx, body_opt)
+    // AInjHole
+    | Hole => inj_body_valid(ctx, arg_opt)
     | Sum(tymap) =>
-      let* ty_body_opt = TagMap.find_opt(tag, tymap);
-      ana_inj_body(ctx, body_opt, ty_body_opt);
+      switch (TagMap.find_opt(tag, tymap)) {
+      // AInj
+      | Some(ty_opt) => ana_inj_body(ctx, arg_opt, ty_opt)
+      // AInjTagErr
+      | None when !UHTag.is_valid(tag) =>
+        ana_inj_body(ctx, arg_opt, arg_opt |> Option.map(_ => HTyp.Hole))
+      | None => None
+      }
     | _ => None
     }
+
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);

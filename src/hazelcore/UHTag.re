@@ -61,6 +61,13 @@ let is_complete: t => bool =
   | Tag(_) => true
   | EmptyTagHole(_) => false;
 
+let is_valid: t => bool =
+  fun
+  | Tag(InTagHole(InvalidTagName, _), _) => false
+  | Tag(InTagHole(_), _)
+  | Tag(NotInTagHole, _)
+  | EmptyTagHole(_) => true;
+
 module OrderedType = {
   type nonrec t = t;
 

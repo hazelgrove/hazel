@@ -538,8 +538,8 @@ and syn_cursor_info_zoperand =
   // SInj
   | InjZT(_, ztag, _) =>
     CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag)
-  | InjZE(_, _, zbody) =>
-    ana_cursor_info(~steps=steps @ [1], ctx, zbody, Hole)
+  | InjZE(_, _, zarg) =>
+    ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
@@ -868,7 +868,7 @@ and ana_cursor_info_zoperand =
     // AInjBadTag
     | Inj(InHole(BadTag, _), tag, _) =>
       Some(CursorInfo_common.mk(AnaInjBadTag(tag), ctx, cursor_term))
-    | Inj(InHole(_, _), _, _) => None
+    | Inj(InHole(_), _, _) => None
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
         _,

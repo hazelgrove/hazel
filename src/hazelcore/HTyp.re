@@ -255,18 +255,19 @@ let join_all = (j: join, types: list(t)): option(t) => {
   };
 };
 
-let rec valid = (theta: TypVarCtx.t, ty: t): bool =>
-  switch (ty) {
-  | Hole
-  | Int
-  | Float
-  | Bool => true
-  | Arrow(ty1, ty2) => valid(theta, ty1) && valid(theta, ty2)
-  | Sum(tymap) =>
-    tymap
-    |> TagMap.for_all(((_, ty_opt)) =>
-         ty_opt |> Option.map(valid(theta)) |> Option.value(~default=true)
-       )
-  | Prod(tys) => List.for_all(valid(theta), tys)
-  | List(ty) => valid(theta, ty)
-  };
+// TODO: (eric) HTyp.valid always returns true until we have type variables
+// let rec valid = (theta: TypVarCtx.t, ty: t): bool =>
+//   switch (ty) {
+//   | Hole
+//   | Int
+//   | Float
+//   | Bool => true
+//   | Arrow(ty1, ty2) => valid(theta, ty1) && valid(theta, ty2)
+//   | Sum(tymap) =>
+//     tymap
+//     |> TagMap.for_all(((_, ty_opt)) =>
+//          ty_opt |> Option.map(valid(theta)) |> Option.value(~default=true)
+//        )
+//   | Prod(tys) => List.for_all(valid(theta), tys)
+//   | List(ty) => valid(theta, ty)
+//   };

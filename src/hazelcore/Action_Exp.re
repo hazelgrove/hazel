@@ -1479,7 +1479,7 @@ and syn_perform_operand =
       | EmptyHole(_) => None
       | _ => Some(UHExp.Block.wrap(operand))
       };
-    let zoperand = ZExp.InjZT(InjErrStatus.NotInHole, ztag, arg_opt);
+    let zoperand = ZExp.InjZT(NotInHole, ztag, arg_opt);
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zexp)));
 
@@ -3063,7 +3063,7 @@ and ana_perform_operand =
       | EmptyHole(_) => None
       | _ => Some(UHExp.Block.wrap(operand))
       };
-    let zoperand = ZExp.InjZT(InjErrStatus.NotInHole, ztag, arg_opt);
+    let zoperand = ZExp.InjZT(NotInHole, ztag, arg_opt);
     let zexp = ZList.singleton(ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)));
     Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
 

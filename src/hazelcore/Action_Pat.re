@@ -643,6 +643,40 @@ and syn_perform_operand =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     syn_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand))
 
+  /* Injections */
+
+  /*
+   Pressing <Inj> on an expression creates an injection.
+
+   |?  =(Inj)=>  inj[ |? ]
+   ?|  =(Inj)=>  inj[ |? ]
+   |1  =(Inj)=>  inj[ |? ]( 1 )
+   1|  =(Inj)=>  inj[ |? ]( 1 )
+   */
+  | (Construct(SInj), CursorP(_, p)) =>
+    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
+    let arg_opt =
+      switch (p) {
+      | EmptyHole(_) => None
+      | _ => Some(OpSeq.wrap(p))
+      };
+    let zp = ZPat.InjZT(NotInHole, ztag, arg_opt);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp)));
+
+  /*
+   Pressing <Parenthesized> after a constant injection wraps the injection
+   around a pattern hole.
+
+   inj[ _ ]|  =(Parenthesized)=>  inj[ _ ]( |? )
+   */
+  | (
+      Construct(SParenthesized),
+      CursorP(OnDelim(1, After), Inj(status, tag, None)),
+    ) =>
+    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZPat.InjZP(status, tag, ZOpSeq.wrap(zhole));
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp)));
+
   /* Backspace and Delete */
 
   | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
@@ -824,14 +858,6 @@ and syn_perform_operand =
       u_gen,
       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
     )
-
-  /* |p  ==>  inj[ |? ]( p ) */
-  /* p|  ==>  inj[ |? ]( p ) */
-  | (Construct(SInj), CursorP(_, body)) =>
-    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-    let inj_zpat =
-      ZOpSeq.wrap(ZPat.InjZT(NotInHole, ztag, Some(OpSeq.wrap(body))));
-    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, inj_zpat));
 
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
@@ -1208,6 +1234,40 @@ and ana_perform_operand =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     ana_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand), ty)
 
+  /* Injections */
+
+  /*
+   Pressing <Inj> on an expression creates an injection.
+
+   |?  =(Inj)=>  inj[ |? ]
+   ?|  =(Inj)=>  inj[ |? ]
+   |1  =(Inj)=>  inj[ |? ]( 1 )
+   1|  =(Inj)=>  inj[ |? ]( 1 )
+   */
+  | (Construct(SInj), CursorP(_, p)) =>
+    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
+    let arg_opt =
+      switch (p) {
+      | EmptyHole(_) => None
+      | _ => Some(OpSeq.wrap(p))
+      };
+    let zp = ZPat.InjZT(NotInHole, ztag, arg_opt);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp), ty));
+
+  /*
+   Pressing <Parenthesized> after a constant injection wraps the injection
+   around a pattern hole.
+
+   inj[ _ ]|  =(Parenthesized)=>  inj[ _ ]( |? )
+   */
+  | (
+      Construct(SParenthesized),
+      CursorP(OnDelim(1, After), Inj(status, tag, None)),
+    ) =>
+    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZPat.InjZP(status, tag, ZOpSeq.wrap(zhole));
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp), ty));
+
   /* Backspace and Delete */
 
   | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
@@ -1409,14 +1469,6 @@ and ana_perform_operand =
   | (Construct(SParenthesized), CursorP(_)) =>
     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     mk_ana_result(ctx, u_gen, new_zp, ty);
-
-  /* |p  ==>  inj[ |? ]( p ) */
-  /* p|  ==>  inj[ |? ]( p ) */
-  | (Construct(SInj), CursorP(_, body)) =>
-    let (ztag, u_gen) = ZTag.new_TagHole(u_gen);
-    let inj_zpat =
-      ZOpSeq.wrap(ZPat.InjZT(NotInHole, ztag, Some(OpSeq.wrap(body))));
-    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, inj_zpat, ty));
 
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {

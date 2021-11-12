@@ -34,11 +34,11 @@ let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
 let mk_Inj =
     (
-      tag_doc: UHDoc_common.formatted_child,
-      arg_doc_opt: option(UHDoc_common.formatted_child),
+      tag: UHDoc_common.formatted_child,
+      arg_opt: option(UHDoc_common.formatted_child),
     )
     : UHDoc.t => {
-  UHDoc_common.mk_Inj(~sort=Exp, tag_doc, arg_doc_opt);
+  UHDoc_common.mk_Inj(~sort=Exp, tag, arg_opt);
 };
 let mk_NTuple:
   (
