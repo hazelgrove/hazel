@@ -45,102 +45,67 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* ctx = syn_lines(ctx, leading);
   syn_opseq(ctx, conclusion);
 }
-// and syn_lines =
-//     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
-// /* pass 1: put in typing context */
-//   let _ = lines
-//     |> List.fold_left(
-//        (opt_ctx: option(Contexts.t), line: UHExp.line) => {
-//          let* ctx = opt_ctx;
-//          syn_line_pass1(ctx, line);
-//        },
-//      );
-//   ;
-//   lines
-//   |> List.fold_left(
-//        (opt_ctx: option(Contexts.t), line: UHExp.line) => {
-//          let* ctx = opt_ctx;
-//          syn_line(ctx, line);
-//        },
-//        Some(ctx),
-//      );
-// }
+and syn_lines = 
+    (ctx:Contexts.t, lines:list(UHExp.line)):option(Contexts.t) => {
 
-// and syn_line_pass1 = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
-//   switch (line) {
-//   | EmptyLine
-//   | CommentLine(_) => Some(ctx)
-//   | ExpLine(opseq) =>
-//     let+ _ = syn_opseq(ctx, opseq);
-//     ctx;
-//   | LetLine(_key, p, def) =>
-//     let def_ctx = extend_let_def_ctx(ctx, p, def);
-//     let* ty_def = syn(def_ctx, def);  /* use annotation? */
-//     Statics_Pat.syn(ctx, p, ty_def); /* use annotation? */
-//   }
+      // first pass: group lines, e.g. [L1, L2, L3, L4] -> [[L4], [L2, L3], [L1]]
 
-// and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
-//   switch (line) {
-//   | EmptyLine
-//   | CommentLine(_) => Some(ctx)
-//   | ExpLine(opseq) =>
-//     let+ _ = syn_opseq(ctx, opseq);
-//     ctx;
-//   | LetLine(_key, p, def) =>
-//     let def_ctx = extend_let_def_ctx(ctx, p, def);
-//     let* ty_def = syn(def_ctx, def);
-//     Statics_Pat.ana(ctx, p, ty_def);
-//   }
-and syn_lines =
-    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
-  let(opt_ctx, crtlines) = lines
-  |> List.fold_left(
-       ((opt_ctx: option(Contexts.t), crtlines: list(UHExp.line)), line: UHExp.line) => {
-         let* ctx = opt_ctx;
-         syn_line(ctx, crtlines, line);
-       },
-       (Some(ctx), [])
-     );
-  // TODO: handle the final crtlines
-  crtlines
-  |> List.fold_left(
-      (opt_ctx: option(Context.t), line: UHExp.line) => {
-        switch (line) {
-        | LetLine(_, p,def) =>
-            let def_ctx = extend_let_def_ctx(ctx, p, def);
-            let* ty_def = syn(def_ctx, def);
-            Statics_Pat.ana(ctx, p, ty_def);
-        | _ => None
+      let groups = List.fold_left(
+        (result: list(list(UHExp.line)), line: UHExp.line) => {
+          switch(line){
+            | EmptyLine
+            | CommentLine(_) => [List.hd(result)@[line]] @ List.tl(result)
+            | ExpLine(_)
+            | LetLine(_) => [[line]] @ result
+          },
         }
-      }
-    );
-}
-and syn_line = (ctx: Contexts.t, crtlines: list(UHExp.line), line: UHExp.line): (option(Contexts.t), list(UHExp.line)) =>
-  switch (line) {
-  | EmptyLine
-  | CommentLine(_) => (Some(ctx), crtlines)
-  | ExpLine(opseq) =>
-    let+ _ = syn_opseq(ctx, opseq);
-    (ctx, crtlines);
-  | LetLine(Let, p, def) =>
-    (crtlines
-    |> List.fold_left(
-        (opt_ctx: option(Context.t), line: UHExp.line) => {
-          switch (line) {
-          | LetLine(_, p,def) =>
-              let def_ctx = extend_let_def_ctx(ctx, p, def);
-              let* ty_def = syn(def_ctx, def);
-              Statics_Pat.ana(ctx, p, ty_def);
-          | _ => None
-          }
-        }
-    ), [line])
-    // let def_ctx = extend_let_def_ctx(ctx, p, def);
-    // let* ty_def = syn(def_ctx, def);
-    // Statics_Pat.ana(ctx, p, ty_def);
-  | LetLine(And, p, def) =>
-    (Some(extend_let_def_ctx(ctx,p,def)), [line, ...crtlines]);
-  }
+        [],
+        lines,
+      );
+
+      // second pass: fold over groups
+
+      groups
+      |> List.fold_right(
+        (ctx_group: option(Contexts.t), group: list(UHExp.line)) => {
+
+          // in each group, fold over each line to extend the ctx
+          let new_ctx = List.fold_left(
+            (ctx_line: option(Contexts.t), line: UHExp.line) => {
+              | EmptyLine
+              | CommentLine(_) => ctx_line
+              | ExpLine(opseq) =>
+                let *ctx = ctx_line;
+                let+ _ = syn_opseq(ctx, opseq); //TODO
+                Some(ctx);
+              | LetLine(_, p, def) =>
+                let *ctx = ctx_line;
+                Some(extend_let_def_ctx(ctx, p, def));
+            },
+            ctx.group,
+            group,
+          );
+
+          // analyze against to check type
+          group
+          |> List.fold_left(
+            (ctx_line: option(Contexts.t), line: UHExp.line) => {
+              | EmptyLine
+              | CommentLine(_)
+              | ExpLine(_) => ctx_line
+              | LetLine(_, p, def) => 
+                let *def_ctx = ctx_line;
+                let* ty_def = syn(def_ctx, def);
+                Statics_Pat.ana(def_ctx, p, ty_def);
+            },
+            new_ctx,
+            group,
+          );
+        },
+        Some(ctx),
+      );
+    }
+
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
   syn_skel(ctx, skel, seq)
