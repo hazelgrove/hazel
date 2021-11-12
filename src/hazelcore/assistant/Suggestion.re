@@ -1,13 +1,13 @@
 [@deriving sexp]
 type operand_strategy =
   | Delete
-  | InsertLit
   | InsertVar
+  | InsertLit
   | InsertApp
   | InsertCase
-  | WrapApp
   | WrapCase
-  | WrapInj
+  | WrapLit
+  | WrapApp
   | ConvertLit;
 
 [@deriving sexp]

@@ -10,7 +10,7 @@ let label_operand_strategy: Suggestion.operand_strategy => string =
   | InsertCase => "cas"
   | WrapApp => "wra"
   | WrapCase => "wrc"
-  | WrapInj => "wri"
+  | WrapLit => "wri"
   | ConvertLit => "cnv";
 
 let label_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
@@ -44,7 +44,7 @@ let describe_operand_strategy: Suggestion.operand_strategy => string =
   | InsertCase => "Insert a case"
   | WrapApp => "Apply a function to the current form"
   | WrapCase => "Case on the current form"
-  | WrapInj => "Inject the current form"
+  | WrapLit => "Wrap a constructor around the current form"
   | ConvertLit => "Convert a literal to another type";
 
 let describe_pat_operand_strategy: Suggestion.pat_operand_strategy => string =
@@ -291,8 +291,8 @@ let suggestion_view_logic =
     ["choice"]
     @ (is_selected ? ["selected"] : [])
     @ (is_hovered ? ["hovered"] : [])
-    @ (color_score > 0. ? ["errors-less"] : [])
-    @ (color_score < 0. ? ["errors-more"] : []);
+    @ (color_score > 0.5 ? ["errors-less"] : [])
+    @ (color_score < (-0.5) ? ["errors-more"] : []);
   [
     Attr.id(string_of_int(index)),
     Attr.classes(assistant_classes),

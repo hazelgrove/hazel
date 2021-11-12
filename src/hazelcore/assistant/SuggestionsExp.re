@@ -109,7 +109,12 @@ let rec get_wrapped_operand' =
   | Some(target_second) =>
     let suf_op = UHExp.operand_of_string(target_second);
     if (UHExp.is_atomic_operand(suf_op) && UHExp.is_literal_operand(suf_op)) {
-      [suf_op];
+      switch (Statics_Exp.syn_operand(ctx, suf_op)) {
+      | Some(suf_op_ty) when HTyp.consistent(suf_op_ty, target_type) => [
+          suf_op,
+        ]
+      | _ => []
+      };
     } else {
       switch (
         vars_satisfying_p(ctx, ((name, ty)) => {
@@ -158,8 +163,15 @@ let get_wrapped_operand =
     let operand_text = CursorInfo_common.string_of_cursor_term(cursor_term);
     get_wrapped_operand'(ctx, target_type, target_first, operand_text);
   | _ =>
-    // TODO: handle wrapping composite things e.g. parenthesized
-    []
+    // Composite operands
+    switch (cursor_term) {
+    | ExpOperand(_, op) =>
+      switch (Statics_Exp.syn_operand(ctx, op)) {
+      | Some(op_ty) when HTyp.consistent(op_ty, target_type) => [op]
+      | _ => []
+      }
+    | _ => []
+    }
   };
 };
 
@@ -192,13 +204,10 @@ let rec mk_constructors = (expected_ty: HTyp.t, ci) =>
   | Int => [mk_int_lit_suggestion("1", ci)]
   | Float => [mk_float_lit_suggestion("1.", ci)]
   | List(_) => [mk_nil_list_suggestion(ci), mk_list_suggestion(ci)]
-  | Sum(_, _) => [] // TODO
-  // wrap cases handles this
-  /*
-   [
-       mk_inj_suggestion(L, hole_operand, ci),
-       mk_inj_suggestion(R, hole_operand, ci),
-     ]*/
+  | Sum(_, _) => [
+      mk_inj_suggestion(L, hole_operand, ci),
+      mk_inj_suggestion(R, hole_operand, ci),
+    ]
   | Prod(_) => [mk_pair_suggestion(ci)] // TODO: n-tuples
   | Arrow(_, _) => [mk_lambda_suggestion(ci)] // TODO: nested lambdas
   | Hole =>
@@ -228,12 +237,30 @@ let mk_insert_var_suggestions: generator =
     |> Assistant_common.extract_vars(ctx)
     |> List.map(mk_var_suggestion(ci));
 
-let mk_insert_app_suggestions: generator =
+let mk_insert_app_fn_suggestions: generator =
   ({ctx, expected_ty, _} as ci) => {
     expected_ty
     |> Assistant_common.fun_vars(ctx)
     |> List.map(mk_app_suggestion(ci));
   };
+
+let mk_insert_app_suggestions: generator =
+  ci => [
+    mk_operand_suggestion_from_uhexp(
+      ~strategy=InsertApp,
+      ~uhexp=mk_bin_ap_uhexp(hole_operand, hole_operand),
+      ci,
+    ),
+  ];
+
+let mk_insert_case_suggestions: generator =
+  ci => [
+    mk_operand_suggestion(
+      ~strategy=InsertCase,
+      ~operand=mk_case(hole_operand),
+      ci,
+    ),
+  ];
 
 let mk_wrap_app_suggestion = (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)) =>
   switch (f_ty) {
@@ -252,51 +279,30 @@ let mk_wrap_app_suggestion = (ci: CursorInfo.t, (name: string, f_ty: HTyp.t)) =>
   };
 
 let mk_wrap_app_suggestions: generator =
-  ({ctx, expected_ty, actual_ty, cursor_term, _} as ci) =>
-    switch (cursor_term) {
-    | ExpOperand(_, EmptyHole(_)) =>
-      /* TODO Wrapping empty holes is redundant to ap. Revisit when there's
-         a mechanism to eliminate duplicate suggestions */
-      []
-    | _ =>
-      let arrow_consistent = ((_, f_ty)) =>
-        HTyp.consistent(
-          f_ty,
-          HTyp.Arrow(HTyp.relax(actual_ty), expected_ty),
-        );
-      Assistant_common.fun_vars(ctx, expected_ty)
-      |> List.filter(arrow_consistent)
-      |> List.map(mk_wrap_app_suggestion(ci))
-      |> List.flatten;
-    };
+  ({ctx, expected_ty, actual_ty, _} as ci) => {
+    let arrow_consistent = ((_, f_ty)) =>
+      HTyp.consistent(f_ty, HTyp.Arrow(HTyp.relax(actual_ty), expected_ty));
+    Assistant_common.fun_vars(ctx, expected_ty)
+    |> List.filter(arrow_consistent)
+    |> List.map(mk_wrap_app_suggestion(ci))
+    |> List.flatten;
+  };
 
 let mk_wrap_case_suggestions: generator =
   ci => {
     switch (get_wrapped_operand(ci, "case", HTyp.Hole)) {
-    | [op] => [
+    | [op, ..._] => [
         mk_operand_suggestion(~strategy=WrapCase, ~operand=mk_case(op), ci),
       ]
-    | _ => [
-        mk_operand_suggestion(
-          ~strategy=InsertCase,
-          ~operand=mk_case(hole_operand),
-          ci,
-        ),
-      ]
+    | _ => []
     };
   };
 
 let mk_wrap_inj_suggestions: generator =
   ({expected_ty, _} as ci) => {
-    let mk_wrap_sug = (side, operand) =>
+    let mk_wrap = (side, operand) =>
       mk_operand_suggestion(
-        ~strategy=WrapInj,
-        ~operand=mk_inj(side, operand),
-        ci,
-      );
-    let mk_insert_sug = (side, operand) =>
-      mk_operand_suggestion(
-        ~strategy=InsertLit,
+        ~strategy=WrapLit,
         ~operand=mk_inj(side, operand),
         ci,
       );
@@ -305,15 +311,15 @@ let mk_wrap_inj_suggestions: generator =
     | Some((l_ty, r_ty)) =>
       let l_sug =
         switch (get_wrapped_operand(ci, "inj", l_ty)) {
-        | [guy] => mk_wrap_sug(L, guy)
-        | _ => mk_insert_sug(L, hole_operand)
+        | [op, ..._] => [mk_wrap(L, op)]
+        | _ => []
         };
       let r_sug =
         switch (get_wrapped_operand(ci, "inj", r_ty)) {
-        | [guy] => mk_wrap_sug(R, guy)
-        | _ => mk_insert_sug(R, hole_operand)
+        | [op, ..._] => [mk_wrap(R, op)]
+        | _ => []
         };
-      [l_sug, r_sug];
+      l_sug @ r_sug;
     };
   };
 
@@ -339,11 +345,12 @@ let exp_operand_generators = [
   mk_insert_lit_suggestions,
   mk_insert_var_suggestions,
   mk_wrap_app_suggestions,
-  mk_insert_app_suggestions,
+  mk_insert_app_fn_suggestions,
   mk_delete_suggestions,
   mk_wrap_case_suggestions,
   mk_wrap_inj_suggestions,
-  //mk_insert_case_suggestions,
+  mk_insert_app_suggestions,
+  mk_insert_case_suggestions,
 ];
 
 let mk: generator = Suggestion.generate(List.rev(exp_operand_generators));
