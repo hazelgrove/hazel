@@ -131,7 +131,8 @@ let create =
             | _ => focus_code_root()
             };
             let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
-            restart_cursor_animation(caret_elem);
+            //TODO(andrew): why this? seems to animated without it
+            //restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
 
             if (model.cursor_inspector.visible) {
