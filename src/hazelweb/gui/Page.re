@@ -19,23 +19,6 @@ let top_bar = (~inject, ~model: Model.t) => {
   );
 };
 
-let left_sidebar = (~inject, ~model: Model.t) =>
-  Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-    [ActionPanel.view(~inject, model)]
-  );
-
-let right_sidebar =
-    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) => {
-  Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
-    [
-      AssertPanel.view(~inject, ~model, ~assert_map),
-      ContextInspector.view(~inject, ~model, ~hii),
-      UndoHistoryPanel.view(~inject, model),
-      SettingsPanel.view(~inject, model.settings),
-    ]
-  );
-};
-
 let type_label = div([Attr.class_("label")], [text("Result of type: ")]);
 
 let type_view = (ty: HTyp.t): Node.t => {
@@ -117,9 +100,9 @@ let view = (~inject, ~model: Model.t, ~result: Result.t): Node.t => {
     [Attr.id("root")],
     [
       top_bar(~inject, ~model),
-      left_sidebar(~inject, ~model),
+      Sidebar.left(~inject, ~model),
       card_panel(~inject, ~model, ~result),
-      right_sidebar(~inject, ~model, ~result),
+      Sidebar.right(~inject, ~model, ~result),
       branch_panel,
     ],
   );
