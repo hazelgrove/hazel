@@ -94,10 +94,12 @@ let view =
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a tag"));
+  let expected_a_known_tag_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a known tag"));
   let expected_a_unique_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a unique tag"));
-  let expected_a_sum_type_body_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a sum type body"));
+  let expected_a_sum_body_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a sum body"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
@@ -162,6 +164,9 @@ let view =
 
   let got_invalid_tag_indicator = (tag: UHTag.t) =>
     got_indicator("Got invalid tag", tagbar(tag));
+
+  let got_unknown_tag_indicator = (tag: UHTag.t) =>
+    got_indicator("Got unknown tag", tagbar(tag));
 
   let got_duplicate_tag_indicator = (tag: UHTag.t) =>
     got_indicator("Got duplicate tag", tagbar(tag));
@@ -436,12 +441,16 @@ let view =
       let ind1 = expected_a_tag_indicator;
       let ind2 = got_invalid_tag_indicator(tag);
       (ind1, ind2, TypeInconsistency);
+    | OnUnknownTag(tag) =>
+      let ind1 = expected_a_known_tag_indicator;
+      let ind2 = got_unknown_tag_indicator(tag);
+      (ind1, ind2, TypeInconsistency);
     | OnDuplicateTag(tag) =>
       let ind1 = expected_a_unique_tag_indicator;
       let ind2 = got_duplicate_tag_indicator(tag);
       (ind1, ind2, TypeInconsistency);
     | OnSumBody =>
-      let ind1 = expected_a_sum_type_body_indicator;
+      let ind1 = expected_a_sum_body_indicator;
       let ind2 = got_a_sum_type_body_indicator;
       (ind1, ind2, OK);
     | OnLine =>

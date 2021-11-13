@@ -1,8 +1,9 @@
 module HoleReason = {
   [@deriving sexp]
   type t =
-    | InvalidTagName
-    | DuplicateTagName;
+    | InvalidName
+    | NotInSum
+    | Duplicate;
 };
 
 [@deriving sexp]

@@ -127,6 +127,7 @@ type typed =
   | OnTag
   | OnTagHole
   | OnInvalidTag(UHTag.t)
+  | OnUnknownTag(UHTag.t)
   | OnDuplicateTag(UHTag.t)
   /* cursor in sum body position */
   | OnSumBody

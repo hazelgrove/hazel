@@ -9,8 +9,9 @@ let cursor_info_typed = (tag: UHTag.t): CursorInfo.typed =>
   | Tag(status, _) =>
     switch (status) {
     | NotInTagHole => OnTag
-    | InTagHole(InvalidTagName, _) => OnInvalidTag(tag)
-    | InTagHole(DuplicateTagName, _) => OnDuplicateTag(tag)
+    | InTagHole(InvalidName, _) => OnInvalidTag(tag)
+    | InTagHole(NotInSum, _) => OnUnknownTag(tag)
+    | InTagHole(Duplicate, _) => OnDuplicateTag(tag)
     }
   | EmptyTagHole(_) => OnTagHole
   };

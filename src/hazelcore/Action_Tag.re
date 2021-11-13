@@ -4,7 +4,7 @@ let mk_tag = (text: string, u_gen: MetaVarGen.t): (UHTag.t, MetaVarGen.t) => {
       (NotInTagHole, u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (InTagHole(InvalidTagName, u), u_gen);
+      (InTagHole(InvalidName, u), u_gen);
     };
   (UHTag.Tag(status, text), u_gen);
 };

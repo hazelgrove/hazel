@@ -4,7 +4,6 @@ module HoleReason = {
   type t =
     | InjectionInSyntheticPosition
     | ExpectedTypeNotConsistentWithSums
-    | BadTag
     | ExpectedBody
     | UnexpectedBody;
 

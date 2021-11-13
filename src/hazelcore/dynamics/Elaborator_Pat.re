@@ -358,32 +358,23 @@ and ana_elab_operand =
 
   | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => DoesNotElaborate
 
-  | Inj(InHole(BadTag as reason, u), tag, arg_opt) when UHTag.is_valid(tag) =>
-    switch (ty) {
-    | Sum(tymap) =>
-      switch (TagMap.find_opt(tag, tymap)) {
-      | Some(_) => DoesNotElaborate
-      | None =>
-        let elabs = (ctx, dp_opt, ty_opt, delta'): ElaborationResult.t => {
-          let gamma = Contexts.gamma(ctx);
-          let tymap' = TagMap.add(tag, ty_opt, tymap);
-          let inj = (tag, dp_opt);
-          let ty' = HTyp.Sum(TagMap.add(tag, ty_opt, tymap'));
-          let delta'' =
-            MetaVarMap.add(u, (Delta.PatternHole, ty', gamma), delta');
-          Elaborates(InjError(reason, u, 0, inj), ty, ctx, delta'');
-        };
-        let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
-        switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
-        | Some(DoesNotElaborate) => DoesNotElaborate
-        | Some(Elaborates(dp, dp_ty, ctx', delta)) =>
-          elabs(ctx', Some(dp), Some(dp_ty), delta)
-        | None => elabs(ctx, None, None, delta)
-        };
-      }
-    | _ => DoesNotElaborate
-    }
-  | Inj(InHole(BadTag, _), _, _) => DoesNotElaborate
+  // adapted from ESInjErr
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums as reason, u), tag, arg_opt) =>
+    let gamma = Contexts.gamma(ctx);
+    let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
+    switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
+    | Some(DoesNotElaborate) => DoesNotElaborate
+    | Some(Elaborates(dp, _, ctx', delta')) =>
+      let inj = (tag, Some(dp));
+      let delta'' =
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta');
+      Elaborates(InjError(reason, u, 0, inj), Hole, ctx', delta'');
+    | None =>
+      let inj = (tag, None);
+      let delta' =
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
+      Elaborates(InjError(reason, u, 0, inj), Hole, ctx, delta');
+    };
 
   | Inj(InHole(UnexpectedBody as reason, u), tag, Some(arg)) =>
     switch (ty) {
@@ -422,28 +413,6 @@ and ana_elab_operand =
     | _ => DoesNotElaborate
     }
   | Inj(InHole(ExpectedBody, _), _, Some(_)) => DoesNotElaborate
-
-  // adapted from ESInjErr
-  | Inj(InHole(ExpectedTypeNotConsistentWithSums as reason, u), tag, arg_opt)
-      when UHTag.is_valid(tag) =>
-    let gamma = Contexts.gamma(ctx);
-    let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
-    switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
-    | Some(DoesNotElaborate) => DoesNotElaborate
-    | Some(Elaborates(dp, _, ctx', delta')) =>
-      let inj = (tag, Some(dp));
-      let delta'' =
-        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta');
-      Elaborates(InjError(reason, u, 0, inj), Hole, ctx', delta'');
-    | None =>
-      let inj = (tag, None);
-      let delta' =
-        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
-      Elaborates(InjError(reason, u, 0, inj), Hole, ctx, delta');
-    };
-
-  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
-    DoesNotElaborate
 
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)

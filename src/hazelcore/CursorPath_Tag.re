@@ -36,8 +36,9 @@ let holes =
   | Tag(InTagHole(reason, u), _) =>
     let shape: CursorPath.hole_shape =
       switch (reason) {
-      | InvalidTagName => VarErr
-      | DuplicateTagName => TypeErr
+      | InvalidName => VarErr
+      | NotInSum => TypeErr
+      | Duplicate => TypeErr
       };
     let steps = List.rev(rev_steps);
     [{sort: TagHole(u, shape), steps, ap_steps: steps}, ...hs];
@@ -53,8 +54,9 @@ let holes_z =
   | Tag(InTagHole(reason, u), _) =>
     let shape: CursorPath.hole_shape =
       switch (reason) {
-      | InvalidTagName => VarErr
-      | DuplicateTagName => TypeErr
+      | InvalidName => VarErr
+      | NotInSum => TypeErr
+      | Duplicate => TypeErr
       };
     let steps = List.rev(rev_steps);
     {

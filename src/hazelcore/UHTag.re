@@ -63,7 +63,7 @@ let is_complete: t => bool =
 
 let is_valid: t => bool =
   fun
-  | Tag(InTagHole(InvalidTagName, _), _) => false
+  | Tag(InTagHole(InvalidName, _), _) => false
   | Tag(InTagHole(_), _)
   | Tag(NotInTagHole, _)
   | EmptyTagHole(_) => true;
@@ -89,8 +89,8 @@ let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let status: TagErrStatus.t =
       !is_tag_name(t)
-        ? InTagHole(InvalidTagName, u)
-        : Set.mem(tag, dups) ? InTagHole(DuplicateTagName, u) : NotInTagHole;
+        ? InTagHole(InvalidName, u)
+        : Set.mem(tag, dups) ? InTagHole(Duplicate, u) : NotInTagHole;
     (Tag(status, t), u_gen);
   | EmptyTagHole(_) => (tag, u_gen)
   };
