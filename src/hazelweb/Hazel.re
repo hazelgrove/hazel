@@ -56,13 +56,17 @@ let on_startup = (~schedule_action, _) => {
   Async_kernel.Deferred.return(State.State);
 };
 
-let restart_cursor_animation = caret_elem => {
-  caret_elem##.classList##remove(Js.string("blink"));
-  // necessary to trigger reflow
-  // <https://css-tricks.com/restart-css-animation/>
-  let _ = caret_elem##getBoundingClientRect;
-  caret_elem##.classList##add(Js.string("blink"));
-};
+let restart_cursor_animation = () =>
+  try({
+    let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
+    caret_elem##.classList##remove(Js.string("blink"));
+    // necessary to trigger reflow
+    // <https://css-tricks.com/restart-css-animation/>
+    let _ = caret_elem##getBoundingClientRect;
+    caret_elem##.classList##add(Js.string("blink"));
+  }) {
+  | _ => ()
+  };
 
 let scroll_cursor_into_view_if_needed = caret_elem => {
   let page_rect =
@@ -113,10 +117,9 @@ let create =
     "Hazel.create", performance.measure && performance.hazel_create, () =>
     Component.create(
       ~apply_action=
-        (a, s) => {
-          let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
-          restart_cursor_animation(caret_elem);
-          Update.apply_action(model, a, s);
+        (action, state) => {
+          restart_cursor_animation();
+          Update.apply_action(model, action, state);
         },
       // for things that require actual DOM manipulation post-render
       ~on_display=
