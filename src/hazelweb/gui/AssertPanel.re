@@ -17,7 +17,12 @@ let assert_report_view =
     instance_reports |> AssertMap.joint_status |> AssertStatus.to_string;
   div(
     [Attr.class_("test-report")],
-    [div([Attr.class_("Assert" ++ status)], [text(string_of_int(id))])]
+    [
+      div(
+        [Attr.class_("Assert" ++ status)],
+        [text(string_of_int(id) ++ ": ")],
+      ),
+    ]
     @ List.map(assert_instance_view(dhcode_view), instance_reports),
   );
 };

@@ -4,7 +4,11 @@ open ViewUtil;
 
 let logo_panel =
   a(
-    [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+    [
+      Attr.classes(["logo-text"]),
+      Attr.href("https://hazel.org"),
+      Attr.create("target", "_blank"),
+    ],
     [text("Hazel")],
   );
 
@@ -12,16 +16,16 @@ let top_bar = (~inject, ~model: Model.t) => {
   div(
     [Attr.classes(["top-bar"])],
     [
+      ActionMenu.view(~inject, ~model),
       logo_panel,
-      CardsPanel.view(~inject, ~model),
-      ActionMenu.view(~inject),
+      //CardsPanel.view(~inject, ~model),
     ],
   );
 };
 
 let type_label = div([Attr.class_("label")], [text("Result of type: ")]);
 
-let type_view = (ty: HTyp.t): Node.t => {
+let _type_view = (ty: HTyp.t): Node.t => {
   div([Attr.class_("cell-type")], [type_label, HTypCode.view(ty)]);
 };
 
@@ -84,14 +88,15 @@ let cell_view = (~inject, ~model: Model.t) => {
 };
 
 let card_panel =
-    (~inject, ~model, ~result as {result, result_ty, _}: Result.t): Node.t =>
+    (~inject, ~model, ~result as {result, _ /*result_ty,*/}: Result.t)
+    : Node.t =>
   div(
     [Attr.id(ViewUtil.card_dom_id)],
     [
       card_caption(model),
       cell_view(~inject, ~model),
       result_view(~model, ~inject, ~result),
-      type_view(result_ty),
+      //type_view(result_ty),
     ],
   );
 
@@ -100,9 +105,9 @@ let view = (~inject, ~model: Model.t, ~result: Result.t): Node.t => {
     [Attr.id("root")],
     [
       top_bar(~inject, ~model),
-      Sidebar.left(~inject, ~model),
+      Sidebar.left(~inject, ~model, ~result),
       card_panel(~inject, ~model, ~result),
-      Sidebar.right(~inject, ~model, ~result),
+      //Sidebar.right(~inject, ~model, ~result),
       branch_panel,
     ],
   );

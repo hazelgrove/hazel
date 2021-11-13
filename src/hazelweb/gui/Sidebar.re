@@ -33,9 +33,18 @@ let mk_sidebar =
     ],
   );
 
-let left = (~inject, ~model: Model.t) =>
+let left =
+    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) =>
   mk_sidebar(
-    ~panels=() => [ActionPanel.view(~inject, model)],
+    ~panels=
+      () =>
+        [
+          AssertPanel.view(~inject, ~model, ~assert_map),
+          ContextInspector.view(~inject, ~model, ~hii),
+          UndoHistoryPanel.view(~inject, model),
+          SettingsPanel.view(~inject, model.settings),
+          ActionPanel.view(~inject, model),
+        ],
     ~is_open=model.left_sidebar_open,
     ~id="sidebar-left",
     ~icon_opened=Icons.left_side_bar_icon_opened,

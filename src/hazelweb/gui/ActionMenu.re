@@ -31,7 +31,7 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
   let shortcut_view =
     switch (shortcut) {
     | None => []
-    | Some(s) => [div([Attr.classes(["shortcut"])], [text(s)])]
+    | Some(s) => [div([Attr.class_("shortcut")], [text(s)])]
     };
   li([Attr.on_click(_ => inject(action))], [text(label)] @ shortcut_view);
 };
@@ -39,16 +39,24 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
 let dropdown_options = (~inject) =>
   List.map(dropdown_option(~inject), menu_entries);
 
-let dropdown = (~inject: ModelAction.t => Ui_event.t) => {
+let dropdown = (~inject: ModelAction.t => Ui_event.t, ~model) => {
+  let open_menu =
+    span(
+      [Attr.class_("open-menu")],
+      [text("Open: "), CardsPanel.view(~inject, ~model)],
+    );
   create(
     "details",
     [],
     [
       create("summary", [], [text("☰")]),
-      ul([Attr.classes(["dropdown-content"])], dropdown_options(~inject)),
+      ul(
+        [Attr.class_("dropdown-content")],
+        [open_menu] @ dropdown_options(~inject),
+      ),
     ],
   );
 };
 
-let view = (~inject: ModelAction.t => Ui_event.t) =>
-  div([Attr.classes(["dropdown"])], [dropdown(~inject)]);
+let view = (~inject: ModelAction.t => Ui_event.t, ~model) =>
+  div([Attr.class_("dropdown")], [dropdown(~inject, ~model)]);

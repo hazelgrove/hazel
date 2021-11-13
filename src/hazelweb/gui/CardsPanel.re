@@ -26,7 +26,7 @@ let cardstack_select = (~inject: ModelAction.t => Event.t) => {
   );
 };
 
-let prev_card_button = (~inject, cardstack): Node.t => {
+let _prev_card_button = (~inject, cardstack): Node.t => {
   let disabled = Cardstack.has_prev(cardstack) ? [] : [Attr.disabled];
   button(
     [
@@ -38,7 +38,7 @@ let prev_card_button = (~inject, cardstack): Node.t => {
   );
 };
 
-let next_card_button = (~inject, cardstack): Node.t => {
+let _next_card_button = (~inject, cardstack): Node.t => {
   let disabled = Cardstack.has_next(cardstack) ? [] : [Attr.disabled];
   button(
     [
@@ -51,15 +51,15 @@ let next_card_button = (~inject, cardstack): Node.t => {
 };
 
 let view = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
-  let cardstack = Model.get_cardstack(model);
+  let _cardstack = Model.get_cardstack(model);
   let cards_info = Model.get_cards_info(model);
   div(
     [Attr.id("card-controls")],
     [
       cardstack_select(~inject),
       card_select(~inject, cards_info),
-      prev_card_button(~inject, cardstack),
-      next_card_button(~inject, cardstack),
+      //prev_card_button(~inject, cardstack),
+      //next_card_button(~inject, cardstack),
     ],
   );
 };

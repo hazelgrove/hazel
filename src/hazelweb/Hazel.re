@@ -45,6 +45,9 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
+  //TODO(andrew): remove when merging
+  schedule_action(LoadCard(6));
+
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
