@@ -112,7 +112,12 @@ let create =
   TimeUtil.measure_time(
     "Hazel.create", performance.measure && performance.hazel_create, () =>
     Component.create(
-      ~apply_action=Update.apply_action(model),
+      ~apply_action=
+        (a, s) => {
+          let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
+          restart_cursor_animation(caret_elem);
+          Update.apply_action(model, a, s);
+        },
       // for things that require actual DOM manipulation post-render
       ~on_display=
         (_, ~schedule_action as _) => {
@@ -131,8 +136,6 @@ let create =
             | _ => focus_code_root()
             };
             let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
-            //TODO(andrew): why this? seems to animated without it
-            //restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
 
             if (model.cursor_inspector.visible) {
