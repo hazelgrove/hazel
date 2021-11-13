@@ -515,6 +515,9 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, Inj(InHole(InjectionInSyntheticPosition, _), _, _)) =>
+    Some(CursorInfo_common.mk(SynInjection, ctx, cursor_term))
+
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None

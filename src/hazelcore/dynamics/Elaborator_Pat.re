@@ -125,8 +125,7 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _)) => DoesNotElaborate
   // adapted from ESInjErr
-  | Inj(InHole(InjectionInSyntheticPosition as reason, u), tag, arg_opt)
-      when UHTag.is_valid(tag) =>
+  | Inj(InHole(InjectionInSyntheticPosition as reason, u), tag, arg_opt) =>
     let gamma = Contexts.gamma(ctx);
     let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
     switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
@@ -177,7 +176,7 @@ and syn_elab_operand =
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
 
   // adapted from ESInjTagErr
-  | Inj(NotInHole, tag, arg_opt) when !UHTag.is_valid(tag) =>
+  | Inj(NotInHole, tag, arg_opt) =>
     let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
     switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
     | Some(DoesNotElaborate) => DoesNotElaborate
@@ -185,7 +184,6 @@ and syn_elab_operand =
       Elaborates(Inj((tag, Some(dp))), Hole, ctx, delta')
     | None => Elaborates(Inj((tag, None)), Hole, ctx, delta)
     };
-  | Inj(NotInHole, _, _) => DoesNotElaborate
 
   | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
   }
@@ -471,7 +469,7 @@ and ana_elab_operand =
           | None => Elaborates(Inj((tag, None)), ty, ctx, delta)
           }
         }
-      | None when !UHTag.is_valid(tag) =>
+      | None =>
         let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
         switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
         | Some(DoesNotElaborate) => DoesNotElaborate
@@ -479,7 +477,6 @@ and ana_elab_operand =
           Elaborates(Inj((tag, Some(dp))), ty, ctx', delta')
         | None => Elaborates(Inj((tag, None)), ty, ctx, delta)
         };
-      | None => DoesNotElaborate
       }
     | _ => DoesNotElaborate
     }

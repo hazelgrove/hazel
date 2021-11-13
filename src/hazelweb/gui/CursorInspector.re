@@ -90,6 +90,11 @@ let view =
     expected_indicator("Expecting a pattern of ", special_msg_bar(msg));
   let expected_any_indicator = expected_msg_indicator("any type");
   let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
+  let expected_well_typed_indicator =
+    expected_indicator(
+      "Expecting ",
+      special_msg_bar("a well-typed expression"),
+    );
   let expected_a_type_indicator =
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_tag_indicator =
@@ -163,7 +168,7 @@ let view =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
 
   let got_invalid_tag_indicator = (tag: UHTag.t) =>
-    got_indicator("Got invalid tag", tagbar(tag));
+    got_indicator("Got invalid tag name", tagbar(tag));
 
   let got_unknown_tag_indicator = (tag: UHTag.t) =>
     got_indicator("Got unknown tag", tagbar(tag));
@@ -185,6 +190,11 @@ let view =
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
+  let got_inj_in_syn_position_indicator =
+    got_indicator(
+      "Got",
+      special_msg_bar("an injection in synthetic position"),
+    );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
@@ -309,6 +319,10 @@ let view =
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynInjection =>
+      let ind1 = expected_well_typed_indicator;
+      let ind2 = got_inj_in_syn_position_indicator;
+      (ind1, ind2, TypeInconsistency);
     | SynBranchClause(join, typed, branch_index) =>
       let (ind1, ind2, err_state_b) = get_indicator_info(typed);
       let ind1 =

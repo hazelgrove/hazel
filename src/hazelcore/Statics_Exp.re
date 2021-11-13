@@ -370,9 +370,8 @@ and ana_operand =
       // AInj
       | Some(ty_opt) => ana_inj_body(ctx, arg_opt, ty_opt)
       // AInjTagErr
-      | None when !UHTag.is_valid(tag) =>
+      | None =>
         ana_inj_body(ctx, arg_opt, arg_opt |> Option.map(_ => HTyp.Hole))
-      | None => None
       }
     | _ => None
     }
@@ -893,11 +892,8 @@ and syn_fix_holes_operand =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
         (Some(body), u_gen);
       };
-    (
-      Inj(InHole(InjectionInSyntheticPosition, u), tag, body_opt),
-      HTyp.Hole,
-      u_gen,
-    );
+    let status = InjErrStatus.InHole(InjectionInSyntheticPosition, u);
+    (Inj(status, tag, body_opt), HTyp.Hole, u_gen);
   | Case(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);

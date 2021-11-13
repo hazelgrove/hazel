@@ -56,8 +56,7 @@ and syn_operand =
     let+ (_, gamma) = syn_operand(ctx, operand');
     (HTyp.Hole, gamma);
   // adapted from SInjErr
-  | Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt)
-      when UHTag.is_valid(tag) =>
+  | Inj(InHole(InjectionInSyntheticPosition, _), _, arg_opt) =>
     let+ ctx = inj_body_valid(ctx, arg_opt);
     (HTyp.Hole, ctx);
   | Inj(InHole(_, _), _, _) => None
@@ -82,10 +81,9 @@ and syn_operand =
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
   // adapted from SInjTagErr
-  | Inj(NotInHole, tag, arg_opt) when !UHTag.is_valid(tag) =>
+  | Inj(NotInHole, _, arg_opt) =>
     let+ ctx = inj_body_valid(ctx, arg_opt);
     (HTyp.Hole, ctx);
-  | Inj(NotInHole, _, _) => None
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
