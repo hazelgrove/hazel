@@ -806,6 +806,13 @@ and ana_cursor_info_zoperand =
       ty: HTyp.t,
     )
     : option(CursorInfo.t) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("ANA_CURSOR_INFO_ZOPERAND");
+      print_endline(to_string_hum(ZExp.sexp_of_zoperand(zoperand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, e) =>
@@ -856,16 +863,18 @@ and ana_cursor_info_zoperand =
           cursor_term,
         ),
       )
-    // AInjUnexpectedBody
-    | Inj(InHole(UnexpectedBody, _), _, _) =>
-      Some(CursorInfo_common.mk(AnaInjUnexpectedBody, ctx, cursor_term))
-    // AInjExpectedBody
+    // AInjUnexpectedArg
+    | Inj(InHole(UnexpectedBody, _), _, Some(arg)) =>
+      let+ ty_arg = Statics_Exp.syn(ctx, arg);
+      CursorInfo_common.mk(AnaInjUnexpectedArg(ty_arg), ctx, cursor_term);
+
+    // AInjExpectedArg
     | Inj(InHole(ExpectedBody, _), tag, None) =>
       switch (ty) {
       | Sum(tymap) =>
         let* ty_opt = TagMap.find_opt(tag, tymap);
         let+ ty = ty_opt;
-        CursorInfo_common.mk(AnaInjExpectedBody(ty), ctx, cursor_term);
+        CursorInfo_common.mk(AnaInjExpectedArg(ty), ctx, cursor_term);
       | _ => None
       }
     | Inj(InHole(_), _, _) => None
@@ -963,7 +972,7 @@ and ana_cursor_info_zoperand =
         ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg)
       | None => ana_cursor_info(~steps=steps @ [1], ctx, zarg, HTyp.Hole)
       }
-
+    | Hole => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
     | _ => None
     }
 

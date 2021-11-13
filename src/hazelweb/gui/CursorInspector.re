@@ -124,16 +124,18 @@ let view =
     expected_msg_indicator("a type consistent with sums");
   let expected_member_of_sumtype_indicator =
     expected_msg_indicator("a member of the expected sum type");
-  let expected_injection_body_indicator = ty =>
+  let expected_const_inj_indicator =
     expected_indicator(
-      "Expecting an injection body expression of ",
+      "Expecting ",
+      special_msg_bar("a constant injection"),
+    );
+  let expected_inj_arg_indicator = ty =>
+    expected_indicator(
+      "Expecting an argument expression of type",
       typebar(ty),
     );
-  let expected_injection_body_indicator_pat = ty =>
-    expected_indicator(
-      "Expecting an injection body pattern of ",
-      typebar(ty),
-    );
+  let expected_inj_arg_indicator_pat = ty =>
+    expected_indicator("Expecting an argument pattern of type", typebar(ty));
 
   let got_indicator = (title_text, type_div) =>
     Node.div(
@@ -190,6 +192,12 @@ let view =
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
+  let got_unexpected_arg_indicator = got_ty =>
+    got_indicator("Got unexpected argument of type", typebar(got_ty));
+  let got_inj_indicator =
+    got_indicator("Got", special_msg_bar("an injection"));
+  let got_const_inj_indicator =
+    got_indicator("Got", special_msg_bar("a constant injection"));
   let got_inj_in_syn_position_indicator =
     got_indicator(
       "Got",
@@ -247,21 +255,17 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | AnaInjExpectedTypeNotConsistenWithSums(expected_ty) =>
-      let ind1 = expected_type_consistent_with_sums_indicator;
-      let ind2 = got_ty_indicator(expected_ty);
+    | AnaInjExpectedTypeNotConsistenWithSums(ty) =>
+      let ind1 = expected_ty_indicator(ty);
+      let ind2 = got_inj_indicator;
       (ind1, ind2, TypeInconsistency);
-    | AnaInjBadTag(got_tag) =>
-      let ind1 = expected_member_of_sumtype_indicator;
-      let ind2 = got_tag_indicator(got_tag);
+    | AnaInjExpectedArg(ty) =>
+      let ind1 = expected_inj_arg_indicator(ty);
+      let ind2 = got_const_inj_indicator;
       (ind1, ind2, TypeInconsistency);
-    | AnaInjExpectedBody(expected_ty) =>
-      let ind1 = expected_injection_body_indicator(expected_ty);
-      let ind2 = got_nothing_indicator;
-      (ind1, ind2, TypeInconsistency);
-    | AnaInjUnexpectedBody =>
-      let ind1 = expected_nothing_indicator;
-      let ind2 = got_something_indicator;
+    | AnaInjUnexpectedArg(ty) =>
+      let ind1 = expected_const_inj_indicator;
+      let ind2 = got_unexpected_arg_indicator(ty);
       (ind1, ind2, TypeInconsistency);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
@@ -418,11 +422,11 @@ let view =
     //   let ind1 = expected_member_of_sumtype_indicator;
     //   let ind2 = got_tag_indicator(got_tag);
     //   (ind1, ind2, TypeInconsistency);
-    // | AnaInjExpectedBody(expected_ty) =>
+    // | AnaInjExpectedArg(expected_ty) =>
     //   let ind1 = expected_member_of_sumtype_indicator;
     //   let ind2 = got_tag_indicator(got_tag);
     //   (ind1, ind2, TypeInconsistency);
-    // | AnaInjUnexpectedBody =>
+    // | AnaInjUnexpectedArg =>
     //   let ind1 = expected_injection_no_body_indicator;
     //   let ind2 = got_something_indicator;
     //   (ind1, ind2, TypeInconsistency);
@@ -436,7 +440,7 @@ let view =
       let ind2 = got_tag_indicator(got_tag);
       (ind1, ind2, TypeInconsistency);
     | PatAnaInjExpectedBody(expected_ty) =>
-      let ind1 = expected_injection_body_indicator_pat(expected_ty);
+      let ind1 = expected_inj_arg_indicator_pat(expected_ty);
       let ind2 = got_nothing_indicator;
       (ind1, ind2, TypeInconsistency);
     | PatAnaInjUnexpectedBody =>
