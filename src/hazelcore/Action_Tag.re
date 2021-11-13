@@ -1,13 +1,5 @@
-let mk_tag = (text: string, u_gen: MetaVarGen.t): (UHTag.t, MetaVarGen.t) => {
-  let (status: TagErrStatus.t, u_gen) =
-    if (UHTag.is_tag_name(text)) {
-      (NotInTagHole, u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (InTagHole(InvalidName, u), u_gen);
-    };
-  (UHTag.Tag(status, text), u_gen);
-};
+let mk_tag = (text: string, u_gen: MetaVarGen.t): (UHTag.t, MetaVarGen.t) =>
+  UHTag.fix_holes(Tag(NotInTagHole, text), UHTag.Set.empty, u_gen);
 
 let mk_text =
     (caret_index: int, text: string, u_gen: MetaVarGen.t)
