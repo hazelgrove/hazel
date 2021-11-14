@@ -23,18 +23,18 @@ let of_zopseq_ =
     ([length + Seq.length(prefix) - 1], cursor);
   };
 
-let mk_zholes =
-    (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
-  holes_before,
-  hole_selected,
-  holes_after,
+let mk_zhooks =
+    (~hooks_before=[], ~hook_selected=None, ~hooks_after=[], ()): zhook_list => {
+  hooks_before,
+  hook_selected,
+  hooks_after,
 };
-let no_holes = mk_zholes();
+let no_hooks = mk_zhooks();
 
-let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
+let prev_hook_steps = (zhook_list: zhook_list): option(steps) => {
   switch (
-    List.rev(zhole_list.holes_before),
-    List.rev(zhole_list.holes_after),
+    List.rev(zhook_list.hooks_before),
+    List.rev(zhook_list.hooks_after),
   ) {
   | ([], []) => None
   | ([hi, ..._], _)
@@ -42,8 +42,8 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   };
 };
 
-let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
-  switch (zhole_list.holes_before, zhole_list.holes_after) {
+let next_hook_steps = (zhook_list: zhook_list): option(steps) => {
+  switch (zhook_list.hooks_before, zhook_list.hooks_after) {
   | ([], []) => None
   | (_, [hi, ..._])
   | ([hi, ..._], _) => Some(get_steps(~to_fpos_for_aps=true, hi))
@@ -108,66 +108,60 @@ let of_steps_opseq_ =
     }
   };
 
-let holes_err =
+let hooks_err =
     (
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hook: MetaVar.t => hook,
       err: ErrStatus.t,
       rev_steps: rev_steps,
-      hs: hole_list,
+      hs: hook_list,
     ) =>
   switch (err) {
   | NotInHole => hs
-  | InHole(_, u) => [
-      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
-      ...hs,
-    ]
+  | InHole(_, u) => [mk_hook(hook(u), List.rev(rev_steps)), ...hs]
   };
 
-let holes_verr =
+let hooks_verr =
     (
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hook: MetaVar.t => hook,
       verr: VarErrStatus.t,
       rev_steps: rev_steps,
-      hs: hole_list,
+      hs: hook_list,
     ) =>
   switch (verr) {
   | NotInVarHole => hs
-  | InVarHole(_, u) => [
-      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
-      ...hs,
-    ]
+  | InVarHole(_, u) => [mk_hook(hook(u), List.rev(rev_steps)), ...hs]
   };
 
-let holes_case_err =
+let hooks_case_err =
     (
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hook: MetaVar.t => hook,
       err: CaseErrStatus.t,
       rev_steps: rev_steps,
-      hs: hole_list,
+      hs: hook_list,
     ) =>
   switch (err) {
-  | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
+  | StandardErrStatus(err) => hooks_err(~hook, err, rev_steps, hs)
   | InconsistentBranches(_, u) => [
-      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
+      mk_hook(hook(u), List.rev(rev_steps)),
       ...hs,
     ]
   };
 
-let holes_skel_ =
+let hooks_skel_ =
     (
-      ~holes_operand: ('operand, steps, hole_list) => hole_list,
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hooks_operand: ('operand, steps, hook_list) => hook_list,
+      ~hook: MetaVar.t => hook,
       ~is_space: 'operator => bool,
       ~rev_steps: rev_steps,
       skel: Skel.t('operator),
       seq: Seq.t('operand, 'operator),
-      hs: hole_list,
+      hs: hook_list,
     )
-    : hole_list => {
+    : hook_list => {
   let rec go = (skel: Skel.t(_), hs) =>
     switch (skel) {
     | Placeholder(n) =>
-      hs |> holes_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps])
+      hs |> hooks_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps])
     | BinOp(err, op, skel1, skel2) =>
       let hs = hs |> go(skel2);
       let hs =
@@ -177,49 +171,41 @@ let holes_skel_ =
           // If this skel is rooted at a Space, then we know
           // that all subskels are rooted at a Space.
           // We cannot place cursor on a Space, so make the
-          // path to this skel hole the path to the first term
+          // path to this skel hook the path to the first term
           // of the skel because that term determines how the
-          // skel is typed. Make this hole come first before
-          // any holes found in subskels. But we need the actual
-          // path as well for error hole decorations
+          // skel is typed. Make this hook come first before
+          // any hooks found in subskels. But we need the actual
+          // path as well for error hook decorations
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           let steps = List.rev([step, ...rev_steps]);
           let ap_steps =
             is_space(op)
               ? List.rev([Skel.leftmost_tm_index(skel1), ...rev_steps])
               : steps;
-          [mk_hole_sort_ap(hole_sort(u), steps, ~ap_steps), ...hs];
+          [mk_hook_ap(hook(u), steps, ~ap_steps), ...hs];
         };
       hs |> go(skel1);
     };
   go(skel, hs);
 };
 
-let holes_opseq =
+let hooks_opseq =
     (
-      ~holes_operand: ('operand, steps, hole_list) => hole_list,
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hooks_operand: ('operand, steps, hook_list) => hook_list,
+      ~hook: MetaVar.t => hook,
       ~is_space: 'operator => bool,
       ~rev_steps: rev_steps,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
-      hs: hole_list,
+      hs: hook_list,
     )
-    : hole_list =>
-  holes_skel_(
-    ~holes_operand,
-    ~hole_sort,
-    ~is_space,
-    ~rev_steps,
-    skel,
-    seq,
-    hs,
-  );
+    : hook_list =>
+  hooks_skel_(~hooks_operand, ~hook, ~is_space, ~rev_steps, skel, seq, hs);
 
-let holes_zopseq_ =
+let hooks_zopseq_ =
     (
-      ~holes_operand: ('operand, rev_steps, hole_list) => hole_list,
-      ~holes_zoperand: ('zoperand, rev_steps) => zhole_list,
-      ~hole_sort: MetaVar.t => hole_sort,
+      ~hooks_operand: ('operand, rev_steps, hook_list) => hook_list,
+      ~hooks_zoperand: ('zoperand, rev_steps) => zhook_list,
+      ~hook: MetaVar.t => hook,
       ~is_space: 'operator => bool,
       ~rev_steps: rev_steps,
       ~erase_zopseq:
@@ -228,68 +214,60 @@ let holes_zopseq_ =
       ZOpSeq(skel, zseq) as zopseq:
         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
     )
-    : zhole_list => {
+    : zhook_list => {
   let OpSeq(_, seq) = zopseq |> erase_zopseq;
-  let holes_skel = skel =>
-    holes_skel_(
-      ~holes_operand,
-      ~hole_sort,
-      ~is_space,
-      ~rev_steps,
-      skel,
-      seq,
-      [],
-    );
+  let hooks_skel = skel =>
+    hooks_skel_(~hooks_operand, ~hook, ~is_space, ~rev_steps, skel, seq, []);
   switch (zseq) {
   | ZOperator(_, (prefix, _)) =>
     let preceding_operand_index = Seq.length(prefix) - 1;
-    let rec go: Skel.t(_) => zhole_list = (
+    let rec go: Skel.t(_) => zhook_list = (
       fun
       | Placeholder(_) =>
-        // We defer to holes_skel once we have determined that a skel
+        // We defer to hooks_skel once we have determined that a skel
         // does not contain the cursor, should never hit this case.
-        failwith("holes_zopseq/ZOperator: unexpected Placeholder")
+        failwith("hooks_zopseq/ZOperator: unexpected Placeholder")
       | BinOp(err, op, skel1, skel2) => {
-          // We defer to holes_skel once we have determined that a skel
+          // We defer to hooks_skel once we have determined that a skel
           // does not contain the cursor. Since Space has highest precedence
           // and we cannot place cursor on a Space, we know that the entirety
           // of a skel rooted at Space cannot contain the cursor. Should
-          // have deferred to holes_skel before hitting this case.
+          // have deferred to hooks_skel before hitting this case.
           assert(!is_space(op));
           let n = skel1 |> Skel.rightmost_tm_index;
-          let binop_hole =
+          let binop_hook =
             switch (err) {
             | NotInHole => None
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
               let steps = List.rev([step, ...rev_steps]);
-              Some(mk_hole_sort(hole_sort(u), steps));
+              Some(mk_hook(hook(u), steps));
             };
           if (n == preceding_operand_index) {
-            mk_zholes(
-              ~holes_before=holes_skel(skel1),
-              ~hole_selected=binop_hole,
-              ~holes_after=holes_skel(skel2),
+            mk_zhooks(
+              ~hooks_before=hooks_skel(skel1),
+              ~hook_selected=binop_hook,
+              ~hooks_after=hooks_skel(skel2),
               (),
             );
           } else {
-            let binop_holes = Option.to_list(binop_hole);
+            let binop_hooks = Option.to_list(binop_hook);
             if (n < preceding_operand_index) {
-              let holes1 = holes_skel(skel1);
-              let zholes2 = go(skel2);
-              mk_zholes(
-                ~holes_before=holes1 @ binop_holes @ zholes2.holes_before,
-                ~hole_selected=zholes2.hole_selected,
-                ~holes_after=zholes2.holes_after,
+              let hooks1 = hooks_skel(skel1);
+              let zhooks2 = go(skel2);
+              mk_zhooks(
+                ~hooks_before=hooks1 @ binop_hooks @ zhooks2.hooks_before,
+                ~hook_selected=zhooks2.hook_selected,
+                ~hooks_after=zhooks2.hooks_after,
                 (),
               );
             } else {
-              let zholes1 = go(skel1);
-              let holes2 = holes_skel(skel2);
-              mk_zholes(
-                ~holes_before=zholes1.holes_before,
-                ~hole_selected=zholes1.hole_selected,
-                ~holes_after=zholes1.holes_after @ binop_holes @ holes2,
+              let zhooks1 = go(skel1);
+              let hooks2 = hooks_skel(skel2);
+              mk_zhooks(
+                ~hooks_before=zhooks1.hooks_before,
+                ~hook_selected=zhooks1.hook_selected,
+                ~hooks_after=zhooks1.hooks_after @ binop_hooks @ hooks2,
                 (),
               );
             };
@@ -299,24 +277,24 @@ let holes_zopseq_ =
     go(skel);
   | ZOperand(zoperand, (prefix, _)) =>
     let zoperand_index = Seq.length_of_affix(prefix);
-    let rec go: Skel.t(_) => zhole_list = (
+    let rec go: Skel.t(_) => zhook_list = (
       fun
       | Placeholder(n) => {
-          // We defer to holes_skel once we have determined that a skel
+          // We defer to hooks_skel once we have determined that a skel
           // does not contain the cursor, should never hit Placeholder
           // corresponding to operand other than zoperand.
           assert(n == zoperand_index);
-          holes_zoperand(zoperand, [zoperand_index, ...rev_steps]);
+          hooks_zoperand(zoperand, [zoperand_index, ...rev_steps]);
         }
       | BinOp(err, op, skel1, skel2) when op |> is_space => {
           // If this skel is rooted at a Space, then we know
           // that all subskels are rooted at a Space.
           // We cannot place cursor on a Space, so make the
-          // path to this skel hole the path to the first term
+          // path to this skel hook the path to the first term
           // of the skel because that term determines how the
-          // skel is typed. Make this hole come first before
-          // any holes found in subskels.
-          let binop_holes =
+          // skel is typed. Make this hook come first before
+          // any hooks found in subskels.
+          let binop_hooks =
             switch (err) {
             | NotInHole => []
             | InHole(_, u) =>
@@ -326,54 +304,54 @@ let holes_zopseq_ =
                 is_space(op)
                   ? List.rev([Skel.leftmost_tm_index(skel1), ...rev_steps])
                   : steps;
-              [mk_hole_sort_ap(hole_sort(u), steps, ~ap_steps)];
+              [mk_hook_ap(hook(u), steps, ~ap_steps)];
             };
           if (zoperand_index <= Skel.rightmost_tm_index(skel1)) {
-            let zholes1 = go(skel1);
-            let holes2 = holes_skel(skel2);
-            mk_zholes(
-              ~holes_before=binop_holes @ zholes1.holes_before,
-              ~hole_selected=zholes1.hole_selected,
-              ~holes_after=zholes1.holes_after @ holes2,
+            let zhooks1 = go(skel1);
+            let hooks2 = hooks_skel(skel2);
+            mk_zhooks(
+              ~hooks_before=binop_hooks @ zhooks1.hooks_before,
+              ~hook_selected=zhooks1.hook_selected,
+              ~hooks_after=zhooks1.hooks_after @ hooks2,
               (),
             );
           } else {
-            let holes1 = holes_skel(skel1);
-            let zholes2 = go(skel2);
-            mk_zholes(
-              ~holes_before=binop_holes @ holes1 @ zholes2.holes_before,
-              ~hole_selected=zholes2.hole_selected,
-              ~holes_after=zholes2.holes_after,
+            let hooks1 = hooks_skel(skel1);
+            let zhooks2 = go(skel2);
+            mk_zhooks(
+              ~hooks_before=binop_hooks @ hooks1 @ zhooks2.hooks_before,
+              ~hook_selected=zhooks2.hook_selected,
+              ~hooks_after=zhooks2.hooks_after,
               (),
             );
           };
         }
       | BinOp(err, _op, skel1, skel2) => {
           let n = skel1 |> Skel.rightmost_tm_index;
-          let binop_holes =
+          let binop_hooks =
             switch (err) {
             | NotInHole => []
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
               let steps = List.rev([step, ...rev_steps]);
-              [mk_hole_sort(hole_sort(u), steps)];
+              [mk_hook(hook(u), steps)];
             };
           if (zoperand_index <= n) {
-            let zholes1 = go(skel1);
-            let holes2 = holes_skel(skel2);
-            mk_zholes(
-              ~holes_before=zholes1.holes_before,
-              ~hole_selected=zholes1.hole_selected,
-              ~holes_after=zholes1.holes_after @ binop_holes @ holes2,
+            let zhooks1 = go(skel1);
+            let hooks2 = hooks_skel(skel2);
+            mk_zhooks(
+              ~hooks_before=zhooks1.hooks_before,
+              ~hook_selected=zhooks1.hook_selected,
+              ~hooks_after=zhooks1.hooks_after @ binop_hooks @ hooks2,
               (),
             );
           } else {
-            let holes1 = holes_skel(skel1);
-            let zholes2 = go(skel2);
-            mk_zholes(
-              ~holes_before=holes1 @ binop_holes @ zholes2.holes_before,
-              ~hole_selected=zholes2.hole_selected,
-              ~holes_after=zholes2.holes_after,
+            let hooks1 = hooks_skel(skel1);
+            let zhooks2 = go(skel2);
+            mk_zhooks(
+              ~hooks_before=hooks1 @ binop_hooks @ zhooks2.hooks_before,
+              ~hook_selected=zhooks2.hook_selected,
+              ~hooks_after=zhooks2.hooks_after,
               (),
             );
           };
@@ -383,17 +361,17 @@ let holes_zopseq_ =
   };
 };
 
-let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
+let steps_to_hook = (hook_list: hook_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
-      hole_info =>
-        switch (CursorPath.get_sort(hole_info)) {
+      hook_info =>
+        switch (CursorPath.get_hook(hook_info)) {
         | ExpHole(u', _)
         | PatHole(u', _) => MetaVar.eq(u, u')
-        | Assert(_)
+        | KeywordHook(_)
         | TypHole => false
         },
-      hole_list,
+      hook_list,
     )
   ) {
   | None => None
