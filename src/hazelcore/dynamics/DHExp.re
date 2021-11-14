@@ -155,7 +155,6 @@ type t =
   | IntLit(int)
   | Sequence(t, t)
   | AssertLit(KeywordID.t)
-  | SameLit(KeywordID.t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -243,7 +242,6 @@ let constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | AssertLit(_) => "AssertLit"
-  | SameLit(_) => "SameLit"
   };
 
 let rec mk_tuple: list(t) => t =

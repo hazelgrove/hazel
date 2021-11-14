@@ -24,8 +24,8 @@ let decoration_view =
       font_metrics: FontMetrics.t,
     ) => {
   switch (dshape) {
-  | AssertStatus(a) =>
-    let view = UHDecoration.AssertStatus.view(a, font_metrics);
+  | AssertStatus(report) =>
+    let view = UHDecoration.AssertStatus.view(report, font_metrics);
     (Decoration_common.Div, view);
   | ErrHole =>
     let contains_current_term = Option.is_some(dpaths.current_term);

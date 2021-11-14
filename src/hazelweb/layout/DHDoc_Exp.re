@@ -35,7 +35,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ExpandingKeyword(_)
   | BoolLit(_)
   | AssertLit(_)
-  | SameLit(_)
   | IntLit(_)
   | Sequence(_, _)
   | FloatLit(_)
@@ -179,7 +178,6 @@ let rec mk =
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | AssertLit(_) => Doc.text(Keyword.string_of_kw(Assert))
-      | SameLit(_) => Doc.text(Keyword.string_of_kw(Same))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

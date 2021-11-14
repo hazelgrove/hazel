@@ -44,12 +44,14 @@ let left = (~inject, ~model: Model.t) =>
   );
 
 let right =
-    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) =>
+    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) => {
+  let program = Model.get_program(model);
+  let assert_path = Program.get_path_to_assert(program);
   mk_sidebar(
     ~panels=
       () =>
         [
-          AssertPanel.view(~inject, ~model, ~assert_map),
+          AssertPanel.view(~inject, ~model, ~assert_map, ~assert_path),
           ContextInspector.view(~inject, ~model, ~hii),
           UndoHistoryPanel.view(~inject, model),
           SettingsPanel.view(~inject, model.settings),
@@ -60,3 +62,4 @@ let right =
     ~icon_closed=Icons.left_arrow(["sidebar-tab-icon"]),
     ~on_toggle=_ => inject(ModelAction.ToggleRightSidebar),
   );
+};

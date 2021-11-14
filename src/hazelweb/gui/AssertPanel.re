@@ -12,20 +12,55 @@ let assert_instance_view =
 };
 
 let assert_report_view =
-    (dhcode_view, (id, instance_reports): AssertMap.assert_report) => {
+    (
+      ~inject,
+      ~dhcode_view,
+      ~assert_path,
+      (id, instance_reports): AssertMap.assert_report,
+    ) => {
   let status =
     instance_reports |> AssertMap.joint_status |> AssertStatus.to_string;
   div(
     [Attr.class_("test-report")],
-    [div([Attr.class_("Assert" ++ status)], [text(string_of_int(id))])]
-    @ List.map(assert_instance_view(dhcode_view), instance_reports),
+    [
+      div(
+        [
+          Attr.classes(["test-id", "Assert" ++ status]),
+          Attr.on_click(_ =>
+            switch (assert_path(id)) {
+            | Some(path) =>
+              Event.Many([
+                inject(ModelAction.FocusCell),
+                inject(ModelAction.EditAction(MoveTo(path))),
+              ])
+
+            | None => Event.Ignore
+            }
+          ),
+        ],
+        [text(string_of_int(id))],
+      ),
+      div(
+        [Attr.class_("test-instances")],
+        List.map(assert_instance_view(dhcode_view), instance_reports),
+      ),
+    ],
   );
 };
 
-let test_reports_view = (dhcode_view, assert_map) =>
+let test_reports_view =
+    (
+      ~inject,
+      ~assert_path,
+      ~dhcode_view: DHExp.t => Node.t,
+      assert_map: AssertMap.t,
+    ) =>
   div(
     [Attr.classes(["panel-body", "test-reports"])],
-    List.map(assert_report_view(dhcode_view), assert_map),
+    List.map(
+      assert_report_view(~inject, ~assert_path, ~dhcode_view),
+      assert_map,
+    ),
   );
 
 let view =
@@ -33,6 +68,7 @@ let view =
       ~inject: ModelAction.t => Event.t,
       ~model: Model.t,
       ~assert_map: AssertMap.t,
+      ~assert_path: KeywordID.t => option(CursorPath.t),
     )
     : t => {
   let dhcode_view =
@@ -48,7 +84,7 @@ let view =
     [Attr.classes(["panel", "test-panel"])],
     [
       Panel.view_of_main_title_bar("Tests"),
-      test_reports_view(dhcode_view, assert_map),
+      test_reports_view(~inject, ~assert_path, ~dhcode_view, assert_map),
     ],
   );
 };

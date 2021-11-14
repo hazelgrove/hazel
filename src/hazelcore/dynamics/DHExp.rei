@@ -68,7 +68,6 @@ type t =
   | IntLit(int)
   | Sequence(t, t)
   | AssertLit(KeywordID.t)
-  | SameLit(KeywordID.t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
