@@ -33,7 +33,10 @@ let view_of_layout =
                          ...selected ? ["selected"] : [],
                        ]),
                        Attr.on_click(_ =>
-                         inject(ModelAction.SelectHoleInstance(inst))
+                         Event.Many([
+                           Event.Stop_propagation,
+                           inject(ModelAction.SelectHoleInstance(inst)),
+                         ])
                        ),
                      ],
                      txt,

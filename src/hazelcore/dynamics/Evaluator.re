@@ -28,23 +28,6 @@ let unbox_result: result => DHExp.t =
   | Indet(d)
   | BoxedValue(d) => d;
 
-let report_assert = (res_d: result, d: DHExp.t, state, n): report => {
-  let d_res = unbox_result(res_d);
-  let eval_res =
-    switch (d_res) {
-    | BoolLit(_) => BoxedValue(Triv)
-    | _ => Indet(Ap(AssertLit(n), d))
-    };
-  let assert_status: AssertStatus.t =
-    switch (d_res) {
-    | BoolLit(true) => Pass
-    | BoolLit(false) => Fail
-    | _ => Indet
-    };
-  let state = EvalState.add_assert(state, n, (d, assert_status));
-  (eval_res, state);
-};
-
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
 let grounded_Prod = length =>
@@ -826,14 +809,14 @@ and eval_assert_eq =
       d2: DHExp.t,
       state: state,
     )
-    : report => {
+    : (DHExp.t, report) => {
   let (d1, state) = evaluate(d1, ~state);
   let (d2, state) = evaluate(d2, ~state);
   let d = bin_op_fn(unbox_result(d1), unbox_result(d2));
-  evaluate(d, ~state);
+  (d, evaluate(d, ~state));
 }
 and eval_assert = (n: int, d: DHExp.t, state: state): report => {
-  let (res_d, state) =
+  let (show_d, (res_d, state)) =
     switch (d) {
     | BinIntOp((Equals | LessThan | GreaterThan) as op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
@@ -841,7 +824,21 @@ and eval_assert = (n: int, d: DHExp.t, state: state): report => {
     | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
       eval_assert_eq(mk_op, d1, d2, state);
-    | _ => evaluate(d, ~state)
+    | _ =>
+      let (d, state) = evaluate(d, ~state);
+      (unbox_result(d), (d, state));
     };
-  report_assert(res_d, d, state, n);
+  let assert_status: AssertStatus.t =
+    switch (res_d) {
+    | BoxedValue(BoolLit(true)) => Pass
+    | BoxedValue(BoolLit(false)) => Fail
+    | _ => Indet
+    };
+  let state = EvalState.add_assert(state, n, (show_d, assert_status));
+  let result =
+    switch (res_d) {
+    | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
+    | _ => Indet(Ap(AssertLit(n), d))
+    };
+  (result, state);
 };
