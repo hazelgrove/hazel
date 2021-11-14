@@ -63,7 +63,11 @@ let font_specimen =
   div([Attr.id(ViewUtil.font_specimen_id)], [text("X")]);
 
 let code_view =
-    (~inject, ~model: Model.t, ~assert_inspector: KeywordID.t => Node.t)
+    (
+      ~inject,
+      ~model: Model.t,
+      ~assert_inspector: KeywordID.t => option(Node.t),
+    )
     : Node.t =>
   UHCode.view(
     ~inject,

@@ -36,7 +36,7 @@ let test_report_view =
     [
       div(
         [Attr.classes(["test-id", "Assert" ++ status])],
-        // note: prints index, not id
+        // note: prints lexical index, not id
         [text(string_of_int(i + 1))],
       ),
       div(
@@ -143,21 +143,21 @@ let inspector_view =
       ~assert_map: AssertMap.t,
       id: KeywordID.t,
     )
-    : t => {
+    : option(t) => {
   let dhcode_view = dhcode_view(~inject, ~model);
   switch (AssertMap.lookup(id, assert_map)) {
-  | Some(instance_reports) =>
-    let _status =
-      instance_reports |> AssertMap.joint_status |> AssertStatus.to_string;
-    div(
-      [Attr.class_("test-inspector")],
-      [
-        div(
-          [Attr.classes(["test-instances" /*, "Assert" ++ status*/])],
-          List.map(test_instance_view(dhcode_view), instance_reports),
-        ),
-      ],
-    );
-  | _ => div([], [])
+  | Some(instances) when AssertMap.joint_status(instances) != Indet =>
+    Some(
+      div(
+        [Attr.class_("test-inspector")],
+        [
+          div(
+            [Attr.class_("test-instances")],
+            List.map(test_instance_view(dhcode_view), instances),
+          ),
+        ],
+      ),
+    )
+  | _ => None
   };
 };

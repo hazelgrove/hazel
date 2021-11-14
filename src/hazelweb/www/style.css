@@ -1686,10 +1686,10 @@ body {
 }
 
 .test-inspector .test-instance.Pass .DHCode {
-  color: rgb(105, 222, 105);
+  color: rgb(203, 255, 203);
 }
 
 .test-inspector  .test-instance.Fail .DHCode {
-  color: rgb(244, 108, 108);
+  color: rgb(255, 183, 183);
   border: none;
 }
