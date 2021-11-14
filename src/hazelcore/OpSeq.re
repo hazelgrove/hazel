@@ -63,7 +63,7 @@ let mk_inconsistent =
     )
   | OpSeq(
       BinOp(NotInHole, op, skel1, skel2) |
-      BinOp(InHole(WrongLength, _), op, skel1, skel2),
+      BinOp(InHole(WrongLength | EqualsJoinFailed, _), op, skel1, skel2),
       seq,
     ) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;

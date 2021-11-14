@@ -682,6 +682,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => BinBoolOp(op, d1', d2'))
     }
+  | BinIntOp(Equals, d1, d2) => eval_poly_eq(d1, d2, state)
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (Indet(d1'), state) =>
@@ -885,4 +886,24 @@ and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
   let eval_res = BoxedValue(DHExp.Triv); //BoxedValue(d);
   let state = EvalState.add_assert(state, n, (d, assert_status));
   (eval_res, state);
-};
+}
+and eval_poly_eq = (d1: DHExp.t, d2: DHExp.t, state: state): report =>
+  //TODO(andrew):cleanup
+  //do i want this to still evaluate if it is ill-typed?
+  switch (evaluate(d1, ~state)) {
+  | (Indet(d1'), state) =>
+    eval_bind_indet((d2, state), d2' => BinIntOp(Equals, d1', d2'))
+  | (BoxedValue(d1'), state) =>
+    switch (evaluate(d2, ~state)) {
+    | (Indet(d2'), state) => (Indet(BinIntOp(Equals, d1', d2')), state)
+    | (BoxedValue(d2'), state) =>
+      let d1_clean = DHExp.strip_casts_value(d1');
+      let d2_clean = DHExp.strip_casts_value(d2');
+      let res =
+        switch (DHExp.dhexp_diff_value(d1_clean, d2_clean)) {
+        | ([], _) => true
+        | _ => false
+        };
+      (BoxedValue(BoolLit(res)), state);
+    }
+  };

@@ -543,22 +543,31 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, id_gen)
   /* not in hole */
-  | LamZP(NotInHole | InHole(WrongLength, _), _, _)
-  | LamZE(NotInHole | InHole(WrongLength, _), _, _)
-  | InjZ(NotInHole | InHole(WrongLength, _), _, _)
+  | LamZP(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | LamZE(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | InjZ(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
   | CaseZE(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength | EqualsJoinFailed, _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
   | CaseZR(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength | EqualsJoinFailed, _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPaletteZ(
+      NotInHole | InHole(WrongLength | EqualsJoinFailed, _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));

@@ -219,6 +219,10 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | EqualsJoinFailiure => [
+        Node.text("Equals types incomparable"),
+        term_tag,
+      ]
     | OnType => []
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
@@ -399,6 +403,10 @@ let novice_summary =
         emphasize_text("Function Type"),
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
+      ]
+    | EqualsJoinFailiure => [
+        Node.text("Equals types incomparable"),
+        term_tag,
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
     | OnNonLetLine => /* TODO */ [
@@ -619,7 +627,8 @@ let view =
     | SynFreeArrow(_)
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
-    | PatSynKeyword(_) => BindingError
+    | PatSynKeyword(_)
+    | EqualsJoinFailiure => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>

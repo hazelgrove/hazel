@@ -274,7 +274,7 @@ and ana_cursor_info_zopseq =
           ),
         ),
       );
-    | InHole(TypeInconsistent, _) =>
+    | InHole(TypeInconsistent | EqualsJoinFailed, _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
       Statics_Pat.syn_opseq(ctx, opseq')
       |> Option.map(((ty', _)) => {
@@ -361,7 +361,7 @@ and ana_cursor_info_skel =
            )
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
-      | InHole(TypeInconsistent, _) =>
+      | InHole(TypeInconsistent | EqualsJoinFailed, _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
         Statics_Pat.syn_opseq(ctx, opseq')
         |> Option.map(((ty', _)) => {
@@ -430,14 +430,14 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
         ),
       )
-    | Wild(InHole(TypeInconsistent, _))
-    | Var(InHole(TypeInconsistent, _), _, _)
-    | IntLit(InHole(TypeInconsistent, _), _)
-    | FloatLit(InHole(TypeInconsistent, _), _)
-    | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
-    | TypeAnn(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Wild(InHole(TypeInconsistent | EqualsJoinFailed, _))
+    | Var(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+    | IntLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+    | FloatLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+    | BoolLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+    | ListNil(InHole(TypeInconsistent | EqualsJoinFailed, _))
+    | TypeAnn(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+    | Inj(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -528,7 +528,7 @@ and ana_cursor_info_zoperand =
          )
     }
   | InjZ(InHole(WrongLength, _), _, _) => None
-  | InjZ(InHole(TypeInconsistent, _), _, _) =>
+  | InjZ(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
@@ -542,7 +542,7 @@ and ana_cursor_info_zoperand =
   | TypeAnnZP(err, zop, ann) =>
     switch (err) {
     | InHole(WrongLength, _) => None
-    | InHole(TypeInconsistent, _) =>
+    | InHole(TypeInconsistent | EqualsJoinFailed, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | NotInHole =>
       let ty_ann = UHTyp.expand(ann);
@@ -551,7 +551,7 @@ and ana_cursor_info_zoperand =
   | TypeAnnZA(err, _, zann) =>
     switch (err) {
     | InHole(WrongLength, _) => None
-    | InHole(TypeInconsistent, _) =>
+    | InHole(TypeInconsistent | EqualsJoinFailed, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | NotInHole =>
       zann

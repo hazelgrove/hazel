@@ -45,14 +45,14 @@ and syn_operand =
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
   | InvalidText(_) => Some((Hole, ctx))
-  | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
+  | Wild(InHole(TypeInconsistent | EqualsJoinFailed, _))
+  | Var(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+  | IntLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | FloatLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | BoolLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | ListNil(InHole(TypeInconsistent | EqualsJoinFailed, _))
+  | Inj(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+  | TypeAnn(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, gamma) = syn_operand(ctx, operand');
     (HTyp.Hole, gamma);
@@ -127,7 +127,7 @@ and ana_skel =
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
     ana_operand(ctx, pn, ty);
-  | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent | EqualsJoinFailed, _), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ (_, ctx) = syn_skel(ctx, skel_not_in_hole, seq);
     ctx;
@@ -145,14 +145,14 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some(ctx)
   | InvalidText(_) => Some(ctx)
-  | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | TypeAnn(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | Wild(InHole(TypeInconsistent | EqualsJoinFailed, _))
+  | Var(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+  | IntLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | FloatLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | BoolLit(InHole(TypeInconsistent | EqualsJoinFailed, _), _)
+  | ListNil(InHole(TypeInconsistent | EqualsJoinFailed, _))
+  | TypeAnn(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _)
+  | Inj(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     let+ (_, ctx) = syn_operand(ctx, operand');
     ctx;
@@ -257,7 +257,7 @@ and ana_nth_type_mode' =
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent | EqualsJoinFailed, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_nth_type_mode'(ctx, n, skel_not_in_hole, seq);
     | BinOp(NotInHole, Space, skel1, skel2) =>

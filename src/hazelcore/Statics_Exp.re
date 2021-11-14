@@ -77,6 +77,14 @@ and syn_skel =
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
     syn_operand(ctx, en);
+  | BinOp(InHole(_), Equals, skel1, skel2) =>
+    let OpSeq(skel1, _) =
+      UHExp.set_err_status_opseq(NotInHole, OpSeq(skel1, seq));
+    let OpSeq(skel2, _) =
+      UHExp.set_err_status_opseq(NotInHole, OpSeq(skel2, seq));
+    let* _ty1 = syn_skel(ctx, skel1, seq);
+    let+ _ty2 = syn_skel(ctx, skel2, seq);
+    HTyp.Hole;
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
@@ -93,9 +101,18 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel1, seq, Bool)
     and+ _ = ana_skel(ctx, skel2, seq, Bool);
     HTyp.Bool;
-  | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
+  | BinOp(NotInHole, LessThan | GreaterThan, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Int)
     and+ _ = ana_skel(ctx, skel2, seq, Int);
+    HTyp.Bool;
+  | BinOp(NotInHole, Equals, skel1, skel2) =>
+    let OpSeq(skel1, _) =
+      UHExp.set_err_status_opseq(NotInHole, OpSeq(skel1, seq));
+    let OpSeq(skel2, _) =
+      UHExp.set_err_status_opseq(NotInHole, OpSeq(skel2, seq));
+    let* ty1 = syn_skel(ctx, skel1, seq);
+    let* ty2 = syn_skel(ctx, skel2, seq);
+    let+ _ = HTyp.join(LUB, ty1, ty2);
     HTyp.Bool;
   | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Float)
@@ -151,16 +168,16 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(Typed(_, InHole(WrongLength, _), _))
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | Var(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | IntLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | FloatLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | BoolLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | Keyword(Typed(_, InHole(WrongLength | EqualsJoinFailed, _), _))
+  | ListNil(InHole(WrongLength | EqualsJoinFailed, _))
+  | Lam(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | Inj(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | EqualsJoinFailed, _)), _, _)
+  | ApPalette(InHole(WrongLength | EqualsJoinFailed, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
@@ -282,7 +299,7 @@ and ana_skel =
     let* ty_elt = HTyp.matched_list(ty);
     let* _ = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, List(ty_elt));
-  | BinOp(InHole(TypeInconsistent, _), _, _, _)
+  | BinOp(InHole(TypeInconsistent | EqualsJoinFailed, _), _, _, _)
   | BinOp(
       NotInHole,
       And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
@@ -319,16 +336,16 @@ and ana_operand =
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(Typed(_, InHole(WrongLength, _), _))
-  | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) =>
+  | Var(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | IntLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | FloatLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | BoolLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+  | Keyword(Typed(_, InHole(WrongLength | EqualsJoinFailed, _), _))
+  | ListNil(InHole(WrongLength | EqualsJoinFailed, _))
+  | Lam(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | Inj(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | Case(StandardErrStatus(InHole(WrongLength | EqualsJoinFailed, _)), _, _)
+  | ApPalette(InHole(WrongLength | EqualsJoinFailed, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -436,11 +453,15 @@ and syn_nth_type_mode' =
       n <= Skel.rightmost_tm_index(skel1)
         ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
     | BinOp(NotInHole, Equals, skel1, skel2) =>
+      //TODO(andrew): does this need updating?
       if (n <= Skel.rightmost_tm_index(skel1)) {
         go(skel1);
       } else {
-        let* ty1 = syn_skel(ctx, skel1, seq);
-        ana_go(skel2, ty1);
+        //let* ty1 = syn_skel(ctx, skel1, seq);
+        //ana_go(skel2, ty1);
+        go(
+          skel2,
+        );
       }
     | BinOp(NotInHole, FEquals, skel1, skel2) =>
       if (n <= Skel.rightmost_tm_index(skel1)) {
@@ -489,7 +510,7 @@ and ana_nth_type_mode' =
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent | EqualsJoinFailed, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -691,7 +712,7 @@ and syn_fix_holes_skel =
         HTyp.Bool,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, id_gen);
-  | BinOp(_, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
+  | BinOp(_, (LessThan | GreaterThan) as op, skel1, skel2) =>
     let (skel1, seq, id_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -711,6 +732,51 @@ and syn_fix_holes_skel =
         HTyp.Int,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, id_gen);
+  | BinOp(_, Equals, skel1, skel2) =>
+    let ty_join = {
+      let OpSeq(skel1, _) =
+        UHExp.set_err_status_opseq(NotInHole, OpSeq(skel1, seq));
+      let OpSeq(skel2, _) =
+        UHExp.set_err_status_opseq(NotInHole, OpSeq(skel2, seq));
+      switch (syn_skel(ctx, skel1, seq), syn_skel(ctx, skel2, seq)) {
+      | (Some(ty1), Some(ty2)) => HTyp.join(LUB, ty1, ty2)
+      | _ => None
+      };
+    };
+    switch (ty_join) {
+    | Some(ty_join) =>
+      let (skel1, seq, id_gen) =
+        //TODO(andrew)
+        ana_fix_holes_skel(
+          ctx,
+          id_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          ty_join,
+        );
+      let (skel2, seq, id_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          id_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          ty_join,
+        );
+      (BinOp(NotInHole, Equals, skel1, skel2), seq, Bool, id_gen);
+    | None =>
+      print_endline("setting EQUALS error");
+      //TODO(andrew): new err status
+      let (u, id_gen) = IDGen.next_hole(id_gen);
+      (
+        BinOp(InHole(EqualsJoinFailed, u), Equals, skel1, skel2),
+        seq,
+        Bool,
+        id_gen,
+      );
+    };
+
   | BinOp(_, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
     let (skel1, seq, id_gen) =
       ana_fix_holes_skel(

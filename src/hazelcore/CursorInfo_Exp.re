@@ -383,6 +383,26 @@ and syn_cursor_info_skel =
         ctx,
         zoperand,
       )
+    | ZOperator((_, Equals), _) =>
+      switch (ZExp.get_err_status_zopseq(ZOpSeq(skel, zseq))) {
+      | InHole(EqualsJoinFailed, _) =>
+        Some(
+          CursorInfo_common.mk(
+            EqualsJoinFailiure,
+            ctx,
+            extract_from_zexp_zseq(zseq),
+          ),
+        )
+      | _ =>
+        Statics_Exp.syn_skel(ctx, skel, seq)
+        |> Option.map(ty =>
+             CursorInfo_common.mk(
+               Synthesized(ty),
+               ctx,
+               extract_from_zexp_zseq(zseq),
+             )
+           )
+      }
     | ZOperator(_) =>
       Statics_Exp.syn_skel(ctx, skel, seq)
       |> Option.map(ty =>
@@ -401,9 +421,27 @@ and syn_cursor_info_skel =
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
+    | BinOp(_, Equals, skel1, skel2) =>
+      //TODO(andrew): properly handle none cases
+      let ty_join =
+        switch (
+          Statics_Exp.syn_skel(ctx, skel1, seq),
+          Statics_Exp.syn_skel(ctx, skel2, seq),
+        ) {
+        | (Some(ty1), Some(ty2)) =>
+          switch (HTyp.join(LUB, ty1, ty2)) {
+          | Some(ty) => ty
+          | _ => HTyp.Hole
+          }
+        | _ => HTyp.Hole
+        };
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_join)) {
+      | Some(_) as result => result
+      | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_join)
+      };
     | BinOp(
         _,
-        Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
+        Minus | Plus | Times | Divide | LessThan | GreaterThan,
         skel1,
         skel2,
       ) =>
@@ -437,7 +475,8 @@ and syn_cursor_info_skel =
           CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
         switch (cursor_on_outer_expr(zoperand)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-        | Some(StandardErr(InHole(WrongLength, _))) => None
+        | Some(StandardErr(InHole(WrongLength | EqualsJoinFailed, _))) =>
+          None
         | Some(StandardErr(InHole(TypeInconsistent, _))) =>
           let operand_nih =
             zoperand
@@ -710,7 +749,7 @@ and ana_cursor_info_zopseq =
           cursor_term,
         ),
       );
-    | InHole(TypeInconsistent, _) =>
+    | InHole(TypeInconsistent | EqualsJoinFailed, _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
       Statics_Exp.syn_opseq(ctx, opseq')
       |> Option.map(ty' =>
@@ -768,6 +807,9 @@ and ana_cursor_info_skel =
       let opseq = ZExp.erase_zopseq(ZOpSeq.ZOpSeq(skel, zseq));
       let err = UHExp.get_err_status_opseq(opseq);
       switch (err) {
+      | InHole(EqualsJoinFailed, _) =>
+        //TODO(andrew): below is dummy
+        Some(CursorInfo_common.mk(EqualsJoinFailiure, ctx, cursor_term))
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
         |> Option.map(_ =>
@@ -870,20 +912,21 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Var(InHole(WrongLength, _), _, _)
-    | IntLit(InHole(WrongLength, _), _)
-    | FloatLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | Keyword(Typed(_, InHole(WrongLength, _), _))
-    | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _)
-    | Inj(InHole(WrongLength, _), _, _)
+    | Var(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+    | IntLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+    | FloatLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+    | BoolLit(InHole(WrongLength | EqualsJoinFailed, _), _)
+    | Keyword(Typed(_, InHole(WrongLength | EqualsJoinFailed, _), _))
+    | ListNil(InHole(WrongLength | EqualsJoinFailed, _))
+    | Lam(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+    | Inj(InHole(WrongLength | EqualsJoinFailed, _), _, _)
     | Case(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+        StandardErrStatus(InHole(WrongLength | EqualsJoinFailed, _)) |
+        InconsistentBranches(_),
         _,
         _,
       )
-    | ApPalette(InHole(WrongLength, _), _, _, _) => None
+    | ApPalette(InHole(WrongLength | EqualsJoinFailed, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -919,20 +962,22 @@ and ana_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
-  | LamZP(InHole(WrongLength, _), _, _)
-  | LamZE(InHole(WrongLength, _), _, _)
-  | InjZ(InHole(WrongLength, _), _, _)
+  | LamZP(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | LamZE(InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | InjZ(InHole(WrongLength | EqualsJoinFailed, _), _, _)
   | CaseZE(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      StandardErrStatus(InHole(WrongLength | EqualsJoinFailed, _)) |
+      InconsistentBranches(_, _),
       _,
       _,
     )
   | CaseZR(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      StandardErrStatus(InHole(WrongLength | EqualsJoinFailed, _)) |
+      InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
+  | ApPaletteZ(InHole(WrongLength | EqualsJoinFailed, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)

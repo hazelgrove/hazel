@@ -98,6 +98,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
+  | EqualsJoinFailiure //TODO(andrew)
   | OnType
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)

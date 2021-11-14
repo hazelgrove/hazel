@@ -136,14 +136,14 @@ and mk_inconsistent_operand =
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, id_gen)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, id_gen)
   // not in hole
-  | Wild(NotInHole | InHole(WrongLength, _))
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength, _), _)
-  | FloatLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
-  | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Wild(NotInHole | InHole(WrongLength | EqualsJoinFailed, _))
+  | Var(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | IntLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | BoolLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | ListNil(NotInHole | InHole(WrongLength | EqualsJoinFailed, _))
+  | Inj(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | TypeAnn(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

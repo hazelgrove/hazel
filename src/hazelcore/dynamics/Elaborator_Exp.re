@@ -114,7 +114,12 @@ and syn_elab_skel =
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     syn_elab_operand(ctx, delta, en);
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
+  | BinOp(
+      InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      op,
+      skel1,
+      skel2,
+    )
   | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -248,16 +253,33 @@ and syn_elab_operand =
     : ElaborationResult.t =>
   switch (operand) {
   /* in hole */
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
-  | IntLit(InHole(TypeInconsistent as reason, u), _)
-  | FloatLit(InHole(TypeInconsistent as reason, u), _)
-  | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
-  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Var(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | IntLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | FloatLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | BoolLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | ListNil(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u))
+  | Keyword(
+      Typed(
+        _,
+        InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+        _,
+      ),
+    )
+  | Lam(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | Inj(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | Case(
+      StandardErrStatus(
+        InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      ),
+      _,
+      _,
+    )
+  | ApPalette(
+      InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      _,
+      _,
+      _,
+    ) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -575,7 +597,7 @@ and ana_elab_opseq =
     } else {
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(TypeInconsistent | EqualsJoinFailed, _) => DoesNotElaborate
       | InHole(WrongLength as reason, u) =>
         switch (
           syn_elab_opseq(
@@ -613,7 +635,12 @@ and ana_elab_skel =
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, en, ty);
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+  | BinOp(
+      InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      op,
+      skel1,
+      skel2,
+    ) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -673,16 +700,33 @@ and ana_elab_operand =
     : ElaborationResult.t =>
   switch (operand) {
   /* in hole */
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
-  | IntLit(InHole(TypeInconsistent as reason, u), _)
-  | FloatLit(InHole(TypeInconsistent as reason, u), _)
-  | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
-  | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Var(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | IntLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | FloatLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | BoolLit(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _)
+  | Keyword(
+      Typed(
+        _,
+        InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+        _,
+      ),
+    )
+  | ListNil(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u))
+  | Lam(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | Inj(InHole((TypeInconsistent | EqualsJoinFailed) as reason, u), _, _)
+  | Case(
+      StandardErrStatus(
+        InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      ),
+      _,
+      _,
+    )
+  | ApPalette(
+      InHole((TypeInconsistent | EqualsJoinFailed) as reason, u),
+      _,
+      _,
+      _,
+    ) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate

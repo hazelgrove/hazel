@@ -253,21 +253,25 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, id_gen)
   /* not in hole */
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength, _), _)
-  | FloatLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | Keyword(Typed(_, NotInHole | InHole(WrongLength, _), _))
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Var(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | IntLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | BoolLit(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _)
+  | Keyword(
+      Typed(_, NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _),
+    )
+  | ListNil(NotInHole | InHole(WrongLength | EqualsJoinFailed, _))
+  | Lam(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
+  | Inj(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _)
   | Case(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength | EqualsJoinFailed, _),
+      ) |
       InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(NotInHole | InHole(WrongLength | EqualsJoinFailed, _), _, _, _) =>
     let (u, id_gen) = IDGen.next_hole(id_gen);
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

@@ -3,6 +3,7 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | TypeInconsistent
+    | EqualsJoinFailed
     | WrongLength;
 
   let eq = (x, y) => x == y;
