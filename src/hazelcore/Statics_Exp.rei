@@ -32,21 +32,21 @@ let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 
 /**
- * Under context `ctx`, `inj_body_valid(ctx, body_opt)` is `Some()` if
- * `body_opt` is `None` or `Some(e)` for which `e` analyzes against
+ * Under context `ctx`, `inj_arg_valid(ctx, arg_opt)` is `Some()` if
+ * `arg_opt` is `None` or `Some(e)` for which `e` analyzes against
  * `Hole`
  */
-let inj_body_valid: (Contexts.t, option(UHExp.t)) => option(unit);
+let inj_arg_valid: (Contexts.t, option(UHExp.t)) => option(unit);
 
 /**
- * Given an injection body `body_opt` with associated type `ty_opt`
+ * Given an injection argument `arg_opt` with associated type `ty_opt`
  * in analytic position under context `ctx`,
- * `ana_inj_body(ctx, body_opt, ty_opt)` returns `Some()` when
- * body_opt and ty_opt are both `None`, or are `Some(e)` and
+ * `ana_inj_arg(ctx, arg_opt, ty_opt)` returns `Some()` when
+ * arg_opt and ty_opt are both `None`, or are `Some(e)` and
  * `Some(ty)` such that `e` analyzes against `ty`
  *
  */
-let ana_inj_body:
+let ana_inj_arg:
   (Contexts.t, option(UHExp.t), option(HTyp.t)) => option(unit);
 
 /**

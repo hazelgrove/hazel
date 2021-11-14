@@ -4,8 +4,8 @@ module HoleReason = {
   type t =
     | InjectionInSyntheticPosition
     | ExpectedTypeNotConsistentWithSums
-    | ExpectedBody
-    | UnexpectedBody;
+    | ExpectedArg
+    | UnexpectedArg;
 
   let eq = (x, y) => x == y;
 };

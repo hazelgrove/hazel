@@ -57,9 +57,9 @@ and syn_operand =
     (HTyp.Hole, gamma);
   // adapted from SInjErr
   | Inj(InHole(InjectionInSyntheticPosition, _), _, arg_opt) =>
-    let+ ctx = inj_body_valid(ctx, arg_opt);
-    (HTyp.Hole, ctx);
-  | Inj(InHole(_, _), _, _) => None
+    let+ ctx' = inj_arg_valid(ctx, arg_opt);
+    (HTyp.Hole, ctx');
+  | Inj(InHole(_), _, _) => None
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -81,9 +81,10 @@ and syn_operand =
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
   // adapted from SInjTagErr
-  | Inj(NotInHole, _, arg_opt) =>
-    let+ ctx = inj_body_valid(ctx, arg_opt);
-    (HTyp.Hole, ctx);
+  | Inj(NotInHole, Tag(InTagHole(_), _), arg_opt) =>
+    let+ ctx' = inj_arg_valid(ctx, arg_opt);
+    (HTyp.Hole, ctx');
+  | Inj(NotInHole, _, _) => None
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
@@ -166,10 +167,10 @@ and ana_operand =
     switch (ty) {
     | Hole
     | Sum(_) => None
-    | _ => inj_body_valid(ctx, arg_opt)
+    | _ => inj_arg_valid(ctx, arg_opt)
     }
 
-  | Inj(InHole(UnexpectedBody, _), tag, Some(arg)) =>
+  | Inj(InHole(UnexpectedArg, _), tag, Some(arg)) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -178,9 +179,9 @@ and ana_operand =
       }
     | _ => None
     }
-  | Inj(InHole(UnexpectedBody, _), _, None) => None
+  | Inj(InHole(UnexpectedArg, _), _, None) => None
 
-  | Inj(InHole(ExpectedBody, _), tag, None) =>
+  | Inj(InHole(ExpectedArg, _), tag, None) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -189,7 +190,7 @@ and ana_operand =
       }
     | _ => None
     }
-  | Inj(InHole(ExpectedBody, _), _, Some(_)) => None
+  | Inj(InHole(ExpectedArg, _), _, Some(_)) => None
 
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -205,30 +206,35 @@ and ana_operand =
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
     ctx;
-  | Inj(NotInHole, tag, body_opt) =>
+
+  | Inj(NotInHole, tag, arg_opt) =>
     switch (ty) {
-    | Hole => inj_body_valid(ctx, body_opt)
+    | Hole => inj_arg_valid(ctx, arg_opt)
     | Sum(tymap) =>
-      let* ty_body_opt = TagMap.find_opt(tag, tymap);
-      ana_inj_body(ctx, body_opt, ty_body_opt);
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(ty_opt) => ana_inj_arg(ctx, arg_opt, ty_opt)
+      | None =>
+        ana_inj_arg(ctx, arg_opt, arg_opt |> Option.map(_ => HTyp.Hole))
+      }
     | _ => None
     }
+
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
   }
-and inj_body_valid =
-    (ctx: Contexts.t, body_opt: option(UHPat.t)): option(Contexts.t) =>
-  switch (body_opt) {
+and inj_arg_valid =
+    (ctx: Contexts.t, arg_opt: option(UHPat.t)): option(Contexts.t) =>
+  switch (arg_opt) {
   | None => Some(ctx)
-  | Some(body) => ana(ctx, body, HTyp.Hole)
+  | Some(arg) => ana(ctx, arg, HTyp.Hole)
   }
-and ana_inj_body =
-    (ctx: Contexts.t, body_opt: option(UHPat.t), ty_opt: option(HTyp.t))
+and ana_inj_arg =
+    (ctx: Contexts.t, arg_opt: option(UHPat.t), ty_opt: option(HTyp.t))
     : option(Contexts.t) =>
-  switch (body_opt, ty_opt) {
-  | (Some(body), Some(ty)) => ana(ctx, body, ty)
+  switch (arg_opt, ty_opt) {
+  | (Some(arg), Some(ty)) => ana(ctx, arg, ty)
   | (None, None) => Some(ctx)
   | (_, _) => None
   };
@@ -450,24 +456,20 @@ and syn_fix_holes_operand =
     let (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     (Parenthesized(p), ty, ctx, u_gen);
-  | Inj(_, tag, body_opt) =>
+  | Inj(_, tag, arg_opt) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let (tag, u_gen) =
+    let (tag', u_gen) =
       Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-    let (body_opt, ctx, u_gen) =
-      switch (body_opt) {
-      | None => (body_opt, ctx, u_gen)
-      | Some(body) =>
-        let (body, ctx, u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, HTyp.Hole);
-        (Some(body), ctx, u_gen);
+    let (arg_opt', ctx, u_gen) =
+      switch (arg_opt) {
+      | None => (arg_opt, ctx, u_gen)
+      | Some(arg) =>
+        let (arg', ctx, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
+        (Some(arg'), ctx, u_gen);
       };
-    (
-      Inj(InHole(InjectionInSyntheticPosition, u), tag, body_opt),
-      HTyp.Hole,
-      ctx,
-      u_gen,
-    );
+    let status = InjErrStatus.InHole(InjectionInSyntheticPosition, u);
+    (Inj(status, tag', arg_opt'), HTyp.Hole, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
     let ty = UHTyp.expand(ann);
     let (op, ctx, u_gen) =
@@ -738,6 +740,7 @@ and ana_fix_holes_operand =
     let (p1, ctx, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
     (Parenthesized(p1), ctx, u_gen);
+
   | Inj(_, tag, arg_opt) =>
     switch (ty) {
     | Hole =>
@@ -768,7 +771,7 @@ and ana_fix_holes_operand =
           Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
         let (arg', ctx, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-        (Inj(InHole(UnexpectedBody, u), tag', Some(arg')), ctx, u_gen);
+        (Inj(InHole(UnexpectedArg, u), tag', Some(arg')), ctx, u_gen);
       /* TAInjBadTag */
       | (Some(arg), None) =>
         let (tag', u_gen) =
@@ -804,7 +807,7 @@ and ana_fix_holes_operand =
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let (tag', u_gen) =
           Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-        (Inj(InHole(ExpectedBody, u), tag', None), ctx, u_gen);
+        (Inj(InHole(ExpectedArg, u), tag', None), ctx, u_gen);
       }
     | _ =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -822,6 +825,7 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
+
   | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     if (HTyp.consistent(ty, ty_ann)) {
@@ -847,6 +851,7 @@ and ana_fix_holes_operand =
 let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+  print_endline("FFF");
   let path = CursorPath_Pat.of_z(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, ZPat.erase(zp));
   let zp =

@@ -603,6 +603,13 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXP SYN_PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
+    }
+  );
   let result =
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -1994,7 +2001,7 @@ and syn_perform_operand =
       }
     }
 
-  | (_, InjZT(err, ztag, body_opt)) =>
+  | (_, InjZT(err, ztag, arg_opt)) =>
     switch (Action_Tag.perform(u_gen, a, ztag)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -2004,12 +2011,12 @@ and syn_perform_operand =
         (zoperand, ty, u_gen),
       )
     | Succeeded((ztag, u_gen)) =>
-      let inj_zexp = ZExp.(ZBlock.wrap(InjZT(err, ztag, body_opt)));
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
+      let ze = ZExp.(ZBlock.wrap(InjZT(err, ztag, arg_opt)));
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
     }
 
-  | (_, InjZE(err, tag, zbody)) =>
-    switch (ana_perform(ctx, a, (zbody, u_gen), HTyp.Hole)) {
+  | (_, InjZE(err, tag, zarg)) =>
+    switch (ana_perform(ctx, a, (zarg, u_gen), HTyp.Hole)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2017,9 +2024,9 @@ and syn_perform_operand =
         Action_common.escape(side),
         (zoperand, ty, u_gen),
       )
-    | Succeeded((zbody, u_gen)) =>
-      let inj_zexp = ZExp.(ZBlock.wrap(InjZE(err, tag, zbody)));
-      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, inj_zexp)));
+    | Succeeded((zarg', u_gen)) =>
+      let zinj = ZExp.(ZBlock.wrap(InjZE(err, tag, zarg')));
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, zinj)));
     }
 
   | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
@@ -2407,7 +2414,15 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXP ANA_PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2422,7 +2437,8 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
-  }
+  };
+}
 
 and ana_perform_block =
     (
@@ -3543,10 +3559,10 @@ and ana_perform_operand =
       }
     }
 
-  | (_, InjZT(_, ztag, body_opt)) =>
+  | (_, InjZT(_, ztag, arg_opt)) =>
     switch (Action_Tag.perform(u_gen, a, ztag)) {
-    | Succeeded((ztag, u_gen)) =>
-      let zexp = ZExp.ZBlock.wrap(InjZT(NotInHole, ztag, body_opt));
+    | Succeeded((ztag', u_gen)) =>
+      let zexp = ZExp.ZBlock.wrap(InjZT(NotInHole, ztag', arg_opt));
       Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
     | CursorEscaped(side) =>
       let a = Action_common.escape(side);
@@ -3554,10 +3570,10 @@ and ana_perform_operand =
     | Failed => Failed
     }
 
-  | (_, InjZE(_, tag, zbody)) =>
-    switch (ana_perform(ctx, a, (zbody, u_gen), HTyp.Hole)) {
-    | Succeeded((zbody, u_gen)) =>
-      let zexp = ZExp.ZBlock.wrap(InjZE(NotInHole, tag, zbody));
+  | (_, InjZE(_, tag, zarg)) =>
+    switch (ana_perform(ctx, a, (zarg, u_gen), HTyp.Hole)) {
+    | Succeeded((zarg', u_gen)) =>
+      let zexp = ZExp.ZBlock.wrap(InjZE(NotInHole, tag, zarg'));
       Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, zexp, ty)));
     | CursorEscaped(side) =>
       let a = Action_common.escape(side);

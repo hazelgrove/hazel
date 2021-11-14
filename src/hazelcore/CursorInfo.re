@@ -95,10 +95,10 @@ type typed =
   | PatAnaInjExpectedTypeNotConsistentWithSums(HTyp.t)
   // cursor is on an injection pattern with a bad tag
   | PatAnaInjBadTag(UHTag.t)
-  // cursor is on a unary injection pattern with no body
-  | PatAnaInjExpectedBody(HTyp.t)
-  // cursor is on a nullary injection pattern with body
-  | PatAnaInjUnexpectedBody
+  // cursor is on an injection with a unary tag with no argument
+  | PatAnaInjExpectedArg(HTyp.t)
+  // cursor is on an injection with a constant with argument
+  | PatAnaInjUnexpectedArg(HTyp.t)
   // cursor is on a tuple pattern of the wrong length
   | PatAnaWrongLength
       // expected length
@@ -118,6 +118,8 @@ type typed =
   // none of the above and went through subsumption
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
+  // cursor is on an injection in synthetic position
+  | PatSynInjection
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)

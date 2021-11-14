@@ -95,6 +95,11 @@ let view =
       "Expecting ",
       special_msg_bar("a well-typed expression"),
     );
+  let expected_well_typed_indicator_pat =
+    expected_indicator(
+      "Expecting ",
+      special_msg_bar("a well-typed pattern"),
+    );
   let expected_a_type_indicator =
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_tag_indicator =
@@ -119,9 +124,6 @@ let view =
         Some(skipped_index),
       ),
     );
-  let expected_nothing_indicator = expected_msg_indicator("nothing");
-  let expected_type_consistent_with_sums_indicator =
-    expected_msg_indicator("a type consistent with sums");
   let expected_member_of_sumtype_indicator =
     expected_msg_indicator("a member of the expected sum type");
   let expected_const_inj_indicator =
@@ -146,8 +148,6 @@ let view =
   let got_tag_indicator = t => got_indicator("Got tag", tagbar(t));
   let got_nothing_indicator =
     got_indicator("Got nothing", typebar(HTyp.Hole));
-  let got_something_indicator =
-    got_indicator("Got something", typebar(HTyp.Hole));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
   let got_inconsistent_indicator = got_ty =>
@@ -192,8 +192,8 @@ let view =
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
-  let got_unexpected_arg_indicator = got_ty =>
-    got_indicator("Got unexpected argument of type", typebar(got_ty));
+  let got_unexpected_arg_indicator = ty =>
+    got_indicator("Got unexpected argument of type", typebar(ty));
   let got_inj_indicator =
     got_indicator("Got", special_msg_bar("an injection"));
   let got_const_inj_indicator =
@@ -414,38 +414,25 @@ let view =
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    // | AnaInjExpectedTypeNotConsistenWithSums(got_ty) =>
-    //   let ind1 = expected_type_consistent_with_sums_indicator;
-    //   let ind2 = got_ty_indicator(got_ty);
-    //   (ind1, ind2, TypeInconsistency);
-    // | AnaInjBadTag(got_tag) =>
-    //   let ind1 = expected_member_of_sumtype_indicator;
-    //   let ind2 = got_tag_indicator(got_tag);
-    //   (ind1, ind2, TypeInconsistency);
-    // | AnaInjExpectedArg(expected_ty) =>
-    //   let ind1 = expected_member_of_sumtype_indicator;
-    //   let ind2 = got_tag_indicator(got_tag);
-    //   (ind1, ind2, TypeInconsistency);
-    // | AnaInjUnexpectedArg =>
-    //   let ind1 = expected_injection_no_body_indicator;
-    //   let ind2 = got_something_indicator;
-    //   (ind1, ind2, TypeInconsistency);
-
-    | PatAnaInjExpectedTypeNotConsistentWithSums(expected_ty) =>
-      let ind1 = expected_type_consistent_with_sums_indicator;
-      let ind2 = got_ty_indicator(expected_ty);
+    | PatSynInjection =>
+      let ind1 = expected_well_typed_indicator_pat;
+      let ind2 = got_inj_in_syn_position_indicator;
+      (ind1, ind2, TypeInconsistency);
+    | PatAnaInjExpectedTypeNotConsistentWithSums(ty) =>
+      let ind1 = expected_ty_indicator_pat(ty);
+      let ind2 = got_inj_indicator;
       (ind1, ind2, TypeInconsistency);
     | PatAnaInjBadTag(got_tag) =>
       let ind1 = expected_member_of_sumtype_indicator;
       let ind2 = got_tag_indicator(got_tag);
       (ind1, ind2, TypeInconsistency);
-    | PatAnaInjExpectedBody(expected_ty) =>
+    | PatAnaInjExpectedArg(expected_ty) =>
       let ind1 = expected_inj_arg_indicator_pat(expected_ty);
       let ind2 = got_nothing_indicator;
       (ind1, ind2, TypeInconsistency);
-    | PatAnaInjUnexpectedBody =>
-      let ind1 = expected_nothing_indicator;
-      let ind2 = got_something_indicator;
+    | PatAnaInjUnexpectedArg(ty) =>
+      let ind1 = expected_const_inj_indicator;
+      let ind2 = got_unexpected_arg_indicator(ty);
       (ind1, ind2, TypeInconsistency);
     | OnTag =>
       let ind1 = expected_a_tag_indicator;

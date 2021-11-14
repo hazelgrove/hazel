@@ -528,7 +528,12 @@ and syn_cursor_info_zoperand =
   | LamZP(_, zp, body) =>
     let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty);
+      CursorInfo_Pat.ana_cursor_info(
+        ~steps=steps @ [0],
+        ctx,
+        ZPat.undo_syn_inj(zp),
+        ty,
+      );
     switch (defferrable) {
     | CursorNotOnDeferredVarPat(ci) => ci
     | CursorOnDeferredVarPat(deferred_ci, x) =>
@@ -808,7 +813,7 @@ and ana_cursor_info_zoperand =
     : option(CursorInfo.t) => {
   Sexplib.Sexp.(
     {
-      print_endline("ANA_CURSOR_INFO_ZOPERAND");
+      print_endline("EXP ANA_CURSOR_INFO_ZOPERAND");
       print_endline(to_string_hum(ZExp.sexp_of_zoperand(zoperand)));
       print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
     }
@@ -864,12 +869,12 @@ and ana_cursor_info_zoperand =
         ),
       )
     // AInjUnexpectedArg
-    | Inj(InHole(UnexpectedBody, _), _, Some(arg)) =>
+    | Inj(InHole(UnexpectedArg, _), _, Some(arg)) =>
       let+ ty_arg = Statics_Exp.syn(ctx, arg);
       CursorInfo_common.mk(AnaInjUnexpectedArg(ty_arg), ctx, cursor_term);
 
     // AInjExpectedArg
-    | Inj(InHole(ExpectedBody, _), tag, None) =>
+    | Inj(InHole(ExpectedArg, _), tag, None) =>
       switch (ty) {
       | Sum(tymap) =>
         let* ty_opt = TagMap.find_opt(tag, tymap);
@@ -972,8 +977,7 @@ and ana_cursor_info_zoperand =
         ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg)
       | None => ana_cursor_info(~steps=steps @ [1], ctx, zarg, HTyp.Hole)
       }
-    | Hole => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
-    | _ => None
+    | _ => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
     }
 
   | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>

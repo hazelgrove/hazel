@@ -258,7 +258,8 @@ let resurround_z =
 
 let rec syn_move =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) => {
+  print_endline("NNN");
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -313,6 +314,7 @@ let rec syn_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
+};
 
 let rec ana_move =
         (
@@ -322,7 +324,8 @@ let rec ana_move =
           zp: ZPat.t,
           ty: HTyp.t,
         )
-        : ActionOutcome.t(ana_success) =>
+        : ActionOutcome.t(ana_success) => {
+  print_endline("MMM");
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -377,6 +380,7 @@ let rec ana_move =
       ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
+};
 
 let annotate_last_operand =
     (zseq: ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), ann)
@@ -405,8 +409,16 @@ let annotate_last_operand =
 
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
-        : ActionOutcome.t(syn_success) =>
-  syn_perform_opseq(ctx, u_gen, a, zp)
+        : ActionOutcome.t(syn_success) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT SYN_PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZPat.sexp_of_t(zp)));
+    }
+  );
+  syn_perform_opseq(ctx, u_gen, a, zp);
+}
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
@@ -606,7 +618,14 @@ and syn_perform_operand =
       a: Action.t,
       zoperand: ZPat.zoperand,
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT SYN_PERFORM_OPERAND");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
+    }
+  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -677,6 +696,136 @@ and syn_perform_operand =
     let zp = ZPat.InjZP(status, tag, ZOpSeq.wrap(zhole));
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp)));
 
+  /*
+   Pressing <Delete> before any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   |>inj[ _ ]       ==>  |?
+   inj[ _ |>]       ==>  |?
+   |>inj[ _ ]( ? )  ==>  |?
+   inj[ _ |>]( ? )  ==>  |?
+   inj[ _ ]( ? |>)  ==>  |?
+   */
+  | (
+      Delete,
+      CursorP(
+        OnDelim(_, Before),
+        Inj(_, _, None | Some(OpSeq(_, S(EmptyHole(_), E)))),
+      ),
+    ) =>
+    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZOpSeq.wrap(zhole);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Delete> before any delimiter of an injection with an argument
+   unwraps the argument.
+
+   |>inj[ _ ]( 2 )  ==>  |2
+   inj[ _ |>]( 2 )  ==>  |2
+   inj[ _ ]( 2 |>)  ==>  2|
+   */
+  | (Delete, CursorP(OnDelim(j, Before), Inj(_, _, Some(arg)))) =>
+    let place_cursor = j == 2 ? ZPat.place_after : ZPat.place_before;
+    let zp = place_cursor(arg);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Delete> after the opening delimiter of an injection moves the
+   cursor forward.
+
+   inj[|> _ ]       ==>  inj[ |_ ]
+   inj[|> _ ]( _ )  ==>  inj[ |_ ]( _ )
+   */
+  | (Delete, CursorP(OnDelim(0, After), Inj(_, tag, arg_opt))) =>
+    let zoperand = ZPat.InjZT(NotInHole, ZTag.place_before(tag), arg_opt);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Delete> after the middle delimiter of an injection with an argument
+   moves the cursor forward.
+
+   inj[ _ ](|> _ )  ==>  inj[ _ ]( |_ )
+   */
+  | (Delete, CursorP(OnDelim(1, After), Inj(_, tag, Some(arg)))) =>
+    let zoperand = ZPat.InjZP(NotInHole, tag, ZPat.place_before(arg));
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Backspace> after any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   inj[ _ ]<|       ==>  |?
+   inj[<| _ ]       ==>  |?
+   inj[ _ ]( ? )<|  ==>  |?
+   inj[ _ ](<| ? )  ==>  |?
+   inj[<| _ ]( ? )  ==>  |?
+   */
+  | (
+      Backspace,
+      CursorP(
+        OnDelim(_, After),
+        Inj(_, _, None | Some(OpSeq(_, S(EmptyHole(_), E)))),
+      ),
+    ) =>
+    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZOpSeq.wrap(zhole);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of a constant injection or
+   the middle delimiter of an injection with an argument moves the cursor
+   backward.
+
+   inj[ _ <|]       ==>  inj[ _| ]
+   inj[ _ <|]( _ )  ==>  inj[ _| ]( _ )
+   */
+  | (Backspace, CursorP(OnDelim(1, Before), Inj(_, tag, arg_opt))) =>
+    let ztag = ZTag.place_after(tag);
+    let zoperand = ZPat.InjZT(NotInHole, ztag, arg_opt);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Backspace> after any delimiter of an injection with an argument
+   unwraps the argument.
+
+   inj[ _ ]( 2 )<|  ==>  2|
+   inj[ _ ](<| 2 )  ==>  |2
+   inj[<| _ ]( 2 )  ==>  |2
+   */
+  | (Backspace, CursorP(OnDelim(j, After), Inj(_, _, Some(operand)))) =>
+    let place_cursor = j == 2 ? ZPat.place_after : ZPat.place_before;
+    let zp = place_cursor(operand);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of an injection with an
+   argument moves the cursor backward.
+
+   inj[ _ ]( _ <|)  ==>  inj[ _ ]( _| )
+   */
+  | (Backspace, CursorP(OnDelim(2, Before), Inj(_, tag, Some(arg)))) =>
+    print_endline("AAA");
+    let zarg = ZPat.place_after(arg);
+    print_endline("BBB");
+    let zoperand = ZPat.InjZP(NotInHole, tag, zarg);
+    print_endline("CCC");
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /* Zipper Cases */
+
+  /*
+   inj[ _|_ ]
+   inj[ _|_ ]( _ )
+   inj[ _ ]( _|_ )
+   */
+
+  /* -- End of Injections -- */
+
   /* Backspace and Delete */
 
   | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
@@ -692,43 +841,6 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
       ? Succeeded((zp, Hole, ctx, u_gen)) : CursorEscaped(After);
-
-  | (Backspace, CursorP(OnDelim(0, After), Inj(_, _, _))) =>
-    CursorEscaped(Before)
-
-  | (Backspace, CursorP(OnDelim(k, After), Inj(err, tag, Some(body)))) =>
-    switch (k) {
-    /* inj[<| tag ]( p1 )  ==>  |p1 */
-    | 0 =>
-      let ZOpSeq(_, new_zseq) = ZPat.place_before(body);
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
-
-    /* inj[ tag ](<| p1 )  ==>  inj[ tag ]| */
-    | 1 =>
-      let inj_zpat =
-        ZOpSeq.wrap(ZPat.place_after_operand(UHPat.Inj(err, tag, None)));
-      Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, inj_zpat));
-
-    /* inj[ tag ]( p1 )<|  ==>  inj[ tag ]( p1 |) */
-    | _2 =>
-      let inj_zpat =
-        ZOpSeq.wrap(ZPat.InjZP(err, tag, ZPat.place_after(body)));
-      Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, inj_zpat));
-    }
-
-  | (Backspace, CursorP(OnDelim(k, After), Inj(err, tag, None))) =>
-    switch (k) {
-    /* inj[<| tag ]  ==>  |_ */
-    | 0 =>
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      Succeeded((ZOpSeq.wrap(zhole), Hole, ctx, u_gen));
-
-    /* inj[ tag ]<|  ==>  inj[ tag |] */
-    | _1 =>
-      let ztag = ZTag.place_after(tag);
-      let inj_zpat = ZOpSeq.wrap(ZPat.InjZT(err, ztag, None));
-      Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, inj_zpat));
-    }
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
@@ -893,25 +1005,24 @@ and syn_perform_operand =
       Succeeded((ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody)), ty, ctx, u_gen))
     }
 
-  | (_, InjZT(err, ztag, body_opt)) =>
+  | (_, InjZT(err, ztag, arg_opt)) =>
     switch (Action_Tag.perform(u_gen, a, ztag)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     | Succeeded((ztag, u_gen)) =>
-      let ZOpSeq(_, inj_zseq) =
-        ZOpSeq.wrap(ZPat.InjZT(err, ztag, body_opt));
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, inj_zseq));
+      let zp = ZOpSeq.wrap(ZPat.InjZT(err, ztag, arg_opt));
+      Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
     }
 
-  | (_, InjZP(err, tag, zbody)) =>
-    switch (ana_perform(ctx, u_gen, a, zbody, HTyp.Hole)) {
+  | (_, InjZP(err, tag, zarg)) =>
+    switch (ana_perform(ctx, u_gen, a, zarg, HTyp.Hole)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded((zbody, ctx, u_gen)) =>
-      let ZOpSeq(_, inj_zseq) = ZOpSeq.wrap(ZPat.InjZP(err, tag, zbody));
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, inj_zseq));
+    | Succeeded((zarg', ctx', u_gen)) =>
+      let zp = ZOpSeq.wrap(ZPat.InjZP(err, tag, zarg'));
+      Succeeded(Statics_Pat.syn_fix_holes_z(ctx', u_gen, zp));
     }
 
   | (_, TypeAnnZP(_, zop, ann)) =>
@@ -941,7 +1052,8 @@ and syn_perform_operand =
       Succeeded((zpat, ty, ctx, u_gen));
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 
 and ana_perform =
     (
@@ -951,8 +1063,17 @@ and ana_perform =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
-  ana_perform_opseq(ctx, u_gen, a, zp, ty)
+    : ActionOutcome.t(ana_success) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT ANA_PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZPat.sexp_of_t(zp)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
+  ana_perform_opseq(ctx, u_gen, a, zp, ty);
+}
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -1167,7 +1288,15 @@ and ana_perform_operand =
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT ANA_PERFORM_OPERAND");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
 
@@ -1237,7 +1366,7 @@ and ana_perform_operand =
   /* Injections */
 
   /*
-   Pressing <Inj> on an expression creates an injection.
+   Pressing <Inj> on a pattern creates an injection.
 
    |?  =(Inj)=>  inj[ |? ]
    ?|  =(Inj)=>  inj[ |? ]
@@ -1268,6 +1397,149 @@ and ana_perform_operand =
     let zp = ZPat.InjZP(status, tag, ZOpSeq.wrap(zhole));
     Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zp), ty));
 
+  /*
+   Pressing <Delete> before any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   |>inj[ _ ]       ==>  |?
+   inj[ _ |>]       ==>  |?
+   |>inj[ _ ]( ? )  ==>  |?
+   inj[ _ |>]( ? )  ==>  |?
+   inj[ _ ]( ? |>)  ==>  |?
+   */
+  | (
+      Delete,
+      CursorP(
+        OnDelim(_, Before),
+        Inj(_, _, None | Some(OpSeq(_, S(EmptyHole(_), E)))),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Delete> before any delimiter of an injection with an argument
+   unwraps the argument.
+
+   |>inj[ _ ]( 2 )  ==>  |2
+   inj[ _ |>]( 2 )  ==>  |2
+   inj[ _ ]( 2 |>)  ==>  2|
+   */
+  | (Delete, CursorP(OnDelim(j, Before), Inj(_, _, Some(arg)))) =>
+    let place_cursor = j == 2 ? ZPat.place_after : ZPat.place_before;
+    let zp = place_cursor(arg);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Delete> after the opening delimiter of an injection moves the
+   cursor forward.
+
+   inj[|> _ ]       ==>  inj[ |_ ]
+   inj[|> _ ]( _ )  ==>  inj[ |_ ]( _ )
+   */
+  | (Delete, CursorP(OnDelim(0, After), Inj(_, tag, arg_opt))) =>
+    let zoperand = ZPat.InjZT(NotInHole, ZTag.place_before(tag), arg_opt);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Delete> after the middle delimiter of an injection with an argument
+   moves the cursor forward.
+
+   inj[ _ ](|> _ )  ==>  inj[ _ ]( |_ )
+   */
+  | (Delete, CursorP(OnDelim(1, After), Inj(_, tag, Some(arg)))) =>
+    let zoperand = ZPat.InjZP(NotInHole, tag, ZPat.place_before(arg));
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Backspace> after any delimiter of a constant injection or an
+   injection with an argument hole destroys the injection.
+
+   inj[ _ ]<|       ==>  |?
+   inj[<| _ ]       ==>  |?
+   inj[ _ ]( ? )<|  ==>  |?
+   inj[ _ ](<| ? )  ==>  |?
+   inj[<| _ ]( ? )  ==>  |?
+   */
+  | (
+      Backspace,
+      CursorP(
+        OnDelim(_, After),
+        Inj(_, _, None | Some(OpSeq(_, S(EmptyHole(_), E)))),
+      ),
+    ) =>
+    let (zoperand, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of a constant injection or
+   the middle delimiter of an injection with an argument moves the cursor
+   backward.
+
+   inj[ _ <|]       ==>  inj[ _| ]
+   inj[ _ <|]( _ )  ==>  inj[ _| ]( _ )
+   */
+  | (Backspace, CursorP(OnDelim(1, Before), Inj(_, tag, arg_opt))) =>
+    let ztag = ZTag.place_after(tag);
+    let zoperand = ZPat.InjZT(NotInHole, ztag, arg_opt);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Backspace> after any delimiter of an injection with an argument
+   unwraps the argument.
+
+   inj[ _ ]( 2 )<|  ==>  2|
+   inj[ _ ](<| 2 )  ==>  |2
+   inj[<| _ ]( 2 )  ==>  |2
+   */
+  | (Backspace, CursorP(OnDelim(j, After), Inj(_, _, Some(operand)))) =>
+    let place_cursor = j == 2 ? ZPat.place_after : ZPat.place_before;
+    let zp = place_cursor(operand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <Backspace> before the closing delimiter of an injection with an
+   argument moves the cursor backward.
+
+   inj[ _ ]( _ <|)  ==>  inj[ _ ]( _| )
+   */
+  | (Backspace, CursorP(OnDelim(2, Before), Inj(_, tag, Some(arg)))) =>
+    let zarg = ZPat.place_after(arg);
+    let zoperand = ZPat.InjZP(NotInHole, tag, zarg);
+    let zp = ZOpSeq.wrap(zoperand);
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing a valid tag character next to the tag of an injection redirects the
+   action to the tag.
+   */
+  | (
+      Construct(SChar(c)),
+      CursorP(
+        OnDelim(0, After as side) | OnDelim(1, Before as side),
+        Inj(status, tag, arg_opt),
+      ),
+    )
+      when UHTag.is_tag_char(c.[0]) =>
+    let place_cursor = side == After ? ZTag.place_before : ZTag.place_after;
+    let zoperand = ZPat.InjZT(status, place_cursor(tag), arg_opt);
+    ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+
+  /* Zipper Cases */
+
+  /*
+   inj[ _|_ ]
+   inj[ _|_ ]( _ )
+   inj[ _ ]( _|_ )
+   */
+
+  /* -- End of Injections -- */
+
   /* Backspace and Delete */
 
   | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
@@ -1283,52 +1555,6 @@ and ana_perform_operand =
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
       ? Succeeded((zp, ctx, u_gen)) : CursorEscaped(After);
-
-  | (Backspace, CursorP(OnDelim(0, After), Inj(_, _, _))) =>
-    CursorEscaped(Before)
-
-  | (Backspace, CursorP(OnDelim(k, After), Inj(err, tag, Some(body)))) =>
-    switch (k) {
-    /* inj[<| tag ]( p1 )  ==>  |p1 */
-    | 0 =>
-      switch (ty) {
-      | Sum(tymap) =>
-        switch (TagMap.find_opt(tag, tymap)) {
-        | None
-        | Some(None) => Failed
-        | Some(Some(ty1)) =>
-          let ZOpSeq(_, new_zseq) = ZPat.place_before(body);
-          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty1));
-        }
-      | _ => Failed
-      }
-
-    /* inj[ tag ](<| p1 )  ==>  inj[ tag ]| */
-    | 1 =>
-      let inj_zpat =
-        ZOpSeq.wrap(ZPat.place_after_operand(UHPat.Inj(err, tag, None)));
-      Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, inj_zpat, ty));
-
-    /* inj[ tag ]( p1 )<|  ==>  inj[ tag ]( p1 |) */
-    | _2 =>
-      let inj_zpat =
-        ZOpSeq.wrap(ZPat.InjZP(err, tag, ZPat.place_after(body)));
-      Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, inj_zpat, ty));
-    }
-
-  | (Backspace, CursorP(OnDelim(k, After), Inj(err, tag, None))) =>
-    switch (k) {
-    /* inj[<| tag ]  ==>  |_ */
-    | 0 =>
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
-
-    /* inj[ tag ]<|  ==>  inj[ tag |] */
-    | _1 =>
-      let ztag = ZTag.place_after(tag);
-      let inj_zpat = ZOpSeq.wrap(ZPat.InjZT(err, ztag, None));
-      Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, inj_zpat, ty));
-    }
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
@@ -1503,37 +1729,26 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
 
-  | (_, InjZT(err, ztag, body_opt)) =>
+  | (_, InjZT(err, ztag, arg_opt)) =>
     switch (Action_Tag.perform(u_gen, a, ztag)) {
-    | Failed => Failed
+    | Succeeded((ztag', u_gen)) =>
+      let zinj = ZOpSeq.wrap(ZPat.InjZT(err, ztag', arg_opt));
+      Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zinj, ty));
     | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        u_gen,
-        Action_common.escape(side),
-        zoperand,
-        ty,
-      )
-    | Succeeded((ztag, u_gen)) =>
-      let ZOpSeq(_, inj_zseq) =
-        ZOpSeq.wrap(ZPat.InjZT(err, ztag, body_opt));
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, inj_zseq, ty));
+      let a = Action_common.escape(side);
+      ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+    | Failed => Failed
     }
 
-  | (_, InjZP(err, tag, zbody)) =>
-    switch (ana_perform(ctx, u_gen, a, zbody, HTyp.Hole)) {
-    | Failed => Failed
+  | (_, InjZP(err, tag, zarg)) =>
+    switch (ana_perform(ctx, u_gen, a, zarg, HTyp.Hole)) {
+    | Succeeded((zarg', ctx, u_gen)) =>
+      let zinj = ZOpSeq.wrap(ZPat.InjZP(err, tag, zarg'));
+      Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zinj, ty));
     | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        u_gen,
-        Action_common.escape(side),
-        zoperand,
-        ty,
-      )
-    | Succeeded((zbody, ctx, u_gen)) =>
-      let ZOpSeq(_, inj_zseq) = ZOpSeq.wrap(ZPat.InjZP(err, tag, zbody));
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, inj_zseq, ty));
+      let a = Action_common.escape(side);
+      ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+    | Failed => Failed
     }
 
   | (_, TypeAnnZP(_, zop, ann)) =>
@@ -1593,3 +1808,4 @@ and ana_perform_operand =
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

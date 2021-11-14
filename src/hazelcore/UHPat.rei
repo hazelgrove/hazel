@@ -77,3 +77,8 @@ let associate: seq => Skel.t(Operators_Pat.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+
+let undo_syn_inj: t => t;
+let undo_syn_inj_affix:
+  Seq.affix(operand, operator) => Seq.affix(operand, operator);
+let undo_syn_inj_seq: seq => seq;

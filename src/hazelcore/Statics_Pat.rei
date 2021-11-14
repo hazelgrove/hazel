@@ -29,10 +29,10 @@ let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
 let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 
 /**
- * `inj_body_valid ctx p_opt` returns `Some(ctx)` if `p_opt` is `None`
- * or `Some(p)` that analyzes against `Hole` under context `ctx`
+ * `inj_arg_valid ctx arg_opt` returns `Some(ctx)` if `arg_opt` is `None`
+ * or `Some(arg)` that analyzes against `Hole` under context `ctx`
  */
-let inj_body_valid: (Contexts.t, option(UHPat.t)) => option(Contexts.t);
+let inj_arg_valid: (Contexts.t, option(UHPat.t)) => option(Contexts.t);
 
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);

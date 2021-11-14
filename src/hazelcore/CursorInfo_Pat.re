@@ -211,6 +211,17 @@ and syn_cursor_info_zoperand =
            x,
          )
        })
+  | CursorP(_, Inj(InHole(InjectionInSyntheticPosition, _), _, _)) =>
+    Some(
+      CursorInfo_common.CursorNotOnDeferredVarPat(
+        CursorInfo_common.mk(
+          PatSynInjection,
+          ctx,
+          extract_from_zpat_operand(zoperand),
+        ),
+      ),
+    )
+
   | CursorP(_, p) =>
     Statics_Pat.syn_operand(ctx, p)
     |> Option.map(((ty, _)) => {
@@ -430,6 +441,13 @@ and ana_cursor_info_zoperand =
       ty: HTyp.t,
     )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT ANA_CURSOR_INFO_ZOPERAND");
+      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   let cursor_term = extract_from_zpat_operand(zoperand);
   switch (zoperand) {
   | CursorP(_, operand) =>
@@ -462,7 +480,9 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
+    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) =>
+      print_endline("SSS");
+      None;
     | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
       Some(
         CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -473,19 +493,23 @@ and ana_cursor_info_zoperand =
           ),
         ),
       )
-    | Inj(InHole(UnexpectedBody, _), _, _) =>
-      Some(
-        CursorInfo_common.CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaInjUnexpectedBody, ctx, cursor_term),
+    | Inj(InHole(UnexpectedArg, _), _, Some(arg)) =>
+      open OptUtil.Syntax;
+      let+ (ty_arg, ctx') = Statics_Pat.syn(ctx, arg);
+      CursorInfo_common.CursorNotOnDeferredVarPat(
+        CursorInfo_common.mk(
+          PatAnaInjUnexpectedArg(ty_arg),
+          ctx',
+          cursor_term,
         ),
-      )
-    | Inj(InHole(ExpectedBody, _), tag, None) =>
+      );
+    | Inj(InHole(ExpectedArg, _), tag, None) =>
       switch (ty) {
       | Sum(tymap) =>
         let* ty_opt = TagMap.find_opt(tag, tymap);
         let+ ty = ty_opt;
         CursorInfo_common.CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaInjExpectedBody(ty), ctx, cursor_term),
+          CursorInfo_common.mk(PatAnaInjExpectedArg(ty), ctx, cursor_term),
         );
       | _ => None
       }
@@ -565,10 +589,12 @@ and ana_cursor_info_zoperand =
            )
          )
     }
+
   | InjZT(_, ztag, _) =>
     let+ cursor_info =
       CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag);
     CursorInfo_common.CursorNotOnDeferredVarPat(cursor_info);
+
   | InjZP(_, tag, zpat) =>
     switch (ty) {
     | Sum(tymap) =>
@@ -577,8 +603,9 @@ and ana_cursor_info_zoperand =
         ana_cursor_info(~steps=steps @ [1], ctx, zpat, ty_arg)
       | None => ana_cursor_info(~steps=steps @ [1], ctx, zpat, HTyp.Hole)
       }
-    | _ => None
+    | _ => ana_cursor_info(~steps=steps @ [1], ctx, zpat, Hole)
     }
+
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
   | TypeAnnZP(err, zop, ann) =>

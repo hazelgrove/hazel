@@ -101,7 +101,13 @@ and syn_elab_skel =
   }
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand)
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT SYN_ELAB_OPERAND");
+      print_endline(to_string_hum(UHPat.sexp_of_operand(operand)));
+    }
+  );
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -118,12 +124,7 @@ and syn_elab_operand =
         MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
-  | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _)) => DoesNotElaborate
+
   // adapted from ESInjErr
   | Inj(InHole(InjectionInSyntheticPosition as reason, u), tag, arg_opt) =>
     let gamma = Contexts.gamma(ctx);
@@ -133,15 +134,21 @@ and syn_elab_operand =
     | Some(Elaborates(dp, _, ctx, delta')) =>
       let inj = (tag, Some(dp));
       let delta'' =
-        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta');
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta');
       Elaborates(InjError(reason, u, 0, inj), Hole, ctx, delta'');
     | None =>
       let delta' =
-        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(InjError(reason, u, 0, (tag, None)), Hole, ctx, delta');
     };
   | Inj(InHole(_), _, _) => DoesNotElaborate
 
+  | Wild(InHole(WrongLength, _))
+  | Var(InHole(WrongLength, _), _, _)
+  | IntLit(InHole(WrongLength, _), _)
+  | FloatLit(InHole(WrongLength, _), _)
+  | BoolLit(InHole(WrongLength, _), _)
+  | ListNil(InHole(WrongLength, _)) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -174,19 +181,10 @@ and syn_elab_operand =
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
-
-  // adapted from ESInjTagErr
-  | Inj(NotInHole, tag, arg_opt) =>
-    let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
-    switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
-    | Some(DoesNotElaborate) => DoesNotElaborate
-    | Some(Elaborates(dp, _, ctx, delta')) =>
-      Elaborates(Inj((tag, Some(dp))), Hole, ctx, delta')
-    | None => Elaborates(Inj((tag, None)), Hole, ctx, delta)
-    };
-
+  | Inj(NotInHole, _, _) => DoesNotElaborate
   | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
-  }
+  };
+}
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
     : ElaborationResult.t =>
@@ -335,7 +333,14 @@ and ana_elab_skel =
   }
 and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  Sexplib.Sexp.(
+    {
+      print_endline("PAT ANA_ELAB_OPERAND");
+      print_endline(to_string_hum(UHPat.sexp_of_operand(operand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -374,7 +379,7 @@ and ana_elab_operand =
       Elaborates(InjError(reason, u, 0, inj), Hole, ctx, delta');
     };
 
-  | Inj(InHole(UnexpectedBody as reason, u), tag, Some(arg)) =>
+  | Inj(InHole(UnexpectedArg as reason, u), tag, Some(arg)) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -393,9 +398,9 @@ and ana_elab_operand =
       }
     | _ => DoesNotElaborate
     }
-  | Inj(InHole(UnexpectedBody, _), _, None) => DoesNotElaborate
+  | Inj(InHole(UnexpectedArg, _), _, None) => DoesNotElaborate
 
-  | Inj(InHole(ExpectedBody as reason, u), tag, None) =>
+  | Inj(InHole(ExpectedArg as reason, u), tag, None) =>
     switch (ty) {
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -410,7 +415,7 @@ and ana_elab_operand =
       }
     | _ => DoesNotElaborate
     }
-  | Inj(InHole(ExpectedBody, _), _, Some(_)) => DoesNotElaborate
+  | Inj(InHole(ExpectedArg, _), _, Some(_)) => DoesNotElaborate
 
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -448,9 +453,12 @@ and ana_elab_operand =
       let ty_opt = arg_opt |> Option.map(_ => HTyp.Hole);
       switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
       | Some(DoesNotElaborate) => DoesNotElaborate
-      | Some(Elaborates(dp, _, ctx', delta')) =>
-        Elaborates(Inj((tag, Some(dp))), ty, ctx', delta')
-      | None => Elaborates(Inj((tag, None)), ty, ctx, delta)
+      | Some(Elaborates(dp, dp_ty, ctx', delta')) =>
+        let tymap = TagMap.singleton(tag, Some(dp_ty));
+        Elaborates(Inj((tag, Some(dp))), HTyp.Sum(tymap), ctx', delta');
+      | None =>
+        let tymap = TagMap.singleton(tag, None);
+        Elaborates(Inj((tag, None)), HTyp.Sum(tymap), ctx, delta);
       };
     | Sum(tymap) =>
       switch (TagMap.find_opt(tag, tymap)) {
@@ -482,7 +490,8 @@ and ana_elab_operand =
     }
 
   | TypeAnn(NotInHole, op, _) => ana_elab_operand(ctx, delta, op, ty)
-  }
+  };
+}
 and ana_elab_inj_body =
     (
       ctx: Contexts.t,
