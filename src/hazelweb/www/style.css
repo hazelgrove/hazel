@@ -1675,3 +1675,21 @@ body {
   background-color: #eb2;
 }
 
+.test-inspector {
+  background-color: #444;
+  border-radius: 0.25em;
+}
+
+.test-inspector .test-instance {
+  margin: 0;
+  padding: 0;
+}
+
+.test-inspector .test-instance.Pass .DHCode {
+  color: rgb(105, 222, 105);
+}
+
+.test-inspector  .test-instance.Fail .DHCode {
+  color: rgb(244, 108, 108);
+  border: none;
+}

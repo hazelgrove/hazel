@@ -126,6 +126,7 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
+      ~assert_inspector,
       (steps, cursor): CursorPath.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
@@ -144,6 +145,7 @@ let view_of_cursor_inspector =
   let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
+    ~assert_inspector,
     ~inject,
     ~loc=(cursor_x, cursor_y),
     cursor_inspector,
@@ -219,6 +221,7 @@ let view =
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       ~program: Program.t,
+      ~assert_inspector,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -244,6 +247,7 @@ let view =
           let ci = Program.get_cursor_info(program);
           [
             view_of_cursor_inspector(
+              ~assert_inspector,
               ~inject,
               ~font_metrics,
               path,

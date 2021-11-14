@@ -2,13 +2,13 @@ open Virtual_dom.Vdom;
 open Node;
 open ViewUtil;
 
-let assert_instance_view =
+let test_instance_view =
     (dhcode_view, (d, status): AssertMap.assert_instance_report) => {
   let status = AssertStatus.to_string(status);
   div([Attr.classes(["test-instance", status])], [dhcode_view(d)]);
 };
 
-let jump_to_assert = (~inject, path, _) =>
+let jump_to_test = (~inject, path, _) =>
   switch (path) {
   | Some(path) =>
     Event.Many([
@@ -18,7 +18,7 @@ let jump_to_assert = (~inject, path, _) =>
   | None => Event.Ignore
   };
 
-let assert_report_view =
+let test_report_view =
     (
       ~inject,
       ~dhcode_view,
@@ -31,7 +31,7 @@ let assert_report_view =
   div(
     [
       Attr.class_("test-report"),
-      Attr.on_click(jump_to_assert(~inject, assert_path(id))),
+      Attr.on_click(jump_to_test(~inject, assert_path(id))),
     ],
     [
       div(
@@ -41,7 +41,7 @@ let assert_report_view =
       ),
       div(
         [Attr.class_("test-instances")],
-        List.map(assert_instance_view(dhcode_view), instance_reports),
+        List.map(test_instance_view(dhcode_view), instance_reports),
       ),
     ],
   );
@@ -57,7 +57,7 @@ let test_reports_view =
   div(
     [Attr.classes(["panel-body", "test-reports"])],
     List.mapi(
-      assert_report_view(~inject, ~assert_path, ~dhcode_view),
+      test_report_view(~inject, ~assert_path, ~dhcode_view),
       assert_map,
     ),
   );
@@ -72,7 +72,7 @@ let test_bar = (~inject, ~assert_path, ~assert_map: AssertMap.t) =>
         div(
           [
             Attr.classes(["segment", status]),
-            Attr.on_click(jump_to_assert(~inject, assert_path(id))),
+            Attr.on_click(jump_to_test(~inject, assert_path(id))),
           ],
           [],
         );
@@ -107,6 +107,15 @@ let test_summary = (~inject, ~assert_path, ~assert_map) => {
   );
 };
 
+let dhcode_view = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
+  DHCode.view(
+    ~inject,
+    ~settings=model.settings.evaluation,
+    ~selected_instance=Model.get_selected_hole_instance(model),
+    ~font_metrics=model.font_metrics,
+    ~width=30,
+  );
+
 let view =
     (
       ~inject: ModelAction.t => Event.t,
@@ -115,14 +124,7 @@ let view =
       ~assert_path: KeywordID.t => option(CursorPath.t),
     )
     : t => {
-  let dhcode_view =
-    DHCode.view(
-      ~inject,
-      ~settings=model.settings.evaluation,
-      ~selected_instance=Model.get_selected_hole_instance(model),
-      ~font_metrics=model.font_metrics,
-      ~width=30,
-    );
+  let dhcode_view = dhcode_view(~inject, ~model);
   div_if(
     assert_map != [],
     [Attr.classes(["panel", "test-panel"])],
@@ -132,4 +134,30 @@ let view =
       test_summary(~inject, ~assert_path, ~assert_map),
     ],
   );
+};
+
+let inspector_view =
+    (
+      ~inject: ModelAction.t => Event.t,
+      ~model: Model.t,
+      ~assert_map: AssertMap.t,
+      id: KeywordID.t,
+    )
+    : t => {
+  let dhcode_view = dhcode_view(~inject, ~model);
+  switch (AssertMap.lookup(id, assert_map)) {
+  | Some(instance_reports) =>
+    let _status =
+      instance_reports |> AssertMap.joint_status |> AssertStatus.to_string;
+    div(
+      [Attr.class_("test-inspector")],
+      [
+        div(
+          [Attr.classes(["test-instances" /*, "Assert" ++ status*/])],
+          List.map(test_instance_view(dhcode_view), instance_reports),
+        ),
+      ],
+    );
+  | _ => div([], [])
+  };
 };
