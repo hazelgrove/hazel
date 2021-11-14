@@ -1561,27 +1561,34 @@ body {
 /* tests */
 
 .AssertPass:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left:0.17em;
   content: "✔";
   color:green;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
+  vertical-align: middle;
+ 
 }
 
 .AssertFail:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left:0.17em;
   content: "✘";
   color: var(--err-color);
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
+  
+
 }
 
 .AssertIndet:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left: 0.17em;
   content: "?";
   color: brown;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
 }
 
 .UHAssert .assertpop {
@@ -1701,3 +1708,21 @@ body {
   background-color: #eb2;
 }
 
+.test-inspector {
+  background-color: #444;
+  border-radius: 0.25em;
+}
+
+.test-inspector .test-instance {
+  margin: 0;
+  padding: 0;
+}
+
+.test-inspector .test-instance.Pass .DHCode {
+  color: rgb(203, 255, 203);
+}
+
+.test-inspector  .test-instance.Fail .DHCode {
+  color: rgb(255, 183, 183);
+  border: none;
+}

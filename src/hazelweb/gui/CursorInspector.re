@@ -494,6 +494,7 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
+      ~assert_inspector: KeywordID.t => option(Node.t),
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     )
@@ -702,6 +703,15 @@ let view =
       List.append(content, [strategy_guide])
     | _ => content
     };
+  let content =
+    switch (cursor_info.cursor_term) {
+    | ExpOperand(_, Keyword(Typed(Assert, NotInHole, id))) =>
+      switch (assert_inspector(id)) {
+      | Some(view) => [view]
+      | None => content
+      }
+    | _ => content
+    };
   Node.div(
     [
       Attr.id(ViewUtil.ci_id),
@@ -712,7 +722,7 @@ let view =
     ],
     [
       Node.div(
-        [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
+        [Attr.classes(["cursor-inspector", cls_of_err_state_b])],
         content,
       ),
     ],
