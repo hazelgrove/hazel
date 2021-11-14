@@ -9,6 +9,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,
-    ~program: Program.t
+    ~program: Program.t,
+    ~assert_inspector: KeywordID.t => Vdom.Node.t
   ) =>
   Vdom.Node.t;

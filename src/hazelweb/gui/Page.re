@@ -62,36 +62,41 @@ let font_specimen =
   /* font-specimen used to gather font metrics for caret positioning and other things */
   div([Attr.id(ViewUtil.font_specimen_id)], [text("X")]);
 
-let code_view = (~inject, ~model: Model.t): Node.t =>
+let code_view =
+    (~inject, ~model: Model.t, ~assert_inspector: KeywordID.t => Node.t)
+    : Node.t =>
   UHCode.view(
     ~inject,
     ~font_metrics=model.font_metrics,
     ~settings=model.settings,
     ~cursor_inspector=model.cursor_inspector,
     ~program=Model.get_program(model),
+    ~assert_inspector,
   );
 
-let cell_view = (~inject, ~model: Model.t) => {
+let cell_view =
+    (~inject, ~model: Model.t, ~result as {assert_map, _}: Result.t) => {
+  let assert_inspector =
+    AssertPanel.inspector_view(~inject, ~model, ~assert_map);
   TimeUtil.measure_time(
     "Cell.view",
     model.settings.performance.measure && model.settings.performance.cell_view,
     () =>
     div(
       [Attr.id(ViewUtil.cell_id)],
-      [font_specimen, code_view(~inject, ~model)],
+      [font_specimen, code_view(~inject, ~model, ~assert_inspector)],
     )
   );
 };
 
-let card_panel =
-    (~inject, ~model, ~result as {result, result_ty, _}: Result.t): Node.t =>
+let card_panel = (~inject, ~model, ~result: Result.t): Node.t =>
   div(
     [Attr.id(ViewUtil.card_dom_id)],
     [
       card_caption(model),
-      cell_view(~inject, ~model),
-      result_view(~model, ~inject, ~result),
-      type_view(result_ty),
+      cell_view(~inject, ~model, ~result),
+      result_view(~inject, ~model, ~result=result.result),
+      type_view(result.result_ty),
     ],
   );
 
