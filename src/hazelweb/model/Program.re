@@ -94,8 +94,9 @@ let get_result = (program: t): Result.t => {
     | Indet(_) => Indet(d_renumbered)
     };
   let (_, result_ty, _) = program.edit_state;
-  let assert_map =
-    List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
+  let assert_map = List.rev(state.assert_map);
+  // TODO(andrew): sorting is prob wrong... prob want in lexiographical order
+  // List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
   {result, result_ty, boxed_result, hii, assert_map};
 };
 
@@ -112,12 +113,13 @@ let elaborate_only = (program: t): Result.t => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
+  let assert_map = get_result(program).assert_map;
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let holes = CursorPath_Exp.holes(get_uhexp(program), [], []);
+  let hooks = CursorPath_Exp.hooks(get_uhexp(program), [], []);
   let (err_holes, var_err_holes) =
-    holes
-    |> List.filter_map(hole_info =>
-         switch (CursorPath.get_sort(hole_info)) {
+    hooks
+    |> List.filter_map(hook_info =>
+         switch (CursorPath.get_hook(hook_info)) {
          | KeywordHook(_)
          | TypHole => None
          | PatHole(_, shape)
@@ -125,7 +127,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+           | TypeErr => Some((shape, CursorPath.get_steps(hook_info)))
            }
          }
        )
@@ -141,18 +143,17 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | _ => []
     };
   let asserts =
-    holes
-    |> List.filter_map((CursorPath.{sort, steps, _}) =>
-         switch (sort) {
+    hooks
+    |> List.filter_map((CursorPath.{hook, steps, _}) =>
+         switch (hook) {
          | TypHole
          | PatHole(_)
          | ExpHole(_) => None
          | KeywordHook(id) =>
-           let state = program |> get_elaboration |> evaluate |> snd;
-           switch (AssertMap.lookup(id, state.assert_map)) {
+           switch (AssertMap.lookup(id, assert_map)) {
            | Some(assert_data) => Some((steps, (id, assert_data)))
            | _ => None
-           };
+           }
          }
        );
   {err_holes, var_uses, var_err_holes, asserts, current_term};
@@ -226,10 +227,8 @@ let perform_edit_action = (a, program) => {
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
-  let holes =
-    CursorPath_Exp.holes(ZExp.erase(ze), [], [])
-    |> List.filter(CursorPath.is_actually_hole);
-  switch (CursorPath_common.steps_to_hole(holes, u)) {
+  let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
+  switch (CursorPath_common.steps_to_hook(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
     let e = ZExp.erase(ze);

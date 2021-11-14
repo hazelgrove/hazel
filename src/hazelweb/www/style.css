@@ -22,7 +22,8 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
-  --err-hole-color: red;
+  --err-color:#d00;
+  --err-hole-color: var(--err-color);
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
 
@@ -1569,7 +1570,7 @@ body {
 
 .AssertFail:after{
   content: "✘";
-  color: red;
+  color: var(--err-color);
   font-size: 70%;
   vertical-align: top;
   position: absolute;
@@ -1608,6 +1609,7 @@ body {
 }
 
 .test-report {
+  cursor: pointer;
   display: flex;
   gap: 1em;
   padding: 0.25em;
@@ -1617,12 +1619,20 @@ body {
 }
 
 .test-id {
-  cursor: pointer;
+}
+
+.test-id.Pass{
+  color: green;
+}
+
+.test-id.Fail{
+  color: var(--err-color);
 }
 
 .test-instances {
   display: flex;
   flex-direction: column;
+  gap: 0.2em;
 }
 
 .test-report .DHCode {
@@ -1630,5 +1640,64 @@ body {
 }
 
 .test-instance {
-  padding-left: 0.5em;
+  margin-left: 0.5em;
+  border-radius: 0.5em;
+  padding: 0 0.2em 0 0.2em;
 }
+
+.test-instance .DHCode {
+  border-radius: 0.5em;
+  padding: 0 0.2em 0 0.2em;
+}
+
+.test-instance.Pass .DHCode {
+  color: green;
+}
+
+.test-instance.Fail .DHCode {
+  color: var(--err-color);
+  border: dotted 1px var(--err-color);
+}
+
+.test-instance.Indet .DHCode {
+}
+
+.test-summary {
+  display: flex;
+  flex-direction: column;
+  padding: 1em;
+  gap: 1em;
+}
+
+.test-bar {
+  display: flex;
+  width: 100%;
+  gap: 1px;
+}
+
+.test-bar .segment:first-child {
+  border-radius: 0.3em 0 0 0.3em;
+}
+
+.test-bar .segment:last-child {
+  border-radius: 0 0.3em 0.3em 0;
+}
+
+.test-bar .segment {
+  flex-grow: 1;
+  height: 0.5em;
+  cursor: pointer;
+}
+
+.test-bar .segment.Pass {
+  background-color: #3c7;
+}
+
+.test-bar .segment.Fail {
+  background-color: var(--err-color);
+}
+
+.test-bar .segment.Indet {
+  background-color: #eb2;
+}
+
