@@ -1533,27 +1533,34 @@ body {
 /* tests */
 
 .AssertPass:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left:0.17em;
   content: "✔";
   color:green;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
+  vertical-align: middle;
+ 
 }
 
 .AssertFail:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left:0.17em;
   content: "✘";
   color: var(--err-color);
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
+  
+
 }
 
 .AssertIndet:after{
+  position: relative;
+  bottom:0.15em;
+  margin-left: 0.17em;
   content: "?";
   color: brown;
-  font-size: 70%;
-  vertical-align: top;
-  position: absolute;
+  font-size: 64%;
 }
 
 .UHAssert .assertpop {
