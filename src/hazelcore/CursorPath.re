@@ -23,7 +23,7 @@ type hole_sort =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape)
-  | Assert(KeywordID.t);
+  | KeywordHook(KeywordID.t);
 
 [@deriving sexp]
 type hole_info = {
@@ -64,3 +64,12 @@ let get_steps =
   to_fpos_for_aps ? ap_steps : steps;
 
 let get_sort = ({sort, _}: hole_info): hole_sort => sort;
+
+let is_actually_hole: hole_info => bool =
+  hi =>
+    switch (get_sort(hi)) {
+    | TypHole
+    | PatHole(_)
+    | ExpHole(_) => true
+    | KeywordHook(_) => false
+    };

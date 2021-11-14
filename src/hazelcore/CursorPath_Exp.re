@@ -431,7 +431,7 @@ and holes_operand =
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | Keyword(Typed(_, _, id)) => [
-      CursorPath.mk_hole_sort(Assert(id), List.rev(rev_steps)),
+      CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
       ...hs,
     ]
   | IntLit(err, _)
@@ -599,14 +599,15 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorE(_, Keyword(Typed(Assert | Same, err, id))) =>
-    // TODO(andrew): specialize to Assert or add other cases
-    // TODO(andrew): BUG: error hole not being drawn around 1 + test
+  | CursorE(_, Keyword(Typed(_, err, id))) =>
+    // TODO(andrew): (unrelated to this location) BUG: error hole not being drawn around 1 + test
     switch (err) {
     | NotInHole =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some(CursorPath.mk_hole_sort(Assert(id), List.rev(rev_steps))),
+          Some(
+            CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
+          ),
         (),
       )
     | InHole(_, u) =>

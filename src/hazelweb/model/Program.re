@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open OptUtil.Syntax;
 
 module Memo = Core_kernel.Memo;
 
@@ -112,11 +113,12 @@ let elaborate_only = (program: t): Result.t => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let holes = CursorPath_Exp.holes(get_uhexp(program), [], []);
   let (err_holes, var_err_holes) =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    holes
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
-         | Assert(_)
+         | KeywordHook(_)
          | TypHole => None
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
@@ -139,16 +141,16 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | _ => []
     };
   let asserts =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    holes
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
          | TypHole
          | PatHole(_)
          | ExpHole(_) => None
-         | Assert(num) =>
+         | KeywordHook(id) =>
            let state = program |> get_elaboration |> evaluate |> snd;
-           switch (AssertMap.lookup(num, state.assert_map)) {
-           | Some(assert_data) => Some((steps, assert_data))
+           switch (AssertMap.lookup(id, state.assert_map)) {
+           | Some(assert_data) => Some((steps, (id, assert_data)))
            | _ => None
            };
          }
@@ -168,6 +170,13 @@ let get_doc = (~settings: Settings.t, program) => {
       get_uhexp(program),
     )
   });
+};
+
+let get_path_to_assert = (program: t, id: KeywordID.t): option(CursorPath.t) => {
+  let asserts = get_decoration_paths(program).asserts;
+  let asserts = List.map(((steps, (id, _))) => (id, steps), asserts);
+  let+ steps = List.assoc_opt(id, asserts);
+  (steps, CursorPosition.OnText(0));
 };
 
 let get_layout = (~settings: Settings.t, program) => {
@@ -217,7 +226,9 @@ let perform_edit_action = (a, program) => {
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
-  let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
+  let holes =
+    CursorPath_Exp.holes(ZExp.erase(ze), [], [])
+    |> List.filter(CursorPath.is_actually_hole);
   switch (CursorPath_common.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>

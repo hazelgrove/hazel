@@ -253,8 +253,7 @@ and matches_cast_Inj =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | SameLit(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   }
 and matches_cast_Pair =
     (
@@ -321,8 +320,7 @@ and matches_cast_Pair =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | SameLit(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   }
 and matches_cast_Cons =
     (
@@ -395,8 +393,7 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_)
-  | SameLit(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   };
 
 /* closed substitution [d1/x]d2*/
@@ -497,7 +494,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
   | AssertLit(n) => AssertLit(n)
-  | SameLit(n) => SameLit(n)
   }
 
 and subst_var_rules =
@@ -590,8 +586,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | FloatLit(_)
   | Triv
   | Lam(_)
-  | AssertLit(_)
-  | SameLit(_) => (BoxedValue(d), state)
+  | AssertLit(_) => (BoxedValue(d), state)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -628,37 +623,27 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
     }
   | Ap(d1, d2) =>
-    switch (DHExp.strip_casts_value(d1)) {
-    | Ap(SameLit(n), d1) => eval_same(n, d1, d2, state)
-    | _ =>
-      switch (evaluate(d1, ~state)) {
-      | (BoxedValue(SameLit(_) as sl), _) =>
-        //TODO(andrew): figure out if there's a nicer way to do this
-        evaluate(
-          Lam(Var("@"), Hole, Ap(Ap(sl, d2), BoundVar("@"))),
-          ~state,
-        )
-      | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
-      | (BoxedValue(Lam(dp, _, d3)), state) =>
-        eval_bind((d2, state), ((d2', state)) =>
-          switch (matches(dp, d2')) {
-          | DoesNotMatch
-          | IndetMatch => (Indet(d), state)
-          | Matches(env) =>
-            /* beta rule */
-            evaluate(subst(env, d3), ~state)
-          }
-        )
-      | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
-      | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
-        eval_bind((d2, state), ((d2', state)) =>
-          evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
-        )
-      | (BoxedValue(d), _) =>
-        raise(EvaluatorError.Exception(InvalidBoxedLam(d)))
-      | (Indet(d1'), state) =>
-        eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
-      }
+    switch (evaluate(d1, ~state)) {
+    | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
+    | (BoxedValue(Lam(dp, _, d3)), state) =>
+      eval_bind((d2, state), ((d2', state)) =>
+        switch (matches(dp, d2')) {
+        | DoesNotMatch
+        | IndetMatch => (Indet(d), state)
+        | Matches(env) =>
+          /* beta rule */
+          evaluate(subst(env, d3), ~state)
+        }
+      )
+    | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
+    | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
+      eval_bind((d2, state), ((d2', state)) =>
+        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
+      )
+    | (BoxedValue(d), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedLam(d)))
+    | (Indet(d1'), state) =>
+      eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
     }
 
   | BinBoolOp(op, d1, d2) =>
@@ -859,30 +844,4 @@ and eval_assert = (n: int, d: DHExp.t, state: state): report => {
     | _ => evaluate(d, ~state)
     };
   report_assert(res_d, d, state, n);
-}
-and eval_same = (n: int, d1: DHExp.t, d2: DHExp.t, state: state): report => {
-  let (d1, state) = evaluate(d1, ~state);
-  let (d2, state) = evaluate(d2, ~state);
-  let d1_clean = DHExp.strip_casts_value(unbox_result(d1));
-  let d2_clean = DHExp.strip_casts_value(unbox_result(d2));
-  let d: DHExp.t = Ap(Ap(SameLit(n), d1_clean), d2_clean);
-  let is_type_error =
-    switch (d2_clean) {
-    | NonEmptyHole(_) => true
-    | _ => false
-    };
-  let assert_status: AssertStatus.t =
-    switch (d1, d2) {
-    | _ when is_type_error => Fail // types are wrong
-    | (Indet(_), _)
-    | (_, Indet(_)) => Indet
-    | (BoxedValue(_), BoxedValue(_)) =>
-      switch (DHExp.dhexp_diff_value(d1_clean, d2_clean)) {
-      | ([], _) => Pass
-      | _ => Fail
-      }
-    };
-  let eval_res = BoxedValue(DHExp.Triv); //BoxedValue(d);
-  let state = EvalState.add_assert(state, n, (d, assert_status));
-  (eval_res, state);
 };

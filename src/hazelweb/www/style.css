@@ -1603,6 +1603,10 @@ body {
   flex-grow: 1;
 }
 
+.test-reports {
+  position: relative;
+}
+
 .test-report {
   display: flex;
   gap: 1em;
@@ -1612,6 +1616,19 @@ body {
   border-right: 0px;
 }
 
+.test-id {
+  cursor: pointer;
+}
+
+.test-instances {
+  display: flex;
+  flex-direction: column;
+}
+
 .test-report .DHCode {
   display: inline-block;
+}
+
+.test-instance {
+  padding-left: 0.5em;
 }
