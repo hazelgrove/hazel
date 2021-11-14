@@ -81,29 +81,46 @@ let test_bar = (~inject, ~assert_path, ~assert_map: AssertMap.t) =>
     ),
   );
 
-let test_summary = (~inject, ~assert_path, ~assert_map) => {
+let testing_summary = (~assert_map: AssertMap.t): string => {
   let total = AssertMap.count(assert_map);
   let failing = AssertMap.count_status(Fail, assert_map);
-  let incomplete = AssertMap.count_status(Indet, assert_map);
-  let failing_str = Printf.sprintf("%d / %d tests failing", failing, total);
-  let incomplete_str =
-    Printf.sprintf("%d / %d tests incomplete", incomplete, total);
+  let unfinished = AssertMap.count_status(Indet, assert_map);
+  let one_failing = "one is failing ";
+  let one_unfinished = "one is unfinished ";
+  let mny_failing = Printf.sprintf("%d are failing ", failing);
+  let mny_unfinished = Printf.sprintf("%d are unfinished ", unfinished);
+  let of_n_tests = Printf.sprintf("Of %d tests, ", total);
+  switch (total, failing, unfinished) {
+  | (_, 0, 0) => "All tests passing "
+  | (n, _, c) when n == c => "All tests unfinished "
+  | (n, f, _) when n == f => "All tests failing "
+  | (1, 1, 0) => "One failing test "
+  | (1, 0, 1) => "One unfinished test "
+  | (2, 1, 1) => "One failing and one unfinished test "
+  | (_, 0, 1) => of_n_tests ++ one_unfinished
+  | (_, 1, 0) => of_n_tests ++ one_failing
+  | (_, 1, 1) => of_n_tests ++ one_failing ++ "and " ++ one_unfinished
+  | (_, _, 1) => of_n_tests ++ mny_failing ++ "and " ++ one_unfinished
+  | (_, 1, _) => of_n_tests ++ one_failing ++ "and " ++ mny_unfinished
+  | (_, 0, _) => of_n_tests ++ mny_unfinished
+  | (_, _, 0) => of_n_tests ++ mny_failing
+  | _ => of_n_tests ++ mny_failing ++ ", and " ++ mny_unfinished
+  };
+};
+
+let test_summary = (~inject, ~assert_path, ~assert_map) => {
+  let failing = AssertMap.count_status(Fail, assert_map);
+  let unfinished = AssertMap.count_status(Indet, assert_map);
   let status_class =
-    switch (failing, incomplete) {
+    switch (failing, unfinished) {
     | (0, 0) => "Pass"
     | (0, _) => "Indet"
     | _ => "Fail"
     };
-  let status_str =
-    switch (failing, incomplete) {
-    | (0, 0) => "All tests passing"
-    | (0, _) => incomplete_str
-    | (_, 0) => failing_str
-    | _ => failing_str ++ ", " ++ incomplete_str
-    };
+  let testing_summary = testing_summary(~assert_map);
   div(
     [Attr.classes(["test-summary", "instructional-msg", status_class])],
-    [text(status_str), test_bar(~inject, ~assert_path, ~assert_map)],
+    [text(testing_summary), test_bar(~inject, ~assert_path, ~assert_map)],
   );
 };
 
