@@ -494,7 +494,7 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
-      ~assert_inspector: KeywordID.t => Node.t,
+      ~assert_inspector: KeywordID.t => option(Node.t),
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     )
@@ -705,9 +705,11 @@ let view =
     };
   let content =
     switch (cursor_info.cursor_term) {
-    | ExpOperand(_, Keyword(Typed(Assert, NotInHole, id))) => [
-        assert_inspector(id),
-      ]
+    | ExpOperand(_, Keyword(Typed(Assert, NotInHole, id))) =>
+      switch (assert_inspector(id)) {
+      | Some(view) => [view]
+      | None => content
+      }
     | _ => content
     };
   Node.div(
