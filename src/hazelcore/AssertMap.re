@@ -28,3 +28,13 @@ let lookup_and_join = (n: int, assert_map: t): AssertStatus.t =>
   | None => Indet
   | Some(reports) => joint_status(reports)
   };
+
+let count: t => int = List.length;
+
+let count_status: (AssertStatus.t, t) => int =
+  (status, assert_map) =>
+    List.filter(
+      ((_, instances)) => status == joint_status(instances),
+      assert_map,
+    )
+    |> List.length;

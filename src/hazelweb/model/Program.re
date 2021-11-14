@@ -94,8 +94,9 @@ let get_result = (program: t): Result.t => {
     | Indet(_) => Indet(d_renumbered)
     };
   let (_, result_ty, _) = program.edit_state;
-  let assert_map =
-    List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
+  let assert_map = List.rev(state.assert_map);
+  // TODO(andrew): sorting is prob wrong... prob want in lexiographical order
+  // List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
   {result, result_ty, boxed_result, hii, assert_map};
 };
 
@@ -112,6 +113,7 @@ let elaborate_only = (program: t): Result.t => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
+  let assert_map = get_result(program).assert_map;
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let hooks = CursorPath_Exp.hooks(get_uhexp(program), [], []);
   let (err_holes, var_err_holes) =
@@ -148,11 +150,10 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | PatHole(_)
          | ExpHole(_) => None
          | KeywordHook(id) =>
-           let state = program |> get_elaboration |> evaluate |> snd;
-           switch (AssertMap.lookup(id, state.assert_map)) {
+           switch (AssertMap.lookup(id, assert_map)) {
            | Some(assert_data) => Some((steps, (id, assert_data)))
            | _ => None
-           };
+           }
          }
        );
   {err_holes, var_uses, var_err_holes, asserts, current_term};

@@ -182,33 +182,22 @@ let rec strip_casts_value: t => t =
   | Cons(d1, d2) => Cons(strip_casts_value(d1), strip_casts_value(d2))
   | d => d;
 
-let rec dhexp_diff_value =
-        (d1: t, d2: t): (list(CursorPath.steps), list(CursorPath.steps)) => {
+let rec dhexp_diff_value = (d1: t, d2: t): list(CursorPath.steps) => {
   let diff_sub_dhs = (subtype_step, (ty1, ty2)) =>
-    TupleUtil.map2(
-      List.map(List.cons(subtype_step)),
-      dhexp_diff_value(ty1, ty2),
-    );
-  // slightly more restrictive that structural equality, except more permissive in the empty hole case
+    List.map(List.cons(subtype_step), dhexp_diff_value(ty1, ty2));
   switch (d1, d2) {
-  // TODO(andrew): still collect paths down to indetness
-  //| (EmptyHole(_), _)
-  //| (_, EmptyHole(_))
-  // or should we just test structural equality??
-  // strcutural equality vs possible consistency
-  // (differs in treatment of indets)
   | (Triv, Triv)
-  | (ListNil(_), ListNil(_)) => ([], [])
-  | (BoolLit(a), BoolLit(b)) when a == b => ([], [])
-  | (IntLit(a), IntLit(b)) when a == b => ([], [])
-  | (FloatLit(a), FloatLit(b)) when a == b => ([], [])
+  | (ListNil(_), ListNil(_)) => []
+  | (BoolLit(a), BoolLit(b)) when a == b => []
+  | (IntLit(a), IntLit(b)) when a == b => []
+  | (FloatLit(a), FloatLit(b)) when a == b => []
   | (Inj(_, _, d1'), Inj(_, _, d2')) => diff_sub_dhs(0, (d1', d2'))
   | (Pair(d1', d1''), Pair(d2', d2''))
   | (Cons(d1', d1''), Cons(d2', d2'')) =>
-    let (steps1, steps1') = diff_sub_dhs(0, (d1', d2'));
-    let (steps2, steps2') = diff_sub_dhs(1, (d1'', d2''));
-    (steps1 @ steps2, steps1' @ steps2');
-  | _ => ([[]], [[]])
+    let steps1 = diff_sub_dhs(0, (d1', d2'));
+    let steps2 = diff_sub_dhs(1, (d1'', d2''));
+    steps1 @ steps2;
+  | _ => [[]]
   };
 };
 
