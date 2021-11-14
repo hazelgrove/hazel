@@ -45,7 +45,8 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | ListNil(_) => delim_cursors(1)
-    | Inj(_, _, _) => delim_cursors(2)
+    | Inj(_, _, None) => delim_cursors(2)
+    | Inj(_, _, Some(_)) => delim_cursors(3)
     | Parenthesized(_) => delim_cursors(2)
     | TypeAnn(_) => delim_cursors(1)
   );
@@ -407,35 +408,35 @@ and cursor_on_EmptyTagHole_zoperand =
   | InjZT(_, ztag, _) => ZTag.cursor_on_EmptyTagHole(ztag)
   | InjZP(_, _, zp) => cursor_on_EmptyTagHole(zp);
 
-let rec undo_syn_inj = (ZOpSeq(skel, zseq): t): t => {
-  let zseq' = undo_syn_inj_zseq(zseq);
-  ZOpSeq(skel, zseq');
-}
-and undo_syn_inj_zseq = (zseq: zseq): zseq =>
-  switch (zseq) {
-  | ZOperand(zp, (prefix, suffix)) =>
-    let zp' = undo_syn_inj_zoperand(zp);
-    let prefix' = UHPat.undo_syn_inj_affix(prefix);
-    let suffix' = UHPat.undo_syn_inj_affix(suffix);
-    ZOperand(zp', (prefix', suffix'));
-  | ZOperator(zop, (prefix, suffix)) =>
-    let prefix' = UHPat.undo_syn_inj_seq(prefix);
-    let suffix' = UHPat.undo_syn_inj_seq(suffix);
-    ZOperator(zop, (prefix', suffix'));
-  }
+// let rec undo_syn_inj = (ZOpSeq(skel, zseq): t): t => {
+//   let zseq' = undo_syn_inj_zseq(zseq);
+//   ZOpSeq(skel, zseq');
+// }
+// and undo_syn_inj_zseq = (zseq: zseq): zseq =>
+//   switch (zseq) {
+//   | ZOperand(zp, (prefix, suffix)) =>
+//     let zp' = undo_syn_inj_zoperand(zp);
+//     let prefix' = UHPat.undo_syn_inj_affix(prefix);
+//     let suffix' = UHPat.undo_syn_inj_affix(suffix);
+//     ZOperand(zp', (prefix', suffix'));
+//   | ZOperator(zop, (prefix, suffix)) =>
+//     let prefix' = UHPat.undo_syn_inj_seq(prefix);
+//     let suffix' = UHPat.undo_syn_inj_seq(suffix);
+//     ZOperator(zop, (prefix', suffix'));
+//   }
 
-and undo_syn_inj_zoperand = (zp: zoperand): zoperand =>
-  switch ((zp: zoperand)) {
-  | CursorP(cur, Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt)) =>
-    CursorP(cur, Inj(NotInHole, tag, arg_opt))
-  | CursorP(_)
-  | TypeAnnZP(_)
-  | TypeAnnZA(_) => zp
-  | ParenthesizedZ(zp1) => ParenthesizedZ(undo_syn_inj(zp1))
-  | InjZT(InHole(InjectionInSyntheticPosition, _), ztag, arg_opt) =>
-    InjZT(NotInHole, ztag, arg_opt)
-  | InjZT(_) => zp
-  | InjZP(InHole(InjectionInSyntheticPosition, _), tag, zarg) =>
-    InjZP(NotInHole, tag, zarg)
-  | InjZP(_) => zp
-  };
+// and undo_syn_inj_zoperand = (zp: zoperand): zoperand =>
+//   switch ((zp: zoperand)) {
+//   | CursorP(cur, Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt)) =>
+//     CursorP(cur, Inj(NotInHole, tag, arg_opt))
+//   | CursorP(_)
+//   | TypeAnnZP(_)
+//   | TypeAnnZA(_) => zp
+//   | ParenthesizedZ(zp1) => ParenthesizedZ(undo_syn_inj(zp1))
+//   | InjZT(InHole(InjectionInSyntheticPosition, _), ztag, arg_opt) =>
+//     InjZT(NotInHole, ztag, arg_opt)
+//   | InjZT(_) => zp
+//   | InjZP(InHole(InjectionInSyntheticPosition, _), tag, zarg) =>
+//     InjZP(NotInHole, tag, zarg)
+//   | InjZP(_) => zp
+//   };

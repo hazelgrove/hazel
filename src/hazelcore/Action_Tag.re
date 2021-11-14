@@ -80,7 +80,14 @@ let move =
 
 let perform =
     (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
-    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTag.t, MetaVarGen.t)) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("TAG PERFORM");
+      print_endline(to_string_hum(Action.sexp_of_t(a)));
+      print_endline(to_string_hum(ZTag.sexp_of_t(ztag)));
+    }
+  );
   switch (a, ztag) {
   /* Invalid actions */
   | (
@@ -126,12 +133,7 @@ let perform =
     CursorEscaped(side)
 
   | (Backspace, CursorTag(OnText(j), Tag(_, t))) =>
-    switch (String.length(t)) {
-    | 1 =>
-      let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
-      Succeeded((ZTag.place_before(tag_hole), u_gen));
-    | _ => backspace_text(j, t, u_gen)
-    }
+    backspace_text(j, t, u_gen)
 
   | (Delete, CursorTag(OnText(j), Tag(_, t))) =>
     switch (j, String.length(t)) {
@@ -175,3 +177,4 @@ let perform =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

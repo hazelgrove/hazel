@@ -531,7 +531,8 @@ and syn_cursor_info_zoperand =
       CursorInfo_Pat.ana_cursor_info(
         ~steps=steps @ [0],
         ctx,
-        ZPat.undo_syn_inj(zp),
+        // ZPat.undo_syn_inj(zp),
+        zp,
         ty,
       );
     switch (defferrable) {
