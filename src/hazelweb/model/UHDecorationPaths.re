@@ -1,15 +1,11 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type asserts =
-  list((CursorPath.steps, list(AssertMap.assert_instance_report)));
-
-[@deriving sexp]
 type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  asserts,
+  asserts: list((CursorPath.steps, AssertMap.assert_report)),
   current_term: option(CursorPath.t),
 };
 

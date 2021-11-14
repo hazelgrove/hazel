@@ -599,7 +599,7 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorE(_, Keyword(Typed(Assert | Same, err, id))) =>
+  | CursorE(_, Keyword(Typed(Assert, err, id))) =>
     // TODO(andrew): specialize to Assert or add other cases
     // TODO(andrew): BUG: error hole not being drawn around 1 + test
     switch (err) {

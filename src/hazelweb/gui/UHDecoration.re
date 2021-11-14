@@ -433,10 +433,11 @@ module Vdom = Virtual_dom.Vdom;
 module AssertStatus = {
   let view =
       (
-        assert_instances: list(AssertMap.assert_instance_report),
+        (_id, assert_instances): AssertMap.assert_report,
         font_metrics: FontMetrics.t,
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
+    //TODO(andrew): expose if, clean up popup etc
     let total_offset =
       float_of_int(offset + List.hd(subject.metrics).width)
       *. font_metrics.col_width;

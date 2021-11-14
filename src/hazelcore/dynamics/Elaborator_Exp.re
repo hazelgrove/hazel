@@ -319,8 +319,6 @@ and syn_elab_operand =
     Elaborates(d, ty, delta);
   | Keyword(Typed(Assert as kw, NotInHole, n)) =>
     Elaborates(AssertLit(n), Keyword.type_of_kw(kw), delta)
-  | Keyword(Typed(Same as kw, NotInHole, n)) =>
-    Elaborates(SameLit(n), Keyword.type_of_kw(kw), delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -855,7 +853,6 @@ let rec renumber_result_only =
   | InvalidText(_)
   | BoolLit(_)
   | AssertLit(_)
-  | SameLit(_)
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)
@@ -956,7 +953,6 @@ let rec renumber_sigmas_only =
   | InvalidText(_)
   | BoolLit(_)
   | AssertLit(_)
-  | SameLit(_)
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)

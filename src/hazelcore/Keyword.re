@@ -1,22 +1,18 @@
 [@deriving sexp]
 type kw =
-  | Assert
-  | Same;
+  | Assert;
 
 let type_of_kw: kw => HTyp.t =
   fun
-  | Assert => Arrow(Bool, Prod([]))
-  | Same => Arrow(Hole, Arrow(Hole, Prod([])));
+  | Assert => Arrow(Bool, Prod([]));
 
 let string_of_kw: kw => string =
   fun
-  | Assert => "test"
-  | Same => "testeq";
+  | Assert => "test";
 
 let kw_of_string: string => option(kw) =
   fun
   | "test" => Some(Assert)
-  | "testeq" => Some(Same)
   | _ => None;
 
 [@deriving sexp]
