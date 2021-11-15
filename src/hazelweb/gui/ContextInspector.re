@@ -334,7 +334,7 @@ let view =
           switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
           | None => [
               instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                "Move to a hole or click a hole instance in the result to see relevant closures",
               ),
             ]
           | Some(u) =>

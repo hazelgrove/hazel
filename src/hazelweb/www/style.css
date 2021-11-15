@@ -489,7 +489,7 @@ body {
 
 .code.presentation .type-info-summary {
   display: flex;
-  color: #e1c17d;
+  color: #f4ce7b;
   font-family: Montserrat, sans-serif;
   padding-left: 0.2em;
   border-radius: 0.2em;
@@ -625,8 +625,7 @@ body {
 
 .cursor-inspector .type-info-summary .HTypCode,
 .cursor-inspector .emphasize-text {
-  color: #f5dfb3;
-  /* background-color: rgb(83, 83, 83); */
+  color: #ffecc8;
 }
 
 .cursor-inspector .type-info-summary,
@@ -635,7 +634,6 @@ body {
 }
 
 .cursor-OK.cursor-inspector .term-tag {
-  /* box-shadow: 0 0 0 1px #073f24 inset; */
 } 
 
 .cursor-TypeInconsistency.cursor-inspector .term-tag {
@@ -699,7 +697,6 @@ body {
   margin-left: 10px;
   margin-right: 10px;
   bottom: 0.3em;
-  /* margin-bottom: 0em; */
 }
 
 .typebar, .infobar {
@@ -897,8 +894,8 @@ body {
 
 .context-entry {
   border-bottom: 2px dotted #cfa874;
-  border-left: 0px;
-  border-right: 0px;
+  padding:0.3em;
+  margin-right: 1em;
 }
 
 .instructional-msg {
@@ -908,7 +905,6 @@ body {
 }
 
 .static-info {
-  padding: 3px;
 }
 
 .dynamic-info {
@@ -1621,10 +1617,10 @@ body {
   cursor: pointer;
   display: flex;
   gap: 1em;
-  padding: 0.25em;
   align-items: baseline;
+  padding: 0.3em;
+  margin-right: 1em;
   border-bottom: 2px dotted #cfa870;
-  border-right: 0px;
 }
 
 .test-id {
