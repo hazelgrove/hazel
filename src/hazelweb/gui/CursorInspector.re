@@ -464,7 +464,7 @@ let summary_bar =
   let fill_icon =
     Node.div(
       [
-        Attr.classes(["clickable-help"]),
+        Attr.classes(["clickable-help", "guide-toggle-icon"]),
         Attr.create("title", "Click to toggle strategy guide"),
         Attr.on_click(_ =>
           toggle_cursor_inspector_event(Toggle_strategy_guide)

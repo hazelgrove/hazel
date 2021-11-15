@@ -489,10 +489,10 @@ body {
 
 .code.presentation .type-info-summary {
   display: flex;
-  color: #f4ce7b;
+  color: #fec74e;
   font-family: Montserrat, sans-serif;
   border-radius: 0.2em;
-  padding: 0 0.3em 0 0.3em;
+  padding: 0 0.2em 0 0.2em;
 }
 .code.presentation .type-info-summary .filler {
   flex-grow: 1;
@@ -600,52 +600,28 @@ body {
 }
 
 .type-info-summary .consistency-symbol {
-  background-color:white;
-  font-size: var(--code-font-size);
-  font-weight: bold;
   font-family: var(--code-font-family);
-  border-radius:100%;
-  text-align: center;
 }
 
 .type-info-summary .consistency-symbol.inconsistent {
-  color: #bb0707;
-  box-shadow: 0 0 0 1px #bb0707;
+  color: #ff0000;
 }
 
 .type-info-summary .consistency-symbol.consistent {
-  color: #073f24;
-  box-shadow: 0 0 0 1px #073f24;
-}
-
-.type-info-summary .novice-mode .term-tag {
+  color: #05f481;
 }
 
 .cursor-inspector .type-info-summary .HTypCode,
 .cursor-inspector .emphasize-text {
   color: #ffecc8;
-  font-size: 0.9em;
 }
 
 .cursor-inspector .type-info-summary,
 .cursor-inspector .title-bar {
-  background-color: #554023;
-}
-
-.cursor-OK.cursor-inspector .term-tag {
-} 
-
-.cursor-TypeInconsistency.cursor-inspector .term-tag {
-  /*box-shadow: 0 0 0 1px #bb0707 inset;*/
-}
-
-.cursor-BindingError.cursor-inspector .term-tag {
-  /*box-shadow: 0 0 0 1px #f1760a inset;*/
+  background-color: #453827;
 }
 
 .type-info-summary .bidirectional {
-  margin-left: 10px;
-  font-weight: bolder;
   font-family: var(--code-font-family);
 }
 
@@ -661,8 +637,11 @@ body {
 }
 
 .clickable-help {
-  margin-left: 0.25em;
   cursor: help;
+}
+
+.guide-toggle-icon {
+  margin-left: 0.25em;
 }
 
 .HTypCode .Diff {
@@ -670,30 +649,24 @@ body {
 }
 
 .type-info-summary .emphasize-text {
-  margin: 0 10px;
   font-weight: bolder;
 }
 
 .type-info-summary .emphasize-text.only-right {
-  margin-left: 0px;
+  margin-left: 0;
 }
 
 .type-info-summary .compressed {
   display: flex;
-  margin: 0 10px;
 }
 
 .type-info-summary .compressed .HTypCode,
 .type-info-summary .compressed .emphasize-text {
-  margin: 0px;
+  margin: 0;
 }
-
 
 .cursor-inspector-arrow {
   color: white;
-}
-
-.type-info-summary .novice-mode .term-tag {
 }
 
 .typebar, .infobar {
@@ -761,9 +734,6 @@ body {
   cursor: default;
 }
 
-.action-panel .title-bar {
-}
-
 .action-panel-body {
   /* Hide the bottom shadow of the last button
    * so it aligns nicely with the panel border.
@@ -790,7 +760,7 @@ body {
 }
 
 .info-label {
-  border-right: 0px;
+  border-right: 0;
 }
 
 .keyboard-shortcut {
@@ -837,14 +807,14 @@ body {
 }
 
 .action-input-2 {
-  margin-left: 0px;
+  margin-left: 0;
   padding-right: 5px;
 }
 
 .action-input input {
   width: 100%;
   box-sizing: border-box;
-  border: 0px;
+  border: 0;
   border-bottom: 1px solid #ffffff47;
   background-color: rgba(0,0,0,0);
   color: white;
@@ -891,7 +861,7 @@ body {
 
 .context-entry {
   border-bottom: 2px dotted #cfa874;
-  padding:0.3em;
+  padding: 0.3em;
   margin-right: 1em;
 }
 
@@ -899,9 +869,6 @@ body {
   padding: 5px;
   color: #a38865;
   font-size: 10pt;
-}
-mary
-.static-info {
 }
 
 .dynamic-info {
@@ -919,8 +886,8 @@ mary
 
 .path-area {
   display: inline-block;
-  padding-top: 0px;
-  padding-bottom: 0px;
+  padding-top: 0;
+  padding-bottom: 0;
   font-size: 125%;
 }
 
@@ -1018,10 +985,12 @@ mary
   align-items: center;
   height: 24px;
 }
+
 #SettingsPanel .indented-option {
   position: relative;
   left: 2.5ch;
 }
+
 #SettingsPanel label[disabled] {
   opacity: 0.5;
 }
@@ -1047,7 +1016,6 @@ mary
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
-
 .DHCode .DivideByZero {
   background-color: rgba(255, 0, 0, 0.2);
 }
@@ -1369,13 +1337,6 @@ mary
   border: 1.5px solid black;
 }
 
-.palette-view {
-  background-color: #EEE;
-  border: 1px solid #444;
-  padding: 4px;
-  margin-left: 5px;
-}
-
 /* edit action history panel */
 
 .the-history {
@@ -1532,12 +1493,13 @@ mary
 
 /* term tags */
 .term-tag {
-  bottom: 0.3em;
-  padding: 3px;
-  border-radius: 0 5px 0 5px;
+  line-height: 1.2em;
+  border-radius: 0.2em;
   color: #554022;
-  font-size: 9px;
-  font-weight: bolder;
+  font-size: 0.75em;
+  padding: 0 0.2em 0 0.2em;
+  font-weight: bold;
+  font-size: 0.9em;
 }
 
 .term-tag-typ{
@@ -1550,7 +1512,6 @@ mary
   background-color:rgb(197, 253, 197);
 }
 
-
 /* tests */
 
 .TestPass:after{
@@ -1561,7 +1522,6 @@ mary
   color:green;
   font-size: 64%;
   vertical-align: middle;
- 
 }
 
 .TestFail:after{
@@ -1571,8 +1531,6 @@ mary
   content: "✘";
   color: var(--err-color);
   font-size: 64%;
-  
-
 }
 
 .TestIndet:after{
@@ -1615,9 +1573,6 @@ mary
   border-bottom: 2px dotted #cfa870;
 }
 
-.test-id {
-}
-
 .test-id.Pass{
   color: green;
 }
@@ -1654,9 +1609,6 @@ mary
 .test-instance.Fail .DHCode {
   color: var(--err-color);
   border: dotted 1px var(--err-color);
-}
-
-.test-instance.Indet .DHCode {
 }
 
 .test-summary {

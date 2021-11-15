@@ -160,9 +160,9 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | FloatLit(n) => (floatlit(n), id_gen)
   | BoolLit(b) => (boollit(b), id_gen)
   | Keyword(kw) =>
-    //TODO(andrew)
-    //let (_, id_gen) = id_gen |> IDGen.next_kw;
-    (var(Keyword.string_of_kw(kw)), id_gen)
+    //TODO(andrew) - this was commented out?
+    let (_, id_gen) = id_gen |> IDGen.next_kw;
+    (var(Keyword.string_of_kw(kw)), id_gen);
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
