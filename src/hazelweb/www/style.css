@@ -626,6 +626,7 @@ body {
 .cursor-inspector .type-info-summary .HTypCode,
 .cursor-inspector .emphasize-text {
   color: #ffecc8;
+  font-size: 0.9em;
 }
 
 .cursor-inspector .type-info-summary,
@@ -903,16 +904,13 @@ body {
   color: #a38865;
   font-size: 10pt;
 }
-
+mary
 .static-info {
 }
 
 .dynamic-info {
-  background-color: #f0fff3;
-  padding-top: 0px;
-  padding-left: 18px;
-  padding-right: 5px;
-  padding-bottom: 5px;
+  padding: 0.3em;
+  padding-left: 1em;
 }
 
 .path-area-parent {

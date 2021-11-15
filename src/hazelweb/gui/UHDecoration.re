@@ -428,8 +428,6 @@ module VarErrHole = {
       );
 };
 
-open Sexplib.Std;
-module Vdom = Virtual_dom.Vdom;
 module AssertStatus = {
   let view =
       (
@@ -437,23 +435,17 @@ module AssertStatus = {
         font_metrics: FontMetrics.t,
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
-    //TODO(andrew): expose if, clean up popup etc
     let total_offset =
       float_of_int(offset + List.hd(subject.metrics).width)
       *. font_metrics.col_width;
     let assert_status = AssertMap.joint_status(assert_instances);
-    let assert_eqs = assert_instances |> List.rev;
-    let assert_eq_string =
-      Sexplib.Sexp.to_string_hum(
-        sexp_of_list(AssertMap.sexp_of_assert_instance_report, assert_eqs),
-      );
     let assert_class = "Assert" ++ AssertStatus.to_string(assert_status);
     let magic_x = 6.;
     let magic_y = 8.;
-    Vdom.Node.div(
+    Node.div(
       [
-        Vdom.Attr.classes([assert_class, "UHAssert"]),
-        Vdom.Attr.create(
+        Attr.classes([assert_class, "UHAssert"]),
+        Attr.create(
           "style",
           Printf.sprintf(
             "position:relative; top: %fpx; left: %fpx;",
@@ -462,12 +454,7 @@ module AssertStatus = {
           ),
         ),
       ],
-      [
-        Vdom.Node.div(
-          [Vdom.Attr.class_("assertpop")],
-          [Vdom.Node.text(assert_eq_string)],
-        ),
-      ],
+      [],
     );
   };
 };
