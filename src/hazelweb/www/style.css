@@ -489,8 +489,7 @@ body {
 
 .code.presentation .type-info-summary {
   display: flex;
-  align-items: flex-start;
-  color: white;
+  color: #e1c17d;
   font-family: Montserrat, sans-serif;
   padding-left: 0.2em;
   border-radius: 0.2em;
@@ -626,16 +625,17 @@ body {
 
 .cursor-inspector .type-info-summary .HTypCode,
 .cursor-inspector .emphasize-text {
-  background-color: rgb(83, 83, 83);
+  color: #f5dfb3;
+  /* background-color: rgb(83, 83, 83); */
 }
 
 .cursor-inspector .type-info-summary,
 .cursor-inspector .title-bar {
-  background-color: #444;
+  background-color: #554023;
 }
 
 .cursor-OK.cursor-inspector .term-tag {
-  box-shadow: 0 0 0 1px #073f24 inset;
+  /* box-shadow: 0 0 0 1px #073f24 inset; */
 } 
 
 .cursor-TypeInconsistency.cursor-inspector .term-tag {
@@ -660,7 +660,7 @@ body {
 
 .type-info-summary .summary-message {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
 }
 
 .clickable-help {
@@ -698,6 +698,8 @@ body {
 .type-info-summary .novice-mode .term-tag {
   margin-left: 10px;
   margin-right: 10px;
+  bottom: 0.3em;
+  /* margin-bottom: 0em; */
 }
 
 .typebar, .infobar {
@@ -1316,7 +1318,7 @@ body {
 }
 
 .HoleLabel {
-  color: #BBB;
+  color: #a86;
   display: inline-block;
   text-align: center;
 }
@@ -1542,7 +1544,7 @@ body {
 .term-tag {
   padding: 3px;
   border-radius: 0 5px 0 5px;
-  color: #739eca;
+  color: #554022;
   font-size: 9px;
   font-weight: bolder;
 }
