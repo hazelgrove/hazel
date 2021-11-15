@@ -119,6 +119,12 @@ and syn_skel =
     ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXP SYN_OPERAND");
+      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
+    }
+  );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
@@ -286,7 +292,14 @@ and ana_skel =
     HTyp.consistent(ty, ty') ? Some() : None;
   }
 and ana_operand =
-    (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
+    (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) => {
+  Sexplib.Sexp.(
+    {
+      print_endline("EXP ANA_OPERAND");
+      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
+      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
+    }
+  );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some()
@@ -383,7 +396,8 @@ and ana_operand =
     let* ty' = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
-  }
+  };
+}
 and inj_arg_valid =
     (ctx: Contexts.t, arg_opt: option(UHExp.t)): option(unit) =>
   switch (arg_opt) {
@@ -883,7 +897,7 @@ and syn_fix_holes_operand =
   | Inj(_, tag, arg_opt) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let (tag', u_gen) =
-      Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+      Statics_Tag.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
     let (arg_opt', u_gen) =
       switch (arg_opt) {
       | None => (None, u_gen)
@@ -1316,7 +1330,7 @@ and ana_fix_holes_operand =
     switch (ty) {
     | Hole =>
       let (tag', u_gen) =
-        Statics_Tag.fix_holes(~renumber_empty_holes, ctx, u_gen, tag);
+        Statics_Tag.ana_fix_holes(~renumber_empty_holes, ctx, u_gen, tag, ty);
       let (arg_opt', u_gen) =
         switch (arg_opt) {
         | None => (None, u_gen)
@@ -1331,7 +1345,13 @@ and ana_fix_holes_operand =
       /* TAInj (unary) */
       | (Some(arg), Some(Some(ty_arg))) =>
         let (tag', u_gen) =
-          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+          Statics_Tag.ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            tag,
+            ty,
+          );
         let (arg', u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ty_arg);
         (Inj(NotInHole, tag', Some(arg')), u_gen);
@@ -1339,7 +1359,13 @@ and ana_fix_holes_operand =
       | (Some(arg), Some(None)) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let (tag', u_gen) =
-          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+          Statics_Tag.ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            tag,
+            ty,
+          );
         let (arg', u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
         (Inj(InHole(UnexpectedArg, u), tag', Some(arg')), u_gen);
@@ -1347,7 +1373,13 @@ and ana_fix_holes_operand =
       | (Some(arg), None) =>
         let (tag', u_gen) =
           switch (
-            Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag)
+            Statics_Tag.ana_fix_holes(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              tag,
+              ty,
+            )
           ) {
           | (Tag(InTagHole(_), _) as tag', u_gen)
           | (EmptyTagHole(_) as tag', u_gen) => (tag', u_gen)
@@ -1362,7 +1394,13 @@ and ana_fix_holes_operand =
       | (None, None) =>
         let (tag', u_gen) =
           switch (
-            Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag)
+            Statics_Tag.ana_fix_holes(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              tag,
+              ty,
+            )
           ) {
           | (Tag(InTagHole(_), _) as tag', u_gen)
           | (EmptyTagHole(_) as tag', u_gen) => (tag', u_gen)
@@ -1377,7 +1415,13 @@ and ana_fix_holes_operand =
       | (None, Some(Some(_))) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let (tag', u_gen) =
-          Statics_Tag.fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
+          Statics_Tag.ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            tag,
+            ty,
+          );
         (Inj(InHole(ExpectedArg, u), tag', None), u_gen);
       }
     | _ =>

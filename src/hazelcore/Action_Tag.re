@@ -133,7 +133,12 @@ let perform =
     CursorEscaped(side)
 
   | (Backspace, CursorTag(OnText(j), Tag(_, t))) =>
-    backspace_text(j, t, u_gen)
+    switch (j, String.length(t)) {
+    | (1, 1) =>
+      let (tag_hole, u_gen) = UHTag.new_TagHole(u_gen);
+      Succeeded((ZTag.place_before(tag_hole), u_gen));
+    | (_, _) => backspace_text(j, t, u_gen)
+    }
 
   | (Delete, CursorTag(OnText(j), Tag(_, t))) =>
     switch (j, String.length(t)) {

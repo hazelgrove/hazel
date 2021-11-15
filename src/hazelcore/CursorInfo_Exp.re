@@ -912,11 +912,15 @@ and ana_cursor_info_zoperand =
          )
     | Inj(NotInHole, _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-    | Lam(NotInHole, p, body) =>
-      let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
-      let+ ty_body = Statics_Exp.syn(body_ctx, body);
+    | Lam(NotInHole, p, _) =>
+      let+ (ty1_given, ty2) = HTyp.matched_arrow(ty);
+      let ty1 =
+        switch (Statics_Pat.syn(ctx, p)) {
+        | None => ty1_given
+        | Some((ty_p, _)) => ty_p
+        };
       CursorInfo_common.mk(
-        AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
+        AnaAnnotatedLambda(ty, Arrow(ty1, ty2)),
         ctx,
         cursor_term,
       );
