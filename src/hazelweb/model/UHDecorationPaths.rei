@@ -6,7 +6,7 @@ type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  asserts: list((CursorPath.steps, AssertMap.assert_report)),
+  tests: list((CursorPath.steps, TestMap.test_report)),
   current_term: option(CursorPath.t),
 };
 

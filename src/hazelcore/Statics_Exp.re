@@ -1,4 +1,5 @@
 open OptUtil.Syntax;
+open Sexplib.Std;
 
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
@@ -580,7 +581,7 @@ and syn_fix_holes_line =
   | EmptyLine
   | CommentLine(_) => (line, ctx, id_gen)
   | LetLine(p, def) =>
-    let (p, ty_p, _, id_gen) =
+    let (p, ty_p, _d, id_gen) =
       Statics_Pat.syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, id_gen) =
@@ -1307,7 +1308,25 @@ and extend_let_body_ctx =
   /* precondition: (p)attern and (def)inition have consistent types */
   def
   |> syn(extend_let_def_ctx(ctx, p, def))
-  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
+  |> OptUtil.get(_ => {
+       print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
+       print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
+       print_endline(
+         Sexplib.Sexp.to_string_hum(
+           sexp_of_option(HTyp.sexp_of_t, syn(ctx, def)),
+         ),
+       );
+       print_endline(
+         Sexplib.Sexp.to_string_hum(
+           sexp_of_option(
+             HTyp.sexp_of_t,
+             Statics_Pat.syn(ctx, p) |> Option.map(((x, _)) => x),
+           ),
+         ),
+       );
+       //print_endline
+       failwith("extend_let_body_ctx: impossible syn");
+     })
   |> Statics_Pat.ana(ctx, p)
   |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
 };

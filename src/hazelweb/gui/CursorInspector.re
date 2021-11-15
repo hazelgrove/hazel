@@ -472,12 +472,12 @@ let summary_bar =
       ],
       [Node.text(Unicode.light_bulb)],
     );
-  let fill_space = Node.span([Attr.classes(["filler"])], []);
+  let _fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
     switch (show_expansion_arrow, show_strategy_guide_icon) {
-    | (true, true) => [summary, fill_space, arrow, fill_icon]
-    | (true, false) => [summary, fill_space, arrow]
-    | (false, true) => [summary, fill_space, fill_icon]
+    | (true, true) => [summary, arrow, fill_icon]
+    | (true, false) => [summary, arrow]
+    | (false, true) => [summary, fill_icon]
     | (false, false) => [summary]
     };
   Node.div(
@@ -494,7 +494,7 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
-      ~assert_inspector: KeywordID.t => option(Node.t),
+      ~test_inspector: KeywordID.t => option(Node.t),
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     )
@@ -705,8 +705,8 @@ let view =
     };
   let content =
     switch (cursor_info.cursor_term) {
-    | ExpOperand(_, Keyword(Typed(Assert, NotInHole, id))) =>
-      switch (assert_inspector(id)) {
+    | ExpOperand(_, Keyword(Typed(Test, NotInHole, id))) =>
+      switch (test_inspector(id)) {
       | Some(view) => [view]
       | None => content
       }

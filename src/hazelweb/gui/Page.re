@@ -70,7 +70,7 @@ let code_view =
     (
       ~inject,
       ~model: Model.t,
-      ~assert_inspector: KeywordID.t => option(Node.t),
+      ~test_inspector: KeywordID.t => option(Node.t),
     )
     : Node.t =>
   UHCode.view(
@@ -79,20 +79,19 @@ let code_view =
     ~settings=model.settings,
     ~cursor_inspector=model.cursor_inspector,
     ~program=Model.get_program(model),
-    ~assert_inspector,
+    ~test_inspector,
   );
 
 let cell_view =
-    (~inject, ~model: Model.t, ~result as {assert_map, _}: Result.t) => {
-  let assert_inspector =
-    AssertPanel.inspector_view(~inject, ~model, ~assert_map);
+    (~inject, ~model: Model.t, ~result as {test_map, _}: Result.t) => {
+  let test_inspector = TestPanel.inspector_view(~inject, ~model, ~test_map);
   TimeUtil.measure_time(
     "Cell.view",
     model.settings.performance.measure && model.settings.performance.cell_view,
     () =>
     div(
       [Attr.id(ViewUtil.cell_id)],
-      [font_specimen, code_view(~inject, ~model, ~assert_inspector)],
+      [font_specimen, code_view(~inject, ~model, ~test_inspector)],
     )
   );
 };

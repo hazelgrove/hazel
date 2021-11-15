@@ -12,7 +12,7 @@ let decoration_cls: UHDecorationShape.t => string =
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
   | CurrentTerm => "current-term"
-  | AssertStatus(_) => "assert-result";
+  | TestStatus(_) => "test-result";
 
 let decoration_view =
     (
@@ -24,8 +24,8 @@ let decoration_view =
       font_metrics: FontMetrics.t,
     ) => {
   switch (dshape) {
-  | AssertStatus(report) =>
-    let view = UHDecoration.AssertStatus.view(report, font_metrics);
+  | TestStatus(report) =>
+    let view = UHDecoration.TestStatus.view(report, font_metrics);
     (Decoration_common.Div, view);
   | ErrHole =>
     let contains_current_term = Option.is_some(dpaths.current_term);
@@ -126,7 +126,7 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~assert_inspector,
+      ~test_inspector,
       (steps, cursor): CursorPath.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
@@ -145,7 +145,7 @@ let view_of_cursor_inspector =
   let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
-    ~assert_inspector,
+    ~test_inspector,
     ~inject,
     ~loc=(cursor_x, cursor_y),
     cursor_inspector,
@@ -221,7 +221,7 @@ let view =
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       ~program: Program.t,
-      ~assert_inspector,
+      ~test_inspector,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -242,12 +242,13 @@ let view =
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        if (program.is_focused && cursor_inspector.visible) {
+        // TODO(andrew): restore focus logic
+        if (/*program.is_focused &&*/ cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [
             view_of_cursor_inspector(
-              ~assert_inspector,
+              ~test_inspector,
               ~inject,
               ~font_metrics,
               path,

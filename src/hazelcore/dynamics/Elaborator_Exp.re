@@ -317,8 +317,8 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | Keyword(Typed(Assert as kw, NotInHole, n)) =>
-    Elaborates(AssertLit(n), Keyword.type_of_kw(kw), delta)
+  | Keyword(Typed(Test as kw, NotInHole, n)) =>
+    Elaborates(TestLit(n), Keyword.type_of_kw(kw), delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -852,7 +852,7 @@ let rec renumber_result_only =
   | BoundVar(_)
   | InvalidText(_)
   | BoolLit(_)
-  | AssertLit(_)
+  | TestLit(_)
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)
@@ -952,7 +952,7 @@ let rec renumber_sigmas_only =
   | BoundVar(_)
   | InvalidText(_)
   | BoolLit(_)
-  | AssertLit(_)
+  | TestLit(_)
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)

@@ -236,7 +236,7 @@ and matches_cast_Inj =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   }
 and matches_cast_Pair =
     (
@@ -303,7 +303,7 @@ and matches_cast_Pair =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   }
 and matches_cast_Cons =
     (
@@ -376,7 +376,7 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
-  | AssertLit(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   };
 
 /* closed substitution [d1/x]d2*/
@@ -476,7 +476,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
-  | AssertLit(n) => AssertLit(n)
+  | TestLit(n) => TestLit(n)
   }
 
 and subst_var_rules =
@@ -569,7 +569,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | FloatLit(_)
   | Triv
   | Lam(_)
-  | AssertLit(_) => (BoxedValue(d), state)
+  | TestLit(_) => (BoxedValue(d), state)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -607,7 +607,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     }
   | Ap(d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (BoxedValue(AssertLit(n)), state) => eval_assert(n, d2, state)
+    | (BoxedValue(TestLit(n)), state) => eval_test(n, d2, state)
     | (BoxedValue(Lam(dp, _, d3)), state) =>
       eval_bind((d2, state), ((d2', state)) =>
         switch (matches(dp, d2')) {
@@ -802,7 +802,7 @@ and eval_cast =
     evaluate(d', ~state);
   };
 }
-and eval_assert_eq =
+and eval_test_eq =
     (
       bin_op_fn: (DHExp.t, DHExp.t) => DHExp.t,
       d1: DHExp.t,
@@ -815,30 +815,30 @@ and eval_assert_eq =
   let d = bin_op_fn(unbox_result(d1), unbox_result(d2));
   (d, evaluate(d, ~state));
 }
-and eval_assert = (n: int, d: DHExp.t, state: state): report => {
+and eval_test = (n: int, d: DHExp.t, state: state): report => {
   let (show_d, (res_d, state)) =
     switch (d) {
     | BinIntOp((Equals | LessThan | GreaterThan) as op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
-      eval_assert_eq(mk_op, d1, d2, state);
+      eval_test_eq(mk_op, d1, d2, state);
     | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
-      eval_assert_eq(mk_op, d1, d2, state);
+      eval_test_eq(mk_op, d1, d2, state);
     | _ =>
       let (d, state) = evaluate(d, ~state);
       (unbox_result(d), (d, state));
     };
-  let assert_status: AssertStatus.t =
+  let test_status: TestStatus.t =
     switch (res_d) {
     | BoxedValue(BoolLit(true)) => Pass
     | BoxedValue(BoolLit(false)) => Fail
     | _ => Indet
     };
-  let state = EvalState.add_assert(state, n, (show_d, assert_status));
+  let state = EvalState.add_test(state, n, (show_d, test_status));
   let result =
     switch (res_d) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
-    | _ => Indet(Ap(AssertLit(n), d))
+    | _ => Indet(Ap(TestLit(n), d))
     };
   (result, state);
 };

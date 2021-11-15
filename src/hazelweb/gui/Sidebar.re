@@ -34,18 +34,18 @@ let mk_sidebar =
   );
 
 let left =
-    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) => {
+    (~inject, ~model: Model.t, ~result as {test_map, hii, _}: Result.t) => {
   let program = Model.get_program(model);
-  let assert_path = Program.get_path_to_assert(program);
+  let test_path = Program.get_path_to_test(program);
   mk_sidebar(
     ~panels=
       () =>
         [
-          AssertPanel.view(~inject, ~model, ~assert_map, ~assert_path),
+          TestPanel.view(~inject, ~model, ~test_map, ~test_path),
           ContextInspector.view(~inject, ~model, ~hii),
           UndoHistoryPanel.view(~inject, model),
-          SettingsPanel.view(~inject, model.settings),
           ActionPanel.view(~inject, model),
+          SettingsPanel.view(~inject, model.settings),
         ],
     ~is_open=model.left_sidebar_open,
     ~id="sidebar-left",
@@ -56,14 +56,14 @@ let left =
 };
 
 let right =
-    (~inject, ~model: Model.t, ~result as {assert_map, hii, _}: Result.t) => {
+    (~inject, ~model: Model.t, ~result as {test_map, hii, _}: Result.t) => {
   let program = Model.get_program(model);
-  let assert_path = Program.get_path_to_assert(program);
+  let test_path = Program.get_path_to_test(program);
   mk_sidebar(
     ~panels=
       () =>
         [
-          AssertPanel.view(~inject, ~model, ~assert_map, ~assert_path),
+          TestPanel.view(~inject, ~model, ~test_map, ~test_path),
           ContextInspector.view(~inject, ~model, ~hii),
           UndoHistoryPanel.view(~inject, model),
           SettingsPanel.view(~inject, model.settings),

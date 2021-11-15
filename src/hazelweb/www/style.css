@@ -48,7 +48,7 @@
   --err-hole-z: 1;
   --verr-hole-z: 1;
   --code-text-z: 2;
-  --assert-result-z: 1;
+  --test-result-z: 1;
   --caret-z: 5;
 }
 
@@ -491,8 +491,8 @@ body {
   display: flex;
   color: #f4ce7b;
   font-family: Montserrat, sans-serif;
-  padding-left: 0.2em;
   border-radius: 0.2em;
+  padding: 0 0.3em 0 0.3em;
 }
 .code.presentation .type-info-summary .filler {
   flex-grow: 1;
@@ -619,8 +619,6 @@ body {
 }
 
 .type-info-summary .novice-mode .term-tag {
-  margin-left: 10px;
-  margin-right: 10px;
 }
 
 .cursor-inspector .type-info-summary .HTypCode,
@@ -638,11 +636,11 @@ body {
 } 
 
 .cursor-TypeInconsistency.cursor-inspector .term-tag {
-  box-shadow: 0 0 0 1px #bb0707 inset;
+  /*box-shadow: 0 0 0 1px #bb0707 inset;*/
 }
 
 .cursor-BindingError.cursor-inspector .term-tag {
-  box-shadow: 0 0 0 1px #f1760a inset;
+  /*box-shadow: 0 0 0 1px #f1760a inset;*/
 }
 
 .type-info-summary .bidirectional {
@@ -652,17 +650,18 @@ body {
 }
 
 .type-info-summary .HTypCode {
-  margin: 0 10px;
   font-weight: bolder;
   font-family: var(--code-font-family);
 }
 
 .type-info-summary .summary-message {
   display: flex;
+  gap: 0.5em;
   align-items: baseline;
 }
 
 .clickable-help {
+  margin-left: 0.25em;
   cursor: help;
 }
 
@@ -695,9 +694,6 @@ body {
 }
 
 .type-info-summary .novice-mode .term-tag {
-  margin-left: 10px;
-  margin-right: 10px;
-  bottom: 0.3em;
 }
 
 .typebar, .infobar {
@@ -1116,8 +1112,8 @@ mary
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
-#code-root .assert-result-container {
-  z-index: var(--assert-result-z);
+#code-root .test-result-container {
+  z-index: var(--test-result-z);
 }
 
 #code-root .current-term-drop-shadow.Exp {
@@ -1536,6 +1532,7 @@ mary
 
 /* term tags */
 .term-tag {
+  bottom: 0.3em;
   padding: 3px;
   border-radius: 0 5px 0 5px;
   color: #554022;
@@ -1556,7 +1553,7 @@ mary
 
 /* tests */
 
-.AssertPass:after{
+.TestPass:after{
   position: relative;
   bottom:0.15em;
   margin-left:0.17em;
@@ -1567,7 +1564,7 @@ mary
  
 }
 
-.AssertFail:after{
+.TestFail:after{
   position: relative;
   bottom:0.15em;
   margin-left:0.17em;
@@ -1578,7 +1575,7 @@ mary
 
 }
 
-.AssertIndet:after{
+.TestIndet:after{
   position: relative;
   bottom:0.15em;
   margin-left: 0.17em;
@@ -1587,17 +1584,14 @@ mary
   font-size: 64%;
 }
 
-.UHAssert .assertpop {
+.UHTest .testpop {
   display: none;
   position: absolute;
   top: 1.5rem;
   left: 0rem;
-  color: white;
-  background-color: #333;
-  border-radius: 0.3em;
 }
 
-.UHAssert:hover .assertpop {
+.UHTest:hover .testpop {
   display: inline-block;
 }
 
