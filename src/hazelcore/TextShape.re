@@ -41,7 +41,7 @@ let of_text = (text: string): t =>
   | (_, Some(_), _, _, _) => FloatLit(text)
   | (_, _, Some(b), _, _) => BoolLit(b)
   | (_, _, _, Some(k), _) => ExpandingKeyword(k)
-  | (_, _, _, _, Some(kw)) => Keyword(kw) //need to look up for the most recent unique id of assert
+  | (_, _, _, _, Some(kw)) => Keyword(kw)
   | (None, None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
