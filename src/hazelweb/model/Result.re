@@ -4,5 +4,5 @@ type t = {
   result: DHExp.t,
   result_ty: HTyp.t,
   hii: HoleInstanceInfo.t,
-  assert_map: AssertMap.t,
+  test_map: TestMap.t,
 };

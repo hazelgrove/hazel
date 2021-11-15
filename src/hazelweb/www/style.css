@@ -48,7 +48,7 @@
   --err-hole-z: 1;
   --verr-hole-z: 1;
   --code-text-z: 2;
-  --assert-result-z: 1;
+  --test-result-z: 1;
   --caret-z: 5;
 }
 
@@ -1095,8 +1095,8 @@ body {
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
-#code-root .assert-result-container {
-  z-index: var(--assert-result-z);
+#code-root .test-result-container {
+  z-index: var(--test-result-z);
 }
 
 #code-root .current-term-drop-shadow.Exp {
@@ -1532,7 +1532,7 @@ body {
 
 /* tests */
 
-.AssertPass:after{
+.TestPass:after{
   position: relative;
   bottom:0.15em;
   margin-left:0.17em;
@@ -1543,7 +1543,7 @@ body {
  
 }
 
-.AssertFail:after{
+.TestFail:after{
   position: relative;
   bottom:0.15em;
   margin-left:0.17em;
@@ -1554,7 +1554,7 @@ body {
 
 }
 
-.AssertIndet:after{
+.TestIndet:after{
   position: relative;
   bottom:0.15em;
   margin-left: 0.17em;
@@ -1563,17 +1563,14 @@ body {
   font-size: 64%;
 }
 
-.UHAssert .assertpop {
+.UHTest .testpop {
   display: none;
   position: absolute;
   top: 1.5rem;
   left: 0rem;
-  color: white;
-  background-color: #333;
-  border-radius: 0.3em;
 }
 
-.UHAssert:hover .assertpop {
+.UHTest:hover .testpop {
   display: inline-block;
 }
 

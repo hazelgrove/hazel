@@ -78,4 +78,4 @@ let cursor_on_exp_hole: t => option(MetaVar.t);
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
 
-let get_path_to_assert: (t, KeywordID.t) => option(CursorPath.t);
+let get_path_to_test: (t, KeywordID.t) => option(CursorPath.t);

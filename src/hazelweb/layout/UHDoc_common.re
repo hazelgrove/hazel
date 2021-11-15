@@ -90,7 +90,7 @@ module Delim = {
     mk(~index=0, Keyword.string_of_kw(kw))
     //TODO(andrew): make sure there are no issues with making this a (display) delim
     //Doc.text(Keyword.string_of_kw(kw))
-    //|> Doc.annot(UHAnnot.AssertNum({num: n}))
+    //|> Doc.annot(UHAnnot.TestNum({num: n}))
     |> Doc.annot(
          UHAnnot.mk_Token(
            ~shape=Text,
@@ -327,7 +327,7 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
 
 let mk_keyword =
     (~sort: TermSort.t, ~kw: Keyword.kw, n: KeywordID.t)
-    //map: AssertMap.t /*numbering: string*/,
+    //map: TestMap.t /*numbering: string*/,
     : t =>
   Delim.keyword(~kw, n) |> annot_Tessera |> annot_Operand(~sort);
 

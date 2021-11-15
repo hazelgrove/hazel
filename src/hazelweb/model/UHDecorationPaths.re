@@ -5,7 +5,7 @@ type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
-  asserts: list((CursorPath.steps, AssertMap.assert_report)),
+  tests: list((CursorPath.steps, TestMap.test_report)),
   current_term: option(CursorPath.t),
 };
 
@@ -14,11 +14,11 @@ let is_empty = (dpaths: t): bool =>
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
-  && ListUtil.is_empty(dpaths.asserts)
+  && ListUtil.is_empty(dpaths.tests)
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, var_uses, asserts, current_term} = dpaths;
+  let {err_holes, var_err_holes, var_uses, tests, current_term} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -32,8 +32,8 @@ let take_step = (step: int, dpaths: t): t => {
     );
   let remove_step' = ((steps, x)) =>
     steps |> remove_step |> Option.map(s => (s, x));
-  let asserts = asserts |> List.filter_map(remove_step');
-  {err_holes, var_err_holes, var_uses, asserts, current_term};
+  let tests = tests |> List.filter_map(remove_step');
+  {err_holes, var_err_holes, var_uses, tests, current_term};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
@@ -69,10 +69,10 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  let asserts =
-    dpaths.asserts
+  let tests =
+    dpaths.tests
     |> List.find_opt(((steps, _)) => is_current(steps))
-    |> Option.map(((_, lst)) => UHDecorationShape.AssertStatus(lst))
+    |> Option.map(((_, lst)) => UHDecorationShape.TestStatus(lst))
     |> Option.to_list;
-  List.concat([err_holes, var_err_holes, var_uses, asserts, current_term]);
+  List.concat([err_holes, var_err_holes, var_uses, tests, current_term]);
 } /*taking precedent on the current term*/;

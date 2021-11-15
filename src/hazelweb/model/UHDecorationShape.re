@@ -4,4 +4,4 @@ type t =
   | VarErrHole
   | VarUse
   | CurrentTerm
-  | AssertStatus(AssertMap.assert_report);
+  | TestStatus(TestMap.test_report);

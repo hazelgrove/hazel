@@ -154,7 +154,7 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | Sequence(t, t)
-  | AssertLit(KeywordID.t)
+  | TestLit(KeywordID.t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -230,7 +230,7 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
-  | AssertLit(_) => "AssertLit"
+  | TestLit(_) => "TestLit"
   };
 
 let rec mk_tuple: list(t) => t =

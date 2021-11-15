@@ -10,6 +10,6 @@ let view:
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,
     ~program: Program.t,
-    ~assert_inspector: KeywordID.t => option(Vdom.Node.t)
+    ~test_inspector: KeywordID.t => option(Vdom.Node.t)
   ) =>
   Vdom.Node.t;

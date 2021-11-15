@@ -94,10 +94,10 @@ let get_result = (program: t): Result.t => {
     | Indet(_) => Indet(d_renumbered)
     };
   let (_, result_ty, _) = program.edit_state;
-  let assert_map = List.rev(state.assert_map);
+  let test_map = List.rev(state.test_map);
   // TODO(andrew): sorting is prob wrong... prob want in lexiographical order
-  // List.sort(((id, _), (id', _)) => compare(id, id'), state.assert_map);
-  {result, result_ty, boxed_result, hii, assert_map};
+  // List.sort(((id, _), (id', _)) => compare(id, id'), state.test_map);
+  {result, result_ty, boxed_result, hii, test_map};
 };
 
 let elaborate_only = (program: t): Result.t => {
@@ -108,12 +108,12 @@ let elaborate_only = (program: t): Result.t => {
     boxed_result: Indet(elaboration),
     result_ty,
     hii: HoleInstanceInfo.empty,
-    assert_map: AssertMap.empty,
+    test_map: TestMap.empty,
   };
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  let assert_map = get_result(program).assert_map;
+  let test_map = get_result(program).test_map;
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let hooks = CursorPath_Exp.hooks(get_uhexp(program), [], []);
   let (err_holes, var_err_holes) =
@@ -142,7 +142,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  let asserts =
+  let tests =
     hooks
     |> List.filter_map((CursorPath.{hook, steps, _}) =>
          switch (hook) {
@@ -150,13 +150,13 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | PatHole(_)
          | ExpHole(_) => None
          | KeywordHook(id) =>
-           switch (AssertMap.lookup(id, assert_map)) {
-           | Some(assert_data) => Some((steps, (id, assert_data)))
+           switch (TestMap.lookup(id, test_map)) {
+           | Some(test_data) => Some((steps, (id, test_data)))
            | _ => None
            }
          }
        );
-  {err_holes, var_uses, var_err_holes, asserts, current_term};
+  {err_holes, var_uses, var_err_holes, tests, current_term};
 };
 
 let get_doc = (~settings: Settings.t, program) => {
@@ -173,10 +173,10 @@ let get_doc = (~settings: Settings.t, program) => {
   });
 };
 
-let get_path_to_assert = (program: t, id: KeywordID.t): option(CursorPath.t) => {
-  let asserts = get_decoration_paths(program).asserts;
-  let asserts = List.map(((steps, (id, _))) => (id, steps), asserts);
-  let+ steps = List.assoc_opt(id, asserts);
+let get_path_to_test = (program: t, id: KeywordID.t): option(CursorPath.t) => {
+  let tests = get_decoration_paths(program).tests;
+  let tests = List.map(((steps, (id, _))) => (id, steps), tests);
+  let+ steps = List.assoc_opt(id, tests);
   (steps, CursorPosition.OnText(0));
 };
 
