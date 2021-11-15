@@ -2714,7 +2714,18 @@ and ana_perform_opseq =
           ? construct_operator_before_zoperand
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, surround);
+        switch (zoperand) {
+        // synthesize operator's type from zoperand
+        // e.g. 1.| 2 => 1. +.| 2
+        // e.g. 1. |2 => 1. +| 2
+        | CursorE(_, FloatLit(_)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
   /* Swap actions */
