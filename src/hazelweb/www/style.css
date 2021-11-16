@@ -671,19 +671,6 @@ body {
   background-color: #fef6ea;
 }
 
-.cursor-Keyword .typebar, .cursor-Keyword .infobar {
-  background-color: #fef6ea;
-}
-
-.matched-type-bar > div {
-  display: inline-block;
-}
-
-.matched-connective {
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
 .inconsistent-branches-ty-bar {
   flex-direction: column;
   align-items: flex-start;
@@ -703,20 +690,10 @@ body {
 
 .action-panel {
   flex-grow: 2;
-  cursor: default;
 }
 
-.action-panel-body {
-  /* Hide the bottom shadow of the last button
-   * so it aligns nicely with the panel border.
-   */
-  margin-bottom: -1px;
-  padding-left: 1em;
-}
-
-.sub-panel-title {
+.panel-subtitle {
   text-transform: uppercase;
-  /* line-height: 30px; */
   height: 2.5em;
   display: flex;
   color: #955600;
@@ -725,20 +702,16 @@ body {
 }
 
 .action-panel-entry {
-  height: 1.75em;
+  height: 1.5em;
+  margin-bottom: 0.2em;
+  padding-left: 0.5em;
   padding-right: 0.5em;
   display: grid;
   grid-template-columns: 1fr auto;
 }
 
-.action-label {
-  padding: 0.2em;
-  border-right: 0;
-}
-
-.info-label {
-  padding: 0.2em;
-  border-right: 0;
+.keyboard-shortcut-container {
+  display: flex;
 }
 
 .keyboard-shortcut {
@@ -761,54 +734,6 @@ body {
 .action-disabled.keyboard-shortcut,
 .action-disabled .keyboard-shortcut {
   color: #a18662;
-}
-
-.action-label-with-input {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-}
-
-.action-label-with-two-inputs {
-  display: grid;
-  grid-template-columns: auto 1fr 1fr auto;
-}
-
-.action-input {
-  width: 100%;
-  margin-left: 5px;
-  padding-right: 10px;
-}
-
-.action-input-2 {
-  margin-left: 0;
-  padding-right: 5px;
-}
-
-.action-input input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 0;
-  border-bottom: 1px solid #ffffff47;
-  background-color: rgba(0,0,0,0);
-  color: white;
-  font-family: var(--code-font-family);
-  font-style: italic;
-}
-
-.action-input input:focus {
-  outline: 0px solid white;
-}
-
-#lit_input {
-  font-style: normal !important;
-}
-
-.action-validity-indicator {
-  padding-right: 3px;
-}
-
-.action-validity-indicator .invalid-mark {
-  opacity: 0.5;
 }
 
 /* context inspector */

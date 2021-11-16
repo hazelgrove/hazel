@@ -20,17 +20,14 @@ let sub_panel = (title: string, children: list(Node.t)): Node.t => {
   Node.div(
     [Attr.classes(["sub-panel", "sub-panel-default"])],
     [
-      Node.div([Attr.classes(["sub-panel-title"])], [Node.text(title)]),
+      Node.div([Attr.classes(["panel-subtitle"])], [Node.text(title)]),
       Node.div([Attr.classes(["sub-panel-body"])], children),
     ],
   );
 };
 
 let action_label = (~attrs=[], children) => {
-  Node.div(
-    [Attr.classes(["action-label", "info-label"]), ...attrs],
-    children,
-  );
+  Node.div([Attr.classes(["action-label"]), ...attrs], children);
 };
 
 let info_button = (can_perform, lbl) =>
@@ -91,18 +88,7 @@ let action_button =
 };
 
 let brown_label = body => {
-  Node.div(
-    [
-      Attr.classes(["keyboard-shortcut", "action-enabled"]),
-      Attr.style(
-        Css_gen.(
-          create(~field="display", ~value="inline-block")
-          @> create(~field="border-bottom", ~value="none")
-        ),
-      ),
-    ],
-    body,
-  );
+  Node.div([Attr.classes(["keyboard-shortcut", "action-enabled"])], body);
 };
 
 let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
@@ -114,7 +100,6 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
           : ["keyboard-shortcut", "action-disabled"],
       ),
       Attr.on_click(_ => inject(ModelAction.EditAction(action))),
-      Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
       Attr.on_keydown(evt =>
         if (KeyCombo.matches(combo, evt)) {
           Event.Many([
@@ -231,9 +216,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
 
-  let display_inline_block =
-    Attr.(style(Css_gen.(create(~field="display", ~value="inline-block"))));
-
   let spaced_line = children => {
     Node.div(
       Attr.[
@@ -251,7 +233,8 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let single_line_multiple_actions = (description, elems) => {
     let label = action_label(~attrs=[flex_grow], [text(description)]);
-    let elems = Node.div([display_inline_block], elems);
+    let elems =
+      Node.div([Attr.class_("keyboard-shortcut-container")], elems);
     spaced_line([label, elems]);
   };
 
@@ -361,7 +344,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [Plus, Minus, Asterisk, Slash, LT, GT, Equals],
         ),
         single_line_multiple_actions(
-          "Floating point operators",
+          "Float operators",
           [
             brown_label([mono_text("+.")]),
             brown_label([mono_text("-.")]),
