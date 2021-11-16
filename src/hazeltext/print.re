@@ -13,7 +13,7 @@ let string_of_layout = (l: Layout.t('a)): string => {
       (s1 ++ s2, c2);
     | Linebreak => ("\n" ++ String.make(indent, ' '), indent)
     | Align(l) => go(col, col, l)
-    | Annot(UHAnnot.HoleLabel(_), _) => ("_", col + 2)
+    | Annot(UHAnnot.HoleLabel(_), _) => ("?", col + 2)
     | Annot(UHAnnot.ExternalLineBreak, d) =>
       let (s, _) = go(indent, col, d);
       (s ++ ";" ++ String.make(indent, ' '), indent);
