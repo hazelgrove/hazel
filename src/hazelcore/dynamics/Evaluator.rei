@@ -1,4 +1,3 @@
-
 [@deriving sexp]
 type ground_cases =
   | Hole

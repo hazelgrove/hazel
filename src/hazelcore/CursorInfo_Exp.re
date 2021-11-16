@@ -915,6 +915,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | StringLit(NotInHole, _)
+    | Subscript(NotInHole, _, _, _)
     | ApPalette(NotInHole, _, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
@@ -923,9 +924,7 @@ and ana_cursor_info_zoperand =
       }
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
-    | Case(StandardErrStatus(NotInHole), _, _)
-    // TODO: Not sure if this is right
-    | Subscript(NotInHole, _, _, _) =>
+    | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
