@@ -60,6 +60,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinStrOp(op, _, _) => precedence_bin_str_op(op)
   | Subscript(_, _, _) => DHDoc_common.precedence_Subscript
   | Ap(_) => DHDoc_common.precedence_Ap
+  | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
   | NonEmptyHole(_, _, _, _, d) => precedence'(d)
@@ -203,6 +204,19 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | ApBuiltin(x, args) =>
+        switch (args) {
+        | [hd, ...tl] =>
+          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
+          let (doc1, doc2) =
+            mk_left_associative_operands(
+              DHDoc_common.precedence_Ap,
+              BoundVar(x),
+              d',
+            );
+          DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+        | [] => text(x)
+        }
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =

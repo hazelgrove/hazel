@@ -1,11 +1,3 @@
-open Sexplib.Std;
-
-[@deriving sexp]
-type result =
-  | InvalidInput(int)
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
 [@deriving sexp]
 type ground_cases =
   | Hole
@@ -218,6 +210,7 @@ and matches_cast_Inj =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -286,6 +279,7 @@ and matches_cast_Pair =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -360,6 +354,7 @@ and matches_cast_Cons =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -421,6 +416,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | ApBuiltin(x', args) =>
+    let args = List.map(subst_var(d1, x), args);
+    ApBuiltin(x', args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -525,7 +523,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoxedValue(BoolLit(true)))
   | (And, false) => Some(BoxedValue(BoolLit(false)))
@@ -575,12 +573,11 @@ let eval_subscript =
   };
 };
 
-let rec evaluate = (d: DHExp.t): result =>
+let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   switch (d) {
-  | BoundVar(_) => InvalidInput(1)
+  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1)
     | Indet(d1) =>
       switch (matches(dp, d1)) {
@@ -593,10 +590,8 @@ let rec evaluate = (d: DHExp.t): result =>
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (matches(dp, d2)) {
@@ -610,20 +605,20 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
-    | BoxedValue(_) => InvalidInput(2)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
+  | ApBuiltin(x, args) => evaluate_ap_builtin(x, args)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
@@ -632,33 +627,30 @@ let rec evaluate = (d: DHExp.t): result =>
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(BoolLit(b1) as d1') =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
       | Some(b3) => b3
       | None =>
         switch (evaluate(d2)) {
-        | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b2)) =>
           BoxedValue(eval_bin_bool_op(op, b1, b2))
-        | BoxedValue(_) => InvalidInput(3)
+        | BoxedValue(d2') =>
+          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       }
-    | BoxedValue(_) => InvalidInput(4)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
       }
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(IntLit(n1) as d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
@@ -670,83 +662,79 @@ let rec evaluate = (d: DHExp.t): result =>
           )
         | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
         }
-      | BoxedValue(_) => InvalidInput(3)
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(4)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(FloatLit(f1) as d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(FloatLit(f2)) =>
         BoxedValue(eval_bin_float_op(op, f1, f2))
-      | BoxedValue(_) => InvalidInput(8)
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(7)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
   | BinStrOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(StringLit(s1) as d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(StringLit(s2)) => BoxedValue(eval_bin_str_op(op, s1, s2))
-      | BoxedValue(_) => InvalidInput(10)
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
       | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
       }
-    | BoxedValue(_) => InvalidInput(9)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
       }
     }
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(StringLit(s) as d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2)) => BoxedValue(eval_subscript(d, s, n1, n2))
-        | BoxedValue(_) => InvalidInput(13)
+        | BoxedValue(d3') =>
+          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d3')))
         | Indet(d3') => Indet(Subscript(d1', d2', d3'))
         }
-      | BoxedValue(_) => InvalidInput(12)
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
       | Indet(d2') =>
         switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d3')
         | Indet(d3') => Indet(Subscript(d1', d2', d3'))
         }
       }
-    | BoxedValue(_) => InvalidInput(11)
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2')
       | Indet(d2') =>
         switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d3')
         | Indet(d3') => Indet(Subscript(d1', d2', d3'))
         }
@@ -754,14 +742,11 @@ let rec evaluate = (d: DHExp.t): result =>
     }
   | Inj(ty, side, d1) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Pair(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {
-    | (InvalidInput(msg), _)
-    | (_, InvalidInput(msg)) => InvalidInput(msg)
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
@@ -769,8 +754,6 @@ let rec evaluate = (d: DHExp.t): result =>
     }
   | Cons(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {
-    | (InvalidInput(msg), _)
-    | (_, InvalidInput(msg)) => InvalidInput(msg)
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
@@ -782,7 +765,6 @@ let rec evaluate = (d: DHExp.t): result =>
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1')
     | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
     }
@@ -791,7 +773,6 @@ let rec evaluate = (d: DHExp.t): result =>
   | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1') as result =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => result
@@ -812,7 +793,7 @@ let rec evaluate = (d: DHExp.t): result =>
           }
         | _ =>
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-          InvalidInput(6)
+          raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
@@ -876,7 +857,6 @@ let rec evaluate = (d: DHExp.t): result =>
     }
   | FailedCast(d1, ty, ty') =>
     switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
@@ -889,9 +869,8 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : result =>
+    : EvaluatorResult.t =>
   switch (evaluate(scrut)) {
-  | InvalidInput(msg) => InvalidInput(msg)
   | BoxedValue(scrut)
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
@@ -916,4 +895,11 @@ and evaluate_case =
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
+  }
+and evaluate_ap_builtin =
+    (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
+  switch (Builtins.lookup_impl(ident)) {
+  | Some(impl) => impl(args, evaluate)
+  | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
   };
+};
