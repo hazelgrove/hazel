@@ -79,8 +79,15 @@ let pos_fold =
       ~cat: (MeasuredPosition.t, 'acc, 'acc) => 'acc,
       ~annot:
          // let client control recursion based on annotation
-         (t('annot) => 'acc, MeasuredPosition.t, 'annot, t('annot)) => 'acc,
-      ~indent: int=0,
+         (
+           ~go: t('annot) => 'acc,
+           ~indent: int,
+           ~start: MeasuredPosition.t,
+           'annot,
+           t('annot)
+         ) =>
+         'acc,
+      ~indent=0,
       ~start: MeasuredPosition.t=MeasuredPosition.zero,
       m: t('annot),
     )
@@ -93,7 +100,7 @@ let pos_fold =
     | Cat(m1, m2) =>
       let mid = next_position(~indent, start, m1);
       cat(start, go(indent, start, m1), go(indent, mid, m2));
-    | Annot(ann, m) => annot(go(indent, start), start, ann, m)
+    | Annot(ann, m) => annot(~go=go(indent, start), ~indent, ~start, ann, m)
     };
   go(indent, start, m);
 };

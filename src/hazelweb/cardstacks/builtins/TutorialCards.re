@@ -43,6 +43,7 @@ let intro_init_zexp =
  };
  */
 let intro_card: CardInfo.t = {
+  name: "intro",
   caption: div([], []),
   init_zexp: intro_init_zexp,
 };

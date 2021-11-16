@@ -75,7 +75,13 @@ let pos_fold:
     ~align: (MeasuredPosition.t, 'acc) => 'acc,
     ~cat: (MeasuredPosition.t, 'acc, 'acc) => 'acc,
     // let client control recursion based on annotation
-    ~annot: (t('annot) => 'acc, MeasuredPosition.t, 'annot, t('annot)) =>
+    ~annot: (
+              ~go: t('annot) => 'acc,
+              ~indent: int,
+              ~start: MeasuredPosition.t,
+              'annot,
+              t('annot)
+            ) =>
             'acc,
     ~indent: int=?,
     ~start: MeasuredPosition.t=?,

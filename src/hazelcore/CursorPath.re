@@ -27,6 +27,7 @@ type hole_sort =
 [@deriving sexp]
 type hole_info = {
   sort: hole_sort,
+  ap_steps: steps,
   steps,
 };
 
@@ -40,3 +41,25 @@ type zhole_list = {
   hole_selected: option(hole_info),
   holes_after: hole_list,
 };
+
+let mk_hole_sort = (sort, steps): hole_info => {
+  sort,
+  ap_steps: steps, /* if this is an ap hole, steps to function pos; otherwise == steps */
+  steps,
+};
+
+let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
+  sort,
+  ap_steps,
+  steps,
+};
+
+/* If to_fpos_for_aps is true, then the steps to application errors
+   will lead to the function position as opposed to the ap itself.
+   This is turned on for cursor movement to holes, as there is no
+   cursor position on an ap, but off to draw error hole decorations */
+let get_steps =
+    (~to_fpos_for_aps: bool=false, {steps, ap_steps, _}: hole_info) =>
+  to_fpos_for_aps ? ap_steps : steps;
+
+let get_sort = ({sort, _}: hole_info): hole_sort => sort;

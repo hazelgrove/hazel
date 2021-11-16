@@ -6,116 +6,6 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-/**
- * A buffered container for SVG elements so that strokes along
- * the bounding box of the elements do not get clipped by the
- * viewBox boundaries
- */
-let decoration_container =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~origin: MeasuredPosition.t,
-      ~height: int,
-      ~width: int,
-      ~cls: string,
-      svgs: list(Vdom.Node.t),
-    )
-    : Vdom.Node.t => {
-  let buffered_height = height + 1;
-  let buffered_width = width + 1;
-
-  let buffered_height_px =
-    Float.of_int(buffered_height) *. font_metrics.row_height;
-  let buffered_width_px =
-    Float.of_int(buffered_width) *. font_metrics.col_width;
-
-  let container_origin_x =
-    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
-  let container_origin_y =
-    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
-
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes([
-          "decoration-container",
-          Printf.sprintf("%s-container", cls),
-        ]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "top: calc(%fpx - 1px); left: %fpx;",
-            container_origin_x,
-            container_origin_y,
-          ),
-        ),
-      ],
-      [
-        Node.create_svg(
-          "svg",
-          [
-            Attr.classes([cls]),
-            Attr.create(
-              "viewBox",
-              Printf.sprintf(
-                "-0.5 -0.5 %d %d",
-                buffered_width,
-                buffered_height,
-              ),
-            ),
-            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-            Attr.create(
-              "height",
-              Printf.sprintf("%fpx", buffered_height_px),
-            ),
-            Attr.create("preserveAspectRatio", "none"),
-          ],
-          svgs,
-        ),
-      ],
-    )
-  );
-};
-
-// let clss_of_list_err: ListErrStatus.t => list(cls) =
-//   fun
-//   | StandardErrStatus(err) => clss_of_err(err)
-//   | InconsistentBranches(_) => ["InconsistentBranches"];
-
-// | Rule => ["Rule"]
-//   | Invalid => ["Invalid"]
-//   | Case({err}) => ["Case", ...clss_of_case_err(err)]
-//   | List({err}) => ["List", ...clss_of_list_err(err)]
-//   | Var({err, verr, show_use}) =>
-//     ["Operand", "Var", ...clss_of_err(err)]
-//     @ clss_of_verr(verr)
-//     @ (show_use ? ["show-use"] : [])
-//   | Operand({err}) => ["Operand", ...clss_of_err(err)]
-//   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
-//   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
-//   | SubBlock(_) => ["SubBlock"];
-
-// let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
-//   List.concat([
-//     has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
-//     has_para_OpenChild ? ["has-Para-OpenChild"] : [],
-//   ]);
-
-// let has_child_clss = (has_child: bool) =>
-//   has_child ? ["has-child"] : ["no-children"];
-
-// let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
-//   let pos_attr =
-//     Vdom.Attr.style(
-//       Css_gen.combine(
-//         Css_gen.left(`Px(int_of_float(Float.round(x)))),
-//         Css_gen.top(`Px(int_of_float(Float.round(y)))),
-//       ),
-//     );
-//   Vdom.Node.span(
-//     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-//     [],
-
 let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
@@ -144,11 +34,7 @@ let decoration_view =
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
-  let corner_radius = 2.5;
-  let corner_radii = (
-    corner_radius /. font_metrics.col_width,
-    corner_radius /. font_metrics.row_height,
-  );
+  let corner_radii = Decoration_common.corner_radii(font_metrics);
 
   let rec go =
           (
@@ -199,7 +85,7 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               decoration_container(
+               Decoration_common.container(
                  ~font_metrics,
                  ~height=MeasuredLayout.height(m),
                  ~width=MeasuredLayout.width(~offset, m),
@@ -217,59 +103,34 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
-let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+      let model_action: option(ModelAction.t) = {
+        let key_combo = HazelKeyCombos.of_evt(evt);
+        let single_key = JSUtil.is_single_key(evt);
+
+        switch (key_combo, single_key) {
+        | (Some(key_combo), _) =>
+          KeyComboAction.get_model_action(cursor_info, key_combo)
+        | (_, Some(single_key)) =>
+          Some(
+            EditAction(
+              Construct(SChar(JSUtil.single_key_string(single_key))),
+            ),
           )
-        | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | None => Event.Ignore
-          | Some(single_key) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
-              ),
-            )
-          }
-        }
-      }
+        | (None, None) => None
+        };
+      };
+
+      switch (model_action) {
+      | Some(model_action) => prevent_stop_inject(model_action)
+      | None => Event.Ignore
+      };
     }),
   ];
 };
@@ -328,7 +189,6 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~settings: Settings.t,
       program: Program.t,
     )
@@ -356,7 +216,6 @@ let view =
         program.is_focused
           ? key_handlers(
               ~inject,
-              ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];
