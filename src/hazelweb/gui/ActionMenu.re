@@ -31,7 +31,7 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
   let shortcut_view =
     switch (shortcut) {
     | None => []
-    | Some(s) => [div([Attr.class_("shortcut")], [text(s)])]
+    | Some(s) => [div([Attr.class_("keyboard-shortcut")], [text(s)])]
     };
   li([Attr.on_click(_ => inject(action))], [text(label)] @ shortcut_view);
 };

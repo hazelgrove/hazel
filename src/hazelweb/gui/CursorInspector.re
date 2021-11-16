@@ -472,7 +472,6 @@ let summary_bar =
       ],
       [Node.text(Unicode.light_bulb)],
     );
-  let _fill_space = Node.span([Attr.classes(["filler"])], []);
   let body =
     switch (show_expansion_arrow, show_strategy_guide_icon) {
     | (true, true) => [summary, arrow, fill_icon]
