@@ -127,8 +127,8 @@ and ana_opseq =
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-      let+ _ = syn_opseq(ctx, opseq');
-      ctx;
+      let+ (_, ctx') = syn_opseq(ctx, opseq');
+      ctx';
     | _ => None
     }
   | Some(skel_tys) =>

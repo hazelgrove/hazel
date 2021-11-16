@@ -37,16 +37,16 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
     List.rev(zhole_list.holes_after),
   ) {
   | ([], []) => None
-  | ([{steps, _}, ..._], _) => Some(steps)
-  | ([], [{steps, _}, ..._]) => Some(steps)
+  | ([hi, ..._], _)
+  | ([], [hi, ..._]) => Some(get_steps(~to_fpos_for_aps=true, hi))
   };
 };
 
 let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (zhole_list.holes_before, zhole_list.holes_after) {
   | ([], []) => None
-  | (_, [{steps, _}, ..._]) => Some(steps)
-  | ([{steps, _}, ..._], _) => Some(steps)
+  | (_, [hi, ..._])
+  | ([hi, ..._], _) => Some(get_steps(~to_fpos_for_aps=true, hi))
   };
 };
 
@@ -118,7 +118,7 @@ let holes_err =
   switch (err) {
   | NotInHole => hs
   | InHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
   };
@@ -133,7 +133,7 @@ let holes_verr =
   switch (verr) {
   | NotInVarHole => hs
   | InVarHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
   };
@@ -148,7 +148,7 @@ let holes_case_err =
   switch (err) {
   | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
   | InconsistentBranches(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
   };
@@ -162,7 +162,7 @@ let holes_list_err =
   switch (err) {
   | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
   | InconsistentBranches(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
   };
@@ -182,35 +182,27 @@ let holes_skel_ =
     switch (skel) {
     | Placeholder(n) =>
       hs |> holes_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps])
-    | BinOp(err, op, skel1, skel2) when op |> is_space =>
-      // If this skel is rooted at a Space, then we know
-      // that all subskels are rooted at a Space.
-      // We cannot place cursor on a Space, so make the
-      // path to this skel hole the path to the first term
-      // of the skel because that term determines how the
-      // skel is typed. Make this hole come first before
-      // any holes found in subskels.
-      let hs = hs |> go(skel2) |> go(skel1);
-      switch (err) {
-      | NotInHole => hs
-      | InHole(_, u) =>
-        let step = skel1 |> Skel.leftmost_tm_index;
-        [
-          {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
-          ...hs,
-        ];
-      };
-    | BinOp(err, _, skel1, skel2) =>
+    | BinOp(err, op, skel1, skel2) =>
       let hs = hs |> go(skel2);
       let hs =
         switch (err) {
         | NotInHole => hs
         | InHole(_, u) =>
+          // If this skel is rooted at a Space, then we know
+          // that all subskels are rooted at a Space.
+          // We cannot place cursor on a Space, so make the
+          // path to this skel hole the path to the first term
+          // of the skel because that term determines how the
+          // skel is typed. Make this hole come first before
+          // any holes found in subskels. But we need the actual
+          // path as well for error hole decorations
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-          [
-            {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
-            ...hs,
-          ];
+          let steps = List.rev([step, ...rev_steps]);
+          let ap_steps =
+            is_space(op)
+              ? List.rev([Skel.leftmost_tm_index(skel1), ...rev_steps])
+              : steps;
+          [mk_hole_sort_ap(hole_sort(u), steps, ~ap_steps), ...hs];
         };
       hs |> go(skel1);
     };
@@ -284,10 +276,8 @@ let holes_zopseq_ =
             | NotInHole => None
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
-              Some({
-                sort: hole_sort(u),
-                steps: List.rev([step, ...rev_steps]),
-              });
+              let steps = List.rev([step, ...rev_steps]);
+              Some(mk_hole_sort(hole_sort(u), steps));
             };
           if (n == preceding_operand_index) {
             mk_zholes(
@@ -344,10 +334,13 @@ let holes_zopseq_ =
             switch (err) {
             | NotInHole => []
             | InHole(_, u) =>
-              let step = skel1 |> Skel.leftmost_tm_index;
-              [
-                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
-              ];
+              let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
+              let steps = List.rev([step, ...rev_steps]);
+              let ap_steps =
+                is_space(op)
+                  ? List.rev([Skel.leftmost_tm_index(skel1), ...rev_steps])
+                  : steps;
+              [mk_hole_sort_ap(hole_sort(u), steps, ~ap_steps)];
             };
           if (zoperand_index <= Skel.rightmost_tm_index(skel1)) {
             let zholes1 = go(skel1);
@@ -369,16 +362,15 @@ let holes_zopseq_ =
             );
           };
         }
-      | BinOp(err, _, skel1, skel2) => {
+      | BinOp(err, _op, skel1, skel2) => {
           let n = skel1 |> Skel.rightmost_tm_index;
           let binop_holes =
             switch (err) {
             | NotInHole => []
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
-              [
-                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
-              ];
+              let steps = List.rev([step, ...rev_steps]);
+              [mk_hole_sort(hole_sort(u), steps)];
             };
           if (zoperand_index <= n) {
             let zholes1 = go(skel1);
@@ -408,8 +400,8 @@ let holes_zopseq_ =
 let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
-      ({sort, _}) =>
-        switch (sort) {
+      hole_info =>
+        switch (CursorPath.get_sort(hole_info)) {
         | ExpHole(u', _)
         | PatHole(u', _) => MetaVar.eq(u, u')
         | TypHole => false
@@ -418,7 +410,7 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
     )
   ) {
   | None => None
-  | Some({steps, _}) => Some(steps)
+  | Some(hi) => Some(get_steps(~to_fpos_for_aps=true, hi))
   };
 
 let rec compare_steps = (steps1, steps2) =>

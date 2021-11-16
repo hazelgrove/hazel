@@ -30,15 +30,22 @@ type t =
   | Alt_R
   | Alt_C
   | Pound
-  | Ctrl_Z
-  | Ctrl_Shift_Z
-  | Ctrl_Alt_I
-  | Ctrl_Alt_K
-  | Ctrl_Alt_J
-  | Ctrl_Alt_L
-  | Meta_Z
-  | Meta_Shift_Z;
+  | Ctrl_S
+  | CtrlOrCmd_Z
+  | CtrlOrCmd_Shift_Z
+  | Up
+  | Down
+  | Left
+  | Right
+  | Home
+  | End
+  | Alt_Up
+  | Alt_Down
+  | Alt_Left
+  | Alt_Right;
 
 let get_details: t => KeyCombo.t;
 
 let of_evt: Js.t(Dom_html.keyboardEvent) => option(t);
+
+let name: t => string;
