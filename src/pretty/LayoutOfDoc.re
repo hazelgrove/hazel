@@ -10,7 +10,6 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
         List.map(l1 => List.map(l2 => Layout.Cat(l1, l2), ls2), ls1),
       );
     | Linebreak => [Layout.Linebreak]
-    | ExternalLinebreak => [Layout.ExternalLinebreak]
     | Align(d) => List.map(l => Layout.Align(l), all(d))
     | Annot(annot, d) => List.map(l => Layout.Annot(annot, l), all(d))
     | Fail => []
@@ -66,8 +65,6 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
       );
     | Linebreak =>
       PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak))
-    | ExternalLinebreak =>
-      PosMap.singleton(0, (Cost.mk_height(1), Layout.ExternalLinebreak))
     | Align(d) =>
       let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
       PosMap.mapk(

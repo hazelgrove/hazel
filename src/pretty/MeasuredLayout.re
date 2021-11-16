@@ -113,7 +113,6 @@ module Make = (MemoTbl: MemoTbl.S) => {
     | None =>
       let m =
         switch (l) {
-        | ExternalLinebreak
         | Linebreak =>
           let box = {height: 1, width: 0};
           {metrics: [box, box], layout: Linebreak};

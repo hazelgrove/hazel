@@ -12,9 +12,11 @@ let string_of_layout = (l: Layout.t('a)): string => {
       let (s2, c2) = go(indent, c1, l2);
       (s1 ++ s2, c2);
     | Linebreak => ("\n" ++ String.make(indent, ' '), indent)
-    | ExternalLinebreak => (";\n" ++ String.make(indent, ' '), indent)
     | Align(l) => go(col, col, l)
     | Annot(UHAnnot.HoleLabel(_), _) => ("_?", col + 2)
+    | Annot(UHAnnot.ExternalLineBreak, d) =>
+      let (s, _) = go(indent, col, d);
+      (s ++ ";" ++ String.make(indent, ' '), indent);
     | Annot(_, l) => go(indent, col, l)
     };
   let (s, _) = go(0, 0, l);

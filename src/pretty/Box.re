@@ -70,7 +70,6 @@ module Make = (MemoTbl: MemoTbl.S) => {
       | None =>
         let box =
           switch (l) {
-          | ExternalLinebreak
           | Linebreak => [[], []]
           | Text(s) => [[Text(s)]]
           | Align(l) => [[mk(go(l))]]
