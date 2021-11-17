@@ -160,11 +160,7 @@ and syn_elab_operand =
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | StringLit(NotInHole, s) =>
     let (unescaped, errors) = UnescapedString.from_string(s);
-    switch (errors) {
-    | _ => Elaborates(StringLit(unescaped), String, ctx, delta)
-    // TODO: Actual error handling
-    // | _ => DoesNotElaborate
-    };
+    Elaborates(StringLit(unescaped, errors), String, ctx, delta);
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, side, p) =>

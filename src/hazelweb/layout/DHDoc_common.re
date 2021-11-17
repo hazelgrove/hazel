@@ -112,7 +112,8 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_StringLit = s =>
+// TODO: What to do with errors?
+let mk_StringLit = (s, _errors) =>
   Doc.text("\"" ++ UnescapedString.to_string(s) ++ "\"");
 
 let mk_Inj = (inj_side, padded_child) =>

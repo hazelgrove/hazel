@@ -42,7 +42,7 @@ module Impl = {
         switch (evaluate(d1)) {
         | BoxedValue(IntLit(i)) =>
           let s = string_of_int(i) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s));
+          BoxedValue(StringLit(s, []));
         | _ => Indet(e)
         }
     )
@@ -54,7 +54,7 @@ module Impl = {
         switch (evaluate(d1)) {
         | BoxedValue(FloatLit(f)) =>
           let s = string_of_float(f) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s));
+          BoxedValue(StringLit(s, []));
         | _ => Indet(e)
         }
     )
@@ -66,7 +66,7 @@ module Impl = {
         switch (evaluate(d1)) {
         | BoxedValue(BoolLit(b)) =>
           let s = string_of_bool(b) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s));
+          BoxedValue(StringLit(s, []));
         | _ => Indet(e)
         }
     )
@@ -76,12 +76,16 @@ module Impl = {
     (
       (d1, evaluate, e) =>
         switch (evaluate(d1)) {
-        | BoxedValue(StringLit(s)) =>
-          let s = s |> UnescapedString.to_string;
-          switch (int_of_string_opt(s)) {
-          | Some(i) => BoxedValue(IntLit(i))
-          | None => Indet(InvalidOperation(e, InvalidIntOfString))
-          };
+        | BoxedValue(StringLit(s, errors)) =>
+          switch (errors) {
+          | [] =>
+            let s = s |> UnescapedString.to_string;
+            switch (int_of_string_opt(s)) {
+            | Some(i) => BoxedValue(IntLit(i))
+            | None => Indet(InvalidOperation(e, InvalidIntOfString))
+            };
+          | _ => Indet(InvalidOperation(e, InvalidIntOfString))
+          }
         | _ => Indet(e)
         }
     )
@@ -91,12 +95,16 @@ module Impl = {
     (
       (d1, evaluate, e) =>
         switch (evaluate(d1)) {
-        | BoxedValue(StringLit(s)) =>
-          let s = s |> UnescapedString.to_string;
-          switch (float_of_string_opt(s)) {
-          | Some(f) => BoxedValue(FloatLit(f))
-          | None => Indet(InvalidOperation(e, InvalidFloatOfString))
-          };
+        | BoxedValue(StringLit(s, errors)) =>
+          switch (errors) {
+          | [] =>
+            let s = s |> UnescapedString.to_string;
+            switch (float_of_string_opt(s)) {
+            | Some(f) => BoxedValue(FloatLit(f))
+            | None => Indet(InvalidOperation(e, InvalidFloatOfString))
+            };
+          | _ => Indet(InvalidOperation(e, InvalidFloatOfString))
+          }
         | _ => Indet(e)
         }
     )
@@ -106,12 +114,16 @@ module Impl = {
     (
       (d1, evaluate, e) =>
         switch (evaluate(d1)) {
-        | BoxedValue(StringLit(s)) =>
-          let s = s |> UnescapedString.to_string;
-          switch (bool_of_string_opt(s)) {
-          | Some(b) => BoxedValue(BoolLit(b))
-          | None => Indet(InvalidOperation(e, InvalidBoolOfString))
-          };
+        | BoxedValue(StringLit(s, errors)) =>
+          switch (errors) {
+          | [] =>
+            let s = s |> UnescapedString.to_string;
+            switch (bool_of_string_opt(s)) {
+            | Some(b) => BoxedValue(BoolLit(b))
+            | None => Indet(InvalidOperation(e, InvalidBoolOfString))
+            };
+          | _ => Indet(InvalidOperation(e, InvalidBoolOfString))
+          }
         | _ => Indet(e)
         }
     )
@@ -121,8 +133,11 @@ module Impl = {
     (
       (d1, evaluate, e) =>
         switch (evaluate(d1)) {
-        | BoxedValue(StringLit(s)) =>
-          BoxedValue(IntLit(UnescapedString.length(s)))
+        | BoxedValue(StringLit(s, errors) as d1') =>
+          switch (errors) {
+          | [] => BoxedValue(IntLit(UnescapedString.length(s)))
+          | _ => Indet(d1')
+          }
         | _ => Indet(e)
         }
     )

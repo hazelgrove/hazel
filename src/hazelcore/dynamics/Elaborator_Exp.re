@@ -373,11 +373,7 @@ and syn_elab_operand =
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | StringLit(NotInHole, s) =>
     let (unescaped, errors) = s |> UnescapedString.from_string;
-    switch (errors) {
-    | _ => Elaborates(StringLit(unescaped), String, delta)
-    // TODO: Actual error handling
-    // | _ => DoesNotElaborate
-    };
+    Elaborates(StringLit(unescaped, errors), String, delta);
   | Subscript(NotInHole, s, n1, n2) =>
     switch (ana_elab(ctx, delta, s, String)) {
     | DoesNotElaborate => DoesNotElaborate

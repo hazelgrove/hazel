@@ -74,7 +74,7 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | StringLit(UnescapedString.t)
+  | StringLit(UnescapedString.t, list(StringLitLexer.error))
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)

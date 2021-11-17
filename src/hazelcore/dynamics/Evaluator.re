@@ -88,11 +88,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (StringLit(s1), StringLit(s2)) =>
-    if (s1 == s2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
+  | (StringLit(s1, errors1), StringLit(s2, errors2)) =>
+    switch (errors1, errors2) {
+    | ([], []) =>
+      if (s1 == s2) {
+        Matches(Environment.empty);
+      } else {
+        DoesNotMatch;
+      }
+    | _ => DoesNotMatch
     }
   | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
   | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
@@ -561,14 +565,14 @@ let eval_bin_str_op =
   switch (op) {
   | SCaret =>
     let s3 = UnescapedString.concat(s1, s2);
-    StringLit(s3);
+    StringLit(s3, []);
   };
 };
 
 let eval_subscript =
     (d: DHExp.t, s: UnescapedString.t, n1: int, n2: int): DHExp.t => {
   switch (UnescapedString.subscript(s, n1, n2)) {
-  | Ok(s') => StringLit(s')
+  | Ok(s') => StringLit(s', [])
   | Err(err) => InvalidOperation(d, SubscriptOutOfBounds(err))
   };
 };
@@ -694,9 +698,13 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | BinStrOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s1) as d1') =>
+    | BoxedValue(StringLit(s1, errors1) as d1') =>
       switch (evaluate(d2)) {
-      | BoxedValue(StringLit(s2)) => BoxedValue(eval_bin_str_op(op, s1, s2))
+      | BoxedValue(StringLit(s2, errors2) as d2') =>
+        switch (errors1, errors2) {
+        | ([], []) => BoxedValue(eval_bin_str_op(op, s1, s2))
+        | _ => Indet(BinStrOp(op, d1', d2'))
+        }
       | BoxedValue(d2') =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
       | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
@@ -711,11 +719,15 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s) as d1') =>
+    | BoxedValue(StringLit(s, errors) as d1') =>
       switch (evaluate(d2)) {
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
-        | BoxedValue(IntLit(n2)) => BoxedValue(eval_subscript(d, s, n1, n2))
+        | BoxedValue(IntLit(n2)) =>
+          switch (errors) {
+          | [] => BoxedValue(eval_subscript(d, s, n1, n2))
+          | _ => Indet(Subscript(d1', d2, d3))
+          }
         | BoxedValue(d3') =>
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d3')))
         | Indet(d3') => Indet(Subscript(d1', d2', d3'))
