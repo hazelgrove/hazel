@@ -599,7 +599,6 @@ and hooks_zoperand =
       )
     }
   | CursorE(_, Keyword(Typed(_, err, id))) =>
-    // TODO(andrew):(not related to this location) BUG: error hook not being drawn around 1 + test
     switch (err) {
     | NotInHole =>
       CursorPath_common.mk_zhooks(

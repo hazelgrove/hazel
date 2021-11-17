@@ -129,7 +129,7 @@ let apply_action =
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | FocusCell => model |> Model.focus_cell
-      | BlurCell => model |> Model.focus_cell //TODO(andrew): change back!!
+      | BlurCell => model |> Model.blur_cell
       | Undo =>
         let new_history =
           model.undo_history
