@@ -1,7 +1,8 @@
 [@deriving sexp]
 type t =
   | DivideByZero
-  | SubscriptOutOfBounds(UnescapedString.subscript_error);
+  | SubscriptOutOfBounds(UnescapedString.subscript_error)
+  | InvalidIntOfString;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -35,4 +36,5 @@ let err_msg = (err: t): string =>
       | EmptyString => "Subscript empty string"
       };
     "Error: " ++ msg;
+  | InvalidIntOfString => "Error: cannot be parsed as int"
   };

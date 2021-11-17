@@ -63,12 +63,31 @@ module Impl = {
       | _ => Indet(ApBuiltin(ident, args))
       }
     };
+
+  let int_of_string = (ident, args, evaluate) =>
+    switch (args) {
+    | [] => Indet(ApBuiltin(ident, args))
+    | [d1, ..._] =>
+      switch (evaluate(d1)) {
+      | BoxedValue(StringLit(s)) =>
+        let s = s |> UnescapedString.to_string;
+        switch (int_of_string_opt(s)) {
+        | Some(i) => BoxedValue(IntLit(i))
+        | None =>
+          Indet(
+            InvalidOperation(ApBuiltin(ident, args), InvalidIntOfString),
+          )
+        };
+      | _ => Indet(ApBuiltin(ident, args))
+      }
+    };
 };
 
 let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
   ("int_of_float", (Arrow(Float, Int), Impl.int_of_float)),
   ("float_of_int", (Arrow(Int, Float), Impl.float_of_int)),
   ("string_of_int", (Arrow(Int, String), Impl.string_of_int)),
+  ("int_of_string", (Arrow(String, Int), Impl.int_of_string)),
   ("string_of_float", (Arrow(Float, String), Impl.string_of_float)),
   ("string_of_bool", (Arrow(Bool, String), Impl.string_of_bool)),
 ];

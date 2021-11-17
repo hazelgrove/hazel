@@ -295,17 +295,11 @@ let rec mk =
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
         switch (err) {
-        | DivideByZero =>
+        | _ =>
           let (d_doc, _) = go'(d);
           let decoration =
             Doc.text(InvalidOperationError.err_msg(err))
             |> annot(DHAnnot.DivideByZero);
-          hcats([d_doc, decoration]);
-        | SubscriptOutOfBounds(_) =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.SubscriptOutOfBounds);
           hcats([d_doc, decoration]);
         }
       /*
