@@ -108,8 +108,8 @@ let view =
     expected_indicator("Expecting ", special_msg_bar("a known tag"));
   let expected_a_unique_tag_indicator =
     expected_indicator("Expecting ", special_msg_bar("a unique tag"));
-  let expected_a_sum_body_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a sum body"));
+  let expected_a_sum_type_operator_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a sum type operator"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
@@ -124,8 +124,6 @@ let view =
         Some(skipped_index),
       ),
     );
-  let expected_member_of_sumtype_indicator =
-    expected_msg_indicator("a member of the expected sum type");
   let expected_const_inj_indicator =
     expected_indicator(
       "Expecting ",
@@ -145,7 +143,6 @@ let view =
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
-  let got_tag_indicator = t => got_indicator("Got tag", tagbar(t));
   let got_nothing_indicator =
     got_indicator("Got nothing", typebar(HTyp.Hole));
   let got_as_expected_ty_indicator = ty =>
@@ -184,8 +181,8 @@ let view =
   let got_a_tag_indicator = got_indicator("Got", special_msg_bar("a tag"));
   let got_a_tag_hole_indicator =
     got_indicator("Got", special_msg_bar("a tag hole"));
-  let got_a_sum_type_body_indicator =
-    got_indicator("Got", special_msg_bar("a sum type body"));
+  let got_a_sum_type_operator_indicator =
+    got_indicator("Got", special_msg_bar("a sum type operator"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
@@ -422,10 +419,6 @@ let view =
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_inj_indicator;
       (ind1, ind2, TypeInconsistency);
-    | PatAnaInjBadTag(got_tag) =>
-      let ind1 = expected_member_of_sumtype_indicator;
-      let ind2 = got_tag_indicator(got_tag);
-      (ind1, ind2, TypeInconsistency);
     | PatAnaInjExpectedArg(expected_ty) =>
       let ind1 = expected_inj_arg_indicator_pat(expected_ty);
       let ind2 = got_nothing_indicator;
@@ -455,8 +448,8 @@ let view =
       let ind2 = got_duplicate_tag_indicator(tag);
       (ind1, ind2, TypeInconsistency);
     | OnSumBody =>
-      let ind1 = expected_a_sum_body_indicator;
-      let ind2 = got_a_sum_type_body_indicator;
+      let ind1 = expected_a_sum_type_operator_indicator;
+      let ind2 = got_a_sum_type_operator_indicator;
       (ind1, ind2, OK);
     | OnLine =>
       /* TODO */

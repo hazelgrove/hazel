@@ -93,8 +93,6 @@ type typed =
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on an inj pattern and expected type is not a sum
   | PatAnaInjExpectedTypeNotConsistentWithSums(HTyp.t)
-  // cursor is on an injection pattern with a bad tag
-  | PatAnaInjBadTag(UHTag.t)
   // cursor is on an injection with a unary tag with no argument
   | PatAnaInjExpectedArg(HTyp.t)
   // cursor is on an injection with a constant with argument
