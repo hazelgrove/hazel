@@ -8,14 +8,16 @@ module Impl = {
     let e = DHExp.ApBuiltin(ident, args);
     switch (args) {
     | [] => Indet(e)
-    | [d1, ..._] => f(d1, evaluate, e)
+    | [d1, ..._] => 
+      let d1' = evaluate(d1);
+      f(d1', e)
     };
   };
 
   let int_of_float =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(FloatLit(f)) =>
           let i = int_of_float(f);
           BoxedValue(IntLit(i));
@@ -26,8 +28,8 @@ module Impl = {
 
   let float_of_int =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(IntLit(i)) =>
           let f = float_of_int(i);
           BoxedValue(FloatLit(f));
