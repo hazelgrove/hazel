@@ -589,6 +589,12 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       state,
     )
   | FixF(x, _, d1) =>
+    print_endline("BURNING FUEL");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(
+        EvalState.sexp_of_t(EvalState.burn_fuel(state)),
+      ),
+    );
     let state = EvalState.burn_fuel(state);
     evaluate(subst_var(d, x, d1), ~state);
   | Let(dp, d1, d2) =>

@@ -428,8 +428,6 @@ module VarErrHole = {
       );
 };
 
-open Sexplib.Std;
-module Vdom = Virtual_dom.Vdom;
 module TestStatus = {
   let view =
       (
@@ -437,23 +435,17 @@ module TestStatus = {
         font_metrics: FontMetrics.t,
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
-    //TODO(andrew): expose if, clean up popup etc
-    let total_offset =
-      float_of_int(offset + List.hd(subject.metrics).width)
-      *. font_metrics.col_width;
     let test_status = TestMap.joint_status(test_instances);
-    let test_eqs = test_instances |> List.rev;
-    let test_eq_string =
-      Sexplib.Sexp.to_string_hum(
-        sexp_of_list(TestMap.sexp_of_test_instance_report, test_eqs),
-      );
     let test_class = "Test" ++ TestStatus.to_string(test_status);
     let magic_x = 6.;
     let magic_y = 8.;
-    Vdom.Node.div(
+    let total_offset =
+      float_of_int(offset + List.hd(subject.metrics).width)
+      *. font_metrics.col_width;
+    Node.div(
       [
-        Vdom.Attr.classes([test_class, "UHTest"]),
-        Vdom.Attr.create(
+        Attr.classes([test_class, "UHTest"]),
+        Attr.create(
           "style",
           Printf.sprintf(
             "position:relative; top: %fpx; left: %fpx;",
@@ -462,12 +454,8 @@ module TestStatus = {
           ),
         ),
       ],
-      [
-        Vdom.Node.div(
-          [Vdom.Attr.class_("testpop")],
-          [Vdom.Node.text(test_eq_string)],
-        ),
-      ],
+      [],
+      //[Node.div([Attr.class_("testpop")], [])],
     );
   };
 };
