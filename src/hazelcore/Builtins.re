@@ -116,6 +116,17 @@ module Impl = {
         }
     )
     |> mk_one_arg;
+
+  let string_length =
+    (
+      (d1, evaluate, e) =>
+        switch (evaluate(d1)) {
+        | BoxedValue(StringLit(s)) =>
+          BoxedValue(IntLit(UnescapedString.length(s)))
+        | _ => Indet(e)
+        }
+    )
+    |> mk_one_arg;
 };
 
 let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
@@ -127,6 +138,7 @@ let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
   ("float_of_string", (Arrow(String, Float), Impl.float_of_string)),
   ("string_of_bool", (Arrow(Bool, String), Impl.string_of_bool)),
   ("bool_of_string", (Arrow(String, Bool), Impl.bool_of_string)),
+  ("length", (Arrow(String, Int), Impl.string_length)),
 ];
 
 let ctx: VarCtx.t = List.map(((x, (ty, _))) => (x, ty), builtins);
