@@ -5,6 +5,8 @@ let to_string: t => string;
 
 let from_string: string => (t, list(StringLitLexer.error));
 
+let from_string_unchecked: string => t;
+
 let length: t => int;
 
 let equal: (t, t) => bool;

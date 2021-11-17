@@ -8,6 +8,8 @@ let to_string = s => s;
 let from_string = s =>
   s |> Lexing.from_string |> StringLitLexer.stringlit_body;
 
+let from_string_unchecked = s => s;
+
 let length = String.length;
 
 let equal = String.equal;
