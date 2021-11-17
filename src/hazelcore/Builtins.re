@@ -4,29 +4,37 @@ module Impl = {
   [@deriving sexp]
   type t = (list(DHExp.t), DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
 
-  let int_of_float = (ident, args, evaluate) =>
+  let mk_one_arg = (f, ident, args, evaluate) => {
+    let e = DHExp.ApBuiltin(ident, args);
     switch (args) {
-    | [] => Indet(ApBuiltin(ident, args))
-    | [d1, ..._] =>
-      switch (evaluate(d1)) {
-      | BoxedValue(FloatLit(f)) =>
-        let i = int_of_float(f);
-        BoxedValue(IntLit(i));
-      | _ => Indet(ApBuiltin(ident, args))
-      }
+    | [] => Indet(e)
+    | [d1, ..._] => f(d1, evaluate, e)
     };
+  };
 
-  let float_of_int = (ident, args, evaluate) =>
-    switch (args) {
-    | [] => Indet(ApBuiltin(ident, args))
-    | [d1, ..._] =>
-      switch (evaluate(d1)) {
-      | BoxedValue(IntLit(i)) =>
-        let f = float_of_int(i);
-        BoxedValue(FloatLit(f));
-      | _ => Indet(ApBuiltin(ident, args))
-      }
-    };
+  let int_of_float =
+    (
+      (d1, evaluate, e) =>
+        switch (evaluate(d1)) {
+        | BoxedValue(FloatLit(f)) =>
+          let i = int_of_float(f);
+          BoxedValue(IntLit(i));
+        | _ => Indet(e)
+        }
+    )
+    |> mk_one_arg;
+
+  let float_of_int =
+    (
+      (d1, evaluate, e) =>
+        switch (evaluate(d1)) {
+        | BoxedValue(IntLit(i)) =>
+          let f = float_of_int(i);
+          BoxedValue(FloatLit(f));
+        | _ => Indet(e)
+        }
+    )
+    |> mk_one_arg;
 };
 
 let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
