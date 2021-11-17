@@ -86,6 +86,36 @@ module Impl = {
         }
     )
     |> mk_one_arg;
+
+  let float_of_string =
+    (
+      (d1, evaluate, e) =>
+        switch (evaluate(d1)) {
+        | BoxedValue(StringLit(s)) =>
+          let s = s |> UnescapedString.to_string;
+          switch (float_of_string_opt(s)) {
+          | Some(f) => BoxedValue(FloatLit(f))
+          | None => Indet(InvalidOperation(e, InvalidFloatOfString))
+          };
+        | _ => Indet(e)
+        }
+    )
+    |> mk_one_arg;
+
+  let bool_of_string =
+    (
+      (d1, evaluate, e) =>
+        switch (evaluate(d1)) {
+        | BoxedValue(StringLit(s)) =>
+          let s = s |> UnescapedString.to_string;
+          switch (bool_of_string_opt(s)) {
+          | Some(b) => BoxedValue(BoolLit(b))
+          | None => Indet(InvalidOperation(e, InvalidBoolOfString))
+          };
+        | _ => Indet(e)
+        }
+    )
+    |> mk_one_arg;
 };
 
 let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
@@ -94,7 +124,9 @@ let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
   ("string_of_int", (Arrow(Int, String), Impl.string_of_int)),
   ("int_of_string", (Arrow(String, Int), Impl.int_of_string)),
   ("string_of_float", (Arrow(Float, String), Impl.string_of_float)),
+  ("float_of_string", (Arrow(String, Float), Impl.float_of_string)),
   ("string_of_bool", (Arrow(Bool, String), Impl.string_of_bool)),
+  ("bool_of_string", (Arrow(String, Bool), Impl.bool_of_string)),
 ];
 
 let ctx: VarCtx.t = List.map(((x, (ty, _))) => (x, ty), builtins);
