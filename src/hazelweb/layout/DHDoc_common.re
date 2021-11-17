@@ -112,9 +112,49 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-// TODO: What to do with errors?
-let mk_StringLit = (s, _errors) =>
-  Doc.text("\"" ++ UnescapedString.to_string(s) ++ "\"");
+let mk_StringLit = (s, errors) => {
+  let rec mk_with_errors = (s, errors, idx, doc1) =>
+    switch (errors) {
+    | [] =>
+      let len = String.length(s);
+      let doc2 = Doc.text(String.sub(s, idx, len - idx));
+      Doc.hcat(doc1, doc2);
+
+    | [error, ...tl] =>
+      let (doc2, length) =
+        switch (error) {
+        | StringLitLexer.InvalidEscape({start, length}) =>
+
+          // Append invalid escape segment.
+          let (doc2, length) = {
+            let seg = String.sub(s, start, length);
+            (
+              Doc.text(seg) |> Doc.annot(DHAnnot.InvalidStringEscape),
+              length,
+            );
+          };
+
+          // Prepend valid segment, if there is one.
+          if (start > idx) {
+            let seg = String.sub(s, idx, start - idx);
+            (Doc.hcat(Doc.text(seg), doc2), length + start - idx);
+          } else {
+            (doc2, length);
+          };
+        };
+
+      let doc1 = Doc.hcat(doc1, doc2);
+      mk_with_errors(s, tl, idx + length, doc1);
+    };
+
+  switch (errors) {
+  | [] => Doc.text("\"" ++ UnescapedString.to_string(s) ++ "\"")
+  | _ =>
+    let s = s |> UnescapedString.to_string;
+    let doc1 = mk_with_errors(s, errors, 0, Doc.text("\""));
+    Doc.hcat(doc1, Doc.text("\""));
+  };
+};
 
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);

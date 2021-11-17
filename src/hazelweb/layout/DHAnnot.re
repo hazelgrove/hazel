@@ -15,5 +15,6 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
+  | InvalidStringEscape
   | DivideByZero
   | SubscriptOutOfBounds;

@@ -1124,6 +1124,10 @@ h1 {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+.DHCode .InvalidStringEscape {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .DHCode .DivideByZero {
   background-color: rgba(255, 0, 0, 0.2);
 }
