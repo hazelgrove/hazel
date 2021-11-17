@@ -1505,7 +1505,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Pressing <Delete> before a tag delimiter of a constant injection or an
    injection with an argument hole destroys the injection.
 
@@ -1526,7 +1525,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Pressing <Delete> before a tag delimiter of an injection with an argument
    unwraps the argument.
 
@@ -1561,7 +1559,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Presing <Delete> before the closing delimiter of an injection argument hole
    destroys the argument.
 
@@ -1574,7 +1571,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Pressing <Backspace> after any tag delimiter of a constant injection or the
    initial tag delimiter of an injection with an argument hole destroys the
    injection.
@@ -1596,7 +1592,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Pressing <Backspace> after the opening delimiter of an injection with an
    argument unwraps the argument.
 
@@ -1620,7 +1615,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Presing <Backspace> after the opening delimiter of an injection argument
    destroys the argument.
 
@@ -1644,7 +1638,6 @@ and syn_perform_operand =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
 
   /*
-   XXX
    Presing <Backspace> after the closing delimiter of an injection argument
    destroys the argument.
 

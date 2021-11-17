@@ -59,14 +59,14 @@ and follow_operand =
         ZPat.InjZT(err, ztag, None);
       | _ => None
       }
-    | Inj(err, tag, Some(body)) =>
+    | Inj(err, tag, Some(arg) as arg_opt) =>
       switch (x) {
       | 0 =>
         let+ ztag = tag |> CursorPath_Tag.follow((xs, cursor));
-        ZPat.InjZT(err, ztag, Some(body));
+        ZPat.InjZT(err, ztag, arg_opt);
       | 1 =>
-        let+ zbody = body |> follow((xs, cursor));
-        ZPat.InjZP(err, tag, zbody);
+        let+ zarg = arg |> follow((xs, cursor));
+        ZPat.InjZP(err, tag, zarg);
       | _ => None
       }
     | TypeAnn(err, op, ann) =>
@@ -227,12 +227,10 @@ and holes_operand =
     ]
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, tag, None) =>
-    /* TODO: make sure tab order for holes is not reversed */
     hs
     |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
     |> CursorPath_common.holes_inj_err(err, rev_steps)
   | Inj(err, tag, Some(body)) =>
-    /* TODO: make sure tab order for holes is not reversed */
     hs
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Tag.holes(tag, [0, ...rev_steps])

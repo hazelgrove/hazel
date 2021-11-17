@@ -136,15 +136,15 @@ and follow_operand =
         |> Option.map(zbody => ZExp.LamZE(err, p, zbody))
       | _ => None
       }
-    | Inj(err, tag, body_opt) =>
+    | Inj(err, tag, arg_opt) =>
       switch (x) {
       | 0 =>
         let+ ztag = tag |> CursorPath_Tag.follow((xs, cursor));
-        ZExp.InjZT(err, ztag, body_opt);
+        ZExp.InjZT(err, ztag, arg_opt);
       | 1 =>
-        let* body = body_opt;
-        let+ zbody = body |> follow((xs, cursor));
-        ZExp.InjZE(err, tag, zbody);
+        let* arg = arg_opt;
+        let+ zarg = arg |> follow((xs, cursor));
+        ZExp.InjZE(err, tag, zarg);
       | _ => None
       }
     | Case(err, scrut, rules) =>
