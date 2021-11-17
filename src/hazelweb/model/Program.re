@@ -95,8 +95,6 @@ let get_result = (program: t): Result.t => {
     };
   let (_, result_ty, _) = program.edit_state;
   let test_map = List.rev(state.test_map);
-  // TODO(andrew): sorting is prob wrong... prob want in lexiographical order
-  // List.sort(((id, _), (id', _)) => compare(id, id'), state.test_map);
   {result, result_ty, boxed_result, hii, test_map};
 };
 

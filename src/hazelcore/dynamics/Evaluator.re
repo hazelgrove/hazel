@@ -735,10 +735,8 @@ and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
   }
 and eval_bind = ((d, state): eval_input, f: eval_input => report): report =>
   bind(evaluate(d, ~state), f)
-and eval_bind_nofx = (d_s: eval_input, f: DHExp.t => result): report =>
-  eval_bind(d_s, ((d', state)) => (f(d'), state))
-and eval_bind_indet = (d_s: eval_input, f: DHExp.t => DHExp.t): report =>
-  eval_bind_nofx(d_s, d' => Indet(f(d')))
+and eval_bind_indet = ((d, state): eval_input, f: DHExp.t => DHExp.t): report =>
+  bind(evaluate(d, ~state), ((d', state)) => (Indet(f(d')), state))
 and eval_case =
     (
       indet_res: result,
@@ -751,7 +749,7 @@ and eval_case =
   let (res', state) = evaluate(scrut, ~state);
   let scrut = unbox_result(res');
   switch (List.nth_opt(rules, current_rule_index)) {
-  | None => (indet_res, state) // TODO(andrew):should this be an InvalidOperation?
+  | None => (indet_res, state) // TODO(andrew): should this be an InvalidOperation?
   | Some(Rule(dp, d)) =>
     switch (matches(dp, scrut)) {
     | IndetMatch => (indet_res, state)
