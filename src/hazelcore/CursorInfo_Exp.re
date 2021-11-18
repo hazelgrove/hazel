@@ -544,15 +544,8 @@ and syn_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
-    let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
     let+ defferrable =
-      CursorInfo_Pat.ana_cursor_info(
-        ~steps=steps @ [0],
-        ctx,
-        // ZPat.undo_syn_inj(zp),
-        zp,
-        ty,
-      );
+      CursorInfo_Pat.syn_cursor_info(~steps=steps @ [0], ctx, zp);
     switch (defferrable) {
     | CursorNotOnDeferredVarPat(ci) => ci
     | CursorOnDeferredVarPat(deferred_ci, x) =>

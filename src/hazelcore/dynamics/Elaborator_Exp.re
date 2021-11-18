@@ -384,20 +384,14 @@ and syn_elab_operand =
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => DoesNotElaborate
-    | Some((ty1, _)) =>
-      switch (
-        Elaborator_Pat.ana_elab(ctx, delta, UHPat.undo_syn_inj(p), ty1)
-      ) {
+    switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(dp, ty1, ctx, delta) =>
+      switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, _, ctx, delta) =>
-        switch (syn_elab(ctx, delta, body)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty2, delta) =>
-          let d = DHExp.Lam(dp, ty1, d1);
-          Elaborates(d, Arrow(ty1, ty2), delta);
-        }
+      | Elaborates(d1, ty2, delta) =>
+        let d = DHExp.Lam(dp, ty1, d1);
+        Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
   | Inj(NotInHole, _, _) => DoesNotElaborate
@@ -878,9 +872,13 @@ and ana_elab_operand =
         switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
         | Some(DoesNotElaborate) => DoesNotElaborate
         | Some(Elaborates(d, d_ty, delta')) =>
-          let inj = (tymap, tag, Some(DHExp.Cast(d, d_ty, Hole)));
-          Elaborates(Inj(inj), ty, delta');
-        | None => Elaborates(Inj((tymap, tag, None)), ty, delta)
+          let tymap' = TagMap.singleton(tag, Some(d_ty));
+          let inj = (tymap', tag, Some(d));
+          Elaborates(Cast(Inj(inj), Sum(tymap'), Hole), Hole, delta');
+        | None =>
+          let tymap' = TagMap.singleton(tag, None);
+          let inj = (tymap', tag, None);
+          Elaborates(Cast(Inj(inj), Sum(tymap'), Hole), Hole, delta);
         };
       }
     | _ => DoesNotElaborate
