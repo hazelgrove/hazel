@@ -122,6 +122,19 @@ let get_display_suggestions =
   |> ListUtil.trim(choice_display_limit);
 };
 
+let get_display_suggestions_all =
+    (
+      ci: CursorInfo.t,
+      ~u_gen: MetaVarGen.t=0,
+      {/*choice_display_limit,*/ selection_index, _} as model: t,
+    )
+    : Suggestions.t => {
+  let suggestions = mk_suggestions(model, ci, ~u_gen);
+  let wrapped_index = wrap_index(selection_index, suggestions);
+  suggestions |> ListUtil.rotate_n(wrapped_index);
+  //|> ListUtil.trim(choice_display_limit);
+};
+
 let num_suggestions = (ci: CursorInfo.t, model: t) =>
   List.length(get_display_suggestions(ci, model));
 

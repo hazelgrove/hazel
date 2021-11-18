@@ -343,8 +343,10 @@ let suggestions_view =
       ~ci: CursorInfo.t,
     )
     : Node.t => {
-  let suggestions =
+  let _suggestions =
     AssistantModel.get_display_suggestions(~u_gen, ci, assistant);
+  let suggestions_all =
+    AssistantModel.get_display_suggestions_all(~u_gen, ci, assistant);
   let suggestion_view = (index, suggestion) =>
     suggestion_view(
       ~ci,
@@ -354,13 +356,22 @@ let suggestions_view =
       ~suggestion,
       ~display_mode=assistant.display_mode,
       ~is_selected=index == 0,
-      ~is_hovered=AssistantModel.is_active_suggestion_index(assistant, index),
+      ~is_hovered=false, //AssistantModel.is_active_suggestion_index(assistant, index),
       ~index,
     );
   let sort = TermSort.to_string(CursorInfo.get_sort(ci));
   div(
-    [Attr.id("assistant"), Attr.class_(sort)],
-    List.mapi(suggestion_view, suggestions),
+    [Attr.class_("double-assistant")],
+    [
+      /*div(
+          [Attr.classes(["assistant", sort])],
+          List.mapi(suggestion_view, suggestions),
+        ),*/
+      div(
+        [Attr.classes(["assistant", "extra", sort])],
+        List.mapi(suggestion_view, suggestions_all),
+      ),
+    ],
   );
 };
 
