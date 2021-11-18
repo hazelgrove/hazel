@@ -101,6 +101,7 @@
 %left BAR
 %right TARROW
 %left COMMA
+%left COLON
 
 %start main
 %type <UHExp.t> main
@@ -113,7 +114,6 @@ main:
 
 let_binding:
   LET pat EQUAL line IN { mk_let_line $2 $4 }
-  | LET pat COLON typ EQUAL line IN { mk_let_line (mk_typ_ann $2 $4) $6 }
 ;
 
 typ:
@@ -125,6 +125,10 @@ typ_:
   atomic_type { $1 }
   | LPAREN typ RPAREN { mk_typ_paren $2 }
   | LBRACK typ RBRACK { mk_typ_list $2 }
+;
+
+typ_annotation:
+  pat COLON typ { mk_typ_ann $1 $3 }
 ;
 
 atomic_type:
@@ -147,6 +151,7 @@ atomic_type:
 pat:
   pat COLONCOLON pat { mk_binop $1 Operators_Pat.Cons $3 }
   | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
+  | typ_annotation { $1 }
   | pat_ { mk_seq $1 }
 ;
 
@@ -193,7 +198,6 @@ simple_expr:
 
 fn:
   LAMBDA pat PERIOD LBRACE line RBRACE { mk_fn $2 $5 }
-  | LAMBDA pat COLON typ PERIOD LBRACE line RBRACE { mk_fn $2 $7 }
 ;
 
 rule:
