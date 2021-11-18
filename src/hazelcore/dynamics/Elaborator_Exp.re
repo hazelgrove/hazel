@@ -384,20 +384,14 @@ and syn_elab_operand =
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => DoesNotElaborate
-    | Some((ty1, _)) =>
-      switch (
-        Elaborator_Pat.ana_elab(ctx, delta, UHPat.undo_syn_inj(p), ty1)
-      ) {
+    switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(dp, ty1, ctx, delta) =>
+      switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, _, ctx, delta) =>
-        switch (syn_elab(ctx, delta, body)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty2, delta) =>
-          let d = DHExp.Lam(dp, ty1, d1);
-          Elaborates(d, Arrow(ty1, ty2), delta);
-        }
+      | Elaborates(d1, ty2, delta) =>
+        let d = DHExp.Lam(dp, ty1, d1);
+        Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
   | Inj(NotInHole, _, _) => DoesNotElaborate
