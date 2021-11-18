@@ -872,9 +872,13 @@ and ana_elab_operand =
         switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
         | Some(DoesNotElaborate) => DoesNotElaborate
         | Some(Elaborates(d, d_ty, delta')) =>
-          let inj = (tymap, tag, Some(DHExp.Cast(d, d_ty, Hole)));
-          Elaborates(Inj(inj), ty, delta');
-        | None => Elaborates(Inj((tymap, tag, None)), ty, delta)
+          let tymap' = TagMap.singleton(tag, Some(d_ty));
+          let inj = (tymap', tag, Some(d));
+          Elaborates(Cast(Inj(inj), Sum(tymap'), Hole), Hole, delta');
+        | None =>
+          let tymap' = TagMap.singleton(tag, None);
+          let inj = (tymap', tag, None);
+          Elaborates(Cast(Inj(inj), Sum(tymap'), Hole), Hole, delta);
         };
       }
     | _ => DoesNotElaborate
