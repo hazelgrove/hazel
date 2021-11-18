@@ -13,7 +13,7 @@ dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
-dev-watch:
+watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
 release:

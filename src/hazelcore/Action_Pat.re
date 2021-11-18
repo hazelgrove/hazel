@@ -648,7 +648,8 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -747,7 +748,6 @@ and syn_perform_operand =
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zinj)));
 
   /*
-   XXX
    Presing <Delete> before the closing delimiter of an injection argument hole
    destroys the argument.
 
@@ -779,7 +779,6 @@ and syn_perform_operand =
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zhole)));
 
   /*
-   XXX
    Pressing <Backspace> after the opening delimiter of an injection with an
    argument unwraps the argument.
 
@@ -802,7 +801,6 @@ and syn_perform_operand =
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zinj)));
 
   /*
-   XXX
    Presing <Backspace> after the opening delimiter of an injection argument
    destroys the argument.
 
@@ -849,6 +847,28 @@ and syn_perform_operand =
     let place_cursor = side == After ? ZTag.place_before : ZTag.place_after;
     let zinj = ZPat.InjZT(status, place_cursor(tag), arg_opt);
     syn_perform_operand(ctx, u_gen, a, zinj);
+
+  /*
+   Pressing <CloseParens> after an injection argument moves the cursor to the
+   right of the argument's closing delimiter.
+
+   inj[ _ ]( _| )  =(SCloseParens)=>  inj[ _ ]( _ )|
+   */
+  | (Construct(SCloseParens), InjZP(err, tag, zarg))
+      when ZPat.is_after(zarg) =>
+    let inj = UHPat.Inj(err, tag, Some(ZPat.erase(zarg)));
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(inj));
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
+
+  /*
+   Pressing <CloseParens> before the closing delimiter of an injection argument
+   moves the cursor to the right.
+
+   inj[ _ ]( _ |)  =(SCloseParens)=>  inj[ _ ]( _ )|
+   */
+  | (Construct(SCloseParens), CursorP(OnDelim(2, Before), Inj(_) as inj)) =>
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(inj));
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, zp));
 
   /* Zipper Cases */
 
@@ -1004,6 +1024,44 @@ and syn_perform_operand =
       u_gen,
       ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
     )
+
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZP(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, Some(ZPat.erase(zopseq))),
+        ),
+      ),
+    )
+
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorP(OnDelim(1, Before), Parenthesized(_) as operand),
+    ) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+    )
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
 
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
@@ -1333,7 +1391,6 @@ and ana_perform_operand =
   );
   switch (a, zoperand) {
   /* Invalid cursor positions */
-
   | (
       _,
       CursorP(
@@ -1355,7 +1412,8 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -1592,6 +1650,28 @@ and ana_perform_operand =
     let zp = ZPat.InjZT(status, place_cursor(tag), arg_opt);
     ana_perform_operand(ctx, u_gen, a, zp, ty);
 
+  /*
+   Pressing <CloseParens> after an injection argument moves the cursor to the
+   right of the argument's closing delimiter.
+
+   inj[ _ ]( _| )  =(SCloseParens)=>  inj[ _ ]( _ )|
+   */
+  | (Construct(SCloseParens), InjZP(err, tag, zarg))
+      when ZPat.is_after(zarg) =>
+    let inj = UHPat.Inj(err, tag, Some(ZPat.erase(zarg)));
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(inj));
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
+  /*
+   Pressing <CloseParens> before the closing delimiter of an injection argument
+   moves the cursor to the right.
+
+   inj[ _ ]( _ |)  =(SCloseParens)=>  inj[ _ ]( _ )|
+   */
+  | (Construct(SCloseParens), CursorP(OnDelim(2, Before), Inj(_) as inj)) =>
+    let zp = ZOpSeq.wrap(ZPat.place_after_operand(inj));
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
+
   /* Zipper Cases */
 
   /*
@@ -1757,6 +1837,31 @@ and ana_perform_operand =
   | (Construct(SParenthesized), CursorP(_)) =>
     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     mk_ana_result(ctx, u_gen, new_zp, ty);
+
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (
+      Construct(SCloseParens),
+      CursorP(OnDelim(1, Before), Parenthesized(_) as operand),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
 
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {

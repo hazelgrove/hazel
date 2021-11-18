@@ -766,10 +766,39 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded((ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))), u_gen))
 
+  | (Construct(SCloseSquareBracket), ListZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq))),
+      ),
+      u_gen,
+    ))
+  | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorT(_)) =>
     let zseq = ZSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     Succeeded(mk_and_fix_ZOpSeq(zseq, u_gen));
 
+  | (Construct(SCloseBraces), CursorT(_)) => Failed
+
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
+      ),
+      u_gen,
+    ))
+  | (
+      Construct(SCloseParens),
+      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+      u_gen,
+    ))
+  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
@@ -820,6 +849,9 @@ and perform_zsumbody =
         SCase |
         SApPalette(_) |
         SParenthesized |
+        SCloseParens |
+        SCloseBraces |
+        SCloseSquareBracket |
         SOp(
           SMinus | STimes | SDivide | SLessThan | SGreaterThan | SEquals |
           SComma |
@@ -1394,7 +1426,10 @@ and perform_zsumbody_operand =
 
   /* Invalid actions on ArgTag delimiters */
   | (
-      Construct(SOp(_) | SChar(_) | SList | SParenthesized),
+      Construct(
+        SOp(_) | SChar(_) | SList | SParenthesized | SCloseBraces |
+        SCloseSquareBracket,
+      ),
       CursorArgTag(_, _, _),
     ) =>
     Failed
@@ -1449,6 +1484,19 @@ and perform_zsumbody_operand =
   | (Construct(SParenthesized), ConstTagZ(ztag)) =>
     let zty = ZTyp.place_before(UHTyp.mk_OpSeq(Seq.wrap(UHTyp.Hole)));
     let zseq = ZSeq.wrap(ZTyp.ArgTagZA(ZTag.erase(ztag), zty));
+    Succeeded(mk_and_fix_sumbody_ZOpSeq(zseq, u_gen));
+
+  // _( _ |)  ==>  _( _ )|
+  | (Construct(SCloseParens), CursorArgTag(OnDelim(1, Before), _, _)) =>
+    let operand = ZTyp.erase_zsumbody_operand(zoperand);
+    let zseq = ZSeq.wrap(ZTyp.place_after_sumbody_operand(operand));
+    Succeeded(mk_and_fix_sumbody_ZOpSeq(zseq, u_gen));
+  | (Construct(SCloseParens), CursorArgTag(_)) => Failed
+
+  // _( _| )  ==>  _( _ )|
+  | (Construct(SCloseParens), ArgTagZA(_, zty)) when ZTyp.is_after(zty) =>
+    let operand = ZTyp.erase_zsumbody_operand(zoperand);
+    let zseq = ZSeq.wrap(ZTyp.place_after_sumbody_operand(operand));
     Succeeded(mk_and_fix_sumbody_ZOpSeq(zseq, u_gen));
 
   /* Zipper Cases */

@@ -3,6 +3,8 @@ open Pretty;
 let promote_annot =
     (selected: MetaVar.t => bool, annot: HTypAnnot.t): DHAnnot.t =>
   switch (annot) {
+  | Term => Term
+  | Step(n) => Step(n)
   | Delim => Delim
   | HoleLabel => HoleLabel
   | EmptyTagHole(u) => EmptyTagHole(selected(u), u)

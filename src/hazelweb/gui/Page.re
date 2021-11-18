@@ -98,12 +98,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let selected_tag_hole = Model.get_selected_tag_hole(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
-      CursorInspector.view(
-        ~inject,
-        ~font_metrics=model.font_metrics,
-        ~selected_tag_hole,
-        model,
-      ),
       ContextInspector.view(
         ~inject,
         ~selected_instance,
@@ -120,6 +114,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
 
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
+  let selected_tag_hole = Model.get_selected_tag_hole(model);
   TimeUtil.measure_time(
     "Page.view",
     settings.performance.measure && settings.performance.page_view,
@@ -149,7 +144,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card_caption],
                           ),
-                          Cell.view(~inject, model),
+                          Cell.view(~inject, ~selected_tag_hole, model),
                           cell_status,
                         ],
                       ),

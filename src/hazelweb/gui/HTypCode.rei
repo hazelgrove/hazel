@@ -7,6 +7,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~width: int=?,
     ~pos: int=?,
+    ~diff_steps: list(CursorPath.steps)=?,
     HTyp.t
   ) =>
   Vdom.Node.t;

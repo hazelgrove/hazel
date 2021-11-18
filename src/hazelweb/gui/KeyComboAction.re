@@ -1,61 +1,9 @@
-let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
-  [
-    (HazelKeyCombos.Backspace, _ => Action.Backspace),
-    (Delete, _ => Delete),
-    (ShiftTab, _ => MoveToPrevHole),
-    (Tab, _ => MoveToNextHole),
-    (
-      GT,
-      fun
-      | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
-      | _ => Construct(SOp(SGreaterThan)),
-    ),
-    (Ampersand, _ => Construct(SOp(SAnd))),
-    (
-      VBar,
-      fun
-      | {CursorInfo.typed: OnType, _} => Construct(SOp(SVBar))
-      | _ => Construct(SOp(SOr)),
-    ),
-    (LeftParen, _ => Construct(SParenthesized)),
-    (Colon, _ => Construct(SAnn)),
-    (Equals, _ => Construct(SOp(SEquals))),
-    (Enter, _ => Construct(SLine)),
-    (Backslash, _ => Construct(SLam)),
-    (Plus, _ => Construct(SOp(SPlus))),
-    (Minus, _ => Construct(SOp(SMinus))),
-    (Asterisk, _ => Construct(SOp(STimes))),
-    (Slash, _ => Construct(SOp(SDivide))),
-    (LT, _ => Construct(SOp(SLessThan))),
-    (
-      Space,
-      fun
-      | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
-        Construct(SChar(" "))
-      | _ => Construct(SOp(SSpace)),
-    ),
-    (Comma, _ => Construct(SOp(SComma))),
-    (
-      LeftBracket,
-      fun
-      | {CursorInfo.typed: OnType, _} => Construct(SList)
-      | _ => Construct(SListNil),
-    ),
-    (Semicolon, _ => Construct(SOp(SCons))),
-    (Alt_I, _ => Construct(SInj)),
-    (Alt_C, _ => Construct(SCase)),
-    (Pound, _ => Construct(SCommentLine)),
-    (Shift_Enter, _ => Construct(SCommentLine)),
-    (Alt_Up, _ => SwapUp),
-    (Alt_Down, _ => SwapDown),
-    (Alt_Left, _ => SwapLeft),
-    (Alt_Right, _ => SwapRight),
-  ]
-  |> List.to_seq
-  |> Hashtbl.of_seq;
+module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 
-let get_model_action =
-    (cursor_info: CursorInfo.t, kc: HazelKeyCombos.t): option(ModelAction.t) => {
+let get_model_action_from_kc =
+    (cursor_info: CursorInfo.t, key_combo: HazelKeyCombos.t)
+    : option(ModelAction.t) => {
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
@@ -66,7 +14,9 @@ let get_model_action =
     | _ => (false, false)
     };
 
-  switch (kc) {
+  /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */
+  switch (key_combo) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
   | Delete => Some(EditAction(Delete))
@@ -78,6 +28,9 @@ let get_model_action =
   | VBar when cursor_on_type => construct(SOp(SVBar))
   | VBar => construct(SOp(SOr))
   | LeftParen => construct(SParenthesized)
+  | RightParen => construct(SCloseParens)
+  | RightBrace => construct(SCloseBraces)
+  | RightSquareBracket => construct(SCloseSquareBracket)
   | Colon => construct(SAnn)
   | Equals => construct(SOp(SEquals))
   | Enter => construct(SLine)
@@ -97,7 +50,9 @@ let get_model_action =
   | Alt_I => construct(SInj)
   | Alt_C => construct(SCase)
   | Pound => construct(SCommentLine)
+  | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole(UHExp))
+  | Ctrl_Shift_S => Some(SerializeToConsole(ZExp))
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)
   | Up => Some(MoveAction(Key(ArrowUp)))
@@ -110,5 +65,36 @@ let get_model_action =
   | Alt_Down => Some(EditAction(SwapDown))
   | Alt_Left => Some(EditAction(SwapLeft))
   | Alt_Right => Some(EditAction(SwapRight))
+  };
+};
+
+let get_model_action =
+    (cursor_info: CursorInfo.t, evt: Js.t(Dom_html.keyboardEvent))
+    : option(ModelAction.t) => {
+  let construct = (shape: Action.shape): option(ModelAction.t) =>
+    Some(EditAction(Construct(shape)));
+
+  let (_cursor_on_type, cursor_on_comment) =
+    switch (cursor_info) {
+    | {typed: OnType, _} => (true, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
+    | _ => (false, false)
+    };
+
+  let key_combo = HazelKeyCombos.of_evt(evt);
+
+  let alpha_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+  let comment_char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
+  let single_key = JSUtil.is_single_key(evt, alpha_regexp);
+  let single_key_in_comment = JSUtil.is_single_key(evt, comment_char_regexp);
+
+  switch (key_combo, single_key, single_key_in_comment) {
+  | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
+    construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
+  | (Some(key_combo), _, _) =>
+    get_model_action_from_kc(cursor_info, key_combo)
+  | (_, Some(single_key), _) =>
+    construct(SChar(JSUtil.single_key_string(single_key)))
+  | (None, None, _) => None
   };
 };

@@ -9,8 +9,10 @@ let focus: unit => unit;
 let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
+    ~selected_tag_hole: option(MetaVar.t),
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
+    ~cursor_inspector: CursorInspectorModel.t,
     Program.t
   ) =>
   Vdom.Node.t;

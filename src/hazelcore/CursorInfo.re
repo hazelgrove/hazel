@@ -31,7 +31,7 @@ type typed =
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // cursor is on an injection and expected type is not a sum
-  | AnaInjExpectedTypeNotConsistenWithSums(HTyp.t)
+  | AnaInjExpectedTypeNotConsistentWithSums(HTyp.t)
   // cursor is on an injection with a bad tag
   | AnaInjExpectedArg(HTyp.t)
   // cursor is on a nullary injection with argument
@@ -132,22 +132,28 @@ type typed =
   /* cursor in sum body position */
   | OnSumBody
   /* (we will have a richer structure here later)*/
-  | OnLine
+  | OnNonLetLine
   | OnRule;
 
 [@deriving sexp]
 type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
+  | ExpOperand(CursorPosition.t, UHExp.operand)
+  | PatOperand(CursorPosition.t, UHPat.operand)
+  | TypOperand(CursorPosition.t, UHTyp.operand)
   | Tag(CursorPosition.t, UHTag.t)
-  | ExpOp(CursorPosition.t, UHExp.operator)
-  | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator)
+  | ExpOperator(CursorPosition.t, UHExp.operator)
+  | PatOperator(CursorPosition.t, UHPat.operator)
+  | TypOperator(CursorPosition.t, UHTyp.operator)
   | SumBody(CursorPosition.t, UHTyp.sumbody_operand)
   | SumBodyOp(CursorPosition.t, UHTyp.sumbody_operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
+
+[@deriving sexp]
+type parent_info =
+  | AfterBranchClause
+  | BeforeEmptyHoleLine
+  | NoParentInfo;
 
 // TODO refactor into variants
 // based on term sort and shape
@@ -158,4 +164,5 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  parent_info,
 };

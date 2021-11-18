@@ -6,8 +6,10 @@ open Virtual_dom.Vdom;
 let view:
   (
     ~inject: ModelAction.t => Event.t,
-    ~font_metrics: FontMetrics.t,
     ~selected_tag_hole: option(MetaVar.t),
-    Model.t
+    ~font_metrics: FontMetrics.t,
+    ~loc: (float, float),
+    CursorInspectorModel.t,
+    CursorInfo.t
   ) =>
   Node.t;

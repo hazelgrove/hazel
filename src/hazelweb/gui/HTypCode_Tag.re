@@ -62,6 +62,8 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
+             | Step(_) => ([with_cls("Step", txt)], ds)
+             | Term => ([with_cls("Term", txt)], ds)
              };
            },
        );

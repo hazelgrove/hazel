@@ -29,52 +29,79 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
-    mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
-    mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+    annot(
+      HTypAnnot.Step(0),
+      mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
+    ),
+    annot(
+      HTypAnnot.Step(1),
+      mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+    ),
   );
-  let doc =
+  let (doc, parenthesize) =
     switch (ty) {
-    | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
-    | Int => text("Int")
-    | Float => text("Float")
-    | Bool => text("Bool")
-    | List(ty) =>
-      hcats([
-        mk_delim("["),
-        mk(ty) |> pad_child(~enforce_inline),
-        mk_delim("]"),
-      ])
+    | Hole => (
+        annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
+        parenthesize,
+      )
+    | Int => (text("Int"), parenthesize)
+    | Float => (text("Float"), parenthesize)
+    | Bool => (text("Bool"), parenthesize)
+    | List(ty) => (
+        hcats([
+          mk_delim("["),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+          mk_delim("]"),
+        ]),
+        parenthesize,
+      )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
-      hcats([
-        d1,
+      (
         hcats([
-          choices([linebreak(), space()]),
-          text(Unicode.typeArrowSym ++ " "),
+          d1,
+          hcats([
+            choices([linebreak(), space()]),
+            text(Unicode.typeArrowSym ++ " "),
+          ]),
+          d2,
         ]),
-        d2,
-      ]);
-    | Prod([]) => text("()")
+        parenthesize,
+      );
+    | Prod([]) => (text("()"), parenthesize)
     | Prod([head, ...tail]) =>
-      [
-        mk'(
-          ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
-          head,
-        ),
-        ...List.map(
-             ty =>
-               mk'(
-                 ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
-                 ty,
-               ),
-             tail,
-           ),
-      ]
-      |> ListUtil.join(
-           hcats([text(","), choices([linebreak(), space()])]),
-         )
-      |> hcats
+      let center =
+        [
+          annot(
+            HTypAnnot.Step(0),
+            mk'(
+              ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+              head,
+            ),
+          ),
+          ...List.mapi(
+               (i, ty) =>
+                 annot(
+                   HTypAnnot.Step(i + 1),
+                   mk'(
+                     ~parenthesize=
+                       HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                     ty,
+                   ),
+                 ),
+               tail,
+             ),
+        ]
+        |> ListUtil.join(
+             hcats([text(","), choices([linebreak(), space()])]),
+           )
+        |> hcats;
+      (center, true);
     | Sum(tymap) =>
       let mk_member = ((tag, ty_opt)) => {
         let tag_doc = HTypDoc_Tag.mk(tag);
@@ -85,7 +112,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         hcats([tag_doc, ...maybe_ty_doc]);
       };
       switch (TagMap.bindings(tymap)) {
-      | [] => hcat(mk_delim("sum {"), mk_delim("}"))
+      | [] => (hcat(mk_delim("sum {"), mk_delim("}")), false)
       | bindings =>
         let new_bindings =
           bindings
@@ -93,8 +120,12 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           |> ListUtil.join(
                hcats([choices([linebreak(), space()]), text("+"), space()]),
              );
-        hcats([mk_delim("sum {")] @ new_bindings @ [mk_delim("}")]);
+        (
+          hcats([mk_delim("sum {")] @ new_bindings @ [mk_delim("}")]),
+          false,
+        );
       };
     };
+  let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

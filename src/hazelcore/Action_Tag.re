@@ -95,6 +95,9 @@ let perform =
       Construct(
         SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
         SParenthesized |
+        SCloseParens |
+        SCloseBraces |
+        SCloseSquareBracket |
         SApPalette(_) |
         SCommentLine,
       ) |

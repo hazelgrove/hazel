@@ -1,17 +1,20 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (ZOpSeq(_, zseq): ZTyp.t): cursor_term =>
-  switch (zseq) {
-  | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
-  | ZOperator(ztyp_operator, _) =>
-    let (cursor_pos, uop) = ztyp_operator;
-    TypOp(cursor_pos, uop);
-  }
-
+let rec extract_cursor_term = (ztyp: ZTyp.t): cursor_term => {
+  switch (ztyp) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+    | ZOperator(ztyp_operator, _) =>
+      let (cursor_pos, uop) = ztyp_operator;
+      TypOperator(cursor_pos, uop);
+    }
+  };
+}
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term =>
   switch (ztyp_operand) {
-  | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
+  | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
   | SumZ(zsumbody) => extract_from_zsumbody(zsumbody)
@@ -62,12 +65,12 @@ let cursor_info =
   let cursor_term = extract_cursor_term(typ);
   let typed: CursorInfo.typed =
     switch (cursor_term) {
-    | Exp(_, _)
-    | Pat(_, _)
-    | Typ(_, _)
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _)
+    | ExpOperand(_, _)
+    | PatOperand(_, _)
+    | TypOperand(_, _)
+    | ExpOperator(_, _)
+    | PatOperator(_, _)
+    | TypOperator(_, _)
     | Line(_, _)
     | Rule(_, _) => OnType
     | Tag(_, tag) => CursorInfo_Tag.cursor_info_typed(tag)

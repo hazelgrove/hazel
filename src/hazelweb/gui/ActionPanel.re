@@ -166,14 +166,14 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let action_of_combo = combo =>
-    switch (KeyComboAction.get_model_action(cursor_info, combo)) {
+    switch (KeyComboAction.get_model_action_from_kc(cursor_info, combo)) {
     | Some(EditAction(action)) => action
     | _ =>
       failwith(
         __LOC__
         ++ ": "
         ++ HazelKeyCombos.name(combo)
-        ++ " does not correspond to an EditAction in KeyComboAction.get_model_action",
+        ++ " does not correspond to an EditAction in KeyComboAction.get_model_action_from_kc",
       )
     };
 
@@ -472,6 +472,9 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SAnd)) => Added
   | Construct(SOp(SOr)) => Added
   | Construct(SParenthesized) => Added
+  | Construct(SCloseParens) => Added
+  | Construct(SCloseBraces) => Added
+  | Construct(SCloseSquareBracket) => Added
   | Construct(SAnn) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
