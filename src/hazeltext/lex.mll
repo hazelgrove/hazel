@@ -60,7 +60,7 @@ rule read =
   | "}" { RBRACE }
   | "[" { LBRACK }
   | "]" { RBRACK }
-  | "_?" { EMPTY_HOLE }
+  | "?" { EMPTY_HOLE }
   | "\\" { LAMBDA }
   | "λ" { LAMBDA }
   | "|" { BAR }
