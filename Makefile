@@ -1,5 +1,6 @@
 HTML_DIR=_esy/default/build/default/src/hazelweb/www
 HTML_FILE=$(HTML_DIR)/index.html
+HTML_REAL_PATH=$(realpath $(HTML_FILE))
 
 all: dev
 
@@ -23,10 +24,10 @@ echo-html:
 	@echo "$(HTML_FILE)"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_REAL_PATH)"
 
 win-firefox:
-	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
+	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_REAL_PATH)"
 
 firefox:
 	firefox "$(HTML_FILE)" &

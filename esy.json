@@ -15,7 +15,7 @@
     "check-format": "dune build @fmt"
   },
   "dependencies": {
-    "@opam/binaryen": "0.10.0",
+    "@opam/binaryen": ">= 1.0.0",
     "@opam/cmdliner": ">= 1.0.2",
     "@opam/dune": ">= 2.7.1",
     "@opam/dune-build-info": ">= 2.0.0",
@@ -47,7 +47,8 @@
     "@opam/ocamlfind": "1.8.1",
     "@opam/fp": "facebookexperimental/reason-native:fp.opam#a33f1528a6dd86c67f365e226c81312733181c87",
     "@opam/fs": "facebookexperimental/reason-native:fs.opam#a33f1528a6dd86c67f365e226c81312733181c87",
-    "@opam/utf8": "facebookexperimental/reason-native:utf8.opam#a33f1528a6dd86c67f365e226c81312733181c87"
+    "@opam/utf8": "facebookexperimental/reason-native:utf8.opam#a33f1528a6dd86c67f365e226c81312733181c87",
+    "@opam/binaryen": "coned/binaryen.ml#3c35c4c00941fa63c08f48c8bf301e9659b50add"
   },
   "installConfig": {
     "pnp": false
