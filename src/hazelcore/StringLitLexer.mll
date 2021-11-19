@@ -9,18 +9,26 @@ type error =
 
 let buffer : Buffer.t = Buffer.create 256
 let errors: error Stack.t = Stack.create ()
+let idx = ref 0
 
-let add_char = Buffer.add_char buffer
-let add_string = Buffer.add_string buffer
+let add_char c =
+  Buffer.add_char buffer c;
+  idx := !idx + 1
+
+let add_string s =
+  Buffer.add_string buffer s;
+  idx := !idx + String.length s
 
 let invalid_escape lexbuf =
-  let start = Lexing.lexeme_start lexbuf in
-  let length = Lexing.lexeme_end lexbuf - start in
+  let start = !idx in
+  let length = Lexing.lexeme_end lexbuf - Lexing.lexeme_start lexbuf in
+
   add_string (Lexing.lexeme lexbuf);
   Stack.push (InvalidEscape {
-    start = Lexing.lexeme_start lexbuf;
+    start = start;
     length = length
-  }) errors
+  }) errors;
+  idx := start + length
 
 let charcode_0 = Char.code '0'
 let int_of_char c =
@@ -58,7 +66,7 @@ let add_decimal_code lexbuf i =
     add_char (Char.chr i)
   else
     begin
-    invalid_escape lexbuf
+      invalid_escape lexbuf
     end
 
 let escapechar c =
@@ -111,6 +119,7 @@ rule stringlit_body = parse
       let r = (Buffer.contents buffer, errors_list) in
       Buffer.clear buffer;
       Stack.clear errors;
+      idx := 0;
       r
     }
   | (_ as c)

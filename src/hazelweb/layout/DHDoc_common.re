@@ -124,7 +124,6 @@ let mk_StringLit = (s, errors) => {
       let (doc2, length) =
         switch (error) {
         | StringLitLexer.InvalidEscape({start, length}) =>
-
           // Append invalid escape segment.
           let (doc2, length) = {
             let seg = String.sub(s, start, length);
