@@ -12,23 +12,23 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
+let grounded_Arrow = NotGroundOrHole(Arrow(Hole(None), Hole(None)));
+let grounded_Sum = NotGroundOrHole(Sum(Hole(None), Hole(None)));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
-let grounded_List = NotGroundOrHole(List(Hole));
+  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole(None))));
+let grounded_List = NotGroundOrHole(List(Hole(None)));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
-  | Hole => Hole
+  | Hole(_) => Hole
   | Bool
   | Int
   | Float
-  | Arrow(Hole, Hole)
-  | Sum(Hole, Hole)
-  | List(Hole) => Ground
+  | Arrow(Hole(_), Hole(_))
+  | Sum(Hole(_), Hole(_))
+  | List(Hole(_)) => Ground
   | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
+    if (List.for_all(HTyp.eq(HTyp.Hole(None)), tys)) {
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;
@@ -240,7 +240,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
+        | Cast(d1'', ty'', Hole(None)) =>
           if (HTyp.eq(ty'', ty')) {
             BoxedValue(d1'');
           } else {
@@ -281,7 +281,7 @@ let rec evaluate = (d: DHExp.t): result =>
         Indet(Cast(d1', ty, ty'))
       | (Hole, Ground) =>
         switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
+        | Cast(d1'', ty'', Hole(None)) =>
           if (HTyp.eq(ty'', ty')) {
             Indet(d1'');
           } else {

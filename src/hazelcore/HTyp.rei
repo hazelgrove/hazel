@@ -1,7 +1,11 @@
 /* types with holes */
+
+[@deriving sexp]
+type hole_label = option(unit);
+
 [@deriving sexp]
 type t =
-  | Hole
+  | Hole(hole_label)
   | Int
   | Float
   | Bool

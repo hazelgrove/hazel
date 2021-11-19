@@ -42,8 +42,12 @@ and syn_elab_skel =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
+        MetaVarMap.add(
+          u,
+          (Delta.PatternHole, HTyp.Hole(None), gamma),
+          delta,
+        );
+      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole(None), ctx, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
@@ -83,7 +87,7 @@ and syn_elab_skel =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Hole, ctx, delta);
+        Elaborates(dp, Hole(None), ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -116,8 +120,12 @@ and syn_elab_operand =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
+        MetaVarMap.add(
+          u,
+          (Delta.PatternHole, HTyp.Hole(None), gamma),
+          delta,
+        );
+      Elaborates(NonEmptyHole(reason, u, 0, dp), Hole(None), ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -129,22 +137,22 @@ and syn_elab_operand =
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let ty = HTyp.Hole;
+    let ty = HTyp.Hole(None);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.InvalidText(u, 0, t);
-    let ty = HTyp.Hole;
+    let ty = HTyp.Hole(None);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
+  | Wild(NotInHole) => Elaborates(Wild, Hole(None), ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
+    Elaborates(Keyword(u, 0, k), Hole(None), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    Elaborates(Var(x), Hole, ctx, delta);
+    let ctx = Contexts.extend_gamma(ctx, (x, Hole(None)));
+    Elaborates(Var(x), Hole(None), ctx, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, ctx, delta)
@@ -156,7 +164,7 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
-  | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
+  | ListNil(NotInHole) => Elaborates(ListNil, List(Hole(None)), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {
@@ -165,8 +173,8 @@ and syn_elab_operand =
       let dp = DHPat.Inj(side, dp1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
+        | L => HTyp.Sum(ty1, Hole(None))
+        | R => HTyp.Sum(Hole(None), ty1)
         };
       Elaborates(dp, ty, ctx, delta);
     }
@@ -291,14 +299,14 @@ and ana_elab_skel =
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+    switch (ana_elab_skel(ctx, delta, skel1, seq, Hole(None))) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _ty1, ctx, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+      switch (ana_elab_skel(ctx, delta, skel2, seq, Hole(None))) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _ty2, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Hole, ctx, delta);
+        Elaborates(dp, Hole(None), ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>

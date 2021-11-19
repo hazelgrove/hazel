@@ -114,10 +114,10 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
     );
 
   let got_free_indicator =
-    got_indicator("Got a free variable", typebar(HTyp.Hole));
+    got_indicator("Got a free variable", typebar(HTyp.Hole(None)));
 
   let got_invalid_indicator =
-    got_indicator("Got invalid text", typebar(HTyp.Hole));
+    got_indicator("Got invalid text", typebar(HTyp.Hole(None)));
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
@@ -127,7 +127,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
   let got_a_rule_indicator =
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
-    got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
+    got_indicator("Got a reserved keyword", typebar(HTyp.Hole(None)));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
@@ -204,7 +204,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         switch (syn_ty) {
-        | HTyp.Hole =>
+        | HTyp.Hole(None) =>
           got_indicator(
             "Got type ▶ matched to",
             matched_ty_bar(syn_ty, matched_ty),
@@ -217,7 +217,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 =
         got_indicator(
           "Got a keyword ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
+          matched_ty_bar(HTyp.Hole(None), matched_ty),
         );
       (ind1, ind2, BindingError);
     | SynInvalidArrow(matched_ty) =>
@@ -225,7 +225,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 =
         got_indicator(
           "Got invalid text ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
+          matched_ty_bar(HTyp.Hole(None), matched_ty),
         );
       (ind1, ind2, BindingError);
     | SynFreeArrow(matched_ty) =>
@@ -233,7 +233,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t): Node.t => {
       let ind2 =
         got_indicator(
           "Got a free variable ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
+          matched_ty_bar(HTyp.Hole(None), matched_ty),
         );
       (ind1, ind2, BindingError);
     | SynBranchClause(join, typed, branch_index) =>

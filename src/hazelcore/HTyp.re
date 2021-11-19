@@ -82,7 +82,7 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole(_) => Some((Hole, Hole))
+  | Hole(_) => Some((Hole(None), Hole(None)))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -96,21 +96,21 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole(None) => Some((Hole(None), Hole(None)))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole => Some(Hole)
+  | Hole(None) => Some(Hole(None))
   | List(ty) => Some(ty)
   | _ => None;
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole => false
+  | Hole(_) => false
   | Int => true
   | Float => true
   | Bool => true
@@ -121,14 +121,14 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole(_)) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(Hole(None))
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole(_), _) =>
     switch (j) {
-    | GLB => Some(Hole)
+    | GLB => Some(Hole(None))
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)

@@ -38,8 +38,9 @@ let joined_pattern_type = (ctx, rules) => {
   HTyp.join_all(LUB, tys);
 };
 
-let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
-  syn_block(ctx, e)
+let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) => {
+  syn_block(ctx, e);
+}
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* ctx = syn_lines(ctx, leading);
@@ -82,7 +83,7 @@ and syn_skel =
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
-    HTyp.Hole;
+    HTyp.Hole(None);
   | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, HTyp.Int)
     and+ _ = ana_skel(ctx, skel2, seq, Int);
@@ -123,8 +124,8 @@ and syn_skel =
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
-  | EmptyHole(_) => Some(Hole)
-  | InvalidText(_) => Some(Hole)
+  | EmptyHole(_) => Some(Hole(None))
+  | InvalidText(_) => Some(Hole(None))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -136,7 +137,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
-    HTyp.Hole;
+    HTyp.Hole(None);
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -160,14 +161,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         rule_types,
         rules,
       );
-    correct_rule_types ? Some(HTyp.Hole) : None;
+    correct_rule_types
+      ? Some(HTyp.Hole(Some())) : /*None*/ Some(HTyp.Hole(Some())); //TODO(andrew)
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
-  | Var(NotInHole, InVarHole(_), _) => Some(Hole)
+  | Var(NotInHole, InVarHole(_), _) => Some(Hole(None))
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
-  | ListNil(NotInHole) => Some(List(Hole))
+  | ListNil(NotInHole) => Some(List(Hole(None)))
   | Lam(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
@@ -175,12 +177,25 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
-    | L => HTyp.Sum(ty, Hole)
-    | R => Sum(Hole, ty)
+    | L => HTyp.Sum(ty, Hole(None))
+    | R => Sum(Hole(None), ty)
     };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+    print_endline("CASE SYN noerrs");
     let* clause_ty = syn(ctx, scrut);
-    syn_rules(ctx, rules, clause_ty);
+    print_endline(
+      Sexplib.Sexp.to_string_hum(
+        Sexplib.Std.sexp_of_option(
+          HTyp.sexp_of_t,
+          syn_rules(ctx, rules, clause_ty),
+        ),
+      ),
+    );
+    //TODO(andrew): lol
+    switch (syn_rules(ctx, rules, clause_ty)) {
+    | None => Some(HTyp.Hole(Some()))
+    | x => x
+    };
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
@@ -525,7 +540,11 @@ and syn_fix_holes_block =
     let (leading, _ctx, u_gen) =
       syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);
     let (conclusion, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    (leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)], Hole, u_gen);
+    (
+      leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)],
+      Hole(None),
+      u_gen,
+    );
   | Some((leading, conclusion)) =>
     let (leading, ctx, u_gen) =
       syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, leading);
@@ -735,11 +754,11 @@ and syn_fix_holes_skel =
           ~renumber_empty_holes,
           skel2,
           seq,
-          HTyp.Hole,
+          HTyp.Hole(None),
         );
       let (OpSeq(skel1, seq), u_gen) =
         UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-      (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+      (BinOp(NotInHole, Space, skel1, skel2), seq, Hole(None), u_gen);
     };
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
@@ -783,18 +802,18 @@ and syn_fix_holes_operand =
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (EmptyHole(u), Hole, u_gen);
+      (EmptyHole(u), Hole(None), u_gen);
     } else {
-      (e, Hole, u_gen);
+      (e, Hole(None), u_gen);
     }
-  | InvalidText(_) => (e, Hole, u_gen)
+  | InvalidText(_) => (e, Hole(None), u_gen)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
     | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
-      | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
+      | InVarHole(_, _) => (e_nih, HTyp.Hole(None), u_gen)
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
@@ -803,13 +822,13 @@ and syn_fix_holes_operand =
           | (_, true) => Keyword(Case)
           | _ => Free
           };
-        (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
+        (Var(NotInHole, InVarHole(reason, u), x), Hole(None), u_gen);
       }
     };
   | IntLit(_, _) => (e_nih, Int, u_gen)
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
-  | ListNil(_) => (e_nih, List(Hole), u_gen)
+  | ListNil(_) => (e_nih, List(Hole(None)), u_gen)
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -825,8 +844,8 @@ and syn_fix_holes_operand =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     let ty =
       switch (side) {
-      | L => HTyp.Sum(ty1, Hole)
-      | R => HTyp.Sum(Hole, ty1)
+      | L => HTyp.Sum(ty1, Hole(None))
+      | R => HTyp.Sum(Hole(None), ty1)
       };
     (Inj(NotInHole, side, body), ty, u_gen);
   | Case(_, scrut, rules) =>
@@ -839,7 +858,7 @@ and syn_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
         Case(InconsistentBranches(rule_types, u), scrut, rules),
-        HTyp.Hole,
+        HTyp.Hole(Some()), //TODO(andrew)
         u_gen,
       );
     | Some(common_type) => (
@@ -1300,11 +1319,31 @@ and ana_fix_holes_operand =
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
-  def
-  |> syn(extend_let_def_ctx(ctx, p, def))
-  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-  |> Statics_Pat.ana(ctx, p)
-  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
+  Sexplib.Std.(
+    def
+    |> syn(extend_let_def_ctx(ctx, p, def))
+    |> OptUtil.get(_ => {
+         print_endline("EXTEND_LET_BODY_CTX: p def:");
+         print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
+         print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
+         print_endline(
+           Sexplib.Sexp.to_string_hum(
+             sexp_of_option(
+               HTyp.sexp_of_t,
+               Statics_Pat.syn(ctx, p) |> Option.map(((a, _)) => a),
+             ),
+           ),
+         );
+         print_endline(
+           Sexplib.Sexp.to_string_hum(
+             sexp_of_option(HTyp.sexp_of_t, syn(ctx, def)),
+           ),
+         );
+         failwith("extend_let_body_ctx: impossible syn");
+       })
+    |> Statics_Pat.ana(ctx, p)
+    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"))
+  );
 };
 
 let syn_fix_holes_z =
