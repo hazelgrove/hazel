@@ -1,9 +1,12 @@
 open Sexplib.Std;
 
+[@deriving sexp]
+type hole_label = option(unit);
+
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole
+  | Hole(hole_label)
   | Int
   | Float
   | Bool
@@ -26,7 +29,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole
+  | Hole(_)
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -42,8 +45,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Hole, _)
-  | (_, Hole) => true
+  | (Hole(_), _)
+  | (_, Hole(_)) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -79,7 +82,7 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
