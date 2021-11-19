@@ -16,8 +16,16 @@ type shift_history_info = {
   elt_id: int,
   call_by_mouseenter: bool,
 };
+
 [@deriving sexp]
 type group_id = int;
+
+[@deriving sexp]
+type serialize_object =
+  | UHExp
+  | DHExp
+  | ZExp;
+
 [@deriving sexp]
 type t =
   | EditAction(EditAction.t)
@@ -29,6 +37,7 @@ type t =
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell
@@ -40,4 +49,4 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole;
+  | SerializeToConsole(serialize_object);
