@@ -74,7 +74,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatSynInjection => (None, None, Synthetic)
   | OnTag => (None, None, UnknownMode)
   | OnTagHole => (None, None, UnknownMode)
-  | OnSumBody => (None, None, UnknownMode)
+  | OnSumBodyOperand => (None, None, UnknownMode)
+  | OnSumBodyOperator => (None, None, UnknownMode)
   | AnaInjExpectedTypeNotConsistentWithSums(expected) => (
       Some(expected),
       None,

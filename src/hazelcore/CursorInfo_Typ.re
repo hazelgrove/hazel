@@ -74,8 +74,8 @@ let cursor_info =
     | Line(_, _)
     | Rule(_, _) => OnType
     | Tag(_, tag) => CursorInfo_Tag.cursor_info_typed(tag)
-    | SumBody(_, _)
-    | SumBodyOp(_, _) => OnSumBody
+    | SumBody(_, _) => OnSumBodyOperand
+    | SumBodyOp(_, _) => OnSumBodyOperator
     };
   Some(CursorInfo_common.mk(typed, ctx, cursor_term));
 };

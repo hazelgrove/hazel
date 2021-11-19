@@ -130,7 +130,8 @@ type typed =
   | OnUnknownTag(UHTag.t)
   | OnDuplicateTag(UHTag.t)
   /* cursor in sum body position */
-  | OnSumBody
+  | OnSumBodyOperand
+  | OnSumBodyOperator
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;

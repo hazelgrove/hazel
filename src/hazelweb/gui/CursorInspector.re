@@ -321,7 +321,8 @@ let advanced_summary =
     | OnType => []
     | OnTag => [emphasize_text("Tag")]
     | OnTagHole => [emphasize_text("Tag Hole")]
-    | OnSumBody => [emphasize_text("Sum")]
+    | OnSumBodyOperand => [emphasize_text("Sum body operand")]
+    | OnSumBodyOperator => [emphasize_text("Sum body operator")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
@@ -578,7 +579,8 @@ let novice_summary =
     | OnType
     | OnTag
     | OnTagHole
-    | OnSumBody => [Node.text("Got " ++ article), term_tag]
+    | OnSumBodyOperand
+    | OnSumBodyOperator => [Node.text("Got " ++ article), term_tag]
     | OnInvalidTag(_) => [
         Node.text("Expecting " ++ article),
         term_tag,
@@ -808,7 +810,8 @@ let view =
     | OnType
     | OnTag
     | OnTagHole
-    | OnSumBody
+    | OnSumBodyOperand
+    | OnSumBodyOperator
     | PatAnalyzed(_)
     | PatAnaSubsumed(_)
     | PatSynthesized(_)

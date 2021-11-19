@@ -291,11 +291,7 @@ let view =
           ...key_handlers,
         ],
         caret
-        @ List.map(
-            // ci => ci(~selected_tag_hole, ~font_metrics),
-            ci => ci(~selected_tag_hole),
-            cursor_inspector,
-          )
+        @ List.map(ci => ci(~selected_tag_hole), cursor_inspector)
         @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
