@@ -8,14 +8,16 @@ module Impl = {
     let e = DHExp.ApBuiltin(ident, args);
     switch (args) {
     | [] => Indet(e)
-    | [d1, ..._] => f(d1, evaluate, e)
+    | [d1, ..._] =>
+      let d1' = evaluate(d1);
+      f(d1', e);
     };
   };
 
   let int_of_float =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(FloatLit(f)) =>
           let i = int_of_float(f);
           BoxedValue(IntLit(i));
@@ -26,8 +28,8 @@ module Impl = {
 
   let float_of_int =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(IntLit(i)) =>
           let f = float_of_int(i);
           BoxedValue(FloatLit(f));
@@ -38,8 +40,8 @@ module Impl = {
 
   let string_of_int =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(IntLit(i)) =>
           let s = string_of_int(i) |> UnescapedString.from_string_unchecked;
           BoxedValue(StringLit(s, []));
@@ -50,8 +52,8 @@ module Impl = {
 
   let string_of_float =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(FloatLit(f)) =>
           let s = string_of_float(f) |> UnescapedString.from_string_unchecked;
           BoxedValue(StringLit(s, []));
@@ -62,8 +64,8 @@ module Impl = {
 
   let string_of_bool =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(BoolLit(b)) =>
           let s = string_of_bool(b) |> UnescapedString.from_string_unchecked;
           BoxedValue(StringLit(s, []));
@@ -74,8 +76,8 @@ module Impl = {
 
   let int_of_string =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(StringLit(s, errors)) =>
           switch (errors) {
           | [] =>
@@ -93,8 +95,8 @@ module Impl = {
 
   let float_of_string =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(StringLit(s, errors)) =>
           switch (errors) {
           | [] =>
@@ -112,8 +114,8 @@ module Impl = {
 
   let bool_of_string =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(StringLit(s, errors)) =>
           switch (errors) {
           | [] =>
@@ -131,8 +133,8 @@ module Impl = {
 
   let string_length =
     (
-      (d1, evaluate, e) =>
-        switch (evaluate(d1)) {
+      (d1', e) =>
+        switch (d1') {
         | BoxedValue(StringLit(s, errors) as d1') =>
           switch (errors) {
           | [] => BoxedValue(IntLit(UnescapedString.length(s)))
