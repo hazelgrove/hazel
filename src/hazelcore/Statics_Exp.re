@@ -119,12 +119,6 @@ and syn_skel =
     ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP SYN_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
@@ -293,13 +287,6 @@ and ana_skel =
   }
 and ana_operand =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP ANA_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some()
@@ -800,15 +787,6 @@ and syn_fix_holes_skel =
           seq,
           ty2,
         );
-      Sexplib.Sexp.(
-        {
-          print_endline("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-          print_endline(to_string_hum(UHExp.sexp_of_skel(skel)));
-          print_endline(to_string_hum(HTyp.sexp_of_t(ty2)));
-          print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-          print_endline(to_string_hum(UHExp.sexp_of_seq(seq)));
-        }
-      );
       (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
     | None =>
       let (skel2, seq, u_gen) =
@@ -1279,13 +1257,6 @@ and ana_fix_holes_operand =
       ty: HTyp.t,
     )
     : (UHExp.operand, MetaVarGen.t) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP ANA_FIX_HOLES_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(e)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {

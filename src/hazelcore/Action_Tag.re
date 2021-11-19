@@ -81,13 +81,6 @@ let move =
 let perform =
     (u_gen: MetaVarGen.t, a: Action.t, ztag: ZTag.t)
     : ActionOutcome.t((ZTag.t, MetaVarGen.t)) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("TAG PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZTag.sexp_of_t(ztag)));
-    }
-  );
   switch (a, ztag) {
   /* Invalid actions */
   | (

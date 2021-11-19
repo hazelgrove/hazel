@@ -246,12 +246,6 @@ and syn_elab_skel =
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP SYN_ELAB_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -681,13 +675,6 @@ and ana_elab_skel =
 and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP ANA_ELAB_OPERAND");
-      print_endline(to_string_hum(UHExp.sexp_of_operand(operand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)

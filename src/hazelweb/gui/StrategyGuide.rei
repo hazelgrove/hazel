@@ -7,7 +7,6 @@ let exp_hole_view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~selected_tag_hole: option(MetaVar.t),
-    ~font_metrics: FontMetrics.t,
     CursorInspectorModel.t,
     CursorInfo.t
   ) =>

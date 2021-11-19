@@ -1686,11 +1686,17 @@ h1 {
 }
 
 .term-tag-typ{
-  background-color:rgb(233, 221, 253);
+  background-color: var(--typ-bg-color);
 }
 .term-tag-pat{
-  background-color:#baf1fe;
+  background-color: var(--pat-bg-color);
 }
 .term-tag-exp{
-  background-color:rgb(197, 253, 197);
+  background-color: var(--exp-bg-color);
+}
+.term-tag-tag{
+  background-color: var(--tag-bg-color);
+}
+.term-tag-sum-body{
+  background-color: var(--sum-body-bg-color);
 }

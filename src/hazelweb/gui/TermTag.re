@@ -36,6 +36,6 @@ let term_tag_view =
   | Pat => mk_view("pat", "Pattern", "PAT")
   | Typ => mk_view("typ", "Type", "TYP")
   | Tag => mk_view("tag", "Tag", "TAG")
-  | SumBody => mk_view("sum", "Sum", "SUM")
+  | SumBody => mk_view("sum-body", "Sum", "SUM")
   };
 };

@@ -27,7 +27,6 @@ let view =
             Node.text(" : "),
             HTypCode.view(
               ~inject,
-              ~font_metrics,
               ~selected_tag_hole,
               ~width=30,
               ~pos=Var.length(x) + 3,

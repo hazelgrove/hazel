@@ -603,13 +603,6 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP SYN_PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
-    }
-  );
   let result =
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -2554,14 +2547,6 @@ and ana_perform =
       ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("EXP ANA_PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZExp.sexp_of_t(ze)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)

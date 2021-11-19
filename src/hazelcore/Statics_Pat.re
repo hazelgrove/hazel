@@ -881,7 +881,6 @@ and ana_fix_holes_operand =
 let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-  print_endline("FFF");
   let path = CursorPath_Pat.of_z(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, ZPat.erase(zp));
   let zp =

@@ -68,7 +68,7 @@ let view_of_layout =
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | InjHole(_) => ([with_cls("InInjHole", txt)], ds)
              | NonEmptyHole(_)
-             | NonEmptyTagHole(_, _)
+             | NonEmptyTagHole(_)
              | InconsistentBranches(_)
              | Invalid(_) =>
                let offset = start.col - indent;

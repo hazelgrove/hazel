@@ -55,14 +55,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
               ),
               div(
                 [Attr.classes(["htype-view"])],
-                [
-                  HTypCode.view(
-                    ~inject,
-                    ~font_metrics=model.font_metrics,
-                    ~selected_tag_hole,
-                    ty,
-                  ),
-                ],
+                [HTypCode.view(~inject, ~selected_tag_hole, ty)],
               ),
             ],
           ),

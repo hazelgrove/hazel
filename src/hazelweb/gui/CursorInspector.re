@@ -50,13 +50,12 @@ let any_typ_msg =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
     ) =>
   Node.div(
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, HTyp.Hole),
+      HTypCode.view(~inject, ~selected_tag_hole, HTyp.Hole),
       emphasize_text(")"),
     ],
   );
@@ -77,23 +76,19 @@ let pat_ana_subsumed_msg =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       expected_ty,
       got_ty,
       expecting_msg,
       consistency_msg,
     ) =>
   if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
-    expecting_msg
-    @ [
-      HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, expected_ty),
-    ];
+    expecting_msg @ [HTypCode.view(~inject, ~selected_tag_hole, expected_ty)];
   } else {
     expecting_msg
     @ [
-      HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, expected_ty),
+      HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
       consistency_msg,
-      HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+      HTypCode.view(~inject, ~selected_tag_hole, got_ty),
     ];
   };
 
@@ -101,7 +96,6 @@ let syn_branch_clause_msg =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       join,
       typed,
       join_type_consistent,
@@ -112,24 +106,16 @@ let syn_branch_clause_msg =
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
     if (HTyp.consistent(ty, got_ty)) {
-      join_type_consistent
-      @ [HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty)];
+      join_type_consistent @ [HTypCode.view(~inject, ~selected_tag_hole, ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
       join_type_inconsistent_expecting
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          ~diff_steps=ty_diff,
-          ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, ~diff_steps=ty_diff, ty),
         join_type_inconsistent_msg,
         HTypCode.view(
           ~inject,
           ~selected_tag_hole,
-          ~font_metrics,
           ~diff_steps=got_diff,
           got_ty,
         ),
@@ -143,7 +129,6 @@ let advanced_summary =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
@@ -154,23 +139,20 @@ let advanced_summary =
     | Analyzed(ty)
     | PatAnalyzed(ty) => [
         ana,
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
+        HTypCode.view(~inject, ~selected_tag_hole, ty),
       ]
     | SynMatchingArrow(_, ty) => [
         syn,
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
+        HTypCode.view(~inject, ~selected_tag_hole, ty),
       ]
     | Synthesized(ty)
     | PatSynthesized(ty) =>
       switch (term) {
       | ExpOperand(_, EmptyHole(_)) => [
           syn,
-          any_typ_msg(~inject, ~selected_tag_hole, ~font_metrics),
+          any_typ_msg(~inject, ~selected_tag_hole),
         ]
-      | _ => [
-          syn,
-          HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
-        ]
+      | _ => [syn, HTypCode.view(~inject, ~selected_tag_hole, ty)]
       }
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
@@ -178,7 +160,6 @@ let advanced_summary =
       pat_ana_subsumed_msg(
         ~inject,
         ~selected_tag_hole,
-        ~font_metrics,
         expected_ty,
         got_ty,
         [ana],
@@ -192,7 +173,6 @@ let advanced_summary =
         HTypCode.view(
           ~inject,
           ~selected_tag_hole,
-          ~font_metrics,
           ~diff_steps=expected_diff,
           expected_ty,
         ),
@@ -200,7 +180,6 @@ let advanced_summary =
         HTypCode.view(
           ~inject,
           ~selected_tag_hole,
-          ~font_metrics,
           ~diff_steps=got_diff,
           got_ty,
         ),
@@ -209,7 +188,7 @@ let advanced_summary =
         syn,
         emphasize_text("Function Type"),
         inconsistent_symbol,
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
       ]
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
@@ -221,12 +200,7 @@ let advanced_summary =
     | AnaInvalid(expected_ty)
     | PatAnaInvalid(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Invalid Text"),
       ]
@@ -247,51 +221,31 @@ let advanced_summary =
       ]
     | AnaInjExpectedTypeNotConsistentWithSums(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Inconsistent With Sum Type"),
       ]
     | PatAnaInjExpectedTypeNotConsistentWithSums(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Inconsistent With Sum Type"),
       ]
     | AnaInjExpectedArg(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Missing Argument"),
       ]
     | PatAnaInjExpectedArg(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Missing Argument"),
       ]
     | AnaInjUnexpectedArg(got_ty) => [
         ana,
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
         inconsistent_symbol,
         emphasize_text("Unexpected Argument"),
       ]
@@ -300,18 +254,13 @@ let advanced_summary =
     | OnDuplicateTag(_) => []
     | PatAnaInjUnexpectedArg(got_ty) => [
         ana,
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
         inconsistent_symbol,
         emphasize_text("Unexpected Argument"),
       ]
     | AnaFree(expected_ty) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Free Variable"),
       ]
@@ -325,24 +274,14 @@ let advanced_summary =
     | AnaKeyword(expected_ty, keyword) =>
       let main_msg = [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
     | PatAnaKeyword(expected_ty, _) => [
         ana,
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         inconsistent_symbol,
         emphasize_text("Reserved Keyword"),
       ]
@@ -362,7 +301,6 @@ let advanced_summary =
       syn_branch_clause_msg(
         ~inject,
         ~selected_tag_hole,
-        ~font_metrics,
         join,
         typed,
         [syn],
@@ -381,9 +319,9 @@ let advanced_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => []
-    | OnTag
-    | OnTagHole
-    | OnSumBody => []
+    | OnTag => [emphasize_text("Tag")]
+    | OnTagHole => [emphasize_text("Tag Hole")]
+    | OnSumBody => [emphasize_text("Sum")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
     };
@@ -398,7 +336,6 @@ let novice_summary =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
@@ -410,15 +347,13 @@ let novice_summary =
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) =>
-      expecting_of_type
-      @ [HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty)]
+      expecting_of_type @ [HTypCode.view(~inject, ~selected_tag_hole, ty)]
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
         ~inject,
         ~selected_tag_hole,
-        ~font_metrics,
         expected_ty,
         got_ty,
         expecting_of_type,
@@ -431,20 +366,20 @@ let novice_summary =
           Node.text("Got " ++ article),
           term_tag,
           Node.text("of"),
-          any_typ_msg(~inject, ~selected_tag_hole, ~font_metrics),
+          any_typ_msg(~inject, ~selected_tag_hole),
         ]
       | _ => [
           Node.text("Got " ++ article),
           term_tag,
           Node.text("of type"),
-          HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
+          HTypCode.view(~inject, ~selected_tag_hole, ty),
         ]
       }
     | SynMatchingArrow(_, ty) => [
         Node.text("Got " ++ article),
         term_tag,
         Node.text("of type"),
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
+        HTypCode.view(~inject, ~selected_tag_hole, ty),
       ]
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
@@ -454,7 +389,6 @@ let novice_summary =
         HTypCode.view(
           ~inject,
           ~selected_tag_hole,
-          ~font_metrics,
           ~diff_steps=expected_diff,
           expected_ty,
         ),
@@ -462,7 +396,6 @@ let novice_summary =
         HTypCode.view(
           ~inject,
           ~selected_tag_hole,
-          ~font_metrics,
           ~diff_steps=got_diff,
           got_ty,
         ),
@@ -473,7 +406,7 @@ let novice_summary =
         Node.text("of"),
         emphasize_text("Function Type"),
         Node.text("but got inconsistent type"),
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
       ]
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
@@ -487,12 +420,7 @@ let novice_summary =
     | PatAnaInvalid(expected_ty) =>
       expecting_of_type
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("Invalid Text"),
       ]
@@ -522,12 +450,7 @@ let novice_summary =
     | AnaInjExpectedTypeNotConsistentWithSums(expected_ty) =>
       expecting_of_type
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("An Injection"),
       ]
@@ -535,32 +458,22 @@ let novice_summary =
         Node.text("Expecting " ++ article),
         term_tag,
         Node.text("to have an argument of type"),
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("A Constant Injection"),
       ]
     | AnaInjUnexpectedArg(got_ty) => [
         Node.text("Got " ++ article),
         term_tag,
-        Node.text("an injection with argument of type"),
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        Node.text("unary injection with argument type"),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
         Node.text("but expected"),
         emphasize_text("A Constant Injection"),
       ]
     | PatAnaInjExpectedTypeNotConsistentWithSums(expected_ty) =>
       expecting_of_type
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("An Injection"),
       ]
@@ -568,12 +481,7 @@ let novice_summary =
         Node.text("Expecting " ++ article),
         term_tag,
         Node.text("to have an argument of type"),
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("A Constant Injection"),
       ]
@@ -581,25 +489,14 @@ let novice_summary =
         Node.text("Got " ++ article),
         term_tag,
         Node.text("an injection with argument of type"),
-        HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, got_ty),
+        HTypCode.view(~inject, ~selected_tag_hole, got_ty),
         Node.text("but expected"),
         emphasize_text("A Constant Injection"),
       ]
-    | OnTag
-    | OnTagHole
-    | OnSumBody
-    | OnInvalidTag(_)
-    | OnUnknownTag(_)
-    | OnDuplicateTag(_) => []
     | AnaFree(expected_ty) =>
       expecting_of_type
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got a"),
         emphasize_text("Free Variable"),
       ]
@@ -620,12 +517,7 @@ let novice_summary =
       let main_msg =
         expecting_of_type
         @ [
-          HTypCode.view(
-            ~inject,
-            ~selected_tag_hole,
-            ~font_metrics,
-            expected_ty,
-          ),
+          HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
           Node.text("but got a"),
           emphasize_text("Reserved Keyword"),
         ];
@@ -633,12 +525,7 @@ let novice_summary =
     | PatAnaKeyword(expected_ty, _) =>
       expecting_of_type
       @ [
-        HTypCode.view(
-          ~inject,
-          ~selected_tag_hole,
-          ~font_metrics,
-          expected_ty,
-        ),
+        HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
       ]
@@ -668,7 +555,6 @@ let novice_summary =
       syn_branch_clause_msg(
         ~inject,
         ~selected_tag_hole,
-        ~font_metrics,
         join,
         typed,
         [Node.text("Got " ++ article), term_tag, Node.text("of type")],
@@ -689,7 +575,28 @@ let novice_summary =
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
+    | OnType
+    | OnTag
+    | OnTagHole
+    | OnSumBody => [Node.text("Got " ++ article), term_tag]
+    | OnInvalidTag(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("but got"),
+        emphasize_text("Invalid Tag Name"),
+      ]
+    | OnUnknownTag(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("but got"),
+        emphasize_text("Unknown Tag"),
+      ]
+    | OnDuplicateTag(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("but got"),
+        emphasize_text("Duplicate Tag"),
+      ]
     | OnNonLetLine => /* TODO */ [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
@@ -709,7 +616,6 @@ let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       ci: CursorInfo.t,
       show_expansion_arrow: bool,
       show_expanded: bool,
@@ -752,7 +658,6 @@ let summary_bar =
         ? novice_summary(
             ~inject,
             ~selected_tag_hole,
-            ~font_metrics,
             ci.typed,
             ci.cursor_term,
             tag_type,
@@ -760,7 +665,6 @@ let summary_bar =
         : advanced_summary(
             ~inject,
             ~selected_tag_hole,
-            ~font_metrics,
             ci.typed,
             ci.cursor_term,
             tag_type,
@@ -799,7 +703,6 @@ let view =
     (
       ~inject: ModelAction.t => Event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       ~loc: (float, float),
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
@@ -827,7 +730,7 @@ let view =
                 inject(SelectCaseBranch(path_to_case, shifted_index))
               }),
             ],
-            [HTypCode.view(~inject, ~font_metrics, ~selected_tag_hole, ty)],
+            [HTypCode.view(~inject, ~selected_tag_hole, ty)],
           );
         },
         branch_types,
@@ -991,22 +894,16 @@ let view =
       | None => (false, None)
       | Some(sg_rules) => (
           true,
-          Some((~selected_tag_hole as _, ~font_metrics as _) => sg_rules),
+          Some((~selected_tag_hole as _) => sg_rules),
         )
       }
     | (Line(_, EmptyLine), _) => (
         true,
-        Some(
-          (~selected_tag_hole as _, ~font_metrics as _) =>
-            StrategyGuide.lines_view(true),
-        ),
+        Some((~selected_tag_hole as _) => StrategyGuide.lines_view(true)),
       )
     | (Line(_), _) => (
         true,
-        Some(
-          (~selected_tag_hole as _, ~font_metrics as _) =>
-            StrategyGuide.lines_view(false),
-        ),
+        Some((~selected_tag_hole as _) => StrategyGuide.lines_view(false)),
       )
     | _ => (false, None)
     };
@@ -1028,10 +925,7 @@ let view =
     switch (cursor_inspector.show_expanded, expanded_msg) {
     | (true, Some(ind)) => [
         summary,
-        ...List.map(
-             (node, ~selected_tag_hole as _, ~font_metrics as _) => node,
-             ind,
-           ),
+        ...List.map((node, ~selected_tag_hole as _) => node, ind),
       ]
     | _ => [summary]
     };
@@ -1052,7 +946,7 @@ let view =
     [
       Node.div(
         [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
-        List.map(f => f(~selected_tag_hole, ~font_metrics), content),
+        content |> List.map(f => f(~selected_tag_hole)),
       ),
     ],
   );

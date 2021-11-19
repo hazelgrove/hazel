@@ -441,13 +441,6 @@ and ana_cursor_info_zoperand =
       ty: HTyp.t,
     )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("PAT ANA_CURSOR_INFO_ZOPERAND");
-      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   let cursor_term = extract_from_zpat_operand(zoperand);
   switch (zoperand) {
   | CursorP(_, operand) =>

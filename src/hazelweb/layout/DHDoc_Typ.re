@@ -8,7 +8,6 @@ let promote_annot =
   | Delim => Delim
   | HoleLabel => HoleLabel
   | EmptyTagHole(u) => EmptyTagHole(selected(u), u)
-  | NonEmptyTagHole(reason, u) => NonEmptyTagHole(reason, u)
   };
 
 let promote = (selected: MetaVar.t => bool, d: HTypDoc.t): DHDoc.t =>

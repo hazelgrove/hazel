@@ -259,7 +259,6 @@ let resurround_z =
 let rec syn_move =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) => {
-  print_endline("NNN");
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -409,13 +408,6 @@ let annotate_last_operand =
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("PAT SYN_PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZPat.sexp_of_t(zp)));
-    }
-  );
   syn_perform_opseq(ctx, u_gen, a, zp);
 }
 and syn_perform_opseq =
@@ -618,13 +610,6 @@ and syn_perform_operand =
       zoperand: ZPat.zoperand,
     )
     : ActionOutcome.t(syn_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("PAT SYN_PERFORM_OPERAND");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
-    }
-  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1156,14 +1141,6 @@ and ana_perform =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("PAT ANA_PERFORM");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZPat.sexp_of_t(zp)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   ana_perform_opseq(ctx, u_gen, a, zp, ty);
 }
 and ana_perform_opseq =
@@ -1381,14 +1358,6 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Sexplib.Sexp.(
-    {
-      print_endline("PAT ANA_PERFORM_OPERAND");
-      print_endline(to_string_hum(Action.sexp_of_t(a)));
-      print_endline(to_string_hum(ZPat.sexp_of_zoperand(zoperand)));
-      print_endline(to_string_hum(HTyp.sexp_of_t(ty)));
-    }
-  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (

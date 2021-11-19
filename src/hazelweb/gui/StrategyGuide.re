@@ -91,7 +91,6 @@ let list_vars_view =
     (
       ~inject: ModelAction.t => Ui_event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       vars: VarCtx.t,
     ) => {
   let b =
@@ -102,7 +101,7 @@ let list_vars_view =
           [
             code_node(var),
             Node.text(" : "),
-            HTypCode.view(~inject, ~selected_tag_hole, ~font_metrics, ty),
+            HTypCode.view(~inject, ~selected_tag_hole, ty),
           ],
         )
       },
@@ -236,7 +235,6 @@ let exp_hole_view =
     (
       ~inject: ModelAction.t => Event.t,
       ~selected_tag_hole: option(MetaVar.t),
-      ~font_metrics: FontMetrics.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     ) => {
@@ -318,7 +316,7 @@ let exp_hole_view =
     } else {
       Node.div(
         [Attr.classes(["options"])],
-        list_vars_view(~inject, ~selected_tag_hole, ~font_metrics, var_ctx),
+        list_vars_view(~inject, ~selected_tag_hole, var_ctx),
       );
     };
   let var =
@@ -360,7 +358,6 @@ let exp_hole_view =
         ...list_vars_view(
              ~inject,
              ~selected_tag_hole,
-             ~font_metrics,
              Assistant_common.fun_vars(ctx, typ),
            ),
       ];
