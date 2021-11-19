@@ -294,14 +294,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" rule")],
         )
       )
-    | SumBody(_, _) =>
+    | SumBodyOperand(_, _) =>
       Vdom.(
         Node.span(
           [],
           [code_keywords_view("sum"), indicate_words_view(" body")],
         )
       )
-    | SumBodyOp(_, op) => code_view(Operators_SumBody.to_string(op))
+    | SumBodyOperator(_, op) => code_view(Operators_SumBody.to_string(op))
     | Tag(_, tag) => tag_view(tag)
     };
   };
@@ -450,7 +450,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   //   | Line(_, _)
   //   | Rule(_, _) => Exp
   //   | SumBody(_, _)
-  //   | SumBodyOp(_, _)
+  //   | SumBodyOperator(_, _)
   //   | Tag(_, _) => Typ
   //   };
   // };

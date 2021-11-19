@@ -11,8 +11,8 @@ let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => 
   | TypOperand(_, _)
   | TypOperator(_, _) => Typ
   | Tag(_) => Tag
-  | SumBody(_)
-  | SumBodyOp(_) => SumBody
+  | SumBodyOperand(_)
+  | SumBodyOperator(_) => SumBody
   };
 };
 

@@ -32,8 +32,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | ExpOperator(_, _)
   | PatOperator(_, _)
   | TypOperator(_, _)
-  | SumBody(_, _)
-  | SumBodyOp(_) => false
+  | SumBodyOperand(_, _)
+  | SumBodyOperator(_) => false
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
@@ -59,8 +59,8 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | ExpOperator(_)
   | PatOperator(_)
   | TypOperator(_)
-  | SumBody(_, _)
-  | SumBodyOp(_)
+  | SumBodyOperand(_, _)
+  | SumBodyOperator(_)
   | Line(_, _)
   | Rule(_, _) => false
   };
@@ -77,8 +77,8 @@ let is_empty_line = (cursor_term): bool => {
   | ExpOperator(_, _)
   | PatOperator(_, _)
   | TypOperator(_, _)
-  | SumBody(_, _)
-  | SumBodyOp(_)
+  | SumBodyOperand(_, _)
+  | SumBodyOperator(_)
   | Rule(_, _) => false
   };
 };
@@ -93,8 +93,8 @@ let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   | ExpOperator(_)
   | PatOperator(_)
   | TypOperator(_)
-  | SumBody(_)
-  | SumBodyOp(_)
+  | SumBodyOperand(_)
+  | SumBodyOperator(_)
   | Line(_)
   | Rule(_) => false;
 

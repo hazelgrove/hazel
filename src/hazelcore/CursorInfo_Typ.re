@@ -23,14 +23,14 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term =>
 and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
   switch (zseq) {
   | ZOperand(zoperand, _) => extract_from_zsumbody_operand(zoperand)
-  | ZOperator((cursor, operator), _) => SumBodyOp(cursor, operator)
+  | ZOperator((cursor, operator), _) => SumBodyOperator(cursor, operator)
   }
 
 and extract_from_zsumbody_operand =
     (zoperand: ZTyp.zsumbody_operand): cursor_term =>
   switch (zoperand) {
   | CursorArgTag(cursor, _, _) =>
-    SumBody(cursor, zoperand |> ZTyp.erase_zsumbody_operand)
+    SumBodyOperand(cursor, zoperand |> ZTyp.erase_zsumbody_operand)
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
@@ -74,8 +74,8 @@ let cursor_info =
     | Line(_, _)
     | Rule(_, _) => OnType
     | Tag(_, tag) => CursorInfo_Tag.cursor_info_typed(tag)
-    | SumBody(_, _) => OnSumBodyOperand
-    | SumBodyOp(_, _) => OnSumBodyOperator
+    | SumBodyOperand(_, _) => OnSumBodyOperand
+    | SumBodyOperator(_, _) => OnSumBodyOperator
     };
   Some(CursorInfo_common.mk(typed, ctx, cursor_term));
 };

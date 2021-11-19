@@ -145,8 +145,8 @@ type cursor_term =
   | ExpOperator(CursorPosition.t, UHExp.operator)
   | PatOperator(CursorPosition.t, UHPat.operator)
   | TypOperator(CursorPosition.t, UHTyp.operator)
-  | SumBody(CursorPosition.t, UHTyp.sumbody_operand)
-  | SumBodyOp(CursorPosition.t, UHTyp.sumbody_operator)
+  | SumBodyOperand(CursorPosition.t, UHTyp.sumbody_operand)
+  | SumBodyOperator(CursorPosition.t, UHTyp.sumbody_operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
