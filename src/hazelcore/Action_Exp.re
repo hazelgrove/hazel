@@ -1097,7 +1097,11 @@ and syn_perform_line =
       | Succeeded((new_zdef, u_gen)) =>
         let new_zline = ZExp.LetLineZE(p, new_zdef);
         let new_def = ZExp.erase(new_zdef);
+        let (new_def, u_gen) =
+          Statics_Exp.ana_fix_holes(def_ctx, u_gen, new_def, ty_p);
+        print_endline("action gonna call extend");
         let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+        print_endline("actioncalled extend");
         Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
       };
     }

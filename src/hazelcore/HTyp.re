@@ -96,14 +96,14 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole(None) => Some((Hole(None), Hole(None)))
+  | Hole(_) => Some((Hole(None), Hole(None)))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole(None) => Some(Hole(None))
+  | Hole(_) => Some(Hole(None))
   | List(ty) => Some(ty)
   | _ => None;
 

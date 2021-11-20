@@ -68,6 +68,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let* _ = ana(def_ctx, def, ty_p);
+    // TODO(andrew): ???
     let* ty_def = syn(def_ctx, def);
     Statics_Pat.ana(ctx, p, ty_def);
   }
@@ -181,21 +182,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | R => Sum(Hole(None), ty)
     };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
-    print_endline("CASE SYN noerrs");
     let* clause_ty = syn(ctx, scrut);
-    print_endline(
-      Sexplib.Sexp.to_string_hum(
-        Sexplib.Std.sexp_of_option(
-          HTyp.sexp_of_t,
-          syn_rules(ctx, rules, clause_ty),
-        ),
-      ),
-    );
-    //TODO(andrew): lol
-    switch (syn_rules(ctx, rules, clause_ty)) {
-    | None => Some(HTyp.Hole(Some()))
-    | x => x
-    };
+    syn_rules(ctx, rules, clause_ty);
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
@@ -600,7 +588,9 @@ and syn_fix_holes_line =
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, u_gen) =
       ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+    print_endline("statics gonna call extend");
     let body_ctx = extend_let_body_ctx(ctx, p, def);
+    print_endline("statics called extend");
     (LetLine(p, def), body_ctx, u_gen);
   }
 and syn_fix_holes_opseq =
@@ -1291,18 +1281,33 @@ and ana_fix_holes_operand =
       };
     }
   | Case(_, scrut, rules) =>
-    let (scrut, scrut_ty, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-    let (rules, u_gen) =
-      ana_fix_holes_rules(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        rules,
-        scrut_ty,
-        ty,
-      );
-    (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+    print_endline("ana_fix_holes: CASE");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+
+    switch (ty) {
+    | Hole(Some ()) =>
+      print_endline("case ana fix holes Hole(Some()) case");
+      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
+      let (op, _, u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
+      (op, u_gen);
+    | _ =>
+      print_endline("case ana fix holes OTHER case");
+      let (scrut, scrut_ty, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
+      let (rules, u_gen) =
+        ana_fix_holes_rules(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          rules,
+          scrut_ty,
+          ty,
+        );
+      (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+    };
+
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
