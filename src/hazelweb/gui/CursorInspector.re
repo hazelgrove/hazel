@@ -732,6 +732,7 @@ let view =
         | _ => (ind2, err_state_b)
         };
       (ind1, ind2, err_state_b);
+    };
   let expanded_msg =
     switch (cursor_info.typed) {
     | SynBranchClause(

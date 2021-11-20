@@ -558,12 +558,14 @@ and syn_perform_operand =
 
   | (Construct(SCloseSquareBracket), ListZ(zopseq))
       when ZTyp.is_after(zopseq) =>
-    Succeeded(
+    Syn_success.mk_result(
+      ctx,
+      u_gen,
       ZOpSeq.wrap(
         ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq))),
       ),
     )
-  | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
+  | (Construct(SCloseSquareBracket), CursorT(_, _)) => None
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Syn_success.mk_result(

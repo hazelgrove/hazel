@@ -60,7 +60,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     Matches(env);
   | (_, EmptyHole(_, _, _)) => Indet
   | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-  | (_, FailedCast(_, _, _)) => Indet
+  | (_, FailedCast(_, _, _, _)) => Indet
   | (_, InvalidOperation(_)) => Indet
   | (_, FreeVar(_, _, _, _)) => Indet
   | (_, InvalidText(_)) => Indet
@@ -78,8 +78,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (BoolLit(_), Cast(d, Bool, Hole)) => matches(dp, d)
-  | (BoolLit(_), Cast(d, Hole, Bool)) => matches(dp, d)
+  | (BoolLit(_), Cast(_, d, Bool, Hole)) => matches(dp, d)
+  | (BoolLit(_), Cast(_, d, Hole, Bool)) => matches(dp, d)
   | (BoolLit(_), _) => DoesNotMatch
   | (IntLit(n1), IntLit(n2)) =>
     if (n1 == n2) {
@@ -87,8 +87,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (IntLit(_), Cast(d, Int, Hole)) => matches(dp, d)
-  | (IntLit(_), Cast(d, Hole, Int)) => matches(dp, d)
+  | (IntLit(_), Cast(_, d, Int, Hole)) => matches(dp, d)
+  | (IntLit(_), Cast(_, d, Hole, Int)) => matches(dp, d)
   | (IntLit(_), _) => DoesNotMatch
   | (FloatLit(n1), FloatLit(n2)) =>
     if (n1 == n2) {
@@ -96,8 +96,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
-  | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
+  | (FloatLit(_), Cast(_, d, Float, Hole)) => matches(dp, d)
+  | (FloatLit(_), Cast(_, d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
@@ -105,10 +105,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | (R, R) => matches(dp, d)
     | _ => DoesNotMatch
     }
-  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
+  | (Inj(side, dp), Cast(_, d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
     matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
+  | (Inj(_, _), Cast(_, d, Sum(_, _), Hole)) => matches(dp, d)
+  | (Inj(_, _), Cast(_, d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -128,7 +128,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
   | (
       Pair(dp1, dp2),
-      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
+      Cast(_, d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
     ) =>
     matches_cast_Pair(
       dp1,
@@ -137,17 +137,17 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       [(head1, head2)],
       List.combine(tail1, tail2),
     )
-  | (Pair(_, _), Cast(d, Hole, Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
+  | (Pair(_, _), Cast(_, d, Hole, Prod(_)))
+  | (Pair(_, _), Cast(_, d, Prod(_), Hole)) => matches(dp, d)
   | (Pair(_, _), _) => DoesNotMatch
   | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
+  | (Triv, Cast(_, d, Hole, Prod([]))) => matches(dp, d)
+  | (Triv, Cast(_, d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
   | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
+  | (ListNil, Cast(_, d, Hole, List(_))) => matches(dp, d)
+  | (ListNil, Cast(_, d, List(_), Hole)) => matches(dp, d)
+  | (ListNil, Cast(_, d, List(_), List(_))) => matches(dp, d)
   | (ListNil, _) => DoesNotMatch
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -165,10 +165,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
+  | (Cons(dp1, dp2), Cast(_, d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(_, _), Cast(_, d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_, _), Cast(_, d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
@@ -199,16 +199,17 @@ and matches_cast_Inj =
       matches(dp, DHExp.apply_casts(d', side_casts));
     | _ => DoesNotMatch
     }
-  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
+  | Cast(_, d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
     matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole)
-  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(_, d', Sum(_, _), Hole)
+  | Cast(_, d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | TyAlias(_, _, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -226,7 +227,7 @@ and matches_cast_Inj =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
 and matches_cast_Pair =
@@ -255,9 +256,9 @@ and matches_cast_Pair =
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | Cast(d', Prod([]), Prod([])) =>
+  | Cast(_, d', Prod([]), Prod([])) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
+  | Cast(_, d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
     matches_cast_Pair(
       dp1,
       dp2,
@@ -265,10 +266,10 @@ and matches_cast_Pair =
       [(head1, head2), ...left_casts],
       List.combine(tail1, tail2) @ right_casts,
     )
-  | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) =>
+  | Cast(_, d', Prod(_), Hole)
+  | Cast(_, d', Hole, Prod(_)) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -291,7 +292,7 @@ and matches_cast_Pair =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
 and matches_cast_Cons =
@@ -335,11 +336,11 @@ and matches_cast_Cons =
       | Matches(env2) => Matches(Environment.union(env1, env2))
       };
     }
-  | Cast(d', List(ty1), List(ty2)) =>
+  | Cast(_, d', List(ty1), List(ty2)) =>
     matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(_, _, _) => DoesNotMatch
+  | Cast(_, d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(_, d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -362,7 +363,7 @@ and matches_cast_Cons =
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
+  | FailedCast(_, _, _, _) => Indet
   | InvalidOperation(_) => Indet
   };
 
@@ -450,12 +451,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3' = subst_var(d1, x, d3);
     let sigma' = subst_var_env(d1, x, sigma);
     NonEmptyHole(reason, u, i, sigma', d3');
-  | Cast(d, ty1, ty2) =>
+  | Cast(ctx, d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
-  | FailedCast(d, ty1, ty2) =>
+    Cast(ctx, d', ty1, ty2);
+  | FailedCast(ctx, d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
+    FailedCast(ctx, d', ty1, ty2);
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
