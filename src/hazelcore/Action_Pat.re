@@ -644,7 +644,8 @@ and syn_perform_operand =
   | (
       Construct(
         SApPalette(_) | SList | SLet | STyAlias | SLine | SLam | SCase |
-        SCommentLine,
+        SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -817,6 +818,46 @@ and syn_perform_operand =
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
+
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+    )
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
 
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
@@ -1145,7 +1186,6 @@ and ana_perform_operand =
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
-
   | (
       _,
       CursorP(
@@ -1168,7 +1208,8 @@ and ana_perform_operand =
   | (
       Construct(
         SApPalette(_) | SList | SLet | STyAlias | SLine | SLam | SCase |
-        SCommentLine,
+        SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -1391,6 +1432,45 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
 
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed

@@ -19,6 +19,8 @@ let view_of_layout =
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
              let (txt, ds) = go(m);
              switch (annot) {
+             | Step(_)
+             | Term => (txt, ds)
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)
              | Delim => ([with_cls("code-delim", txt)], ds)

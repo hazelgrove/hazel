@@ -51,6 +51,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | UpdateSettings(_)
+  | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
   | FocusCell
@@ -62,7 +63,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | SerializeToConsole =>
+  | SerializeToConsole(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -101,8 +102,10 @@ let apply_action =
         | exception Program.MissingCursorInfo =>
           JSUtil.log("[Program.MissingCursorInfo]");
           model;
-        | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
+        | exception (Program.EvalError(reason)) =>
+          let serialized =
+            reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+          JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
@@ -198,13 +201,35 @@ let apply_action =
           ...model,
           settings: Settings.apply_update(u, model.settings),
         }
-      | SerializeToConsole =>
-        model
-        |> Model.get_program
-        |> Program.get_uhexp
-        |> Serialization.string_of_exp
-        |> Js.string
-        |> JSUtil.log;
+      | UpdateCursorInspector(u) => {
+          ...model,
+          cursor_inspector:
+            CursorInspectorModel.apply_update(u, model.cursor_inspector),
+        }
+      | SerializeToConsole(obj) =>
+        switch (obj) {
+        | UHExp =>
+          model
+          |> Model.get_program
+          |> Program.get_uhexp
+          |> Serialization.string_of_exp
+          |> Js.string
+          |> JSUtil.log
+        | DHExp =>
+          let (d, _, _) = model |> Model.get_program |> Program.get_result;
+          d
+          |> DHExp.sexp_of_t
+          |> Sexplib.Sexp.to_string
+          |> Js.string
+          |> JSUtil.log;
+        | ZExp =>
+          model
+          |> Model.get_program
+          |> Program.get_zexp
+          |> Serialization.string_of_zexp
+          |> Js.string
+          |> JSUtil.log
+        };
         model;
       };
     },

@@ -273,13 +273,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
-    | Exp(_, exp) => exp_view(exp, show_indicate_word)
-    | Pat(_, pat) => pat_view(pat, show_indicate_word)
+    | ExpOperand(_, exp) => exp_view(exp, show_indicate_word)
+    | PatOperand(_, pat) => pat_view(pat, show_indicate_word)
     | TPat(_, tpat) => tpat_view(tpat)
-    | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
+    | TypOperand(_, typ) => typ_view(typ)
+    | ExpOperator(_, op) => code_view(Operators_Exp.to_string(op))
+    | PatOperator(_, op) => code_view(Operators_Pat.to_string(op))
+    | TypOperator(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
@@ -354,6 +354,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SCommentLine
     | SAnn
+    | SCloseParens
+    | SCloseBraces
+    | SCloseSquareBracket
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
@@ -461,29 +464,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
-    switch (cursor_term) {
-    | Exp(_, _) => Exp
-    | Pat(_, _) => Pat
-    | Typ(_, _) => Typ
-    | TPat(_, _) => TPat
-    | ExpOp(_, _) => Exp
-    | PatOp(_, _) => Pat
-    | TypOp(_, _) => Typ
-    | Line(_, _)
-    | Rule(_, _) => Exp
-    };
-  };
   let display_tag_typ =
-      (undo_history_entry: undo_history_entry): option(tag_typ) => {
+      (undo_history_entry: undo_history_entry): option(TermSort.t) => {
     switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
-      | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
+      | Term(cursor_term, _) =>
+        Some(TermTag.get_cursor_term_sort(cursor_term))
       | Space
       | EmptyLine =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
@@ -497,14 +488,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SAnn => Some(Pat)
       | _ =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
       }
     | VarGroup(_) =>
       Some(
-        get_cursor_term_tag_typ(
+        TermTag.get_cursor_term_sort(
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
@@ -516,7 +507,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | Left
       | Right =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
@@ -607,37 +598,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let history_typ_tag_view = (undo_history_entry: undo_history_entry) => {
     switch (display_tag_typ(undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
-    | Some(typ) =>
-      switch (typ) {
-      | Exp =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-exp"])],
-            [Node.text("EXP")],
-          )
-        )
-      | Pat =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-pat"])],
-            [Node.text("PAT")],
-          )
-        )
-      | Typ =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
-            [Node.text("TYP")],
-          )
-        )
-      | TPat =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-tpat"])],
-            [Node.text("TPAT")],
-          )
-        )
-      }
+    | Some(typ) => TermTag.term_tag_view(typ, ["history-type-tag"])
     };
   };
 

@@ -556,6 +556,15 @@ and syn_perform_operand =
       ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))),
     )
 
+  | (Construct(SCloseSquareBracket), ListZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorT(_)) =>
     Syn_success.mk_result(
       ctx,
@@ -586,6 +595,23 @@ and syn_perform_operand =
         && !ZTyp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, os, id |> TyId.to_string)
 
+  | (Construct(SCloseBraces), CursorT(_)) => Failed
+
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
+    ) =>
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+    )
+  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   | (Construct(SOp(os)), CursorT(_)) =>
     open Outcome.Syntax;
     let* op = operator_of_shape(os);

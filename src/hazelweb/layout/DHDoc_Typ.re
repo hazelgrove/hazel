@@ -2,6 +2,8 @@ open Pretty;
 
 let promote_annot =
   fun
+  | HTypAnnot.Term => DHAnnot.Term
+  | HTypAnnot.Step(n) => DHAnnot.Step(n)
   | HTypAnnot.HoleLabel => DHAnnot.HoleLabel
   | HTypAnnot.Delim => DHAnnot.Delim
   | HTypAnnot.TyVarHole => DHAnnot.TyVarHole;

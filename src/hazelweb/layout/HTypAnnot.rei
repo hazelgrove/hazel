@@ -1,4 +1,6 @@
 type t =
   | HoleLabel
   | TyVarHole
-  | Delim;
+  | Delim
+  | Step(int)
+  | Term;
