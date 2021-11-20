@@ -105,8 +105,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | (R, R) => matches(dp, d)
     | _ => DoesNotMatch
     }
-  | (Inj(side, dp), Cast(_, d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
-    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
+  | (Inj(side, dp), Cast(ctx, d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
+    matches_cast_Inj(ctx, side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
   | (Inj(_, _), Cast(_, d, Sum(_, _), Hole)) => matches(dp, d)
   | (Inj(_, _), Cast(_, d, Hole, Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
@@ -174,6 +174,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   }
 and matches_cast_Inj =
     (
+      ctx: Contexts.t,
       side: InjSide.t,
       dp: DHPat.t,
       d: DHExp.t,
@@ -190,8 +191,8 @@ and matches_cast_Inj =
           (c: (HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
             let (tyL1, tyR1, tyL2, tyR2) = c;
             switch (side) {
-            | L => (tyL1, tyL2)
-            | R => (tyR1, tyR2)
+            | L => (ctx, tyL1, tyL2)
+            | R => (ctx, tyR1, tyR2)
             };
           },
           casts,
@@ -199,10 +200,17 @@ and matches_cast_Inj =
       matches(dp, DHExp.apply_casts(d', side_casts));
     | _ => DoesNotMatch
     }
-  | Cast(_, d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(_, d', Sum(_, _), Hole)
-  | Cast(_, d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(ctx, d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(
+      ctx,
+      side,
+      dp,
+      d',
+      [(tyL1, tyR1, tyL2, tyR2), ...casts],
+    )
+  | Cast(ctx, d', Sum(_, _), Hole)
+  | Cast(ctx, d', Hole, Sum(_, _)) =>
+    matches_cast_Inj(ctx, side, dp, d', casts)
   | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -388,6 +396,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4);
+  | TyAlias(dp, dty, k, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    TyAlias(dp, dty, k, d3);
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {

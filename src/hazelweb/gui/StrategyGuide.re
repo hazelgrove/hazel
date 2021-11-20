@@ -171,7 +171,7 @@ let operator_options = cursor_info => {
       ],
     );
 
-  switch (Assistant_common.get_type(cursor_info)) {
+  switch (Assistant_common.get_type(ctx, cursor_info)) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
@@ -238,7 +238,7 @@ let exp_hole_view =
   let ctx = cursor_info.ctx;
 
   let typ =
-    switch (Assistant_common.get_type(cursor_info)) {
+    switch (Assistant_common.get_type(ctx, cursor_info)) {
     | Some(ty) => ty
     | None =>
       raise(

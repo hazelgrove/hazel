@@ -95,6 +95,7 @@ let on_empty_expr_hole: CursorInfo.cursor_term => bool =
   | ExpOperand(_, EmptyHole(_)) => true
   | ExpOperand(_)
   | PatOperand(_)
+  | TPat(_)
   | TypOperand(_)
   | ExpOperator(_)
   | PatOperator(_)
@@ -118,7 +119,6 @@ let is_end_keyword =
 
 let mk =
     (~tyuses=?, ~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
-  tyuses,
   typed,
   ctx,
   uses,

@@ -13,6 +13,8 @@ let rec mk =
   switch (ty1, ty2) {
   | (Hole, _)
   | (_, Hole)
+  | (TyVarHole(_, _), _)
+  | (_, TyVarHole(_, _))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])

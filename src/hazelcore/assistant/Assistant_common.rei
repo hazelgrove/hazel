@@ -8,9 +8,9 @@ let extract_vars: (Contexts.t, HTyp.t) => VarCtx.t;
 
 let fun_vars: (Contexts.t, HTyp.t) => VarCtx.t;
 
-let get_type: CursorInfo.t => option(HTyp.t);
+let get_type: (Contexts.t, CursorInfo.t) => option(HTyp.t);
 
-let get_mode: CursorInfo.t => mode;
+let get_mode: (Contexts.t, CursorInfo.t) => mode;
 
 let valid_assistant_term: CursorInfo.cursor_term => bool;
 

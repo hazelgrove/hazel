@@ -1072,11 +1072,11 @@ and syn_cursor_info_rule =
             ZExp.is_after(zclause),
           ),
         )
-      | (true, Some({cursor_term, typed, ctx, uses, parent_info})) =>
+      | (true, Some({tyuses, cursor_term, typed, ctx, uses, parent_info})) =>
         let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
         let parent_info =
           ZExp.is_after(zclause) ? CursorInfo.AfterBranchClause : parent_info;
-        Some({cursor_term, typed, ctx, uses, parent_info, tyuses: None});
+        Some({tyuses, cursor_term, typed, ctx, uses, parent_info});
       };
     }
   }
