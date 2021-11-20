@@ -884,8 +884,7 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
-    | ApPalette(InHole(WrongLength, _), _, _, _) =>
-    None
+    | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
