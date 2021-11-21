@@ -61,6 +61,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
         [Attr.classes(["result-view"])],
         [
           DHCode.view(
+            // TODO: this "view" function annotates layout, a view function with similar impl. should be added to replace plain text view of result panel
             ~inject,
             ~selected_instance,
             ~settings=settings.evaluation,
@@ -96,7 +97,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
                 ),
               ],
             ),
-          model.result_states |> List.rev,
+          model.result_states |> List.rev // TODO: replace this map with a view function that annotates DHExp instead of printing in plain text.
         );
       } else {
         [];
