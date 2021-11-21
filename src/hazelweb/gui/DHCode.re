@@ -166,3 +166,31 @@ let view_of_hole_instance =
   );
 
 let view_of_var = x => Node.text(x);
+
+let view_of_results =
+    (
+      ~result_states,
+      ~inject,
+      ~selected_instance,
+      ~settings: Settings.t,
+      ~model: Model.t,
+    )
+    : list(Node.t) => {
+  List.map(
+    d =>
+      Node.div(
+        [Attr.classes(["step-view"])],
+        [
+          view(
+            ~inject,
+            ~selected_instance,
+            ~settings=settings.evaluation,
+            ~width=80,
+            ~font_metrics=model.font_metrics,
+            d,
+          ),
+        ],
+      ),
+    result_states |> List.rev // TODO: replace this map with a view function that annotates DHExp instead of printing in plain text.
+  );
+};

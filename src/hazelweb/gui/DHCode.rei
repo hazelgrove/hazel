@@ -26,3 +26,13 @@ let view:
     DHExp.t
   ) =>
   Vdom.Node.t;
+
+let view_of_results:
+  (
+    ~result_states: list(DHExp.t),
+    ~inject: ModelAction.t => Vdom.Event.t,
+    ~selected_instance: option(HoleInstance.t),
+    ~settings: Settings.t,
+    ~model: Model.t
+  ) =>
+  list(Vdom.Node.t);

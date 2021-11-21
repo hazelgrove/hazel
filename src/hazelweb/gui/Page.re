@@ -82,22 +82,12 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
     @ (
       if (settings.evaluation.stepper_mode
           && settings.evaluation.show_evaluate_steps) {
-        List.map(
-          d =>
-            Node.div(
-              [Attr.classes(["step-view"])],
-              [
-                DHCode.view(
-                  ~inject,
-                  ~selected_instance,
-                  ~settings=settings.evaluation,
-                  ~width=80,
-                  ~font_metrics=model.font_metrics,
-                  d,
-                ),
-              ],
-            ),
-          model.result_states |> List.rev // TODO: replace this map with a view function that annotates DHExp instead of printing in plain text.
+        DHCode.view_of_results(
+          ~result_states=model.result_states,
+          ~inject,
+          ~selected_instance,
+          ~settings,
+          ~model,
         );
       } else {
         [];
