@@ -7,6 +7,7 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  cell_boundaries: list(CursorPath.steps),
 };
 
 let is_empty: t => bool;

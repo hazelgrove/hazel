@@ -78,7 +78,7 @@ let load_cardstack: (t, int) => t;
 /**
  * load_undo_history(model, undo_history, ~is_after_move)
  * updates the model's undo history with undo_history and
- * loads the current undo_history edit state into the cell.
+ * loads the current undo_history edit state into the ProgramArea.
  *
  * There are two methods of undoing/redoing: either by using
  * the usual key combos or by clicking/hovering over an

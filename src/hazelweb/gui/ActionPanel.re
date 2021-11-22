@@ -460,7 +460,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   * inside generate_panel_body with a description of the new action.
   * Afterwards the below function can be updated to not error anymore.
   *
-  * Also consider looking at Cell.re to see if a keyboard shortcut
+  * Also consider looking at ProgramArea.re to see if a keyboard shortcut
   * should be added for that particular action as well.
  */
 type ack_checkin =

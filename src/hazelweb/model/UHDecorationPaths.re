@@ -6,6 +6,7 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  cell_boundaries: list(CursorPath.steps),
 };
 
 let is_empty = (dpaths: t): bool =>
@@ -15,7 +16,7 @@ let is_empty = (dpaths: t): bool =>
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+  let {err_holes, var_err_holes, current_term, var_uses, cell_boundaries} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -27,7 +28,7 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term};
+  {err_holes, var_err_holes, var_uses, current_term, cell_boundaries};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {

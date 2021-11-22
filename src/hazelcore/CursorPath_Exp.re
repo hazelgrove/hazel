@@ -359,6 +359,33 @@ and of_steps_rule =
     };
   };
 
+let rec cell_boundaries =
+        (e: UHExp.t, cell_boundaries: CursorPath.cell_boundaries_list)
+        : CursorPath.cell_boundaries_list => {
+  cell_boundaries |> cell_boundaries_block(e);
+}
+and cell_boundaries_block =
+    (block: UHExp.block, cell_boundaries: CursorPath.cell_boundaries_list)
+    : CursorPath.cell_boundaries_list => {
+  cell_boundaries
+  |> ListUtil.fold_right_i(
+       ((_, line), cell_boundaries) =>
+         cell_boundaries |> cell_boundaries_line(line),
+       block,
+     );
+}
+and cell_boundaries_line =
+    (line: UHExp.line, cell_boundaries: CursorPath.cell_boundaries_list)
+    : CursorPath.cell_boundaries_list => {
+  switch (line) {
+  | EmptyLine
+  | CommentLine(_)
+  | LetLine(_, _)
+  | ExpLine(_) => []
+  | CellBoundary => cell_boundaries
+  };
+};
+
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));

@@ -13,6 +13,12 @@ type rev_steps = steps;
 type rev_t = (CursorPosition.t, rev_steps);
 
 [@deriving sexp]
+type cell_boundary_info = {steps};
+
+[@deriving sexp]
+type cell_boundaries_list = list(cell_boundary_info);
+
+[@deriving sexp]
 type hole_shape =
   | TypeErr
   | VarErr
@@ -58,8 +64,10 @@ let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
    will lead to the function position as opposed to the ap itself.
    This is turned on for cursor movement to holes, as there is no
    cursor position on an ap, but off to draw error hole decorations */
-let get_steps =
+let get_hole_steps =
     (~to_fpos_for_aps: bool=false, {steps, ap_steps, _}: hole_info) =>
   to_fpos_for_aps ? ap_steps : steps;
 
 let get_sort = ({sort, _}: hole_info): hole_sort => sort;
+
+let get_cell_boundary_steps = ({steps}: cell_boundary_info) => steps;

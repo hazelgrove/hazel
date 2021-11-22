@@ -173,7 +173,7 @@ let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
 let get_uhexp = program => program |> get_zexp |> erase;
 
 let get_path = program => program |> get_zexp |> CursorPath_Exp.of_z;
-let get_steps = program => {
+let get_hole_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
 };
@@ -203,7 +203,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+           | TypeErr => Some((shape, CursorPath.get_hole_steps(hole_info)))
            }
          }
        )
@@ -218,7 +218,14 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+
+  //TODO(Yabsra): correct this
+  let cell_boundaries =
+    CursorPath_Exp.cell_boundaries(get_uhexp(program), [])
+    |> List.map(cell_boundary_info =>
+         CursorPath.get_cell_boundary_steps(cell_boundary_info)
+       );
+  {current_term, err_holes, var_uses, var_err_holes, cell_boundaries};
 };
 
 let rec renumber_result_only =

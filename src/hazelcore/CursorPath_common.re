@@ -38,7 +38,7 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   ) {
   | ([], []) => None
   | ([hi, ..._], _)
-  | ([], [hi, ..._]) => Some(get_steps(~to_fpos_for_aps=true, hi))
+  | ([], [hi, ..._]) => Some(get_hole_steps(~to_fpos_for_aps=true, hi))
   };
 };
 
@@ -46,7 +46,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (zhole_list.holes_before, zhole_list.holes_after) {
   | ([], []) => None
   | (_, [hi, ..._])
-  | ([hi, ..._], _) => Some(get_steps(~to_fpos_for_aps=true, hi))
+  | ([hi, ..._], _) => Some(get_hole_steps(~to_fpos_for_aps=true, hi))
   };
 };
 
@@ -396,7 +396,7 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
     )
   ) {
   | None => None
-  | Some(hi) => Some(get_steps(~to_fpos_for_aps=true, hi))
+  | Some(hi) => Some(get_hole_steps(~to_fpos_for_aps=true, hi))
   };
 
 let rec compare_steps = (steps1, steps2) =>

@@ -11,7 +11,7 @@ let view = (~inject, model: Model.t) => {
   let cursor_inspector = model.cursor_inspector;
   let performance = settings.performance;
   TimeUtil.measure_time(
-    "Cell.view",
+    "ProgramArea.view",
     performance.measure && performance.cell_view,
     () => {
       open Vdom;

@@ -22,7 +22,7 @@ let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
 let get_path: t => CursorPath.t;
-let get_steps: t => CursorPath.steps;
+let get_hole_steps: t => CursorPath.steps;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None

@@ -93,9 +93,9 @@ let caret_jump =
   let prev_step =
     prev_entry.cardstacks_after_action
     |> ZCardstacks.get_program
-    |> Program.get_steps;
+    |> Program.get_hole_steps;
   let new_step =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_steps;
+    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_hole_steps;
   prev_step != new_step;
 };
 

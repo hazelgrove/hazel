@@ -195,7 +195,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card_caption],
                           ),
-                          Cell.view(~inject, model),
+                          ProgramArea.view(~inject, model),
                           cell_status,
                           cell_controls(~inject),
                           cardstack_controls(~inject, model),
