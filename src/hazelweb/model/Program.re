@@ -141,6 +141,39 @@ let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   });
 };
 
+module EqHash = {
+  type t = Pretty.Doc.t(unit);
+  let equal = (===);
+  let hash = Hashtbl.hash;
+};
+
+module EqHashtbl = Hashtbl.Make(EqHash);
+
+let count_doc = (~doc: Pretty.Doc.t('annot)): int => {
+  let seen = EqHashtbl.create(0);
+  let rec go = (doc: Pretty.Doc.t('annot)): unit =>
+    if (EqHashtbl.mem(seen, Obj.magic(doc))) {
+      ();
+    } else {
+      EqHashtbl.add(seen, Obj.magic(doc), ());
+      switch (doc.doc) {
+      | Text(string) => ()
+      | Cat(d1, d2) =>
+        go(d1);
+        go(d2);
+      | Linebreak(int) => ()
+      | Align(d) => go(d)
+      | Annot(_, d) => go(d)
+      | Fail(_) => ()
+      | Choice(d1, d2) =>
+        go(d1);
+        go(d2);
+      };
+    };
+  go(doc);
+  EqHashtbl.length(seen);
+};
+
 let get_layout =
     (
       ~measure_program_get_doc: bool,
@@ -152,11 +185,15 @@ let get_layout =
   let width = program.width;
   Hashtbl.clear(UHDoc_common.memoize_misses);
   let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
+  Printf.printf("doc size: %d\n", count_doc(doc));
   Printf.printf("misses:\n");
   Hashtbl.iter(
     (k, v) => {Printf.printf("  %4d: %5d\n", k, v)},
     UHDoc_common.memoize_misses,
   );
+  let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
+  let new_layout =
+    Pretty.LayoutOfDoc.new_layout_of_doc(~width, ~pos=0, new_doc);
 
   TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>

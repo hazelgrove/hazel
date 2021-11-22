@@ -57,7 +57,7 @@ let benchmark = (model: Model.t): unit => {
     Pretty.LayoutOfDoc.count := 0;
     for (_ in 1 to iters) {
       Pretty.LayoutOfDoc.count := 0;
-      ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+      ignore(Pretty.LayoutOfDoc.layout_of_doc_25(~width, ~pos=0));
     };
     let end_time = Sys.time();
     Printf.printf("count: %d\n", Pretty.LayoutOfDoc.count^);
@@ -70,7 +70,7 @@ let benchmark = (model: Model.t): unit => {
     (end_time -. start_time) /. float_of_int(iters);
   };
 
-  let times = List.sort(Float.compare, List.init(100, _ => go()));
+  let times = List.sort(Float.compare, List.init(7, _ => go()));
   let rec drop = (i: int, ls: List.t(float)): List.t(float) =>
     if (i == 0) {
       ls;
@@ -84,7 +84,7 @@ let benchmark = (model: Model.t): unit => {
       [List.hd(ls), ...take(i - 1, List.tl(ls))];
     };
   let sum =
-    List.fold_left((x, y) => x +. y, 0.0, take(50, drop(25, times)));
+    List.fold_left((x, y) => x +. y, 0.0, take(5, drop(2, times)));
   let avg = sum /. 50.0;
   Printf.printf(
     "avg: %5.1fms   per count: %5.1fns (count: %d)\n",
