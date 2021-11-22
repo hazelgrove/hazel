@@ -28,19 +28,19 @@
     (grain_diagnostics (>= 0))
     (grain_codegen (>= 0))))
 
-; (package
-;   (name grainc)
-;   (synopsis "The core Grain language compiler CLI")
-;   (depends
-;     (reason (>= 3.6.0))
-;     (js_of_ocaml-compiler (>= 3.6.0))
-;     (dune-build-info (>= 2.0))
-;     (ppx_sexp_conv (>= 0.14.0))
-;     (sexplib (>= 0.14.0))
-;     (grain_dypgen (= 0.1))
-;     (binaryen (= 0.10.0))
-;     (cmdliner (>= 1.0.2))
-;     (grain (>= 0))))
+(package
+  (name grainc)
+  (synopsis "The core Grain language compiler CLI")
+  (depends
+    (reason (>= 3.6.0))
+    (js_of_ocaml-compiler (>= 3.6.0))
+    (dune-build-info (>= 2.0))
+    (ppx_sexp_conv (>= 0.14.0))
+    (sexplib (>= 0.14.0))
+    (grain_dypgen (= 0.1))
+    (binaryen (= 0.10.0))
+    (cmdliner (>= 1.0.2))
+    (grain (>= 0))))
 
 ; (package
 ;   (name graindoc)

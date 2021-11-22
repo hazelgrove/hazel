@@ -24,10 +24,10 @@ echo-html:
 	@echo "$(HTML_FILE)"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_REAL_PATH)"
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
 
 win-firefox:
-	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_REAL_PATH)"
+	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
 
 firefox:
 	firefox "$(HTML_FILE)" &

@@ -220,7 +220,12 @@ open Grain_codegen;
 open Grain_linking;
 open Optimize;
 
+type input_source =
+  | InputString(string)
+  | InputFile(string);
+
 type compilation_state_desc =
+  | Initial(input_source)
   | Parsed(Parsetree.parsed_program)
   | WellFormed(Parsetree.parsed_program)
   | TypeChecked(Typedtree.typed_program)
@@ -270,6 +275,28 @@ let apply_inline_flags = (prog: Parsetree.parsed_program) => {
 let next_state = (~is_root_file=false, {cstate_desc, cstate_filename} as cs) => {
   let cstate_desc =
     switch (cstate_desc) {
+      | Initial(input) =>
+      let (name, lexbuf, cleanup) =
+        switch (input) {
+        | InputString(str) => (
+            cs.cstate_filename,
+            Lexing.from_string(str),
+            (() => ()),
+          )
+        | InputFile(name) =>
+          let ic = open_in(name);
+          (Some(name), Lexing.from_channel(ic), (() => close_in(ic)));
+        };
+
+      let parsed =
+        try(Driver.parse(~name?, lexbuf)) {
+        | _ as e =>
+          cleanup();
+          raise(e);
+        };
+
+      cleanup();
+      Parsed(parsed);
     | Parsed(p) =>
       apply_inline_flags(p);
       if (is_root_file) {

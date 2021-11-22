@@ -225,10 +225,10 @@ let apply_action =
         };
         model;
       | Compile =>
-        model
-        |> Model.get_program
-        |> Program.get_elaboration
-        |> Grain.Comp.compile;
+        // model
+        // |> Model.get_program
+        // |> Program.get_elaboration
+        // |> Grain.Comp.compile;
         model;
       };
     },
