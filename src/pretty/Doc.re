@@ -26,6 +26,8 @@ and t'('annot) =
   | Annot('annot, t('annot)) // Annotations
   | Fail(int) // identity for `Choice`
   | Choice(t('annot), t('annot));
+// TODO: add fail with (possibly infinite) cost
+// TODO: does biased choice even make sense?
 
 let t_of_t' = (t': t'('annot)): t('annot) => {mem: M.create(0), doc: t'};
 

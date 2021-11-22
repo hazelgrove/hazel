@@ -225,47 +225,6 @@ let merge:
 // TODO: parallel arrays due to heterogenious nature
 // TODO: parallel arrays allow reuse of "pos" array
 
-// "map" functions
-
-// Array of pairs
-let map: Array.t((int, int)) => Array.t((int, int)) =
-  Js.Unsafe.js_expr(
-    "function res_inc$0(input) {
-    var len = input.length;
-    var output = new Array(len);
-    output[0] = [0];
-    for (var i = 1; i < len; i++) {
-      var inp = input[i];
-      var res = inp[2]
-      var pos = inp[1];
-      var res1 = [0, pos, res + 1 | 0]
-      output[i] = res1;
-    }
-    return output;
-  }
-    ",
-  );
-
-// TODO: merge
-// TODO: fold
-
-// Interleaved (w/ stored length?)
-let map: Array.t(int) => Array.t(int) =
-  Js.Unsafe.js_expr(
-    "function res_inc$0(input) {
-    var len = input.length;
-    var output = new Array(len);
-    output[0] = [0];
-    for (var i = 1; i < len; i+=2) {
-      var pos = input[i];
-      var res = input[i+1]
-      output[i] = pos;
-      output[i+1] = res + 1 | 0;
-    }
-    return output;
-  }
-    ",
-  );
 
 //////////
 
@@ -844,7 +803,7 @@ let rec fib3 =
       result^
     } else {
       let res = 0;
-      let t = "Z";
+      let t = i;
       mem := gensym^;
       let r = (
         11,
@@ -962,16 +921,16 @@ let rec fib3 =
         |],
         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
+          Layout.Linebreak,
           // res + 0,
           // res + 1,
           // res + 2,
@@ -1258,6 +1217,11 @@ let layout_of_doc_25 = (~width: int, ~pos: int): option(Layout.t('annot)) => {
   //Printf.printf("fast_layout_of_doc\n");
   gensym := gensym^ + 1;
   ignore(fib3(doc3_25, ~width, ~pos));
+  // let (layout_s, layout_p, layout_c, layout_r) = fib3(mk_text("foo"), ~width, ~pos);
+  // Printf.printf("before print\n");
+  // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
+  // Printf.printf("sexp: %s\n", s);
+  // Printf.printf("after print\n");
   None;
 };
 
@@ -1265,8 +1229,29 @@ let new_layout_of_doc =
     (doc: doc3, ~width: int, ~pos: int): option(Layout.t('annot)) => {
   // let new_doc = doc_new_of_old(doc);
   gensym := gensym^ + 1;
-  let layout = fib3(doc, ~width, ~pos);
+  let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~width, ~pos);
+  // Printf.printf("l_s: %d\n", layout_s);
+  // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
+  // Printf.printf("sexp: %s\n", s);
   //Some(layout)
+  // let d = mk_text("foo");
+  // let d = mk_linebreak();
+  // let d = mk_annot(0, mk_align(mk_text("foo")));
+  let d = mk_choice(mk_text("foo1"), mk_text("foo2"));
+//   let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
+// let mk_fail = (): doc3 => Fail3(mk_memo(), mk_result());
+// let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
+// let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
+// let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
+// let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), a, d);
+// let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), d1, d2);
+
+  let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
+  // let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
+  Printf.printf("before print\n");
+  let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("<annot>")}, layout_r[0]));
+  Printf.printf("sexp: %s\n", s);
+  Printf.printf("after print\n");
   None;
 };
 
