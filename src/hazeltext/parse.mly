@@ -75,7 +75,10 @@
 %token COLONCOLON
 %token SEMICOLON
 %token EQUAL
+%token EQUALEQUAL
+%token FEQUALEQUAL
 %token GREATER LESSER
+%token FGREATER FLESSER
 %token PERIOD
 %token COMMA
 %token INJL INJR
@@ -94,7 +97,7 @@
 %token <string> COMMENT
 %token EMPTY
 
-%left LESSER GREATER EQUAL
+%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
 %right COLONCOLON
@@ -215,7 +218,10 @@ rule:
   | FDIV { Operators_Exp.FDivide }
   | GREATER { Operators_Exp.GreaterThan }
   | LESSER { Operators_Exp.LessThan }
-  | EQUAL EQUAL { Operators_Exp.Equals }
+  | FGREATER { Operators_Exp.FGreaterThan }
+  | FLESSER { Operators_Exp.FLessThan }
+  | EQUALEQUAL { Operators_Exp.Equals }
+  | FEQUALEQUAL { Operators_Exp.FEquals }
   | COMMA { Operators_Exp.Comma }
 ;
 

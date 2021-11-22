@@ -43,12 +43,20 @@ rule read =
       IDENT id
   }
   | "+" { PLUS }
+  | "+." { FPLUS }
   | "-" { MINUS }
+  | "-." { FMINUS }
   | "*" { MULT }
+  | "*." { FMULT }
   | "/" { DIV }
+  | "/." { FDIV }
   | "=" { EQUAL }
+  | "==" { EQUALEQUAL }
+  | "==." { FEQUALEQUAL }
   | ">" { GREATER }
+  | ">." { FGREATER }
   | "<" { LESSER }
+  | "<." { FLESSER }
   | "." { PERIOD }
   | "," { COMMA }
   | ":" { COLON }

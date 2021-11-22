@@ -94,3 +94,13 @@ let%test "pat type annotation" =
 
 let%test "incorrect pat type annotation" =
   test_incorrect "let a : (Int, b: Bool) = ? in a"
+
+let%test "float ops" =
+  test_parse "
+    let a : Float = 1.0 -. 2.0 in
+    let b = a +. 1.0 /. 2.0 *. 3.0 in
+    let c = b ==. 0. in
+    let d = a >. b in
+    let e = b <. b in
+    e
+  "
