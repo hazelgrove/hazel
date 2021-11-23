@@ -275,25 +275,17 @@ let apply_inline_flags = (prog: Parsetree.parsed_program) => {
 let next_state = (~is_root_file=false, {cstate_desc, cstate_filename} as cs) => {
   let cstate_desc =
     switch (cstate_desc) {
-      | Initial(input) =>
-      let (name, lexbuf, cleanup) =
+    | Initial(input) =>
+      let (name, prog_str, cleanup) =
         switch (input) {
-        | InputString(str) => (
-            cs.cstate_filename,
-            Lexing.from_string(str),
-            (() => ()),
-          )
+        | InputString(str) => (cs.cstate_filename, str, (() => ()))
         | InputFile(name) =>
           let ic = open_in(name);
-          (Some(name), Lexing.from_channel(ic), (() => close_in(ic)));
+          (Some(name), Stdlib.input_line(ic), (() => close_in(ic)));
         };
-
-      let parsed =
-        try(Driver.parse(~name?, lexbuf)) {
-        | _ as e =>
-          cleanup();
-          raise(e);
-        };
+      open Sexplib.Std;
+      let prog = DHExp.t_of_sexp(Sexplib.Sexp.of_string(prog_str));
+      let parsed = trans_parsed(prog);
 
       cleanup();
       Parsed(parsed);
@@ -343,6 +335,58 @@ let next_state = (~is_root_file=false, {cstate_desc, cstate_filename} as cs) => 
   ret;
 };
 
+let stop_after_parse =
+  fun
+  | {cstate_desc: Parsed(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_well_formed =
+  fun
+  | {cstate_desc: WellFormed(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_typed =
+  fun
+  | {cstate_desc: TypeChecked(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_typed_well_formed =
+  fun
+  | {cstate_desc: TypedWellFormed(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_anf =
+  fun
+  | {cstate_desc: Linearized(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_optimization =
+  fun
+  | {cstate_desc: Optimized(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_mashed =
+  fun
+  | {cstate_desc: Mashed(_)} => Stop
+  | s => Continue(s);
+
+let stop_after_compiled =
+  fun
+  | {cstate_desc: Compiled(_)} => Stop
+  | s => Continue(s);
+let stop_after_object_file_emitted =
+  fun
+  | {cstate_desc: ObjectFileEmitted(_)} => Stop
+  | s => Continue(s);
+let stop_after_linked =
+  fun
+  | {cstate_desc: Linked(_)} => Stop
+  | s => Continue(s);
+let stop_after_assembled =
+  fun
+  | {cstate_desc: Assembled} => Stop
+  | s => Continue(s);
+
 let rec compile_resume = (~is_root_file=false, ~hook=?, s: compilation_state) => {
   let next_state = next_state(~is_root_file, s);
   switch (hook) {
@@ -368,6 +412,57 @@ let compile = (d: DHExp.t) => {
     cstate_filename: None,
     cstate_outfile: Some(outputfile),
   };
-  let result = compile_resume(state);
+  let _ = compile_resume(state);
   ();
+};
+
+let reset_compiler_state = () => {
+  Env.clear_imports();
+  Module_resolution.clear_dependency_graph();
+  Grain_utils.Fs_access.flush_all_cached_data();
+  Grain_utils.Warnings.reset_warnings();
+};
+
+let safe_remove_extension = name =>
+  try(Filename.chop_extension(name)) {
+  | Invalid_argument(_) => name
+  };
+
+let default_output_filename = name =>
+  safe_remove_extension(name) ++ ".gr.wasm";
+
+let default_assembly_filename = name =>
+  safe_remove_extension(name) ++ ".wast";
+
+let default_mashtree_filename = name =>
+  safe_remove_extension(name) ++ ".mashtree";
+
+let compile_wasi_polyfill = () => {
+  switch (Grain_utils.Config.wasi_polyfill^) {
+  | Some(file) =>
+    Grain_utils.Config.preserve_config(() => {
+      Grain_utils.Config.compilation_mode := Some("runtime");
+      let cstate = {
+        cstate_desc: Initial(InputFile(file)),
+        cstate_filename: Some(file),
+        cstate_outfile: Some(default_output_filename(file)),
+      };
+      ignore(compile_resume(~hook=stop_after_object_file_emitted, cstate));
+    })
+  | None => ()
+  };
+};
+
+let compile_file =
+    (~is_root_file=false, ~hook=?, ~outfile=?, ~reset=true, filename) => {
+  if (reset) {
+    reset_compiler_state();
+    compile_wasi_polyfill();
+  };
+  let cstate = {
+    cstate_desc: Initial(InputFile(filename)),
+    cstate_filename: Some(filename),
+    cstate_outfile: outfile,
+  };
+  compile_resume(~is_root_file, ~hook?, cstate);
 };

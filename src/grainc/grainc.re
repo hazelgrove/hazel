@@ -92,6 +92,22 @@ let compile_string = name => {
   `Ok();
 };
 
+let compile_wasi_polyfill = () => {
+  switch (Grain_utils.Config.wasi_polyfill^) {
+  | Some(file) =>
+    Grain_utils.Config.preserve_config(() => {
+      Grain_utils.Config.compilation_mode := Some("runtime");
+      let cstate = {
+        cstate_desc: Initial(InputFile(file)),
+        cstate_filename: Some(file),
+        cstate_outfile: Some(default_output_filename(file)),
+      };
+      ignore(compile_resume(~hook=stop_after_object_file_emitted, cstate));
+    })
+  | None => ()
+  };
+};
+
 let compile_file = (name, outfile_arg) => {
   Grain_utils.Config.base_path := dirname(name);
   if (!Printexc.backtrace_status() && Grain_utils.Config.verbose^) {
@@ -108,11 +124,11 @@ let compile_file = (name, outfile_arg) => {
     };
     let hook =
       if (Grain_utils.Config.statically_link^) {
-        Compile.stop_after_assembled;
+        Comp.stop_after_assembled;
       } else {
-        Compile.stop_after_object_file_emitted;
+        Comp.stop_after_object_file_emitted;
       };
-    ignore(Compile.compile_file(~is_root_file=true, ~hook, ~outfile, name));
+    ignore(Comp.compile_file(~is_root_file=true, ~hook, ~outfile, name));
   }) {
   | exn =>
     let bt =

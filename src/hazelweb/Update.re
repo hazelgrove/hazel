@@ -229,7 +229,7 @@ let apply_action =
         // |> Model.get_program
         // |> Program.get_elaboration
         // |> Grain.Comp.compile;
-        model;
+        model
       };
     },
   );

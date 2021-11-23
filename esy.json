@@ -12,10 +12,11 @@
     "clean": "rm -rf #{self.root}/_esy",
     "test": "#{$TEST_EXEC_PATH}",
     "format": "dune build @fmt --auto-promote",
-    "check-format": "dune build @fmt"
+    "check-format": "dune build @fmt",
+    "grainc": "cp ./_esy/default/build/default/src/grainc/grainc.exe ./grainc.exe"
   },
   "dependencies": {
-    "@opam/binaryen": ">= 0.2.0",
+    "@opam/binaryen": ">= 0.10.0",
     "@opam/cmdliner": ">= 1.0.2",
     "@opam/dune": ">= 2.7.1",
     "@opam/dune-build-info": ">= 2.0.0",
