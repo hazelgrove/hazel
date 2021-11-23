@@ -22,7 +22,7 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
-  --err-color:#f66;
+  --err-color:#c00;
   --err-hole-color: var(--err-color);
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
@@ -1647,6 +1647,23 @@ body {
   gap: 1em;
 }
 
+.test-text {
+  display: flex;
+  gap: 0.5em;
+}
+
+.test-percent {
+  font-weight: bold;
+}
+
+.test-percent.all-pass {
+  color: #7cb;
+}
+
+.test-percent.some-fail {
+  color: tan;
+}
+
 .test-bar {
   display: flex;
   width: 100%;
@@ -1672,11 +1689,11 @@ body {
 }
 
 .test-bar .segment.Fail {
-  background-color: var(--err-color);
+  background-color: #d88;
 }
 
 .test-bar .segment.Indet {
-  background-color: #eb2;
+  background-color: tan;
 }
 
 .test-inspector {

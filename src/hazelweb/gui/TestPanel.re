@@ -78,7 +78,7 @@ let test_bar = (~inject, ~test_path, ~test_map: TestMap.t) =>
     ),
   );
 
-let testing_summary = (~test_map: TestMap.t): string => {
+let test_summary_str = (~test_map: TestMap.t): string => {
   let total = TestMap.count(test_map);
   let failing = TestMap.count_status(Fail, test_map);
   let unfinished = TestMap.count_status(Indet, test_map);
@@ -86,7 +86,7 @@ let testing_summary = (~test_map: TestMap.t): string => {
   let one_unfinished = "one is unfinished ";
   let mny_failing = Printf.sprintf("%d are failing ", failing);
   let mny_unfinished = Printf.sprintf("%d are unfinished ", unfinished);
-  let of_n_tests = Printf.sprintf("Of %d tests, ", total);
+  let of_n_tests = Printf.sprintf("Out of %d tests, ", total);
   switch (total, failing, unfinished) {
   | (_, 0, 0) => "All tests passing "
   | (n, _, c) when n == c => "All tests unfinished "
@@ -105,6 +105,31 @@ let testing_summary = (~test_map: TestMap.t): string => {
   };
 };
 
+let test_percentage = (test_map: TestMap.t): t => {
+  let total = TestMap.count(test_map);
+  let passing = TestMap.count_status(Pass, test_map);
+  let percentage = 100. *. float_of_int(passing) /. float_of_int(total);
+  div(
+    [
+      Attr.classes([
+        "test-percent",
+        total == passing ? "all-pass" : "some-fail",
+      ]),
+    ],
+    [text(Printf.sprintf("%.0f%%", percentage))],
+  );
+};
+
+let test_text = (test_map: TestMap.t): Node.t =>
+  div(
+    [Attr.class_("test-text")],
+    [
+      test_percentage(test_map),
+      div([], [text(":")]),
+      text(test_summary_str(~test_map)),
+    ],
+  );
+
 let test_summary = (~inject, ~test_path, ~test_map) => {
   let failing = TestMap.count_status(Fail, test_map);
   let unfinished = TestMap.count_status(Indet, test_map);
@@ -114,10 +139,9 @@ let test_summary = (~inject, ~test_path, ~test_map) => {
     | (0, _) => "Indet"
     | _ => "Fail"
     };
-  let testing_summary = testing_summary(~test_map);
   div(
     [Attr.classes(["test-summary", "instructional-msg", status_class])],
-    [text(testing_summary), test_bar(~inject, ~test_path, ~test_map)],
+    [test_text(test_map), test_bar(~inject, ~test_path, ~test_map)],
   );
 };
 
