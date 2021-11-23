@@ -12,7 +12,8 @@
   (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+ (write-file js-of-ocaml-flags-dev
+   "(:standard --no-inline --debug-info --source-map)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
