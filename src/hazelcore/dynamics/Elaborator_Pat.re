@@ -176,7 +176,8 @@ and syn_elab_operand =
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, _, _) => DoesNotElaborate
-  | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
+  | TypeAnn(_, p1, ty1) =>
+    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1))
   };
 }
 and ana_elab =

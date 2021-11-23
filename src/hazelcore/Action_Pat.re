@@ -1067,6 +1067,8 @@ and syn_perform_operand =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
       );
+    let (new_zp, _, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
     mk_syn_result(ctx, u_gen, new_zp);
 
   /* Invalid SwapLeft and SwapRight actions */
