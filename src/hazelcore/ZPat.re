@@ -165,8 +165,9 @@ and is_after_zoperand =
   | CursorP(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
-  | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
+  | CursorP(cursor, Inj(_, _, arg_opt)) =>
+    cursor == OnDelim(Option.is_none(arg_opt) ? 1 : 2, After)
   | CursorP(_, TypeAnn(_)) => false
   | InjZT(_)
   | InjZP(_) => false
