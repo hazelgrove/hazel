@@ -95,6 +95,6 @@ let cast: (t, HTyp.t, HTyp.t) => t;
 
 let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
 
-let strip_casts_value: t => t;
+let strip_casts: t => t;
 
 let dhexp_diff_value: (t, t) => list(CursorPath.steps);

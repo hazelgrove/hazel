@@ -22,7 +22,7 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
-  --err-color:#d00;
+  --err-color:#f66;
   --err-hole-color: var(--err-color);
   --verr-hole-color: #ce5f00;
   --var-use-color: rgba(175, 175, 175, 0.3);
@@ -1668,7 +1668,7 @@ body {
 }
 
 .test-bar .segment.Pass {
-  background-color: #3c7;
+  background-color: #7cb;
 }
 
 .test-bar .segment.Fail {

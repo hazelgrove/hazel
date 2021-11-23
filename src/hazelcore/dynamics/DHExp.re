@@ -174,13 +174,46 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
-let rec strip_casts_value: t => t =
+let rec strip_casts: t => t =
   fun
-  | Cast(d, _, _) => strip_casts_value(d)
-  | Inj(a, b, d) => Inj(a, b, strip_casts_value(d))
-  | Pair(d1, d2) => Pair(strip_casts_value(d1), strip_casts_value(d2))
-  | Cons(d1, d2) => Cons(strip_casts_value(d1), strip_casts_value(d2))
-  | d => d;
+  | Cast(d, _, _) => strip_casts(d)
+  | FailedCast(d, _, _) => strip_casts(d)
+  | Inj(a, b, d) => Inj(a, b, strip_casts(d))
+  | Pair(d1, d2) => Pair(strip_casts(d1), strip_casts(d2))
+  | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
+  | NonEmptyHole(err, b, c, d, e) =>
+    NonEmptyHole(err, b, c, d, strip_casts(e))
+  | Let(a, b, c) => Let(a, strip_casts(b), strip_casts(c))
+  | FixF(a, b, c) => FixF(a, b, strip_casts(c))
+  | Lam(a, b, c) => Lam(a, b, strip_casts(c))
+  | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+  | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
+  | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
+  | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
+  | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
+  | ConsistentCase(Case(a, rs, b)) =>
+    ConsistentCase(Case(strip_casts(a), List.map(strip_casts_rule, rs), b))
+  | InconsistentBranches(c, d, e, Case(a, rs, b)) =>
+    InconsistentBranches(
+      c,
+      d,
+      e,
+      Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
+    )
+  | EmptyHole(_) as d
+  | ExpandingKeyword(_) as d
+  | FreeVar(_) as d
+  | InvalidText(_) as d
+  | BoundVar(_) as d
+  | Triv as d
+  | TestLit(_) as d
+  | BoolLit(_) as d
+  | IntLit(_) as d
+  | ListNil(_) as d
+  | FloatLit(_) as d
+  | InvalidOperation(_) as d => d
+and strip_casts_rule: rule => rule =
+  (Rule(a, d)) => Rule(a, strip_casts(d));
 
 let rec dhexp_diff_value = (d1: t, d2: t): list(CursorPath.steps) => {
   let diff_sub_dhs = (subtype_step, (ty1, ty2)) =>
