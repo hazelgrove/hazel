@@ -1,2 +1,3 @@
 let mk:
-  (HTyp.t, HTyp.t) => (list(CursorPath.steps), list(CursorPath.steps));
+  (Contexts.t, HTyp.t, HTyp.t) =>
+  (list(CursorPath.steps), list(CursorPath.steps));

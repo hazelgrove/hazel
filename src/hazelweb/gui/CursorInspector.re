@@ -70,7 +70,9 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+  // TODO: Should this be consistent?
+  if (Construction.HTyp.equiv(ctx, expected_ty, got_ty)
+      || Construction.HTyp.equiv(ctx, got_ty, HTyp.Hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -79,6 +81,7 @@ let pat_ana_subsumed_msg =
 
 let syn_branch_clause_msg =
     (
+      ctx,
       join,
       typed,
       join_type_consistent,
@@ -88,10 +91,10 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.consistent(ty, got_ty)) {
+    if (Construction.HTyp.consistent(ctx, ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
-      let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
+      let (ty_diff, got_diff) = TypDiff.mk(ctx, ty, got_ty);
       join_type_inconsistent_expecting
       @ [
         HTypCode.view(~diff_steps=ty_diff, ty),
@@ -127,7 +130,7 @@ let advanced_summary =
       pat_ana_subsumed_msg(expected_ty, got_ty, [ana], consistent_symbol)
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
+      let (expected_diff, got_diff) = TypDiff.mk(ctx, expected_ty, got_ty);
       [
         ana,
         HTypCode.view(~diff_steps=expected_diff, expected_ty),
@@ -247,6 +250,7 @@ let novice_summary =
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
+        ctx,
         expected_ty,
         got_ty,
         expecting_of_type,
@@ -276,7 +280,7 @@ let novice_summary =
       ]
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
+      let (expected_diff, got_diff) = TypDiff.mk(ctx, expected_ty, got_ty);
       expecting_of_type
       @ [
         HTypCode.view(~diff_steps=expected_diff, expected_ty),
@@ -492,6 +496,7 @@ let summary_bar =
 
 let view =
     (
+      ctx: Contexts.t,
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
       cursor_inspector: CursorInspectorModel.t,

@@ -68,7 +68,13 @@ let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
   | (
       UpdateApPalette(_) |
       Construct(
-        SCommentLine | SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+        SCloseParens | SCloseBraces | SCloseSquareBracket | SCommentLine | SAnn |
+        SLet |
+        SLine |
+        SLam |
+        SListNil |
+        SInj(_) |
+        SCase |
         STyAlias |
         SApPalette(_) |
         SList |

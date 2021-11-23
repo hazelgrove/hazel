@@ -6,10 +6,10 @@
  * give the paths for (Bool -> Int) and Float.
  */
 let rec mk =
-        (ty1: HTyp.t, ty2: HTyp.t)
+        (ctx: Contexts.t, ty1: HTyp.t, ty2: HTyp.t)
         : (list(CursorPath.steps), list(CursorPath.steps)) => {
   let diff_subtypes = (subtype_step, (ty1, ty2)) =>
-    TupleUtil.map2(List.map(List.cons(subtype_step)), mk(ty1, ty2));
+    TupleUtil.map2(List.map(List.cons(subtype_step)), mk(ctx, ty1, ty2));
   switch (ty1, ty2) {
   | (Hole, _)
   | (_, Hole)

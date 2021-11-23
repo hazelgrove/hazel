@@ -44,9 +44,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
       )
-    | TyVar(_idx, tyid) => text(TyId.to_string(tyid))
-    | TyVarHole(_, tyid) =>
-      annot(HTypAnnot.TyVarHole, text(TyId.to_string(tyid)))
+    | TyVar(_idx, tyid) => (text(TyId.to_string(tyid)), parenthesize)
+    | TyVarHole(_, tyid) => (
+        annot(HTypAnnot.TyVarHole, text(TyId.to_string(tyid))),
+        parenthesize,
+      )
     | Int => (text("Int"), parenthesize)
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)

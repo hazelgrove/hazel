@@ -105,7 +105,7 @@ let list_vars_view = (vars: VarCtx.t) => {
  * Create a div containing divs for all operator options that will be shown.
  * Return a Node.t
  */
-let operator_options = cursor_info => {
+let operator_options = (ctx, cursor_info) => {
   let int_options = [
     AssistantView_common.kc_shortcut_node(HazelKeyCombos.Plus),
     AssistantView_common.kc_shortcut_node(HazelKeyCombos.Minus),
@@ -348,7 +348,7 @@ let exp_hole_view =
       [
         Node.div(
           [Attr.classes(["options"])],
-          fun_view @ operator_options(cursor_info),
+          fun_view @ operator_options(ctx, cursor_info),
         ),
       ],
     );

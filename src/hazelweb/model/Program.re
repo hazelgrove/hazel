@@ -115,6 +115,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, k, d3) =>
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (TyAlias(dp, dty, k, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -170,12 +173,12 @@ let rec renumber_result_only =
   | Keyword(u, _, sigma, k) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
+  | Cast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
+    (Cast(ctx, d1, ty1, ty2), hii);
+  | FailedCast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
+    (FailedCast(ctx, d1, ty1, ty2), hii);
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (InvalidOperation(d, err), hii);
@@ -213,6 +216,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, k, d3) =>
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (TyAlias(dp, dty, k, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -273,12 +279,12 @@ let rec renumber_sigmas_only =
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
+  | Cast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
+    (Cast(ctx, d1, ty1, ty2), hii);
+  | FailedCast(ctx, d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
+    (FailedCast(ctx, d1, ty1, ty2), hii);
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (InvalidOperation(d, err), hii);

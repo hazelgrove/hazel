@@ -128,9 +128,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
   | (
       Pair(dp1, dp2),
-      Cast(_, d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
+      Cast(ctx, d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
     ) =>
     matches_cast_Pair(
+      ctx,
       dp1,
       dp2,
       d,
@@ -165,8 +166,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Cons(dp1, dp2), Cast(_, d, List(ty1), List(ty2))) =>
-    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
+  | (Cons(dp1, dp2), Cast(ctx, d, List(ty1), List(ty2))) =>
+    matches_cast_Cons(ctx, dp1, dp2, d, [(ty1, ty2)])
   | (Cons(_, _), Cast(_, d, Hole, List(_))) => matches(dp, d)
   | (Cons(_, _), Cast(_, d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
@@ -243,8 +244,8 @@ and matches_cast_Pair =
       dp1: DHPat.t,
       dp2: DHPat.t,
       d: DHExp.t,
-      left_casts: list((HTyp.t, HTyp.t)),
-      right_casts: list((HTyp.t, HTyp.t)),
+      left_casts: list((Contexts.t, HTyp.t, HTyp.t)),
+      right_casts: list((Contexts.t, HTyp.t, HTyp.t)),
     )
     : match_result =>
   switch (d) {
@@ -264,19 +265,19 @@ and matches_cast_Pair =
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | Cast(_, d', Prod([]), Prod([])) =>
+  | Cast(ctx, d', Prod([]), Prod([])) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(_, d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
+  | Cast(ctx, d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
     matches_cast_Pair(
       dp1,
       dp2,
       d',
-      [(head1, head2), ...left_casts],
+      [(ctx, head1, head2), ...left_casts],
       List.combine(tail1, tail2) @ right_casts,
     )
   | Cast(_, d', Prod(_), Hole)
-  | Cast(_, d', Hole, Prod(_)) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Cast(ctx, d', Hole, Prod(_)) =>
+    matches_cast_Pair(ctx, dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -305,6 +306,7 @@ and matches_cast_Pair =
   }
 and matches_cast_Cons =
     (
+      ctx: Contexts.t,
       dp1: DHPat.t,
       dp2: DHPat.t,
       d: DHExp.t,
@@ -313,7 +315,7 @@ and matches_cast_Cons =
     : match_result =>
   switch (d) {
   | Cons(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+    switch (matches(ctx, dp1, DHExp.apply_casts(d1, elt_casts))) {
     | DoesNotMatch => DoesNotMatch
     | Indet =>
       let list_casts =
@@ -324,7 +326,7 @@ and matches_cast_Cons =
           },
           elt_casts,
         );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      switch (matches(ctx, dp2, DHExp.apply_casts(d2, list_casts))) {
       | DoesNotMatch => DoesNotMatch
       | Indet
       | Matches(_) => Indet
@@ -334,20 +336,22 @@ and matches_cast_Cons =
         List.map(
           (c: (HTyp.t, HTyp.t)) => {
             let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
+            (ctx, HTyp.List(ty1), HTyp.List(ty2));
           },
           elt_casts,
         );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      switch (matches(ctx, dp2, DHExp.apply_casts(d2, list_casts))) {
       | DoesNotMatch => DoesNotMatch
       | Indet => Indet
       | Matches(env2) => Matches(Environment.union(env1, env2))
       };
     }
-  | Cast(_, d', List(ty1), List(ty2)) =>
-    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(_, d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(_, d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Cast(ctx, d', List(ty1), List(ty2)) =>
+    matches_cast_Cons(ctx, dp1, dp2, d', [(ty1, ty2), ...elt_casts])
+  | Cast(ctx, d', List(_), Hole) =>
+    matches_cast_Cons(ctx, dp1, dp2, d', elt_casts)
+  | Cast(ctx, d', Hole, List(_)) =>
+    matches_cast_Cons(ctx, dp1, dp2, d', elt_casts)
   | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
