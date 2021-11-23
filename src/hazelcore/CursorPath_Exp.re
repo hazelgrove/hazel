@@ -430,6 +430,11 @@ and hooks_operand =
     ]
   | Var(err, verr, _) =>
     hs |> hooks_verr(verr, rev_steps) |> hooks_err(err, rev_steps)
+  | Keyword(Typed(_, InHole(TypeInconsistent, u), id)) => [
+      CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+      CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      ...hs,
+    ]
   | Keyword(Typed(_, _, id)) => [
       CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
       ...hs,
@@ -600,18 +605,21 @@ and hooks_zoperand =
     }
   | CursorE(_, Keyword(Typed(_, err, id))) =>
     switch (err) {
-    | NotInHole =>
+    | InHole(TypeInconsistent, u) =>
       CursorPath_common.mk_zhooks(
-        ~hook_selected=
-          Some(CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps))),
-        (),
-      )
-    | InHole(_, u) =>
-      CursorPath_common.mk_zhooks(
+        ~hooks_before=[
+          CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+        ],
         ~hook_selected=
           Some(
             CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
           ),
+        (),
+      )
+    | _ =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected=
+          Some(CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps))),
         (),
       )
     }

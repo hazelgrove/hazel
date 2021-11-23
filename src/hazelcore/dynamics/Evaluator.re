@@ -820,14 +820,32 @@ and eval_test_eq =
   (d, evaluate(d, ~state));
 }
 and eval_test = (n: int, d: DHExp.t, state: state): report => {
+  /* For binary operators and unary/binary applications,
+     display the evaluated arguments */
   let (show_d, (res_d, state)) =
-    switch (d) {
-    | BinIntOp((Equals | LessThan | GreaterThan) as op, d1, d2) =>
+    switch (DHExp.strip_casts(d)) {
+    | BinBoolOp(op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinBoolOp(op, d1, d2);
+      eval_test_eq(mk_op, d1, d2, state);
+    | BinIntOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
       eval_test_eq(mk_op, d1, d2, state);
-    | BinFloatOp((FEquals | FLessThan | FGreaterThan) as op, d1, d2) =>
+    | BinFloatOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
       eval_test_eq(mk_op, d1, d2, state);
+    | Ap(Ap(d1, d2), d3) =>
+      let (d1, state) = evaluate(d1, ~state);
+      let (d2, state) = evaluate(d2, ~state);
+      let (d3, state) = evaluate(d3, ~state);
+      let d =
+        DHExp.Ap(
+          Ap(unbox_result(d1), unbox_result(d2)),
+          unbox_result(d3),
+        );
+      (d, evaluate(d, ~state));
+    | Ap(d1, d2) =>
+      let mk = (d1, d2) => DHExp.Ap(d1, d2);
+      eval_test_eq(mk, d1, d2, state);
     | _ =>
       let (d, state) = evaluate(d, ~state);
       (unbox_result(d), (d, state));
