@@ -825,7 +825,16 @@ and ana_fix_holes_operand =
           };
         (Inj(NotInHole, tag', None), ctx, u_gen);
       /* TAInj (nullary) */
-      | (None, Some(None)) => (operand, ctx, u_gen)
+      | (None, Some(None)) =>
+        let (tag', u_gen) =
+          Statics_Tag.ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            tag,
+            ty,
+          );
+        (Inj(NotInHole, tag', arg_opt), ctx, u_gen);
       /* TAInjExpectedBody */
       | (None, Some(Some(_))) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
