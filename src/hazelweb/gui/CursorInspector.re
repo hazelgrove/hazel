@@ -458,7 +458,7 @@ let novice_summary =
     | AnaInjExpectedArg(expected_ty) => [
         Node.text("Expecting " ++ article),
         term_tag,
-        Node.text("to have an argument of type"),
+        Node.text("injection with argument of type"),
         HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("A Constant Injection"),
@@ -481,7 +481,7 @@ let novice_summary =
     | PatAnaInjExpectedArg(expected_ty) => [
         Node.text("Expecting " ++ article),
         term_tag,
-        Node.text("to have an argument of type"),
+        Node.text("injection with argument of type"),
         HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
         Node.text("but got"),
         emphasize_text("A Constant Injection"),
