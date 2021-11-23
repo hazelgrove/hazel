@@ -1290,7 +1290,7 @@ and ana_fix_holes_operand =
       print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
       let (op, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
+        print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
       (op, u_gen);
     | _ =>
       print_endline("case ana fix holes OTHER case");
