@@ -1596,6 +1596,10 @@ body {
   border-right: 0px;
 }
 
+.test-report:hover {
+  background-color: #cfd;
+}
+
 .test-id {
 }
 
@@ -1688,12 +1692,24 @@ body {
   background-color: #7cb;
 }
 
+.test-bar .segment.Pass:hover {
+  background-color: rgb(81, 242, 194);
+}
+
 .test-bar .segment.Fail {
-  background-color: #d88;
+  background-color: #f66;
+}
+
+.test-bar .segment.Fail:hover {
+  background-color: rgb(244, 0, 0);
 }
 
 .test-bar .segment.Indet {
   background-color: tan;
+}
+
+.test-bar .segment.Indet:hover {
+  background-color: rgb(255, 199, 125);
 }
 
 .test-inspector {
