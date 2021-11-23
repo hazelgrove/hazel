@@ -14,7 +14,8 @@ type type_info =
 type explanation_info =
   | EmptyLine
   | CommentLine
-  | LetLine(pattern_info, UHExp.t, UHExp.t)
+  | Block(UHExp.block, int, UHExp.line)
+  | LetLine(pattern_info, UHExp.t, int, UHExp.t)
   | ExpBaseOperand(UHExp.operand)
   | Lambda(pattern_info, UHExp.t)
   | Rule(int, UHExp.t, pattern_info, UHExp.t)
@@ -22,7 +23,5 @@ type explanation_info =
   | ExpBinOperator(UHExp.operator, UHExp.opseq, UHExp.opseq)
   | Pattern(pattern_info)
   | Typ(type_info);
-
-let explanation_paths: ZExp.t => list(CursorPath.steps);
 
 let mk_explanation_info: CursorInfo.cursor_term => explanation_info;

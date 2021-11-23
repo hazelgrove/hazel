@@ -397,221 +397,221 @@ module CurrentTerm = {
 };
 
 /* TODO Hannah do refactoring to combine with CurrentTerm */
-module ExplanationTerm = {
-  let tessera_margin = 0.03; // y units
-  let multiline_open_child_border_width = 0.25; // x units
-  let index = ref(0); /* TODO: Hannah - temp way to look at different colors for children - should find better way */
-  let child_colors = [
-    "rgb(122, 153, 182)",
-    "rgb(199, 141, 146)",
-    "rgb(153, 199, 141)",
-    "rgb(235, 164, 84)",
-    "rgb(167, 84, 235)",
-    "rgb(235, 200, 84)",
-  ];
-
-  let multiline_open_child_rects =
-      (~vtrim_bot=false, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
-      : list(SvgUtil.Rect.t) => {
-    [
-      SvgUtil.Rect.{
-        min: {
-          x: Float.of_int(start.col),
-          y: Float.of_int(start.row),
-        },
-        height:
-          Float.of_int(MeasuredLayout.height(m))
-          -. (vtrim_bot ? tessera_margin : 0.),
-        width: Float.of_int(MeasuredLayout.width(m)),
-      },
+/*module ExplanationTerm = {
+    let tessera_margin = 0.03; // y units
+    let multiline_open_child_border_width = 0.25; // x units
+    let index = ref(0); /* TODO: Hannah - temp way to look at different colors for children - should find better way */
+    let child_colors = [
+      "rgb(122, 153, 182)",
+      "rgb(199, 141, 146)",
+      "rgb(153, 199, 141)",
+      "rgb(235, 164, 84)",
+      "rgb(167, 84, 235)",
+      "rgb(235, 200, 84)",
     ];
-  };
 
-  let sort_cls: TermSort.t => string =
-    fun
-    | Typ => "Typ"
-    | Pat => "Pat"
-    | Exp => "Exp";
+    let multiline_open_child_rects =
+        (~vtrim_bot=false, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+        : list(SvgUtil.Rect.t) => {
+      [
+        SvgUtil.Rect.{
+          min: {
+            x: Float.of_int(start.col),
+            y: Float.of_int(start.row),
+          },
+          height:
+            Float.of_int(MeasuredLayout.height(m))
+            -. (vtrim_bot ? tessera_margin : 0.),
+          width: Float.of_int(MeasuredLayout.width(m)),
+        },
+      ];
+    };
 
-  let overflow_left: TermShape.t => bool =
-    fun
-    | SubBlock(_)
-    | NTuple(_)
-    | BinOp(_) => true
-    | Case
-    | Rule
-    | Operand => false;
+    let sort_cls: TermSort.t => string =
+      fun
+      | Typ => "Typ"
+      | Pat => "Pat"
+      | Exp => "Exp";
 
-  // highlighted borders of open children
-  let current_term_open_child_rects =
-      (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
-      : list(SvgUtil.Rect.t) => {
-    let has_multiline_open_child =
+    let overflow_left: TermShape.t => bool =
+      fun
+      | SubBlock(_)
+      | NTuple(_)
+      | BinOp(_) => true
+      | Case
+      | Rule
+      | Operand => false;
+
+    // highlighted borders of open children
+    let current_term_open_child_rects =
+        (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
+        : list(SvgUtil.Rect.t) => {
+      let has_multiline_open_child =
+        subject
+        |> MeasuredLayout.fold(
+             ~linebreak=false,
+             ~text=_ => false,
+             ~align=b => b,
+             ~cat=(||),
+             ~annot=
+               (go, annot: UHAnnot.t, m) =>
+                 switch (shape, annot) {
+                 | (Case | SubBlock(_), Step(_))
+                 | (Case, Term({shape: Rule, _})) => go(m)
+                 | (_, OpenChild(Multiline)) => true
+                 | (_, _) => false
+                 },
+           );
+      let subject_height = MeasuredLayout.height(subject);
       subject
-      |> MeasuredLayout.fold(
-           ~linebreak=false,
-           ~text=_ => false,
-           ~align=b => b,
-           ~cat=(||),
+      |> MeasuredLayout.pos_fold(
+           ~start={row: 0, col: offset},
+           ~linebreak=_ => [],
+           ~text=(_, _) => [],
+           ~align=(_, rs) => rs,
+           ~cat=(_, rs1, rs2) => rs1 @ rs2,
            ~annot=
-             (go, annot: UHAnnot.t, m) =>
+             (~go, ~indent, ~start, annot: UHAnnot.t, m) => {
+               // some tesserae need to be padded on left side to form
+               // a straight edge with borders of neighboring multiline
+               // open children
+               let tessera_padding = (~vtrim_top: bool, ~vtrim_bot: bool) => {
+                 let min_x = Float.of_int(start.col);
+                 let min_y =
+                   Float.of_int(start.row) +. (vtrim_top ? tessera_margin : 0.);
+                 let height =
+                   Float.of_int(MeasuredLayout.height(m))
+                   -. (vtrim_top ? tessera_margin : 0.)
+                   -. (vtrim_bot ? tessera_margin : 0.);
+                 SvgUtil.Rect.[
+                   {
+                     min: {
+                       x: min_x,
+                       y: min_y,
+                     },
+                     height,
+                     width: multiline_open_child_border_width,
+                   },
+                 ];
+               };
+
                switch (shape, annot) {
                | (Case | SubBlock(_), Step(_))
                | (Case, Term({shape: Rule, _})) => go(m)
-               | (_, OpenChild(Multiline)) => true
-               | (_, _) => false
-               },
-         );
-    let subject_height = MeasuredLayout.height(subject);
-    subject
-    |> MeasuredLayout.pos_fold(
-         ~start={row: 0, col: offset},
-         ~linebreak=_ => [],
-         ~text=(_, _) => [],
-         ~align=(_, rs) => rs,
-         ~cat=(_, rs1, rs2) => rs1 @ rs2,
-         ~annot=
-           (~go, ~indent, ~start, annot: UHAnnot.t, m) => {
-             // some tesserae need to be padded on left side to form
-             // a straight edge with borders of neighboring multiline
-             // open children
-             let tessera_padding = (~vtrim_top: bool, ~vtrim_bot: bool) => {
-               let min_x = Float.of_int(start.col);
-               let min_y =
-                 Float.of_int(start.row) +. (vtrim_top ? tessera_margin : 0.);
-               let height =
-                 Float.of_int(MeasuredLayout.height(m))
-                 -. (vtrim_top ? tessera_margin : 0.)
-                 -. (vtrim_bot ? tessera_margin : 0.);
-               SvgUtil.Rect.[
-                 {
-                   min: {
-                     x: min_x,
-                     y: min_y,
-                   },
-                   height,
-                   width: multiline_open_child_border_width,
-                 },
-               ];
-             };
-
-             switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, OpenChild(InlineWithBorder)) =>
+               | (_, OpenChild(InlineWithBorder)) =>
+                 // TODO(d) specify indent?
+                 Decoration_common.rects(
+                   ~indent,
+                   ~vtrim=tessera_margin,
+                   start,
+                   m,
+                 )
+               | (_, OpenChild(Multiline)) =>
+                 multiline_open_child_rects(
+                   ~vtrim_bot=start.row == subject_height - 1,
+                   start,
+                   m,
+                 )
                // TODO(d) specify indent?
-               Decoration_common.rects(
-                 ~indent,
-                 ~vtrim=tessera_margin,
-                 start,
-                 m,
-               )
-             | (_, OpenChild(Multiline)) =>
-               multiline_open_child_rects(
-                 ~vtrim_bot=start.row == subject_height - 1,
-                 start,
-                 m,
-               )
-             // TODO(d) specify indent?
-             | (Case, Tessera) =>
-               tessera_padding(
-                 ~vtrim_top=start.row == 0,
-                 ~vtrim_bot=start.row == subject_height - 1,
-               )
-             | (BinOp(_), Tessera) when has_multiline_open_child =>
-               tessera_padding(~vtrim_top=false, ~vtrim_bot=true)
-             | (NTuple({comma_indices}), Tessera)
-                 when has_multiline_open_child =>
-               tessera_padding(
-                 ~vtrim_top=
-                   switch (m.layout) {
-                   | Annot(Step(step), _)
-                       when step == IntUtil.min(comma_indices) =>
-                     false
-                   | _ => true
-                   },
-                 ~vtrim_bot=true,
-               )
-             | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
-               // may need to revisit above `when` guard
-               // to support layouts like
-               // let _ = \x.{
-               //   _
-               // } in ...
-               // where lambda has offset head
-               tessera_padding(
-                 ~vtrim_top=start.row == 0,
-                 ~vtrim_bot=start.row == subject_height - 1,
-               )
-             | _ => []
-             };
-           },
-       );
-  };
-
-  // highlighted tesserae (ignoring closed children)
-  let current_term_tessera_rects =
-      (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
-      : list(SvgUtil.Rect.t) =>
-    subject
-    |> MeasuredLayout.pos_fold(
-         ~start={row: 0, col: offset},
-         ~linebreak=_ => [],
-         ~text=(_, _) => [],
-         ~align=(_, rs) => rs,
-         ~cat=(_, rs1, rs2) => rs1 @ rs2,
-         ~annot=
-           (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
-             switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, Tessera) =>
-               Decoration_common.rects(
-                 ~indent,
-                 ~vtrim=tessera_margin,
-                 start,
-                 m,
-               )
-             | _ => []
+               | (Case, Tessera) =>
+                 tessera_padding(
+                   ~vtrim_top=start.row == 0,
+                   ~vtrim_bot=start.row == subject_height - 1,
+                 )
+               | (BinOp(_), Tessera) when has_multiline_open_child =>
+                 tessera_padding(~vtrim_top=false, ~vtrim_bot=true)
+               | (NTuple({comma_indices}), Tessera)
+                   when has_multiline_open_child =>
+                 tessera_padding(
+                   ~vtrim_top=
+                     switch (m.layout) {
+                     | Annot(Step(step), _)
+                         when step == IntUtil.min(comma_indices) =>
+                       false
+                     | _ => true
+                     },
+                   ~vtrim_bot=true,
+                 )
+               | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
+                 // may need to revisit above `when` guard
+                 // to support layouts like
+                 // let _ = \x.{
+                 //   _
+                 // } in ...
+                 // where lambda has offset head
+                 tessera_padding(
+                   ~vtrim_top=start.row == 0,
+                   ~vtrim_bot=start.row == subject_height - 1,
+                 )
+               | _ => []
+               };
              },
-       );
-
-  let view =
-      (
-        ~corner_radii: (float, float),
-        ~sort: TermSort.t,
-        ~shape: TermShape.t,
-        (offset, subject): UHMeasuredLayout.with_offset,
-      )
-      : Node.t => {
-    let highlighted = {
-      let tesserae = current_term_tessera_rects(~shape, (offset, subject));
-      let open_child_borders =
-        current_term_open_child_rects(~shape, (offset, subject));
-      tesserae
-      @ open_child_borders
-      |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-      |> SvgUtil.Path.view(
-           ~attrs=[
-             Attr.classes(["code-explanation-elems", sort_cls(sort)]),
-             Attr.create(
-               "fill",
-               List.nth(child_colors, index^ mod List.length(child_colors)),
-             ),
-           ],
          );
     };
-    index := index^ + 1;
-    Node.create_svg(
-      "g",
-      [],
-      [
-        // TODO cache filters at document root
-        highlighted,
-      ],
-    );
-  };
-};
+
+    // highlighted tesserae (ignoring closed children)
+    let current_term_tessera_rects =
+        (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
+        : list(SvgUtil.Rect.t) =>
+      subject
+      |> MeasuredLayout.pos_fold(
+           ~start={row: 0, col: offset},
+           ~linebreak=_ => [],
+           ~text=(_, _) => [],
+           ~align=(_, rs) => rs,
+           ~cat=(_, rs1, rs2) => rs1 @ rs2,
+           ~annot=
+             (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
+               switch (shape, annot) {
+               | (Case | SubBlock(_), Step(_))
+               | (Case, Term({shape: Rule, _})) => go(m)
+               | (_, Tessera) =>
+                 Decoration_common.rects(
+                   ~indent,
+                   ~vtrim=tessera_margin,
+                   start,
+                   m,
+                 )
+               | _ => []
+               },
+         );
+
+    let view =
+        (
+          ~corner_radii: (float, float),
+          ~sort: TermSort.t,
+          ~shape: TermShape.t,
+          (offset, subject): UHMeasuredLayout.with_offset,
+        )
+        : Node.t => {
+      let highlighted = {
+        let tesserae = current_term_tessera_rects(~shape, (offset, subject));
+        let open_child_borders =
+          current_term_open_child_rects(~shape, (offset, subject));
+        tesserae
+        @ open_child_borders
+        |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+        |> SvgUtil.Path.view(
+             ~attrs=[
+               Attr.classes(["code-explanation-elems", sort_cls(sort)]),
+               Attr.create(
+                 "fill",
+                 List.nth(child_colors, index^ mod List.length(child_colors)),
+               ),
+             ],
+           );
+      };
+      index := index^ + 1;
+      Node.create_svg(
+        "g",
+        [],
+        [
+          // TODO cache filters at document root
+          highlighted,
+        ],
+      );
+    };
+  };*/
 
 module ErrHole = {
   let view:
@@ -665,4 +665,18 @@ module Caret = {
       [],
     );
   };
+};
+
+/* TODO: Hannah - we may sometimes want to not trim for the current term - I think only for scrut when on rule for now...  There is probably a better way to be doing this than always trimming */
+module ExplanationTerm = {
+  let view:
+    (
+      ~corner_radii: (float, float),
+      ~color: string,
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    Decoration_common.ExplanationTerm.view(
+      ~vtrim=CurrentTerm.inline_open_child_border_height,
+    );
 };

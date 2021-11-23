@@ -121,7 +121,7 @@ type cursor_term =
   | ExpOp(CursorPosition.t, UHExp.operator, int, UHExp.opseq)
   | PatOp(CursorPosition.t, UHPat.operator, int, UHPat.opseq)
   | TypOp(CursorPosition.t, UHTyp.operator, int, UHTyp.opseq)
-  | Line(CursorPosition.t, UHExp.line, option(UHExp.t))
+  | Line(CursorPosition.t, UHExp.line, option((UHExp.t, int)))
   | Rule(CursorPosition.t, UHExp.rule, int, UHExp.t);
 
 // TODO refactor into variants

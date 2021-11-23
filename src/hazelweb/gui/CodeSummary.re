@@ -1,32 +1,22 @@
 open Virtual_dom.Vdom;
-
-/* TODO: Hannah - Pick 7 or so distinct colors from the different color generator thing (HSLuv)
-   Make sure distinguishable for color blind */
-let child_colors = [
-  "rgb(122, 153, 182)",
-  "rgb(199, 141, 146)",
-  "rgb(153, 199, 141)",
-  "rgb(235, 164, 84)",
-  "rgb(167, 84, 235)",
-  "rgb(235, 200, 84)",
-];
-let highlight = (shortened_msg: string, child_index: int): Node.t => {
-  Node.span(
-    [
-      Attr.style(
-        Css_gen.(
-          create(
-            ~field="background",
-            ~value=
-              List.nth(
-                child_colors,
-                child_index mod List.length(child_colors),
-              ),
-          )
-        ),
-      ),
-    ],
-    [Node.text(shortened_msg)],
+//open Sexplib;
+let highlight =
+    (shortened_msg: string, steps: CursorPath.steps, mapping: ColorSteps.t)
+    : (Node.t, ColorSteps.t) => {
+  let (c, mapping) = ColorSteps.get_color(steps, mapping);
+  /*print_endline(
+      "Color chosen at highlight: ("
+      ++ Sexp.to_string(CursorPath.sexp_of_steps(steps))
+      ++ ", "
+      ++ c
+      ++ ")",
+    );*/
+  (
+    Node.span(
+      [Attr.style(Css_gen.(create(~field="background-color", ~value=c)))],
+      [Node.text(shortened_msg)],
+    ),
+    mapping,
   );
 };
 
@@ -44,7 +34,7 @@ let int_to_word_number = (n: int): string => {
   };
 };
 let comma_separated_list = (items: list(string)): string => {
-  let _ = List.map(item => print_endline(item), items);
+  /*let _ = List.map(item => print_endline(item), items);*/
   let length = List.length(items);
   let items =
     List.mapi(
@@ -66,18 +56,28 @@ let comma_separated_list = (items: list(string)): string => {
 
 /*
  Markdown like thing:
- highlighty thing : [thing to highlight](color index)
+ highlighty thing : [thing to highlight](index)
  bulleted list: - list item
                 - list item
  */
-let build_msg = (text: string, show_highlight: bool): list(Node.t) => {
-  let parse_line = (line: string): list(Node.t) => {
+/* TODO: Hannah maybe make intermediate representation of text and references then do pass to do color mappings*/
+let build_msg =
+    (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
+  print_endline(text);
+  let parse_steps = (step_str: string): CursorPath.steps => {
+    let regex = Re.Str.regexp({| |});
+    let pieces = Re.Str.split(regex, step_str);
+    List.map(piece => int_of_string(piece), pieces);
+  };
+  let parse_line =
+      (line: string, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) => {
     let regex = Re.Str.regexp({|\[\|\]\|(\|)|});
     let pieces = Re.Str.full_split(regex, line);
     let rec parse_line' =
-            (split_results: list(Re.Str.split_result)): list(Node.t) => {
+            (split_results: list(Re.Str.split_result), mapping: ColorSteps.t)
+            : (list(Node.t), ColorSteps.t) => {
       switch (split_results) {
-      | [] => []
+      | [] => ([], mapping)
       | [x, ...xs] =>
         switch (x) {
         | Delim("[") =>
@@ -90,17 +90,31 @@ let build_msg = (text: string, show_highlight: bool): list(Node.t) => {
               Delim(")"),
               ...xs,
             ] =>
-            let msg_node =
+            let (msg_node, mapping) =
               if (show_highlight) {
-                highlight(msg, int_of_string(index));
+                highlight(msg, parse_steps(index), mapping);
               } else {
-                Node.text(msg);
+                (Node.text(msg), mapping);
               };
-            [msg_node, ...parse_line'(xs)];
-          | _ => [Node.text("["), ...parse_line'(xs)]
+            let (rest, mapping) = parse_line'(xs, mapping);
+            ([msg_node, ...rest], mapping);
+          | [Text(msg), Delim("]"), Delim("("), Delim(")"), ...xs] =>
+            let (msg_node, mapping) =
+              if (show_highlight) {
+                highlight(msg, [], mapping);
+              } else {
+                (Node.text(msg), mapping);
+              };
+            let (rest, mapping) = parse_line'(xs, mapping);
+            ([msg_node, ...rest], mapping);
+          | _ =>
+            let (rest, mapping) = parse_line'(xs, mapping);
+            ([Node.text("["), ...rest], mapping);
           }
         | Delim(t)
-        | Text(t) => [Node.text(t), ...parse_line'(xs)]
+        | Text(t) =>
+          let (rest, mapping) = parse_line'(xs, mapping);
+          ([Node.text(t), ...rest], mapping);
         }
       };
     };
@@ -115,34 +129,43 @@ let build_msg = (text: string, show_highlight: bool): list(Node.t) => {
         },
         pieces,
       );*/
-    parse_line'(pieces);
+    parse_line'(pieces, mapping);
   };
   let pieces = Re.Str.split(Re.Str.regexp("\n"), text);
-  let rec parse = (lines: list(string)): list(Node.t) => {
+  let rec parse =
+          (lines: list(string), mapping: ColorSteps.t)
+          : (list(Node.t), ColorSteps.t) => {
     switch (lines) {
-    | [] => []
+    | [] => ([], mapping)
     | [line, ...lines] =>
       let trim = String.trim(line);
       if (String.length(trim) > 0 && trim.[0] == '-') {
         let rec parse_bullets =
-                (lines: list(string)): (list(Node.t), list(string)) => {
+                (lines: list(string), mapping: ColorSteps.t)
+                : (list(Node.t), list(string), ColorSteps.t) => {
           switch (lines) {
-          | [] => ([], [])
+          | [] => ([], [], mapping)
           | [line, ...lines] =>
             let trim = String.trim(line);
             if (String.length(trim) > 0 && trim.[0] == '-') {
               let trim = String.sub(trim, 1, String.length(trim) - 1);
-              let (tail_bullets, lines) = parse_bullets(lines);
-              ([Node.li([], parse_line(trim)), ...tail_bullets], lines);
+              let (tail_bullets, lines, mapping) =
+                parse_bullets(lines, mapping);
+              let (line, mapping) = parse_line(trim, mapping);
+              ([Node.li([], line), ...tail_bullets], lines, mapping); /* TODO Hannah Maybe this reverses the colors? */
             } else {
-              ([], [line, ...lines]);
+              ([], [line, ...lines], mapping);
             };
           };
         };
-        let (bullets, lines) = parse_bullets([line, ...lines]);
-        [Node.ol([], bullets), ...parse(lines)];
+        let (bullets, lines, mapping) =
+          parse_bullets([line, ...lines], mapping);
+        let (rest, mapping) = parse(lines, mapping);
+        ([Node.ol([], bullets), ...rest], mapping);
       } else {
-        parse_line(trim) @ parse(lines);
+        let (nodes, mapping) = parse_line(trim, mapping);
+        let (rest, mapping) = parse(lines, mapping);
+        (nodes @ rest, mapping);
       };
     };
   };
@@ -153,7 +176,7 @@ let build_msg = (text: string, show_highlight: bool): list(Node.t) => {
       },
       pieces,
     );*/
-  parse(pieces);
+  parse(pieces, ColorSteps.empty);
 };
 
 let let_line_msg =
@@ -163,7 +186,7 @@ let let_line_msg =
       body: UHExp.t,
       show_highlight: bool,
     )
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
   let _ = def;
   let _ = body;
   switch (pattern_info) {
@@ -210,14 +233,13 @@ let let_line_msg =
       failwith("Pattern info should handle parentheses directly")
     }
   | CommaOperator(pats, _type) =>
-    let num_pats = List.length(pats);
     let pattern_parts =
       List.mapi(
         (index, _) => {
           let word_num = int_to_word_number(index + 1);
           "the ["
           ++ word_num
-          ++ " pattern]("
+          ++ " pattern](0 "
           ++ string_of_int(index)
           ++ ") will stand for the "
           ++ word_num
@@ -227,13 +249,7 @@ let let_line_msg =
       );
     let pattern_msg = comma_separated_list(pattern_parts);
     build_msg(
-      "In the [body]("
-      ++ string_of_int(num_pats + 1)
-      ++ "), "
-      ++ pattern_msg
-      ++ " of the [definition tuple]("
-      ++ string_of_int(num_pats)
-      ++ ")",
+      "In the [body](2), " ++ pattern_msg ++ " of the [definition tuple](1)",
       show_highlight,
     );
   | BinOperator(operator, _lpat, _rpat, _type) =>
@@ -241,7 +257,7 @@ let let_line_msg =
     | Comma => failwith("Pattern info should handle commas directly")
     | Cons =>
       build_msg(
-        "In the [body](3), the [head pattern](0) will stand for the head and the [tail pattern](1) will stand for the tail of the [definition list](2)",
+        "In the [body](2), the [head pattern](0 0) will stand for the head and the [tail pattern](0 1) will stand for the tail of the [definition list](1)",
         show_highlight,
       )
     | Space =>
@@ -259,7 +275,7 @@ let lambda_msg =
       body: UHExp.t,
       show_highlight: bool,
     )
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
   let _ = body;
   let begin_msg = "Function literal that returns the value of the [body](1) when applied to an argument ";
   switch (pattern_info) {
@@ -300,7 +316,7 @@ let lambda_msg =
     | Comma => failwith("Pattern info should handle commas directly")
     | Cons =>
       build_msg(
-        begin_msg ++ "list with [head](0) and [tail](1)",
+        begin_msg ++ "list with [head](0 0) and [tail](0 1)",
         show_highlight,
       )
     | Space =>
@@ -321,9 +337,9 @@ let rule_msg =
       clause: UHExp.t,
       show_highlight: bool,
     )
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
   let is_first_rule = index == 0;
-  let if_scrut_msg = "If the [scrutinee](0) ";
+  let if_scrut_msg = "If the [scrutinee](-1 0) ";
   let not_matched_msg = "has not matched any of the proceeding rules";
   let _ = scrut;
   let _ = clause;
@@ -336,8 +352,8 @@ let rule_msg =
       build_msg(
         begin_msg
         ++ "atching on this rule is delayed until [hole "
-        ++ string_of_int(n)
-        ++ "](1) is filled with a valid pattern",
+        ++ string_of_int(n + 1)
+        ++ "](0) is filled with a valid pattern",
         show_highlight,
       );
     | Wild(_) =>
@@ -345,7 +361,7 @@ let rule_msg =
         is_first_rule ? "M" : if_scrut_msg ++ not_matched_msg ++ ", m";
       build_msg(
         begin_msg
-        ++ "atch on the [wildcard pattern](1) and evaluate the [clause](2)",
+        ++ "atch on the [wildcard pattern](0) and evaluate the [clause](1)",
         show_highlight,
       );
     | TypeAnn(_) =>
@@ -357,7 +373,7 @@ let rule_msg =
         begin_msg
         ++ "atching on this rule is delayed until [invalid text "
         ++ text
-        ++ "](1) is corrected",
+        ++ "](0) is corrected",
         show_highlight,
       );
     | Var(_, _, var) =>
@@ -367,7 +383,7 @@ let rule_msg =
         begin_msg
         ++ "atch on this rule, where [variable "
         ++ var
-        ++ "](1) will stand for the [scrutinee](0) in the [clause](2)",
+        ++ "](0) will stand for the [scrutinee](-1 0) in the [clause](1)",
         show_highlight,
       );
     | IntLit(_, lit)
@@ -378,7 +394,7 @@ let rule_msg =
         begin_msg
         ++ "matches the [pattern "
         ++ lit
-        ++ "](1), evaluate the [clause](2)",
+        ++ "](0), evaluate the [clause](1)",
         show_highlight,
       );
     | BoolLit(_, lit) =>
@@ -388,15 +404,15 @@ let rule_msg =
         begin_msg
         ++ "matches the [pattern "
         ++ string_of_bool(lit)
-        ++ "](1), evaluate the [clause](2)",
+        ++ "](0), evaluate the [clause](1)",
         show_highlight,
       );
     | ListNil(_) =>
       let begin_msg =
-        if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", ");
+        if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", "); /* TODO: The parsing doesn't work with the empty list pattern showing up as text */
       build_msg(
         begin_msg
-        ++ "matches the [empty list pattern []](1), evaluate the [clause](2)",
+        ++ "matches the [empty list pattern []](0), evaluate the [clause](1)",
         show_highlight,
       );
     | Inj(_, side, _arg) =>
@@ -411,9 +427,9 @@ let rule_msg =
         begin_msg
         ++ "matches the ["
         ++ side_str
-        ++ " injection](1) of the [argument pattern](2), evaluate the [clause](3)",
+        ++ " injection](0) of the [argument pattern](0 0), evaluate the [clause](1)",
         show_highlight,
-      );
+      ); /* TODO: Figre out if can do the overlapping highlight... */
     | Parenthesized(_) =>
       failwith("Pattern info should handle parentheses directly")
     }
@@ -421,7 +437,7 @@ let rule_msg =
     let begin_msg =
       if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", ");
     build_msg(
-      begin_msg ++ "matches the [tuple pattern](1), evaluate the [clause](2)",
+      begin_msg ++ "matches the [tuple pattern](0), evaluate the [clause](1)",
       show_highlight,
     );
   | BinOperator(operator, _lpat, _rpat, _type) =>
@@ -432,7 +448,7 @@ let rule_msg =
         if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", ");
       build_msg(
         begin_msg
-        ++ "matches the list pattern with [head](1) and [tail](2), evaluate the [clause](3)",
+        ++ "matches the list pattern with [head](0 0) and [tail](0 1), evaluate the [clause](1)",
         show_highlight,
       );
     | Space =>
@@ -440,7 +456,7 @@ let rule_msg =
         is_first_rule ? "M" : if_scrut_msg ++ not_matched_msg ++ ", m";
       build_msg(
         begin_msg
-        ++ "atching on this rule is delayed until [the pattern](1) is corrected (function application of a pattern is not valid)",
+        ++ "atching on this rule is delayed until [the pattern](0) is corrected (function application of a pattern is not valid)",
         show_highlight,
       );
     }
@@ -449,51 +465,77 @@ let rule_msg =
 
 let pattern_msg =
     (pattern_info: ExplanationInfo.pattern_info, show_highlight: bool)
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
+  let typ_annot_step =
+    switch (pattern_info) {
+    | Operand(_, Some(_))
+    | CommaOperator(_, Some(_))
+    | BinOperator(_, _, _, Some(_)) => "0"
+    | Operand(_, None)
+    | CommaOperator(_, None)
+    | BinOperator(_, _, _, None) => ""
+    };
   switch (pattern_info) {
   | Operand(operand, _type) =>
     switch (operand) {
     | EmptyHole(n) =>
       build_msg(
-        "Empty [pattern hole](0) with id "
+        "Empty [pattern hole]("
+        ++ typ_annot_step
+        ++ ") with id "
         ++ string_of_int(n + 1)
         ++ ". Matching on this pattern is delayed until the hole is filled",
         show_highlight,
       )
     | Wild(_) =>
       build_msg(
-        "[Wildcard](0). Matches any value without binding it to a variable",
+        "[Wildcard]("
+        ++ typ_annot_step
+        ++ "). Matches any value without binding it to a variable",
         show_highlight,
       )
     | TypeAnn(_) =>
       /* TODO: Hannah - check this case */
       build_msg(
-        "[Type annotated pattern](0). Matches values of type ty that match the annotated pattern",
+        "[Type annotated pattern]("
+        ++ typ_annot_step
+        ++ "). Matches values of type ty that match the annotated pattern",
         show_highlight,
       )
     | InvalidText(_, text) =>
       build_msg(
         "[Invalid text "
         ++ text
-        ++ "](0) is not a valid name or literal pattern",
+        ++ "]("
+        ++ typ_annot_step
+        ++ ") is not a valid name or literal pattern",
         show_highlight,
       )
     | Var(_, _, var) =>
       build_msg(
-        "[Variable pattern](0). Mathces any valud and binds it to the variable "
+        "[Variable pattern]("
+        ++ typ_annot_step
+        ++ "). Matches any value and binds it to the variable "
         ++ var,
         show_highlight,
       )
     | IntLit(_, n) =>
       build_msg(
-        "[Integer literal pattern " ++ n ++ "](0). Matches the value " ++ n,
+        "[Integer literal pattern "
+        ++ n
+        ++ "]("
+        ++ typ_annot_step
+        ++ "). Matches the value "
+        ++ n,
         show_highlight,
       )
     | FloatLit(_, n) =>
       build_msg(
         "[Floating point literal pattern "
         ++ n
-        ++ "](0). Matches the value "
+        ++ "]("
+        ++ typ_annot_step
+        ++ "). Matches the value "
         ++ n,
         show_highlight,
       )
@@ -501,16 +543,21 @@ let pattern_msg =
       build_msg(
         "[Boolean literal pattern "
         ++ string_of_bool(b)
-        ++ "](0). Matches the value "
+        ++ "]("
+        ++ typ_annot_step
+        ++ "). Matches the value "
         ++ string_of_bool(b),
         show_highlight,
       )
     | ListNil(_) =>
       build_msg(
-        "[Empty list (nil) pattern](0). Matches the empty list value []",
+        "[Empty list (nil) pattern]("
+        ++ typ_annot_step
+        ++ "). Matches the empty list value []",
         show_highlight,
       )
     | Inj(_, side, _) =>
+      /* TODO: Is the highlightinf for this what we want? */
       let (cap, low) =
         switch (side) {
         | L => ("Left", "left")
@@ -519,7 +566,9 @@ let pattern_msg =
       build_msg(
         "["
         ++ cap
-        ++ " injection pattern with argument pattern](0). Matches any "
+        ++ " injection pattern with argument pattern]("
+        ++ typ_annot_step
+        ++ " 0). Matches any "
         ++ low
         ++ " injection value where the arguent matches argument pattern",
         show_highlight,
@@ -528,11 +577,13 @@ let pattern_msg =
       failwith("Pattern info should handle parentheses directly")
     }
   | CommaOperator(pats, _type) =>
-    let n = string_of_int(List.length(pats) + 1);
+    let n = string_of_int(List.length(pats));
     build_msg(
       "["
       ++ n
-      ++ "-tuple pattern](0). Matches any "
+      ++ "-tuple pattern]("
+      ++ typ_annot_step
+      ++ "). Matches any "
       ++ n
       ++ "-tuple value where the elemets match in order the corresponding element patterns",
       show_highlight,
@@ -542,12 +593,18 @@ let pattern_msg =
     | Comma => failwith("Pattern info should handle commas directly")
     | Cons =>
       build_msg(
-        "Non-empty list (cons) pattern. Matches any list value with head matching [head pattern](0) and tail matching [tail pattern](1)",
+        "Non-empty list (cons) pattern. Matches any list value with head matching [head pattern]("
+        ++ typ_annot_step
+        ++ " 0) and tail matching [tail pattern]("
+        ++ typ_annot_step
+        ++ " 1)",
         show_highlight,
       )
     | Space =>
       build_msg(
-        "[Function application](0) is not a vlaid pattern. No values match this pattern",
+        "[Function application]("
+        ++ typ_annot_step
+        ++ ") is not a vlaid pattern. No values match this pattern",
         show_highlight,
       )
     }
@@ -556,33 +613,33 @@ let pattern_msg =
 /* TODO: Hannah - Display the types */
 let type_msg =
     (type_info: ExplanationInfo.type_info, show_highlight: bool)
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
   switch (type_info) {
   | Operand(op) =>
     switch (op) {
     | Hole =>
       build_msg(
-        "[Type hole (unknown type)](0), which is consistent with any type of expression",
+        "[Type hole (unknown type)](), which is consistent with any type of expression",
         show_highlight,
-      )
+      ) /* TODO: Get the markup thingy working with this */
     | Unit =>
       build_msg(
-        "[Unit type](0), which classifies expressions that evaluate to the trivial value ()",
+        "[Unit type](), which classifies expressions that evaluate to the trivial value ()",
         show_highlight,
       )
     | Int =>
       build_msg(
-        "[Integer type](0), which classifies expressions that evaluate to integer values",
+        "[Integer type](), which classifies expressions that evaluate to integer values",
         show_highlight,
       )
     | Float =>
       build_msg(
-        "[Floating point type](0), which classifies expressions that evaluate to floating point values",
+        "[Floating point type](), which classifies expressions that evaluate to floating point values",
         show_highlight,
       )
     | Bool =>
       build_msg(
-        "[Boolean type](0), which classifies expressions that evaluate to true or false",
+        "[Boolean type](), which classifies expressions that evaluate to true or false",
         show_highlight,
       )
     | Parenthesized(_) =>
@@ -594,10 +651,11 @@ let type_msg =
       )
     }
   | CommaOperator(typs) =>
-    let n = string_of_int(List.length(typs) + 1);
+    let n = string_of_int(List.length(typs));
     build_msg(
-      n
-      ++ "-tuple type with element types, which classifies expressions that evaluate to tuple values with elements of the element types (in order)",
+      "["
+      ++ n
+      ++ "-tuple type]() with element types, which classifies expressions that evaluate to tuple values with elements of the element types (in order)",
       show_highlight,
     );
   | BinOperator(op, _, _) =>
@@ -612,45 +670,50 @@ let type_msg =
       build_msg(
         "Sum type of [left summand type](0) and [right summand type](1), which classifies expressions that evaluate to either left injection values (Inj[L](v)) with argument v of the left summand type or right injection values (Inj[R](v)) with argument v of the right summand type",
         show_highlight,
-      )
+      ) /* TODO: This causes error with parsing the message the Inj[L] thing*/
     }
   };
 };
 
 let summary_msg =
     (explanation_info: ExplanationInfo.explanation_info, show_highlight: bool)
-    : list(Node.t) => {
+    : (list(Node.t), ColorSteps.t) => {
   switch (explanation_info) {
-  | EmptyLine => [Node.text("Empty line")]
-  | CommentLine => [Node.text("Comment")]
-  | LetLine(pattern_info, def, body) =>
+  | EmptyLine => ([Node.text("Empty line")], ColorSteps.empty)
+  | CommentLine => ([Node.text("Comment")], ColorSteps.empty)
+  | Block(_all_but_last, last_index, _last) =>
+    build_msg(
+      "Code [block](), where each line of is evaluated in order. The value of the entire block is the value of the [last line]("
+      ++ string_of_int(last_index)
+      ++ ")",
+      show_highlight,
+    )
+  | LetLine(pattern_info, def, _start_index, body) =>
     let_line_msg(pattern_info, def, body, show_highlight)
   | ExpBaseOperand(operand) =>
     switch (operand) {
     /* TODO: Hannah - should these really be highlighted when they these simple operands? */
     | EmptyHole(n) =>
       build_msg(
-        "[Empty expression hole](0) with id " ++ string_of_int(n + 1),
+        "[Empty expression hole]() with id " ++ string_of_int(n + 1),
         show_highlight,
       )
     | InvalidText(_, t) =>
       build_msg(
-        "[Invalid text "
-        ++ t
-        ++ "](0) is not a valid name, keyword, or literal",
+        "[Invalid text " ++ t ++ "]() is not a valid name, keyword, or literal",
         show_highlight,
       )
-    | Var(_, _, v) => build_msg("[Variable " ++ v ++ "](0)", show_highlight)
+    | Var(_, _, v) => build_msg("[Variable " ++ v ++ "]()", show_highlight)
     | IntLit(_, n) =>
-      build_msg("[Integer literal " ++ n ++ "](0)", show_highlight)
+      build_msg("[Integer literal " ++ n ++ "]()", show_highlight)
     | FloatLit(_, n) =>
-      build_msg("[Floating point literal " ++ n ++ "](0)", show_highlight)
+      build_msg("[Floating point literal " ++ n ++ "]()", show_highlight)
     | BoolLit(_, b) =>
       build_msg(
-        "[Boolean literal " ++ string_of_bool(b) ++ "](0)",
+        "[Boolean literal " ++ string_of_bool(b) ++ "]()",
         show_highlight,
       )
-    | ListNil(_) => build_msg("[Empty list []](0)", show_highlight) /*TODO: Hannah - the way the parser is implemented now this doesn't work to do highlighting - maybe I need to escape brackets or something when I want to actually show the brackets? */
+    | ListNil(_) => build_msg("[Empty list []]()", show_highlight) /*TODO: Hannah - the way the parser is implemented now this doesn't work to do highlighting - maybe I need to escape brackets or something when I want to actually show the brackets? */
     | Lam(_) => failwith("Explanation info should handle lambdas directly")
     | Inj(_, side, _exp) =>
       let side_str =
@@ -659,7 +722,7 @@ let summary_msg =
         | R => "Right"
         };
       build_msg(
-        "[" ++ side_str ++ " injection](0) of the [argument](1)",
+        side_str ++ " injection of the [argument](0)",
         show_highlight,
       );
     | Case(_, _scrut, rules) =>
@@ -678,12 +741,12 @@ let summary_msg =
             ++ "the ["
             ++ word_num
             ++ " pattern]("
-            ++ string_of_int(index * 2 + 1)
-            ++ "), evaluate to the ["
+            ++ string_of_int(index + 1)
+            ++ " 0), evaluate to the ["
             ++ word_num
             ++ " clause]("
-            ++ string_of_int((index + 1) * 2)
-            ++ ")";
+            ++ string_of_int(index + 1)
+            ++ " 1)";
           },
           rules,
         );
@@ -716,7 +779,7 @@ let summary_msg =
       );
     let tuple_msg = comma_separated_list(tuple_parts);
     build_msg(
-      string_of_int(num_exps + 1) ++ "-tuple with " ++ tuple_msg,
+      string_of_int(num_exps) ++ "-tuple with " ++ tuple_msg,
       show_highlight,
     );
   | ExpBinOperator(operator, _lexp, _rexp) =>
@@ -829,12 +892,13 @@ let summary_msg =
   };
 };
 
-/* TODO: Hannah - work on coordinating the colors better -
-   try also taking in paths here (not just terms and subterms)
-   and then returning the view of the message as well as a mapping between
-   the colors and paths - pass that to the decorations
-   - pick the color just based on the order the path appears in the message (keeping the mapping
-   in case the path appears more than once) */
+let get_mapping =
+    (explanation_info: ExplanationInfo.explanation_info, show_highlight: bool)
+    : ColorSteps.t => {
+  let (_, mapping) = summary_msg(explanation_info, show_highlight);
+  mapping;
+};
+
 let view =
     (
       ~inject: ModelAction.t => Event.t,
@@ -855,11 +919,10 @@ let view =
       ],
     );
 
+  let (summary, _) = summary_msg(explanation_info, show_highlight);
+
   let summary_view = {
-    Node.div(
-      [Attr.classes(["the-summary"])],
-      [Node.div([], summary_msg(explanation_info, show_highlight))],
-    );
+    Node.div([Attr.classes(["the-summary"])], [Node.div([], summary)]);
   };
 
   Node.div(

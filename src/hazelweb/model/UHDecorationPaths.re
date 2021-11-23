@@ -20,6 +20,21 @@ let take_step = (step: int, dpaths: t): t => {
   );
 };
 
+let current_block = (dpaths: t): list(UHDecorationShape.t) => {
+  List.find_all(
+    ((steps, shape)) =>
+      switch (shape) {
+      | UHDecorationShape.ErrHole
+      | VarErrHole
+      | VarUse
+      | CurrentTerm => false
+      | ExplanationElems(_) => steps == []
+      },
+    dpaths,
+  )
+  |> List.map(snd);
+};
+
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let is_current = steps =>
     switch (shape) {
@@ -37,7 +52,7 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       | UHDecorationShape.ErrHole
       | VarErrHole
       | VarUse
-      | CurrentTerm
+      | CurrentTerm => is_current(steps)
       | ExplanationElems(_) => is_current(steps)
       },
     dpaths,

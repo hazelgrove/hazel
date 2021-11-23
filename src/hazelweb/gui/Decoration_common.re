@@ -153,3 +153,25 @@ module VarErrHole = {
            ],
        );
 };
+
+module ExplanationTerm = {
+  let view =
+      (
+        ~vtrim=0.,
+        ~corner_radii: (float, float),
+        ~color: string,
+        (offset, subject): MeasuredLayout.with_offset(_),
+      )
+      : Node.t =>
+    subject
+    |> rects(~vtrim, {row: 0, col: offset})
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Attr.[
+             classes(["code-explanation-elems"]),
+             create("vector-effect", "non-scaling-stroke"),
+             create("fill", color),
+           ],
+       );
+};

@@ -19,3 +19,5 @@ let take_step: (int, t) => t;
  * decorations adorning the UH-term root
  */
 let current: (TermShape.t, t) => list(UHDecorationShape.t);
+
+let current_block: t => list(UHDecorationShape.t);

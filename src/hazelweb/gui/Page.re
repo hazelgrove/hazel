@@ -78,10 +78,10 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         Node.text("SU"),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_summary))),
         () => {
-          let {cursor_term, _}: CursorInfo.t =
-            Program.get_cursor_info(program);
           let explanation_info =
-            ExplanationInfo.mk_explanation_info(cursor_term);
+            ExplanationInfo.mk_explanation_info(
+              Program.get_cursor_info(program).cursor_term,
+            );
           CodeSummary.view(
             ~inject,
             explanation_info,

@@ -128,14 +128,16 @@ module RightPanel = {
     undo_history_panel: bool,
     settings_panel: bool,
   };
+
+  /* TODO: Hannah - make sure to return this back to default settings */
   let init = {
     panel_open: true,
     code_summary: true,
-    code_explanation: true,
-    cursor_inspector: true,
-    context_inspector: true,
-    undo_history_panel: true,
-    settings_panel: true,
+    code_explanation: false,
+    cursor_inspector: false,
+    context_inspector: false,
+    undo_history_panel: false,
+    settings_panel: false,
   };
 
   [@deriving sexp]

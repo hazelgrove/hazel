@@ -6,7 +6,7 @@ let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp), None);
 }
 and extract_from_zline =
-    (zline: ZExp.zline, suffix: option(UHExp.t)): cursor_term => {
+    (zline: ZExp.zline, suffix: option((UHExp.t, int))): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line, suffix)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
@@ -289,7 +289,8 @@ and syn_cursor_info_line =
   | CursorL(_, line) =>
     let suffix_opt =
       switch (line) {
-      | LetLine(_) => Some(suffix)
+      | LetLine(_) =>
+        Some((suffix, List.nth(steps, List.length(steps) - 1) + 1))
       | _ => None
       };
     Some(
@@ -334,8 +335,8 @@ and syn_cursor_info_line =
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
-    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
+    CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
 and syn_cursor_info_zopseq =
     (
@@ -523,26 +524,18 @@ and syn_cursor_info_zoperand =
     (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
+  let mk = typed => CursorInfo_common.mk(typed, ctx, cursor_term);
   switch (zoperand) {
-  | CursorE(_, InvalidText(_)) =>
-    Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
+  | CursorE(_, InvalidText(_)) => Some(mk(SynInvalid))
   | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
-    Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
-  | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
-    Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
+    Some(mk(SynKeyword(k)))
+  | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree))
   | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
-    Some(
-      CursorInfo_common.mk(
-        SynInconsistentBranches(rule_types, steps),
-        ctx,
-        cursor_term,
-      ),
-    )
+    Some(mk(SynInconsistentBranches(rule_types, steps)))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
-    | Some(ty) =>
-      Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
+    | Some(ty) => Some(mk(Synthesized(ty)))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
@@ -682,34 +675,22 @@ and ana_cursor_info_zopseq =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_opseq(zopseq);
+  let mk = typed => CursorInfo_common.mk(typed, ctx, cursor_term);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
     let opseq = ZExp.erase_zopseq(zopseq);
     let err = UHExp.get_err_status_opseq(opseq);
     switch (err) {
-    | NotInHole =>
-      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | NotInHole => Some(mk(Analyzed(ty)))
     | InHole(WrongLength, _) =>
       let expected_length = ty |> HTyp.get_prod_elements |> List.length;
       let got_length = skel |> UHExp.get_tuple_elements |> List.length;
-      Some(
-        CursorInfo_common.mk(
-          AnaWrongLength(expected_length, got_length, ty),
-          ctx,
-          cursor_term,
-        ),
-      );
+      Some(mk(AnaWrongLength(expected_length, got_length, ty)));
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
       Statics_Exp.syn_opseq(ctx, opseq')
-      |> Option.map(ty' =>
-           CursorInfo_common.mk(
-             AnaTypeInconsistent(ty, ty'),
-             ctx,
-             cursor_term,
-           )
-         );
+      |> Option.map(ty' => mk(AnaTypeInconsistent(ty, ty')));
     };
   | _ =>
     // cursor in tuple element
@@ -738,6 +719,7 @@ and ana_cursor_info_skel =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_opseq(ZOpSeq(skel, zseq));
+  let mk = typed => CursorInfo_common.mk(typed, ctx, cursor_term);
   let syn_go = skel => syn_cursor_info_skel(~steps, ctx, skel, zseq);
   let ana_go = (skel, ty) =>
     ana_cursor_info_skel(~steps, ctx, skel, zseq, ty);
@@ -760,21 +742,13 @@ and ana_cursor_info_skel =
       switch (err) {
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
-        |> Option.map(_ =>
-             CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
-           )
+        |> Option.map(_ => mk(Analyzed(ty)))
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
         let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
         Statics_Exp.syn_opseq(ctx, opseq')
-        |> Option.map(ty' =>
-             CursorInfo_common.mk(
-               AnaTypeInconsistent(ty, ty'),
-               ctx,
-               cursor_term,
-             )
-           );
+        |> Option.map(ty' => mk(AnaTypeInconsistent(ty, ty')));
       };
     };
   } else {
@@ -825,16 +799,14 @@ and ana_cursor_info_zoperand =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
+  let mk = typed => CursorInfo_common.mk(typed, ctx, cursor_term);
   switch (zoperand) {
   | CursorE(_, e) =>
     switch (e) {
     /* in hole */
-    | Var(_, InVarHole(Keyword(k), _), _) =>
-      Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
-    | Var(_, InVarHole(Free, _), _) =>
-      Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
-    | InvalidText(_) =>
-      Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+    | Var(_, InVarHole(Keyword(k), _), _) => Some(mk(AnaKeyword(ty, k)))
+    | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty)))
+    | InvalidText(_) => Some(mk(AnaInvalid(ty)))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -850,14 +822,7 @@ and ana_cursor_info_zoperand =
         |> UHExp.set_err_status_operand(NotInHole);
       switch (Statics_Exp.syn_operand(ctx, operand')) {
       | None => None
-      | Some(ty') =>
-        Some(
-          CursorInfo_common.mk(
-            AnaTypeInconsistent(ty, ty'),
-            ctx,
-            cursor_term,
-          ),
-        )
+      | Some(ty') => Some(mk(AnaTypeInconsistent(ty, ty')))
       };
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
@@ -881,27 +846,18 @@ and ana_cursor_info_zoperand =
     | ApPalette(NotInHole, _, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
-      | Some(ty') =>
-        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+      | Some(ty') => Some(mk(AnaSubsumed(ty, ty')))
       }
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
-    | Case(StandardErrStatus(NotInHole), _, _) =>
-      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | Case(StandardErrStatus(NotInHole), _, _) => Some(mk(Analyzed(ty)))
     | Parenthesized(body) =>
-      Statics_Exp.ana(ctx, body, ty)
-      |> Option.map(_ =>
-           CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
-         )
+      Statics_Exp.ana(ctx, body, ty) |> Option.map(_ => mk(Analyzed(ty)))
 
     | Lam(NotInHole, p, body) =>
       let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
       let+ ty_body = Statics_Exp.syn(body_ctx, body);
-      CursorInfo_common.mk(
-        AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
-        ctx,
-        cursor_term,
-      );
+      mk(AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)));
     /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
@@ -1025,7 +981,11 @@ and syn_cursor_info_rule =
       | (true, Some({typed, ctx, uses, _})) =>
         let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
         let cursor_term = extract_from_zrule(zrule, scrut, rule_index);
-        Some({cursor_term, typed, ctx, uses});
+        switch (uses) {
+        | None => Some(CursorInfo_common.mk(typed, ctx, cursor_term))
+        | Some(uses) =>
+          Some(CursorInfo_common.mk(~uses, typed, ctx, cursor_term))
+        };
       };
     }
   }

@@ -1,3 +1,5 @@
+/*open Sexplib;*/
+
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -31,8 +33,7 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | ExplanationElems(_color) =>
-      ExplanationTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    | ExplanationElems(color) => ExplanationTerm.view(~corner_radii, ~color)
     }
   );
 
@@ -40,7 +41,7 @@ let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
-
+  /*print_endline("UHLayout: " ++ Sexp.to_string(UHLayout.sexp_of_t(l)));*/
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[], // tail-recursive
@@ -76,7 +77,35 @@ let decoration_views =
       switch (annot) {
       | Step(step) =>
         let stepped = UHDecorationPaths.take_step(step, dpaths);
-        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+        let offset = start.col - indent;
+        let current_vs =
+          UHDecorationPaths.current_block(dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let cls = decoration_cls(dshape);
+               /*print_endline("Decoration class in Step: " ++ cls);*/
+               let color =
+                 switch (dshape) {
+                 | ExplanationElems(color) => color
+                 | _ => "blue"
+                 };
+               let view =
+                 UHDecoration.ExplanationTerm.view(
+                   ~corner_radii,
+                   ~color,
+                   (offset, m),
+                 );
+
+               Decoration_common.container(
+                 ~font_metrics,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
+                 ~cls,
+                 [view],
+               );
+             });
+        UHDecorationPaths.is_empty(stepped)
+          ? current_vs @ tl : go'(~tl=current_vs @ tl, stepped, m);
       | Term({shape, sort, _}) =>
         let current_term =
           List.find_opt(
@@ -95,6 +124,8 @@ let decoration_views =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let cls = decoration_cls(dshape);
+               /*print_endline("Decoration class: " ++ cls);*/
+               /*print_endline(Sexp.to_string(TermShape.sexp_of_t(shape)));*/
                let view =
                  decoration_view(
                    ~contains_current_term=Option.is_some(current_term),

@@ -1,5 +1,5 @@
 open Sexplib.Std;
-/*open Sexplib;*/
+open Sexplib;
 
 module Memo = Core_kernel.Memo;
 
@@ -98,7 +98,37 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
       List.map(use_steps => (use_steps, UHDecorationShape.VarUse), uses)
     | _ => []
     };
-  List.concat([err_holes, var_uses, current_term]);
+  let explanation_info =
+    ExplanationInfo.mk_explanation_info(
+      get_cursor_info(program).cursor_term,
+    );
+  let color_map = CodeSummary.get_mapping(explanation_info, true);
+  ColorSteps.pring_color_map(color_map);
+  let explanations =
+    List.map(
+      ((steps, color)) =>
+        List.map(
+          steps => (steps, UHDecorationShape.ExplanationElems(color)),
+          TermPath.mk_cursor_path_steps(
+            (steps, get_cursor_info(program).cursor_term),
+            get_steps(program),
+          ),
+        ),
+      ColorSteps.to_list(color_map),
+    )
+    |> List.flatten;
+  ColorSteps.pring_color_map(color_map);
+  print_endline(string_of_int(List.length(explanations)));
+  let _ =
+    List.map(
+      ((steps, _)) =>
+        print_endline(
+          "Decoration Steps: "
+          ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+        ),
+      explanations,
+    );
+  List.concat([err_holes, var_uses, current_term, explanations]);
 };
 
 exception DoesNotElaborate;
