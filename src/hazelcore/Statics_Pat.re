@@ -150,7 +150,10 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | TypeAnn(InHole(TypeInconsistent, _), _, _)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
+    let operand' = UHPat.set_err_status_operand(NotInHole, operand);
+    let+ _ = syn_operand(ctx, operand');
+    ctx;
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
