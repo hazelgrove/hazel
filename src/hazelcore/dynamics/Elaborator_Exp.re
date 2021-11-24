@@ -350,7 +350,7 @@ and syn_elab_operand =
     let delta =
       MetaVarMap.add(
         u,
-        (Delta.ExpressionHole, HTyp.Hole(None), gamma),
+        (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
         delta,
       );
     let d =
@@ -358,7 +358,7 @@ and syn_elab_operand =
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
-    Elaborates(d, Hole(None), delta);
+    Elaborates(d, Hole(Some()), delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)

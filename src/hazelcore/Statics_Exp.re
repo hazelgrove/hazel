@@ -162,11 +162,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         rules,
       );
     correct_rule_types
-      //TODO(andrew): ?
+      //TODO(andrew): should this still return none?
       ? Some(HTyp.Hole(Some())) : /*None*/ Some(HTyp.Hole(Some()));
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
-  | Var(NotInHole, InVarHole(_), _) => Some(Hole(None))
+  | Var(NotInHole, InVarHole(_), _) => Some(Hole(Some()))
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
@@ -315,7 +315,12 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
-  | Case(InconsistentBranches(_, _), _, _) => None
+
+  | Case(InconsistentBranches(_, _), _, _) =>
+    //TODO(andrew): Not sure what to do. Should I condition on type being Hole(None)?
+    print_endline("ALERT: ana_operand case returns NONE");
+    //None;
+    Some();
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -803,7 +808,7 @@ and syn_fix_holes_operand =
     | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
-      | InVarHole(_, _) => (e_nih, HTyp.Hole(None), u_gen) //TODO(andrew): ?
+      | InVarHole(_, _) => (e_nih, HTyp.Hole(Some()), u_gen)
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
@@ -812,7 +817,7 @@ and syn_fix_holes_operand =
           | (_, true) => Keyword(Case)
           | _ => Free
           };
-        (Var(NotInHole, InVarHole(reason, u), x), Hole(None), u_gen);
+        (Var(NotInHole, InVarHole(reason, u), x), Hole(Some()), u_gen);
       }
     };
   | IntLit(_, _) => (e_nih, Int, u_gen)
@@ -848,7 +853,7 @@ and syn_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
         Case(InconsistentBranches(rule_types, u), scrut, rules),
-        HTyp.Hole(Some()), //TODO(andrew): ?
+        HTyp.Hole(Some()),
         u_gen,
       );
     | Some(common_type) => (

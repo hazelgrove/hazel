@@ -68,7 +68,7 @@ and syn_operand =
   | Wild(NotInHole) => Some((Hole(None), ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
-    Some((Hole(Some()), ctx)) //TODO(andrew)
+    Some((Hole(Some()), ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,

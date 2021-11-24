@@ -330,7 +330,7 @@ let mk_syn_text =
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-      Succeeded(SynDone((new_ze, Hole(None), u_gen)));
+      Succeeded(SynDone((new_ze, Hole(Some()), u_gen)));
     };
   };
 };
@@ -1089,24 +1089,18 @@ and syn_perform_line =
     switch (Statics_Pat.syn(ctx, p)) {
     | None => Failed
     | Some((ty_p, _)) =>
-      let def = ZExp.erase(zdef);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, ZExp.erase(zdef));
       switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zdef, u_gen)) =>
-        let new_zline = ZExp.LetLineZE(p, new_zdef);
-        let new_def = ZExp.erase(new_zdef);
-        print_endline("DEF before ana hole fixing");
-        print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(new_def)));
-        let (new_def, u_gen) =
-          Statics_Exp.ana_fix_holes(def_ctx, u_gen, new_def, ty_p);
-        print_endline("DEF after ana hole fixing");
-        print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(new_def)));
-        print_endline("action gonna call extend");
-        let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-        print_endline("actioncalled extend");
-        Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
+        let (new_zdef, u_gen) =
+          Statics_Exp.ana_fix_holes_z(def_ctx, u_gen, new_zdef, ty_p);
+        let body_ctx =
+          Statics_Exp.extend_let_body_ctx(ctx, p, ZExp.erase(new_zdef));
+        Succeeded(
+          LineDone((([], LetLineZE(p, new_zdef), []), body_ctx, u_gen)),
+        );
       };
     }
   | (Init, _) => failwith("Init action should not be performed.")
@@ -2010,7 +2004,6 @@ and syn_perform_operand =
           Statics_Exp.syn_fix_holes_zrules(ctx, u_gen, new_zrules, pat_ty);
         switch (common_type) {
         | None =>
-          print_endline("action syn perform CaseZR None");
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
@@ -2018,7 +2011,6 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole(Some()), u_gen)));
         | Some(ty) =>
-          print_endline("action syn perform CaseZR Some");
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
@@ -3425,8 +3417,6 @@ and ana_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
-    print_endline("action ana perform CaseZR. ty:");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
@@ -3446,7 +3436,7 @@ and ana_perform_operand =
           );
         Succeeded(AnaDone((new_ze, u_gen)));
       }
-    };
+    }
 
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)

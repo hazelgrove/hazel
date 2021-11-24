@@ -326,8 +326,11 @@ and syn_cursor_info_line =
     };
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    // TODO(andrew): should i add these to bring in accord with statics?
+    //let* _ = Statics_Exp.ana(def_ctx, def, ty_p);
+    //let* ty_def = Statics_Exp.syn(def_ctx, def);
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
@@ -556,7 +559,7 @@ and syn_cursor_info_zoperand =
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
-      | _ => HTyp.Hole(Some())
+      | _ => HTyp.Hole(None)
       };
     /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to
@@ -872,6 +875,9 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
+    | Case(InconsistentBranches(_rule_types, _), _, _) =>
+      //TODO(andrew): only if hole prov is none?
+      syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -879,11 +885,7 @@ and ana_cursor_info_zoperand =
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
-    | Case(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
-        _,
-        _,
-      )
+    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -922,22 +924,24 @@ and ana_cursor_info_zoperand =
   | LamZP(InHole(WrongLength, _), _, _)
   | LamZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
-  | CaseZE(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
-  | CaseZR(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
+  | CaseZE(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | CaseZR(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | CaseZE(
+      StandardErrStatus(InHole(TypeInconsistent, _)) |
+      InconsistentBranches(_),
+      _,
+      _,
+    )
+  | CaseZR(
+      StandardErrStatus(InHole(TypeInconsistent, _)) |
+      InconsistentBranches(_),
+      _,
+      _,
+    )
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
