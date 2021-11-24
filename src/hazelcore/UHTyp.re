@@ -114,7 +114,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | Hole => Hole(None)
+  | Hole => Hole(Some())
   | Unit => Prod([])
   | Int => Int
   | Float => Float

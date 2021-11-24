@@ -1,11 +1,11 @@
 /* types with holes */
 
 [@deriving sexp]
-type hole_label = option(unit);
+type hole_provenance = option(unit);
 
 [@deriving sexp]
 type t =
-  | Hole(hole_label)
+  | Hole(hole_provenance)
   | Int
   | Float
   | Bool

@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type hole_label = option(unit);
+type hole_provenance = option(unit);
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole(hole_label)
+  | Hole(hole_provenance)
   | Int
   | Float
   | Bool
@@ -82,7 +82,7 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole(_) => Some((Hole(None), Hole(None)))
+  | Hole(_) => Some((Hole(Some()), Hole(Some())))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -96,14 +96,14 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole(_) => Some((Hole(None), Hole(None)))
+  | Hole(_) => Some((Hole(Some()), Hole(Some())))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole(_) => Some(Hole(None))
+  | Hole(_) => Some(Hole(Some()))
   | List(ty) => Some(ty)
   | _ => None;
 
@@ -123,12 +123,12 @@ let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole(_)) =>
     switch (j) {
-    | GLB => Some(Hole(None))
+    | GLB => Some(Hole(Some()))
     | LUB => Some(ty1)
     }
   | (Hole(_), _) =>
     switch (j) {
-    | GLB => Some(Hole(None))
+    | GLB => Some(Hole(Some()))
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)

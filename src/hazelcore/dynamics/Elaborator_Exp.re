@@ -125,10 +125,10 @@ and syn_elab_skel =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Hole(None), gamma),
+          (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
           delta,
         );
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(None), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -270,10 +270,10 @@ and syn_elab_operand =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Hole(None), gamma),
+          (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
           delta,
         );
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(None), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
     };
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -313,25 +313,29 @@ and syn_elab_operand =
         let delta =
           MetaVarMap.add(
             u,
-            (Delta.ExpressionHole, HTyp.Hole(None), gamma),
+            (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
             delta,
           );
         let d = DHExp.Case(d1, drs, 0);
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole(None), delta);
+        Elaborates(
+          InconsistentBranches(u, 0, sigma, d),
+          Hole(Some()),
+          delta,
+        );
       };
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
-    let ty = HTyp.Hole(None);
+    let ty = HTyp.Hole(Some());
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
-    let ty = HTyp.Hole(None);
+    let ty = HTyp.Hole(Some());
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
@@ -367,7 +371,7 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Hole(None);
+    let elt_ty = HTyp.Hole(Some());
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
@@ -385,11 +389,11 @@ and syn_elab_operand =
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      let d = DHExp.Inj(Hole(None), side, d1);
+      let d = DHExp.Inj(Hole(Some()), side, d1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole(None))
-        | R => HTyp.Sum(Hole(None), ty1)
+        | L => HTyp.Sum(ty1, Hole(Some()))
+        | R => HTyp.Sum(Hole(Some()), ty1)
         };
       Elaborates(d, ty, delta);
     }
@@ -598,7 +602,7 @@ and ana_elab_opseq =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
           Elaborates(
             NonEmptyHole(reason, u, 0, sigma, d),
-            Hole(None),
+            Hole(Some()),
             delta,
           );
         }
@@ -633,7 +637,7 @@ and ana_elab_skel =
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-      Elaborates(d, Hole(None), delta);
+      Elaborates(d, Hole(Some()), delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
@@ -700,7 +704,7 @@ and ana_elab_operand =
       let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(None), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {

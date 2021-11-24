@@ -158,14 +158,14 @@ and syn_cursor_info_skel =
       )
     | BinOp(_, Space, skel1, skel2) =>
       switch (
-        ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole(None))
+        ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole(Some()))
       ) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(None))) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(Some()))) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(None))
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(Some()))
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
@@ -389,13 +389,13 @@ and ana_cursor_info_skel =
         "Pat.ana_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole(None))) {
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole(Some()))) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(None))) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(Some()))) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(None))
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(Some()))
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -432,7 +432,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ty, Hole(None)),
+            PatAnaSubsumed(ty, Hole(Some())),
             ctx,
             cursor_term,
           ),

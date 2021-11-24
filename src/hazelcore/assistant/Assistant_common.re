@@ -59,7 +59,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | SynErrorArrow(_, actual)
   | SynMatchingArrow(actual, _) => (
-      Some(Hole(None)),
+      Some(Hole(Some())),
       Some(actual),
       Synthetic,
     )
@@ -67,17 +67,17 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole(None)), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(Hole(Some())), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole(None)), Some(Hole(None)), Synthetic)
+  | SynKeyword(_) => (Some(Hole(Some())), Some(Hole(Some())), Synthetic)
 
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(ty, got_ty)) {
-        (Some(Hole(None)), Some(got_ty), Synthetic);
+        (Some(Hole(Some())), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
@@ -85,8 +85,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (
-      Some(Hole(None)),
-      Some(Hole(None)),
+      Some(Hole(Some())),
+      Some(Hole(Some())),
       Synthetic,
     )
 
@@ -102,9 +102,17 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(Hole(None)), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (
+      Some(Hole(Some())),
+      Some(actual),
+      Synthetic,
+    )
 
-  | PatSynKeyword(_) => (Some(Hole(None)), Some(Hole(None)), Synthetic)
+  | PatSynKeyword(_) => (
+      Some(Hole(Some())),
+      Some(Hole(Some())),
+      Synthetic,
+    )
 
   | OnType
   | OnNonLetLine
