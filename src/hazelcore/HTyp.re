@@ -82,7 +82,7 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole(_) => Some((Hole(Some()), Hole(Some())))
+  | Hole(prov) => Some((Hole(prov), Hole(prov)))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -96,14 +96,14 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole(_) => Some((Hole(Some()), Hole(Some())))
+  | Hole(prov) => Some((Hole(prov), Hole(prov)))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole(_) => Some(Hole(Some()))
+  | Hole(prov) => Some(Hole(prov))
   | List(ty) => Some(ty)
   | _ => None;
 

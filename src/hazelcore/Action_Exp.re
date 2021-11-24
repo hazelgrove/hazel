@@ -2010,6 +2010,7 @@ and syn_perform_operand =
           Statics_Exp.syn_fix_holes_zrules(ctx, u_gen, new_zrules, pat_ty);
         switch (common_type) {
         | None =>
+          print_endline("action syn perform CaseZR None");
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
@@ -2017,6 +2018,7 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole(Some()), u_gen)));
         | Some(ty) =>
+          print_endline("action syn perform CaseZR Some");
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
@@ -3423,6 +3425,8 @@ and ana_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
+    print_endline("action ana perform CaseZR. ty:");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
@@ -3442,7 +3446,7 @@ and ana_perform_operand =
           );
         Succeeded(AnaDone((new_ze, u_gen)));
       }
-    }
+    };
 
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)

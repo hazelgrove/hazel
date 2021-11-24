@@ -363,7 +363,7 @@ let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_case_err =
-  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr)); //TODO(andrew): is this correct?
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =

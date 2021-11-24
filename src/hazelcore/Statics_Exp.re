@@ -1281,18 +1281,18 @@ and ana_fix_holes_operand =
       };
     }
   | Case(_, scrut, rules) =>
-    //print_endline("ana_fix_holes: CASE");
-    //print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    print_endline("ana_fix_holes: CASE");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (ty) {
-    | Hole(Some ()) =>
-      //print_endline("case ana fix holes Hole(Some()) case");
-      //print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
+    | Hole(None) =>
+      print_endline("case ana fix holes Hole(None) case");
+      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
       let (op, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      //print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
+      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
       (op, u_gen);
     | _ =>
-      //print_endline("case ana fix holes OTHER case");
+      print_endline("case ana fix holes OTHER case");
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
       let (rules, u_gen) =
@@ -1305,7 +1305,7 @@ and ana_fix_holes_operand =
           ty,
         );
       (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-    }
+    };
 
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
