@@ -38,8 +38,9 @@ let joined_pattern_type = (ctx, rules) => {
   HTyp.join_all(LUB, tys);
 };
 
-let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
-  syn_block(ctx, e)
+let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) => {
+  syn_block(ctx, e);
+}
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* ctx = syn_lines(ctx, leading);
@@ -225,8 +226,9 @@ and ana_splice_map =
     splice_map,
     Some(Contexts.empty),
   )
-and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
-  ana_block(ctx, e, ty)
+and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) => {
+  ana_block(ctx, e, ty);
+}
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
@@ -571,8 +573,9 @@ let rec syn_fix_holes =
           ~renumber_empty_holes=false,
           e: UHExp.t,
         )
-        : (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e)
+        : (UHExp.t, HTyp.t, MetaVarGen.t) => {
+  syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e);
+}
 and syn_fix_holes_block =
     (
       ctx: Contexts.t,
@@ -1045,8 +1048,9 @@ and ana_fix_holes =
       e: UHExp.t,
       ty: HTyp.t,
     )
-    : (UHExp.t, MetaVarGen.t) =>
-  ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
+    : (UHExp.t, MetaVarGen.t) => {
+  ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty);
+}
 and ana_fix_holes_block =
     (
       ctx: Contexts.t,

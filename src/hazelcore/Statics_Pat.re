@@ -139,7 +139,7 @@ and ana_skel =
     ana_skel(ctx, skel2, seq, HTyp.List(ty_elt));
   }
 and ana_operand =
-    (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t): option(Contexts.t) =>
+    (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t): option(Contexts.t) => {
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(ctx)
@@ -226,7 +226,8 @@ and ana_operand =
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
-  }
+  };
+}
 and inj_arg_valid =
     (ctx: Contexts.t, arg_opt: option(UHPat.t)): option(Contexts.t) =>
   switch (arg_opt) {
