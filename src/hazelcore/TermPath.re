@@ -24,15 +24,10 @@ let rec mk_cursor_path_steps =
   print_endline("In mk_cursor_path_steps");
   let cursor_paths =
     switch (cursor_term) {
-    | (Exp(_, operand)) =>
-      mk_cursor_path_steps_expoperand(operand, steps)
-    | (Pat(_, operand)) => [
-        mk_cursor_path_steps_patoperand(operand, steps),
-      ]
-    | (Typ(_, operand)) => [
-        mk_cursor_path_steps_typoperand(operand, steps),
-      ]
-    | (ExpOp(_, operator, operator_index, opseq)) => [
+    | Exp(_, operand) => mk_cursor_path_steps_expoperand(operand, steps)
+    | Pat(_, operand) => [mk_cursor_path_steps_patoperand(operand, steps)]
+    | Typ(_, operand) => [mk_cursor_path_steps_typoperand(operand, steps)]
+    | ExpOp(_, operator, operator_index, opseq) => [
         mk_cursor_path_steps_expoperator(
           ~step_sibling=true,
           operator,
@@ -41,15 +36,15 @@ let rec mk_cursor_path_steps =
           steps,
         ),
       ]
-    | (PatOp(_, operator, _operator_index, opseq)) => [
+    | PatOp(_, operator, _operator_index, opseq) => [
         mk_cursor_path_steps_patoperator(operator, opseq, steps),
       ]
-    | (TypOp(_, operator, _operator_index, opseq)) => [
+    | TypOp(_, operator, _operator_index, opseq) => [
         mk_cursor_path_steps_typoperator(operator, opseq, steps),
       ]
-    | (Line(_, line, opt_body)) =>
+    | Line(_, line, opt_body) =>
       mk_cursor_path_steps_expline(line, opt_body, steps)
-    | (Rule(_, rule, _index, _scrut)) =>
+    | Rule(_, rule, _index, _scrut) =>
       mk_cursor_path_steps_exprule(rule, steps)
     };
   let _ =
@@ -156,7 +151,7 @@ and mk_cursor_path_steps_expline =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       cons_all(n, mk_cursor_path_steps_expoperand(pn, term_path_steps));
-    | BinOp(_, operator, _, _) => [
+    | BinOp(_, _, operator, _, _) => [
         mk_cursor_path_steps_expoperator(
           ~step_sibling=false,
           operator,
@@ -184,26 +179,26 @@ and mk_cursor_path_steps_expoperator =
       ~step_sibling: bool,
       operator: UHExp.operator,
       _operator_index: int,
-      OpSeq(skel, seq): UHExp.opseq,
+      OpSeq(skel, _seq): UHExp.opseq,
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
   print_endline("In mk_cursor_path_steps_expoperator");
-  let length = Seq.length(seq);
-  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, length);
   switch (operator, steps) {
-  | (Comma, [n, ..._]) => step_sibling ? [(-1), n] : [n]
+  | (Comma, [n, ..._]) =>
+    let tuple_element = List.nth(UHExp.get_tuple_elements(skel), n);
+    let element_step = Skel.get_root_num(tuple_element);
+    step_sibling ? [(-1), element_step] : [element_step];
   | (_binop, [n, ..._]) =>
     print_endline(
-      "Annotated Skel: "
-      ++ Sexp.to_string(UHExp.sexp_of_annotated_skel(annotated_skel)),
+      "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
     );
     let (left, right) =
-      switch (annotated_skel) {
+      switch (skel) {
       | Placeholder(_) => failwith("Can I reach here?")
-      | BinOp(_, _, skel1, skel2) => (
-          AnnotatedSkel.get_root_num(skel1),
-          AnnotatedSkel.get_root_num(skel2),
+      | BinOp(_, _, _, skel1, skel2) => (
+          Skel.get_root_num(skel1),
+          Skel.get_root_num(skel2),
         )
       };
     let child_step = n == 0 ? left : right;
@@ -246,23 +241,21 @@ and mk_cursor_path_steps_patoperand =
 and mk_cursor_path_steps_patoperator =
     (
       operator: UHPat.operator,
-      OpSeq(skel, seq): UHPat.opseq,
+      OpSeq(skel, _seq): UHPat.opseq,
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
   print_endline("In mk_cursor_path_steps_patoperator");
-  let length = Seq.length(seq);
-  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, length);
   switch (operator, steps) {
   | (Comma, []) => []
   | (Space, []) => []
   | (_binop, [n, ..._]) =>
     let (left, right) =
-      switch (annotated_skel) {
+      switch (skel) {
       | Placeholder(_) => failwith("Can I reach here?")
-      | BinOp(_, _, skel1, skel2) => (
-          AnnotatedSkel.get_root_num(skel1),
-          AnnotatedSkel.get_root_num(skel2),
+      | BinOp(_, _, _, skel1, skel2) => (
+          Skel.get_root_num(skel1),
+          Skel.get_root_num(skel2),
         )
       };
     /* Left child */
@@ -288,7 +281,7 @@ and mk_cursor_path_steps_patopseq =
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
     [n, ...mk_cursor_path_steps_patoperand(pn, term_path_steps)];
-  | BinOp(_, operator, _, _) =>
+  | BinOp(_, _, operator, _, _) =>
     mk_cursor_path_steps_patoperator(operator, opseq, term_path_steps)
   };
 }
@@ -314,22 +307,20 @@ and mk_cursor_path_steps_typoperand =
 and mk_cursor_path_steps_typoperator =
     (
       operator: UHTyp.operator,
-      OpSeq(skel, seq): UHTyp.opseq,
+      OpSeq(skel, _seq): UHTyp.opseq,
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
   print_endline("In mk_cursor_path_steps_typoperator");
-  let length = Seq.length(seq);
-  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, length);
   switch (operator, steps) {
   | (Prod, []) => []
   | (_binop, [n, ..._]) =>
     let (left, right) =
-      switch (annotated_skel) {
+      switch (skel) {
       | Placeholder(_) => failwith("Can I reach here?")
-      | BinOp(_, _, skel1, skel2) => (
-          AnnotatedSkel.get_root_num(skel1),
-          AnnotatedSkel.get_root_num(skel2),
+      | BinOp(_, _, _, skel1, skel2) => (
+          Skel.get_root_num(skel1),
+          Skel.get_root_num(skel2),
         )
       };
     /* Left child */
@@ -355,7 +346,7 @@ and mk_cursor_path_steps_typopseq =
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
     [n, ...mk_cursor_path_steps_typoperand(pn, term_path_steps)];
-  | BinOp(_, operator, _, _) =>
+  | BinOp(_, _, operator, _, _) =>
     mk_cursor_path_steps_typoperator(operator, opseq, term_path_steps)
   };
 };

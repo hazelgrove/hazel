@@ -1,18 +1,16 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-/* Hannah Pause place - do as zopseq thing*/
 let rec extract_cursor_term =
         (ZOpSeq(skel, zseq) as zpat: ZPat.t): cursor_term => {
   switch (zseq) {
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
-    let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, ZSeq.length(zseq));
     let (cursor_pos, uop) = zpat_operator;
     PatOp(
       cursor_pos,
       uop,
-      AnnotatedSkel.get_root_num(annotated_skel),
+      Skel.get_root_num(skel),
       ZPat.erase_zopseq(zpat),
     );
   };
@@ -155,11 +153,11 @@ and syn_cursor_info_skel =
     // recurse toward cursor
     switch (skel) {
     | Placeholder(_) => None
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, _, Comma, _, _) =>
       failwith(
         "Pat.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
-    | BinOp(_, Space, skel1, skel2) =>
+    | BinOp(_, _, Space, skel1, skel2) =>
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole)) {
       | Some(_) as res => res
       | None =>
@@ -168,7 +166,7 @@ and syn_cursor_info_skel =
         | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
         }
       }
-    | BinOp(_, Cons, skel1, skel2) =>
+    | BinOp(_, _, Cons, skel1, skel2) =>
       switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
       | Some(_) as res => res
       | None =>
@@ -382,13 +380,13 @@ and ana_cursor_info_skel =
     // recurse toward cursor
     switch (skel) {
     | Placeholder(_) => None
-    | BinOp(InHole(_), _, _, _) =>
+    | BinOp(_, InHole(_), _, _, _) =>
       syn_cursor_info_skel(~steps, ctx, skel, zseq)
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, _, Comma, _, _) =>
       failwith(
         "Pat.ana_cursor_info_skel: expected commas to be handled at opseq level",
       )
-    | BinOp(NotInHole, Space, skel1, skel2) =>
+    | BinOp(_, NotInHole, Space, skel1, skel2) =>
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole)) {
       | Some(_) as res => res
       | None =>
@@ -397,7 +395,7 @@ and ana_cursor_info_skel =
         | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
         }
       }
-    | BinOp(NotInHole, Cons, skel1, skel2) =>
+    | BinOp(_, NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
       | Some(ty_elt) =>

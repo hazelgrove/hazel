@@ -22,7 +22,7 @@ let get_err_status =
     )
     : ErrStatus.t =>
   switch (opseq) {
-  | OpSeq(BinOp(err, _, _, _), _) => err
+  | OpSeq(BinOp(_, err, _, _, _), _) => err
   | OpSeq(Placeholder(n), seq) =>
     Seq.nth_operand(n, seq) |> get_err_status_operand
   };
@@ -35,8 +35,8 @@ let set_err_status =
     )
     : t('operand, 'operator) =>
   switch (opseq) {
-  | OpSeq(BinOp(_, op, skel1, skel2), seq) =>
-    OpSeq(BinOp(err, op, skel1, skel2), seq)
+  | OpSeq(BinOp(index, _, op, skel1, skel2), seq) =>
+    OpSeq(BinOp(index, err, op, skel1, skel2), seq)
   | OpSeq(Placeholder(n) as skel, seq) =>
     let set_operand =
       seq |> Seq.nth_operand(n) |> set_err_status_operand(err);
@@ -58,14 +58,18 @@ let mk_inconsistent =
       seq |> Seq.nth_operand(n) |> mk_inconsistent_operand(u_gen);
     let set_seq = seq |> Seq.update_nth_operand(n, set_operand);
     (OpSeq(skel, set_seq), u_gen);
-  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (opseq, u_gen)
+  | OpSeq(BinOp(_, InHole(TypeInconsistent, _), _, _, _), _) => (
+      opseq,
+      u_gen,
+    )
   | OpSeq(
-      BinOp(NotInHole, op, skel1, skel2) |
-      BinOp(InHole(WrongLength, _), op, skel1, skel2),
+      BinOp(index, NotInHole, op, skel1, skel2) |
+      BinOp(index, InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
-    let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
+    let set_skel =
+      Skel.BinOp(index, InHole(TypeInconsistent, u), op, skel1, skel2);
     (OpSeq(set_skel, seq), u_gen);
   };
 
@@ -78,8 +82,8 @@ let rec is_complete_skel =
         : bool => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
-  | BinOp(InHole(_), _, _, _) => false
-  | BinOp(NotInHole, _, skel1, skel2) =>
+  | BinOp(_, InHole(_), _, _, _) => false
+  | BinOp(_, NotInHole, _, skel1, skel2) =>
     is_complete_skel(is_complete_operand, skel1, sq)
     && is_complete_skel(is_complete_operand, skel2, sq)
   };
@@ -94,13 +98,12 @@ and is_complete =
 
 let get_sub_parts_comma =
     (
-      get_indices: AnnotatedSkel.t('operator) => list(int),
+      get_indices: Skel.t('operator) => list(int),
       mk_OpSeq: Seq.t('operand, 'operator) => t('operand, 'operator),
       OpSeq(skel, seq): t('operand, 'operator),
     )
     : list(t('operand, 'operator)) => {
-  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
-  let comma_indices = get_indices(annotated_skel);
+  let comma_indices = get_indices(skel);
   let shift = Seq.length(seq);
   let indices = List.map(comma_index => comma_index - shift, comma_indices);
   let sub_seqs = Seq.split_on_operators(indices, seq);

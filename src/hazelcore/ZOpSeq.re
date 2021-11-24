@@ -58,7 +58,7 @@ let skel_is_rooted_at_cursor =
   | ZOperator(_, (prefix, _)) =>
     switch (skel) {
     | Placeholder(_) => false
-    | BinOp(_, _, skel1, _) =>
+    | BinOp(_, _, _, skel1, _) =>
       Skel.rightmost_tm_index(skel1) == Seq.length(prefix) - 1
     }
   };
@@ -73,16 +73,16 @@ let set_err_status =
   let (skel: Skel.t(_), zseq: ZSeq.t(_)) =
     switch (skel, zseq) {
     | (Placeholder(_), ZOperator(_, _)) => assert(false)
-    | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) => (
-        BinOp(err, op, skel1, skel2),
+    | (BinOp(index, _, op, skel1, skel2), ZOperator(zop, surround)) => (
+        BinOp(index, err, op, skel1, skel2),
         ZOperator(zop, surround),
       )
     | (Placeholder(_), ZOperand(zoperand, surround)) => (
         skel,
         ZOperand(zoperand |> set_err_status_zoperand(err), surround),
       )
-    | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) => (
-        BinOp(err, op, skel1, skel2),
+    | (BinOp(index, _, op, skel1, skel2), ZOperand(zoperand, surround)) => (
+        BinOp(index, err, op, skel1, skel2),
         ZOperand(zoperand, surround),
       )
     };
@@ -100,20 +100,20 @@ let mk_inconsistent =
   let (skel: Skel.t(_), zseq: ZSeq.t(_), u_gen) =
     switch (skel, zseq) {
     | (Placeholder(_), ZOperator(_, _)) => assert(false)
-    | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
+    | (BinOp(index, _, op, skel1, skel2), ZOperator(zop, surround)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       (
-        BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
+        BinOp(index, InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperator(zop, surround),
         u_gen,
       );
     | (Placeholder(_), ZOperand(zoperand, surround)) =>
       let (zoperand, u_gen) = zoperand |> mk_inconsistent_zoperand(u_gen);
       (skel, ZOperand(zoperand, surround), u_gen);
-    | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
+    | (BinOp(index, _, op, skel1, skel2), ZOperand(zoperand, surround)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       (
-        BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
+        BinOp(index, InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperand(zoperand, surround),
         u_gen,
       );

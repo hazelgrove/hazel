@@ -77,42 +77,42 @@ and syn_skel =
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
     syn_operand(ctx, en);
-  | BinOp(InHole(_), op, skel1, skel2) =>
-    let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+  | BinOp(index, InHole(_), op, skel1, skel2) =>
+    let skel_not_in_hole = Skel.BinOp(index, NotInHole, op, skel1, skel2);
     let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
     HTyp.Hole;
-  | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
+  | BinOp(_, NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, HTyp.Int)
     and+ _ = ana_skel(ctx, skel2, seq, Int);
     HTyp.Int;
-  | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
+  | BinOp(_, NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Float)
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Float;
-  | BinOp(NotInHole, And | Or, skel1, skel2) =>
+  | BinOp(_, NotInHole, And | Or, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Bool)
     and+ _ = ana_skel(ctx, skel2, seq, Bool);
     HTyp.Bool;
-  | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
+  | BinOp(_, NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Int)
     and+ _ = ana_skel(ctx, skel2, seq, Int);
     HTyp.Bool;
-  | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
+  | BinOp(_, NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, Float)
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
-  | BinOp(NotInHole, Space, skel1, skel2) =>
+  | BinOp(_, NotInHole, Space, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty2);
     ty;
-  | BinOp(NotInHole, Comma, _, _) =>
+  | BinOp(_, NotInHole, Comma, _, _) =>
     skel
     |> UHExp.get_tuple_elements
     |> List.map(skel => syn_skel(ctx, skel, seq))
     |> OptUtil.sequence
     |> Option.map(tys => HTyp.Prod(tys))
-  | BinOp(NotInHole, Cons, skel1, skel2) =>
+  | BinOp(_, NotInHole, Cons, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
     let ty = HTyp.List(ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty);
@@ -254,18 +254,19 @@ and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
   switch (skel) {
-  | BinOp(_, Comma, _, _)
-  | BinOp(InHole(WrongLength, _), _, _, _) =>
+  | BinOp(_, _, Comma, _, _)
+  | BinOp(_, InHole(WrongLength, _), _, _, _) =>
     failwith(__LOC__ ++ ": tuples handled at opseq level")
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
     ana_operand(ctx, en, ty);
-  | BinOp(NotInHole, Cons, skel1, skel2) =>
+  | BinOp(_, NotInHole, Cons, skel1, skel2) =>
     let* ty_elt = HTyp.matched_list(ty);
     let* _ = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, List(ty_elt));
-  | BinOp(InHole(TypeInconsistent, _), _, _, _)
+  | BinOp(_, InHole(TypeInconsistent, _), _, _, _)
   | BinOp(
+      _,
       NotInHole,
       And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
       FDivide |
@@ -376,11 +377,11 @@ and syn_nth_type_mode' =
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Syn);
-    | BinOp(InHole(_), op, skel1, skel2) =>
-      go(BinOp(NotInHole, op, skel1, skel2))
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
+    | BinOp(index, InHole(_), op, skel1, skel2) =>
+      go(BinOp(index, NotInHole, op, skel1, skel2))
+    | BinOp(_, NotInHole, Comma, skel1, skel2) =>
       n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
-    | BinOp(NotInHole, Space, skel1, skel2) =>
+    | BinOp(_, NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
       | None => None
       | Some(ty1) =>
@@ -391,11 +392,12 @@ and syn_nth_type_mode' =
           ana_go(skel2, ty2);
         }
       }
-    | BinOp(NotInHole, Cons, skel1, skel2) =>
+    | BinOp(_, NotInHole, Cons, skel1, skel2) =>
       let* ty1 = syn_skel(ctx, skel1, seq);
       n <= Skel.rightmost_tm_index(skel1)
         ? go(skel1) : ana_go(skel2, HTyp.List(ty1));
     | BinOp(
+        _,
         NotInHole,
         Plus | Minus | Times | Divide | LessThan | GreaterThan,
         skel1,
@@ -404,6 +406,7 @@ and syn_nth_type_mode' =
       n <= Skel.rightmost_tm_index(skel1)
         ? ana_go(skel1, Int) : ana_go(skel2, Int)
     | BinOp(
+        _,
         NotInHole,
         FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan,
         skel1,
@@ -411,17 +414,17 @@ and syn_nth_type_mode' =
       ) =>
       n <= Skel.rightmost_tm_index(skel1)
         ? ana_go(skel1, Float) : ana_go(skel2, Float)
-    | BinOp(NotInHole, And | Or, skel1, skel2) =>
+    | BinOp(_, NotInHole, And | Or, skel1, skel2) =>
       n <= Skel.rightmost_tm_index(skel1)
         ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
-    | BinOp(NotInHole, Equals, skel1, skel2) =>
+    | BinOp(_, NotInHole, Equals, skel1, skel2) =>
       if (n <= Skel.rightmost_tm_index(skel1)) {
         go(skel1);
       } else {
         let* ty1 = syn_skel(ctx, skel1, seq);
         ana_go(skel2, ty1);
       }
-    | BinOp(NotInHole, FEquals, skel1, skel2) =>
+    | BinOp(_, NotInHole, FEquals, skel1, skel2) =>
       if (n <= Skel.rightmost_tm_index(skel1)) {
         go(skel1);
       } else {
@@ -462,16 +465,16 @@ and ana_nth_type_mode' =
   let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
   let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
     switch (skel) {
-    | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength, _), _, _, _) =>
+    | BinOp(_, _, Comma, _, _)
+    | BinOp(_, InHole(WrongLength, _), _, _, _) =>
       failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
-      let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+    | BinOp(index, InHole(TypeInconsistent, _), op, skel1, skel2) =>
+      let skel_not_in_hole = Skel.BinOp(index, NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
-    | BinOp(NotInHole, Cons, skel1, skel2) =>
+    | BinOp(_, NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
       | Some(ty_elt) =>
@@ -479,6 +482,7 @@ and ana_nth_type_mode' =
           ? go(skel1, ty_elt) : go(skel2, ty)
       }
     | BinOp(
+        _,
         NotInHole,
         And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
         FDivide |
@@ -610,7 +614,7 @@ and syn_fix_holes_skel =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en);
     let seq = seq |> Seq.update_nth_operand(n, en);
     (skel, seq, ty, u_gen);
-  | BinOp(_, (Minus | Plus | Times | Divide) as op, skel1, skel2) =>
+  | BinOp(index, _, (Minus | Plus | Times | Divide) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -629,8 +633,8 @@ and syn_fix_holes_skel =
         seq,
         HTyp.Int,
       );
-    (BinOp(NotInHole, op, skel1, skel2), seq, Int, u_gen);
-  | BinOp(_, (FMinus | FPlus | FTimes | FDivide) as op, skel1, skel2) =>
+    (BinOp(index, NotInHole, op, skel1, skel2), seq, Int, u_gen);
+  | BinOp(index, _, (FMinus | FPlus | FTimes | FDivide) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -649,8 +653,8 @@ and syn_fix_holes_skel =
         seq,
         HTyp.Float,
       );
-    (BinOp(NotInHole, op, skel1, skel2), seq, Float, u_gen);
-  | BinOp(_, (And | Or) as op, skel1, skel2) =>
+    (BinOp(index, NotInHole, op, skel1, skel2), seq, Float, u_gen);
+  | BinOp(index, _, (And | Or) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -669,8 +673,8 @@ and syn_fix_holes_skel =
         seq,
         HTyp.Bool,
       );
-    (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-  | BinOp(_, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
+    (BinOp(index, NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+  | BinOp(index, _, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -689,8 +693,8 @@ and syn_fix_holes_skel =
         seq,
         HTyp.Int,
       );
-    (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-  | BinOp(_, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
+    (BinOp(index, NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+  | BinOp(index, _, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -709,8 +713,8 @@ and syn_fix_holes_skel =
         seq,
         HTyp.Float,
       );
-    (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-  | BinOp(_, Space, skel1, skel2) =>
+    (BinOp(index, NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+  | BinOp(index, _, Space, skel1, skel2) =>
     let (skel1, seq, ty1, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
     switch (HTyp.matched_arrow(ty1)) {
@@ -724,7 +728,7 @@ and syn_fix_holes_skel =
           seq,
           ty2,
         );
-      (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
+      (BinOp(index, NotInHole, Space, skel1, skel2), seq, ty, u_gen);
     | None =>
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -737,9 +741,9 @@ and syn_fix_holes_skel =
         );
       let (OpSeq(skel1, seq), u_gen) =
         UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-      (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+      (BinOp(index, NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
-  | BinOp(_, Comma, _, _) =>
+  | BinOp(_, _, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
       skel
       |> UHExp.get_tuple_elements
@@ -758,14 +762,14 @@ and syn_fix_holes_skel =
            (u_gen, seq),
          );
     let (skels, tys) = List.split(pairs);
-    (UHExp.mk_tuple(skels), seq, Prod(tys), u_gen);
-  | BinOp(_, Cons, skel1, skel2) =>
+    (UHExp.mk_tuple(skels, Seq.length(seq)), seq, Prod(tys), u_gen);
+  | BinOp(index, _, Cons, skel1, skel2) =>
     let (skel1, seq, ty_elt, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
     let ty = HTyp.List(ty_elt);
     let (skel2, seq, u_gen) =
       ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-    let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
+    let skel = Skel.BinOp(index, NotInHole, Operators_Exp.Cons, skel1, skel2);
     (skel, seq, ty, u_gen);
   }
 and syn_fix_holes_operand =
@@ -1035,7 +1039,7 @@ and ana_fix_holes_opseq =
     |> (
       fun
       | (rev_skels, seq, u_gen) => {
-          let skel = rev_skels |> List.rev |> UHExp.mk_tuple;
+          let skel = UHExp.mk_tuple(List.rev(rev_skels), Seq.length(seq));
           (OpSeq.OpSeq(skel, seq), u_gen);
         }
     )
@@ -1068,7 +1072,7 @@ and ana_fix_holes_opseq =
         fun
         | (rev_skels, seq, u_gen) => {
             let (u, u_gen) = MetaVarGen.next(u_gen);
-            let skel = UHExp.mk_tuple(List.rev(rev_skels));
+            let skel = UHExp.mk_tuple(List.rev(rev_skels), Seq.length(seq));
             let opseq =
               UHExp.set_err_status_opseq(
                 InHole(TypeInconsistent, u),
@@ -1101,7 +1105,7 @@ and ana_fix_holes_skel =
     )
     : (UHExp.skel, UHExp.seq, MetaVarGen.t) =>
   switch (skel) {
-  | BinOp(_, Comma, _, _) =>
+  | BinOp(_, _, Comma, _, _) =>
     failwith("Exp.ana_fix_holes_skel: tuples handled at opseq level")
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
@@ -1109,7 +1113,7 @@ and ana_fix_holes_skel =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en, ty);
     let seq = seq |> Seq.update_nth_operand(n, en);
     (skel, seq, u_gen);
-  | BinOp(_, Cons, skel1, skel2) =>
+  | BinOp(index, _, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
     | Some(ty_elt) =>
       let (skel1, seq, u_gen) =
@@ -1131,7 +1135,8 @@ and ana_fix_holes_skel =
           seq,
           ty_list,
         );
-      let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
+      let skel =
+        Skel.BinOp(index, NotInHole, Operators_Exp.Cons, skel1, skel2);
       (skel, seq, u_gen);
     | None =>
       let (skel1, seq, ty_elt, u_gen) =
@@ -1149,6 +1154,7 @@ and ana_fix_holes_skel =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
         Skel.BinOp(
+          index,
           InHole(TypeInconsistent, u),
           Operators_Exp.Cons,
           skel1,
@@ -1157,6 +1163,7 @@ and ana_fix_holes_skel =
       (skel, seq, u_gen);
     }
   | BinOp(
+      _,
       _,
       And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
       FDivide |

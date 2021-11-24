@@ -23,8 +23,7 @@ and operand =
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
-[@deriving sexp]
-type annotated_skel = AnnotatedSkel.t(operator);
+
 [@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
@@ -49,31 +48,29 @@ let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
-  | BinOp(_, Comma, skel1, skel2) =>
+  | BinOp(_, _, Comma, skel1, skel2) =>
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec get_annotated_tuple_elements: annotated_skel => list(annotated_skel) =
-  fun
-  | BinOp(Comma, _, skel1, skel2) =>
-    get_annotated_tuple_elements(skel1) @ get_annotated_tuple_elements(skel2)
-  | skel => [skel];
-
-let rec get_tuple_indices = (annot_skel: annotated_skel): list(int) =>
-  switch (annot_skel) {
-  | BinOp(Comma, _, skel1, skel2) =>
-    get_tuple_indices(skel1)
-    @ [AnnotatedSkel.get_root_num(annot_skel)]
-    @ get_tuple_indices(skel2)
+let rec get_tuple_indices = (skel: skel): list(int) =>
+  switch (skel) {
+  | BinOp(index, _, Comma, skel1, skel2) =>
+    get_tuple_indices(skel1) @ [index] @ get_tuple_indices(skel2)
   | _ => []
   };
 
-let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
-  switch (elements) {
-  | [] => failwith("mk_tuple: expected at least 1 element")
-  | [skel] => skel
-  | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
-  };
+let mk_tuple =
+    (~err: ErrStatus.t=NotInHole, elements: list(skel), seq_length: int)
+    : skel => {
+  let rec mk_tuple' = elements =>
+    switch (elements) {
+    | [] => failwith("mk_tuple: expected at least 1 element")
+    | [skel] => skel
+    | [skel, ...skels] =>
+      Skel.BinOp(-1, err, Operators_Pat.Comma, skel, mk_tuple'(skels))
+    };
+  Skel.repair_binop_numbering(mk_tuple'(elements), seq_length);
+};
 
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
@@ -197,8 +194,8 @@ let mk_OpSeq = OpSeq.mk(~associate);
 let rec is_complete_skel = (sk: skel, sq: seq): bool => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
-  | BinOp(InHole(_), _, _, _) => false
-  | BinOp(NotInHole, _, skel1, skel2) =>
+  | BinOp(_, InHole(_), _, _, _) => false
+  | BinOp(_, NotInHole, _, skel1, skel2) =>
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
   };
 }

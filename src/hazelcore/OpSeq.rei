@@ -52,7 +52,7 @@ let is_complete: ('operand => bool, t('operand, 'operator)) => bool;
 
 let get_sub_parts_comma:
   (
-    AnnotatedSkel.t('operator) => list(int),
+    Skel.t('operator) => list(int),
     Seq.t('operand, 'operator) => t('operand, 'operator),
     t('operand, 'operator)
   ) =>

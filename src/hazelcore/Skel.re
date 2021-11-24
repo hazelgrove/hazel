@@ -3,19 +3,36 @@ open Sexplib.Std;
 [@deriving sexp]
 type t('op) =
   | Placeholder(int)
-  | BinOp(ErrStatus.t, 'op, t('op), t('op));
+  | BinOp(int, ErrStatus.t, 'op, t('op), t('op));
 
 let rec leftmost_tm_index = (skel: t(_)): int =>
   switch (skel) {
   | Placeholder(n) => n
-  | BinOp(_, _, skel1, _) => leftmost_tm_index(skel1)
+  | BinOp(_, _, _, skel1, _) => leftmost_tm_index(skel1)
   };
 
 let rec rightmost_tm_index = (skel: t(_)): int =>
   switch (skel) {
   | Placeholder(n) => n
-  | BinOp(_, _, _, skel2) => rightmost_tm_index(skel2)
+  | BinOp(_, _, _, _, skel2) => rightmost_tm_index(skel2)
   };
+
+/* TODO Hannah Is this the right way to do this? Esp in the mk_tuple where this is called? */
+let rec repair_binop_numbering = (skel, seq_length) => {
+  switch (skel) {
+  | Placeholder(n) => Placeholder(n)
+  | BinOp(_, err, op, skel1, skel2) =>
+    let left_annotated = repair_binop_numbering(skel1, seq_length);
+    let right_annotated = repair_binop_numbering(skel2, seq_length);
+    BinOp(
+      rightmost_tm_index(skel1) + seq_length,
+      err,
+      op,
+      left_annotated,
+      right_annotated,
+    );
+  };
+};
 
 let mk =
     (
@@ -127,12 +144,24 @@ let mk =
          *
          */
       build_ast_while(
-        [BinOp(ErrStatus.NotInHole, op, subskel2, subskel1), ...skel_stack'],
+        [
+          BinOp(-1, ErrStatus.NotInHole, op, subskel2, subskel1),
+          ...skel_stack',
+        ],
         op_stack',
         should_mv,
       )
     | _ => (skel_stack, op_stack)
     };
   };
-  go_seq([], [], seq, 0);
+  let skel = go_seq([], [], seq, 0);
+  let length = Seq.length(seq);
+  repair_binop_numbering(skel, length);
+};
+
+let get_root_num = (skel: t(_)): int => {
+  switch (skel) {
+  | Placeholder(n)
+  | BinOp(n, _, _, _, _) => n
+  };
 };

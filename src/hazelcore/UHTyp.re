@@ -15,29 +15,20 @@ and operand =
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
-[@deriving sexp]
-type annotated_skel = AnnotatedSkel.t(operator);
+
 [@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let rec get_prod_elements: skel => list(skel) =
   fun
-  | BinOp(_, Prod, skel1, skel2) =>
+  | BinOp(_, _, Prod, skel1, skel2) =>
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let rec get_annotated_prod_elements: annotated_skel => list(annotated_skel) =
-  fun
-  | BinOp(Prod, _, skel1, skel2) =>
-    get_annotated_prod_elements(skel1) @ get_annotated_prod_elements(skel2)
-  | skel => [skel];
-
-let rec get_prod_indices = (annot_skel: annotated_skel): list(int) =>
-  switch (annot_skel) {
-  | BinOp(Prod, _, skel1, skel2) =>
-    get_prod_indices(skel1)
-    @ [AnnotatedSkel.get_root_num(annot_skel)]
-    @ get_prod_indices(skel2)
+let rec get_prod_indices = (skel: skel): list(int) =>
+  switch (skel) {
+  | BinOp(index, _, Prod, skel1, skel2) =>
+    get_prod_indices(skel1) @ [index] @ get_prod_indices(skel2)
   | _ => []
   };
 
@@ -116,15 +107,15 @@ and expand_opseq =
 and expand_skel = (skel, seq) =>
   switch (skel) {
   | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
-  | BinOp(_, Arrow, skel1, skel2) =>
+  | BinOp(_, _, Arrow, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Arrow(ty1, ty2);
-  | BinOp(_, Prod, _, _) =>
+  | BinOp(_, _, Prod, _, _) =>
     Prod(
       skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
     )
-  | BinOp(_, Sum, skel1, skel2) =>
+  | BinOp(_, _, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Sum(ty1, ty2);
@@ -153,8 +144,8 @@ let rec is_complete_operand = (operand: 'operand) => {
 and is_complete_skel = (sk: skel, sq: seq) => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
-  | BinOp(InHole(_), _, _, _) => false
-  | BinOp(NotInHole, _, skel1, skel2) =>
+  | BinOp(_, InHole(_), _, _, _) => false
+  | BinOp(_, NotInHole, _, skel1, skel2) =>
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
   };
 }

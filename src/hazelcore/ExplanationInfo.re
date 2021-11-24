@@ -151,7 +151,7 @@ and extract_pat_opseq_info =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       extract_pat_operand_info(pn);
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, _, Comma, _, _) =>
       let subparts =
         OpSeq.get_sub_parts_comma(
           UHPat.get_tuple_indices,
@@ -159,14 +159,9 @@ and extract_pat_opseq_info =
           opseq,
         );
       CommaOperator(subparts, None);
-    | BinOp(_, operator, _skel1, _skel2) =>
-      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+    | BinOp(index, _, operator, _skel1, _skel2) =>
       let (subpart1, subpart2) =
-        OpSeq.get_sub_parts_binop(
-          AnnotatedSkel.get_root_num(annotated_skel),
-          UHPat.mk_OpSeq,
-          seq,
-        );
+        OpSeq.get_sub_parts_binop(index, UHPat.mk_OpSeq, seq);
       BinOperator(operator, subpart1, subpart2, None);
     }
   };
@@ -198,7 +193,7 @@ and extract_exp_opseq_info =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       extract_exp_operand_info(pn);
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, _, Comma, _, _) =>
       let subparts =
         OpSeq.get_sub_parts_comma(
           UHExp.get_tuple_indices,
@@ -206,14 +201,9 @@ and extract_exp_opseq_info =
           opseq,
         );
       ExpCommaOperator(subparts);
-    | BinOp(_, operator, _skel1, _skel2) =>
-      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+    | BinOp(index, _, operator, _skel1, _skel2) =>
       let (subpart1, subpart2) =
-        OpSeq.get_sub_parts_binop(
-          AnnotatedSkel.get_root_num(annotated_skel),
-          UHExp.mk_OpSeq,
-          seq,
-        );
+        OpSeq.get_sub_parts_binop(index, UHExp.mk_OpSeq, seq);
       ExpBinOperator(operator, subpart1, subpart2);
     }
   };
@@ -245,7 +235,7 @@ and extract_typ_opseq_info =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       extract_typ_operand_info(pn);
-    | BinOp(_, Prod, _, _) =>
+    | BinOp(_, _, Prod, _, _) =>
       let subparts =
         OpSeq.get_sub_parts_comma(
           UHTyp.get_prod_indices,
@@ -253,14 +243,9 @@ and extract_typ_opseq_info =
           opseq,
         );
       CommaOperator(subparts);
-    | BinOp(_, operator, _skel1, _skel2) =>
-      let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
+    | BinOp(index, _, operator, _skel1, _skel2) =>
       let (subpart1, subpart2) =
-        OpSeq.get_sub_parts_binop(
-          AnnotatedSkel.get_root_num(annotated_skel),
-          UHTyp.mk_OpSeq,
-          seq,
-        );
+        OpSeq.get_sub_parts_binop(index, UHTyp.mk_OpSeq, seq);
       BinOperator(operator, subpart1, subpart2);
     }
   };

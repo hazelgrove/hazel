@@ -568,9 +568,9 @@ and syn_elab_skel =
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     syn_elab_operand(ctx, delta, en);
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
-  | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
-    let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+  | BinOp(index, InHole(TypeInconsistent as reason, u), op, skel1, skel2)
+  | BinOp(index, InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
+    let skel_not_in_hole = Skel.BinOp(index, NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
@@ -580,8 +580,8 @@ and syn_elab_skel =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
-  | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
-  | BinOp(NotInHole, Space, skel1, skel2) =>
+  | BinOp(_, InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | BinOp(_, NotInHole, Space, skel1, skel2) =>
     switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
     | None => DoesNotElaborate
     | Some(ty1) =>
@@ -603,7 +603,7 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(NotInHole, Comma, _, _) =>
+  | BinOp(_, NotInHole, Comma, _, _) =>
     switch (UHExp.get_tuple_elements(skel)) {
     | [skel1, skel2, ...tail] =>
       let%bind (dp1, ty1, delta) = syn_elab_skel(ctx, delta, skel1, seq);
@@ -630,7 +630,7 @@ and syn_elab_skel =
         ),
       )
     }
-  | BinOp(NotInHole, Cons, skel1, skel2) =>
+  | BinOp(_, NotInHole, Cons, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
@@ -643,8 +643,8 @@ and syn_elab_skel =
         Elaborates(d, ty, delta);
       };
     }
-  | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
-  | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
+  | BinOp(_, NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
+  | BinOp(_, NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Int)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
@@ -661,8 +661,20 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(NotInHole, (FPlus | FMinus | FTimes | FDivide) as op, skel1, skel2)
-  | BinOp(NotInHole, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
+  | BinOp(
+      _,
+      NotInHole,
+      (FPlus | FMinus | FTimes | FDivide) as op,
+      skel1,
+      skel2,
+    )
+  | BinOp(
+      _,
+      NotInHole,
+      (FLessThan | FGreaterThan | FEquals) as op,
+      skel1,
+      skel2,
+    ) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Float)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
@@ -679,7 +691,7 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
+  | BinOp(_, NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
@@ -1054,15 +1066,15 @@ and ana_elab_skel =
     )
     : ElaborationResult.t =>
   switch (skel) {
-  | BinOp(_, Comma, _, _)
-  | BinOp(InHole(WrongLength, _), _, _, _) =>
+  | BinOp(_, _, Comma, _, _)
+  | BinOp(_, InHole(WrongLength, _), _, _, _) =>
     // tuples handled at opseq level
     DoesNotElaborate
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
     ana_elab_operand(ctx, delta, en, ty);
-  | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
-    let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+  | BinOp(index, InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+    let skel_not_in_hole = Skel.BinOp(index, NotInHole, op, skel1, skel2);
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
@@ -1073,7 +1085,7 @@ and ana_elab_skel =
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
       Elaborates(d, Hole, delta);
     };
-  | BinOp(NotInHole, Cons, skel1, skel2) =>
+  | BinOp(_, NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
@@ -1092,6 +1104,7 @@ and ana_elab_skel =
       }
     }
   | BinOp(
+      _,
       _,
       Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
       LessThan |

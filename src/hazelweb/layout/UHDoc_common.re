@@ -447,7 +447,8 @@ let rec mk_BinOp =
   | Placeholder(n) =>
     let operand = Seq.nth_operand(n, seq);
     annot_Step(n, mk_operand(~enforce_inline, operand));
-  | BinOp(_, op, skel1, skel2) =>
+  | BinOp(_, _, op, skel1, skel2) =>
+    /* TODO Hannah could this just use the skel index */
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let (lpadding, rpadding) = {
       let (l, r) = inline_padding_of_operator(op);

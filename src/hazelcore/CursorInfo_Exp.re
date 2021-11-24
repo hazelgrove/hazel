@@ -44,12 +44,11 @@ and extract_from_zexp_opseq =
   switch (zseq) {
   | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
   | ZOperator(zoperator, _) =>
-    let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, ZSeq.length(zseq));
     let (cursor_pos, uop) = zoperator;
     ExpOp(
       cursor_pos,
       uop,
-      AnnotatedSkel.get_root_num(annotated_skel),
+      Skel.get_root_num(skel),
       ZExp.erase_zopseq(zopseq),
     );
   };
@@ -178,7 +177,7 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       switch (skel, zseq) {
-      | (BinOp(err, _, _, _), _) => Some(StandardErr(err))
+      | (BinOp(_, err, _, _, _), _) => Some(StandardErr(err))
       | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
       | _ => None
       };
@@ -404,11 +403,12 @@ and syn_cursor_info_skel =
     // recurse toward cursor
     switch (skel) {
     | Placeholder(_) => None
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, _, Comma, _, _) =>
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(
+        _,
         _,
         Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
         skel1,
@@ -420,6 +420,7 @@ and syn_cursor_info_skel =
       }
     | BinOp(
         _,
+        _,
         FMinus | FPlus | FTimes | FDivide | FLessThan | FGreaterThan | FEquals,
         skel1,
         skel2,
@@ -428,12 +429,12 @@ and syn_cursor_info_skel =
       | Some(_) as result => result
       | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Float)
       }
-    | BinOp(_, And | Or, skel1, skel2) =>
+    | BinOp(_, _, And | Or, skel1, skel2) =>
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Bool)) {
       | Some(_) as result => result
       | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
       }
-    | BinOp(_, Space, Placeholder(n) as skel1, skel2) =>
+    | BinOp(_, _, Space, Placeholder(n) as skel1, skel2) =>
       if (ZOpSeq.skel_contains_cursor(skel1, zseq)) {
         let zoperand =
           switch (zseq) {
@@ -492,7 +493,7 @@ and syn_cursor_info_skel =
           }
         };
       }
-    | BinOp(_, Space, skel1, skel2) =>
+    | BinOp(_, _, Space, skel1, skel2) =>
       switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
       | Some(_) as result => result
       | None =>
@@ -506,7 +507,7 @@ and syn_cursor_info_skel =
           }
         }
       }
-    | BinOp(_, Cons, skel1, skel2) =>
+    | BinOp(_, _, Cons, skel1, skel2) =>
       switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
       | Some(_) as result => result
       | None =>
@@ -755,12 +756,12 @@ and ana_cursor_info_skel =
     // recurse toward cursor
     switch (skel) {
     | Placeholder(_) => None
-    | BinOp(InHole(_), _, _, _) => syn_go(skel)
-    | BinOp(_, Comma, _, _) =>
+    | BinOp(_, InHole(_), _, _, _) => syn_go(skel)
+    | BinOp(_, _, Comma, _, _) =>
       failwith(
         "Exp.ana_cursor_info_skel: expected commas too be handled at opseq level",
       )
-    | BinOp(NotInHole, Cons, skel1, skel2) =>
+    | BinOp(_, NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
       | Some(ty_elt) =>
@@ -772,6 +773,7 @@ and ana_cursor_info_skel =
         }
       }
     | BinOp(
+        _,
         _,
         Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
         LessThan |

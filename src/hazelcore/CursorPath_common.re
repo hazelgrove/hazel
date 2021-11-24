@@ -23,56 +23,6 @@ let of_zopseq_ =
     ([length + Seq.length(prefix) - 1], cursor);
   };
 
-/* TODO Hannah some of this should probably be refactored */
-let cons_all =
-    (step: int, steps: list(CursorPath.steps)): list(CursorPath.steps) => {
-  List.map(steps => [step, ...steps], steps);
-};
-let child_root_node_path = (OpSeq(skel, seq): OpSeq.t(_)): CursorPath.steps => {
-  let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, Seq.length(seq));
-  [AnnotatedSkel.get_root_num(annotated_skel)];
-};
-let rec explanation_paths_skel =
-        (
-          of_zoperand: 'zoperand => list(CursorPath.steps),
-          skel: Skel.t(_),
-          ann_skel: AnnotatedSkel.t(_),
-          zseq: ZSeq.t(_, _, 'zoperand, _),
-        )
-        : list(CursorPath.steps) =>
-  if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
-    // found cursor
-    switch (zseq) {
-    | ZOperand(zoperand, (prefix, _)) =>
-      // skel must be Placeholder
-      cons_all(Seq.length_of_affix(prefix), of_zoperand(zoperand))
-    | ZOperator(_, (_, _)) =>
-      switch (ann_skel) {
-      | Placeholder(_) => failwith("Can I reach here?")
-      | BinOp(_, _, skel1, skel2) => [
-          [AnnotatedSkel.get_root_num(skel1)],
-          [AnnotatedSkel.get_root_num(skel2)],
-        ]
-      }
-    };
-  } else {
-    // recurse toward cursor
-    switch (skel) {
-    | Placeholder(_) => []
-    /*| BinOp(_, Comma, _, _) =>
-      failwith(
-        "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
-      )*/
-    | BinOp(_, _, skel1, skel2) =>
-      switch (ann_skel) {
-      | Placeholder(_) => failwith("Error constructing annotated skel")
-      | BinOp(_, _, ann1, ann2) =>
-        explanation_paths_skel(of_zoperand, skel1, ann1, zseq)
-        @ explanation_paths_skel(of_zoperand, skel2, ann2, zseq)
-      }
-    };
-  };
-
 let mk_zholes =
     (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
   holes_before,
@@ -218,7 +168,7 @@ let holes_skel_ =
     switch (skel) {
     | Placeholder(n) =>
       hs |> holes_operand(seq |> Seq.nth_operand(n), [n, ...rev_steps])
-    | BinOp(err, op, skel1, skel2) =>
+    | BinOp(_, err, op, skel1, skel2) =>
       let hs = hs |> go(skel2);
       let hs =
         switch (err) {
@@ -232,6 +182,8 @@ let holes_skel_ =
           // skel is typed. Make this hole come first before
           // any holes found in subskels. But we need the actual
           // path as well for error hole decorations
+
+          /* TODO Hannah there are a few places in this file that maybe could just use the skel index */
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           let steps = List.rev([step, ...rev_steps]);
           let ap_steps =
@@ -299,7 +251,7 @@ let holes_zopseq_ =
         // We defer to holes_skel once we have determined that a skel
         // does not contain the cursor, should never hit this case.
         failwith("holes_zopseq/ZOperator: unexpected Placeholder")
-      | BinOp(err, op, skel1, skel2) => {
+      | BinOp(_, err, op, skel1, skel2) => {
           // We defer to holes_skel once we have determined that a skel
           // does not contain the cursor. Since Space has highest precedence
           // and we cannot place cursor on a Space, we know that the entirety
@@ -358,7 +310,7 @@ let holes_zopseq_ =
           assert(n == zoperand_index);
           holes_zoperand(zoperand, [zoperand_index, ...rev_steps]);
         }
-      | BinOp(err, op, skel1, skel2) when op |> is_space => {
+      | BinOp(_, err, op, skel1, skel2) when op |> is_space => {
           // If this skel is rooted at a Space, then we know
           // that all subskels are rooted at a Space.
           // We cannot place cursor on a Space, so make the
@@ -398,7 +350,7 @@ let holes_zopseq_ =
             );
           };
         }
-      | BinOp(err, _op, skel1, skel2) => {
+      | BinOp(_, err, _op, skel1, skel2) => {
           let n = skel1 |> Skel.rightmost_tm_index;
           let binop_holes =
             switch (err) {

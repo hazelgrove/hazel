@@ -6,12 +6,11 @@ let rec extract_cursor_term =
   switch (zseq) {
   | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
   | ZOperator(ztyp_operator, _) =>
-    let (annotated_skel, _) = AnnotatedSkel.mk(skel, 0, ZSeq.length(zseq));
     let (cursor_pos, uop) = ztyp_operator;
     TypOp(
       cursor_pos,
       uop,
-      AnnotatedSkel.get_root_num(annotated_skel),
+      Skel.get_root_num(skel),
       ZTyp.erase_zopseq(ztyp),
     );
   };

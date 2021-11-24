@@ -18,6 +18,7 @@ let%test "simple addition test" = {
     );
   let simple_add_skel =
     Skel.BinOp(
+      2,
       NotInHole,
       Operators_Exp.Plus,
       Skel.Placeholder(0),
@@ -44,6 +45,7 @@ let%test "addition w/ left hole" = {
     );
   let add_l_hole_skel =
     Skel.BinOp(
+      2,
       NotInHole,
       Operators_Exp.Plus,
       Skel.Placeholder(0),
@@ -87,18 +89,22 @@ let%test "operator precedence test" = {
 
   let precedence_op_skel =
     Skel.BinOp(
+      9,
       NotInHole,
       Operators_Exp.Cons,
       Skel.BinOp(
+        7,
         NotInHole,
         Operators_Exp.Plus,
         Skel.BinOp(
+          6,
           NotInHole,
           Operators_Exp.Minus,
           Skel.Placeholder(0),
           Skel.Placeholder(1),
         ),
         Skel.BinOp(
+          8,
           NotInHole,
           Operators_Exp.Times,
           Skel.Placeholder(2),
@@ -106,6 +112,7 @@ let%test "operator precedence test" = {
         ),
       ),
       Skel.BinOp(
+        10,
         NotInHole,
         Operators_Exp.Cons,
         Skel.Placeholder(4),
@@ -150,18 +157,22 @@ let%test "holey operator precedence test" = {
 
   let precedence_op_skel =
     Skel.BinOp(
+      9,
       NotInHole,
       Operators_Exp.Cons,
       Skel.BinOp(
+        7,
         NotInHole,
         Operators_Exp.Plus,
         Skel.BinOp(
+          6,
           NotInHole,
           Operators_Exp.Minus,
           Skel.Placeholder(0),
           Skel.Placeholder(1),
         ),
         Skel.BinOp(
+          8,
           NotInHole,
           Operators_Exp.Times,
           Skel.Placeholder(2),
@@ -169,6 +180,7 @@ let%test "holey operator precedence test" = {
         ),
       ),
       Skel.BinOp(
+        10,
         NotInHole,
         Operators_Exp.Cons,
         Skel.Placeholder(4),
@@ -211,17 +223,21 @@ let%test "type precedence test" = {
 
   let precedence_op_skel =
     Skel.BinOp(
+      5,
       NotInHole,
       Operators_Typ.Prod,
       Skel.Placeholder(0),
       Skel.BinOp(
+        6,
         NotInHole,
         Operators_Typ.Arrow,
         Skel.Placeholder(1),
         Skel.BinOp(
+          8,
           NotInHole,
           Operators_Typ.Arrow,
           Skel.BinOp(
+            7,
             NotInHole,
             Operators_Typ.Sum,
             Skel.Placeholder(2),
