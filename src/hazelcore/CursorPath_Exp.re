@@ -1,4 +1,5 @@
 let mk_hole_sort = CursorPath.mk_hole_sort;
+let mk_cell_boundary_step = CursorPath.mk_cell_boundary_step;
 let cons' = CursorPath_common.cons';
 let rec of_z = (ze: ZExp.t): CursorPath.t => of_zblock(ze)
 and of_zblock = (zblock: ZExp.zblock): CursorPath.t => {
@@ -360,29 +361,41 @@ and of_steps_rule =
   };
 
 let rec cell_boundaries =
-        (e: UHExp.t, cell_boundaries: CursorPath.cell_boundaries_list)
+        (
+          e: UHExp.t,
+          rev_steps: CursorPath.rev_steps,
+          cell_boundaries: CursorPath.cell_boundaries_list,
+        )
         : CursorPath.cell_boundaries_list => {
-  cell_boundaries |> cell_boundaries_block(e);
+  cell_boundaries |> cell_boundaries_block(e, rev_steps);
 }
 and cell_boundaries_block =
-    (block: UHExp.block, cell_boundaries: CursorPath.cell_boundaries_list)
+    (
+      block: UHExp.block,
+      rev_steps: CursorPath.rev_steps,
+      cell_boundaries: CursorPath.cell_boundaries_list,
+    )
     : CursorPath.cell_boundaries_list => {
   cell_boundaries
   |> ListUtil.fold_right_i(
-       ((_, line), cell_boundaries) =>
-         cell_boundaries |> cell_boundaries_line(line),
+       ((i, line), cell_boundaries) =>
+         cell_boundaries |> cell_boundaries_line(line, [i, ...rev_steps]),
        block,
      );
 }
 and cell_boundaries_line =
-    (line: UHExp.line, cell_boundaries: CursorPath.cell_boundaries_list)
+    (
+      line: UHExp.line,
+      rev_steps: CursorPath.rev_steps,
+      cell_boundaries: CursorPath.cell_boundaries_list,
+    )
     : CursorPath.cell_boundaries_list => {
   switch (line) {
   | EmptyLine
   | CommentLine(_)
   | LetLine(_, _)
   | ExpLine(_) => []
-  | CellBoundary => cell_boundaries
+  | CellBoundary => [mk_cell_boundary_step(rev_steps), ...cell_boundaries]
   };
 };
 

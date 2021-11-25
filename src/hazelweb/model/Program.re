@@ -221,10 +221,31 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
 
   //TODO(Yabsra): correct this
   let cell_boundaries =
-    CursorPath_Exp.cell_boundaries(get_uhexp(program), [])
+    CursorPath_Exp.cell_boundaries(get_uhexp(program), [], [])
     |> List.map(cell_boundary_info =>
          CursorPath.get_cell_boundary_steps(cell_boundary_info)
        );
+  print_endline("cell boundary 1");
+  let _ =
+    List.map(
+      path => {
+        print_endline(
+          Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(path)),
+        );
+        print_endline("cell boundary 2");
+      },
+      cell_boundaries,
+    );
+  let _ =
+    List.map(
+      path => {
+        print_endline(
+          Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(path)),
+        );
+        print_endline("hole steps in");
+      },
+      err_holes,
+    );
   {current_term, err_holes, var_uses, var_err_holes, cell_boundaries};
 };
 

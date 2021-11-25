@@ -60,6 +60,10 @@ let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
   steps,
 };
 
+let mk_cell_boundary_step = (step: rev_steps): cell_boundary_info => {
+  {steps: List.rev(step)};
+};
+
 /* If to_fpos_for_aps is true, then the steps to application errors
    will lead to the function position as opposed to the ap itself.
    This is turned on for cursor movement to holes, as there is no
