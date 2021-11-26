@@ -48,18 +48,22 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
 and syn_lines = 
     (ctx:Contexts.t, lines:list(UHExp.line)):option(Contexts.t) => {
 
-      // first pass: group lines, e.g. [L1, L2, L3, L4] -> [[L4], [L2, L3], [L1]]
+      // first pass: group lines
+
+     // [0, Let x:int = 1 in, And y:int = 2 in, 3] ->
+     // [[Let x:int = 1 in, And y:int = 2 in, 3], [0]]
 
       let groups = List.fold_left(
         (result: list(list(UHExp.line)), line: UHExp.line) => {
           switch(line){
             | EmptyLine
-            | CommentLine(_) => [List.hd(result)@[line]] @ List.tl(result)
+            | CommentLine(_) 
             | ExpLine(_)
-            | LetLine(_) => [[line]] @ result
+            | LetLine(And, _, _) => [List.hd(result)@[line]] @ List.tl(result)
+            | LetLine(Let, _, _) => [[line]] @ result
           },
         }
-        [],
+        [[]],
         lines,
       );
 
@@ -76,7 +80,7 @@ and syn_lines =
               | CommentLine(_) => ctx_line
               | ExpLine(opseq) =>
                 let *ctx = ctx_line;
-                let+ _ = syn_opseq(ctx, opseq); //TODO
+                let+ _ = syn_opseq(ctx, opseq);
                 Some(ctx);
               | LetLine(_, p, def) =>
                 let *ctx = ctx_line;
