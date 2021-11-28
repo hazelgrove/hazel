@@ -42,11 +42,11 @@ let intro_init_zexp =
    init_zexp: intro_init_zexp,
  };
  */
-let intro_card: CardInfo.t = {
-  name: "intro",
-  caption: div([], []),
-  init_zexp: intro_init_zexp,
-};
+// let intro_card: CardInfo.t = {
+//   name: "intro",
+//   caption: div([], []),
+//   init_zexp: intro_init_zexp,
+// };
 /*
  let backspace_caption =
    div(
@@ -108,7 +108,7 @@ let intro_card: CardInfo.t = {
  };
  */
 
-let cardstack: CardstackInfo.t = {
-  title: "Hazel Tutorial",
-  cards: [intro_card /*backspace_card, empty_hole_insertion_card */],
-};
+// let cardstack: CardstackInfo.t = {
+//   title: "Hazel Tutorial",
+//   cards: [intro_card /*backspace_card, empty_hole_insertion_card */],
+// };
