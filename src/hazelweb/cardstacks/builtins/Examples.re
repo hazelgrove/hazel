@@ -400,12 +400,11 @@ let examples = [
 let edit_state_of_block =
     ((name: string, block: UHExp.block)): (string, Statics.edit_state) => {
   let zippered_block = block |> ZExp.place_before;
-  let block_type: HTyp.t =
+  let block_type =
     switch (Statics_Exp.syn(Contexts.empty, block)) {
     | Some(ty) => ty
     | None =>
-      print_endline(name);
-      Int;
+      Hole;
     };
   (name, (zippered_block, block_type, IDGen.init));
 };
