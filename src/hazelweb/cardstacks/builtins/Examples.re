@@ -399,8 +399,15 @@ let examples = [
 
 let edit_state_of_block =
     ((name: string, block: UHExp.block)): (string, Statics.edit_state) => {
-  let z = block |> ZExp.place_before;
-  (name, (z, Int, IDGen.init));
+  let zippered_block = block |> ZExp.place_before;
+  let block_type: HTyp.t =
+    switch (Statics_Exp.syn(Contexts.empty, block)) {
+    | Some(ty) => ty
+    | None =>
+      print_endline(name);
+      Int;
+    };
+  (name, (zippered_block, block_type, IDGen.init));
 };
 
 let example_to_card =
