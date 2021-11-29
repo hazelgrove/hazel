@@ -249,9 +249,9 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Unexpected Argument"),
       ]
-    | OnInvalidTag(_)
-    | OnUnknownTag(_)
-    | OnDuplicateTag(_) => []
+    | OnInvalidTag(_) => [emphasize_text("Invalid Tag Name")]
+    | OnUnknownTag(_) => [emphasize_text("Unknown Tag")]
+    | OnDuplicateTag(_) => [emphasize_text("Duplicate Tag")]
     | PatAnaInjUnexpectedArg(got_ty) => [
         ana,
         HTypCode.view(~inject, ~selected_tag_hole, got_ty),
