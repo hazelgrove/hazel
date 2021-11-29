@@ -1298,7 +1298,7 @@ and syn_perform_opseq =
     syn_perform_opseq(ctx, keyword_action(k), (zopseq, ty, u_gen));
 
   // operator type prediction
-  // case 2: synthesis from float
+  // synthesis from float
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ty == HTyp.Float
@@ -1351,7 +1351,6 @@ and syn_perform_opseq =
         };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
-
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
@@ -1377,6 +1376,7 @@ and syn_perform_opseq =
         };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
+
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -2807,7 +2807,7 @@ and ana_perform_opseq =
     ana_perform_opseq(ctx, keyword_action(k), (zopseq, u_gen), ty);
 
   // operator type prediction
-  // case 1: analysis from float
+  // analysis from float
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ty == HTyp.Float
@@ -2828,6 +2828,25 @@ and ana_perform_opseq =
         | Some(float_op) =>
           construct_operator(u_gen, float_op, zoperand, surround)
         };
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+    }
+  // analysis from int
+  | (Construct(SOp(os)), ZOperand(zoperand, surround))
+      when
+        ty == HTyp.Int
+        && (
+          ZExp.is_before_zoperand(zoperand)
+          || ZExp.is_after_zoperand(zoperand)
+        ) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
 
@@ -2856,6 +2875,7 @@ and ana_perform_opseq =
         };
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
+
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
