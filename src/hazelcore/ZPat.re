@@ -215,7 +215,8 @@ and place_after_operand = operand =>
   | IntLit(_, n) => CursorP(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorP(OnText(String.length(f)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
-  | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
+  | Inj(_, _, arg_opt) =>
+    CursorP(OnDelim(Option.is_none(arg_opt) ? 1 : 2, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
   };
