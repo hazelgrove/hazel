@@ -121,27 +121,41 @@ let get_model_action =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (_cursor_on_type, cursor_on_comment) =
+  let (_cursor_on_type, cursor_on_comment, cursor_on_stringlit) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
-    | _ => (false, false)
+    | {typed: OnType, _} => (true, false, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true, false)
+    | {cursor_term: ExpOperand(OnText(_), StringLit(_, _)), _} => (
+        false,
+        false,
+        true,
+      )
+    | _ => (false, false, false)
     };
 
   let key_combo = HazelKeyCombos.of_evt(evt);
 
   let alpha_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
   let comment_char_regexp = Js_of_ocaml.Regexp.regexp("^[^#]$");
+  let any_regexp = Js_of_ocaml.Regexp.regexp("^.$");
   let single_key = JSUtil.is_single_key(evt, alpha_regexp);
   let single_key_in_comment = JSUtil.is_single_key(evt, comment_char_regexp);
+  let single_key_in_stringlit = JSUtil.is_single_key(evt, any_regexp);
 
-  switch (key_combo, single_key, single_key_in_comment) {
-  | (_, _, Some(single_key_in_comment)) when cursor_on_comment =>
-    construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
-  | (Some(key_combo), _, _) =>
+  switch (
+    key_combo,
+    single_key,
+    single_key_in_comment,
+    single_key_in_stringlit,
+  ) {
+  | (Some(key_combo), _, _, _) =>
     get_model_action_from_kc(cursor_info, key_combo)
-  | (_, Some(single_key), _) =>
+  | (_, Some(single_key), _, _) =>
     construct(SChar(JSUtil.single_key_string(single_key)))
-  | (None, None, _) => None
+  | (_, _, Some(single_key_in_comment), _) when cursor_on_comment =>
+    construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
+  | (_, _, _, Some(single_key_in_stringlit)) when cursor_on_stringlit =>
+    construct(SChar(JSUtil.single_key_string(single_key_in_stringlit)))
+  | (None, None, _, _) => None
   };
 };
