@@ -193,14 +193,6 @@ let rec mk =
             Some(DHDoc_common.pad_child(~enforce_inline, child));
           | None => None
           };
-        // let selected =
-        //   switch (tag) {
-        //   | Tag(_, _) => false
-        //   | EmptyTagHole(u) =>
-        //     selected_tag_hole
-        //     |> Option.map(MetaVar.eq(u))
-        //     |> Option.value(~default=false)
-        //   };
         DHDoc_common.mk_Inj(tag_doc, arg_opt);
       | InjError(reason, u, i, _sigma, inj) =>
         go'(Inj(inj)) |> mk_cast |> annot(DHAnnot.InjHole(reason, (u, i)))

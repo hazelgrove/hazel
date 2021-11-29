@@ -1365,6 +1365,10 @@ h1 {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
 }
+.InInjHole {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InconsistentBranches {
   border: 1px dashed var(--err-hole-color);
   margin: -1px;
@@ -1410,6 +1414,10 @@ h1 {
 }
 
 .InVarHole.Keyword {
+	font-weight: bold;
+}
+
+.InInjHole.Keyword {
 	font-weight: bold;
 }
 
