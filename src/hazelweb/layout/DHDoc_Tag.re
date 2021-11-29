@@ -1,18 +1,5 @@
 open Pretty;
 
-let promote_annot =
-    (selected: MetaVar.t => bool, annot: HTypAnnot.t): DHAnnot.t =>
-  switch (annot) {
-  | Delim => Delim
-  | HoleLabel => HoleLabel
-  | EmptyTagHole(u) => EmptyTagHole(selected(u), u)
-  | Step(i) => Step(i)
-  | Term => Term
-  };
-
-let promote = (selected: MetaVar.t => bool, d: HTypDoc.t): DHDoc.t =>
-  d |> Doc.map_annot(promote_annot(selected));
-
 let mk =
     (
       ~enforce_inline as _: bool,
@@ -24,5 +11,15 @@ let mk =
     selected_tag_hole
     |> Option.map(MetaVar.eq(u))
     |> Option.value(~default=false);
-  tag |> HTypDoc_Tag.mk |> promote(selected);
+  switch (tag) {
+  | Tag(NotInTagHole, name) => name |> Doc.text
+  | Tag(InTagHole(reason, u), name) =>
+    name |> Doc.text |> Doc.annot(DHAnnot.NonEmptyTagHole(reason, u))
+  | EmptyTagHole(u) =>
+    Int.to_string(u + 1)
+    |> Doc.text
+    |> Doc.annot(DHAnnot.EmptyTagHole(selected(u), u))
+    |> Doc.annot(DHAnnot.HoleLabel)
+    |> Doc.annot(DHAnnot.Delim)
+  };
 };
