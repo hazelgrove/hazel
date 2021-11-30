@@ -10,7 +10,6 @@ let get_model_action_from_kc =
   let cursor_on_type =
     switch (cursor_info) {
     | {typed: OnType, _} => true
-    | {cursor_term: Line(_, CommentLine(_)), _} => false
     | _ => false
     };
 
@@ -74,11 +73,10 @@ let get_model_action =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (_cursor_on_type, cursor_on_comment) =
+  let cursor_on_comment =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
-    | _ => (false, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => true
+    | _ => false
     };
 
   let key_combo = HazelKeyCombos.of_evt(evt);
