@@ -148,14 +148,14 @@ let get_model_action =
     single_key_in_comment,
     single_key_in_stringlit,
   ) {
-  | (Some(key_combo), _, _, _) =>
-    get_model_action_from_kc(cursor_info, key_combo)
-  | (_, Some(single_key), _, _) =>
-    construct(SChar(JSUtil.single_key_string(single_key)))
   | (_, _, Some(single_key_in_comment), _) when cursor_on_comment =>
     construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
   | (_, _, _, Some(single_key_in_stringlit)) when cursor_on_stringlit =>
     construct(SChar(JSUtil.single_key_string(single_key_in_stringlit)))
+  | (Some(key_combo), _, _, _) =>
+    get_model_action_from_kc(cursor_info, key_combo)
+  | (_, Some(single_key), _, _) =>
+    construct(SChar(JSUtil.single_key_string(single_key)))
   | (None, None, _, _) => None
   };
 };
