@@ -382,6 +382,11 @@ let tests_test =
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
 
+let idgen_test =
+  {|((((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(EmptyHole 1)E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 2)E)))))E)))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 3))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 1)(A Equals(S(IntLit NotInHole 1)E)))))))E))))))(ExpLineZ(ZOpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ZOperand(CursorE(OnText 5)(BoolLit NotInHole false))((A Space(S(Keyword(Typed Test NotInHole 4))E))E))))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 7))(A Space(S(Parenthesized((ExpLine(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E)))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 77)E)))))Hole(77 7))|}
+  |> Sexplib.Sexp.of_string
+  |> Statics.edit_state_of_sexp;
+
 let examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
@@ -392,15 +397,31 @@ let examples = [
   ("tests", tests_test),
 ];
 
-let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
+let edit_state_of_block =
+    ((name: string, block: UHExp.block)): (string, Statics.edit_state) => {
+  let zippered_block = block |> ZExp.place_before;
+  let block_type =
+    switch (Statics_Exp.syn(Contexts.empty, block)) {
+    | Some(ty) => ty
+    | None => Hole
+    };
+  (name, (zippered_block, block_type, IDGen.init));
+};
+
+let example_to_card =
+    ((name: string, init_edit_state: Statics.edit_state)): CardInfo.t => {
   name,
   caption: Virtual_dom.Vdom.Node.div([], []),
-  init_zexp: ZExp.place_before(e),
+  init_edit_state,
 };
 
 let cardstack: CardstackInfo.t = {
   title: "examples",
-  cards: List.map(example_to_card, examples),
+  cards:
+    List.map(
+      example_to_card,
+      List.map(edit_state_of_block, examples) @ [("idgen", idgen_test)],
+    ),
 };
 
 let tests = [
@@ -411,5 +432,5 @@ let tests = [
 
 let teststack: CardstackInfo.t = {
   title: "tests",
-  cards: List.map(example_to_card, tests),
+  cards: List.map(example_to_card, List.map(edit_state_of_block, tests)),
 };

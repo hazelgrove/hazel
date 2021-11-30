@@ -5,5 +5,5 @@ open Sexplib.Std;
 type t = {
   name: string,
   caption: [@sexp.opaque] Vdom.Node.t,
-  init_zexp: ZExp.t,
+  init_edit_state: Statics.edit_state,
 };

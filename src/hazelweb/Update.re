@@ -230,6 +230,13 @@ let apply_action =
           |> Serialization.string_of_zexp
           |> Js.string
           |> JSUtil.log
+        | EditState =>
+          model
+          |> Model.get_edit_state
+          |> Statics.sexp_of_edit_state
+          |> Sexplib.Sexp.to_string
+          |> Js.string
+          |> JSUtil.log
         };
         model;
       };
