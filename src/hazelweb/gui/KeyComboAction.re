@@ -7,34 +7,17 @@ let get_model_action_from_kc =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (cursor_on_type, cursor_on_comment, cursor_on_stringlit, cursor_on_exp) =
+  let (cursor_on_type, cursor_on_comment, cursor_on_exp) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false, false, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (
-        false,
-        true,
-        false,
-        false,
-      )
-    | {cursor_term: ExpOperand(OnText(_), StringLit(_)), _} => (
-        false,
-        false,
-        true,
-        true,
-      )
-    | {cursor_term: PatOperand(OnText(_), StringLit(_)), _} => (
-        false,
-        false,
-        true,
-        false,
-      )
+    | {typed: OnType, _} => (true, false, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true, false)
     | {cursor_term: ExpOperand(_, operand), _} =>
       switch (operand) {
-      | EmptyHole(_) => (false, false, false, false)
-      | _ => (false, false, false, true)
+      | EmptyHole(_) => (false, false, false)
+      | _ => (false, false, true)
       }
 
-    | _ => (false, false, false, false)
+    | _ => (false, false, false)
     };
 
   /* When adding or updating key combo actions, make sure to appropriately update
@@ -46,56 +29,36 @@ let get_model_action_from_kc =
   | ShiftTab => Some(EditAction(MoveToPrevHole))
   | Tab => Some(EditAction(MoveToNextHole))
   | GT when cursor_on_type => construct(SOp(SArrow))
-  | GT when cursor_on_stringlit => construct(SChar(">"))
   | GT => construct(SOp(SGreaterThan))
-  | Ampersand when cursor_on_stringlit => construct(SChar("&"))
   | Ampersand => construct(SOp(SAnd))
   | VBar when cursor_on_type => construct(SOp(SVBar))
-  | VBar when cursor_on_stringlit => construct(SChar("|"))
   | VBar => construct(SOp(SOr))
-  | LeftParen when cursor_on_stringlit => construct(SChar("("))
   | LeftParen => construct(SParenthesized)
   | RightParen => construct(SCloseParens)
   | RightBrace => construct(SCloseBraces)
   | RightSquareBracket => construct(SCloseSquareBracket)
-  | Colon when cursor_on_stringlit => construct(SChar(":"))
   | Colon => construct(SAnn)
-  | Equals when cursor_on_stringlit => construct(SChar("="))
   | Equals => construct(SOp(SEquals))
-  // TODO: Enter when cursor_on_stringlit?
   | Enter => construct(SLine)
   | Shift_Enter => construct(SCommentLine)
-  | Backslash when cursor_on_stringlit => construct(SChar("\\"))
   | Backslash => construct(SLam)
-  | Plus when cursor_on_stringlit => construct(SChar("+"))
   | Plus => construct(SOp(SPlus))
-  | Minus when cursor_on_stringlit => construct(SChar("-"))
   | Minus => construct(SOp(SMinus))
-  | Asterisk when cursor_on_stringlit => construct(SChar("*"))
   | Asterisk => construct(SOp(STimes))
-  | Slash when cursor_on_stringlit => construct(SChar("/"))
   | Slash => construct(SOp(SDivide))
-  | LT when cursor_on_stringlit => construct(SChar("<"))
   | LT => construct(SOp(SLessThan))
   | Space when cursor_on_comment => construct(SChar(" "))
-  | Space when cursor_on_stringlit => construct(SChar(" "))
   | Space => construct(SOp(SSpace))
-  | Comma when cursor_on_stringlit => construct(SChar(","))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
-  | LeftBracket when cursor_on_stringlit => construct(SChar("["))
   | LeftBracket when cursor_on_exp => construct(SSubscript)
   | LeftBracket => construct(SListNil)
-  | Semicolon when cursor_on_stringlit => construct(SChar(";"))
   | Semicolon => construct(SOp(SCons))
-  | Quote when cursor_on_stringlit => construct(SChar("\""))
   | Quote => construct(SQuote)
-  | Caret when cursor_on_stringlit => construct(SChar("^"))
   | Caret => construct(SOp(SCaret))
   | Alt_L => construct(SInj(L))
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
-  | Pound when cursor_on_stringlit => construct(SChar("#"))
   | Pound => construct(SCommentLine)
   | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole(UHExp))
