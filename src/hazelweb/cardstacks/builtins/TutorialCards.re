@@ -42,11 +42,6 @@ let intro_init_zexp =
    init_zexp: intro_init_zexp,
  };
  */
-// let intro_card: CardInfo.t = {
-//   name: "intro",
-//   caption: div([], []),
-//   init_zexp: intro_init_zexp,
-// };
 /*
  let backspace_caption =
    div(
@@ -107,8 +102,3 @@ let intro_init_zexp =
    init_zexp: empty_hole_insertion_init_zblock,
  };
  */
-
-// let cardstack: CardstackInfo.t = {
-//   title: "Hazel Tutorial",
-//   cards: [intro_card /*backspace_card, empty_hole_insertion_card */],
-// };
