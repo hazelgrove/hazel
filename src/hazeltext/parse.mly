@@ -160,7 +160,13 @@ pat:
 
 pat_:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
-  | IDENT { UHPat.var $1 }
+  | IDENT {
+    if Var.is_valid $1 then
+      UHPat.var $1
+    else
+      let (it, _) = UHPat.new_InvalidText 0 $1 in
+      it
+  }
   | EMPTY_HOLE { UHPat.EmptyHole 0 }
   | pat_constant { $1 }
   | LBRACK RBRACK { UHPat.listnil () }
@@ -192,7 +198,13 @@ expr:
 simple_expr:
   LPAREN line RPAREN { UHExp.Parenthesized($2) }
   | constant { $1 }
-  | IDENT { UHExp.var $1 }
+  | IDENT {
+    if Var.is_valid $1 then
+      UHExp.var $1
+    else
+      let (it, _) = UHExp.new_InvalidText 0 $1 in
+      it
+  }
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | fn { $1 }
   | INJL LPAREN line RPAREN { mk_inj_l $3 }
