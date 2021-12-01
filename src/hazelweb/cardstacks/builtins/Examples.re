@@ -117,6 +117,12 @@ let option_example: UHExp.t =
   )
   |> UHExp.t_of_sexp;
 
+let xxx_example: UHExp.t =
+  Sexplib.Sexp.of_string(
+    "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole f)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Hole(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E)))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole f)(A Space(S(Inj NotInHole(Tag NotInTagHole B)())E)))))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole g)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S(Sum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole A))(A Plus(S(ConstTag(Tag NotInTagHole B))E))))))(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole A)())E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(Wild NotInHole)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 2)E)))))))E)))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole g)(A Space(S(Var NotInHole NotInVarHole x)E))))))",
+  )
+  |> UHExp.t_of_sexp;
+
 let qsort_example: UHExp.t = {
   let append_case =
     UHExp.(
@@ -398,6 +404,7 @@ let examples = [
   ("inconsistent branches", inconsistent_branches),
   ("scale", scale_example),
   ("option", option_example),
+  ("XXX", xxx_example),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
