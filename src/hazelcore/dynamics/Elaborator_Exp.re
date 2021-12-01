@@ -809,13 +809,15 @@ and ana_elab_operand =
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(dp, ty1p, ctx, delta) =>
+          let (body, _) =
+            Statics_Exp.ana_fix_holes(ctx, MetaVarGen.init, body, ty2);
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
             let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, delta);
-          }
+          };
         }
       };
     }
