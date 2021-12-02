@@ -17,20 +17,21 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term =>
   | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
-  | SumZ(zsumbody) => extract_from_zsumbody(zsumbody)
+  | FiniteSumZ(zsum_body) => extract_from_zsum_body(zsum_body)
+  | ElidedSumZ(zoperand) => extract_from_zsum_body_operand(zoperand)
   }
 
-and extract_from_zsumbody = (ZOpSeq(_, zseq): ZTyp.zsumbody): cursor_term =>
+and extract_from_zsum_body = (ZOpSeq(_, zseq): ZTyp.zsum_body): cursor_term =>
   switch (zseq) {
-  | ZOperand(zoperand, _) => extract_from_zsumbody_operand(zoperand)
+  | ZOperand(zoperand, _) => extract_from_zsum_body_operand(zoperand)
   | ZOperator((cursor, operator), _) => SumBodyOperator(cursor, operator)
   }
 
-and extract_from_zsumbody_operand =
-    (zoperand: ZTyp.zsumbody_operand): cursor_term =>
+and extract_from_zsum_body_operand =
+    (zoperand: ZTyp.zsum_body_operand): cursor_term =>
   switch (zoperand) {
   | CursorArgTag(cursor, _, _) =>
-    SumBodyOperand(cursor, zoperand |> ZTyp.erase_zsumbody_operand)
+    SumBodyOperand(cursor, zoperand |> ZTyp.erase_zsum_body_operand)
   | ConstTagZ(ztag) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZT(ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | ArgTagZA(_, zty) => extract_cursor_term(zty)
@@ -52,8 +53,9 @@ and get_zoperand_from_ztyp_opseq = (zopseq: ZTyp.zopseq): option(zoperand) => {
 and get_zoperand_from_ztyp_operand =
     (zoperand: ZTyp.zoperand): option(zoperand) => {
   switch (zoperand) {
-  | CursorT(_, _) => Some(ZTyp(zoperand))
-  | SumZ(zsumbody) => Some(ZTyp(SumZ(zsumbody)))
+  | CursorT(_, _)
+  | FiniteSumZ(_)
+  | ElidedSumZ(_) => Some(ZTyp(zoperand))
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
   };

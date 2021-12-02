@@ -22,7 +22,7 @@ let rec mk =
     let (steps1, steps1') = diff_subtypes(0, (ty1, ty1'));
     let (steps2, steps2') = diff_subtypes(1, (ty2, ty2'));
     (steps1 @ steps2, steps1' @ steps2');
-  | (Sum(tymap), Sum(tymap')) =>
+  | (Sum(Finite(tymap)), Sum(Finite(tymap'))) =>
     let ty_opts = TagMap.bindings(tymap);
     let ty_opts' = TagMap.bindings(tymap');
     if (List.length(ty_opts) != List.length(ty_opts')
@@ -40,6 +40,17 @@ let rec mk =
       |> List.split
       |> TupleUtil.map2(List.flatten);
     };
+  | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
+    if (UHTag.eq(tag, tag')) {
+      switch (ty_opt, ty_opt') {
+      | (None, None) => ([], [])
+      | (Some(ty), Some(ty')) => diff_subtypes(0, (ty, ty'))
+      | (None, Some(_))
+      | (Some(_), None) => ([[]], [[]])
+      };
+    } else {
+      ([[]], [[]]);
+    }
   | (Prod(tys), Prod(tys')) =>
     if (List.length(tys) != List.length(tys')) {
       ([[]], [[]]);

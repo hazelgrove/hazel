@@ -158,7 +158,10 @@ type t =
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
-and inj = (TagMap.t(option(HTyp.t)), UHTag.t, option(t))
+and inj = (sum_body, UHTag.t, option(t))
+and sum_body =
+  | Finite(TagMap.t(option(HTyp.t)))
+  | Elided(UHTag.t, option(HTyp.t))
 and case =
   | Case(t, list(rule), int)
 and rule =

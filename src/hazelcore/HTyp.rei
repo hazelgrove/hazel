@@ -6,9 +6,12 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(TagMap.t(option(t)))
+  | Sum(sum_body)
   | Prod(list(t))
-  | List(t);
+  | List(t)
+and sum_body =
+  | Finite(TagMap.t(option(t)))
+  | Elided(UHTag.t, option(t));
 
 type join =
   | GLB

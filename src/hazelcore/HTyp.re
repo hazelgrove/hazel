@@ -8,9 +8,12 @@ type t =
   | Float
   | Bool
   | Arrow(t, t)
-  | Sum(TagMap.t(option(t)))
+  | Sum(sum_body)
   | Prod(list(t))
-  | List(t);
+  | List(t)
+and sum_body =
+  | Finite(TagMap.t(option(t)))
+  | Elided(UHTag.t, option(t));
 
 [@deriving sexp]
 type join =
@@ -49,7 +52,7 @@ let rec eq = (ty, ty') =>
   | (Bool, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
   | (Arrow(_, _), _) => false
-  | (Sum(tys), Sum(tys')) =>
+  | (Sum(Finite(tys)), Sum(Finite(tys'))) =>
     TagMap.equal(
       (map1, map2) =>
         switch (map1, map2) {
@@ -82,7 +85,8 @@ let rec consistent = (x, y) =>
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
   | (Arrow(_, _), _) => false
-  | (Sum(tys), Sum(tys')) =>
+  // TCSum1
+  | (Sum(Finite(tys)), Sum(Finite(tys'))) =>
     TagMap.equal(
       (ty_opt, ty_opt') =>
         switch (ty_opt, ty_opt') {
@@ -93,6 +97,16 @@ let rec consistent = (x, y) =>
       tys,
       tys',
     )
+  // TCSum2
+  | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
+    !UHTag.eq(tag, tag') || consistent_opt(ty_opt, ty_opt')
+  // TCSum12, TCSum21
+  | (Sum(Finite(tymap)), Sum(Elided(tag, ty_opt)))
+  | (Sum(Elided(tag, ty_opt)), Sum(Finite(tymap))) =>
+    switch (TagMap.find_opt(tag, tymap)) {
+    | None => true
+    | Some(ty_opt') => consistent_opt(ty_opt, ty_opt')
+    }
   | (Sum(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.for_all2_opt(consistent, tys1, tys2)
@@ -100,6 +114,13 @@ let rec consistent = (x, y) =>
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
+  }
+
+and consistent_opt = (ty_opt: option(t), ty_opt': option(t)): bool =>
+  switch (ty_opt, ty_opt') {
+  | (None, None) => true
+  | (Some(ty), Some(ty')) => consistent(ty, ty')
+  | (_, _) => false
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -144,7 +165,7 @@ let rec complete =
   | Float => true
   | Bool => true
   | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Sum(tys) =>
+  | Sum(Finite(tymap)) =>
     List.for_all(
       ((tag: UHTag.t, ty_opt)) =>
         (
@@ -159,8 +180,9 @@ let rec complete =
           | None => true
           }
         ),
-      tys,
+      tymap,
     )
+  | Sum(Elided(_)) => false
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
@@ -188,11 +210,11 @@ let rec join = (j, ty1, ty2) =>
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Sum(tys), Sum(tys')) =>
-    /* if tys != tys', then sort them first */
-    let (tys, tys') =
-      TagMap.tags_equal(tys, tys')
-        ? (tys, tys') : (TagMap.sort(tys), TagMap.sort(tys'));
+  | (Sum(Finite(tymap)), Sum(Finite(tymap'))) =>
+    /* if tymap != tymap', then sort them first */
+    let (tymap, tymap') =
+      TagMap.tags_equal(tymap, tymap')
+        ? (tymap, tymap') : (TagMap.sort(tymap), TagMap.sort(tymap'));
     Option.map(
       joined_tys => Sum(joined_tys),
       switch (
@@ -211,11 +233,11 @@ let rec join = (j, ty1, ty2) =>
               }
             ),
           Some([]),
-          tys,
-          tys',
+          tymap,
+          tymap',
         )
       ) {
-      | opt => opt
+      | opt => opt |> Option.map(tymap => Finite(tymap))
       | exception (Invalid_argument(_)) => None
       },
     );

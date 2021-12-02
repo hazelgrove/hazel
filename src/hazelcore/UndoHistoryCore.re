@@ -177,7 +177,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Bool
     | Parenthesized(_)
     | List(_)
-    | Sum(_) => MaxLen
+    | FiniteSum(_)
+    | ElidedSum(_) => MaxLen
     }
   | ExpOperator(_, _)
   | PatOperator(_, _)

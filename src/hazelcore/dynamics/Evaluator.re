@@ -10,13 +10,23 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-let grounded_Sum = (tymap: TagMap.t(option(HTyp.t))): ground_cases =>
-  NotGroundOrHole(Sum(TagMap.map(Option.map(_ => HTyp.Hole), tymap)));
+let grounded_FiniteSum = (tymap: TagMap.t(option(HTyp.t))): ground_cases => {
+  let tymap' = tymap |> TagMap.map(Option.map(_ => HTyp.Hole));
+  NotGroundOrHole(Sum(Finite(tymap')));
+};
+let grounded_ElidedSum = (tag: UHTag.t, ty_opt: option(HTyp.t)): ground_cases => {
+  NotGroundOrHole(Sum(Elided(tag, ty_opt |> Option.map(_ => HTyp.Hole))));
+};
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
 let grounded_List = NotGroundOrHole(List(Hole));
 
-let rec ground_cases_of = (ty: HTyp.t): ground_cases =>
+let rec ground_cases_of = (ty: HTyp.t): ground_cases => {
+  let is_arg_ground: option(HTyp.t) => bool =
+    fun
+    | None
+    | Some(HTyp.Hole) => true
+    | Some(ty) => ground_cases_of(ty) == Ground;
   switch (ty) {
   | Hole => Hole
   | Bool
@@ -31,17 +41,14 @@ let rec ground_cases_of = (ty: HTyp.t): ground_cases =>
       tys |> List.length |> grounded_Prod;
     }
   | Arrow(_, _) => grounded_Arrow
-  | Sum(tymap) =>
-    tymap
-    |> TagMap.is_ground(
-         fun
-         | None
-         | Some(HTyp.Hole) => true
-         | Some(ty) => ground_cases_of(ty) == Ground,
-       )
-      ? Ground : grounded_Sum(tymap)
+  | Sum(Finite(tymap)) =>
+    tymap |> TagMap.is_ground(is_arg_ground)
+      ? Ground : grounded_FiniteSum(tymap)
+  | Sum(Elided(tag, ty_opt)) =>
+    is_arg_ground(ty_opt) ? Ground : grounded_ElidedSum(tag, ty_opt)
   | List(_) => grounded_List
   };
+};
 
 let cast_tymaps =
     (tymap1: TagMap.t(option(HTyp.t)), tymap2: TagMap.t(option(HTyp.t)))
@@ -144,7 +151,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | (Some(_), None) => DoesNotMatch
       }
     }
-  | (Inj((tag, dp_opt)), Cast(d, Sum(tymap1), Sum(tymap2))) =>
+  | (
+      Inj((tag, dp_opt)),
+      Cast(d, Sum(Finite(tymap1)), Sum(Finite(tymap2))),
+    ) =>
     switch (cast_tymaps(tymap1, tymap2)) {
     | Some(castmap) => matches_cast_Inj(tag, dp_opt, d, [castmap])
     | None => DoesNotMatch
@@ -238,7 +248,7 @@ and matches_cast_Inj =
       }
     | _ => DoesNotMatch
     }
-  | Cast(d', Sum(tymap1), Sum(tymap2)) =>
+  | Cast(d', Sum(Finite(tymap1)), Sum(Finite(tymap2))) =>
     switch (cast_tymaps(tymap1, tymap2)) {
     | Some(castmap) =>
       matches_cast_Inj(tag, dp_opt, d', [castmap, ...castmaps])

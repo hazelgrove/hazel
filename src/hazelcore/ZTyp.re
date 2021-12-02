@@ -1,7 +1,7 @@
 open OptUtil.Syntax;
 
 [@deriving sexp]
-type zsumbody_operator = (CursorPosition.t, Operators_SumBody.t);
+type zsum_body_operator = (CursorPosition.t, Operators_SumBody.t);
 
 [@deriving sexp]
 type t = zopseq
@@ -10,16 +10,17 @@ and zoperand =
   | CursorT(CursorPosition.t, UHTyp.operand)
   | ParenthesizedZ(t)
   | ListZ(t)
-  | SumZ(zsumbody)
+  | FiniteSumZ(zsum_body)
+  | ElidedSumZ(zsum_body_operand)
 and zoperator = (CursorPosition.t, UHTyp.operator)
-and zsumbody =
+and zsum_body =
   ZOpSeq.t(
-    UHTyp.sumbody_operand,
-    UHTyp.sumbody_operator,
-    zsumbody_operand,
-    zsumbody_operator,
+    UHTyp.sum_body_operand,
+    UHTyp.sum_body_operator,
+    zsum_body_operand,
+    zsum_body_operator,
   )
-and zsumbody_operand =
+and zsum_body_operand =
   | CursorArgTag(CursorPosition.t, UHTag.t, UHTyp.t)
   | ConstTagZ(ZTag.t)
   | ArgTagZT(ZTag.t, UHTyp.t)
@@ -29,18 +30,17 @@ type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
 type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
-type sumbody_operand_surround =
-  Seq.operand_surround(UHTyp.sumbody_operand, UHTyp.sumbody_operator);
-type sumbody_operator_surround =
-  Seq.operator_surround(UHTyp.sumbody_operand, UHTyp.sumbody_operator);
-type sumbody_zseq =
+type sum_body_operand_surround =
+  Seq.operand_surround(UHTyp.sum_body_operand, UHTyp.sum_body_operator);
+type sum_body_operator_surround =
+  Seq.operator_surround(UHTyp.sum_body_operand, UHTyp.sum_body_operator);
+type sum_body_zseq =
   ZSeq.t(
-    UHTyp.sumbody_operand,
-    UHTyp.sumbody_operator,
-    zsumbody_operand,
-    zsumbody_operator,
+    UHTyp.sum_body_operand,
+    UHTyp.sum_body_operator,
+    zsum_body_operand,
+    zsum_body_operator,
   );
-
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
@@ -50,20 +50,21 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_)
-  | Sum(_) => CursorPosition.delim_cursors(2);
+  | FiniteSum(_)
+  | ElidedSum(_) => CursorPosition.delim_cursors(2);
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
 
-let valid_cursors_sumbody_operand:
-  UHTyp.sumbody_operand => list(CursorPosition.t) =
+let valid_cursors_sum_body_operand:
+  UHTyp.sum_body_operand => list(CursorPosition.t) =
   fun
   | ConstTag(tag) => ZTag.valid_cursors(tag)
   | ArgTag(_, _) => CursorPosition.delim_cursors(2);
 
-let valid_cursors_sumbody_operator =
-    (_: UHTyp.sumbody_operator): list(CursorPosition.t) => [
+let valid_cursors_sum_body_operator =
+    (_: UHTyp.sum_body_operator): list(CursorPosition.t) => [
   OnOp(Before),
   OnOp(After),
 ];
@@ -75,19 +76,20 @@ let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHTyp.operator): bool =>
   valid_cursors_operator(operator) |> List.mem(cursor);
 
-let is_valid_cursor_sumbody_operand =
-    (cursor: CursorPosition.t, sumbody_operand: UHTyp.sumbody_operand): bool =>
-  valid_cursors_sumbody_operand(sumbody_operand) |> List.mem(cursor);
-let is_valid_cursor_sumbody_operator =
-    (cursor: CursorPosition.t, sumbody_operator: UHTyp.sumbody_operator): bool =>
-  valid_cursors_sumbody_operator(sumbody_operator) |> List.mem(cursor);
+let is_valid_cursor_sum_body_operand =
+    (cursor: CursorPosition.t, sum_body_operand: UHTyp.sum_body_operand): bool =>
+  valid_cursors_sum_body_operand(sum_body_operand) |> List.mem(cursor);
+let is_valid_cursor_sum_body_operator =
+    (cursor: CursorPosition.t, sum_body_operator: UHTyp.sum_body_operator)
+    : bool =>
+  valid_cursors_sum_body_operator(sum_body_operator) |> List.mem(cursor);
 
 let erase_zoperator =
   fun
   | (_, operator) => operator;
-let erase_zsumbody_operator =
+let erase_zsum_body_operator =
   fun
-  | (_, sumbody_op) => sumbody_op;
+  | (_, sum_body_op) => sum_body_op;
 
 let rec erase = (zty: t): UHTyp.t => zty |> erase_zopseq
 and erase_zopseq = zopseq =>
@@ -96,15 +98,16 @@ and erase_zoperand =
   fun
   | CursorT(_, operand) => operand
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
-  | SumZ(zsumbody) => Sum(Some(erase_zsumbody(zsumbody)))
+  | FiniteSumZ(zsum_body) => FiniteSum(Some(erase_zsum_body(zsum_body)))
+  | ElidedSumZ(zoperand) => ElidedSum(erase_zsum_body_operand(zoperand))
   | ListZ(zty) => List(erase(zty))
-and erase_zsumbody = zsumbody =>
+and erase_zsum_body = zsum_body =>
   ZOpSeq.erase(
-    ~erase_zoperand=erase_zsumbody_operand,
+    ~erase_zoperand=erase_zsum_body_operand,
     ~erase_zoperator,
-    zsumbody,
+    zsum_body,
   )
-and erase_zsumbody_operand =
+and erase_zsum_body_operand =
   fun
   | ConstTagZ(ztag) => UHTyp.ConstTag(ZTag.erase(ztag))
   | CursorArgTag(_, tag, ty) => UHTyp.ArgTag(tag, ty)
@@ -114,11 +117,11 @@ and erase_zsumbody_operand =
 let mk_ZOpSeq: zseq => zopseq =
   ZOpSeq.mk(~associate=UHTyp.associate, ~erase_zoperand, ~erase_zoperator);
 
-let mk_sumbody_ZOpSeq: sumbody_zseq => zsumbody =
+let mk_sum_body_ZOpSeq: sum_body_zseq => zsum_body =
   ZOpSeq.mk(
-    ~associate=UHTyp.associate_sumbody,
-    ~erase_zoperand=erase_zsumbody_operand,
-    ~erase_zoperator=erase_zsumbody_operator,
+    ~associate=UHTyp.associate_sum_body,
+    ~erase_zoperand=erase_zsum_body_operand,
+    ~erase_zoperator=erase_zsum_body_operator,
   );
 
 let erase_zseq = zseq =>
@@ -134,31 +137,36 @@ and is_before_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, Sum(_))
+  | CursorT(cursor, FiniteSum(_))
+  | CursorT(cursor, ElidedSum(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_)
-  | SumZ(_)
+  | FiniteSumZ(_)
+  | ElidedSumZ(_)
   | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
   | _ => false;
 
-let is_before_zsumbody_operand =
+let is_before_zsum_body_operand =
   fun
   | CursorArgTag(_, _, _) => false
   | ConstTagZ(ztag)
   | ArgTagZT(ztag, _) => ZTag.is_before(ztag)
   | ArgTagZA(_, _) => false;
 
-let is_before_zsumbody_operator = ((cursor, _): zsumbody_operator): bool =>
+let is_before_zsum_body_operator = ((cursor, _): zsum_body_operator): bool =>
   switch (cursor) {
   | OnOp(Before) => true
   | _ => false
   };
 
-let is_before_zsumbody = (zsumbody: zsumbody): bool =>
-  ZOpSeq.is_before(~is_before_zoperand=is_before_zsumbody_operand, zsumbody);
+let is_before_zsum_body = (zsum_body: zsum_body): bool =>
+  ZOpSeq.is_before(
+    ~is_before_zoperand=is_before_zsum_body_operand,
+    zsum_body,
+  );
 
 let rec is_after = (zty: t): bool => zty |> is_after_zopseq
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
@@ -170,53 +178,59 @@ and is_after_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, Sum(_))
+  | CursorT(cursor, FiniteSum(_))
+  | CursorT(cursor, ElidedSum(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_)
-  | SumZ(_)
+  | FiniteSumZ(_)
+  | ElidedSumZ(_)
   | ListZ(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
   | _ => false;
 
-let is_after_zsumbody_operand =
+let is_after_zsum_body_operand =
   fun
   | CursorArgTag(cursor, _, _) => cursor == OnDelim(1, After)
   | ArgTagZT(_, _)
   | ArgTagZA(_, _) => false
   | ConstTagZ(ztag) => ZTag.is_after(ztag);
 
-let is_after_zsumbody_operator = ((cursor, _): zsumbody_operator): bool =>
+let is_after_zsum_body_operator = ((cursor, _): zsum_body_operator): bool =>
   switch (cursor) {
   | OnOp(After) => true
   | _ => false
   };
 
-let is_after_zsumbody = (zsumbody: zsumbody): bool =>
-  ZOpSeq.is_after(~is_after_zoperand=is_after_zsumbody_operand, zsumbody);
+let is_after_zsum_body = (zsum_body: zsum_body): bool =>
+  ZOpSeq.is_after(~is_after_zoperand=is_after_zsum_body_operand, zsum_body);
 
 let rec place_before = (ty: UHTyp.t): t => ty |> place_before_opseq
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | Sum(_) | List(_)) as operand =>
+  | (
+      Hole | Unit | Int | Float | Bool | Parenthesized(_) | FiniteSum(_) |
+      ElidedSum(_) |
+      List(_)
+    ) as operand =>
     CursorT(OnDelim(0, Before), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
-let place_before_sumbody_operator =
-    (sumbody_op: UHTyp.sumbody_operator): option(zsumbody_operator) =>
-  Some((OnOp(Before), sumbody_op));
-let place_before_sumbody_operand: UHTyp.sumbody_operand => zsumbody_operand =
+let place_before_sum_body_operator =
+    (sum_body_op: UHTyp.sum_body_operator): option(zsum_body_operator) =>
+  Some((OnOp(Before), sum_body_op));
+let place_before_sum_body_operand: UHTyp.sum_body_operand => zsum_body_operand =
   fun
   | ConstTag(tag) => ConstTagZ(ZTag.place_before(tag))
   | ArgTag(tag, ty) => ArgTagZT(ZTag.place_before(tag), ty);
-let place_before_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
+let place_before_sum_body = (sum_body: UHTyp.sum_body): zsum_body =>
   ZOpSeq.place_before(
-    ~place_before_operand=place_before_sumbody_operand,
-    sumbody,
+    ~place_before_operand=place_before_sum_body_operand,
+    sum_body,
   );
 
 let rec place_after = (ty: UHTyp.t): t => ty |> place_after_opseq
@@ -226,23 +240,23 @@ and place_after_operand =
   fun
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
-  | (Parenthesized(_) | Sum(_) | List(_)) as operand =>
+  | (Parenthesized(_) | FiniteSum(_) | ElidedSum(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
-let place_after_sumbody_operand =
-    (sumbody_operand: UHTyp.sumbody_operand): zsumbody_operand =>
-  switch (sumbody_operand) {
+let place_after_sum_body_operand =
+    (sum_body_operand: UHTyp.sum_body_operand): zsum_body_operand =>
+  switch (sum_body_operand) {
   | UHTyp.ConstTag(tag) => ConstTagZ(ZTag.place_after(tag))
   | UHTyp.ArgTag(tag, ty) => CursorArgTag(OnDelim(1, After), tag, ty)
   };
-let place_after_sumbody = (sumbody: UHTyp.sumbody): zsumbody =>
+let place_after_sum_body = (sum_body: UHTyp.sum_body): zsum_body =>
   ZOpSeq.place_after(
-    ~place_after_operand=place_after_sumbody_operand,
-    sumbody,
+    ~place_after_operand=place_after_sum_body_operand,
+    sum_body,
   );
-let place_after_sumbody_operator =
-    (op: UHTyp.sumbody_operator): option(zsumbody_operator) =>
+let place_after_sum_body_operator =
+    (op: UHTyp.sum_body_operator): option(zsum_body_operator) =>
   Some((OnOp(After), op));
 
 let place_cursor_operand =
@@ -254,21 +268,21 @@ let place_cursor_operator =
   is_valid_cursor_operator(cursor, operator)
     ? Some((cursor, operator)) : None;
 
-let place_cursor_sumbody_operand =
-    (cursor: CursorPosition.t, operand: UHTyp.sumbody_operand)
-    : option(zsumbody_operand) =>
-  is_valid_cursor_sumbody_operand(cursor, operand)
+let place_cursor_sum_body_operand =
+    (cursor: CursorPosition.t, operand: UHTyp.sum_body_operand)
+    : option(zsum_body_operand) =>
+  is_valid_cursor_sum_body_operand(cursor, operand)
     ? switch (operand) {
       | ConstTag(tag) => Some(ConstTagZ(ZTag.CursorTag(cursor, tag)))
       | ArgTag(tag, ty) => Some(CursorArgTag(cursor, tag, ty))
       }
     : None;
 
-let place_cursor_sumbody_operator =
-    (cursor: CursorPosition.t, sumbody_operator: UHTyp.sumbody_operator)
-    : option(zsumbody_operator) =>
-  is_valid_cursor_sumbody_operator(cursor, sumbody_operator)
-    ? Some((cursor, sumbody_operator)) : None;
+let place_cursor_sum_body_operator =
+    (cursor: CursorPosition.t, sum_body_operator: UHTyp.sum_body_operator)
+    : option(zsum_body_operator) =>
+  is_valid_cursor_sum_body_operator(cursor, sum_body_operator)
+    ? Some((cursor, sum_body_operator)) : None;
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
@@ -276,8 +290,8 @@ let move_cursor_left_zoperator: zoperator => option(zoperator) =
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op));
 
-let move_cursor_left_zsumbody_operator:
-  zsumbody_operator => option(zsumbody_operator) =
+let move_cursor_left_zsum_body_operator:
+  zsum_body_operator => option(zsum_body_operator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
@@ -306,10 +320,12 @@ and move_cursor_left_zoperand =
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
 
-  | CursorT(OnDelim(_1, Before), Sum(None) as operand) =>
+  | CursorT(OnDelim(_1, Before), FiniteSum(None) as operand) =>
     place_cursor_operand(OnDelim(0, Before), operand)
-  | CursorT(OnDelim(_1, Before), Sum(Some(sumbody))) =>
-    Some(SumZ(place_after_sumbody(sumbody)))
+  | CursorT(OnDelim(_1, Before), FiniteSum(Some(sum_body))) =>
+    Some(FiniteSumZ(place_after_sum_body(sum_body)))
+  | CursorT(OnDelim(_1, Before), ElidedSum(operand)) =>
+    Some(ElidedSumZ(place_after_sum_body_operand(operand)))
 
   | CursorT(OnDelim(_k, Before), List(ty1)) =>
     // _k == 1
@@ -319,31 +335,38 @@ and move_cursor_left_zoperand =
     | Some(zty1) => Some(ParenthesizedZ(zty1))
     | None => Some(CursorT(OnDelim(0, After), Parenthesized(erase(zty1))))
     }
-  | SumZ(zsumbody) =>
-    switch (move_cursor_left_zsumbody(zsumbody)) {
-    | Some(zsumbody) => Some(SumZ(zsumbody))
+  | FiniteSumZ(zsum_body) =>
+    switch (move_cursor_left_zsum_body(zsum_body)) {
+    | Some(zsum_body) => Some(FiniteSumZ(zsum_body))
     | None =>
-      let sumbody = erase_zsumbody(zsumbody);
-      Some(CursorT(OnDelim(0, After), Sum(Some(sumbody))));
+      let sum_body = erase_zsum_body(zsum_body);
+      Some(CursorT(OnDelim(0, After), FiniteSum(Some(sum_body))));
+    }
+  | ElidedSumZ(zoperand) =>
+    switch (move_cursor_left_zsum_body_operand(zoperand)) {
+    | Some(zoperand') => Some(ElidedSumZ(zoperand'))
+    | None =>
+      let operand = erase_zsum_body_operand(zoperand);
+      Some(CursorT(OnDelim(0, After), ElidedSum(operand)));
     }
   | ListZ(zty1) =>
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
     }
-and move_cursor_left_zsumbody = zsumbody =>
+and move_cursor_left_zsum_body = zsum_body =>
   ZOpSeq.move_cursor_left(
-    ~move_cursor_left_zoperand=move_cursor_left_zsumbody_operand,
-    ~move_cursor_left_zoperator=move_cursor_left_zsumbody_operator,
-    ~place_after_operand=place_after_sumbody_operand,
-    ~place_after_operator=place_after_sumbody_operator,
-    ~erase_zoperand=erase_zsumbody_operand,
-    ~erase_zoperator=erase_zsumbody_operator,
-    zsumbody,
+    ~move_cursor_left_zoperand=move_cursor_left_zsum_body_operand,
+    ~move_cursor_left_zoperator=move_cursor_left_zsum_body_operator,
+    ~place_after_operand=place_after_sum_body_operand,
+    ~place_after_operator=place_after_sum_body_operator,
+    ~erase_zoperand=erase_zsum_body_operand,
+    ~erase_zoperator=erase_zsum_body_operator,
+    zsum_body,
   )
-and move_cursor_left_zsumbody_operand =
+and move_cursor_left_zsum_body_operand =
   fun
-  | z when is_before_zsumbody_operand(z) => None
+  | z when is_before_zsum_body_operand(z) => None
   | ConstTagZ(ztag) => {
       let+ ztag = ZTag.move_cursor_left(ztag);
       ConstTagZ(ztag);
@@ -376,8 +399,8 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
-let move_cursor_right_zsumbody_operator:
-  zsumbody_operator => option(zsumbody_operator) =
+let move_cursor_right_zsum_body_operator:
+  zsum_body_operator => option(zsum_body_operator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
@@ -406,10 +429,12 @@ and move_cursor_right_zoperand =
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))
 
-  | CursorT(OnDelim(_0, After), Sum(None) as operand) =>
+  | CursorT(OnDelim(_0, After), FiniteSum(None) as operand) =>
     place_cursor_operand(OnDelim(1, After), operand)
-  | CursorT(OnDelim(_0, After), Sum(Some(sumbody))) =>
-    Some(SumZ(place_before_sumbody(sumbody)))
+  | CursorT(OnDelim(_0, After), FiniteSum(Some(sum_body))) =>
+    Some(FiniteSumZ(place_before_sum_body(sum_body)))
+  | CursorT(OnDelim(_0, After), ElidedSum(operand)) =>
+    Some(ElidedSumZ(place_before_sum_body_operand(operand)))
 
   | CursorT(OnDelim(_k, After), List(ty1)) =>
     // _k == 0
@@ -420,33 +445,40 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorT(OnDelim(1, Before), Parenthesized(erase(zty1))))
     }
-  | SumZ(zsumbody) =>
-    switch (move_cursor_right_zsumbody(zsumbody)) {
-    | Some(zsumbody) => Some(SumZ(zsumbody))
+  | FiniteSumZ(zsum_body) =>
+    switch (move_cursor_right_zsum_body(zsum_body)) {
+    | Some(zsum_body) => Some(FiniteSumZ(zsum_body))
     | None =>
-      let sumbody = erase_zsumbody(zsumbody);
-      Some(CursorT(OnDelim(1, Before), Sum(Some(sumbody))));
+      let sum_body = erase_zsum_body(zsum_body);
+      Some(CursorT(OnDelim(1, Before), FiniteSum(Some(sum_body))));
+    }
+  | ElidedSumZ(zoperand) =>
+    switch (move_cursor_right_zsum_body_operand(zoperand)) {
+    | Some(zoperand') => Some(ElidedSumZ(zoperand'))
+    | None =>
+      let operand = erase_zsum_body_operand(zoperand);
+      Some(CursorT(OnDelim(1, Before), ElidedSum(operand)));
     }
   | ListZ(zty1) =>
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(1, Before), List(erase(zty1))))
     }
-and move_cursor_right_zsumbody = zsumbody =>
+and move_cursor_right_zsum_body = zsum_body =>
   ZOpSeq.move_cursor_right(
-    ~move_cursor_right_zoperand=move_cursor_right_zsumbody_operand,
-    ~move_cursor_right_zoperator=move_cursor_right_zsumbody_operator,
-    ~place_before_operand=place_before_sumbody_operand,
-    ~place_before_operator=place_before_sumbody_operator,
-    ~erase_zoperand=erase_zsumbody_operand,
-    ~erase_zoperator=erase_zsumbody_operator,
-    zsumbody,
+    ~move_cursor_right_zoperand=move_cursor_right_zsum_body_operand,
+    ~move_cursor_right_zoperator=move_cursor_right_zsum_body_operator,
+    ~place_before_operand=place_before_sum_body_operand,
+    ~place_before_operator=place_before_sum_body_operator,
+    ~erase_zoperand=erase_zsum_body_operand,
+    ~erase_zoperator=erase_zsum_body_operator,
+    zsum_body,
   )
-and move_cursor_right_zsumbody_operand =
+and move_cursor_right_zsum_body_operand =
     // fun
-    (zoperand: zsumbody_operand) =>
+    (zoperand: zsum_body_operand) =>
   switch (zoperand) {
-  | z when is_after_zsumbody_operand(z) => None
+  | z when is_after_zsum_body_operand(z) => None
   | ConstTagZ(ztag) =>
     let+ ztag = ZTag.move_cursor_right(ztag);
     ConstTagZ(ztag);
@@ -482,16 +514,18 @@ and cursor_on_EmptyTagHole_zoperand =
   | CursorT(_, _) => None
   | ParenthesizedZ(zty) => cursor_on_EmptyTagHole(zty)
   | ListZ(zty) => cursor_on_EmptyTagHole(zty)
-  | SumZ(zsumbody) => cursor_on_EmptyTagHole_zsumbody(zsumbody)
+  | FiniteSumZ(zsum_body) => cursor_on_EmptyTagHole_zsum_body(zsum_body)
+  | ElidedSumZ(zoperand) =>
+    cursor_on_EmptyTagHole_zsum_body_operand(zoperand)
 
-and cursor_on_EmptyTagHole_zsumbody: zsumbody => option(MetaVar.t) =
+and cursor_on_EmptyTagHole_zsum_body: zsum_body => option(MetaVar.t) =
   fun
   | ZOpSeq(_, ZOperator(_)) => None
   | ZOpSeq(_, ZOperand(zoperand, _)) =>
-    cursor_on_EmptyTagHole_zsumbody_operand(zoperand)
+    cursor_on_EmptyTagHole_zsum_body_operand(zoperand)
 
-and cursor_on_EmptyTagHole_zsumbody_operand:
-  zsumbody_operand => option(MetaVar.t) =
+and cursor_on_EmptyTagHole_zsum_body_operand:
+  zsum_body_operand => option(MetaVar.t) =
   fun
   | CursorArgTag(_, _, _) => None
   | ConstTagZ(ztag)

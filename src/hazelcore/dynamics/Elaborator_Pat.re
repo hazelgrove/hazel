@@ -369,7 +369,7 @@ and ana_elab_operand =
 
   | Inj(InHole(UnexpectedArg as reason, u), tag, Some(arg)) =>
     switch (ty) {
-    | Sum(tymap) =>
+    | Sum(Finite(tymap)) =>
       switch (TagMap.find_opt(tag, tymap)) {
       | None
       | Some(Some(_)) => DoesNotElaborate
@@ -384,13 +384,23 @@ and ana_elab_operand =
           Elaborates(InjError(reason, u, 0, inj), ty, ctx', delta'');
         }
       }
+    | Sum(Elided(tag', None)) when UHTag.eq(tag, tag') =>
+      switch (ana_elab(ctx, delta, arg, Hole)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp, _, ctx', delta') =>
+        let gamma = Contexts.gamma(ctx');
+        let inj = (tag, Some(dp));
+        let delta'' =
+          MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta');
+        Elaborates(InjError(reason, u, 0, inj), ty, ctx', delta'');
+      }
     | _ => DoesNotElaborate
     }
   | Inj(InHole(UnexpectedArg, _), _, None) => DoesNotElaborate
 
   | Inj(InHole(ExpectedArg as reason, u), tag, None) =>
     switch (ty) {
-    | Sum(tymap) =>
+    | Sum(Finite(tymap)) =>
       switch (TagMap.find_opt(tag, tymap)) {
       | None
       | Some(None) => DoesNotElaborate
@@ -401,6 +411,11 @@ and ana_elab_operand =
           MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
         Elaborates(InjError(reason, u, 0, inj), ty, ctx, delta');
       }
+    | Sum(Elided(tag', Some(_))) when UHTag.eq(tag, tag') =>
+      let gamma = Contexts.gamma(ctx);
+      let inj = (tag, None);
+      let delta' = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
+      Elaborates(InjError(reason, u, 0, inj), ty, ctx, delta');
     | _ => DoesNotElaborate
     }
   | Inj(InHole(ExpectedArg, _), _, Some(_)) => DoesNotElaborate
@@ -443,12 +458,13 @@ and ana_elab_operand =
       | Some(DoesNotElaborate) => DoesNotElaborate
       | Some(Elaborates(dp, dp_ty, ctx', delta')) =>
         let tymap = TagMap.singleton(tag, Some(dp_ty));
-        Elaborates(Inj((tag, Some(dp))), HTyp.Sum(tymap), ctx', delta');
+        let ty' = HTyp.Sum(Finite(tymap));
+        Elaborates(Inj((tag, Some(dp))), ty', ctx', delta');
       | None =>
         let tymap = TagMap.singleton(tag, None);
-        Elaborates(Inj((tag, None)), HTyp.Sum(tymap), ctx, delta);
+        Elaborates(Inj((tag, None)), HTyp.Sum(Finite(tymap)), ctx, delta);
       };
-    | Sum(tymap) =>
+    | Sum(Finite(tymap)) =>
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(ty1_opt) =>
         switch (ty1_opt) {
@@ -473,6 +489,21 @@ and ana_elab_operand =
           Elaborates(Inj((tag, Some(dp))), ty, ctx', delta')
         | None => Elaborates(Inj((tag, None)), ty, ctx, delta)
         };
+      }
+    | Sum(Elided(tag', ty_opt)) when UHTag.eq(tag, tag') =>
+      switch (ty_opt) {
+      | Some(_) =>
+        switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
+        | None
+        | Some(DoesNotElaborate) => DoesNotElaborate
+        | Some(Elaborates(dp, _, ctx', delta')) =>
+          Elaborates(Inj((tag, Some(dp))), ty, ctx', delta')
+        }
+      | None =>
+        switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
+        | Some(_) => DoesNotElaborate
+        | None => Elaborates(Inj((tag, None)), ty, ctx, delta)
+        }
       }
     | _ => DoesNotElaborate
     }

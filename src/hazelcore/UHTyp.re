@@ -4,7 +4,7 @@ open Sexplib.Std;
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
-type sumbody_operator = Operators_SumBody.t;
+type sum_body_operator = Operators_SumBody.t;
 
 [@deriving sexp]
 type t = opseq
@@ -15,11 +15,12 @@ and operand =
   | Int
   | Float
   | Bool
-  | Sum(option(sumbody))
+  | FiniteSum(option(sum_body))
+  | ElidedSum(sum_body_operand)
   | Parenthesized(t)
   | List(t)
-and sumbody = OpSeq.t(sumbody_operand, sumbody_operator)
-and sumbody_operand =
+and sum_body = OpSeq.t(sum_body_operand, sum_body_operator)
+and sum_body_operand =
   | ConstTag(UHTag.t)
   | ArgTag(UHTag.t, t);
 
@@ -31,9 +32,9 @@ type skel = OpSeq.skel(operator);
 type seq = OpSeq.seq(operand, operator);
 
 [@deriving sexp]
-type sumbody_skel = OpSeq.skel(sumbody_operator);
+type sum_body_skel = OpSeq.skel(sum_body_operator);
 [@deriving sexp]
-type sumbody_seq = OpSeq.seq(sumbody_operand, sumbody_operator);
+type sum_body_seq = OpSeq.seq(sum_body_operand, sum_body_operator);
 
 let rec get_prod_elements: skel => list(skel) =
   fun
@@ -41,10 +42,10 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let rec get_sumbody_elements: sumbody_skel => list(sumbody_skel) =
+let rec get_sum_body_elements: sum_body_skel => list(sum_body_skel) =
   fun
   | BinOp(_, Plus, skel1, skel2) =>
-    get_sumbody_elements(skel1) @ get_sumbody_elements(skel2)
+    get_sum_body_elements(skel1) @ get_sum_body_elements(skel2)
   | skel => [skel];
 
 let unwrap_parentheses = (operand: operand): t =>
@@ -54,7 +55,8 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
-  | Sum(_)
+  | FiniteSum(_)
+  | ElidedSum(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
@@ -62,14 +64,14 @@ let unwrap_parentheses = (operand: operand): t =>
 let associate =
   Skel.mk(Operators_Typ.precedence, Operators_Typ.associativity);
 
-let associate_sumbody =
+let associate_sum_body =
   Skel.mk(Operators_SumBody.precedence, Operators_SumBody.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let mk_OpSeq_sumbody = OpSeq.mk(~associate=associate_sumbody);
+let mk_OpSeq_sum_body = OpSeq.mk(~associate=associate_sum_body);
 
-let contract = (ty: HTyp.t): t => {
+let rec contract = (ty: HTyp.t): t => {
   let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
     Seq.seq_op_seq(
       contract_to_seq(
@@ -108,26 +110,27 @@ let contract = (ty: HTyp.t): t => {
                head,
              ),
            )
-      | Sum(tymap) =>
+      | Sum(Finite(tymap)) =>
         switch (TagMap.bindings(tymap)) {
-        | [] => Seq.wrap(Sum(None))
+        | [] => Seq.wrap(FiniteSum(None))
         | [head, ...tail] =>
-          let binding_to_seq = ((tag1, ty1_opt)) =>
-            switch (ty1_opt) {
-            | None => Seq.wrap(ConstTag(tag1))
-            | Some(ty1) =>
-              Seq.wrap(ArgTag(tag1, mk_OpSeq(contract_to_seq(ty1))))
-            };
-          let sumbody_bindings =
+          let sum_body_bindings =
             tail
-            |> List.map(binding_to_seq)
+            |> List.map(seq_of_binding)
             |> List.fold_left(
                  (seq1, seq2) =>
                    Seq.seq_op_seq(seq1, Operators_SumBody.Plus, seq2),
-                 binding_to_seq(head),
+                 seq_of_binding(head),
                );
-          Seq.wrap(Sum(Some(mk_OpSeq_sumbody(sumbody_bindings))));
+          Seq.wrap(FiniteSum(Some(mk_OpSeq_sum_body(sum_body_bindings))));
         }
+      | Sum(Elided(tag, ty_opt)) =>
+        let operand =
+          switch (ty_opt) {
+          | None => ConstTag(tag)
+          | Some(ty) => ArgTag(tag, contract(ty))
+          };
+        Seq.wrap(ElidedSum(operand));
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       };
@@ -136,7 +139,12 @@ let contract = (ty: HTyp.t): t => {
     } else {
       seq;
     };
-  };
+  }
+  and seq_of_binding = ((tag1, ty1_opt)) =>
+    switch (ty1_opt) {
+    | None => Seq.wrap(ConstTag(tag1))
+    | Some(ty1) => Seq.wrap(ArgTag(tag1, mk_OpSeq(contract_to_seq(ty1))))
+    };
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
@@ -163,38 +171,24 @@ and expand_operand =
   | Int => Int
   | Float => Float
   | Bool => Bool
-  | Sum(None) => Sum(TagMap.empty)
-  | Sum(Some(opseq)) => Sum(expand_sumbody(opseq))
+  | FiniteSum(None) => Sum(Finite(TagMap.empty))
+  | FiniteSum(Some(opseq)) => Sum(Finite(expand_sum_body(opseq)))
+  | ElidedSum(operand) => {
+      let (tag, ty_opt) = expand_sum_body_operand(operand);
+      Sum(Elided(tag, ty_opt));
+    }
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq))
-and expand_sumbody = (OpSeq(_skel, seq)) =>
-  Seq.operands(seq)
-  |> List.map(
-       fun
-       | ConstTag(tag) => (tag, None)
-       | ArgTag(tag, opseq) => (tag, Some(expand(opseq))),
-     )
-  |> TagMap.of_list;
+and expand_sum_body = (OpSeq(_skel, seq)) =>
+  Seq.operands(seq) |> List.map(expand_sum_body_operand) |> TagMap.of_list
+and expand_sum_body_operand =
+  fun
+  | ConstTag(tag) => (tag, None)
+  | ArgTag(tag, opseq) => (tag, Some(expand(opseq)));
 
-let rec is_complete_operand = (operand: 'operand) => {
-  switch (operand) {
-  | Hole => false
-  | Unit => true
-  | Int => true
-  | Float => true
-  | Bool => true
-  | Sum(None) => true
-  | Sum(Some(sumbody)) => is_complete_sumbody(sumbody)
-  | Parenthesized(body) => is_complete(body)
-  | List(body) => is_complete(body)
-  };
-}
-and is_complete_sumbody_operand = (sumbody_operand: sumbody_operand) => {
-  switch (sumbody_operand) {
-  | ConstTag(EmptyTagHole(_))
-  | ArgTag(EmptyTagHole(_), _) => false
-  | ConstTag(Tag(_)) => true
-  | ArgTag(Tag(_), ty) => is_complete(ty)
+let rec is_complete = (ty: t) => {
+  switch (ty) {
+  | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {
@@ -205,32 +199,43 @@ and is_complete_skel = (sk: skel, sq: seq) => {
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
   };
 }
-and is_complete_sumbody_skel = (sk: sumbody_skel, sq: sumbody_seq) => {
-  switch (sk) {
-  | Placeholder(n) as _skel =>
-    is_complete_sumbody_operand(sq |> Seq.nth_operand(n))
-  | BinOp(InHole(_), _, _, _) => false
-  | BinOp(NotInHole, _, skel1, skel2) =>
-    is_complete_sumbody_skel(skel1, sq)
-    && is_complete_sumbody_skel(skel2, sq)
+and is_complete_operand = (operand: 'operand) => {
+  switch (operand) {
+  | Hole => false
+  | Unit => true
+  | Int => true
+  | Float => true
+  | Bool => true
+  | FiniteSum(None) => true
+  | FiniteSum(Some(sum_body)) => is_complete_sum_body(sum_body)
+  | ElidedSum(operand) => is_complete_sum_body_operand(operand)
+  | Parenthesized(body) => is_complete(body)
+  | List(body) => is_complete(body)
   };
 }
-and is_complete_sumbody =
+and is_complete_sum_body =
   fun
-  | OpSeq(skel, seq) => is_complete_sumbody_skel(skel, seq)
-and is_complete = (ty: t) => {
-  switch (ty) {
-  | OpSeq(sk, sq) => is_complete_skel(sk, sq)
+  | OpSeq(skel, seq) => is_complete_sum_body_skel(skel, seq)
+and is_complete_sum_body_skel = (sk: sum_body_skel, sq: sum_body_seq) => {
+  switch (sk) {
+  | Placeholder(n) as _skel =>
+    is_complete_sum_body_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_sum_body_skel(skel1, sq)
+    && is_complete_sum_body_skel(skel2, sq)
+  };
+}
+and is_complete_sum_body_operand = (operand: sum_body_operand) => {
+  switch (operand) {
+  | ConstTag(EmptyTagHole(_))
+  | ArgTag(EmptyTagHole(_), _) => false
+  | ConstTag(Tag(_)) => true
+  | ArgTag(Tag(_), ty) => is_complete(ty)
   };
 };
 
-let is_empty_sumbody_operand: sumbody_operand => bool =
-  fun
-  | ConstTag(EmptyTagHole(_))
-  | ArgTag(EmptyTagHole(_), OpSeq(_, S(Hole, _))) => true
-  | _ => false;
-
-let duplicate_tags = (OpSeq(_, seq): sumbody): UHTag.Set.t => {
+let duplicate_tags = (OpSeq(_, seq): sum_body): UHTag.Set.t => {
   let rec histogram = (xs: list('a)): UHTag.Map.t(int) => {
     let incr_opt =
       fun
@@ -284,10 +289,14 @@ and fix_holes_operand =
   | Int
   | Float
   | Bool
-  | Sum(None) => (operand, u_gen)
-  | Sum(Some(sumbody)) =>
-    let (sumbody, u_gen) = fix_holes_sumbody(sumbody, u_gen);
-    (Sum(Some(sumbody)), u_gen);
+  | FiniteSum(None) => (operand, u_gen)
+  | FiniteSum(Some(sum_body)) =>
+    let (sum_body, u_gen) = fix_holes_sum_body(sum_body, u_gen);
+    (FiniteSum(Some(sum_body)), u_gen);
+  | ElidedSum(operand') =>
+    let (operand'', u_gen) =
+      fix_holes_sum_body_operand(operand', UHTag.Set.empty, u_gen);
+    (ElidedSum(operand''), u_gen);
   | Parenthesized(body) =>
     let (body, u_gen) = fix_holes(body, u_gen);
     (Parenthesized(body), u_gen);
@@ -296,39 +305,39 @@ and fix_holes_operand =
     (List(body), u_gen);
   }
 
-and fix_holes_sumbody =
-    (OpSeq(skel, seq) as sumbody: sumbody, u_gen: MetaVarGen.t)
-    : (sumbody, MetaVarGen.t) => {
-  let dups = duplicate_tags(sumbody);
-  let (skel, seq, u_gen) = fix_holes_sumbody_skel(skel, seq, dups, u_gen);
+and fix_holes_sum_body =
+    (OpSeq(skel, seq) as sum_body: sum_body, u_gen: MetaVarGen.t)
+    : (sum_body, MetaVarGen.t) => {
+  let dups = duplicate_tags(sum_body);
+  let (skel, seq, u_gen) = fix_holes_sum_body_skel(skel, seq, dups, u_gen);
   (OpSeq(skel, seq), u_gen);
 }
 
-and fix_holes_sumbody_skel =
+and fix_holes_sum_body_skel =
     (
-      skel: sumbody_skel,
-      seq: sumbody_seq,
+      skel: sum_body_skel,
+      seq: sum_body_seq,
       dups: UHTag.Set.t,
       u_gen: MetaVarGen.t,
     )
-    : (sumbody_skel, sumbody_seq, MetaVarGen.t) =>
+    : (sum_body_skel, sum_body_seq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    let (operand, u_gen) = fix_holes_sumbody_operand(operand, dups, u_gen);
+    let (operand, u_gen) = fix_holes_sum_body_operand(operand, dups, u_gen);
     let seq = seq |> Seq.update_nth_operand(n, operand);
     (skel, seq, u_gen);
   | BinOp(_, op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
-      fix_holes_sumbody_skel(skel1, seq, dups, u_gen);
+      fix_holes_sum_body_skel(skel1, seq, dups, u_gen);
     let (skel2, seq, u_gen) =
-      fix_holes_sumbody_skel(skel2, seq, dups, u_gen);
+      fix_holes_sum_body_skel(skel2, seq, dups, u_gen);
     (BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
   }
 
-and fix_holes_sumbody_operand =
-    (operand: sumbody_operand, dups: UHTag.Set.t, u_gen: MetaVarGen.t)
-    : (sumbody_operand, MetaVarGen.t) =>
+and fix_holes_sum_body_operand =
+    (operand: sum_body_operand, dups: UHTag.Set.t, u_gen: MetaVarGen.t)
+    : (sum_body_operand, MetaVarGen.t) =>
   switch (operand) {
   | ConstTag(tag) =>
     let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);

@@ -33,7 +33,7 @@ let ana_fix_holes =
       (Tag(InTagHole(InvalidName, u), t), u_gen);
     } else {
       switch (ty) {
-      | Sum(tymap) =>
+      | Sum(Finite(tymap)) =>
         switch (TagMap.find_opt(tag, tymap)) {
         | Some(_) => (Tag(NotInTagHole, t), u_gen)
         | None =>
