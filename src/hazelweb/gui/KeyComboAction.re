@@ -7,17 +7,16 @@ let get_model_action_from_kc =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (cursor_on_type, cursor_on_comment, cursor_on_exp) =
+  let (cursor_on_type, cursor_on_exp) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true, false)
+    | {typed: OnType, _} => (true, false)
     | {cursor_term: ExpOperand(_, operand), _} =>
       switch (operand) {
-      | EmptyHole(_) => (false, false, false)
-      | _ => (false, false, true)
+      | EmptyHole(_) => (false, false)
+      | _ => (false, true)
       }
 
-    | _ => (false, false, false)
+    | _ => (false, false)
     };
 
   /* When adding or updating key combo actions, make sure to appropriately update
@@ -47,7 +46,6 @@ let get_model_action_from_kc =
   | Asterisk => construct(SOp(STimes))
   | Slash => construct(SOp(SDivide))
   | LT => construct(SOp(SLessThan))
-  | Space when cursor_on_comment => construct(SChar(" "))
   | Space => construct(SOp(SSpace))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
@@ -84,16 +82,14 @@ let get_model_action =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (_cursor_on_type, cursor_on_comment, cursor_on_stringlit) =
+  let (cursor_on_comment, cursor_on_stringlit) =
     switch (cursor_info) {
-    | {typed: OnType, _} => (true, false, false)
-    | {cursor_term: Line(_, CommentLine(_)), _} => (false, true, false)
+    | {cursor_term: Line(_, CommentLine(_)), _} => (true, false)
     | {cursor_term: ExpOperand(OnText(_), StringLit(_, _)), _} => (
-        false,
         false,
         true,
       )
-    | _ => (false, false, false)
+    | _ => (false, false)
     };
 
   let key_combo = HazelKeyCombos.of_evt(evt);
