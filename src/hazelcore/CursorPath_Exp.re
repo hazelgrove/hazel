@@ -394,7 +394,7 @@ and cell_boundaries_line =
   | EmptyLine
   | CommentLine(_)
   | LetLine(_, _)
-  | ExpLine(_) => []
+  | ExpLine(_) => cell_boundaries
   | CellBoundary => [mk_cell_boundary_step(rev_steps), ...cell_boundaries]
   };
 };

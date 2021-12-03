@@ -11,7 +11,8 @@ let decoration_cls: UHDecorationShape.t => string =
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
-  | CurrentTerm => "current-term";
+  | CurrentTerm => "current-term"
+  | CellBoundary => "cell-boundary";
 
 let decoration_view =
     (
@@ -28,6 +29,7 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    | CellBoundary => CellBoundary.view
     }
   );
 
@@ -95,6 +97,9 @@ let decoration_views =
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
+      | CellBoundary =>
+        print_endline("UH Code Cell Boundary");
+        go'(~tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
     };

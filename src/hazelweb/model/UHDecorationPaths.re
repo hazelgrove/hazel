@@ -64,5 +64,13 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
+  let cell_boundaries =
+    dpaths.cell_boundaries |> List.map(_ => UHDecorationShape.CellBoundary);
+  List.concat([
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+    cell_boundaries,
+  ]);
 };

@@ -381,9 +381,9 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
 
-let mk_CellBoundary =
-  Doc.annot(UHAnnot.CellBoundary, Doc.text("-----------------------"))
-  |> annot_Tessera;
+// let mk_CellBoundary =
+//   Doc.annot(UHAnnot.CellBoundary, Doc.text("-----------------------"))
+//   |> annot_Tessera;
 
 let mk_LetLine = (p: formatted_child, def: formatted_child): t => {
   let open_group = {
