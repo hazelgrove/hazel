@@ -83,7 +83,7 @@ module Delim = {
   let close_FiniteSum = (): t => mk(~index=1, "}");
 
   let open_ElidedSum = (): t => mk(~index=0, "sum {");
-  let close_ElidedSum = (): t => mk(~index=1, "+ ⋯}");
+  let close_ElidedSum = (): t => mk(~index=1, " + ⋯}");
 
   let open_Inj = (): t => mk(~index=0, "inj[");
   let middle_Inj = (): t => mk(~index=1, "](");

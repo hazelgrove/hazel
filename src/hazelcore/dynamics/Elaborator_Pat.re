@@ -457,12 +457,11 @@ and ana_elab_operand =
       switch (ana_elab_inj_body(ctx, delta, arg_opt, ty_opt)) {
       | Some(DoesNotElaborate) => DoesNotElaborate
       | Some(Elaborates(dp, dp_ty, ctx', delta')) =>
-        let tymap = TagMap.singleton(tag, Some(dp_ty));
-        let ty' = HTyp.Sum(Finite(tymap));
+        let ty' = HTyp.Sum(Elided(tag, Some(dp_ty)));
         Elaborates(Inj((tag, Some(dp))), ty', ctx', delta');
       | None =>
-        let tymap = TagMap.singleton(tag, None);
-        Elaborates(Inj((tag, None)), HTyp.Sum(Finite(tymap)), ctx, delta);
+        let ty' = HTyp.Sum(Elided(tag, None));
+        Elaborates(Inj((tag, None)), ty', ctx, delta);
       };
     | Sum(Finite(tymap)) =>
       switch (TagMap.find_opt(tag, tymap)) {

@@ -132,7 +132,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         |> Option.map(ty => [mk(~enforce_inline, ~parenthesize=true, ty)])
         |> Option.value(~default=[]);
       let new_binding = hcats([tag_doc, ...maybe_ty_doc]);
-      (hcats([mk_delim("sum {"), new_binding, mk_delim("+ ⋯}")]), false);
+      (
+        hcats([mk_delim("sum {"), new_binding, mk_delim(" + ⋯}")]),
+        false,
+      );
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
