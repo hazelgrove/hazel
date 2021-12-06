@@ -24,7 +24,8 @@ type group_id = int;
 type serialize_object =
   | UHExp
   | DHExp
-  | ZExp;
+  | ZExp
+  | Grain;
 
 [@deriving sexp]
 type t =

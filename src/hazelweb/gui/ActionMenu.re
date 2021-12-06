@@ -14,7 +14,7 @@ let menu_entries: list(menu_entry) = [
     action: SerializeToConsole(UHExp),
   },
   {
-    label: "Serialize result to console",
+    label: "Serialize elaboration result to console",
     shortcut: None,
     action: SerializeToConsole(DHExp),
   },
@@ -22,6 +22,11 @@ let menu_entries: list(menu_entry) = [
     label: "Serialize Zexp to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_S)),
     action: SerializeToConsole(ZExp),
+  },
+  {
+    label: "Serialize Grain output to console",
+    shortcut: None,
+    action: SerializeToConsole(Grain),
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},

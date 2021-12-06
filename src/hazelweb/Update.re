@@ -229,6 +229,9 @@ let apply_action =
           |> Serialization.string_of_zexp
           |> Js.string
           |> JSUtil.log
+        | Grain =>
+          let d = model |> Model.get_program |> Program.get_elaboration;
+          d |> PrintGrain.print_expression |> Js.string |> JSUtil.log;
         };
         model;
       };

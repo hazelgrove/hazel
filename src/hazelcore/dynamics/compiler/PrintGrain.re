@@ -2,6 +2,37 @@ open Format;
 
 exception NotImplemented;
 
+let print_bool_op = (p: DHExp.BinBoolOp.t) => {
+  switch (p) {
+  | And => "&&"
+  | Or => "||"
+  };
+};
+
+let print_int_op = (p: DHExp.BinIntOp.t) => {
+  switch (p) {
+  | Minus => "-"
+  | Plus => "+"
+  | Times => "*"
+  | Divide => "/"
+  | LessThan => "<"
+  | GreaterThan => ">"
+  | Equals => "=="
+  };
+};
+
+let print_float_op = (p: DHExp.BinFloatOp.t) => {
+  switch (p) {
+  | FPlus => "+"
+  | FMinus => "-"
+  | FTimes => "*"
+  | FDivide => "/"
+  | FLessThan => "<"
+  | FGreaterThan => ">"
+  | FEquals => "=="
+  };
+};
+
 let rec print_pattern = (p: DHPat.t) => {
   switch (p) {
   | EmptyHole(_)
@@ -51,27 +82,44 @@ let rec print_expression = (d: DHExp.t) => {
         var,
         d1,
       );
-    Printf.sprintf("{let rec %s = () => {%s}", var, print_expression(d1s));
+    Printf.sprintf("{let rec %s = () => {%s}}", var, print_expression(d1s));
   | Ap(d1, d2) =>
-    Printf.sprintf("%s %s", print_expression(d1), print_expression(d2))
+    Printf.sprintf("%s(%s)", print_expression(d1), print_expression(d2))
   | BoolLit(b) => b ? "true" : "false"
   | IntLit(i) => sprintf("%i", i)
   | FloatLit(f) => sprintf("%f", f)
+  | BinBoolOp(op, d1, d2) =>
+    sprintf(
+      "(%s %s %s)",
+      print_expression(d1),
+      print_bool_op(op),
+      print_expression(d2),
+    )
+  | BinIntOp(op, d1, d2) =>
+    // TODO: this is wrong
+    sprintf(
+      "(%s %s %s)",
+      print_expression(d1),
+      print_int_op(op),
+      print_expression(d2),
+    )
+  | BinFloatOp(op, d1, d2) =>
+    sprintf(
+      "(%s %s %s)",
+      print_expression(d1),
+      print_float_op(op),
+      print_expression(d2),
+    )
   | Pair(d1, d2) =>
     sprintf("(%s, %s)", print_expression(d1), print_expression(d2))
   | ConsistentCase(Case(d1, lr, _)) =>
     let rules = lr |> List.map(print_rule) |> String.concat("");
     sprintf("match (%s){\n%s}", print_expression(d1), rules);
   | _ => raise(NotImplemented)
-  //   | BinBoolOp(BinBoolOp.t, t, t)
-  //   | BinIntOp(BinIntOp.t, t, t)
-  //   | BinFloatOp(BinFloatOp.t, t, t)
   //   | ListNil(HTyp.t)
   //   | Cons(t, t)
   //   | Inj(HTyp.t, InjSide.t, t)
-  //   | Pair(t, t)
   //   | Triv
-  //   | ConsistentCase(case)
   //   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   //   | Cast(t, HTyp.t, HTyp.t)
   //   | FailedCast(t, HTyp.t, HTyp.t)
