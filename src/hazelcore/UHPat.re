@@ -216,32 +216,3 @@ and is_complete_operand = (operand: 'operand): bool => {
     UHTag.is_complete(tag) && is_complete(body)
   };
 };
-let rec undo_syn_inj = (OpSeq(skel, S(p, affix)): t): t =>
-  OpSeq(skel, S(undo_syn_inj_operand(p), undo_syn_inj_affix(affix)))
-
-and undo_syn_inj_operand = (p: operand): operand =>
-  switch (p) {
-  | Inj(InHole(InjectionInSyntheticPosition, _), tag, arg_opt) =>
-    Inj(NotInHole, tag, arg_opt)
-  | Inj(_)
-  | EmptyHole(_)
-  | Wild(_)
-  | InvalidText(_)
-  | Var(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | ListNil(_)
-  | TypeAnn(_) => p
-  | Parenthesized(p1) => Parenthesized(undo_syn_inj(p1))
-  }
-
-and undo_syn_inj_affix =
-    (affix: Seq.affix(operand, operator)): Seq.affix(operand, operator) =>
-  switch (affix) {
-  | E => affix
-  | A(op, seq) => A(op, undo_syn_inj_seq(seq))
-  }
-
-and undo_syn_inj_seq = (S(p, affix): seq): seq =>
-  S(undo_syn_inj_operand(p), undo_syn_inj_affix(affix));

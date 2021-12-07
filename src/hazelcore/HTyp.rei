@@ -32,6 +32,7 @@ let get_prod_arity: t => int;
 
 let matched_arrow: t => option((t, t));
 let matched_list: t => option(t);
+let matched_sum: t => option(TagMap.t(option(t)));
 
 let complete: t => bool;
 

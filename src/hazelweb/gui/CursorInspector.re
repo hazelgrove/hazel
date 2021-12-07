@@ -211,14 +211,6 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Invalid Text"),
       ]
-    | SynInjection => [
-        syn,
-        emphasize_text("Injection in Synthetic Position"),
-      ]
-    | PatSynInjection => [
-        syn,
-        emphasize_text("Injection in Synthetic Position"),
-      ]
     | AnaInjExpectedTypeNotConsistentWithSums(expected_ty) => [
         ana,
         HTypCode.view(~inject, ~selected_tag_hole, expected_ty),
@@ -437,16 +429,6 @@ let novice_summary =
         emphasize_text("Function Type"),
         Node.text("but got"),
         emphasize_text("Invalid Text"),
-      ]
-    | SynInjection => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Cannot Synthesize a Type"),
-      ]
-    | PatSynInjection => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Cannot Synthesize a Type"),
       ]
     | AnaInjExpectedTypeNotConsistentWithSums(expected_ty) =>
       expecting_of_type
@@ -823,10 +805,8 @@ let view =
     | AnaInjExpectedArg(_)
     | AnaInjUnexpectedArg(_)
     | SynErrorArrow(_)
-    | SynInjection
     | SynInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
-    | PatSynInjection
     | PatAnaInjExpectedTypeNotConsistentWithSums(_)
     | PatAnaInjExpectedArg(_)
     | PatAnaInjUnexpectedArg(_)

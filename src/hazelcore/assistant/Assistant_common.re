@@ -70,8 +70,6 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
   // injections
-  | SynInjection => (None, None, Synthetic)
-  | PatSynInjection => (None, None, Synthetic)
   | OnTag => (None, None, UnknownMode)
   | OnTagHole => (None, None, UnknownMode)
   | OnSumBodyOperand => (None, None, UnknownMode)

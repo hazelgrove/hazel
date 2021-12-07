@@ -533,9 +533,6 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, Inj(InHole(InjectionInSyntheticPosition, _), _, _)) =>
-    Some(CursorInfo_common.mk(SynInjection, ctx, cursor_term))
-
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -884,8 +881,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _)
-    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
+    | Lam(InHole(WrongLength, _), _, _) => None
     // SInj (*)
     | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
       Some(

@@ -211,17 +211,6 @@ and syn_cursor_info_zoperand =
            x,
          )
        })
-  | CursorP(_, Inj(InHole(InjectionInSyntheticPosition, _), _, _)) =>
-    Some(
-      CursorInfo_common.CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(
-          PatSynInjection,
-          ctx,
-          extract_from_zpat_operand(zoperand),
-        ),
-      ),
-    )
-
   | CursorP(_, p) =>
     Statics_Pat.syn_operand(ctx, p)
     |> Option.map(((ty, _)) => {
@@ -473,7 +462,6 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
     | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, _) =>
       Some(
         CursorInfo_common.CursorNotOnDeferredVarPat(

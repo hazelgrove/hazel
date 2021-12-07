@@ -71,8 +71,6 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
-  // cursor is on an injection in synthetic position
-  | SynInjection
   // cursor is on the clause of a case
   | SynBranchClause
       // lub of other branches
@@ -116,8 +114,6 @@ type typed =
   // none of the above and went through subsumption
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
-  // cursor is on an injection in synthetic position
-  | PatSynInjection
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)

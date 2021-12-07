@@ -157,6 +157,13 @@ let matched_list =
   | List(ty) => Some(ty)
   | _ => None;
 
+/* matched sum types */
+let matched_sum: t => option(TagMap.t(option(t))) =
+  fun
+  | Sum(Finite(tymap)) => Some(tymap)
+  | Sum(Elided(tag, ty_opt)) => Some(TagMap.singleton(tag, ty_opt))
+  | _ => None;
+
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun

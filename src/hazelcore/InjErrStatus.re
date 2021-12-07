@@ -2,7 +2,6 @@ module HoleReason = {
   /* Variable: `reason` */
   [@deriving sexp]
   type t =
-    | InjectionInSyntheticPosition
     | ExpectedTypeNotConsistentWithSums
     | ExpectedArg
     | UnexpectedArg;

@@ -135,17 +135,13 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
-  // SInjErr
-  | Inj(InHole(InjectionInSyntheticPosition, _), _, arg_opt) =>
-    let+ _ = inj_arg_valid(ctx, arg_opt);
-    HTyp.Hole;
-  | Inj(InHole(_), _, _) => None
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
+  | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -174,11 +170,13 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
-  // SInjTagErr
-  | Inj(NotInHole, Tag(InTagHole(_), _), arg_opt) =>
-    let+ _ = inj_arg_valid(ctx, arg_opt);
-    HTyp.Hole;
-  | Inj(NotInHole, _, _) => None
+  // SInj
+  | Inj(NotInHole, tag, arg_opt) =>
+    let ty_opt = {
+      let* arg = arg_opt;
+      syn(ctx, arg);
+    };
+    Some(Sum(Elided(tag, ty_opt)));
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
@@ -314,38 +312,33 @@ and ana_operand =
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
-
-  | Inj(InHole(InjectionInSyntheticPosition, _), _, _) => None
-
-  // same as SInjErr (we should probably model this case explicitly, e.g., a new rule named AInjNotSum)
   | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, arg_opt) =>
     switch (ty) {
     | Hole
     | Sum(_) => None
     | _ => inj_arg_valid(ctx, arg_opt)
     }
-
+  // AInjUnexpectedArg
   | Inj(InHole(UnexpectedArg, _), tag, Some(arg)) =>
     switch (ty) {
-    | Sum(Finite(tymap)) =>
+    | Sum(_) =>
+      let* tymap = HTyp.matched_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(None) => ana(ctx, arg, Hole)
       | _ => None
-      }
-    | Sum(Elided(tag', None)) when UHTag.eq(tag, tag') =>
-      ana(ctx, arg, Hole)
+      };
     | _ => None
     }
   | Inj(InHole(UnexpectedArg, _), _, None) => None
-
+  // AInjExpectedArg
   | Inj(InHole(ExpectedArg, _), tag, None) =>
     switch (ty) {
-    | Sum(Finite(tymap)) =>
+    | Sum(_) =>
+      let* tymap = HTyp.matched_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(Some(_)) => Some()
       | _ => None
-      }
-    | Sum(Elided(tag', Some(_))) when UHTag.eq(tag, tag') => Some()
+      };
     | _ => None
     }
   | Inj(InHole(ExpectedArg, _), _, Some(_)) => None
@@ -365,24 +358,21 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
-
   | Inj(NotInHole, tag, arg_opt) =>
     switch (ty) {
     // AInjHole
     | Hole => inj_arg_valid(ctx, arg_opt)
-    | Sum(Finite(tymap)) =>
+    | Sum(_) =>
+      let* tymap = HTyp.matched_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       // AInj
       | Some(ty_opt) => ana_inj_arg(ctx, arg_opt, ty_opt)
       // AInjTagErr
       | None =>
         ana_inj_arg(ctx, arg_opt, arg_opt |> Option.map(_ => HTyp.Hole))
-      }
-    | Sum(Elided(tag', ty_opt)) when UHTag.eq(tag, tag') =>
-      ana_inj_arg(ctx, arg_opt, ty_opt)
+      };
     | _ => None
     }
-
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
@@ -890,19 +880,17 @@ and syn_fix_holes_operand =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
     (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
   | Inj(_, tag, arg_opt) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     let (tag', u_gen) =
       Statics_Tag.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, tag);
-    let (arg_opt', u_gen) =
+    let (arg_opt', ty_opt, u_gen) =
       switch (arg_opt) {
-      | None => (None, u_gen)
+      | None => (arg_opt, None, u_gen)
       | Some(arg) =>
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-        (Some(arg'), u_gen);
+        let (arg', ty_arg, u_gen) =
+          syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg);
+        (Some(arg'), Some(ty_arg), u_gen);
       };
-    let status = InjErrStatus.InHole(InjectionInSyntheticPosition, u);
-    (Inj(status, tag', arg_opt'), HTyp.Hole, u_gen);
+    (Inj(NotInHole, tag', arg_opt'), Sum(Elided(tag', ty_opt)), u_gen);
   | Case(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
@@ -1321,105 +1309,73 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
-
   | Inj(_, tag, arg_opt) =>
+    let fix_holes_inj_arg =
+        (u_gen: MetaVarGen.t, ty_opt: option(HTyp.t))
+        : (option(UHExp.t), MetaVarGen.t) => {
+      let ty_arg = ty_opt |> Option.value(~default=HTyp.Hole);
+      switch (arg_opt) {
+      | None => (None, u_gen)
+      | Some(arg) =>
+        let (arg', u_gen) =
+          ana_fix_holes(~renumber_empty_holes, ctx, u_gen, arg, ty_arg);
+        (Some(arg'), u_gen);
+      };
+    };
+    let (tag', u_gen) =
+      Statics_Tag.ana_fix_holes(~renumber_empty_holes, ctx, u_gen, tag, ty);
     switch (ty) {
+    // AInjHole
     | Hole =>
-      let (tag', u_gen) =
-        Statics_Tag.ana_fix_holes(~renumber_empty_holes, ctx, u_gen, tag, ty);
-      let (arg_opt', u_gen) =
-        switch (arg_opt) {
-        | None => (None, u_gen)
-        | Some(arg) =>
-          let (arg', u_gen) =
-            ana_fix_holes(~renumber_empty_holes, ctx, u_gen, arg, HTyp.Hole);
-          (Some(arg'), u_gen);
-        };
+      let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, None);
       (Inj(NotInHole, tag', arg_opt'), u_gen);
-    | Sum(Finite(tymap)) =>
-      let (tag', u_gen) =
-        Statics_Tag.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, tag, ty);
-      switch (arg_opt, TagMap.find_opt(tag, tymap)) {
-      /* TAInj (unary) */
-      | (Some(arg), Some(Some(ty_arg))) =>
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ty_arg);
-        (Inj(NotInHole, tag', Some(arg')), u_gen);
-      /* TAInjUnexpectedArg */
-      | (Some(arg), Some(None)) =>
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (Inj(InHole(UnexpectedArg, u), tag', Some(arg')), u_gen);
-      /* TAInjBadTag */
-      | (Some(arg), None) =>
-        let (tag', u_gen) =
-          switch (tag') {
-          | Tag(InTagHole(_), _)
-          | EmptyTagHole(_) => (tag', u_gen)
-          | Tag(NotInTagHole, t) =>
+    | Sum(_) =>
+      switch (HTyp.matched_sum(ty)) {
+      | Some(tymap) =>
+        switch (TagMap.find_opt(tag, tymap)) {
+        // AInjTagErr
+        | None =>
+          let (tag'', u_gen) =
+            switch (tag') {
+            | Tag(InTagHole(_), _)
+            | EmptyTagHole(_) => (tag', u_gen)
+            | Tag(NotInTagHole, t) =>
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              (Tag(InTagHole(NotInSum, u), t), u_gen);
+            };
+          let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, None);
+          (Inj(NotInHole, tag'', arg_opt'), u_gen);
+        | Some(ty_opt) =>
+          switch (arg_opt, ty_opt) {
+          // AInj
+          | (Some(_), Some(_))
+          | (None, None) =>
+            let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, ty_opt);
+            (Inj(NotInHole, tag', arg_opt'), u_gen);
+          // AInjUnexpectedArg
+          | (Some(_), None) =>
+            let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, None);
             let (u, u_gen) = MetaVarGen.next(u_gen);
-            (UHTag.Tag(InTagHole(NotInSum, u), t), u_gen);
-          };
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-        (Inj(NotInHole, tag', Some(arg')), u_gen);
-      /* TAInjBadTag */
-      | (None, None) =>
-        let (tag', u_gen) =
-          switch (tag') {
-          | Tag(InTagHole(_), _)
-          | EmptyTagHole(_) => (tag', u_gen)
-          | Tag(NotInTagHole, t) =>
+            (Inj(InHole(UnexpectedArg, u), tag', arg_opt'), u_gen);
+          // AInjExpectedArg
+          | (None, Some(_)) =>
             let (u, u_gen) = MetaVarGen.next(u_gen);
-            (UHTag.Tag(InTagHole(NotInSum, u), t), u_gen);
-          };
-        (Inj(NotInHole, tag', None), u_gen);
-      /* TAInj (nullary) */
-      | (None, Some(None)) => (Inj(NotInHole, tag', arg_opt), u_gen)
-      /* TAInjExpectedArg */
-      | (None, Some(Some(_))) =>
+            (Inj(InHole(ExpectedArg, u), tag', arg_opt), u_gen);
+          }
+        }
+      | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (Inj(InHole(ExpectedArg, u), tag', None), u_gen);
-      };
-    | Sum(Elided(tag', ty_opt)) when UHTag.eq(tag, tag') =>
-      let (tag'', u_gen) =
-        Statics_Tag.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, tag, ty);
-      switch (arg_opt, ty_opt) {
-      // TAInj (nullary)
-      | (None, None) => (Inj(NotInHole, tag'', arg_opt), u_gen)
-      // TAInj (unary)
-      | (Some(arg), Some(ty_arg)) =>
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, ty_arg);
-        (Inj(NotInHole, tag'', Some(arg')), u_gen);
-      // TAInjExpectedArg
-      | (None, Some(_)) =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (Inj(InHole(ExpectedArg, u), tag'', None), u_gen);
-      // TAInjUnexpectedArg
-      | (Some(arg), None) =>
-        let (arg', u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (Inj(InHole(UnexpectedArg, u), tag'', Some(arg')), u_gen);
-      };
-
+        let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, None);
+        let status =
+          InjErrStatus.InHole(ExpectedTypeNotConsistentWithSums, u);
+        (Inj(status, tag, arg_opt'), u_gen);
+      }
     | _ =>
-      let (arg_opt', u_gen) =
-        switch (arg_opt) {
-        | None => (None, u_gen)
-        | Some(arg) =>
-          let (arg', u_gen) =
-            ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, arg, HTyp.Hole);
-          (Some(arg'), u_gen);
-        };
+      let (arg_opt', u_gen) = fix_holes_inj_arg(u_gen, None);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        Inj(InHole(ExpectedTypeNotConsistentWithSums, u), tag, arg_opt'),
-        u_gen,
-      );
-    }
+      let status = InjErrStatus.InHole(ExpectedTypeNotConsistentWithSums, u);
+      (Inj(status, tag, arg_opt'), u_gen);
+    };
 
   | Case(_, scrut, rules) =>
     let (scrut, scrut_ty, u_gen) =
