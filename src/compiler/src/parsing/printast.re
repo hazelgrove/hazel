@@ -9,6 +9,26 @@ let line = (i:int, f:formatter, ~s:'a=?, unit) => {
   }
 }
 
+let constant = (f:formatter, c: constant) => {
+    switch(c) {
+          | PConstNumber(number_type)
+  | PConstInt32(str)
+  | PConstInt64(str)
+  | PConstFloat32(str)
+  | PConstFloat64(str)
+  | PConstWasmI32(str)
+  | PConstWasmI64(str)
+  | PConstWasmF32(str)
+  | PConstWasmF64(str) 
+| PConstBytes(str)
+  | PConstString(str)
+  | PConstChar(str) => fprintf(f, "%s", str);
+  | PConstBool(b) 
+  | PConstVoid
+
+    }
+}
+
 let expression = (i:int, f:formatter, e:Parsetree.expression) => {
     let edesc = e.pexp_desc;
     switch(edesc) {
@@ -16,7 +36,7 @@ let expression = (i:int, f:formatter, e:Parsetree.expression) => {
             let name = Identifier.string_of_ident(eloc.txt);
             line(i, f, ~s=name, ());
         }
-//   | PExpConstant(constant)
+//        | PExpConstant(const)
 //   | PExpTuple(list(expression))
 //   | PExpArray(list(expression))
 //   | PExpArrayGet(expression, expression)
