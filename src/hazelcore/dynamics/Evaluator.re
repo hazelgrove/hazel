@@ -22,7 +22,7 @@ let grounded_Prod = length =>
 let grounded_List = NotGroundOrHole(List(Hole));
 
 let rec ground_cases_of = (ty: HTyp.t): ground_cases => {
-  let is_arg_ground: option(HTyp.t) => bool =
+  let is_ground_arg: option(HTyp.t) => bool =
     fun
     | None
     | Some(HTyp.Hole) => true
@@ -42,10 +42,10 @@ let rec ground_cases_of = (ty: HTyp.t): ground_cases => {
     }
   | Arrow(_, _) => grounded_Arrow
   | Sum(Finite(tymap)) =>
-    tymap |> TagMap.is_ground(is_arg_ground)
+    tymap |> TagMap.is_ground(is_ground_arg)
       ? Ground : grounded_FiniteSum(tymap)
   | Sum(Elided(tag, ty_opt)) =>
-    is_arg_ground(ty_opt) ? Ground : grounded_ElidedSum(tag, ty_opt)
+    is_ground_arg(ty_opt) ? Ground : grounded_ElidedSum(tag, ty_opt)
   | List(_) => grounded_List
   };
 };

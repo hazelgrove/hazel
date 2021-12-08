@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open OptUtil.Syntax;
 
 /* types with holes */
 [@deriving sexp]
@@ -100,11 +101,12 @@ let rec consistent = (x, y) =>
   // TCSum2
   | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
     !UHTag.eq(tag, tag') || consistent_opt(ty_opt, ty_opt')
-  // TCSum12, TCSum21
+  // TCSum12
   | (Sum(Finite(tymap)), Sum(Elided(tag, ty_opt)))
+  // TCSum21
   | (Sum(Elided(tag, ty_opt)), Sum(Finite(tymap))) =>
     switch (TagMap.find_opt(tag, tymap)) {
-    | None => true
+    | None => false
     | Some(ty_opt') => consistent_opt(ty_opt, ty_opt')
     }
   | (Sum(_), _) => false
@@ -173,25 +175,17 @@ let rec complete =
   | Bool => true
   | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
   | Sum(Finite(tymap)) =>
-    List.for_all(
-      ((tag: UHTag.t, ty_opt)) =>
-        (
-          switch (tag) {
-          | Tag(_) => true
-          | EmptyTagHole(_) => false
-          }
-        )
-        && (
-          switch (ty_opt) {
-          | Some(ty) => complete(ty)
-          | None => true
-          }
-        ),
-      tymap,
-    )
-  | Sum(Elided(_)) => false
+    tymap
+    |> List.map(TupleUtil.bimap(UHTag.is_complete, complete_opt))
+    |> List.for_all(TupleUtil.uncurry((&&)))
+  | Sum(Elided(tag, ty_opt)) =>
+    UHTag.is_complete(tag) && complete_opt(ty_opt)
   | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty) => complete(ty);
+  | List(ty) => complete(ty)
+and complete_opt: option(t) => bool =
+  fun
+  | None => true
+  | Some(ty) => complete(ty);
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
@@ -227,17 +221,13 @@ let rec join = (j, ty1, ty2) =>
       switch (
         List.fold_left2(
           (acc_opt, (tag, ty_opt), (tag', ty_opt')) =>
-            Option.bind(acc_opt, acc =>
-              switch (UHTag.eq(tag, tag'), ty_opt, ty_opt') {
-              | (false, _, _)
-              | (true, None, None) => Some([(tag, None), ...acc])
-              | (true, Some(ty), Some(ty')) =>
-                Option.bind(join(j, ty, ty'), joined_ty =>
-                  Some([(tag, Some(joined_ty)), ...acc])
-                )
-              | (_, Some(_), None)
-              | (_, None, Some(_)) => None
-              }
+            Option.bind(
+              acc_opt,
+              acc => {
+                let+ (tag'', ty_opt'') =
+                  join_sum_body_element(j, tag, ty_opt, tag', ty_opt');
+                [(tag'', ty_opt''), ...acc];
+              },
             ),
           Some([]),
           tymap,
@@ -248,6 +238,10 @@ let rec join = (j, ty1, ty2) =>
       | exception (Invalid_argument(_)) => None
       },
     );
+  | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
+    let+ (tag'', ty_opt'') =
+      join_sum_body_element(j, tag, ty_opt, tag', ty_opt');
+    Sum(Elided(tag'', ty_opt''));
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.map2_opt(join(j), tys1, tys2)
@@ -261,6 +255,23 @@ let rec join = (j, ty1, ty2) =>
     | None => None
     }
   | (List(_), _) => None
+  }
+and join_sum_body_element =
+    (
+      j: join,
+      tag: UHTag.t,
+      ty_opt: option(t),
+      tag': UHTag.t,
+      ty_opt': option(t),
+    ) =>
+  switch (UHTag.eq(tag, tag'), ty_opt, ty_opt') {
+  | (false, _, _)
+  | (true, None, None) => Some((tag, None))
+  | (true, Some(ty), Some(ty')) =>
+    let+ joined_ty = join(j, ty, ty');
+    (tag, Some(joined_ty));
+  | (_, Some(_), None)
+  | (_, None, Some(_)) => None
   };
 
 let join_all = (j: join, types: list(t)): option(t) => {

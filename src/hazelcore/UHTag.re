@@ -58,7 +58,8 @@ let is_tag_name = (str: string): bool => {
 
 let is_complete: t => bool =
   fun
-  | Tag(_) => true
+  | Tag(NotInTagHole, _) => true
+  | Tag(_)
   | EmptyTagHole(_) => false;
 
 let is_valid: t => bool =
