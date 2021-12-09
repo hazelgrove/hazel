@@ -10,16 +10,33 @@ let _ =
       "case", CASE;
       "end", END;
       "true", TRUE;
-      "false", FALSE]
+      "false", FALSE;
+      "NaN", FLOAT ("NaN");
+      "Inf", FLOAT "Inf";
+      "NegInf", FLOAT "NegInf"]
 }
 
-let white = [' ' '\160' '\194']
+(*
+Definitions base on OCaml definitions
+https://ocaml.org/manual/lex.html
+*)
+let decimal = ['0'-'9'] ['0'-'9' '_']*
+let hex = '0' ['x' 'X'] ['0'-'9' 'A'-'F' 'a'-'f'] ['0'-'9' 'A'-'F' 'a'-'f' '_']*
+let oct = '0' ['o' 'O'] ['0'-'7'] ['0'-'7' '_']*
+let bin = '0' ['b' 'B'] ['0'-'1'] ['0'-'1' '_']*
+let int_lit = decimal | hex | oct | bin
+let float =
+  ['0'-'9'] ['0'-'9' '_']* ('.' ['0'-'9' '_']*)?
+  (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_'])?
+let float_hex =
+  '0' ['x' 'X'] ['0'-'9' 'A'-'F' 'a'-'f'] ['0'-'9' 'A'-'F' 'a'-'f' '_']*
+  ('.' ['0'-'9' 'A'-'F' 'a'-'f' '_']*)?
+  (['p' 'P'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)?
+let float_lit = float | float_hex
+
+let whitespace = [' ' '\160' '\194']
 let newline = ['\n']
-let digit = ['0'-'9']
-let numlit = digit+
-let floatlit = digit* '.' digit+ | digit+ '.' digit*
-let alpha = ['A'-'Z' 'a'-'z' '_']
-let ident = ['A'-'Z' 'a'-'z' '_']+ (alpha | digit)*
+let ident = ['_' 'a'-'z' 'A'-'Z' '0'-'9' '\'']+
 
 rule read =
   parse
@@ -32,10 +49,12 @@ rule read =
     else
       read lexbuf
   }
-  | white* newline {
+  | whitespace* newline {
     EMPTY
   }
-  | white+ { read lexbuf }
+  | whitespace+ { read lexbuf }
+  | int_lit { INT (Lexing.lexeme lexbuf) }
+  | float_lit { FLOAT (Lexing.lexeme lexbuf) }
   | ident as id {
     try
       Hashtbl.find keyword_table id
@@ -77,7 +96,5 @@ rule read =
   | "→" { TARROW }
   | "inj[L]" { INJL }
   | "inj[R]" { INJR }
-  | "#" white* ( [^'\n']* as t) { COMMENT t }
-  | numlit { INT (Lexing.lexeme lexbuf) }
-  | floatlit { FLOAT (Lexing.lexeme lexbuf) }
+  | "#" whitespace* ( [^'\n']* as t) { COMMENT t }
   | eof { EOF }
