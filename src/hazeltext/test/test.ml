@@ -95,12 +95,32 @@ let%test "pat type annotation" =
 let%test "incorrect pat type annotation" =
   test_incorrect "let a : (Int, b: Bool) = ? in a"
 
+let%test "exp shapes" =
+  test_parse
+    "\n\
+    \  # EXP\n\n\
+     let a : (Int, (Int, Bool)), b : Float = ((1, (1, true)), 1.0) in\n\
+     let c = a::(2, (2, false))::[] in\n\
+     let d =\n\
+    \  case c\n\
+    \  | a::_::[] => 0\n\
+    \  | _ => 1\n\
+    \  end\n\
+     in\n\
+     let e = \\x.{x+1} in\n\
+     (e, 'x3, ?)"
+
 let%test "float ops" =
-  test_parse "
-    let a : Float = 1.0 -. 2.0 in
-    let b = a +. 1.0 /. 2.0 *. 3.0 in
-    let c = b ==. 0. in
-    let d = a >. b in
-    let e = b <. b in
-    e
-  "
+  test_parse
+    "\n\
+    \    let a : Float = 1.0 -. 2.0 in\n\
+    \    let b = a +. 1.0 /. 2.0 *. 3.0 in\n\
+    \    let c = b ==. 0. in\n\
+    \    let d = a >. b in\n\
+    \    let e = b <. b in\n\
+    \    e\n\
+    \  "
+
+let%test "identifier characters" =
+  test_parse
+    "\nlet __a = 3 in\nlet 0a = 4 in\nlet 'b = 5 in\nlet c' = 6 in\nc'\n  "
