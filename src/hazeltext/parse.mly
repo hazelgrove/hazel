@@ -1,7 +1,4 @@
 %{
-  let mk_seq operand =
-    Seq.mk operand []
-
   let mk_binop l op r =
     let seq = Seq.seq_op_seq l op r in
     seq
@@ -9,19 +6,19 @@
   let mk_typ_ann pat typ =
     let typ = UHTyp.mk_OpSeq typ in
     let pat = Seq.nth_operand 0 pat in
-    mk_seq (UHPat.TypeAnn(ErrStatus.NotInHole, pat, typ))
+    Seq.wrap (UHPat.TypeAnn(ErrStatus.NotInHole, pat, typ))
 
   let mk_pat_parenthesized e =
     let e = UHPat.mk_OpSeq e in
     UHPat.Parenthesized(e)
 
   let mk_application e args =
-    let e = mk_seq e in
+    let e = Seq.wrap e in
     let rec mk_app e args =
       match args with
       | [] -> e
       | x::xs -> (
-        let x = mk_seq x in
+        let x = Seq.wrap x in
         let opseq = mk_app x xs in
         mk_binop e Operators_Exp.Space opseq
       )
@@ -56,13 +53,13 @@
 
   let mk_case expr rules =
     let e = UHExp.case expr rules in
-    mk_seq e
+    Seq.wrap e
 
   let mk_empty_list =
-    mk_seq (UHExp.listnil ())
+    Seq.wrap (UHExp.listnil ())
 
   let mk_wild =
-    mk_seq (UHPat.wild ())
+    Seq.wrap (UHPat.wild ())
 %}
 
 %token LET
@@ -125,7 +122,7 @@ let_binding:
 
 typ:
   typ typ_op typ { mk_binop $1 $2 $3 }
-  | typ_ { mk_seq $1 }
+  | typ_ { Seq.wrap $1 }
 ;
 
 typ_:
@@ -160,7 +157,7 @@ pat:
   | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
   | typ_annotation { $1 }
   | WILD { mk_wild }
-  | pat_ { mk_seq $1 }
+  | pat_ { Seq.wrap $1 }
 ;
 
 pat_:
@@ -192,7 +189,7 @@ line:
 ;
 
 expr:
-  simple_expr { mk_seq $1 }
+  simple_expr { Seq.wrap $1 }
   | CASE line rule+ END { mk_case $2 $3 }
   | simple_expr simple_expr+ { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
