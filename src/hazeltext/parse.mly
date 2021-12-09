@@ -1,7 +1,5 @@
 %{
-  let mk_binop l op r =
-    let seq = Seq.seq_op_seq l op r in
-    seq
+  let mk_binop = Seq.seq_op_seq
 
   let mk_typ_ann pat typ =
     let typ = UHTyp.mk_OpSeq typ in
