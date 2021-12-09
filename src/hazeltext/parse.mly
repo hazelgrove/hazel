@@ -60,6 +60,9 @@
 
   let mk_empty_list =
     mk_seq (UHExp.listnil ())
+
+  let mk_wild =
+    mk_seq (UHPat.wild ())
 %}
 
 %token LET
@@ -89,6 +92,7 @@
 %token LBRACK RBRACK
 %token EMPTY_HOLE
 %token LAMBDA
+%token WILD
 %token CASE
 %token BAR
 %token ARROW
@@ -155,6 +159,7 @@ pat:
   pat COLONCOLON pat { mk_binop $1 Operators_Pat.Cons $3 }
   | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
   | typ_annotation { $1 }
+  | WILD { mk_wild }
   | pat_ { mk_seq $1 }
 ;
 

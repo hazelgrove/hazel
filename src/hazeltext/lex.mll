@@ -36,6 +36,7 @@ let float_lit = float | float_hex
 
 let whitespace = [' ' '\160' '\194']
 let newline = ['\n']
+let wild = ['_']
 let ident = ['_' 'a'-'z' 'A'-'Z' '0'-'9' '\'']+
 
 rule read =
@@ -55,6 +56,7 @@ rule read =
   | whitespace+ { read lexbuf }
   | int_lit { INT (Lexing.lexeme lexbuf) }
   | float_lit { FLOAT (Lexing.lexeme lexbuf) }
+  | wild { WILD }
   | ident as id {
     try
       Hashtbl.find keyword_table id
