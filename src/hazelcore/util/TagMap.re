@@ -5,7 +5,10 @@ open Sexplib.Std;
 type key = UHTag.t;
 
 [@deriving sexp]
-type t('a) = list((key, 'a));
+type binding('a) = (key, 'a);
+
+[@deriving sexp]
+type t('a) = list(binding('a));
 
 let empty: t('a) = [];
 
@@ -32,21 +35,19 @@ let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
 let singleton = (tag: key, value: 'a): t('a) => [(tag, value)];
 
 let compare_bindings =
-    ((tag1, _): (UHTag.t, 'a), (tag2, _): (UHTag.t, 'a)): int =>
+    ((tag1, _): binding('a), (tag2, _): binding('a)): int =>
   UHTag.compare(tag1, tag2);
 
 /* compares tags only */
-
 let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   let equal_bindings =
       (
         val_equal: ('a, 'a) => bool,
-        (tag1: UHTag.t, val1: 'a),
-        (tag2: UHTag.t, val2: 'a),
+        (tag1, val1): binding('a),
+        (tag2, val2): binding('a),
       )
       : bool =>
     UHTag.eq(tag1, tag2) && val_equal(val1, val2);
-
   map1 === map2
   || {
     let map1 = List.fast_sort(compare_bindings, map1);
@@ -63,9 +64,11 @@ let tags_equal = (map1: t('a), map2: t('a)): bool => {
   == List.fast_sort(UHTag.compare, tags2);
 };
 
-let for_all: (((key, 'a)) => bool, t('a)) => bool = List.for_all;
+let for_all: (binding('a) => bool, t('a)) => bool = List.for_all;
 
-let bindings: t('a) => list((key, 'a)) = x => x;
+let cardinal: t('a) => int = List.length;
+
+let bindings: t('a) => list(binding('a)) = x => x;
 
 let find_opt = (key: key, map: t('a)): option('a) => {
   let+ binding = List.find_opt(((k, _)) => UHTag.eq(key, k), map);
@@ -83,7 +86,7 @@ let sort = (map: t('a)): t('a) => {
   List.fast_sort(compare_bindings, map);
 };
 
-let of_list: list((key, 'a)) => t('a) = x => x;
+let of_list: list(binding('a)) => t('a) = x => x;
 
 let rec is_ground = (is_ground_value: 'a => bool, map: t('a)): bool =>
   switch (map) {

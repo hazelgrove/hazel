@@ -84,6 +84,20 @@ module OrderedType = {
 module Set = Set.Make(OrderedType);
 module Map = Map.Make(OrderedType);
 
+let consistent = (tag1: t, tag2: t): bool =>
+  switch (tag1, tag2) {
+  // TagCEHole1
+  | (EmptyTagHole(_), _) => true
+  // TagCEHole2
+  | (_, EmptyTagHole(_)) => true
+  // TagCNEHole1
+  | (Tag(InTagHole(_), _), _) => true
+  // TagCNEHole2
+  | (_, Tag(InTagHole(_), _)) => true
+  // TagCRefl
+  | (_, _) => eq(tag1, tag2)
+  };
+
 let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>
   switch (tag) {
   | Tag(_, t) =>
