@@ -906,7 +906,7 @@ let rec fib3 =
     if (old_mem == gensym^) {
       result^
     } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f);
+      let (out1s, out1p, out1c, out1r) = fib3(~width=width - pos, ~pos=0, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_align,
