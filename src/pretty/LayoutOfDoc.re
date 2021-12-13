@@ -798,51 +798,40 @@ let rec fib3 =
         : result3 => {
   count := count^ + 1;
   switch (x) {
-  | Text3(mem, result, i) =>
-    // TODO: without memoization
+  | Text3(mem, result, text) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
       result^
     } else {
-      let res = 0;
-      let t = i;
       mem := gensym^;
+      // TODO: should we cache the string length in Text3?
+      let new_pos = pos + String.length(text);
       let r = (
         11,
         [|
-          pos + 0,
-          pos + 1,
-          pos + 2,
-          pos + 3,
-          pos + 4,
-          pos + 5,
-          pos + 6,
-          pos + 7,
-          pos + 8,
-          pos + 9,
+          new_pos + 0,
+          new_pos + 1,
+          new_pos + 2,
+          new_pos + 3,
+          new_pos + 4,
+          new_pos + 5,
+          new_pos + 6,
+          new_pos + 7,
+          new_pos + 8,
+          new_pos + 9,
         |],
         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
         [|
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          // 33331,
-          // res + 1,
-          // res + 2,
-          // res + 3,
-          // res + 4,
-          // res + 5,
-          // res + 6,
-          // res + 7,
-          // res + 8,
-          // res + 9,
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
+          Layout.Text(text),
         |],
       );
       result := r;
