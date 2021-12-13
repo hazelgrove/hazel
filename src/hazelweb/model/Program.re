@@ -157,11 +157,11 @@ let count_doc = (~doc: Pretty.Doc.t('annot)): int => {
     } else {
       EqHashtbl.add(seen, Obj.magic(doc), ());
       switch (doc.doc) {
-      | Text(string) => ()
+      | Text(_) => ()
       | Cat(d1, d2) =>
         go(d1);
         go(d2);
-      | Linebreak(int) => ()
+      | Linebreak(_) => ()
       | Align(d) => go(d)
       | Annot(_, d) => go(d)
       | Fail(_) => ()
@@ -185,14 +185,14 @@ let get_layout =
   let width = program.width;
   Hashtbl.clear(UHDoc_common.memoize_misses);
   let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
-  Printf.printf("doc size: %d\n", count_doc(doc));
+  Printf.printf("doc size: %d\n", count_doc(~doc));
   Printf.printf("misses:\n");
   Hashtbl.iter(
     (k, v) => {Printf.printf("  %4d: %5d\n", k, v)},
     UHDoc_common.memoize_misses,
   );
   let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
-  let new_layout =
+  let _new_layout =
     Pretty.LayoutOfDoc.new_layout_of_doc(~width, ~pos=0, new_doc);
 
   TimeUtil.measure_time(

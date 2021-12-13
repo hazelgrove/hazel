@@ -47,7 +47,7 @@ let benchmark = (model: Model.t): unit => {
   let width = program.width;
   let iters = 20;
   let go = (): float => {
-    let doc =
+    let _doc =
       Program.get_doc(
         ~measure_program_get_doc=false,
         ~memoize_doc=model.memoize_doc,
