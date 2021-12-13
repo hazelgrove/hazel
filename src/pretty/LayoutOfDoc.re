@@ -56,7 +56,7 @@ type result3 =
 
 type doc3 =
   | Text3(ref(int), ref(result3), string)
-  | Fail3(ref(int), ref(result3))
+  | Fail3
   | Linebreak3(ref(int), ref(result3))
   | Cat3(ref(int), ref(result3), doc3, doc3)
   | Align3(ref(int), ref(result3), doc3)
@@ -66,7 +66,7 @@ type doc3 =
 let mk_memo = (): ref(int) => ref(0);
 let mk_result = (): ref(result3) => Obj.magic(ref(0));
 let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
-let mk_fail = (): doc3 => Fail3(mk_memo(), mk_result());
+let mk_fail = (): doc3 => Fail3;
 let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
 let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
 let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
@@ -846,56 +846,9 @@ let rec fib3 =
       result := r;
       r
     };
-  | Fail3(mem, result) =>
-    // TODO: fail without memoization
-    let old_mem = mem^;
-    if (old_mem == gensym^) {
-      result^
-    } else {
-      let res = 1;
-      let t = "Z";
-      mem := gensym^;
-      let r = (
-        11,
-        [|
-          pos + 0,
-          pos + 1,
-          pos + 2,
-          pos + 3,
-          pos + 4,
-          pos + 5,
-          pos + 6,
-          pos + 7,
-          pos + 8,
-          pos + 9,
-        |],
-        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          Layout.Text(t),
-          // res + 0,
-          // res + 1,
-          // res + 2,
-          // res + 3,
-          // res + 4,
-          // res + 5,
-          // res + 6,
-          // res + 7,
-          // res + 8,
-          // res + 9,
-        |],
-      );
-      result := r;
-      r
-    };
+  | Fail3 =>
+    // We can return without memoization only because there are no pointer equality concerns
+    (0, [||], [||], [||])
   | Linebreak3(mem, result) =>
     // TODO: fail without memoization
     let old_mem = mem^;
