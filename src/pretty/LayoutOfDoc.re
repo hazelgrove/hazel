@@ -1185,29 +1185,41 @@ let new_layout_of_doc =
   // let new_doc = doc_new_of_old(doc);
   gensym := gensym^ + 1;
   let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~width, ~pos);
+  let pos = ref(max_int);
+  let cost = ref(max_int);
+  let res = ref(None);
+  for (i in 1 to layout_s - 2) { // remember that _s is 1 greater than the ocaml length (b/c _s is the javascript length)
+    if (layout_c[i] < cost^ || layout_c[i] == cost^ && layout_p[i] < pos^) {
+      pos := layout_p[i];
+      cost := layout_c[i];
+      res := Some(layout_r[i]);
+    }
+  };
+
+  res^;
+  // None;
   // Printf.printf("l_s: %d\n", layout_s);
   // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
   // Printf.printf("sexp: %s\n", s);
-  //Some(layout)
-  // let d = mk_text("foo");
-  // let d = mk_linebreak();
-  // let d = mk_annot(0, mk_align(mk_text("foo")));
-  let d = mk_choice(mk_text("foo1"), mk_text("foo2"));
-//   let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
-// let mk_fail = (): doc3 => Fail3(mk_memo(), mk_result());
-// let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
-// let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
-// let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
-// let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), a, d);
-// let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), d1, d2);
-
-  let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
-  // let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
-  Printf.printf("before print\n");
-  let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("<annot>")}, layout_r[0]));
-  Printf.printf("sexp: %s\n", s);
-  Printf.printf("after print\n");
-  None;
+//   // let d = mk_text("foo");
+//   // let d = mk_linebreak();
+//   // let d = mk_annot(0, mk_align(mk_text("foo")));
+//   // let d = mk_choice(mk_text("foo1"), mk_text("foo2"));
+//   let d = mk_cat(mk_text("foo1"), mk_text("foo2"));
+// //   let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
+// // let mk_fail = (): doc3 => Fail3(mk_memo(), mk_result());
+// // let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
+// // let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
+// // let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
+// // let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), a, d);
+// // let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), d1, d2);
+//   // Js.debugger ();
+//   let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
+//   // let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
+//   Printf.printf("before print\n");
+//   let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("<annot>")}, layout_r[0]));
+//   Printf.printf("sexp: %s\n", s);
+  // Printf.printf("after print\n");
 };
 
 let layout_of_doc =
