@@ -109,13 +109,15 @@ let linebreak_cost =
   PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak));
 
 let rec make_fib = (x: int): doc3 =>
-  if (x < 2) {
+  if (x == 0) {
+    mk_linebreak();
+  } else if (x == 1) {
     mk_text("abc");
   } else {
     switch (x mod 4) {
-    | 0 => mk_cat(make_fib(x - 1), make_fib(x - 2))
+    | 0 => mk_annot(x, make_fib(x - 1))
     | 1 => mk_align(make_fib(x - 1))
-    | 2 => mk_annot(x, make_fib(x - 1))
+    | 2 => mk_cat(make_fib(x - 1), make_fib(x - 2)) // must be 2, so that linebreak can happen
     | 3 => mk_choice(make_fib(x - 1), make_fib(x - 2))
     | _ => failwith(__LOC__)
     };
