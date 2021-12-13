@@ -429,7 +429,7 @@ let layout_fold:
           }
         //cost[i] = cost1; // + cost[i] | 0;
         cost[i] = cost[i] + cost1[i] | 0;
-        res[i] = res1; //Cat_share(res1, res[i]);
+        res[i] = res1[i]; //Cat_share(res1, res[i]);
       }
       return xxx;
     }
