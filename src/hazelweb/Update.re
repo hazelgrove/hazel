@@ -231,7 +231,7 @@ let apply_action =
           |> JSUtil.log
         | Grain =>
           let d = model |> Model.get_program |> Program.get_elaboration;
-          d |> PrintGrain.print_expression |> Js.string |> JSUtil.log;
+          d |> PrintGrain.print_grain |> Js.string |> JSUtil.log;
         };
         model;
       };

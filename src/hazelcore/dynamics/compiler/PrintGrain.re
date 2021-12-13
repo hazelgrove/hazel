@@ -115,10 +115,15 @@ let rec print_expression = (d: DHExp.t) => {
   | ConsistentCase(Case(d1, lr, _)) =>
     let rules = lr |> List.map(print_rule) |> String.concat("");
     sprintf("match (%s){\n%s}", print_expression(d1), rules);
+  | ListNil(_) => sprintf("[]")
+  | Cons(d1, d2) =>
+    sprintf("[{%s}, ...%s]", print_expression(d1), print_expression(d2))
+  | Inj(_, side, d1) =>
+    switch (side) {
+    | L => sprintf("L(%s)", print_expression(d1))
+    | R => sprintf("R(%s)", print_expression(d1))
+    }
   | _ => raise(NotImplemented)
-  //   | ListNil(HTyp.t)
-  //   | Cons(t, t)
-  //   | Inj(HTyp.t, InjSide.t, t)
   //   | Triv
   //   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   //   | Cast(t, HTyp.t, HTyp.t)
@@ -129,4 +134,9 @@ let rec print_expression = (d: DHExp.t) => {
 and print_rule = (r: DHExp.rule) => {
   let Rule(dp, d0) = r;
   sprintf("%s => %s\n", print_pattern(dp), print_expression(d0));
+};
+
+let print_grain = (d: DHExp.t) => {
+  let s = "enum HazelSum<a, b> { L(a), R(b) }\n";
+  sprintf("%s%s", s, print_expression(d));
 };
