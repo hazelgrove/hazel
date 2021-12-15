@@ -74,15 +74,49 @@ let rec eq = (ty, ty') =>
   };
 
 module BipartiteGraph = {
+  [@deriving sexp]
   type node = TagMap.binding(option(t));
 
-  module NodeMap =
-    Map.Make({
+  module NodeMap = {
+    include Map.Make({
       type t = node;
       let compare = compare;
     });
 
-  module Index = {
+    let%test_module "NodeMap" =
+      (module
+       {
+         ();
+
+         open TagConsistencyTests;
+
+         let%test "empty has no bindings" = empty |> bindings == [];
+
+         let%test "add constructs a binding" = {
+           let nodeA: node = (tag("A"), None);
+           let map: t(unit) = empty |> add(nodeA, ());
+           bindings(map) == [(nodeA, ())];
+         };
+
+         let%test "add twice constructs two bindings" = {
+           let nodeA: node = (tag("A"), None);
+           let nodeB: node = (tag("B"), Some(Int));
+           let nodeC: node = (tag("C"), Some(Bool));
+           let map: t(int) = empty |> add(nodeA, 1) |> add(nodeB, 2);
+           List.length(bindings(map)) == 2
+           && map
+           |> find_opt(nodeC) == None
+           && map
+           |> find_opt(nodeB) == Some(2)
+           && map
+           |> find_opt(nodeA) == Some(1);
+         };
+
+         ();
+       });
+  };
+
+  module NodeIndex = {
     type t = {
       map: NodeMap.t(int),
       next: int,
@@ -102,6 +136,44 @@ module BipartiteGraph = {
         (i, {map, next});
       | Some(i) => (i, index)
       };
+
+    let find_opt = (node, index: t): option(int) =>
+      index.map |> NodeMap.find_opt(node);
+
+    let%test_module "NodeIndex" =
+      (module
+       {
+         ();
+
+         open TagConsistencyTests;
+
+         let%test "empty has no bindings" = empty |> bindings == [];
+
+         let%test "find binds a new key to the next index" = {
+           let nodeA: node = (tag("A"), None);
+           let (i, map) = empty |> find(nodeA);
+           i == 0 && map |> bindings == [(nodeA, i)];
+         };
+
+         let%test "find twice binds two new keys to the next indices" = {
+           let nodeA: node = (tag("A"), None);
+           let nodeB: node = (tag("B"), None);
+           let nodeC: node = (tag("C"), None);
+           let (i1, map) = empty |> find(nodeA);
+           let (i2, map) = map |> find(nodeB);
+           i1 == 0
+           && i2 == 1
+           && List.length(map |> bindings) == 2
+           && map
+           |> find_opt(nodeC) == None
+           && map
+           |> find_opt(nodeB) == Some(i2)
+           && map
+           |> find_opt(nodeA) == Some(i1);
+         };
+
+         ();
+       });
   };
 
   module IntMap = Map.Make(Int);
@@ -120,6 +192,37 @@ module BipartiteGraph = {
         };
       update(a, insert(b), adj);
     };
+
+    let%test_module "AdjacencyMap" =
+      (module
+       {
+         ();
+
+         let%test "empty has no bindings" = empty |> bindings == [];
+
+         let%test "add constructs a singleton set" = {
+           let map = empty |> add(1, 2);
+           map |> bindings == [(1, IntSet.singleton(2))];
+         };
+
+         let%test "add twice constructs two singleton sets" = {
+           let map = empty |> add(1, 2) |> add(3, 4);
+           List.length(map |> bindings) == 2
+           && map
+           |> find_opt(1) == Some(IntSet.singleton(2))
+           && map
+           |> find_opt(3) == Some(IntSet.singleton(4));
+         };
+
+         let%test "add same key twice constructs one set with two elements" = {
+           let map = empty |> add(1, 2) |> add(1, 3);
+           List.length(map |> bindings) == 1
+           && map
+           |> find_opt(1) == Some(IntSet.of_list([2, 3]));
+         };
+
+         ();
+       });
   };
 
   module Matching = {
@@ -127,11 +230,36 @@ module BipartiteGraph = {
 
     type nonrec t = t(option(int));
 
-    let init = (index: Index.t): t =>
-      Index.bindings(index)
+    let init = (index: NodeIndex.t): t =>
+      NodeIndex.bindings(index)
       |> List.map(((_, x)) => (x, None))
       |> List.to_seq
       |> of_seq;
+
+    let%test_module "Matching" =
+      (module
+       {
+         ();
+
+         open TagConsistencyTests;
+
+         let%test "empty has no bindings" = empty |> bindings == [];
+
+         let%test "init(empty) is empty" = init(NodeIndex.empty) == empty;
+
+         let%test "init(index) maps indices to None" = {
+           let (i1, index) = NodeIndex.(empty |> find((tag("A"), None)));
+           let (i2, index) = NodeIndex.(index |> find((tag("B"), None)));
+           let map = init(index);
+           List.length(map |> bindings) == 2
+           && map
+           |> find_opt(i1) == Some(None)
+           && map
+           |> find_opt(i2) == Some(None);
+         };
+
+         ();
+       });
   };
 
   module IntOptionMap =
@@ -145,18 +273,50 @@ module BipartiteGraph = {
 
     type nonrec t = t(int);
 
+    let infty = Int.max_int;
+
     let init = (pairs: Matching.t): t =>
       pairs
       |> Matching.bindings
       |> List.map(((a, b_opt)) =>
            switch (b_opt) {
            | None => (Some(a), 0)
-           | Some(_) => (Some(a), Int.max_int)
+           | Some(_) => (Some(a), infty)
            }
          )
       |> List.to_seq
       |> of_seq
-      |> add(None, Int.max_int);
+      |> add(None, infty);
+
+    let%test_module "DistanceMap" =
+      (module
+       {
+         ();
+
+         open TagConsistencyTests;
+
+         let%test "empty has no bindings" = empty |> bindings == [];
+
+         let%test "init(empty) maps only the special node to infinity" =
+           init(Matching.empty) |> bindings == [(None, infty)];
+
+         let%test "init(matching) maps nodes to 0 or infinity" = {
+           let (i1, index) = NodeIndex.(empty |> find((tag("A"), None)));
+           let (i2, index) = NodeIndex.(index |> find((tag("B"), None)));
+           let pairs =
+             Matching.(init(index) |> update(i2, Option.map(_ => Some(1))));
+           let map = init(pairs);
+           List.length(map |> bindings) == 3
+           && map
+           |> find_opt(None) == Some(infty)
+           && map
+           |> find_opt(Some(i2)) == Some(infty)
+           && map
+           |> find_opt(Some(i1)) == Some(0);
+         };
+
+         ();
+       });
   };
 
   module Queue = {
@@ -176,20 +336,20 @@ module BipartiteGraph = {
   // Graph
 
   type t = {
-    indexA: Index.t,
-    indexB: Index.t,
+    indexA: NodeIndex.t,
+    indexB: NodeIndex.t,
     adj: AdjacencyMap.t,
   };
 
   let empty: t = {
-    indexA: Index.empty,
-    indexB: Index.empty,
+    indexA: NodeIndex.empty,
+    indexB: NodeIndex.empty,
     adj: AdjacencyMap.empty,
   };
 
   let add = (nodeA: node, nodeB: node, {indexA, indexB, adj}: t): t => {
-    let (a, indexA) = indexA |> Index.find(nodeA);
-    let (b, indexB) = indexB |> Index.find(nodeB);
+    let (a, indexA) = indexA |> NodeIndex.find(nodeA);
+    let (b, indexB) = indexB |> NodeIndex.find(nodeB);
     let adj = adj |> AdjacencyMap.add(a, b);
     {indexA, indexB, adj};
   };
@@ -333,7 +493,10 @@ module BipartiteGraph = {
 
 /* type consistency */
 
-let rec consistent = (x, y) =>
+let rec consistent = (x, y) => {
+  print_endline("CONSISTENT");
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(y)));
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
@@ -361,10 +524,21 @@ let rec consistent = (x, y) =>
            UHTag.consistent(tagA, tagB) && consistent_opt(argA_opt, argB_opt)
          );
     let n = List.length(partA);
-    n == List.length(partB)
-    && BipartiteGraph.(of_list(edges) |> maximum_perfect_matching)
-    |> Option.map(matching => matching == n)
-    |> Option.value(~default=false);
+    if (n == List.length(partB)) {
+      let graph = BipartiteGraph.of_list(edges);
+      let matching_opt = BipartiteGraph.maximum_perfect_matching(graph);
+      print_endline("XXX");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_int, matching_opt),
+        ),
+      );
+      matching_opt
+      |> Option.map(matching => matching == n)
+      |> Option.value(~default=false);
+    } else {
+      false;
+    };
 
   // TCSum2
   | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
@@ -384,7 +558,8 @@ let rec consistent = (x, y) =>
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  }
+  };
+}
 
 and consistent_opt = (ty_opt: option(t), ty_opt': option(t)): bool =>
   switch (ty_opt, ty_opt') {
