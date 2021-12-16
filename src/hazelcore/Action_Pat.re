@@ -629,7 +629,8 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -803,6 +804,46 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     };
 
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+    )
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
+
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
@@ -822,6 +863,8 @@ and syn_perform_operand =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
       );
+    let (new_zp, _, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
     mk_syn_result(ctx, u_gen, new_zp);
 
   /* Invalid SwapLeft and SwapRight actions */
@@ -851,14 +894,13 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (syn_perform_operand(ctx, u_gen, a, zop)) {
+    switch (ana_perform_operand(ctx, u_gen, a, zop, UHTyp.expand(ann))) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded((ZOpSeq(_, zseq), _, ctx, u_gen)) =>
+    | Succeeded((ZOpSeq(_, zseq), ctx, u_gen)) =>
       let newseq = annotate_last_operand(zseq, ann);
-      let (zpat, ty, ctx, u_gen) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq);
-      Succeeded((zpat, ty, ctx, u_gen));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
     switch (Action_Typ.perform(a, zann)) {
@@ -1105,7 +1147,6 @@ and ana_perform_operand =
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
-
   | (
       _,
       CursorP(
@@ -1127,7 +1168,8 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -1350,6 +1392,45 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
 
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
