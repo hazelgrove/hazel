@@ -205,6 +205,10 @@ simple_expr:
       let (it, _) = UHExp.new_InvalidText 0 $1 in
       it
   }
+  | WILD {
+      let (it, _) = UHExp.new_InvalidText 0 "_" in
+      it
+  }
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | fn { $1 }
   | INJL LPAREN line RPAREN { mk_inj_l $3 }
