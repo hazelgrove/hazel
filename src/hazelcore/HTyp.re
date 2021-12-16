@@ -322,15 +322,50 @@ module BipartiteGraph = {
   module Queue = {
     type t('a) = (list('a), list('a));
 
-    let add = (x: 'a, (front, back): t('a)) => ([x, ...front], back);
+    let empty: t('a) = ([], []);
 
-    let of_list = (xs: list('a)): t('a) => ([], List.rev(xs));
+    let elements = ((front, back): t('a)): list('a) =>
+      front @ List.rev(back);
+
+    let add = (x: 'a, (front, back): t('a)) => (front, [x, ...back]);
+
+    let of_list = (xs: list('a)): t('a) => (xs, []);
 
     let rec take_opt: t('a) => option(('a, t('a))) =
       fun
       | ([], []) => None
-      | (front, [x, ...back]) => Some((x, (front, back)))
-      | (front, []) => take_opt(([], List.rev(front)));
+      | ([], back) => take_opt((List.rev(back), []))
+      | ([x, ...front], back) => Some((x, (front, back)));
+
+    let%test_module "Queue" =
+      (module
+       {
+         ();
+
+         let%test "empty has no elements" = empty |> elements == [];
+
+         let%test "elements are returned in order" =
+           empty |> add(1) |> add(2) |> add(3) |> elements == [1, 2, 3];
+
+         let%test "of_list adds elements in order" =
+           of_list([3, 2, 1]) |> add(4) |> elements == [3, 2, 1, 4];
+
+         let%test "take_opt empty returns None" = empty |> take_opt == None;
+
+         let%test "take_opt returns elements in the order they were added" = {
+           OptUtil.Syntax.(
+             {
+               let queue = empty |> add(1) |> add(2);
+               let* (x1, queue) = queue |> take_opt;
+               let+ (x2, queue) = queue |> take_opt;
+               x1 == 1 && x2 == 2 && queue == empty;
+             }
+             |> Option.value(~default=false)
+           );
+         };
+
+         ();
+       });
   };
 
   // Graph
@@ -347,6 +382,18 @@ module BipartiteGraph = {
     adj: AdjacencyMap.empty,
   };
 
+  let nodes = ({indexA, indexB, _}: t): (list(int), list(int)) => (
+    indexA |> NodeIndex.bindings |> List.map(snd),
+    indexB |> NodeIndex.bindings |> List.map(snd),
+  );
+
+  let edges = ({adj, _}: t): list((int, int)) =>
+    adj
+    |> AdjacencyMap.bindings
+    |> List.concat_map(((a, bs)) =>
+         bs |> IntSet.elements |> List.map(b => (a, b))
+       );
+
   let add = (nodeA: node, nodeB: node, {indexA, indexB, adj}: t): t => {
     let (a, indexA) = indexA |> NodeIndex.find(nodeA);
     let (b, indexB) = indexB |> NodeIndex.find(nodeB);
@@ -358,6 +405,97 @@ module BipartiteGraph = {
     fun
     | [(a, b), ...tail] => of_list(tail) |> add(a, b)
     | [] => empty;
+
+  let%test_module "BipartiteGraph" =
+    (module
+     {
+       ();
+
+       open TagConsistencyTests;
+
+       let%test "empty has no nodes" = empty |> nodes == ([], []);
+
+       let%test "empty has no edges" = empty |> edges == [];
+
+       let nodeA: node = (tag("A"), None);
+       let nodeB: node = (tag("B"), None);
+       let nodeC: node = (tag("C"), None);
+       let nodeD: node = (tag("D"), None);
+
+       let%test "add empty constructs two nodes" =
+         empty |> add(nodeA, nodeB) |> nodes == ([0], [0]);
+
+       let%test "add empty constructs one edge" =
+         empty |> add(nodeA, nodeB) |> edges == [(0, 0)];
+
+       let%test "add same source twice constructs three nodes" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeA, nodeC)
+         |> nodes == ([0], [0, 1]);
+
+       let%test "add same source twice constructs two edges" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeA, nodeC)
+         |> edges == [(0, 0), (0, 1)];
+
+       let%test "add same target twice constructs three nodes" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeC, nodeB)
+         |> nodes == ([0, 1], [0]);
+
+       let%test "add same target twice constructs two edges" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeC, nodeB)
+         |> edges == [(0, 0), (1, 0)];
+
+       let%test "add twice constructs four nodes" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeC, nodeD)
+         |> nodes
+         |> TupleUtil.bimap(List.sort(compare), List.sort(compare))
+         == ([0, 1], [0, 1]);
+
+       let%test "add twice constructs two edges" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeC, nodeD)
+         |> edges
+         |> List.sort(compare) == [(0, 0), (1, 1)];
+
+       let%test "add same twice constructs two nodes" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeA, nodeB)
+         |> nodes == ([0], [0]);
+
+       let%test "add same twice constructs one edge" =
+         empty
+         |> add(nodeA, nodeB)
+         |> add(nodeA, nodeB)
+         |> edges == [(0, 0)];
+
+       let%test "of_list null has no nodes" =
+         of_list([]) |> nodes == ([], []);
+
+       let%test "of_list null has no edges" = of_list([]) |> edges == [];
+
+       let%test "of_list constructs a node for each distinct source and target" =
+         of_list([(nodeA, nodeB), (nodeA, nodeB), (nodeC, nodeB)])
+         |> nodes
+         |> TupleUtil.map_left(List.sort(compare)) == ([0, 1], [0]);
+
+       let%test "of_list constructs an edge for each distinct source-target pair" =
+         of_list([(nodeA, nodeB), (nodeA, nodeB), (nodeC, nodeB)])
+         |> edges
+         |> List.sort(compare) == [(0, 0), (1, 0)];
+
+       ();
+     });
 
   // Hopcroft-Karp
   let maximum_perfect_matching = ({indexA, indexB, adj}: t): option(int) => {
