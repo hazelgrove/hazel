@@ -87,19 +87,20 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               Decoration_common.container(
-                 ~font_metrics,
-                 ~height=MeasuredLayout.height(m),
-                 ~width=MeasuredLayout.width(~offset, m),
-                 ~origin=MeasuredPosition.{row: start.row, col: indent},
-                 ~cls,
-                 [view],
-               );
+               switch (dshape) {
+               | CellBoundary => view
+               | _ =>
+                 Decoration_common.container(
+                   ~font_metrics,
+                   ~height=MeasuredLayout.height(m),
+                   ~width=MeasuredLayout.width(~offset, m),
+                   ~origin=MeasuredPosition.{row: start.row, col: indent},
+                   ~cls,
+                   [view],
+                 )
+               };
              });
         go'(~tl=current_vs @ tl, dpaths, m);
-      | CellBoundary =>
-        print_endline("UH Code Cell Boundary");
-        go'(~tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
     };
