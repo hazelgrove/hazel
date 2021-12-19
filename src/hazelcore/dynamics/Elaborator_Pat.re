@@ -384,7 +384,7 @@ and ana_elab_operand =
         }
       }
     // EAInjUnexpectedArg2
-    | Sum(Elided(tag', None)) when UHTag.eq(tag, tag') =>
+    | Sum(Elided(tag', None)) when UHTag.equal(tag, tag') =>
       switch (ana_elab(ctx, delta, arg, Hole)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp, _, ctx', delta') =>
@@ -412,7 +412,7 @@ and ana_elab_operand =
         Elaborates(InjError(reason, u, 0, inj), ty, ctx, delta');
       }
     // EAInjExpectedArg2
-    | Sum(Elided(tag', Some(_))) when UHTag.eq(tag, tag') =>
+    | Sum(Elided(tag', Some(_))) when UHTag.equal(tag, tag') =>
       let gamma = Contexts.gamma(ctx);
       let inj = (tag, None);
       let delta' = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);

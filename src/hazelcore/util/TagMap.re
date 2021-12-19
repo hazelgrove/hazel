@@ -21,7 +21,7 @@ let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
   switch (map) {
   | [] => [(tag, value)]
   | [(tag', value') as head, ...tail] =>
-    if (UHTag.eq(tag, tag')) {
+    if (UHTag.equal(tag, tag')) {
       if (value === value') {
         map;
       } else {
@@ -47,7 +47,7 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
         (tag2, val2): binding('a),
       )
       : bool =>
-    UHTag.eq(tag1, tag2) && val_equal(val1, val2);
+    UHTag.equal(tag1, tag2) && val_equal(val1, val2);
   map1 === map2
   || {
     let map1 = List.fast_sort(compare_bindings, map1);
@@ -71,7 +71,7 @@ let cardinal: t('a) => int = List.length;
 let bindings: t('a) => list(binding('a)) = x => x;
 
 let find_opt = (key: key, map: t('a)): option('a) => {
-  let+ binding = List.find_opt(((k, _)) => UHTag.eq(key, k), map);
+  let+ binding = List.find_opt(((k, _)) => UHTag.equal(key, k), map);
   snd(binding);
 };
 

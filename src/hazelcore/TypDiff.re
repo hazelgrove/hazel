@@ -41,7 +41,7 @@ let rec mk =
       |> TupleUtil.map2(List.flatten);
     };
   | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
-    if (UHTag.eq(tag, tag')) {
+    if (UHTag.equal(tag, tag')) {
       switch (ty_opt, ty_opt') {
       | (None, None) => ([], [])
       | (Some(ty), Some(ty')) => diff_subtypes(0, (ty, ty'))

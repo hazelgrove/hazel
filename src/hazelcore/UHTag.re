@@ -7,13 +7,7 @@ type t =
 
 let compare = compare;
 
-let eq = (tag1: t, tag2: t): bool =>
-  switch (tag1, tag2) {
-  | (Tag(_, _), EmptyTagHole(_))
-  | (EmptyTagHole(_), Tag(_, _)) => false
-  | (Tag(_, t1), Tag(_, t2)) => String.equal(t1, t2)
-  | (EmptyTagHole(u1), EmptyTagHole(u2)) => MetaVar.eq(u1, u2)
-  };
+let equal = (tag1: t, tag2: t): bool => tag1 == tag2;
 
 let new_TagHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -95,7 +89,7 @@ let consistent = (tag1: t, tag2: t): bool =>
   // TagCNEHole2
   | (_, Tag(InTagHole(_), _)) => true
   // TagCRefl
-  | (_, _) => eq(tag1, tag2)
+  | (_, _) => equal(tag1, tag2)
   };
 
 let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>

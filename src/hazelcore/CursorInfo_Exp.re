@@ -903,7 +903,7 @@ and ana_cursor_info_zoperand =
         let* ty_opt = TagMap.find_opt(tag, tymap);
         let+ ty = ty_opt;
         CursorInfo_common.mk(AnaInjExpectedArg(ty), ctx, cursor_term);
-      | Sum(Elided(tag', ty_opt)) when UHTag.eq(tag, tag') =>
+      | Sum(Elided(tag', ty_opt)) when UHTag.equal(tag, tag') =>
         let+ ty = ty_opt;
         CursorInfo_common.mk(AnaInjExpectedArg(ty), ctx, cursor_term);
       | _ => None
@@ -1007,7 +1007,7 @@ and ana_cursor_info_zoperand =
         ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg)
       | None => ana_cursor_info(~steps=steps @ [1], ctx, zarg, HTyp.Hole)
       }
-    | Sum(Elided(tag', ty_opt)) when UHTag.eq(tag, tag') =>
+    | Sum(Elided(tag', ty_opt)) when UHTag.equal(tag, tag') =>
       let* ty_arg = ty_opt;
       ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg);
     | _ => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)

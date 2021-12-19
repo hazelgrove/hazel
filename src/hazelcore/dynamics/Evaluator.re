@@ -128,7 +128,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj((tag1, dp_opt)), Inj((_, tag2, d_opt))) =>
     switch (tag1, tag2) {
     | (Tag(_), Tag(_))
-    | (EmptyTagHole(_), EmptyTagHole(_)) when UHTag.eq(tag1, tag2) =>
+    | (EmptyTagHole(_), EmptyTagHole(_)) when UHTag.equal(tag1, tag2) =>
       switch (dp_opt, d_opt) {
       | (None, None) => Matches(Environment.empty)
       | (Some(dp), Some(d)) => matches(dp, d)

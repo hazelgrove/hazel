@@ -73,564 +73,38 @@ let rec eq = (ty, ty') =>
   | (List(_), _) => false
   };
 
-module BipartiteGraph = {
-  [@deriving sexp]
-  type node = TagMap.binding(option(t));
-
-  module NodeMap = {
-    include Map.Make({
-      type t = node;
-      let compare = compare;
-    });
-
-    let%test_module "NodeMap" =
-      (module
-       {
-         ();
-
-         open TagConsistencyTests;
-
-         let%test "empty has no bindings" = empty |> bindings == [];
-
-         let%test "add constructs a binding" = {
-           let nodeA: node = (tag("A"), None);
-           let map: t(unit) = empty |> add(nodeA, ());
-           bindings(map) == [(nodeA, ())];
-         };
-
-         let%test "add twice constructs two bindings" = {
-           let nodeA: node = (tag("A"), None);
-           let nodeB: node = (tag("B"), Some(Int));
-           let nodeC: node = (tag("C"), Some(Bool));
-           let map: t(int) = empty |> add(nodeA, 1) |> add(nodeB, 2);
-           List.length(bindings(map)) == 2
-           && map
-           |> find_opt(nodeC) == None
-           && map
-           |> find_opt(nodeB) == Some(2)
-           && map
-           |> find_opt(nodeA) == Some(1);
-         };
-
-         ();
-       });
-  };
-
-  module NodeIndex = {
-    type t = {
-      map: NodeMap.t(int),
-      next: int,
-    };
-
-    let empty: t = {map: NodeMap.empty, next: 0};
-
-    let bindings = ({map, _}: t): list((node, int)) =>
-      NodeMap.bindings(map);
-
-    let find = (node: node, index: t): (int, t) =>
-      switch (NodeMap.find_opt(node, index.map)) {
-      | None =>
-        let i = index.next;
-        let map = NodeMap.add(node, i, index.map);
-        let next = i + 1;
-        (i, {map, next});
-      | Some(i) => (i, index)
-      };
-
-    let find_opt = (node, index: t): option(int) =>
-      index.map |> NodeMap.find_opt(node);
-
-    let%test_module "NodeIndex" =
-      (module
-       {
-         ();
-
-         open TagConsistencyTests;
-
-         let%test "empty has no bindings" = empty |> bindings == [];
-
-         let%test "find binds a new key to the next index" = {
-           let nodeA: node = (tag("A"), None);
-           let (i, map) = empty |> find(nodeA);
-           i == 0 && map |> bindings == [(nodeA, i)];
-         };
-
-         let%test "find twice binds two new keys to the next indices" = {
-           let nodeA: node = (tag("A"), None);
-           let nodeB: node = (tag("B"), None);
-           let nodeC: node = (tag("C"), None);
-           let (i1, map) = empty |> find(nodeA);
-           let (i2, map) = map |> find(nodeB);
-           i1 == 0
-           && i2 == 1
-           && List.length(map |> bindings) == 2
-           && map
-           |> find_opt(nodeC) == None
-           && map
-           |> find_opt(nodeB) == Some(i2)
-           && map
-           |> find_opt(nodeA) == Some(i1);
-         };
-
-         ();
-       });
-  };
-
-  module IntMap = Map.Make(Int);
-  module IntSet = Set.Make(Int);
-
-  module AdjacencyMap = {
-    include IntMap;
-
-    type t = IntMap.t(IntSet.t);
-
-    let add = (a: int, b: int, adj: t): t => {
-      let insert = (b, bs_opt) =>
-        switch (bs_opt) {
-        | None => Some(IntSet.singleton(b))
-        | Some(bs) => Some(bs |> IntSet.add(b))
-        };
-      update(a, insert(b), adj);
-    };
-
-    let%test_module "AdjacencyMap" =
-      (module
-       {
-         ();
-
-         let%test "empty has no bindings" = empty |> bindings == [];
-
-         let%test "add constructs a singleton set" = {
-           let map = empty |> add(1, 2);
-           map |> bindings == [(1, IntSet.singleton(2))];
-         };
-
-         let%test "add twice constructs two singleton sets" = {
-           let map = empty |> add(1, 2) |> add(3, 4);
-           List.length(map |> bindings) == 2
-           && map
-           |> find_opt(1) == Some(IntSet.singleton(2))
-           && map
-           |> find_opt(3) == Some(IntSet.singleton(4));
-         };
-
-         let%test "add same key twice constructs one set with two elements" = {
-           let map = empty |> add(1, 2) |> add(1, 3);
-           List.length(map |> bindings) == 1
-           && map
-           |> find_opt(1) == Some(IntSet.of_list([2, 3]));
-         };
-
-         ();
-       });
-  };
-
-  module Matching = {
-    include IntMap;
-
-    type nonrec t = t(option(int));
-
-    let init = (index: NodeIndex.t): t =>
-      NodeIndex.bindings(index)
-      |> List.map(((_, x)) => (x, None))
-      |> List.to_seq
-      |> of_seq;
-
-    let%test_module "Matching" =
-      (module
-       {
-         ();
-
-         open TagConsistencyTests;
-
-         let%test "empty has no bindings" = empty |> bindings == [];
-
-         let%test "init(empty) is empty" = init(NodeIndex.empty) == empty;
-
-         let%test "init(index) maps indices to None" = {
-           let (i1, index) = NodeIndex.(empty |> find((tag("A"), None)));
-           let (i2, index) = NodeIndex.(index |> find((tag("B"), None)));
-           let map = init(index);
-           List.length(map |> bindings) == 2
-           && map
-           |> find_opt(i1) == Some(None)
-           && map
-           |> find_opt(i2) == Some(None);
-         };
-
-         ();
-       });
-  };
-
-  module IntOptionMap =
+module NodeIndex = {
+  module NodeMap =
     Map.Make({
-      type t = option(int);
+      type nonrec t = TagMap.binding(option(t));
       let compare = compare;
     });
+  include NodeMap;
 
-  module DistanceMap = {
-    include IntOptionMap;
-
-    type nonrec t = t(int);
-
-    let infty = Int.max_int;
-
-    let init = (pairs: Matching.t): t =>
-      pairs
-      |> Matching.bindings
-      |> List.map(((a, b_opt)) =>
-           switch (b_opt) {
-           | None => (Some(a), 0)
-           | Some(_) => (Some(a), infty)
-           }
-         )
-      |> List.to_seq
-      |> of_seq
-      |> add(None, infty);
-
-    let%test_module "DistanceMap" =
-      (module
-       {
-         ();
-
-         open TagConsistencyTests;
-
-         let%test "empty has no bindings" = empty |> bindings == [];
-
-         let%test "init(empty) maps only the special node to infinity" =
-           init(Matching.empty) |> bindings == [(None, infty)];
-
-         let%test "init(matching) maps nodes to 0 or infinity" = {
-           let (i1, index) = NodeIndex.(empty |> find((tag("A"), None)));
-           let (i2, index) = NodeIndex.(index |> find((tag("B"), None)));
-           let pairs =
-             Matching.(init(index) |> update(i2, Option.map(_ => Some(1))));
-           let map = init(pairs);
-           List.length(map |> bindings) == 3
-           && map
-           |> find_opt(None) == Some(infty)
-           && map
-           |> find_opt(Some(i2)) == Some(infty)
-           && map
-           |> find_opt(Some(i1)) == Some(0);
-         };
-
-         ();
-       });
+  type nonrec t = {
+    map: t(int),
+    next: int,
   };
 
-  module Queue = {
-    type t('a) = (list('a), list('a));
+  let cardinal = ({map, _}: t): int => map |> NodeMap.cardinal;
 
-    let empty: t('a) = ([], []);
+  let empty: t = {map: empty, next: 0};
 
-    let elements = ((front, back): t('a)): list('a) =>
-      front @ List.rev(back);
-
-    let add = (x: 'a, (front, back): t('a)) => (front, [x, ...back]);
-
-    let of_list = (xs: list('a)): t('a) => (xs, []);
-
-    let rec take_opt: t('a) => option(('a, t('a))) =
-      fun
-      | ([], []) => None
-      | ([], back) => take_opt((List.rev(back), []))
-      | ([x, ...front], back) => Some((x, (front, back)));
-
-    let%test_module "Queue" =
-      (module
-       {
-         ();
-
-         let%test "empty has no elements" = empty |> elements == [];
-
-         let%test "elements are returned in order" =
-           empty |> add(1) |> add(2) |> add(3) |> elements == [1, 2, 3];
-
-         let%test "of_list adds elements in order" =
-           of_list([3, 2, 1]) |> add(4) |> elements == [3, 2, 1, 4];
-
-         let%test "take_opt empty returns None" = empty |> take_opt == None;
-
-         let%test "take_opt returns elements in the order they were added" = {
-           OptUtil.Syntax.(
-             {
-               let queue = empty |> add(1) |> add(2);
-               let* (x1, queue) = queue |> take_opt;
-               let+ (x2, queue) = queue |> take_opt;
-               x1 == 1 && x2 == 2 && queue == empty;
-             }
-             |> Option.value(~default=false)
-           );
-         };
-
-         ();
-       });
-  };
-
-  // Graph
-
-  type t = {
-    indexA: NodeIndex.t,
-    indexB: NodeIndex.t,
-    adj: AdjacencyMap.t,
-  };
-
-  let empty: t = {
-    indexA: NodeIndex.empty,
-    indexB: NodeIndex.empty,
-    adj: AdjacencyMap.empty,
-  };
-
-  let nodes = ({indexA, indexB, _}: t): (list(int), list(int)) => (
-    indexA |> NodeIndex.bindings |> List.map(snd),
-    indexB |> NodeIndex.bindings |> List.map(snd),
-  );
-
-  let edges = ({adj, _}: t): list((int, int)) =>
-    adj
-    |> AdjacencyMap.bindings
-    |> List.concat_map(((a, bs)) =>
-         bs |> IntSet.elements |> List.map(b => (a, b))
-       );
-
-  let add = (nodeA: node, nodeB: node, {indexA, indexB, adj}: t): t => {
-    let (a, indexA) = indexA |> NodeIndex.find(nodeA);
-    let (b, indexB) = indexB |> NodeIndex.find(nodeB);
-    let adj = adj |> AdjacencyMap.add(a, b);
-    {indexA, indexB, adj};
-  };
-
-  let rec of_list: list((node, node)) => t =
-    fun
-    | [(a, b), ...tail] => of_list(tail) |> add(a, b)
-    | [] => empty;
-
-  let%test_module "BipartiteGraph" =
-    (module
-     {
-       ();
-
-       open TagConsistencyTests;
-
-       let%test "empty has no nodes" = empty |> nodes == ([], []);
-
-       let%test "empty has no edges" = empty |> edges == [];
-
-       let nodeA: node = (tag("A"), None);
-       let nodeB: node = (tag("B"), None);
-       let nodeC: node = (tag("C"), None);
-       let nodeD: node = (tag("D"), None);
-
-       let%test "add empty constructs two nodes" =
-         empty |> add(nodeA, nodeB) |> nodes == ([0], [0]);
-
-       let%test "add empty constructs one edge" =
-         empty |> add(nodeA, nodeB) |> edges == [(0, 0)];
-
-       let%test "add same source twice constructs three nodes" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeA, nodeC)
-         |> nodes == ([0], [0, 1]);
-
-       let%test "add same source twice constructs two edges" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeA, nodeC)
-         |> edges == [(0, 0), (0, 1)];
-
-       let%test "add same target twice constructs three nodes" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeC, nodeB)
-         |> nodes == ([0, 1], [0]);
-
-       let%test "add same target twice constructs two edges" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeC, nodeB)
-         |> edges == [(0, 0), (1, 0)];
-
-       let%test "add twice constructs four nodes" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeC, nodeD)
-         |> nodes
-         |> TupleUtil.bimap(List.sort(compare), List.sort(compare))
-         == ([0, 1], [0, 1]);
-
-       let%test "add twice constructs two edges" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeC, nodeD)
-         |> edges
-         |> List.sort(compare) == [(0, 0), (1, 1)];
-
-       let%test "add same twice constructs two nodes" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeA, nodeB)
-         |> nodes == ([0], [0]);
-
-       let%test "add same twice constructs one edge" =
-         empty
-         |> add(nodeA, nodeB)
-         |> add(nodeA, nodeB)
-         |> edges == [(0, 0)];
-
-       let%test "of_list null has no nodes" =
-         of_list([]) |> nodes == ([], []);
-
-       let%test "of_list null has no edges" = of_list([]) |> edges == [];
-
-       let%test "of_list constructs a node for each distinct source and target" =
-         of_list([(nodeA, nodeB), (nodeA, nodeB), (nodeC, nodeB)])
-         |> nodes
-         |> TupleUtil.map_left(List.sort(compare)) == ([0, 1], [0]);
-
-       let%test "of_list constructs an edge for each distinct source-target pair" =
-         of_list([(nodeA, nodeB), (nodeA, nodeB), (nodeC, nodeB)])
-         |> edges
-         |> List.sort(compare) == [(0, 0), (1, 0)];
-
-       ();
-     });
-
-  // Hopcroft-Karp
-  let maximum_perfect_matching = ({indexA, indexB, adj}: t): option(int) => {
-    let bfs =
-        (dist: DistanceMap.t, pairsB: Matching.t)
-        : option((DistanceMap.t, bool)) => {
-      let rec loop = (dist, queue) =>
-        switch (Queue.take_opt(queue)) {
-        | None =>
-          dist
-          |> DistanceMap.find_opt(None)
-          |> Option.map(d0 => (dist, d0 != Int.max_int))
-        | Some((a, queue)) =>
-          let* da = dist |> DistanceMap.find_opt(Some(a));
-          let* d0 = dist |> DistanceMap.find_opt(None);
-          let* (dist, queue) =
-            !(da < d0)
-              ? Some((dist, queue))
-              : {
-                let* bs = adj |> AdjacencyMap.find_opt(a);
-                bs
-                |> IntSet.elements
-                |> List.fold_left(
-                     (acc_opt, b) => {
-                       let* (dist, queue) = acc_opt;
-                       let* a_opt' = pairsB |> Matching.find_opt(b);
-                       let* a' = a_opt';
-                       let* da' = dist |> DistanceMap.find_opt(a_opt');
-                       !(da' == Int.max_int)
-                         ? Some((dist, queue))
-                         : {
-                           let dist = dist |> DistanceMap.add(a_opt', da + 1);
-                           let queue = queue |> Queue.add(a');
-                           Some((dist, queue));
-                         };
-                     },
-                     Some((dist, queue)),
-                   );
-              };
-          loop(dist, queue);
-        };
-      let queue =
-        dist
-        |> DistanceMap.bindings
-        |> List.filter_map(((a_opt, d)) => d == 0 ? a_opt : None)
-        |> Queue.of_list;
-      loop(dist, queue);
+  let find = (node: NodeMap.key, index: t): (int, t) =>
+    switch (NodeMap.find_opt(node, index.map)) {
+    | None =>
+      let map = NodeMap.add(node, index.next, index.map);
+      let next = index.next + 1;
+      (index.next, {map, next});
+    | Some(i) => (i, index)
     };
 
-    let rec dfs =
-            (
-              dist: DistanceMap.t,
-              pairsA: Matching.t,
-              pairsB: Matching.t,
-              a_opt: option(int),
-            )
-            : option((DistanceMap.t, Matching.t, Matching.t, bool)) =>
-      if (Option.is_none(a_opt)) {
-        Some((dist, pairsA, pairsB, true));
-      } else {
-        let* a = a_opt;
-        let* da = dist |> DistanceMap.find_opt(a_opt);
-        let rec loop =
-                (
-                  dist: DistanceMap.t,
-                  pairsA: Matching.t,
-                  pairsB: Matching.t,
-                  bs: list(int),
-                )
-                : option((DistanceMap.t, Matching.t, Matching.t, bool)) => {
-          switch (bs) {
-          | [b, ...bs'] =>
-            let* a_opt' = pairsB |> Matching.find_opt(b);
-            let* da' = dist |> DistanceMap.find_opt(a_opt');
-            if (da' == da + 1) {
-              let* (dist, pairsA, pairsB, result) =
-                dfs(dist, pairsA, pairsB, a_opt');
-              if (result) {
-                let pairsA = pairsA |> Matching.add(b, a_opt);
-                let pairsB = pairsB |> Matching.add(a, Some(b));
-                Some((dist, pairsA, pairsB, true));
-              } else {
-                loop(dist, pairsA, pairsB, bs');
-              };
-            } else {
-              loop(dist, pairsA, pairsB, bs');
-            };
-          | [] =>
-            let dist = dist |> DistanceMap.add(a_opt, Int.max_int);
-            Some((dist, pairsA, pairsB, false));
-          };
-        };
-        let* bs = adj |> AdjacencyMap.find_opt(a);
-        loop(dist, pairsA, pairsB, bs |> IntSet.elements);
-      };
-
-    let rec loop =
-            (
-              dist: DistanceMap.t,
-              pairsA: Matching.t,
-              pairsB: Matching.t,
-              matching: int,
-            )
-            : option(int) => {
-      let* (dist, result) = bfs(dist, pairsB);
-      !result
-        ? Some(matching)
-        : {
-          let* (dist, pairsA, pairsB, matching) =
-            pairsA
-            |> Matching.filter((_, b_opt) => Option.is_none(b_opt))
-            |> Matching.bindings
-            |> List.map(fst)
-            |> List.fold_left(
-                 (acc_opt, a) => {
-                   let* (dist, pairsA, pairsB, matching) = acc_opt;
-                   let+ (dist, pairsA, pairsB, result) =
-                     dfs(dist, pairsA, pairsB, Some(a));
-                   (dist, pairsA, pairsB, matching + (result ? 1 : 0));
-                 },
-                 Some((dist, pairsA, pairsB, matching)),
-               );
-          loop(dist, pairsA, pairsB, matching);
-        };
-    };
-
-    let pairsA = Matching.init(indexA);
-    let pairsB = Matching.init(indexB);
-    let dist = DistanceMap.init(pairsA);
-    loop(dist, pairsA, pairsB, 0);
-  };
+  let of_list = (nodes: list(NodeMap.key)): t =>
+    nodes
+    |> List.fold_left((index, node) => index |> find(node) |> snd, empty);
 };
 
 /* type consistency */
-
 let rec consistent = (x, y) => {
   print_endline("CONSISTENT");
   print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
@@ -648,39 +122,57 @@ let rec consistent = (x, y) => {
     consistent(ty1, ty1') && consistent(ty2, ty2')
   | (Arrow(_, _), _) => false
   // TCSum1
-  | (Sum(Finite(tymapA)), Sum(Finite(tymapB))) =>
+  | (Sum(Finite(tymapU)), Sum(Finite(tymapV))) =>
     /*
       1. Ensure the sums are of equal cardinality
       2. Build a graph of all possible consistent pairings
       3. Check if the graph has a perfect matching
      */
-    let partA = TagMap.bindings(tymapA);
-    let partB = TagMap.bindings(tymapB);
-    let edges =
-      ListUtil.combos2(partA, partB)
-      |> List.filter((((tagA, argA_opt), (tagB, argB_opt))) =>
-           UHTag.consistent(tagA, tagB) && consistent_opt(argA_opt, argB_opt)
-         );
-    let n = List.length(partA);
-    if (n == List.length(partB)) {
-      let graph = BipartiteGraph.of_list(edges);
-      let matching_opt = BipartiteGraph.maximum_perfect_matching(graph);
-      print_endline("XXX");
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_int, matching_opt),
-        ),
-      );
-      matching_opt
-      |> Option.map(matching => matching == n)
-      |> Option.value(~default=false);
-    } else {
-      false;
-    };
+    let nodesU = TagMap.bindings(tymapU);
+    let nodesV = TagMap.bindings(tymapV);
+    let n = List.length(nodesU);
+    let m = List.length(nodesV);
+    n == m
+    && (
+      // void sums are vacuously consistent
+      m == 0
+      || {
+        let (nodesU, nodesV) =
+          ListUtil.combos2(nodesU, nodesV)
+          |> List.filter((((tagA, argA_opt), (tagB, argB_opt))) =>
+               UHTag.consistent(tagA, tagB)
+               && consistent_opt(argA_opt, argB_opt)
+             )
+          |> List.split;
+        let indexU = nodesU |> NodeIndex.of_list;
+        let indexV = nodesV |> NodeIndex.of_list;
+        NodeIndex.cardinal(indexU) == n
+        && NodeIndex.cardinal(indexV) == m
+        && {
+          let graph =
+            BipartiteGraph.of_list(
+              List.combine(
+                nodesU
+                |> List.map(node => NodeIndex.find(node, indexU) |> fst),
+                nodesV
+                |> List.map(node => [NodeIndex.find(node, indexV) |> fst]),
+              ),
+            );
 
+          print_endline("XXX");
+          print_endline(
+            Sexplib.Sexp.to_string_hum(BipartiteGraph.sexp_of_t(graph)),
+          );
+
+          BipartiteGraph.(
+            graph |> maximum_cardinality_matching |> M.is_perfect
+          );
+        };
+      }
+    );
   // TCSum2
   | (Sum(Elided(tag, ty_opt)), Sum(Elided(tag', ty_opt'))) =>
-    !UHTag.eq(tag, tag') || consistent_opt(ty_opt, ty_opt')
+    !UHTag.equal(tag, tag') || consistent_opt(ty_opt, ty_opt')
   // TCSum12
   | (Sum(Finite(tymap)), Sum(Elided(tag, ty_opt)))
   // TCSum21
@@ -845,7 +337,7 @@ and join_sum_body_element =
       tag': UHTag.t,
       ty_opt': option(t),
     ) =>
-  switch (UHTag.eq(tag, tag'), ty_opt, ty_opt') {
+  switch (UHTag.equal(tag, tag'), ty_opt, ty_opt') {
   | (false, _, _)
   | (true, None, None) => Some((tag, None))
   | (true, Some(ty), Some(ty')) =>
