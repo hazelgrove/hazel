@@ -738,17 +738,21 @@ let rec evaluate = (d: DHExp.t): result =>
     switch (evaluate(d1)) {
     // BVSumCast
     | BoxedValue(d1') as result =>
-      if (HTyp.eq(ty, ty')) {
-        result;
-      } else {
-        BoxedValue(Cast(d1', ty, ty'));
+      switch (HTyp.matched_finite_sum(ty), HTyp.matched_finite_sum(ty')) {
+      | (Some(tymap), Some(tymap')) =>
+        let ty = HTyp.Sum(Finite(tymap));
+        let ty' = HTyp.Sum(Finite(tymap'));
+        HTyp.eq(ty, ty') ? result : BoxedValue(Cast(d1', ty, ty'));
+      | _ => failwith(__LOC__ ++ ": impossible cast")
       }
     // ICastSum
     | Indet(d1') as result =>
-      if (HTyp.eq(ty, ty')) {
-        result;
-      } else {
-        Indet(Cast(d1', ty, ty'));
+      switch (HTyp.matched_finite_sum(ty), HTyp.matched_finite_sum(ty')) {
+      | (Some(tymap), Some(tymap')) =>
+        let ty = HTyp.Sum(Finite(tymap));
+        let ty' = HTyp.Sum(Finite(tymap'));
+        HTyp.eq(ty, ty') ? result : Indet(Cast(d1', ty, ty'));
+      | _ => failwith(__LOC__ ++ ": impossible cast")
       }
     }
   | Pair(d1, d2) =>

@@ -466,7 +466,7 @@ and ana_elab_operand =
         Elaborates(Inj((tag, None)), ty', ctx, delta);
       };
     | Sum(_) =>
-      switch (HTyp.matched_sum(ty)) {
+      switch (HTyp.matched_finite_sum(ty)) {
       | None => DoesNotElaborate
       | Some(tymap) =>
         switch (TagMap.find_opt(tag, tymap)) {

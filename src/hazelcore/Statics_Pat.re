@@ -176,7 +176,7 @@ and ana_operand =
   | Inj(InHole(UnexpectedArg, _), tag, Some(arg)) =>
     switch (ty) {
     | Sum(_) =>
-      let* tymap = HTyp.matched_sum(ty);
+      let* tymap = HTyp.matched_finite_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(None) => ana(ctx, arg, Hole)
       | _ => None
@@ -188,7 +188,7 @@ and ana_operand =
   | Inj(InHole(ExpectedArg, _), tag, None) =>
     switch (ty) {
     | Sum(_) =>
-      let* tymap = HTyp.matched_sum(ty);
+      let* tymap = HTyp.matched_finite_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       | Some(Some(_)) => Some(ctx)
       | _ => None
@@ -215,7 +215,7 @@ and ana_operand =
     // AInjHole
     | Hole => inj_arg_valid(ctx, arg_opt)
     | Sum(_) =>
-      let* tymap = HTyp.matched_sum(ty);
+      let* tymap = HTyp.matched_finite_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
       // AInj
       | Some(ty_opt) => ana_inj_arg(ctx, arg_opt, ty_opt)
@@ -767,7 +767,7 @@ and ana_fix_holes_operand =
       let (arg_opt', ctx, u_gen) = fix_holes_inj_arg(ctx, u_gen, None);
       (Inj(NotInHole, tag', arg_opt'), ctx, u_gen);
     | Sum(_) =>
-      switch (HTyp.matched_sum(ty)) {
+      switch (HTyp.matched_finite_sum(ty)) {
       | Some(tymap) =>
         switch (TagMap.find_opt(tag, tymap)) {
         // AInjTagErr

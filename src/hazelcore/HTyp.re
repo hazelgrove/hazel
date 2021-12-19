@@ -233,7 +233,7 @@ let matched_list =
   | _ => None;
 
 /* matched sum types */
-let matched_sum: t => option(TagMap.t(option(t))) =
+let matched_finite_sum: t => option(TagMap.t(option(t))) =
   fun
   | Sum(Finite(tymap)) => Some(tymap)
   | Sum(Elided(tag, ty_opt)) => Some(TagMap.singleton(tag, ty_opt))
