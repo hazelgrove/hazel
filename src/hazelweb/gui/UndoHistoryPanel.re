@@ -3,10 +3,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
-type tag_typ =
-  | Exp
-  | Pat
-  | Typ;
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
@@ -115,7 +111,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListNil(_) => indicate_words_view("empty list")
-    | Lam(_, _, _, _) => indicate_words_view("function")
+    | Lam(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {
@@ -200,6 +196,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | TypeAnn(_, _, _) => indicate_words_view("type annotation")
     };
   };
 
@@ -247,18 +244,29 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let cursor_term_view =
-      (cursor_term: CursorInfo_common.cursor_term, show_indicate_word: bool) => {
+      (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
-    | Exp(_, exp) => exp_view(exp, show_indicate_word)
-    | Pat(_, pat) => pat_view(pat, show_indicate_word)
-    | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
+    | ExpOperand(_, exp) => exp_view(exp, show_indicate_word)
+    | PatOperand(_, pat) => pat_view(pat, show_indicate_word)
+    | TypOperand(_, typ) => typ_view(typ)
+    | ExpOperator(_, op) => code_view(Operators_Exp.to_string(op))
+    | PatOperator(_, op) => code_view(Operators_Pat.to_string(op))
+    | TypOperator(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
-      | LetLine(_, _, _) =>
+      | CommentLine(comment) =>
+        if (comment == "") {
+          indicate_words_view("empty comment");
+        } else {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("comment "), code_view(comment)],
+            )
+          );
+        }
+      | LetLine(_) =>
         Vdom.(
           Node.span(
             [],
@@ -278,7 +286,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action_common.shape) => {
+  let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>
@@ -303,7 +311,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SList
     | SListNil
     | SLine
-    | SAsc
+    | SCommentLine
+    | SAnn
+    | SCloseParens
+    | SCloseBraces
+    | SCloseSquareBracket
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
@@ -411,50 +423,38 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ =
-      (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
-    switch (cursor_term) {
-    | Exp(_, _) => Exp
-    | Pat(_, _) => Pat
-    | Typ(_, _) => Typ
-    | ExpOp(_, _) => Exp
-    | PatOp(_, _) => Pat
-    | TypOp(_, _) => Typ
-    | Line(_, _)
-    | Rule(_, _) => Exp
-    };
-  };
   let display_tag_typ =
-      (undo_history_entry: undo_history_entry): option(tag_typ) => {
+      (undo_history_entry: undo_history_entry): option(TermSort.t) => {
     switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
-      | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
+      | Term(cursor_term, _) =>
+        Some(TermTag.get_cursor_term_sort(cursor_term))
       | Space
       | EmptyLine =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
-      | TypeAnn => Some(Exp)
+      | TypeAnn => Some(Pat)
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam
-      | SAsc => Some(Exp)
+      | SLam => Some(Exp)
+      | SAnn => Some(Pat)
       | _ =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
       }
     | VarGroup(_) =>
       Some(
-        get_cursor_term_tag_typ(
+        TermTag.get_cursor_term_sort(
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
@@ -466,7 +466,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | Left
       | Right =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
@@ -557,30 +557,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let history_typ_tag_view = (undo_history_entry: undo_history_entry) => {
     switch (display_tag_typ(undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
-    | Some(typ) =>
-      switch (typ) {
-      | Exp =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-exp"])],
-            [Node.text("EXP")],
-          )
-        )
-      | Pat =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-pat"])],
-            [Node.text("PAT")],
-          )
-        )
-      | Typ =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
-            [Node.text("TYP")],
-          )
-        )
-      }
+    | Some(typ) => TermTag.term_tag_view(typ, ["history-type-tag"])
     };
   };
 
@@ -985,8 +962,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let undo_button = (disabled, is_mac) => {
-    let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
+  let undo_button = disabled => {
+    let title = "Undo (" ++ HazelKeyCombos.name(CtrlOrCmd_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1010,9 +987,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let redo_button = (disabled, is_mac) => {
-    let title =
-      if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
+  let redo_button = disabled => {
+    let title = "Redo (" ++ HazelKeyCombos.name(CtrlOrCmd_Shift_Z) ++ ")";
     Vdom.(
       Node.div(
         disabled
@@ -1072,7 +1048,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
 
   let preview_on_hover_checkbox = (preview_on_hover: bool) => {
-    OptionsPanel.labeled_checkbox(
+    SettingsPanel.labeled_checkbox(
       ~id="preview_on_hover",
       ~label="Preview On Hover",
       ~on_change=() => inject(TogglePreviewOnHover),
@@ -1080,15 +1056,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let button_bar_view = (undo_history: UndoHistory.t, is_mac: bool) =>
+  let button_bar_view = (undo_history: UndoHistory.t) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history-button-bar"])],
         [
           preview_on_hover_checkbox(undo_history.preview_on_hover),
           expand_button(undo_history.all_hidden_history_expand),
-          redo_button(UndoHistory.disable_redo(undo_history), is_mac),
-          undo_button(UndoHistory.disable_undo(undo_history), is_mac),
+          redo_button(UndoHistory.disable_redo(undo_history)),
+          undo_button(UndoHistory.disable_undo(undo_history)),
         ],
       )
     );
@@ -1115,7 +1091,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       ],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.undo_history, model.is_mac),
+        button_bar_view(model.undo_history),
         Node.div(
           if (model.undo_history.preview_on_hover) {
             [

@@ -1,4 +1,5 @@
-type cursor_term = CursorInfo_common.cursor_term;
+open OptUtil.Syntax;
+type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
@@ -8,18 +9,16 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
-  | LetLineZE(_, _, zexp) => extract_cursor_term(zexp)
+  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LetLineZE(_, zexp) => extract_cursor_term(zexp)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
-  | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
+  | CursorE(cursor_pos, operand) => ExpOperand(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
-  | LamZP(_, zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | LamZA(_, _, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
-  | LamZE(_, _, _, zexp)
+  | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
@@ -47,7 +46,7 @@ and extract_from_zexp_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
   | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
   | ZOperator(zoperator, _) =>
     let (cursor_pos, uop) = zoperator;
-    ExpOp(cursor_pos, uop);
+    ExpOperator(cursor_pos, uop);
   };
 };
 
@@ -61,9 +60,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
-  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -80,9 +78,8 @@ and get_zoperand_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => Some(ZExp(zoperand))
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
-  | LamZP(_, zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | LamZA(_, _, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
-  | LamZE(_, _, _, zexp)
+  | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
@@ -113,9 +110,8 @@ and get_outer_zrules_from_zline =
   | CursorL(_, _) => outer_zrules
   | ExpLineZ(zopseq) =>
     get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
-  | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _) => outer_zrules
-  | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | LetLineZP(_) => outer_zrules
+  | LetLineZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -136,9 +132,8 @@ and get_outer_zrules_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => outer_zrules
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
-  | LamZP(_, _, _, _)
-  | LamZA(_, _, _, _) => outer_zrules
-  | LamZE(_, _, _, zexp)
+  | LamZP(_) => outer_zrules
+  | LamZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
@@ -213,15 +208,14 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
 let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
   let prev_is_empty_line = {
     let prefix = ZList.prj_prefix(exp);
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => false
     | Some((_, EmptyLine)) =>
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_, _, _)
-      | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => true
+      | LetLineZP(_)
+      | LetLineZE(_) => true
       }
     | Some((_, _)) => false
     };
@@ -234,9 +228,8 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_, _, _)
-      | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => false
+      | LetLineZP(_)
+      | LetLineZE(_) => false
       }
     | _ => false
     };
@@ -245,21 +238,26 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
 };
 
 let rec syn_cursor_info =
-        (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo_common.t) => {
+        (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo.t) => {
   syn_cursor_info_zblock(~steps, ctx, ze);
 }
 and syn_cursor_info_zblock =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (Statics_Exp.syn_lines(ctx, prefix)) {
   | None => None
   | Some(ctx) =>
     switch (
-      syn_cursor_info_line(~steps=steps @ [List.length(prefix)], ctx, zline)
+      syn_cursor_info_line(
+        ~steps=steps @ [List.length(prefix)],
+        ctx,
+        zline,
+        suffix,
+      )
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
@@ -275,66 +273,71 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath_common.steps, ctx: Contexts.t, zline: ZExp.zline)
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
+    : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
+  | CursorL(_, LetLine(p, def)) =>
+    let+ ty = Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix]);
+    CursorInfo_common.CursorNotOnDeferredVarPat(
+      CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
+    );
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnLine, ctx, extract_from_zline(zline)),
+        CursorInfo_common.mk(OnNonLetLine, ctx, extract_from_zline(zline)),
       ),
     )
   | ExpLineZ(ze) =>
     switch (syn_cursor_info_zopseq(~steps, ctx, ze)) {
     | None => None
-    | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
+    | Some(ci) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.set_is_before_empty_hole_line(
+            ci,
+            ZExp.is_before_empty_hole_line(zline),
+          ),
+        ),
+      )
     }
-  | LetLineZP(zp, ann, def) =>
-    let pat_ci = CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp);
-    switch (ann) {
-    | None =>
+  | LetLineZP(zp, def) =>
+    let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
-      | None => None
-      | Some(ty1) => pat_ci(ty1)
-      }
-    | Some(ann) =>
-      let ty1 = ann |> UHTyp.expand;
-      switch (pat_ci(ty1)) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
-      | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-        switch (HTyp.matched_arrow(ty1)) {
-        | None => deferrable
-        | Some(_) =>
-          let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, def);
-          Some(
-            CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
-          );
-        }
+      | Some(ty) => ty
+      | None => HTyp.Hole
       };
+    switch (
+      CursorInfo_Pat.ana_cursor_info_zopseq(
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        ty_def,
+      )
+    ) {
+    | None => None
+    | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
+    | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+      switch (Statics_Exp.recursive_let_id(ctx, ZPat.erase(zp), def)) {
+      | None => deferrable
+      | Some(_) =>
+        let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
+        Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
+      }
     };
-  | LetLineZA(_, zann, _) =>
-    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
-    |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-  | LetLineZE(p, ann, zdef) =>
-    switch (ann) {
-    | None =>
-      syn_cursor_info(~steps=steps @ [2], ctx, zdef)
-      |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-    | Some(ann) =>
-      let ty = UHTyp.expand(ann);
-      let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
-      ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
-      |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-    }
+  | LetLineZE(p, zdef) =>
+    let def = ZExp.erase(zdef);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+    let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
+    CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
 and syn_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   // handle n-tuples:
   // cannot simply defer to syn_cursor_info_skel here
   // because it assumes binary tupling -- this would
@@ -345,7 +348,7 @@ and syn_cursor_info_zopseq =
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
     Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
-    |> OptUtil.map(ty =>
+    |> Option.map(ty =>
          CursorInfo_common.mk(
            Synthesized(ty),
            ctx,
@@ -363,12 +366,12 @@ and syn_cursor_info_zopseq =
 }
 and syn_cursor_info_skel =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let seq = zseq |> ZExp.erase_zseq;
   if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
     // found cursor
@@ -382,7 +385,7 @@ and syn_cursor_info_skel =
       )
     | ZOperator(_) =>
       Statics_Exp.syn_skel(ctx, skel, seq)
-      |> OptUtil.map(ty =>
+      |> Option.map(ty =>
            CursorInfo_common.mk(
              Synthesized(ty),
              ctx,
@@ -441,7 +444,7 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
-          |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+          |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
@@ -461,7 +464,7 @@ and syn_cursor_info_skel =
             | None => None
             | Some(ty) =>
               HTyp.matched_arrow(ty)
-              |> OptUtil.map(((ty1, ty2)) =>
+              |> Option.map(((ty1, ty2)) =>
                    mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
                  )
             }
@@ -507,12 +510,8 @@ and syn_cursor_info_skel =
   };
 }
 and syn_cursor_info_zoperand =
-    (
-      ~steps: CursorPath_common.steps,
-      ctx: Contexts.t,
-      zoperand: ZExp.zoperand,
-    )
-    : option(CursorInfo_common.t) => {
+    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
@@ -536,39 +535,36 @@ and syn_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | LamZP(_, zp, ann, body) =>
-    let ty1 =
-      switch (ann) {
-      | None => HTyp.Hole
-      | Some(uty1) => UHTyp.expand(uty1)
-      };
-    switch (CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty1)) {
-    | None => None
-    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
-      Some(uses |> deferred_ci);
+  | LamZP(_, zp, body) =>
+    let+ defferrable =
+      CursorInfo_Pat.syn_cursor_info(~steps=steps @ [0], ctx, zp);
+    switch (defferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
     };
-  | LamZA(_, _, zann, _) =>
-    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
-  | LamZE(_, p, ann, zbody) =>
-    let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => Hole
-      };
-    switch (Statics_Pat.ana(ctx, p, ty1)) {
-    | None => None
-    | Some(ctx1) => syn_cursor_info(~steps=steps @ [2], ctx1, zbody)
-    };
+  | LamZE(_, p, zbody) =>
+    let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
+    syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | CaseZE(_, zscrut, _) => syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
+  | CaseZE(_, zscrut, rules) =>
+    let ty_join =
+      switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
+      | Some(ty) => ty
+      | _ => HTyp.Hole
+      };
+    /* Note that strictly speaking this should just be syn_cursor_info;
+     * This provides a bit of potentially useful type information to
+     * the user in the case where some of pattern branches are already
+     * populated with patterns having a consistent type. */
+    ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(pat_ty) =>
       /* lub of all of the branches except the one with the cursor */
-      let lub_opt: option(CursorInfo_common.join_of_branches) =
+      let lub_opt: option(CursorInfo.join_of_branches) =
         switch (prefix @ suffix) {
         | [] => Some(NoBranches)
         | other_branches =>
@@ -615,64 +611,85 @@ and syn_cursor_info_zoperand =
 }
 and ana_cursor_info =
     (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t)
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   ana_cursor_info_zblock(~steps, ctx, ze, ty)
 and ana_cursor_info_zblock =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) =>
-  switch (Statics_Exp.syn_lines(ctx, prefix)) {
-  | None => None
-  | Some(ctx) =>
-    switch (suffix) {
-    | [] =>
-      switch (zline) {
-      | CursorL(_)
-      | LetLineZP(_)
-      | LetLineZA(_)
-      | LetLineZE(_) => None
-      | ExpLineZ(zopseq) =>
-        ana_cursor_info_zopseq(
-          ~steps=steps @ [List.length(prefix)],
-          ctx,
-          zopseq,
-          ty,
-        )
+    : option(CursorInfo.t) => {
+  let+ ci =
+    switch (Statics_Exp.syn_lines(ctx, prefix)) {
+    | None => None
+    | Some(ctx) =>
+      switch (suffix) {
+      | [] =>
+        switch (zline) {
+        | CursorL(_)
+        | LetLineZP(_)
+        | LetLineZE(_) => None
+        | ExpLineZ(zopseq) =>
+          ana_cursor_info_zopseq(
+            ~steps=steps @ [List.length(prefix)],
+            ctx,
+            zopseq,
+            ty,
+          )
+        }
+      | [_, ..._] =>
+        switch (zline) {
+        | CursorL(_, LetLine(p, def)) =>
+          switch (Statics_Exp.ana(ctx, [LetLine(p, def), ...suffix], ty)) {
+          | None => None
+          | Some () =>
+            Some(
+              CursorInfo_common.mk(
+                Analyzed(ty),
+                ctx,
+                extract_from_zline(zline),
+              ),
+            )
+          }
+        | _ =>
+          switch (
+            syn_cursor_info_line(
+              ~steps=steps @ [List.length(prefix)],
+              ctx,
+              zline,
+              suffix,
+            )
+          ) {
+          | None => None
+          | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+          | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
+            let uses =
+              UsageAnalysis.find_uses_block(
+                ~offset=List.length(prefix) + 1,
+                ~steps,
+                x,
+                suffix,
+              );
+            Some(uses |> deferred_ci);
+          }
+        }
       }
-    | [_, ..._] =>
-      switch (
-        syn_cursor_info_line(
-          ~steps=steps @ [List.length(prefix)],
-          ctx,
-          zline,
-        )
-      ) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses =
-          UsageAnalysis.find_uses_block(
-            ~offset=List.length(prefix) + 1,
-            ~steps,
-            x,
-            suffix,
-          );
-        Some(uses |> deferred_ci);
-      }
-    }
-  }
+    };
+  CursorInfo_common.set_is_before_empty_hole_line(
+    ci,
+    ZExp.is_before_empty_hole_line(zline),
+  );
+}
 and ana_cursor_info_zopseq =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
@@ -722,13 +739,13 @@ and ana_cursor_info_zopseq =
 and ana_cursor_info_skel =
     // steps of whole opseq
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
   let syn_go = skel => syn_cursor_info_skel(~steps, ctx, skel, zseq);
   let ana_go = (skel, ty) =>
@@ -752,7 +769,7 @@ and ana_cursor_info_skel =
       switch (err) {
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
+        |> Option.map(_ =>
              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
            )
       | InHole(WrongLength, _) =>
@@ -810,12 +827,12 @@ and ana_cursor_info_skel =
 }
 and ana_cursor_info_zoperand =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
       ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) => {
+    : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
   | CursorE(_, e) =>
@@ -832,7 +849,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
-    | Lam(InHole(TypeInconsistent, _), _, _, _)
+    | Lam(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
@@ -856,7 +873,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _, _)
+    | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
@@ -882,34 +899,24 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
-      |> OptUtil.map(_ =>
+      |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
-    | Lam(NotInHole, _, ann, _) =>
-      switch (HTyp.matched_arrow(ty)) {
-      | None => None
-      | Some((ty1, ty2)) =>
-        switch (ann) {
-        | None => Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-        | Some(ann) =>
-          let ann_ty = ann |> UHTyp.expand;
-          HTyp.consistent(ann_ty, ty1)
-            ? Some(
-                CursorInfo_common.mk(
-                  AnaAnnotatedLambda(ty, Arrow(ann_ty, ty2)),
-                  ctx,
-                  cursor_term,
-                ),
-              )
-            : None;
-        }
-      }
-    } /* zipper cases */
+
+    | Lam(NotInHole, p, body) =>
+      let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
+      let+ ty_body = Statics_Exp.syn(body_ctx, body);
+      CursorInfo_common.mk(
+        AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
+        ctx,
+        cursor_term,
+      );
+    /* zipper cases */
+    }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
-  | LamZP(InHole(WrongLength, _), _, _, _)
-  | LamZA(InHole(WrongLength, _), _, _, _)
-  | LamZE(InHole(WrongLength, _), _, _, _)
+  | LamZP(InHole(WrongLength, _), _, _)
+  | LamZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
@@ -922,49 +929,36 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
-  | LamZP(InHole(TypeInconsistent, _), _, _, _)
-  | LamZA(InHole(TypeInconsistent, _), _, _, _)
-  | LamZE(InHole(TypeInconsistent, _), _, _, _)
+  | LamZP(InHole(TypeInconsistent, _), _, _)
+  | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
-  | LamZP(NotInHole, zp, ann, body) =>
-    switch (HTyp.matched_arrow(ty)) {
+  | LamZP(NotInHole, zp, body) =>
+    let* (ty_p_given, _) = HTyp.matched_arrow(ty);
+    let+ defferrable =
+      CursorInfo_Pat.ana_cursor_info(
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        ty_p_given,
+      );
+    switch (defferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
+    };
+
+  | LamZE(NotInHole, p, zbody) =>
+    let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ty);
+    switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
     | None => None
-    | Some((ty1_given, _)) =>
-      let ty1 =
-        switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
-        | None => ty1_given
-        };
-      switch (
-        CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty1)
-      ) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
-        Some(uses |> deferred_ci);
-      };
-    }
-  | LamZA(NotInHole, _, zann, _) =>
-    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
-  | LamZE(NotInHole, p, ann, zbody) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | None => None
-    | Some((ty1_given, ty2)) =>
-      let ty1 =
-        switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
-        | None => ty1_given
-        };
-      switch (Statics_Pat.ana(ctx, p, ty1)) {
-      | None => None
-      | Some(ctx) => ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty2)
-      };
-    }
+    | Some(body_ctx) =>
+      ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
+    };
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
@@ -996,14 +990,14 @@ and ana_cursor_info_zoperand =
 }
 and syn_cursor_info_rule =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
-      lub: CursorInfo_common.join_of_branches,
+      lub: CursorInfo.join_of_branches,
       rule_index: int,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
@@ -1017,6 +1011,7 @@ and syn_cursor_info_rule =
       let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
       Some(deferred_ci(uses));
     }
+
   | RuleZE(p, zclause) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
@@ -1026,23 +1021,30 @@ and syn_cursor_info_rule =
       let is_outer = ZExp.is_outer(zclause);
       switch (is_outer, cursor_info) {
       | (_, None) => None
-      | (false, _) => cursor_info
-      | (true, Some({typed, ctx, uses, _})) =>
-        let typed = CursorInfo_common.SynBranchClause(lub, typed, rule_index);
-        let cursor_term = extract_from_zrule(zrule);
-        Some({cursor_term, typed, ctx, uses});
+      | (false, Some(cursor_info)) =>
+        Some(
+          CursorInfo_common.set_after_branch_clause(
+            cursor_info,
+            ZExp.is_after(zclause),
+          ),
+        )
+      | (true, Some({cursor_term, typed, ctx, uses, parent_info})) =>
+        let typed = CursorInfo.SynBranchClause(lub, typed, rule_index);
+        let parent_info =
+          ZExp.is_after(zclause) ? CursorInfo.AfterBranchClause : parent_info;
+        Some({cursor_term, typed, ctx, uses, parent_info});
       };
     }
   }
 and ana_cursor_info_rule =
     (
-      ~steps: CursorPath_common.steps,
+      ~steps: CursorPath.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : option(CursorInfo_common.t) =>
+    : option(CursorInfo.t) =>
   switch (zrule) {
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
@@ -1060,6 +1062,11 @@ and ana_cursor_info_rule =
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
-      ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty)
+      let+ cursor_info =
+        ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty);
+      CursorInfo_common.set_after_branch_clause(
+        cursor_info,
+        ZExp.is_after(zclause),
+      );
     }
   };

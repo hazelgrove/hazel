@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -33,8 +33,8 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
+  | ConstructEdit(Action.shape)
+  /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
@@ -55,12 +55,12 @@ type timestamp = float;
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
-  | Exp(cursor_pos, _)
-  | Pat(cursor_pos, _)
-  | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
-  | TypOp(cursor_pos, _)
+  | ExpOperand(cursor_pos, _)
+  | PatOperand(cursor_pos, _)
+  | TypOperand(cursor_pos, _)
+  | ExpOperator(cursor_pos, _)
+  | PatOperator(cursor_pos, _)
+  | TypOperator(cursor_pos, _)
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
   };
@@ -136,7 +136,7 @@ let comp_len_lt =
 
 let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   switch (cursor_term) {
-  | Exp(_, operand) =>
+  | ExpOperand(_, operand) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
     | InvalidText(_, t) => Len(String.length(t))
@@ -145,13 +145,13 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListNil(_)
-    | Lam(_, _, _, _)
+    | Lam(_)
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
-  | Pat(_, operand) =>
+  | PatOperand(_, operand) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
@@ -162,9 +162,10 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
+    | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
-  | Typ(_, operand) =>
+  | TypOperand(_, operand) =>
     switch (operand) {
     | Hole => MinLen
     | Unit
@@ -174,14 +175,15 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_)
     | List(_) => MaxLen
     }
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
   | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
     | EmptyLine => MinLen
-    | LetLine(_, _, _)
+    | CommentLine(comment) => Len(String.length(comment))
+    | LetLine(_)
     | ExpLine(_) => MaxLen
     }
   };
@@ -201,14 +203,14 @@ let cursor_term_len_larger =
 
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, exp) =>
+  | ExpOperand(_, exp) =>
     switch (exp) {
-    | Lam(_, _, _, _) => true
+    | Lam(_) => true
     | _ => false
     }
   | Line(_, line_content) =>
     switch (line_content) {
-    | LetLine(_, _, _) => true
+    | LetLine(_) => true
     | _ => false
     }
   | _ => false

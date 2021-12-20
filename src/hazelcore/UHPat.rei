@@ -9,6 +9,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
@@ -75,8 +76,4 @@ let associate: seq => Skel.t(Operators_Pat.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete_skel: (skel, seq) => bool;
-
 let is_complete: t => bool;
-
-let is_complete_operand: operand => bool;

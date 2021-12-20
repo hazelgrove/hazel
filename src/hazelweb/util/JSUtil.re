@@ -12,7 +12,7 @@ let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
 
 let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
-  |> OptUtil.map(s => Js.to_string(s));
+  |> Option.map(s => Js.to_string(s));
 
 let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   switch (elem |> get_attr(attr)) {
@@ -283,21 +283,24 @@ type single_key =
   | Letter(string)
   | Underscore;
 
-let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+// let alpha_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+// let char_regexp = Js_of_ocaml.Regexp.regexp("^.$");
 
-let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
-  evt => {
+let is_single_key:
+  (Js.t(Dom_html.keyboardEvent), Js_of_ocaml.Regexp.regexp) =>
+  option(single_key) =
+  (evt, char_regexp) => {
     let ctrlKey = Js.to_bool(evt##.ctrlKey);
-    let altKey = Js.to_bool(evt##.altKey);
+    // let altKey = Js.to_bool(evt##.altKey);
     let metaKey = Js.to_bool(evt##.metaKey);
-    if (ctrlKey || altKey || metaKey) {
+    if (ctrlKey || metaKey) {
       None;
     } else {
       let key = Key.get_key(evt);
       switch (int_of_string_opt(key)) {
       | Some(n) => Some(Number(n))
       | None =>
-        switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
+        switch (Js_of_ocaml.Regexp.string_match(char_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
         | None =>
           /* could be later refactored to a separate regex */
@@ -396,31 +399,3 @@ let has_class_satisfying =
 };
 
 let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
-
-// TODO: find better Module to put this in
-module Vdom = Virtual_dom.Vdom;
-// let contenteditable_of_layout: Layout.t('annot) => Vdom.Node.t =
-//   layout => {
-//     let record: Layout.text('annot, list(Vdom.Node.t), Vdom.Node.t) = {
-//       imp_of_string: string => [Vdom.Node.text(string)],
-//       imp_of_annot: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
-//       imp_append: (s1, s2) => s1 @ s2,
-//       imp_newline: _ => [Vdom.Node.br([])],
-//       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
-//     };
-//     Layout.mk_of_layout(record, layout);
-//   };
-
-open Pretty;
-let rec vdom_of_box = (box: Box.t('annot)): Vdom.Node.t =>
-  switch (box) {
-  | Text(string) =>
-    Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
-  | HBox(bs) =>
-    Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
-  | VBox(bs) =>
-    Vdom.Node.div([Vdom.Attr.classes(["vbox"])], List.map(vdom_of_box, bs))
-  | Annot(_, b) =>
-    // TODO
-    vdom_of_box(b)
-  };

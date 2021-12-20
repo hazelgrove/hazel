@@ -46,39 +46,24 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | MoveAction(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(_)
+  | LoadCard(_)
   | LoadCardstack(_)
   | NextCard
   | PrevCard
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  | ToggleMemoizeDoc
+  | UpdateSettings(_)
+  | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectCaseBranch(_)
-  | InvalidVar(_)
   | FocusCell
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
   | BlurCell
   | Undo
   | Redo
   | ShiftHistory(_)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | SerializeToConsole(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -95,12 +80,13 @@ let apply_action =
       ~schedule_action as _,
     )
     : Model.t => {
-  if (model.measurements.measurements) {
+  let settings = model.settings;
+  if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
   };
   TimeUtil.measure_time(
     "Update.apply_action",
-    model.measurements.measurements && model.measurements.update_apply_action,
+    settings.performance.measure && settings.performance.update_apply_action,
     () => {
       log_action(action, state);
       switch (action) {
@@ -116,8 +102,10 @@ let apply_action =
         | exception Program.MissingCursorInfo =>
           JSUtil.log("[Program.MissingCursorInfo]");
           model;
-        | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
+        | exception (Program.EvalError(reason)) =>
+          let serialized =
+            reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+          JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
@@ -133,119 +121,13 @@ let apply_action =
       | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
-      | LoadExample(id) => Model.load_example(model, Examples.get(id))
+      | LoadCard(n) => Model.nth_card(n, model)
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
-      //
-      | ToggleComputeResults => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            compute_results: !model.compute_results.compute_results,
-          },
-        }
-      | ToggleShowCaseClauses => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_case_clauses: !model.compute_results.show_case_clauses,
-          },
-        }
-      | ToggleShowFnBodies => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_fn_bodies: !model.compute_results.show_fn_bodies,
-          },
-        }
-      | ToggleShowCasts => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_casts: !model.compute_results.show_casts,
-          },
-        }
-      | ToggleShowUnevaluatedExpansion => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_unevaluated_expansion:
-              !model.compute_results.show_unevaluated_expansion,
-          },
-        }
-      //
-      | ToggleMeasureTimes => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            measurements: !model.measurements.measurements,
-          },
-        }
-      | ToggleMeasureModel_perform_edit_action => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            model_perform_edit_action:
-              !model.measurements.model_perform_edit_action,
-          },
-        }
-      | ToggleMeasureProgram_get_doc => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            program_get_doc: !model.measurements.program_get_doc,
-          },
-        }
-      | ToggleMeasureLayoutOfDoc_layout_of_doc => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            layoutOfDoc_layout_of_doc:
-              !model.measurements.layoutOfDoc_layout_of_doc,
-          },
-        }
-      | ToggleMeasureUHCode_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            uhcode_view: !model.measurements.uhcode_view,
-          },
-        }
-      | ToggleMeasureCell_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            cell_view: !model.measurements.cell_view,
-          },
-        }
-      | ToggleMeasurePage_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            page_view: !model.measurements.page_view,
-          },
-        }
-      | ToggleMeasureHazel_create => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            hazel_create: !model.measurements.hazel_create,
-          },
-        }
-      | ToggleMeasureUpdate_apply_action => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            update_apply_action: !model.measurements.update_apply_action,
-          },
-        }
-      //
-      | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
-      | InvalidVar(_) => model
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>
@@ -270,7 +152,6 @@ let apply_action =
                shift_history_info.call_by_mouseenter,
              );
         Model.load_undo_history(model, new_history, ~is_after_move=false);
-      | ShiftWhenScroll => model
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
@@ -316,7 +197,40 @@ let apply_action =
           },
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
-      | UpdateIsMac(is_mac) => {...model, is_mac}
+      | UpdateSettings(u) => {
+          ...model,
+          settings: Settings.apply_update(u, model.settings),
+        }
+      | UpdateCursorInspector(u) => {
+          ...model,
+          cursor_inspector:
+            CursorInspectorModel.apply_update(u, model.cursor_inspector),
+        }
+      | SerializeToConsole(obj) =>
+        switch (obj) {
+        | UHExp =>
+          model
+          |> Model.get_program
+          |> Program.get_uhexp
+          |> Serialization.string_of_exp
+          |> Js.string
+          |> JSUtil.log
+        | DHExp =>
+          let (d, _, _) = model |> Model.get_program |> Program.get_result;
+          d
+          |> DHExp.sexp_of_t
+          |> Sexplib.Sexp.to_string
+          |> Js.string
+          |> JSUtil.log;
+        | ZExp =>
+          model
+          |> Model.get_program
+          |> Program.get_zexp
+          |> Serialization.string_of_zexp
+          |> Js.string
+          |> JSUtil.log
+        };
+        model;
       };
     },
   );

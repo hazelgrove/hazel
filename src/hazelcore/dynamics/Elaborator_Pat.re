@@ -170,6 +170,8 @@ and syn_elab_operand =
         };
       Elaborates(dp, ty, ctx, delta);
     }
+  | TypeAnn(_, p1, ty1) =>
+    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1))
   }
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
@@ -327,7 +329,8 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -343,7 +346,8 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Inj(InHole(WrongLength, _), _, _)
+  | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -382,6 +386,7 @@ and ana_elab_operand =
         Elaborates(Inj(side, dp1), ty, ctx, delta);
       };
     }
+  | TypeAnn(NotInHole, op, _) => ana_elab_operand(ctx, delta, op, ty)
   };
 
 let rec renumber_result_only =

@@ -45,16 +45,6 @@ let num_instances = (hii: t, u: MetaVar.t): int =>
   | None => 0
   };
 
-let default_instance = (hii: t, u: MetaVar.t): option((MetaVar.t, int)) =>
-  switch (MetaVarMap.find_opt(u, hii)) {
-  | Some(envs) =>
-    switch (envs) {
-    | [] => None
-    | [_, ..._] => Some((u, 0))
-    }
-  | None => None
-  };
-
 let lookup =
     (hii: t, inst: HoleInstance.t): option((Environment.t, InstancePath.t)) => {
   let (u, i) = inst;

@@ -41,33 +41,28 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
-  /* need to know whether a Mac is being used to determine certain key
-     combinations, such as Ctrl+Z vs Cmd+Z for undo */
-  let is_mac =
-    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Mac"),
-    )
-    >= 0;
-  schedule_action(UpdateIsMac(is_mac));
-
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      Cell.focus();
+      UHCode.focus();
       Js._true;
     });
-  Cell.focus();
+  UHCode.focus();
 
   Async_kernel.Deferred.return(State.State);
 };
 
-let restart_cursor_animation = caret_elem => {
-  caret_elem##.classList##remove(Js.string("blink"));
-  // necessary to trigger reflow
-  // <https://css-tricks.com/restart-css-animation/>
-  let _ = caret_elem##getBoundingClientRect;
-  caret_elem##.classList##add(Js.string("blink"));
-};
+let restart_cursor_animation = () =>
+  try({
+    let caret_elem = JSUtil.force_get_elem_by_id("caret");
+    caret_elem##.classList##remove(Js.string("blink"));
+    // necessary to trigger reflow
+    // <https://css-tricks.com/restart-css-animation/>
+    let _ = caret_elem##getBoundingClientRect;
+    caret_elem##.classList##add(Js.string("blink"));
+  }) {
+  | _ => ()
+  };
 
 let scroll_cursor_into_view_if_needed = caret_elem => {
   let page_rect =
@@ -77,6 +72,15 @@ let scroll_cursor_into_view_if_needed = caret_elem => {
     caret_elem##scrollIntoView(Js._true);
   } else if (caret_rect##.bottom > page_rect##.bottom) {
     caret_elem##scrollIntoView(Js._false);
+  };
+};
+
+let move_cursor_inspector_in_view = ci_elem => {
+  let ci_rect = ci_elem##getBoundingClientRect;
+  let classList = ci_elem##.classList;
+  if (ci_rect##.top < 0.0) {
+    classList##remove(Js.string("above"));
+    classList##add(Js.string("below"));
   };
 };
 
@@ -101,15 +105,18 @@ let create =
   open Incr.Let_syntax;
   let%map model = model;
 
-  if (model.measurements.measurements) {
+  let performance = model.settings.performance;
+  if (performance.measure) {
     Printf.printf("\n== Hazel.create times ==\n");
   };
   TimeUtil.measure_time(
-    "Hazel.create",
-    model.measurements.measurements && model.measurements.hazel_create,
-    () =>
+    "Hazel.create", performance.measure && performance.hazel_create, () =>
     Component.create(
-      ~apply_action=Update.apply_action(model),
+      ~apply_action=
+        (action, state) => {
+          restart_cursor_animation();
+          Update.apply_action(model, action, state);
+        },
       // for things that require actual DOM manipulation post-render
       ~on_display=
         (_, ~schedule_action as _) => {
@@ -124,11 +131,15 @@ let create =
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
             | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
-            | _ => Cell.focus()
+            | _ => UHCode.focus()
             };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
-            restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
+
+            if (model.cursor_inspector.visible) {
+              let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
+              move_cursor_inspector_in_view(ci_elem);
+            };
           };
         },
       model,

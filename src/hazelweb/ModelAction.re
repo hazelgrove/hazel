@@ -1,11 +1,14 @@
-module EditAction = Action_common;
+module EditAction = {
+  include Action;
+  include Action_common;
+};
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
 [@deriving sexp]
 type move_input =
   | Key(MoveKey.t)
-  | Click((CursorMap.Row.t, CursorMap.Col.t));
+  | Click(Pretty.MeasuredPosition.t);
 
 [@deriving sexp]
 type shift_history_info = {
@@ -13,47 +16,37 @@ type shift_history_info = {
   elt_id: int,
   call_by_mouseenter: bool,
 };
+
 [@deriving sexp]
 type group_id = int;
+
+[@deriving sexp]
+type serialize_object =
+  | UHExp
+  | DHExp
+  | ZExp;
+
 [@deriving sexp]
 type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(Examples.id)
+  | LoadCard(int)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
-  // Result computation toggles
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  // Time measurement toggles
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
-  //
-  | ToggleMemoizeDoc
+  | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
-  | SelectCaseBranch(CursorPath_common.steps, int)
-  | InvalidVar(string)
+  | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell
   | BlurCell
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | SerializeToConsole(serialize_object);

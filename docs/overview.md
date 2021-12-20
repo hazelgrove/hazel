@@ -14,7 +14,7 @@ Code in `hazelcore`should be pure OCaml.
 ## Module Organization
 
 Users edit external expressions, of type `UHExp.t`, via edit actions. External
-expressions are expanded to internal expressions, of type `DHExp.t`, for
+expressions are elaborated to internal expressions, of type `DHExp.t`, for
 evaluation. The external and internal languages share a type system. Types are
 of type `HTyp.t`.
 
@@ -46,10 +46,10 @@ of type `HTyp.t`.
   - dynamics
     - internal syntax: `DHExp`, `DHPat`
       - external expressions are for editing
-      - need to expand external expressions to internal in order to insert casts
+      - need to elaborate external expressions to internal in order to insert casts
         and closure information
       - see POPL 2019, external expressions use variable e, internal use variable d
-    - expansion from external syntax to internal syntax:
+    - elaboration from external syntax to internal syntax:
       - `Dynamics`
       - `MetaVarMap`
       - `Delta`
@@ -110,7 +110,7 @@ We use
     - `Program`:
       entry point to any Hazel program, provides functions for
       acquiring semantic info as well as layout concerns, goes
-      beyond `Statics_common.edit_state` in that it contains information like
+      beyond `Statics.edit_state` in that it contains information like
       current editor width, whether its focused, etc...
     - `Result`: result of evaluating a Hazel program
     - `UndoHistory`: undo logic
@@ -134,7 +134,7 @@ We use
         `CardstackInfo`
       - `ZCard` is the selected card in a `Cardstack`, it differs from
         `Card` in that it contains a full `Program` as opposed to
-        a `Statics_common.edit_state`
+        a `Statics.edit_state`
   -
 
 

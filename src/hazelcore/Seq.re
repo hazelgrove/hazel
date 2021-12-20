@@ -1,29 +1,8 @@
-// TODO
-// type t('operand, 'operator) =
-// | S('operand, affix('operator, 'operand))
-// and affix('operator, 'operand) = option('operator, t('operand, 'operator))
-/**
- * An unassociated infix operator sequence.
- * Also used to represent the prefix or suffix
- * of a selected operator in a seq, in both
- * cases such that the head operand neighbors
- * the selected operator.
- */
 [@deriving sexp]
 type t('operand, 'operator) =
-  /* Seq */
   | S('operand, affix('operand, 'operator))
-/**
- * An unassociated infix operator sequence
- * without a head operand. Used to represent
- * the prefix or suffix of a selected operand
- * in a seq, in both cases such that the head
- * operator neighbors the selected operand.
- */
 and affix('operand, 'operator) =
-  /* Empty */
   | E
-  /* Affix */
   | A('operator, t('operand, 'operator));
 
 let rec mk_affix =
@@ -73,14 +52,6 @@ let seq_op_seq =
   S(hd1, affix_affix(tl1, A(op, seq2)));
 };
 
-let affix_seq =
-    (prefix: affix('operand, 'operator), seq: t('operand, 'operator))
-    : t('operand, 'operator) =>
-  switch (prefix) {
-  | E => seq
-  | A(op, affix_seq) => seq_op_seq(affix_seq |> rev, op, seq)
-  };
-
 let seq_affix =
     (seq: t('operand, 'operator), suffix: affix('operand, 'operator))
     : t('operand, 'operator) =>
@@ -89,9 +60,16 @@ let seq_affix =
   | A(op, suffix_seq) => seq_op_seq(seq, op, suffix_seq)
   };
 
-/**
- * Returns the number of operands.
- */
+let prefix_seq =
+    (prefix: affix('operand, 'operator), seq: t('operand, 'operator))
+    : t('operand, 'operator) =>
+  switch (prefix) {
+  | E => seq
+  | A(op, prefix_seq) => seq_op_seq(prefix_seq |> rev, op, seq)
+  };
+
+let seq_suffix = seq_affix;
+
 let rec length =
   fun
   | S(_, tail) => 1 + length_of_affix(tail)
@@ -100,10 +78,6 @@ and length_of_affix =
   | E => 0
   | A(_, seq) => length(seq);
 
-/**
- * Returns the nth operand in seq if it exists,
- * otherwise raises `Invalid_argument`
- */
 let rec nth_operand = (n: int, seq: t('operand, _)): 'operand => {
   let S(hd, tl) = seq;
   n === 0 ? hd : tl |> nth_operand_of_affix(n - 1);
@@ -114,10 +88,6 @@ and nth_operand_of_affix = (n: int, affix: affix('operand, _)): 'operand =>
   | A(_, seq) => seq |> nth_operand(n)
   };
 
-let operands_in_range =
-    ((a, b): (int, int), seq: t('operand, _)): list('operand) =>
-  ListUtil.range(~lo=a, b + 1) |> List.map(n => seq |> nth_operand(n));
-
 let rec operands =
   fun
   | S(hd, tl) => [hd, ...operands_of_affix(tl)]
@@ -125,14 +95,6 @@ and operands_of_affix =
   fun
   | E => []
   | A(_, seq) => operands(seq);
-
-/*
- let rec join = (operands: ListMinTwo.t('operand), op: 'op): t('operand, 'op) =>
-   switch (operands) {
-   | Pair(operand1, operand2) => Operand(operand1, op, operand2)
-   | Cons(operand, operands) => operand_op_seq(operand, op, join(operands, op))
-   };
- */
 
 let rec operators =
   fun
@@ -142,7 +104,6 @@ and operators_of_affix =
   | E => []
   | A(op, seq) => [op, ...operators(seq)];
 
-/* update the nth operand in seq, if it exists */
 let rec opt_update_nth_operand =
         (n: int, operand: 'operand, seq: t('operand, 'operator))
         : option(t('operand, 'operator)) =>
@@ -154,7 +115,7 @@ let rec opt_update_nth_operand =
     | (_, S(hd, tl)) =>
       tl
       |> opt_update_nth_operand_of_affix(n - 1, operand)
-      |> OptUtil.map(affix => S(hd, affix))
+      |> Option.map(affix => S(hd, affix))
     };
   }
 and opt_update_nth_operand_of_affix =
@@ -165,7 +126,7 @@ and opt_update_nth_operand_of_affix =
   | A(op, seq) =>
     seq
     |> opt_update_nth_operand(n, operand)
-    |> OptUtil.map(seq => A(op, seq))
+    |> Option.map(seq => A(op, seq))
   };
 
 let update_nth_operand =
@@ -175,6 +136,12 @@ let update_nth_operand =
   | None => failwith("update_nth_operand: index out of bounds")
   | Some(seq) => seq
   };
+
+let update_last_operand =
+    (f: 'operand => 'operand, seq: t('operand, 'operator))
+    : t('operand, 'operator) => {
+  update_nth_operand(length(seq), f(nth_operand(length(seq), seq)), seq);
+};
 
 [@deriving sexp]
 type operand_surround('operand, 'operator) = (
@@ -197,7 +164,7 @@ let rec opt_split_nth_operand =
   | (_, S(hd, A(op, seq))) =>
     seq
     |> opt_split_nth_operand(n - 1)
-    |> OptUtil.map(((found, (prefix, suffix))) =>
+    |> Option.map(((found, (prefix, suffix))) =>
          (found, (affix_affix(prefix, A(op, S(hd, E))), suffix))
        )
   };
@@ -220,16 +187,9 @@ let rec opt_split_nth_operator =
   | (_, S(hd, A(op, seq))) =>
     seq
     |> opt_split_nth_operator(n - 1)
-    |> OptUtil.map(((found, (prefix, suffix))) =>
+    |> Option.map(((found, (prefix, suffix))) =>
          (found, (seq_affix(prefix, A(op, S(hd, E))), suffix))
        )
-  };
-let split_nth_operator =
-    (n: int, seq: t('operand, 'operator))
-    : ('operator, operator_surround('operand, 'operator)) =>
-  switch (seq |> opt_split_nth_operator(n)) {
-  | None => raise(Invalid_argument("Seq.split_nth_operator"))
-  | Some(result) => result
   };
 
 let split_first_and_suffix = seq => {
@@ -247,7 +207,7 @@ let t_of_operand_and_surround =
       (prefix, suffix): operand_surround('operand, 'operator),
     )
     : t('operand, 'operator) =>
-  affix_seq(prefix, S(operand, suffix));
+  prefix_seq(prefix, S(operand, suffix));
 
 let t_of_operator_and_surround =
     (
@@ -255,4 +215,4 @@ let t_of_operator_and_surround =
       (prefix, suffix): operator_surround('operand, 'operator),
     )
     : t('operand, 'operator) =>
-  affix_seq(A(operator, prefix), suffix);
+  prefix_seq(A(operator, prefix), suffix);

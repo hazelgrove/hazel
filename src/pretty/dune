@@ -9,6 +9,11 @@
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
 
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+; Make two libraries one from js-of-ocaml and one not
+
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 

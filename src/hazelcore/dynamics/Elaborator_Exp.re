@@ -1,427 +1,6 @@
-/* closed substitution [d1/x]d2*/
-let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
-  switch (d2) {
-  | BoundVar(y) =>
-    if (Var.eq(x, y)) {
-      d1;
-    } else {
-      d2;
-    }
-  | FreeVar(_) => d2
-  | InvalidText(_) => d2
-  | Keyword(_) => d2
-  | Let(dp, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 =
-      if (DHPat.binds_var(x, dp)) {
-        d4;
-      } else {
-        subst_var(d1, x, d4);
-      };
-    Let(dp, d3, d4);
-  | FixF(y, ty, d3) =>
-    let d3 =
-      if (Var.eq(x, y)) {
-        d3;
-      } else {
-        subst_var(d1, x, d3);
-      };
-    FixF(y, ty, d3);
-  | Lam(dp, ty, d3) =>
-    if (DHPat.binds_var(x, dp)) {
-      d2;
-    } else {
-      let d3 = subst_var(d1, x, d3);
-      Lam(dp, ty, d3);
-    }
-  | Ap(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Ap(d3, d4);
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => d2
-  | Cons(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Cons(d3, d4);
-  | BinBoolOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
-  | BinFloatOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinFloatOp(op, d3, d4);
-  | Inj(ty, side, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
-  | Pair(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Pair(d3, d4);
-  | ConsistentCase(Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    let sigma' = subst_var_env(d1, x, sigma);
-    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
-  | EmptyHole(u, i, sigma) =>
-    let sigma' = subst_var_env(d1, x, sigma);
-    EmptyHole(u, i, sigma');
-  | NonEmptyHole(reason, u, i, sigma, d3) =>
-    let d3' = subst_var(d1, x, d3);
-    let sigma' = subst_var_env(d1, x, sigma);
-    NonEmptyHole(reason, u, i, sigma', d3');
-  | Cast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
-  | FailedCast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
-  | InvalidOperation(d, err) =>
-    let d' = subst_var(d1, x, d);
-    InvalidOperation(d', err);
-  }
-and subst_var_rules =
-    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-  rules
-  |> List.map((r: DHExp.rule) =>
-       switch (r) {
-       | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
-           r;
-         } else {
-           Rule(dp, subst_var(d1, x, d2));
-         }
-       }
-     )
-and subst_var_env =
-    (d1: DHExp.t, x: Var.t, sigma: Environment.t): Environment.t =>
-  sigma
-  |> List.map(xd => {
-       let (y, d) = xd;
-       (y, subst_var(d1, x, d));
-     });
-
-let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
-  env
-  |> List.fold_left(
-       (d2, xd: (Var.t, DHExp.t)) => {
-         let (x, d1) = xd;
-         subst_var(d1, x, d2);
-       },
-       d,
-     );
-
-type match_result =
-  | Matches(Environment.t)
-  | DoesNotMatch
-  | Indet;
-
-let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
-  switch (dp, d) {
-  | (_, BoundVar(_)) => DoesNotMatch
-  | (EmptyHole(_, _), _)
-  | (NonEmptyHole(_, _, _, _), _) => Indet
-  | (Wild, _) => Matches(Environment.empty)
-  | (Keyword(_, _, _), _) => DoesNotMatch
-  | (InvalidText(_), _) => Indet
-  | (Var(x), _) =>
-    let env = Environment.extend(Environment.empty, (x, d));
-    Matches(env);
-  | (_, EmptyHole(_, _, _)) => Indet
-  | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-  | (_, FailedCast(_, _, _)) => Indet
-  | (_, InvalidOperation(_)) => Indet
-  | (_, FreeVar(_, _, _, _)) => Indet
-  | (_, InvalidText(_)) => Indet
-  | (_, Let(_, _, _)) => Indet
-  | (_, FixF(_, _, _)) => DoesNotMatch
-  | (_, Lam(_, _, _)) => DoesNotMatch
-  | (_, Ap(_, _)) => Indet
-  | (_, BinBoolOp(_, _, _)) => Indet
-  | (_, BinIntOp(_, _, _)) => Indet
-  | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, ConsistentCase(Case(_, _, _))) => Indet
-  | (BoolLit(b1), BoolLit(b2)) =>
-    if (b1 == b2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (BoolLit(_), Cast(d, Bool, Hole)) => matches(dp, d)
-  | (BoolLit(_), Cast(d, Hole, Bool)) => matches(dp, d)
-  | (BoolLit(_), _) => DoesNotMatch
-  | (IntLit(n1), IntLit(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (IntLit(_), Cast(d, Int, Hole)) => matches(dp, d)
-  | (IntLit(_), Cast(d, Hole, Int)) => matches(dp, d)
-  | (IntLit(_), _) => DoesNotMatch
-  | (FloatLit(n1), FloatLit(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
-  | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
-  | (FloatLit(_), _) => DoesNotMatch
-  | (Inj(side1, dp), Inj(_, side2, d)) =>
-    switch (side1, side2) {
-    | (L, L)
-    | (R, R) => matches(dp, d)
-    | _ => DoesNotMatch
-    }
-  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
-    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
-  | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Pair(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | (
-      Pair(dp1, dp2),
-      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
-    ) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
-      d,
-      [(head1, head2)],
-      List.combine(tail1, tail2),
-    )
-  | (Pair(_, _), Cast(d, Hole, Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
-  | (Pair(_, _), _) => DoesNotMatch
-  | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
-  | (Triv, _) => DoesNotMatch
-  | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
-  | (ListNil, _) => DoesNotMatch
-  | (Cons(dp1, dp2), Cons(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
-  | (Cons(_, _), _) => DoesNotMatch
-  | (Ap(_, _), _) => DoesNotMatch
-  }
-and matches_cast_Inj =
-    (
-      side: InjSide.t,
-      dp: DHPat.t,
-      d: DHExp.t,
-      casts: list((HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
-    )
-    : match_result =>
-  switch (d) {
-  | Inj(_, side', d') =>
-    switch (side, side') {
-    | (L, L)
-    | (R, R) =>
-      let side_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t, HTyp.t, HTyp.t)) => {
-            let (tyL1, tyR1, tyL2, tyR2) = c;
-            switch (side) {
-            | L => (tyL1, tyL2)
-            | R => (tyR1, tyR2)
-            };
-          },
-          casts,
-        );
-      matches(dp, DHExp.apply_casts(d', side_casts));
-    | _ => DoesNotMatch
-    }
-  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole)
-  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
-  | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
-  | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
-  | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
-  | Ap(_, _) => Indet
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
-  }
-and matches_cast_Pair =
-    (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
-      d: DHExp.t,
-      left_casts: list((HTyp.t, HTyp.t)),
-      right_casts: list((HTyp.t, HTyp.t)),
-    )
-    : match_result =>
-  switch (d) {
-  | Pair(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
-    | Matches(env1) =>
-      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | Cast(d', Prod([]), Prod([])) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
-      d',
-      [(head1, head2), ...left_casts],
-      List.combine(tail1, tail2) @ right_casts,
-    )
-  | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
-  | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
-  | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
-  | Ap(_, _) => Indet
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
-  }
-and matches_cast_Cons =
-    (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
-      d: DHExp.t,
-      elt_casts: list((HTyp.t, HTyp.t)),
-    )
-    : match_result =>
-  switch (d) {
-  | Cons(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
-    | Matches(env1) =>
-      let list_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
-          },
-          elt_casts,
-        );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      };
-    }
-  | Cast(d', List(ty1), List(ty2)) =>
-    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
-  | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
-  | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
-  | Ap(_, _) => Indet
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
-  };
-
 type elab_result_lines =
-  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotExpand;
+  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotElaborate;
 
 module ElaborationResult = {
   type t =
@@ -447,15 +26,6 @@ module ElaborationResult = {
 
 module Let_syntax = ElaborationResult;
 
-let id_env = (ctx: VarCtx.t): Environment.t =>
-  VarMap.map(
-    xt => {
-      let (x, _) = xt;
-      DHExp.BoundVar(x);
-    },
-    ctx,
-  );
-
 let rec syn_elab =
         (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
   syn_elab_block(ctx, delta, e)
@@ -465,8 +35,8 @@ and syn_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaborate(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -477,15 +47,15 @@ and syn_elab_lines =
     (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
   switch (lines) {
-  | [] => LinesExpand(d => d, ctx, delta)
+  | [] => LinesElaborate(d => d, ctx, delta)
   | [line, ...lines] =>
     switch (syn_elab_line(ctx, delta, line)) {
-    | LinesDoNotExpand => LinesDoNotExpand
-    | LinesExpand(prelude_line, ctx, delta) =>
+    | LinesDoNotElaborate => LinesDoNotElaborate
+    | LinesElaborate(prelude_line, ctx, delta) =>
       switch (syn_elab_lines(ctx, delta, lines)) {
-      | LinesDoNotExpand => LinesDoNotExpand
-      | LinesExpand(prelude_lines, ctx, delta) =>
-        LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
+      | LinesDoNotElaborate => LinesDoNotElaborate
+      | LinesElaborate(prelude_lines, ctx, delta) =>
+        LinesElaborate(d => prelude_line(prelude_lines(d)), ctx, delta)
       }
     }
   }
@@ -494,50 +64,43 @@ and syn_elab_line =
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
-    | DoesNotElaborate => LinesDoNotExpand
+    | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
-      LinesExpand(prelude, ctx, delta);
+      LinesElaborate(prelude, ctx, delta);
     }
-  | EmptyLine => LinesExpand(d => d, ctx, delta)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let (ctx1, is_recursive_fn) =
-        Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
+  | EmptyLine
+  | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
+  | LetLine(p, def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => LinesDoNotElaborate
+    | Some((ty1, _)) =>
+      let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
-      | DoesNotElaborate => LinesDoNotExpand
+      | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1', delta) =>
         let d1 =
-          switch (is_recursive_fn) {
+          switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
           | Some(x) =>
             FixF(
               x,
               ty1',
-              subst_var(DHExp.cast(BoundVar(x), ty1', ty1), x, d1),
+              Evaluator.subst_var(
+                DHExp.cast(BoundVar(x), ty1', ty1),
+                x,
+                d1,
+              ),
             )
           };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
+        | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
+          LinesElaborate(prelude, ctx, delta);
         };
       };
-    | None =>
-      switch (syn_elab(ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotExpand
-      | Elaborates(d1, ty1, delta) =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(dp, _, ctx, delta) =>
-          let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
-        }
-      }
     }
   }
 and syn_elab_opseq =
@@ -558,7 +121,7 @@ and syn_elab_skel =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
@@ -690,7 +253,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -699,7 +262,7 @@ and syn_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
@@ -709,7 +272,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -738,7 +301,7 @@ and syn_elab_operand =
       | None => DoesNotElaborate
       | Some((drs, delta)) =>
         let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
+        let sigma = Environment.id_env(gamma);
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
         let d = DHExp.Case(d1, drs, 0);
@@ -747,14 +310,14 @@ and syn_elab_operand =
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
@@ -767,7 +330,7 @@ and syn_elab_operand =
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let delta =
       MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
     let d =
@@ -791,22 +354,17 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Lam(NotInHole, p, ann, body) =>
-    let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => HTyp.Hole
-      };
-    switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+  | Lam(NotInHole, p, body) =>
+    switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, _, ctx, delta) =>
+    | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
         let d = DHExp.Lam(dp, ty1, d1);
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
-    };
+    }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -920,8 +478,8 @@ and ana_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaborate(prelude, ctx, delta) =>
       switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -1019,7 +577,7 @@ and ana_elab_opseq =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d, _, delta) =>
           let gamma = ctx |> Contexts.gamma;
-          let sigma = gamma |> id_env;
+          let sigma = gamma |> Environment.id_env;
           let delta =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
           Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
@@ -1051,7 +609,7 @@ and ana_elab_skel =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
@@ -1110,7 +668,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -1119,7 +677,7 @@ and ana_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
@@ -1138,19 +696,19 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     let d: DHExp.t =
       switch (reason) {
@@ -1159,41 +717,30 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
-        switch (HTyp.consistent(ty1_ann, ty1_given)) {
-        | false => DoesNotElaborate
-        | true =>
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(dp, ty1p, ctx, delta) =>
-            switch (ana_elab(ctx, delta, body, ty2)) {
-            | DoesNotElaborate => DoesNotElaborate
-            | Elaborates(d1, ty2, delta) =>
-              let ty = HTyp.Arrow(ty1p, ty2);
-              let d = DHExp.Lam(dp, ty1p, d1);
-              Elaborates(d, ty, delta);
-            }
-          }
+      let ty1_ann =
+        switch (Statics_Pat.syn(ctx, p)) {
+        | None => ty1_given
+        | Some((ty_p, _)) => ty_p
         };
-      | None =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_given)) {
+      switch (HTyp.consistent(ty1_ann, ty1_given)) {
+      | false => DoesNotElaborate
+      | true =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1, ctx, delta) =>
+        | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1, ty2);
-            let d = DHExp.Lam(dp, ty1, d1);
+            let ty = HTyp.Arrow(ty1p, ty2);
+            let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
-      }
+      };
     }
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ty)) {
@@ -1230,7 +777,7 @@ and ana_elab_operand =
     }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = id_env(gamma);
+    let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
@@ -1285,247 +832,4 @@ and ana_elab_rule =
       Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
     }
   };
-};
-
-let rec renumber_result_only =
-        (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-        : (DHExp.t, HoleInstanceInfo.t) =>
-  switch (d) {
-  | BoundVar(_)
-  | InvalidText(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => (d, hii)
-  | Let(dp, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (Let(dp, d1, d2), hii);
-  | FixF(x, ty, d1) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
-  | Ap(d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (Ap(d1, d2), hii);
-  | BinBoolOp(op, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BinBoolOp(op, d1, d2), hii);
-  | BinIntOp(op, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BinIntOp(op, d1, d2), hii);
-  | BinFloatOp(op, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BinFloatOp(op, d1, d2), hii);
-  | Inj(ty, side, d1) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Inj(ty, side, d1), hii);
-  | Pair(d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (Pair(d1, d2), hii);
-  | Cons(d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n)) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, drules, n)), hii);
-  | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
-  | EmptyHole(u, _, sigma) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (EmptyHole(u, i, sigma), hii);
-  | NonEmptyHole(reason, u, _, sigma, d1) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (NonEmptyHole(reason, u, i, sigma, d1), hii);
-  | FreeVar(u, _, sigma, x) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, _, sigma, k) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
-  | InvalidOperation(d, err) =>
-    let (d, hii) = renumber_result_only(path, hii, d);
-    (InvalidOperation(d, err), hii);
-  }
-and renumber_result_only_rules =
-    (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
-    : (list(DHExp.rule), HoleInstanceInfo.t) =>
-  rules
-  |> List.fold_left(
-       (b, r: DHExp.rule) => {
-         let (rs, hii) = b;
-         switch (r) {
-         | Rule(dp, d) =>
-           let (dp, hii) =
-             Elaborator_Pat.renumber_result_only(path, hii, dp);
-           let (d, hii) = renumber_result_only(path, hii, d);
-           (rs @ [DHExp.Rule(dp, d)], hii);
-         };
-       },
-       ([], hii),
-     );
-
-let rec renumber_sigmas_only =
-        (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-        : (DHExp.t, HoleInstanceInfo.t) =>
-  switch (d) {
-  | BoundVar(_)
-  | InvalidText(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => (d, hii)
-  | Let(dp, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (Let(dp, d1, d2), hii);
-  | FixF(x, ty, d1) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
-  | Ap(d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (Ap(d1, d2), hii);
-  | BinBoolOp(op, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BinBoolOp(op, d1, d2), hii);
-  | BinIntOp(op, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BinIntOp(op, d1, d2), hii);
-  | BinFloatOp(op, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BinFloatOp(op, d1, d2), hii);
-  | Inj(ty, side, d1) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Inj(ty, side, d1), hii);
-  | Pair(d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (Pair(d1, d2), hii);
-  | Cons(d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n)) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, rules, n)), hii);
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
-  | EmptyHole(u, i, sigma) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (EmptyHole(u, i, sigma), hii);
-  | NonEmptyHole(reason, u, i, sigma, d1) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (NonEmptyHole(reason, u, i, sigma, d1), hii);
-  | FreeVar(u, i, sigma, x) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, i, sigma, k) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Keyword(u, i, sigma, k), hii);
-  | Cast(d1, ty1, ty2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Cast(d1, ty1, ty2), hii);
-  | FailedCast(d1, ty1, ty2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (FailedCast(d1, ty1, ty2), hii);
-  | InvalidOperation(d, err) =>
-    let (d, hii) = renumber_sigmas_only(path, hii, d);
-    (InvalidOperation(d, err), hii);
-  }
-and renumber_sigmas_only_rules =
-    (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
-    : (list(DHExp.rule), HoleInstanceInfo.t) =>
-  rules
-  |> List.fold_left(
-       (b, r: DHExp.rule) => {
-         let (rs, hii) = b;
-         switch (r) {
-         | Rule(dp, d) =>
-           /* pattern holes don't have environments */
-           let (d, hii) = renumber_sigmas_only(path, hii, d);
-           (rs @ [DHExp.Rule(dp, d)], hii);
-         };
-       },
-       ([], hii),
-     )
-and renumber_sigma =
-    (
-      path: InstancePath.t,
-      u: MetaVar.t,
-      i: MetaVarInst.t,
-      hii: HoleInstanceInfo.t,
-      sigma: Environment.t,
-    )
-    : (Environment.t, HoleInstanceInfo.t) => {
-  let (sigma, hii) =
-    List.fold_right(
-      (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
-        let (x, d) = xd;
-        let (sigma_in, hii) = acc;
-        let path = [((u, i), x), ...path];
-        let (d, hii) = renumber_result_only(path, hii, d);
-        let sigma_out = [(x, d), ...sigma_in];
-        (sigma_out, hii);
-      },
-      sigma,
-      ([], hii),
-    );
-
-  List.fold_right(
-    (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
-      let (x, d) = xd;
-      let (sigma_in, hii) = acc;
-      let path = [((u, i), x), ...path];
-      let (d, hii) = renumber_sigmas_only(path, hii, d);
-      let sigma_out = [(x, d), ...sigma_in];
-      (sigma_out, hii);
-    },
-    sigma,
-    ([], hii),
-  );
-};
-
-let renumber =
-    (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-    : (DHExp.t, HoleInstanceInfo.t) => {
-  let (d, hii) = renumber_result_only(path, hii, d);
-  renumber_sigmas_only(path, hii, d);
 };
