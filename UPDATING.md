@@ -11,10 +11,10 @@ To update do the following:
 - `opam switch list-available`
 
 - Choose the most recent version that does not contain a `+` character (e.g.,
-  `4.09.0`)
+  `4.12.1`)
 
 - `opam switch create VERSION`, where `VERSION` is the most recent OCaml version
-  that does not contain a `+` character (e.g., `4.09.0`).
+  that does not contain a `+` character (e.g., `4.12.1`).
 
 - `make deps`
 
@@ -32,36 +32,10 @@ To update do the following:
 
   TODO: Testing protocol
 
-- Test that the `reason-vscode` extension works with the OCaml version.
+- Update the version number in `.github/workflows/deploy_branches.yml`
 
-  To test this, ensure the `reason-vscode` extension is installed and then open
-  a `*.re` file in a fresh instance of Visual Studio Code.  If the plugin does
-  not support the OCaml version, after a few seconds a notification will appear
-  in the lower right corner that says:
-
-  ```Text
-  Unsupported OCaml version: <version number>.
-  Source: reason-vscode (Extension)
-  ```
-
-  If this notification does not appear, then the extension supports the OCaml
-  version.
-
-- Update the version number in `.travis.yml`
-
-  - Check that travis builds correctly by going to
-    <https://travis-ci.org/hazelgrove/hazel>.
-
-  - Test that the travis build works by going to
-    <https://hazel.org/build/dev/index.html>
-
-- Update the version number in `.travis.yml` on the `trunk` branch.
-
-  - Check that travis builds correctly by going to
-    <https://travis-ci.org/hazelgrove/hazel>.
-
-  - Test that the travis build works by going to
-    <https://hazel.org/build/trunk/index.html>
+  - Update the version number in step 3: Install dependencies and build hazel.
+  - Push to github and check deploy status
 
 - Update the version numbers in `README.md`
 
@@ -71,14 +45,10 @@ To update do the following:
   Slack by sending the following message.
 
       @channel
-      The `reason-vscode` extension for VS code was just updated to support OCaml 4.08.1.  You can update to 4.08.1 by doing the following two things.
-
-      - First, update your VS code extensions by pressing Ctrl+Shift+P to open
-        the command pallet then typing or selecting the command
-        `Extensions: Check for Extension Updates`.  If there is an update for
-        the `reason-vscode` extension, click the `Update` button.
-
-      - Second, update your OCaml installation by running the following:
+      We switch to ocaml version 4.12.1. You can update to 4.12.1 by doing the following things.
+      
+      - Merge your branch with `dev` or `update_ocaml`.
+      - Update your OCaml installation by running the following:
 
         ```
         opam update
@@ -88,8 +58,6 @@ To update do the following:
 
 ## Current version
 
-The most recent version that we use is Ocaml 4.08.1.
+The most recent version that we use is Ocaml 4.12.1.
 
-- The `reason-vscode` plugin for VS Code does not (yet) support OCaml 4.09.
-  See <https://github.com/jaredly/reason-language-server/pull/351>
-  and <https://github.com/jaredly/reason-language-server/issues/309>.
+- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) does not support 4.13 or higher version.
