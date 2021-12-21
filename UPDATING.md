@@ -37,7 +37,9 @@ To update do the following:
   - Update the version number in step 3: Install dependencies and build hazel.
   - Push to github and check deploy status
 
-- Update the version numbers in `README.md`
+- Update the version numbers in `README.md`.
+
+- Update the version number and instructions in `INSTALL.md`.
 
 - Update the "Current Version" section in `UPDATING.md`
 
