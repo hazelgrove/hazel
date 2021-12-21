@@ -3,7 +3,6 @@
 
   let mk_typ_ann pat typ =
     let typ = UHTyp.mk_OpSeq typ in
-    let pat = Seq.nth_operand 0 pat in
     Seq.wrap (UHPat.TypeAnn(ErrStatus.NotInHole, pat, typ))
 
   let mk_pat_parenthesized e =
@@ -55,9 +54,6 @@
 
   let mk_empty_list =
     Seq.wrap (UHExp.listnil ())
-
-  let mk_wild =
-    Seq.wrap (UHPat.wild ())
 %}
 
 %token LET
@@ -130,7 +126,7 @@ typ_:
 ;
 
 typ_annotation:
-  pat COLON typ { mk_typ_ann $1 $3 }
+  pat_ COLON typ { mk_typ_ann $1 $3 }
 ;
 
 atomic_type:
@@ -154,7 +150,6 @@ pat:
   pat COLONCOLON pat { mk_binop $1 Operators_Pat.Cons $3 }
   | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
   | typ_annotation { $1 }
-  | WILD { mk_wild }
   | pat_ { Seq.wrap $1 }
 ;
 
@@ -170,6 +165,7 @@ pat_:
   | EMPTY_HOLE { UHPat.EmptyHole 0 }
   | pat_constant { $1 }
   | LBRACK RBRACK { UHPat.listnil () }
+  | WILD { UHPat.wild () }
 ;
 
 pat_constant:

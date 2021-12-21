@@ -31,17 +31,11 @@ let test_parse text : bool =
 let test_incorrect text = test_parse text = false
 
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
-
 let%test "let basic" = test_parse "let a = 1 in a"
-
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
-
 let%test "basic lambda" = test_parse "\\f.{f}"
-
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
-
 let%test "comment" = test_parse "#Comment\n 3"
-
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
 
@@ -124,3 +118,6 @@ let%test "float ops" =
 let%test "identifier characters" =
   test_parse
     "\nlet __a = 3 in\nlet 0a = 4 in\nlet 'b = 5 in\nlet c' = 6 in\nc'\n  "
+
+let%test "multiple type annotations" =
+  test_incorrect "let a : Int : Float = 3 in a"
