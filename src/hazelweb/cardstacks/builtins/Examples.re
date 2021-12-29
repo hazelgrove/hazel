@@ -412,7 +412,11 @@ let example_to_card =
     ((name: string, init_edit_state: Statics.edit_state)): CardInfo.t => {
   name,
   caption: Virtual_dom.Vdom.Node.div([], []),
-  init_edit_state,
+  // TODO: replace with an empty edit state (unit?)
+  init_prelude: init_edit_state,
+  init_template: init_edit_state,
+  // TODO: replace with an empty edit state(unit?)
+  init_tester: init_edit_state,
 };
 
 let cardstack: CardstackInfo.t = {
