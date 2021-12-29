@@ -49,5 +49,6 @@ type t =
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
+  | ToggleInstructorMode
   | UpdateFontMetrics(FontMetrics.t)
   | SerializeToConsole(serialize_object);

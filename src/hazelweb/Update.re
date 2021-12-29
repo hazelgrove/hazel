@@ -58,6 +58,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | BlurCell
   | Undo
   | Redo
+  | ToggleInstructorMode
   | ShiftHistory(_)
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
@@ -130,6 +131,9 @@ let apply_action =
         Model.select_case_branch(path_to_case, branch_index, model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
+      | ToggleInstructorMode =>
+        JSUtil.log("ToggleInstructorMode");
+        model;
       | Undo =>
         let new_history =
           model.undo_history
