@@ -403,8 +403,7 @@ let edit_state_of_block =
   let block_type =
     switch (Statics_Exp.syn(Contexts.empty, block)) {
     | Some(ty) => ty
-    | None =>
-      Hole;
+    | None => Hole
     };
   (name, (zippered_block, block_type, IDGen.init));
 };
