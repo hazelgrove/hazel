@@ -45,6 +45,9 @@ let%test "multiline" = test_parse "let a =\n 1\n in\n a"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
+(* The program must end in an expr line of some sort *)
+let%test "only comment" = test_incorrect "# Comment"
+let%test "only empty" = test_incorrect "\n"
 
 let%test "mult" =
   test_parse

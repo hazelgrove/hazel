@@ -106,12 +106,17 @@
 %%
 
 main:
-  line EOF { $1 }
-  | line SEMICOLON main EOF { List.concat [$1; $3] }
+  block EOF { $1 }
+;
+
+block:
+  | exp_line { [$1] }
+  | line block { $1::$2 }
+  | exp_line SEMICOLON block { $1::$3 }
 ;
 
 let_binding:
-  LET pat EQUAL line IN { mk_let_line $2 $4 }
+  LET pat EQUAL block IN { mk_let_line $2 $4 }
 ;
 
 typ:
@@ -175,16 +180,18 @@ pat_constant:
   | FALSE { UHPat.boollit false }
 ;
 
+exp_line:
+  expr { UHExp.ExpLine (UHExp.mk_OpSeq $1) }
+
 line:
-  expr { [UHExp.ExpLine (UHExp.mk_OpSeq $1)] }
-  | COMMENT line { List.concat [[UHExp.CommentLine $1]; $2] }
-  | EMPTY line { List.concat [[UHExp.EmptyLine]; $2] }
-  | let_binding line { List.concat [[$1]; $2] }
+  COMMENT { UHExp.CommentLine $1 }
+  | EMPTY { UHExp.EmptyLine }
+  | let_binding { $1 }
 ;
 
 expr:
   simple_expr { Seq.wrap $1 }
-  | CASE line rule+ END { mk_case $2 $3 }
+  | CASE block rule+ END { mk_case $2 $3 }
   | simple_expr simple_expr+ { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
@@ -192,7 +199,7 @@ expr:
 ;
 
 simple_expr:
-  LPAREN line RPAREN { UHExp.Parenthesized($2) }
+  LPAREN block RPAREN { UHExp.Parenthesized($2) }
   | constant { $1 }
   | IDENT {
     if Var.is_valid $1 then
@@ -207,16 +214,16 @@ simple_expr:
   }
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | fn { $1 }
-  | INJL LPAREN line RPAREN { mk_inj_l $3 }
-  | INJR LPAREN line RPAREN { mk_inj_r $3 }
+  | INJL LPAREN block RPAREN { mk_inj_l $3 }
+  | INJR LPAREN block RPAREN { mk_inj_r $3 }
 ;
 
 fn:
-  LAMBDA pat PERIOD LBRACE line RBRACE { mk_fn $2 $5 }
+  LAMBDA pat PERIOD LBRACE block RBRACE { mk_fn $2 $5 }
 ;
 
 rule:
-  BAR pat ARROW line { mk_rule $2 $4 }
+  BAR pat ARROW block { mk_rule $2 $4 }
 ;
 
 %inline op:
