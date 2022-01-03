@@ -3,10 +3,17 @@ module Parse = Hazeltext.Parse
 module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
+let fix_ast_holes ast : UHExp.block option =
+  match ast with
+  | Some ast ->
+      let ast, _, _ = Statics_Exp.fix_and_renumber_holes Contexts.empty ast in
+      Some ast
+  | None -> None
+
 let parse text : UHExp.block option =
   let lexbuf = Lexing.from_string text in
   let ast, _ = Parsing.ast_of_lexbuf lexbuf in
-  ast
+  fix_ast_holes ast
 
 let test_parse text : bool =
   (*Get the first AST*)
@@ -121,3 +128,14 @@ let%test "identifier characters" =
 
 let%test "multiple type annotations" =
   test_incorrect "let a : Int : Float = 3 in a"
+
+let%test "block within case" =
+  test_parse
+    "case 2; 3 | ? => ? end;\n\
+     case\n\
+     let a = 3 in\n\
+     let b = 2 in\n\
+     a+b\n\
+     | 5 => true\n\
+     | _ => false\n\
+     end"

@@ -84,11 +84,7 @@ let import_body = (inject, model) => {
               switch (Parsing.ast_of_lexbuf(lexbuf)) {
               | (Some(ast), None) =>
                 let (ast, _, _) =
-                  Statics_Exp.syn_fix_holes(
-                    Contexts.empty,
-                    MetaVarGen.init,
-                    ast,
-                  );
+                  Statics_Exp.fix_and_renumber_holes(Contexts.empty, ast);
                 JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
                 Event.Ignore;
               | _ => Event.Ignore
