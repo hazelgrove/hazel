@@ -50,9 +50,6 @@ rule read =
     else
       read lexbuf
   }
-  | whitespace* newline {
-    EMPTY
-  }
   | whitespace+ { read lexbuf }
   | int_lit { INT (Lexing.lexeme lexbuf) }
   | float_lit { FLOAT (Lexing.lexeme lexbuf) }
