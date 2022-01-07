@@ -109,7 +109,8 @@ let rec renumber_result_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Lam(x, ty, d1)
+  | Closure(_, x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Lam(x, ty, d1), hii);
   | Ap(d1, d2) =>
@@ -207,7 +208,8 @@ let rec renumber_sigmas_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Lam(x, ty, d1)
+  | Closure(_, x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Lam(x, ty, d1), hii);
   | Ap(d1, d2) =>
@@ -349,7 +351,7 @@ let get_elaboration = (program: t): DHExp.t =>
 exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
-  switch (program |> get_elaboration |> evaluate) {
+  switch (program |> get_elaboration |> evaluate(Environment.empty)) {
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));

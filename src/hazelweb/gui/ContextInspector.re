@@ -33,7 +33,7 @@ let view =
   /**
    * Shows runtime value for a context entry.
    */
-  let dynamic_info = (sigma, x) =>
+  let dynamic_info = (sigma: Environment.t, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
       Some(
@@ -66,7 +66,7 @@ let view =
       )
     };
 
-  let context_entry = (sigma, (x, ty)) => {
+  let context_entry = (sigma: Environment.t, (x, ty)) => {
     let static_info = static_info((x, ty));
     let children =
       switch (dynamic_info(sigma, x)) {
