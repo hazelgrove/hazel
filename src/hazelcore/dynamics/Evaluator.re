@@ -362,7 +362,9 @@ and matches_cast_Cons =
   | InvalidOperation(_) => Indet
   };
 
-/* closed substitution [d1/x]d2*/
+/* closed substitution [d1/x]d2
+   Not needed for evaluation with environments,
+   leaving in case it's useful for something else */
 /* let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
      switch (d2) {
      | BoundVar(y) =>
@@ -473,14 +475,14 @@ and matches_cast_Cons =
         )
 
    and subst_var_env =
-       (d1: DHExp.t, x: Var.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(DHExp.t) =>
+       (d1: DHExp.t, x: Var.t, sigma: Environment.t): Environment.t =>
      sigma
      |> List.map(xd => {
           let (y, d) = xd;
           (y, subst_var(d1, x, d));
         });
 
-   let subst = (env: VarMap.t_(DHExp.t), d: DHExp.t): DHExp.t =>
+   let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
      env
      |> List.fold_left(
           (d2, xd: (Var.t, DHExp.t)) => {
@@ -531,9 +533,10 @@ let eval_bin_float_op =
 
 let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
   switch (d) {
-  // TODO: remove
-  /* | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x))) */
   | BoundVar(x) =>
+    // the looked-up DHExp should be final, recursive call to evaluate wraps the
+    // DHExp as a result (BoxedValue or Indet) -- alternatively, can use
+    // an environment mapping Var -> result
     x
     |> Environment.lookup(env)
     |> OptUtil.get(_ => raise(EvaluatorError.Exception(FreeInvalidVar(x))))
@@ -545,10 +548,7 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env') =>
-        /* evaluate(subst(env, d2)) */
-        evaluate(Environment.union(env', env), d2)
-      // TODO: remove
+      | Matches(env') => evaluate(Environment.union(env', env), d2)
       }
     }
   | FixF(_, _, d1) =>
@@ -567,14 +567,13 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
         | DoesNotMatch => Indet(d)
         | Indet => Indet(d)
         | Matches(env') =>
-          /* beta rule */
-
-          /* evaluate(subst(env, d3)) */
+          // evaluate a closure: extend the existing environment with the
+          // closure environment and the new bindings introduced by the
+          // function application.
           evaluate(
             Environment.union(env', Environment.union(closure_env, env)),
             d3,
           )
-        // TODO: remove
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -819,9 +818,9 @@ and evaluate_case =
           Indet(InconsistentBranches(u, i, sigma, case))
         };
       | Matches(env') =>
-        /* evaluate(subst(env, d)) */
+        // extend environment with new bindings introduced
+        // by the rule and evaluate the expression.
         evaluate(Environment.union(env', env), d)
-      // TODO: remove
       | DoesNotMatch =>
         evaluate_case(
           env,
