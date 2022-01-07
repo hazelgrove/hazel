@@ -82,16 +82,18 @@ and syn_elab_line =
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
-          | Some(x) =>
-            FixF(
-              x,
-              ty1',
-              Evaluator.subst_var(
-                DHExp.cast(BoundVar(x), ty1', ty1),
-                x,
-                d1,
-              ),
-            )
+          | Some(_) =>
+            /* FixF(
+                 x,
+                 ty1',
+                 Evaluator.subst_var(
+                   DHExp.cast(BoundVar(x), ty1', ty1),
+                   x,
+                   d1,
+                 ),
+               ) */
+            d1
+          // TODO: remove
           };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
