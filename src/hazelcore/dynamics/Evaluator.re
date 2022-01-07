@@ -36,7 +36,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   };
 
 type match_result =
-  | Matches(Environment.t)
+  | Matches(VarMap.t_(DHExp.t))
   | DoesNotMatch
   | Indet;
 
@@ -204,6 +204,7 @@ and matches_cast_Inj =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
+  | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -269,6 +270,7 @@ and matches_cast_Pair =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
+  | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -340,6 +342,7 @@ and matches_cast_Cons =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
+  | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -360,131 +363,132 @@ and matches_cast_Cons =
   };
 
 /* closed substitution [d1/x]d2*/
-let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
-  switch (d2) {
-  | BoundVar(y) =>
-    if (Var.eq(x, y)) {
-      d1;
-    } else {
-      d2;
-    }
-  | FreeVar(_) => d2
-  | InvalidText(_) => d2
-  | Keyword(_) => d2
-  | Let(dp, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 =
-      if (DHPat.binds_var(x, dp)) {
-        d4;
-      } else {
-        subst_var(d1, x, d4);
-      };
-    Let(dp, d3, d4);
-  | FixF(y, ty, d3) =>
-    let d3 =
-      if (Var.eq(x, y)) {
-        d3;
-      } else {
-        subst_var(d1, x, d3);
-      };
-    FixF(y, ty, d3);
-  | Lam(dp, ty, d3) =>
-    if (DHPat.binds_var(x, dp)) {
-      d2;
-    } else {
-      let d3 = subst_var(d1, x, d3);
-      Lam(dp, ty, d3);
-    }
-  | Ap(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Ap(d3, d4);
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => d2
-  | Cons(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Cons(d3, d4);
-  | BinBoolOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
-  | BinFloatOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinFloatOp(op, d3, d4);
-  | Inj(ty, side, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
-  | Pair(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Pair(d3, d4);
-  | ConsistentCase(Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    let sigma' = subst_var_env(d1, x, sigma);
-    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
-  | EmptyHole(u, i, sigma) =>
-    let sigma' = subst_var_env(d1, x, sigma);
-    EmptyHole(u, i, sigma');
-  | NonEmptyHole(reason, u, i, sigma, d3) =>
-    let d3' = subst_var(d1, x, d3);
-    let sigma' = subst_var_env(d1, x, sigma);
-    NonEmptyHole(reason, u, i, sigma', d3');
-  | Cast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
-  | FailedCast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
-  | InvalidOperation(d, err) =>
-    let d' = subst_var(d1, x, d);
-    InvalidOperation(d', err);
-  }
-
-and subst_var_rules =
-    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-  rules
-  |> List.map((r: DHExp.rule) =>
-       switch (r) {
-       | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
-           r;
-         } else {
-           Rule(dp, subst_var(d1, x, d2));
-         }
+/* let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
+     switch (d2) {
+     | BoundVar(y) =>
+       if (Var.eq(x, y)) {
+         d1;
+       } else {
+         d2;
        }
-     )
+     | FreeVar(_) => d2
+     | InvalidText(_) => d2
+     | Keyword(_) => d2
+     | Let(dp, d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 =
+         if (DHPat.binds_var(x, dp)) {
+           d4;
+         } else {
+           subst_var(d1, x, d4);
+         };
+       Let(dp, d3, d4);
+     | FixF(y, ty, d3) =>
+       let d3 =
+         if (Var.eq(x, y)) {
+           d3;
+         } else {
+           subst_var(d1, x, d3);
+         };
+       FixF(y, ty, d3);
+     | Lam(dp, ty, d3)
+     | Closure(_, dp, ty, d3) =>
+       if (DHPat.binds_var(x, dp)) {
+         d2;
+       } else {
+         let d3 = subst_var(d1, x, d3);
+         Lam(dp, ty, d3);
+       }
+     | Ap(d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       Ap(d3, d4);
+     | BoolLit(_)
+     | IntLit(_)
+     | FloatLit(_)
+     | ListNil(_)
+     | Triv => d2
+     | Cons(d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       Cons(d3, d4);
+     | BinBoolOp(op, d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       BinBoolOp(op, d3, d4);
+     | BinIntOp(op, d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       BinIntOp(op, d3, d4);
+     | BinFloatOp(op, d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       BinFloatOp(op, d3, d4);
+     | Inj(ty, side, d3) =>
+       let d3 = subst_var(d1, x, d3);
+       Inj(ty, side, d3);
+     | Pair(d3, d4) =>
+       let d3 = subst_var(d1, x, d3);
+       let d4 = subst_var(d1, x, d4);
+       Pair(d3, d4);
+     | ConsistentCase(Case(d3, rules, n)) =>
+       let d3 = subst_var(d1, x, d3);
+       let rules = subst_var_rules(d1, x, rules);
+       ConsistentCase(Case(d3, rules, n));
+     | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+       let d3 = subst_var(d1, x, d3);
+       let rules = subst_var_rules(d1, x, rules);
+       let sigma' = subst_var_env(d1, x, sigma);
+       InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+     | EmptyHole(u, i, sigma) =>
+       let sigma' = subst_var_env(d1, x, sigma);
+       EmptyHole(u, i, sigma');
+     | NonEmptyHole(reason, u, i, sigma, d3) =>
+       let d3' = subst_var(d1, x, d3);
+       let sigma' = subst_var_env(d1, x, sigma);
+       NonEmptyHole(reason, u, i, sigma', d3');
+     | Cast(d, ty1, ty2) =>
+       let d' = subst_var(d1, x, d);
+       Cast(d', ty1, ty2);
+     | FailedCast(d, ty1, ty2) =>
+       let d' = subst_var(d1, x, d);
+       FailedCast(d', ty1, ty2);
+     | InvalidOperation(d, err) =>
+       let d' = subst_var(d1, x, d);
+       InvalidOperation(d', err);
+     }
 
-and subst_var_env =
-    (d1: DHExp.t, x: Var.t, sigma: Environment.t): Environment.t =>
-  sigma
-  |> List.map(xd => {
-       let (y, d) = xd;
-       (y, subst_var(d1, x, d));
-     });
+   and subst_var_rules =
+       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
+     rules
+     |> List.map((r: DHExp.rule) =>
+          switch (r) {
+          | Rule(dp, d2) =>
+            if (DHPat.binds_var(x, dp)) {
+              r;
+            } else {
+              Rule(dp, subst_var(d1, x, d2));
+            }
+          }
+        )
 
-let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
-  env
-  |> List.fold_left(
-       (d2, xd: (Var.t, DHExp.t)) => {
-         let (x, d1) = xd;
-         subst_var(d1, x, d2);
-       },
-       d,
-     );
+   and subst_var_env =
+       (d1: DHExp.t, x: Var.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(DHExp.t) =>
+     sigma
+     |> List.map(xd => {
+          let (y, d) = xd;
+          (y, subst_var(d1, x, d));
+        });
+
+   let subst = (env: VarMap.t_(DHExp.t), d: DHExp.t): DHExp.t =>
+     env
+     |> List.fold_left(
+          (d2, xd: (Var.t, DHExp.t)) => {
+            let (x, d1) = xd;
+            subst_var(d1, x, d2);
+          },
+          d,
+        ); */
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
@@ -525,47 +529,66 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (d: DHExp.t): result =>
+let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
   switch (d) {
-  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
+  // TODO: remove
+  /* | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x))) */
+  | BoundVar(x) =>
+    x
+    |> Environment.lookup(env)
+    |> OptUtil.get(_ => raise(EvaluatorError.Exception(FreeInvalidVar(x))))
+    |> evaluate(env)
   | Let(dp, d1, d2) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(d1)
     | Indet(d1) =>
       switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(subst(env, d2))
+      | Matches(env') =>
+        /* evaluate(subst(env, d2)) */
+        evaluate(Environment.union(env', env), d2)
+      // TODO: remove
       }
     }
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Lam(_, _, _) => BoxedValue(d)
+  | FixF(_, _, d1) =>
+    /* evaluate(subst_var(d, x, d1)) */
+    evaluate(env, d1)
+  // TODO: remove; nothing to do here for FixF (can we remove FixF altogether?)
+  | Lam(dp, ty, d) => evaluate(env, Closure(env, dp, ty, d))
+  | Closure(_, _, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(Lam(dp, _, d3)) =>
-      switch (evaluate(d2)) {
+    switch (evaluate(env, d1)) {
+    | BoxedValue(Closure(closure_env, dp, _, d3)) =>
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (matches(dp, d2)) {
         | DoesNotMatch => Indet(d)
         | Indet => Indet(d)
-        | Matches(env) =>
+        | Matches(env') =>
           /* beta rule */
-          evaluate(subst(env, d3))
+
+          /* evaluate(subst(env, d3)) */
+          evaluate(
+            Environment.union(env', Environment.union(closure_env, env)),
+            d3,
+          )
+        // TODO: remove
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
-        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
     | Indet(d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
@@ -576,12 +599,12 @@ let rec evaluate = (d: DHExp.t): result =>
   | FloatLit(_)
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(BoolLit(b1) as d1') =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
       | Some(b3) => b3
       | None =>
-        switch (evaluate(d2)) {
+        switch (evaluate(env, d2)) {
         | BoxedValue(BoolLit(b2)) =>
           BoxedValue(eval_bin_bool_op(op, b1, b2))
         | BoxedValue(d2') =>
@@ -592,15 +615,15 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
       }
     }
   | BinIntOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(IntLit(n1) as d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
@@ -619,15 +642,15 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
     }
   | BinFloatOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(FloatLit(f1) as d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(FloatLit(f2)) =>
         BoxedValue(eval_bin_float_op(op, f1, f2))
       | BoxedValue(d2') =>
@@ -637,36 +660,37 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(d2)) {
+      switch (evaluate(env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
   | Inj(ty, side, d1) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Pair(d1, d2) =>
-    switch (evaluate(d1), evaluate(d2)) {
+    switch (evaluate(env, d1), evaluate(env, d2)) {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
     }
   | Cons(d1, d2) =>
-    switch (evaluate(d1), evaluate(d2)) {
+    switch (evaluate(env, d1), evaluate(env, d2)) {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
-  | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
+  | ConsistentCase(Case(d1, rules, n)) =>
+    evaluate_case(env, None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(Some((u, i, sigma)), d1, rules, n)
+    evaluate_case(env, Some((u, i, sigma)), d1, rules, n)
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(d1')
     | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
     }
@@ -674,7 +698,7 @@ let rec evaluate = (d: DHExp.t): result =>
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(d1') as result =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => result
@@ -700,11 +724,11 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(d');
+        evaluate(env, d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(d');
+        evaluate(env, d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
@@ -739,11 +763,11 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(d');
+        evaluate(env, d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(d');
+        evaluate(env, d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
@@ -758,21 +782,23 @@ let rec evaluate = (d: DHExp.t): result =>
       }
     }
   | FailedCast(d1, ty, ty') =>
-    switch (evaluate(d1)) {
+    switch (evaluate(env, d1)) {
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
   | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
-  }
+  };
+}
 and evaluate_case =
     (
+      env: Environment.t,
       inconsistent_info,
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
     : result =>
-  switch (evaluate(scrut)) {
+  switch (evaluate(env, scrut)) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
@@ -792,9 +818,18 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-      | Matches(env) => evaluate(subst(env, d))
+      | Matches(env') =>
+        /* evaluate(subst(env, d)) */
+        evaluate(Environment.union(env', env), d)
+      // TODO: remove
       | DoesNotMatch =>
-        evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
+        evaluate_case(
+          env,
+          inconsistent_info,
+          scrut,
+          rules,
+          current_rule_index + 1,
+        )
       }
     }
   };
