@@ -130,22 +130,23 @@ module BinFloatOp = {
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
+  | EmptyHole(MetaVar.t, MetaVarInst.t, environment)
   | NonEmptyHole(
       ErrStatus.HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(t),
+      environment,
       t,
     )
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
+  | Keyword(MetaVar.t, MetaVarInst.t, environment, ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, MetaVarInst.t, environment, Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, environment, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
+  | Closure(environment, DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -159,14 +160,15 @@ type t =
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, environment, case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t)
+and environment = VarMap.t_(t);
 
 let constructor_string = (d: t): string =>
   switch (d) {
@@ -179,6 +181,7 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
+  | Closure(_, _, _, _) => "Closure"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"

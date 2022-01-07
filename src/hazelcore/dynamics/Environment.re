@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t = VarMap.t_(DHExp.t);
+type t = DHExp.environment;
 include VarMap;
 
 let id_env = (ctx: VarCtx.t): t =>
