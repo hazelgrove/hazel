@@ -58,7 +58,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FreeVar(_, _, _, _)) => Indet
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
-  | (_, FixF(_, _, _)) => DoesNotMatch
   | (_, Lam(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
@@ -202,7 +201,6 @@ and matches_cast_Inj =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -268,7 +266,6 @@ and matches_cast_Pair =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -340,7 +337,6 @@ and matches_cast_Cons =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
-  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -385,14 +381,6 @@ and matches_cast_Cons =
            subst_var(d1, x, d4);
          };
        Let(dp, d3, d4);
-     | FixF(y, ty, d3) =>
-       let d3 =
-         if (Var.eq(x, y)) {
-           d3;
-         } else {
-           subst_var(d1, x, d3);
-         };
-       FixF(y, ty, d3);
      | Lam(dp, ty, d3)
      | Closure(_, dp, ty, d3) =>
        if (DHPat.binds_var(x, dp)) {
@@ -551,10 +539,6 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       | Matches(env') => evaluate(Environment.union(env', env), d2)
       }
     }
-  | FixF(_, _, d1) =>
-    /* evaluate(subst_var(d, x, d1)) */
-    evaluate(env, d1)
-  // TODO: remove; nothing to do here for FixF (can we remove FixF altogether?)
   | Lam(dp, ty, d) => evaluate(env, Closure(env, dp, ty, d))
   | Closure(_, _, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>

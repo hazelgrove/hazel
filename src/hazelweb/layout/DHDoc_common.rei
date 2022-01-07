@@ -40,11 +40,6 @@ module Delim: {
   let open_Lam: DHDoc.t;
   let close_Lam: DHDoc.t;
 
-  let fix_FixF: DHDoc.t;
-  let colon_FixF: DHDoc.t;
-  let open_FixF: DHDoc.t;
-  let close_FixF: DHDoc.t;
-
   let open_Inj: InjSide.t => DHDoc.t;
   let close_Inj: DHDoc.t;
 

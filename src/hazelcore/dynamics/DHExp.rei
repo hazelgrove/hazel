@@ -57,7 +57,6 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, environment, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Closure(environment, DHPat.t, HTyp.t, t)
   | Ap(t, t)

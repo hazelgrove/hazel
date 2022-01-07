@@ -144,7 +144,6 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, environment, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Closure(environment, DHPat.t, HTyp.t, t)
   | Ap(t, t)
@@ -179,7 +178,6 @@ let constructor_string = (d: t): string =>
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
-  | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
   | Closure(_, _, _, _) => "Closure"
   | Ap(_, _) => "Ap"
