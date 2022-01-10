@@ -277,14 +277,15 @@ let delete_operator_ =
  */
 let complete_tuple_ =
     (
-      ~mk_ZOpSeq:
-         ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+      ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~place_before_opseq:
+         OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
       /* ~new_zEmptyHole: MetaVarGen.t => ('zoperand, MetaVarGen.t), */
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
-      first_hole: 'zoperand,
+      first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
@@ -315,6 +316,7 @@ let complete_tuple_ =
       u_gen,
     );
   };
-  let new_zopseq = mk_ZOpSeq(ZOperand(first_hole, (Seq.E, new_suffix)));
+  let new_zopseq =
+    place_before_opseq(mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix)));
   (new_zopseq, u_gen);
 };
