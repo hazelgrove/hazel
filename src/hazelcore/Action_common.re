@@ -293,8 +293,6 @@ let complete_tuple_ =
     let (new_holes, u_gen) =
       ty
       |> HTyp.get_prod_elements
-      // assuming ty has at least 2 elems
-      |> List.tl
       |> List.tl
       // ensure that hole indices increase left to right
       |> List.fold_left(
