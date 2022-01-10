@@ -112,7 +112,6 @@ let complete_tuple =
     ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
     ~comma=Operators_Exp.Comma,
     ~place_before_opseq=ZExp.place_before_opseq,
-    /* ~new_zEmptyHole=ZExp.new_EmptyHole, */
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 

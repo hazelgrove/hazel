@@ -282,14 +282,12 @@ let complete_tuple_ =
          OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
-      /* ~new_zEmptyHole: MetaVarGen.t => ('zoperand, MetaVarGen.t), */
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
-  /* let (new_hole, u_gen) = u_gen |> new_zEmptyHole; */
   let (new_suffix: Seq.affix(_), u_gen) = {
     let (new_holes, u_gen) =
       ty

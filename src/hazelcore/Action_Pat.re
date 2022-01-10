@@ -240,7 +240,6 @@ let complete_tuple =
     ~mk_OpSeq=OpSeq.mk(~associate=UHPat.associate),
     ~comma=Operators_Pat.Comma,
     ~place_before_opseq=ZPat.place_before_opseq,
-    /* ~new_zEmptyHole=ZPat.new_EmptyHole, */
     ~new_EmptyHole=UHPat.new_EmptyHole,
   );
 
