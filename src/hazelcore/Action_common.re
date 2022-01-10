@@ -281,16 +281,15 @@ let complete_tuple_ =
          ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
-      ~zcomma: 'zoperator,
+      /* ~new_zEmptyHole: MetaVarGen.t => ('zoperand, MetaVarGen.t), */
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
-      OpSeq(_, seq): OpSeq.t('operand, 'operator),
+      first_hole: 'zoperand,
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
-  let (new_suffix: Seq.t(_), u_gen) = {
-    // guaranteed to construct at least one empty hole
-    let (new_hole, u_gen) = u_gen |> new_EmptyHole;
+  /* let (new_hole, u_gen) = u_gen |> new_zEmptyHole; */
+  let (new_suffix: Seq.affix(_), u_gen) = {
     let (new_holes, u_gen) =
       ty
       |> HTyp.get_prod_elements
@@ -310,19 +309,14 @@ let complete_tuple_ =
         | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
       );
     (
-      Seq.S(
-        new_hole,
-        List.fold_right(
-          (new_hole, suffix: Seq.affix(_)) =>
-            A(comma, S(new_hole, suffix)),
-          new_holes,
-          Seq.E,
-        ),
+      List.fold_right(
+        (new_hole, suffix: Seq.affix(_)) => A(comma, S(new_hole, suffix)),
+        new_holes,
+        Seq.E,
       ),
       u_gen,
     );
   };
-  let new_zopseq =
-    mk_ZOpSeq(ZOperator(zcomma, (seq |> Seq.rev, new_suffix)));
+  let new_zopseq = mk_ZOpSeq(ZOperand(first_hole, (Seq.E, new_suffix)));
   (new_zopseq, u_gen);
 };
