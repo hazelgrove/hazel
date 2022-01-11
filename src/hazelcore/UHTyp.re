@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  // TODO: introduce TyVarErrStatus instead: unbound, keyword (includes built-in types), invalid-text (for e.g. numbers)
   | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);

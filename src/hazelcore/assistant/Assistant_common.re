@@ -100,6 +100,23 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
 
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
+  | OnTPat(status_opt) =>
+    switch (status_opt) {
+    | None => (None, None, UnknownMode)
+    | Some(BuiltInType(bt)) =>
+      let actual: HTyp.t =
+        switch (bt) {
+        | Bool => Bool
+        | Float => Float
+        | Int => Int
+        };
+      (None, Some(actual), UnknownMode);
+    | Some(Keyword(_)) => (None, None, UnknownMode)
+    }
+  | OnTPatHole => (None, Some(Hole), UnknownMode)
+
+  | TypKeyword(_) => (None, None, UnknownMode)
+  | TypFree => (None, Some(Hole), UnknownMode)
   | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)

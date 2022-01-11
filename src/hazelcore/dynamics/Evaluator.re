@@ -131,12 +131,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       Cast(ctx, d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
     ) =>
     matches_cast_Pair(
-      ctx,
       dp1,
       dp2,
       d,
-      [(head1, head2)],
-      List.combine(tail1, tail2),
+      [(ctx, head1, head2)],
+      List.combine(tail1, tail2) |> List.map(((t1, t2)) => (ctx, t1, t2)),
     )
   | (Pair(_, _), Cast(_, d, Hole, Prod(_)))
   | (Pair(_, _), Cast(_, d, Prod(_), Hole)) => matches(dp, d)
@@ -241,6 +240,7 @@ and matches_cast_Inj =
   }
 and matches_cast_Pair =
     (
+      ctx: Contexts.t,
       dp1: DHPat.t,
       dp2: DHPat.t,
       d: DHExp.t,
@@ -275,9 +275,9 @@ and matches_cast_Pair =
       [(ctx, head1, head2), ...left_casts],
       List.combine(tail1, tail2) @ right_casts,
     )
-  | Cast(_, d', Prod(_), Hole)
+  | Cast(ctx, d', Prod(_), Hole)
   | Cast(ctx, d', Hole, Prod(_)) =>
-    matches_cast_Pair(ctx, dp1, dp2, d', left_casts, right_casts)
+    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
