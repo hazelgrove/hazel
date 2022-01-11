@@ -6,16 +6,8 @@ let init = (partU: IntSet.t, partV: IntSet.t, adj: AdjacencyGraph.t): t => {
   adj,
 };
 
-let check = (expected: list(M.binding), graph: t): bool => {
-  let result = graph |> maximum_cardinality_matching |> M.bindings;
-  // print_endline(
-  //   "GOT "
-  //   ++ Sexplib.Sexp.to_string_hum(
-  //        Sexplib.Std.sexp_of_list(M.sexp_of_binding, result),
-  //      ),
-  // );
-  result == expected;
-};
+let check = (expected: list(M.binding), graph: t): bool =>
+  expected == (graph |> maximum_cardinality_matching |> M.bindings);
 
 /* ************************************************************************** */
 

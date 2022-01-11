@@ -105,10 +105,7 @@ module NodeIndex = {
 };
 
 /* type consistency */
-let rec consistent = (x, y) => {
-  print_endline("CONSISTENT");
-  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
-  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(y)));
+let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
@@ -158,12 +155,6 @@ let rec consistent = (x, y) => {
                 |> List.map(node => [NodeIndex.find(node, indexV) |> fst]),
               ),
             );
-
-          print_endline("XXX");
-          print_endline(
-            Sexplib.Sexp.to_string_hum(BipartiteGraph.sexp_of_t(graph)),
-          );
-
           BipartiteGraph.(
             graph |> maximum_cardinality_matching |> M.is_perfect
           );
@@ -188,8 +179,7 @@ let rec consistent = (x, y) => {
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  };
-}
+  }
 
 and consistent_opt = (ty_opt: option(t), ty_opt': option(t)): bool =>
   switch (ty_opt, ty_opt') {
