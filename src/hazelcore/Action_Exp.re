@@ -599,7 +599,7 @@ let rec syn_perform =
         (
           ctx: Contexts.t,
           a: Action.t,
-          (ze: ZExp.t, ty: HTyp.t, id_gen: IDGen.t): Statics.edit_state,
+          (ze: ZExp.t, ty: HTyp.t, id_gen: IDGen.t): Statics.section_edit_state,
         )
         : ActionOutcome.t(syn_done) => {
   switch (syn_perform_block(ctx, a, (ze, ty, id_gen))) {
