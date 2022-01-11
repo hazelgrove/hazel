@@ -119,6 +119,7 @@ let rec consistent = (x, y) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
   | (Arrow(_, _), _) => false
   // TCSum1
+  // TODO: elaborate the comments
   | (Sum(Finite(tymapU)), Sum(Finite(tymapV))) =>
     /*
       1. Ensure the sums are of equal cardinality
@@ -131,6 +132,7 @@ let rec consistent = (x, y) =>
     let m = List.length(nodesV);
     n == m
     && (
+      // TODO: short circuit if the sorted sum bodies are equal
       // void sums are vacuously consistent
       m == 0
       || {
