@@ -480,6 +480,51 @@ and matches_cast_Cons =
           d,
         ); */
 
+let rec fill_hole_envs = (env: Environment.t, d: DHExp.t): DHExp.t => {
+  print_endline(Sexplib.Sexp.to_string(Environment.sexp_of_t(env)));
+  switch (d) {
+  | EmptyHole(u, i, _) => EmptyHole(u, i, env)
+  | NonEmptyHole(reason, u, i, _, d') =>
+    NonEmptyHole(reason, u, i, env, fill_hole_envs(env, d'))
+  | Triv
+  | Keyword(_)
+  | FreeVar(_)
+  | InvalidText(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | BoundVar(_) => d
+  | Let(dp, d1, d2) =>
+    Let(dp, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | Lam(dp, ty, d') => Lam(dp, ty, fill_hole_envs(env, d'))
+  | Closure(env', dp, ty, d') =>
+    /* this should not occur */ Closure(
+      env',
+      dp,
+      ty,
+      fill_hole_envs(env, d'),
+    )
+  | Ap(d1, d2) => Ap(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | BinBoolOp(op, d1, d2) =>
+    BinBoolOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | BinIntOp(op, d1, d2) =>
+    BinIntOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | BinFloatOp(op, d1, d2) =>
+    BinFloatOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | Cons(d1, d2) => Cons(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | Inj(ty, side, d') => Inj(ty, side, fill_hole_envs(env, d'))
+  | Pair(d1, d2) => Pair(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+  | ConsistentCase(_) => d /* TODO: implement this */
+  | InconsistentBranches(_) => d
+  | Cast(d', ty1, ty2) => Cast(fill_hole_envs(env, d'), ty1, ty2)
+  | FailedCast(d', ty1, ty2) =>
+    FailedCast(fill_hole_envs(env, d'), ty1, ty2)
+  | InvalidOperation(d', reason) =>
+    InvalidOperation(fill_hole_envs(env, d'), reason)
+  };
+};
+
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
   | And => BoolLit(b1 && b2)
@@ -539,8 +584,10 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       | Matches(env') => evaluate(Environment.union(env', env), d2)
       }
     }
-  | Lam(dp, ty, d) => evaluate(env, Closure(env, dp, ty, d))
-  | Closure(_, _, _, _) => BoxedValue(d)
+  | Lam(dp, ty, d) =>
+    let d' = fill_hole_envs(env, d);
+    BoxedValue(Closure(env, dp, ty, d'));
+  | Closure(_) => /* shouldn't reach this branch */ BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(env, d1)) {
     | BoxedValue(Closure(closure_env, dp, _, d3)) =>
@@ -671,11 +718,11 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
     evaluate_case(env, None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     evaluate_case(env, Some((u, i, sigma)), d1, rules, n)
-  | EmptyHole(_) => Indet(d)
-  | NonEmptyHole(reason, u, i, sigma, d1) =>
+  | EmptyHole(u, i, _) => Indet(EmptyHole(u, i, env))
+  | NonEmptyHole(reason, u, i, _, d1) =>
     switch (evaluate(env, d1)) {
     | BoxedValue(d1')
-    | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
+    | Indet(d1') => Indet(NonEmptyHole(reason, u, i, env, d1'))
     }
   | FreeVar(_) => Indet(d)
   | Keyword(_) => Indet(d)
