@@ -1383,8 +1383,8 @@ let fix_and_renumber_holes =
     (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, IDGen.t) =>
   syn_fix_holes(ctx, IDGen.init, ~renumber_empty_holes=true, e);
 
-let fix_and_renumber_holes_z =
-    (ctx: Contexts.t, ze: ZExp.t): Statics.edit_state => {
+// todo possibly delete
+let fix_and_renumber_holes_z = (ctx: Contexts.t, ze: ZExp.t) => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, id_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
   let ze =

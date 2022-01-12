@@ -382,10 +382,10 @@ let tests_test =
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
 
-let idgen_test =
-  {|((((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(EmptyHole 1)E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 2)E)))))E)))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 3))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 1)(A Equals(S(IntLit NotInHole 1)E)))))))E))))))(ExpLineZ(ZOpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ZOperand(CursorE(OnText 5)(BoolLit NotInHole false))((A Space(S(Keyword(Typed Test NotInHole 4))E))E))))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 7))(A Space(S(Parenthesized((ExpLine(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E)))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 77)E)))))Hole(77 7))|}
-  |> Sexplib.Sexp.of_string
-  |> Statics.edit_state_of_sexp;
+// let idgen_test =
+//   {|((((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(EmptyHole 1)E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 2)E)))))E)))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 3))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 1)(A Equals(S(IntLit NotInHole 1)E)))))))E))))))(ExpLineZ(ZOpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ZOperand(CursorE(OnText 5)(BoolLit NotInHole false))((A Space(S(Keyword(Typed Test NotInHole 4))E))E))))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 7))(A Space(S(Parenthesized((ExpLine(OpSeq(Placeholder 0)(S(BoolLit NotInHole true)E)))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 77)E)))))Hole(77 7))|}
+//   |> Sexplib.Sexp.of_string
+//   |> Statics.edit_state_of_sexp;
 
 let examples = [
   ("hole", just_hole),
@@ -405,27 +405,27 @@ let edit_state_of_block =
     | Some(ty) => ty
     | None => Hole
     };
-  (name, (zippered_block, block_type, IDGen.init));
+  let edit_state: Statics.edit_state = {
+    prelude: UHExp.empty_block,
+    template: zippered_block,
+    tester: UHExp.empty_block,
+    ty: block_type,
+    id_gen: IDGen.init,
+  };
+
+  (name, edit_state);
 };
 
 let example_to_card =
     ((name: string, init_edit_state: Statics.edit_state)): CardInfo.t => {
   name,
   caption: Virtual_dom.Vdom.Node.div([], []),
-  // TODO: replace with an empty edit state (unit?)
-  init_prelude: init_edit_state,
-  init_template: init_edit_state,
-  // TODO: replace with an empty edit state(unit?)
-  init_tester: init_edit_state,
+  init_edit_state,
 };
 
 let cardstack: CardstackInfo.t = {
   title: "examples",
-  cards:
-    List.map(
-      example_to_card,
-      List.map(edit_state_of_block, examples) @ [("idgen", idgen_test)],
-    ),
+  cards: List.map(example_to_card, List.map(edit_state_of_block, examples)),
 };
 
 let tests = [

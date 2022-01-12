@@ -354,3 +354,5 @@ and is_complete_operand = (operand: 'operand): bool => {
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
 };
+
+let empty_block = [];

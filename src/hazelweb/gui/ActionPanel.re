@@ -437,7 +437,13 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+    switch (
+      Action_Exp.syn_perform(
+        Contexts.empty,
+        a,
+        Statics.wrap_edit_state(edit_state),
+      )
+    ) {
     | Failed => false
     | CursorEscaped(_)
     | Succeeded(_) => true

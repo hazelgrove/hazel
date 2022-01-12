@@ -227,6 +227,7 @@ let apply_action =
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log;
+        // could expose tests to student
         | ZExp =>
           model
           |> Model.get_program

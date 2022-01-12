@@ -36,8 +36,9 @@ let blur = program => {...program, is_focused: false};
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
-  let (ze, _, _) = program.edit_state;
-  ze;
+  // figure out whether this should get the whole program and not just the template
+  program.edit_state.
+    template;
 };
 
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
@@ -49,8 +50,7 @@ let get_steps = program => {
   steps;
 };
 let get_id_gen = program => {
-  let (_, _, id_gen) = program.edit_state;
-  id_gen;
+  program.edit_state.id_gen;
 };
 
 exception MissingCursorInfo;
@@ -93,14 +93,14 @@ let get_result = (program: t): Result.t => {
     | BoxedValue(_) => Evaluator.BoxedValue(d_renumbered)
     | Indet(_) => Indet(d_renumbered)
     };
-  let (_, result_ty, _) = program.edit_state;
+  let result_ty = program.edit_state.ty;
   let test_map = List.rev(state.test_map);
   {result, result_ty, boxed_result, hii, test_map};
 };
 
 let elaborate_only = (program: t): Result.t => {
   let elaboration = get_elaboration(program);
-  let (_, result_ty, _) = program.edit_state;
+  let result_ty = program.edit_state.ty;
   {
     result: elaboration,
     boxed_result: Indet(elaboration),
@@ -206,16 +206,36 @@ exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
 
-  switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+  switch (
+    Action_Exp.syn_perform(
+      Contexts.empty,
+      a,
+      Statics.wrap_edit_state(edit_state),
+    )
+  ) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, id_gen) = new_edit_state;
-    let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze))) {
-        (ze, ty, IDGen.reset_metavar(id_gen));
+    let (new_template, ty, id_gen) = new_edit_state;
+    let new_edit_state: Statics.edit_state =
+      if (UHExp.is_complete(ZExp.erase(new_template))) {
+        {
+          // (new_template, ty, IDGen.reset_metavar(id_gen));
+          prelude: edit_state.prelude,
+          template: new_template,
+          tester: edit_state.tester,
+          ty,
+          id_gen: IDGen.reset_metavar(id_gen),
+        };
       } else {
-        (ze, ty, id_gen);
+        {
+          // (new_template, ty, id_gen);
+          prelude: edit_state.prelude,
+          template: new_template,
+          tester: edit_state.tester,
+          ty,
+          id_gen,
+        };
       };
     ();
     program |> put_edit_state(new_edit_state);
@@ -224,7 +244,8 @@ let perform_edit_action = (a, program) => {
 
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
-  let (ze, _, _) = program.edit_state;
+  // todo should this be a template or the whole program spliced together
+  let ze = program.edit_state.template;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
   switch (CursorPath_common.steps_to_hook(holes, u)) {
   | None => raise(HoleNotFound)

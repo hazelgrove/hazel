@@ -92,7 +92,8 @@ let ana_fix_holes_z:
 let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, IDGen.t);
 
-let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
+let fix_and_renumber_holes_z:
+  (Contexts.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
 
 let joined_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
 
