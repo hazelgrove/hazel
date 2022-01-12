@@ -277,7 +277,12 @@ and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
     : match_result =>
   switch (d) {
-  | ListLit(_, _, _, _, _, []) => DoesNotMatch
+  | ListLit(_, _, _, _, _, []) =>
+    switch (dp) {
+    | ListLit(_, []) => Matches(Environment.empty)
+    | _ => DoesNotMatch
+    }
+
   | ListLit(u, i, sigma, err, ty, [dhd, ...dtl] as ds) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
@@ -605,7 +610,6 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
-  | ListLit(_, _, _, _, _, _)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -690,13 +694,65 @@ let rec evaluate = (d: DHExp.t): result =>
     | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
     }
+  | ListLit(x1, x2, x3, x4, ty, lst) =>
+    let evaluated_lst =
+      List.map(
+        ele => {
+          switch (evaluate(ele)) {
+          | BoxedValue(ele') => ele'
+          | _ => ele
+          }
+        },
+        lst,
+      );
+    BoxedValue(ListLit(x1, x2, x3, x4, ty, evaluated_lst));
   | Cons(d1, d2) =>
     switch (evaluate(d1), evaluate(d2)) {
     | (InvalidInput(msg), _)
     | (_, InvalidInput(msg)) => InvalidInput(msg)
-    | (Indet(d1), Indet(d2))
-    | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
+    | (Indet(d1'), Indet(d2'))
+    | (Indet(d1'), BoxedValue(d2'))
+    | (BoxedValue(d1'), Indet(d2')) => Indet(Cons(d1', d2'))
+    | (BoxedValue(IntLit(n1)), BoxedValue(d2')) =>
+      switch (d2') {
+      | ListLit(x1, x2, x3, x4, List(Int), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+        )
+      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+        )
+      | _ => BoxedValue(Cons(IntLit(n1), d2'))
+      }
+    | (BoxedValue(Cast(IntLit(n1), Int, Hole)), BoxedValue(d2')) =>
+      switch (d2') {
+      | ListLit(x1, x2, x3, x4, List(Int), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+        )
+      | Cast(ListLit(x1, x2, x3, x4, List(Int), lst), List(Int), List(Hole)) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+        )
+      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+        )
+      | _ => BoxedValue(Cons(IntLit(n1), d2'))
+      }
+    | (BoxedValue(BoolLit(n1)), BoxedValue(d2)) =>
+      switch (d2) {
+      | ListLit(x1, x2, x3, x4, List(Bool), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Bool), [BoolLit(n1), ...lst]),
+        )
+      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
+        BoxedValue(
+          ListLit(x1, x2, x3, x4, List(Bool), [BoolLit(n1), ...lst]),
+        )
+      | _ => BoxedValue(Cons(BoolLit(n1), d2))
+      }
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
   | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
@@ -718,6 +774,16 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(d1') as result =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => result
+      | (Ground, NotGroundOrHole(List(Hole))) =>
+        switch (ty, d1') {
+        | (List(Hole), Cast(d1'', ty'', List(Hole))) =>
+          if (HTyp.eq(ty'', ty')) {
+            BoxedValue(d1'');
+          } else {
+            Indet(FailedCast(d1', ty, ty'));
+          }
+        | _ => result
+        }
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
         result

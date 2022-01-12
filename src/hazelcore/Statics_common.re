@@ -30,7 +30,7 @@ let tuple_zip =
 
 let inconsistent = (ty1, ty2) => !HTyp.consistent(ty1, ty2);
 
-let glb = (types: list(HTyp.t)): option(HTyp.t) => {
+let lub = (types: list(HTyp.t)): option(HTyp.t) => {
   switch (types) {
   | [] => None
   | [hd] => Some(hd)
@@ -52,7 +52,7 @@ let glb = (types: list(HTyp.t)): option(HTyp.t) => {
         (common_opt, ty) =>
           switch (common_opt) {
           | None => None
-          | Some(common_ty) => HTyp.join(GLB, common_ty, ty)
+          | Some(common_ty) => HTyp.join(LUB, common_ty, ty)
           },
         Some(hd),
         tl,
