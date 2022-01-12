@@ -252,6 +252,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -358,85 +359,61 @@ and syn_elab_operand =
       List(Hole),
       delta,
     );
-  | ListLit(err, Some(opseq)) =>
-    let OpSeq(skel, seq) = opseq;
-    let subskels = UHExp.get_tuple_elements(skel);
-    let glb_ty: option(HTyp.t) =
-      subskels
-      |> List.map(subskel => Statics_Exp.syn_skel(ctx, subskel, seq))
-      |> (
-        fun
-        | [] => failwith("empty tuple")
-        | [hd, ...tl] =>
-          tl
-          |> List.fold_left(
-               (glb_ty, tl_ty) =>
-                 OptUtil.map2(
-                   (glb_ty, tl_ty) => Statics_common.glb([glb_ty, tl_ty]),
-                   glb_ty,
-                   tl_ty,
-                 )
-                 |> Option.join,
-               hd,
-             )
-      );
+  | ListLit(err, Some(body)) =>
+    let res = syn_elab(ctx, delta, body);
+    let rec get_tuple_elements: DHExp.t => list(DHExp.t) = (
+      fun
+      | Pair(skel1, skel2) =>
+        get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+      | skel => [skel]
+    );
+    switch (res) {
+    | Elaborates(d, ty, delta) =>
+      let lst = get_tuple_elements(d);
+      let tys = HTyp.get_prod_elements(ty);
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      let glb_ty = Statics_common.lub(tys);
+      switch (glb_ty) {
+      | Some(ty) =>
+        Elaborates(
+          ListLit(0, 0, sigma, err, List(ty), lst),
+          List(ty),
+          delta,
+        )
+      | None =>
+        Elaborates(
+          ListLit(0, 0, sigma, err, List(Hole), lst),
+          List(Hole),
+          delta,
+        )
+      };
 
-    switch (glb_ty) {
-    | None =>
-      let f = (delta, subskel) =>
-        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
-        | DoesNotElaborate => None
-        | Elaborates(d, ty, delta) => Some((delta, DHExp.cast(d, ty, Hole)))
-        };
-      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
-      | None => DoesNotElaborate
-      | Some((delta, lst)) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = Environment.id_env(gamma);
-        switch (err) {
-        | StandardErrStatus(_) =>
-          Elaborates(
-            ListLit(0, 0, sigma, err, Hole, lst),
-            List(Hole),
-            delta,
-          )
-        | InconsistentBranches(_, u) =>
-          Elaborates(
-            ListLit(u, 0, sigma, err, Hole, lst),
-            List(Hole),
-            delta,
-          )
-        };
-      };
-    | Some(glb_ty) =>
-      let f = (delta, subskel) =>
-        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
-        | DoesNotElaborate => None
-        | Elaborates(d, ty, delta) =>
-          Some((delta, DHExp.cast(d, ty, glb_ty)))
-        };
-      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
-      | None => DoesNotElaborate
-      | Some((delta, lst)) =>
-        // Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
-        let gamma = Contexts.gamma(ctx);
-        let sigma = Environment.id_env(gamma);
-        switch (err) {
-        | StandardErrStatus(_) =>
-          Elaborates(
-            ListLit(0, 0, sigma, err, glb_ty, lst),
-            List(glb_ty),
-            delta,
-          )
-        | InconsistentBranches(_, u) =>
-          Elaborates(
-            ListLit(u, 0, sigma, err, glb_ty, lst),
-            List(glb_ty),
-            delta,
-          )
-        };
-      };
+    | DoesNotElaborate => DoesNotElaborate
     };
+  /*
+
+
+     | Some((delta, lst)) =>
+       // Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+       let gamma = Contexts.gamma(ctx);
+       let sigma = Environment.id_env(gamma);
+       switch (err) {
+       | StandardErrStatus(_) =>
+         Elaborates(
+           ListLit(0, 0, sigma, err, glb_ty, lst),
+           List(glb_ty),
+           delta,
+         )
+       | InconsistentBranches(_, u) =>
+         Elaborates(
+           ListLit(u, 0, sigma, err, glb_ty, lst),
+           List(glb_ty),
+           delta,
+         )
+       };
+     };
+   };*/
   | Lam(NotInHole, p, body) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => DoesNotElaborate
@@ -754,6 +731,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -781,6 +759,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -802,11 +781,49 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | ListLit(_, opseq) =>
-    switch (opseq) {
-    | Some(opseq_) => ana_elab_opseq(ctx, delta, opseq_, ty)
+  | ListLit(StandardErrStatus(NotInHole) | InconsistentBranches(_, _), None) =>
+    switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
+    | Some(elt_ty) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      Elaborates(
+        ListLit(0, 0, sigma, StandardErrStatus(NotInHole), List(Hole), []),
+        List(elt_ty),
+        delta,
+      );
     }
+  | ListLit(err, Some(body)) =>
+    let res = ana_elab(ctx, delta, body, ty);
+    let rec get_tuple_elements: DHExp.t => list(DHExp.t) = (
+      fun
+      | Pair(skel1, skel2) =>
+        get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+      | skel => [skel]
+    );
+    switch (res) {
+    | Elaborates(d, ty, delta) =>
+      let lst = get_tuple_elements(d);
+      let tys = HTyp.get_prod_elements(ty);
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      let glb_ty = Statics_common.lub(tys);
+      switch (glb_ty) {
+      | Some(ty) =>
+        Elaborates(
+          ListLit(0, 0, sigma, err, List(ty), lst),
+          List(ty),
+          delta,
+        )
+      | None =>
+        Elaborates(
+          ListLit(0, 0, sigma, err, List(Hole), lst),
+          List(Hole),
+          delta,
+        )
+      };
+    | DoesNotElaborate => DoesNotElaborate
+    };
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate

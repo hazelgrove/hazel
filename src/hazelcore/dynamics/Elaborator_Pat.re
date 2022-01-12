@@ -108,7 +108,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -124,7 +124,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -159,7 +159,7 @@ and syn_elab_operand =
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | ListLit(StandardErrStatus(NotInHole), None) =>
     Elaborates(ListLit(List(Hole), []), List(Hole), ctx, delta)
-  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
+  | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
   | ListLit(_, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
     let subskels = UHPat.get_tuple_elements(skel);
@@ -178,7 +178,7 @@ and syn_elab_operand =
         }
       };
     let (types, deltas) = List.split(syn_subskels(subskels));
-    switch (Statics_common.glb(types)) {
+    switch (Statics_common.lub(types)) {
     | Some(ty) =>
       Elaborates(ListLit(List(ty), deltas), List(ty), ctx, delta)
     | _ => Elaborates(ListLit(List(Hole), deltas), List(Hole), ctx, delta)
@@ -352,7 +352,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
@@ -369,7 +369,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
@@ -388,7 +388,7 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
+  | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
   | ListLit(StandardErrStatus(NotInHole), None) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
@@ -396,7 +396,29 @@ and ana_elab_operand =
       Elaborates(ListLit(List(ty_elt), []), HTyp.List(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
-  | ListLit(_, Some(p)) => ana_elab(ctx, delta, p, ty)
+  | ListLit(StandardErrStatus(NotInHole), Some(body)) =>
+    let res = ana_elab(ctx, delta, body, ty);
+    let rec get_tuple_elements: DHPat.t => list(DHPat.t) = (
+      fun
+      | Pair(skel1, skel2) =>
+        get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+      | skel => [skel]
+    );
+    switch (res) {
+    | Elaborates(d, ty, ctx, delta) =>
+      let lst = get_tuple_elements(d);
+      let tys = HTyp.get_prod_elements(ty);
+      let glb_ty = Statics_common.lub(tys);
+      print_endline(Sexplib.Sexp.to_string(DHPat.sexp_of_t(d)));
+      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty)));
+      switch (glb_ty) {
+      | Some(ty) =>
+        Elaborates(ListLit(List(ty), lst), List(ty), ctx, delta)
+      | None =>
+        Elaborates(ListLit(List(Hole), lst), List(Hole), ctx, delta)
+      };
+    | DoesNotElaborate => DoesNotElaborate
+    };
   | Inj(NotInHole, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => DoesNotElaborate

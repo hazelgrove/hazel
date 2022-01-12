@@ -19,7 +19,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | ListLit(ListErrStatus.t, option(opseq))
+  | ListLit(ListErrStatus.t, option(t))
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -73,7 +73,7 @@ let case =
 let listlit =
     (
       ~err: ListErrStatus.t=StandardErrStatus(NotInHole),
-      ~elems: option(opseq)=None,
+      ~elems: option(t)=None,
       (),
     ) =>
   ListLit(err, elems);
@@ -214,7 +214,7 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
-  | ListLit(_, opseq) => ListLit(StandardErrStatus(err), opseq)
+  | ListLit(_, body) => ListLit(StandardErrStatus(err), body)
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)

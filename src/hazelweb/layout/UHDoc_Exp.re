@@ -189,17 +189,10 @@ and mk_operand =
           mk_Inj(~inj_side, body);
         | ListLit(_, body) =>
           switch (body) {
-          | Some(opseq) =>
-            let formattable_body = (~enforce_inline) =>
-              Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
-              |> UHDoc_common.annot_Step(0);
-            let formatted_body =
-              enforce_inline
-                ? UHDoc_common.EnforcedInline(
-                    formattable_body(~enforce_inline=true),
-                  )
-                : UHDoc_common.Unformatted(formattable_body);
-            mk_ListLit(Some(formatted_body));
+          | Some(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_ListLit(Some(body));
           | None => mk_ListLit(None)
           }
         | Parenthesized(body) =>

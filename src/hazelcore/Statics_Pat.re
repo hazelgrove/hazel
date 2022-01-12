@@ -34,10 +34,13 @@ and syn_skel =
     let+ ctx = ana_skel(ctx, skel2, seq, HTyp.Hole);
     (HTyp.Hole, ctx);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* (ty1, ctx) = syn_skel(ctx, skel1, seq);
-    let ty = HTyp.List(ty1);
-    let+ ctx = ana_skel(ctx, skel2, seq, ty);
-    (ty, ctx);
+    let* (ty2, ctx) = syn_skel(ctx, skel2, seq);
+    switch (ty2) {
+    | HTyp.List(ty) =>
+      let+ ctx = ana_skel(ctx, skel1, seq, ty);
+      (ty2, ctx);
+    | _ => Some((HTyp.List(HTyp.Hole), ctx))
+    };
   }
 and syn_operand =
     (ctx: Contexts.t, operand: UHPat.operand): option((HTyp.t, Contexts.t)) =>
@@ -50,7 +53,7 @@ and syn_operand =
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
@@ -61,8 +64,8 @@ and syn_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
-  | ListLit(InconsistentBranches(_, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
+  | ListLit(InconsistentBranches(_, _), _)
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
@@ -106,7 +109,7 @@ and syn_operand =
           | _ => failwith("Invalid type")
           }
         };
-      switch (Statics_common.glb(syn_subskels(subskels))) {
+      switch (Statics_common.lub(syn_subskels(subskels))) {
       | Some(ty) => Some((List(ty), ctx))
       | _ => Some((List(Hole), ctx))
       };
@@ -174,7 +177,7 @@ and ana_operand =
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
@@ -185,8 +188,8 @@ and ana_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListLit(StandardErrStatus(InHole(WrongLength, _)), None)
-  | ListLit(InconsistentBranches(_, _), None)
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
+  | ListLit(InconsistentBranches(_, _), _)
   | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
@@ -394,13 +397,25 @@ and syn_fix_holes_skel =
     let ty = HTyp.Hole;
     (skel, seq, ty, ctx, u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    let (skel1, seq, ty_elt, ctx, u_gen) =
-      syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-    let ty = HTyp.List(ty_elt);
-    let (skel2, seq, ctx, u_gen) =
-      ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-    let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
-    (skel, seq, ty, ctx, u_gen);
+    let (skel2, seq, ty, ctx, u_gen) =
+      syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+    switch (ty) {
+    | HTyp.List(ty_elt) =>
+      let (skel1, seq, ctx, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          ty_elt,
+        );
+      let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
+      (skel, seq, ty, ctx, u_gen);
+    | _ =>
+      let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
+      (skel, seq, HTyp.List(Hole), ctx, u_gen);
+    };
   }
 and syn_fix_holes_operand =
     (

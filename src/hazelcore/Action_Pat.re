@@ -618,7 +618,9 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | ListLit(_, None) | IntLit(_) |
+        FloatLit(_) |
+        BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -644,6 +646,21 @@ and syn_perform_operand =
     syn_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand))
 
   /* Backspace and Delete */
+  | (
+      Backspace,
+      CursorP(
+        _,
+        ListLit(_, Some(OpSeq(Placeholder(0), S(EmptyHole(_), E)))),
+      ),
+    ) =>
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        ),
+      );
+    Succeeded((zp, List(Hole), ctx, u_gen));
 
   | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
     CursorEscaped(Before)
@@ -671,7 +688,7 @@ and syn_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     syn_perform(ctx, u_gen, Backspace, new_zp);
 
-  | (Backspace, CursorP(OnDelim(_, After), ListLit(_, None) | Wild(_))) =>
+  | (Backspace, CursorP(OnDelim(_, After), Wild(_))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
@@ -791,7 +808,10 @@ and syn_perform_operand =
       ctx,
       u_gen,
       ZOpSeq.wrap(
-        ZPat.ListLitZ(StandardErrStatus(NotInHole), ZOpSeq.wrap(zoperand)),
+        ZPat.CursorP(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        ),
       ),
     )
   | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
@@ -1137,6 +1157,24 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
+  | (
+      Backspace,
+      ListLitZ(
+        _,
+        ZOpSeq(
+          Placeholder(0),
+          ZOperand(CursorP(OnDelim(0, After), EmptyHole(_)), (E, E)),
+        ),
+      ),
+    ) =>
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        ),
+      );
+    Succeeded((zp, ctx, u_gen));
   /* Invalid cursor positions */
 
   | (
@@ -1149,7 +1187,9 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | ListLit(_, None) | IntLit(_) |
+        FloatLit(_) |
+        BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -1231,7 +1271,7 @@ and ana_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     ana_perform(ctx, u_gen, Backspace, new_zp, ty);
 
-  | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListLit(_, None))) =>
+  | (Backspace, CursorP(OnDelim(_, After), Wild(_))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, ctx, u_gen));
@@ -1285,6 +1325,14 @@ and ana_perform_operand =
       ),
     )
   /* Construct */
+  | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
+    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    mk_ana_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.ListLitZ(err, ZOpSeq.wrap(zhole))),
+      ty,
+    );
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
   | (Construct(SAnn), CursorP(_)) =>
@@ -1360,14 +1408,6 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
-  | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
-    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-    switch (ana_perform_operand(ctx, u_gen, a, zhole, ty)) {
-    | (Failed | CursorEscaped(_)) as failed => failed
-    | Succeeded((zp, _, u_gen)) =>
-      mk_ana_result(ctx, u_gen, ZOpSeq.wrap(ZPat.ListLitZ(err, zp)), ty)
-    };
-
   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
     let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
@@ -1432,7 +1472,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
   | (_, ListLitZ(err, zbody)) =>
-    switch (ana_perform(ctx, u_gen, a, zbody, ty)) {
+    switch (ana_perform(ctx, u_gen, a, zbody, Hole)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
