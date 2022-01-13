@@ -37,10 +37,20 @@ let rec mk_cursor_path_steps =
         ),
       ]
     | PatOp(_, operator, _operator_index, opseq) => [
-        mk_cursor_path_steps_patoperator(operator, opseq, steps),
+        mk_cursor_path_steps_patoperator(
+          ~step_sibling=true,
+          operator,
+          opseq,
+          steps,
+        ),
       ]
     | TypOp(_, operator, _operator_index, opseq) => [
-        mk_cursor_path_steps_typoperator(operator, opseq, steps),
+        mk_cursor_path_steps_typoperator(
+          ~step_sibling=true,
+          operator,
+          opseq,
+          steps,
+        ),
       ]
     | Line(_, line, opt_body) =>
       mk_cursor_path_steps_expline(line, opt_body, steps)
@@ -240,12 +250,14 @@ and mk_cursor_path_steps_patoperand =
 }
 and mk_cursor_path_steps_patoperator =
     (
+      ~step_sibling: bool,
       operator: UHPat.operator,
       OpSeq(skel, _seq): UHPat.opseq,
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
   print_endline("In mk_cursor_path_steps_patoperator");
+  print_endline(Sexp.to_string(UHPat.sexp_of_skel(skel)));
   switch (operator, steps) {
   | (Comma, []) => []
   | (Space, []) => []
@@ -258,15 +270,8 @@ and mk_cursor_path_steps_patoperator =
           Skel.get_root_num(skel2),
         )
       };
-    /* Left child */
-    if (n == 0) {
-      [left];
-    } else {
-      [
-        /* Right child */
-        right,
-      ];
-    };
+    let child_step = n == 0 ? left : right;
+    step_sibling ? [(-1), child_step] : [child_step];
   | _ => failwith("Doesn't work for this case - Pat Operator")
   };
 }
@@ -282,7 +287,12 @@ and mk_cursor_path_steps_patopseq =
     let pn = Seq.nth_operand(n, seq);
     [n, ...mk_cursor_path_steps_patoperand(pn, term_path_steps)];
   | BinOp(_, _, operator, _, _) =>
-    mk_cursor_path_steps_patoperator(operator, opseq, term_path_steps)
+    mk_cursor_path_steps_patoperator(
+      ~step_sibling=false,
+      operator,
+      opseq,
+      term_path_steps,
+    )
   };
 }
 and mk_cursor_path_steps_typoperand =
@@ -306,12 +316,14 @@ and mk_cursor_path_steps_typoperand =
 }
 and mk_cursor_path_steps_typoperator =
     (
+      ~step_sibling: bool,
       operator: UHTyp.operator,
       OpSeq(skel, _seq): UHTyp.opseq,
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
   print_endline("In mk_cursor_path_steps_typoperator");
+  print_endline(Sexp.to_string(UHTyp.sexp_of_skel(skel)));
   switch (operator, steps) {
   | (Prod, []) => []
   | (_binop, [n, ..._]) =>
@@ -323,15 +335,8 @@ and mk_cursor_path_steps_typoperator =
           Skel.get_root_num(skel2),
         )
       };
-    /* Left child */
-    if (n == 0) {
-      [left];
-    } else {
-      [
-        /* Right child */
-        right,
-      ];
-    };
+    let child_step = n == 0 ? left : right;
+    step_sibling ? [(-1), child_step] : [child_step];
   | _ => failwith("Doesn't work for this case - Typ Operator")
   };
 }
@@ -347,6 +352,11 @@ and mk_cursor_path_steps_typopseq =
     let pn = Seq.nth_operand(n, seq);
     [n, ...mk_cursor_path_steps_typoperand(pn, term_path_steps)];
   | BinOp(_, _, operator, _, _) =>
-    mk_cursor_path_steps_typoperator(operator, opseq, term_path_steps)
+    mk_cursor_path_steps_typoperator(
+      ~step_sibling=false,
+      operator,
+      opseq,
+      term_path_steps,
+    )
   };
 };

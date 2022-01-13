@@ -56,18 +56,29 @@ let comma_separated_list = (items: list(string)): string => {
 
 /*
  Markdown like thing:
- highlighty thing : [thing to highlight](index)
+ highlighty thing : [thing to highlight](int indices)
  bulleted list: - list item
                 - list item
+  empty list [] : empty_list
  */
 /* TODO: Hannah maybe make intermediate representation of text and references then do pass to do color mappings*/
 let build_msg =
     (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
   print_endline(text);
-  let parse_steps = (step_str: string): CursorPath.steps => {
+  let parse_steps = (step_str: string): option(CursorPath.steps) => {
     let regex = Re.Str.regexp({| |});
     let pieces = Re.Str.split(regex, step_str);
-    List.map(piece => int_of_string(piece), pieces);
+    List.fold_left(
+      (acc, piece) =>
+        switch (acc) {
+        | Some(steps)
+            when Re.Str.string_match(Re.Str.regexp("-?[0-9]+"), piece, 0) =>
+          Some(steps @ [int_of_string(piece)])
+        | _ => None
+        },
+      Some([]),
+      pieces,
+    );
   };
   let parse_line =
       (line: string, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) => {
@@ -86,13 +97,19 @@ let build_msg =
               Text(msg),
               Delim("]"),
               Delim("("),
-              Text(index),
+              Text(indices),
               Delim(")"),
               ...xs,
-            ] =>
+            ]
+              when Option.is_some(parse_steps(indices)) =>
             let (msg_node, mapping) =
               if (show_highlight) {
-                highlight(msg, parse_steps(index), mapping);
+                // TODO: Is the OptUtil and parsing the steps twice the right way to do this?
+                highlight(
+                  msg,
+                  OptUtil.get(() => [], parse_steps(indices)),
+                  mapping,
+                );
               } else {
                 (Node.text(msg), mapping);
               };
@@ -111,6 +128,7 @@ let build_msg =
             let (rest, mapping) = parse_line'(xs, mapping);
             ([Node.text("["), ...rest], mapping);
           }
+
         | Delim(t)
         | Text(t) =>
           let (rest, mapping) = parse_line'(xs, mapping);
@@ -412,7 +430,7 @@ let rule_msg =
         if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", "); /* TODO: The parsing doesn't work with the empty list pattern showing up as text */
       build_msg(
         begin_msg
-        ++ "matches the [empty list pattern []](0), evaluate the [clause](1)",
+        ++ "matches the [empty list pattern \\[\\]](0), evaluate the [clause](1)",
         show_highlight,
       );
     | Inj(_, side, _arg) =>
@@ -670,7 +688,7 @@ let type_msg =
       build_msg(
         "Sum type of [left summand type](0) and [right summand type](1), which classifies expressions that evaluate to either left injection values (Inj[L](v)) with argument v of the left summand type or right injection values (Inj[R](v)) with argument v of the right summand type",
         show_highlight,
-      ) /* TODO: This causes error with parsing the message the Inj[L] thing*/
+      )
     }
   };
 };

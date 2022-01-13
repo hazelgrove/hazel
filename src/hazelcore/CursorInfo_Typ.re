@@ -1,18 +1,45 @@
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
+let extract_parent_opseq =
+    (ZOpSeq(skel, zseq) as zopseq: ZTyp.t): UHTyp.opseq => {
+  switch (zseq) {
+  | ZOperator((_, Prod), _) => ZTyp.erase_zopseq(zopseq) // Cursor on tuple comma
+  | ZOperator(_, _)
+  | ZOperand(_) =>
+    // Cursor within tuple element
+    let cursor_skel =
+      skel
+      |> UHTyp.get_prod_elements
+      |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
+    let rec go_to_cursor = skel =>
+      if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+        // found the cursor
+        ZTyp.erase_zopseq(ZOpSeq(skel, zseq));
+      } else {
+        // recurse toward cursor
+        switch (skel) {
+        | Placeholder(_)
+        | BinOp(_, _, Prod, _, _) =>
+          failwith(
+            "Typ.extract_parent_opseq: expected commas and placeholders to be handled at opseq level",
+          )
+        | BinOp(_, _, _, skel1, skel2) =>
+          ZOpSeq.skel_contains_cursor(skel1, zseq)
+            ? go_to_cursor(skel1) : go_to_cursor(skel2)
+        };
+      };
+    go_to_cursor(cursor_skel);
+  };
+};
 let rec extract_cursor_term =
-        (ZOpSeq(skel, zseq) as ztyp: ZTyp.t): cursor_term => {
+        (ZOpSeq(_skel, zseq) as ztyp: ZTyp.t): cursor_term => {
   switch (zseq) {
   | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
   | ZOperator(ztyp_operator, _) =>
     let (cursor_pos, uop) = ztyp_operator;
-    TypOp(
-      cursor_pos,
-      uop,
-      Skel.get_root_num(skel),
-      ZTyp.erase_zopseq(ztyp),
-    );
+    let OpSeq(skel, _) as opseq = extract_parent_opseq(ztyp);
+    TypOp(cursor_pos, uop, Skel.get_root_num(skel), opseq);
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
