@@ -480,8 +480,7 @@ and matches_cast_Cons =
           d,
         ); */
 
-let rec fill_hole_envs = (env: Environment.t, d: DHExp.t): DHExp.t => {
-  print_endline(Sexplib.Sexp.to_string(Environment.sexp_of_t(env)));
+let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
   switch (d) {
   | EmptyHole(u, i, _) => EmptyHole(u, i, env)
   | NonEmptyHole(reason, u, i, _, d') =>
@@ -564,24 +563,32 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
+let rec evaluate =
+        (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, d: DHExp.t): result => {
   switch (d) {
   | BoundVar(x) =>
     // the looked-up DHExp should be final, recursive call to evaluate wraps the
     // DHExp as a result (BoxedValue or Indet) -- alternatively, can use
     // an environment mapping Var -> result
     x
-    |> Environment.lookup(env)
+    |> EvalEnv.lookup(env)
     |> OptUtil.get(_ => raise(EvaluatorError.Exception(FreeInvalidVar(x))))
-    |> evaluate(env)
+    |> evaluate(ec, env)
   | Let(dp, d1, d2) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(d1)
     | Indet(d1) =>
       switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env') => evaluate(Environment.union(env', env), d2)
+      | Matches(env') =>
+        let (ec, env) =
+          EvalEnv.union(
+            EvalEnv.EvalEnvCtx.empty,
+            EvalEnv.unnumbered_evalenv_of_env(env'),
+            env,
+          );
+        evaluate(ec, env, d2);
       }
     }
   | Lam(dp, ty, d) =>
@@ -589,9 +596,9 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
     BoxedValue(Closure(env, dp, ty, d'));
   | Closure(_) => /* shouldn't reach this branch */ BoxedValue(d)
   | Ap(d1, d2) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(Closure(closure_env, dp, _, d3)) =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (matches(dp, d2)) {
@@ -601,24 +608,24 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
           // evaluate a closure: extend the existing environment with the
           // closure environment and the new bindings introduced by the
           // function application.
-          evaluate(
-            Environment.union(env', Environment.union(closure_env, env)),
-            d3,
-          )
+          let (ec, env) = EvalEnv.union(ec, closure_env, env);
+          let (ec, env) =
+            EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
+          evaluate(ec, env, d3);
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
     | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
-        evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        evaluate(ec, env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
     | Indet(d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
@@ -629,12 +636,12 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
   | FloatLit(_)
   | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(BoolLit(b1) as d1') =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
       | Some(b3) => b3
       | None =>
-        switch (evaluate(env, d2)) {
+        switch (evaluate(ec, env, d2)) {
         | BoxedValue(BoolLit(b2)) =>
           BoxedValue(eval_bin_bool_op(op, b1, b2))
         | BoxedValue(d2') =>
@@ -645,15 +652,15 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
       }
     }
   | BinIntOp(op, d1, d2) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(IntLit(n1) as d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
@@ -672,15 +679,15 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
     }
   | BinFloatOp(op, d1, d2) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(FloatLit(f1) as d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(FloatLit(f2)) =>
         BoxedValue(eval_bin_float_op(op, f1, f2))
       | BoxedValue(d2') =>
@@ -690,37 +697,37 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
     | BoxedValue(d1') =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
     | Indet(d1') =>
-      switch (evaluate(env, d2)) {
+      switch (evaluate(ec, env, d2)) {
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
   | Inj(ty, side, d1) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
   | Pair(d1, d2) =>
-    switch (evaluate(env, d1), evaluate(env, d2)) {
+    switch (evaluate(ec, env, d1), evaluate(ec, env, d2)) {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
     }
   | Cons(d1, d2) =>
-    switch (evaluate(env, d1), evaluate(env, d2)) {
+    switch (evaluate(ec, env, d1), evaluate(ec, env, d2)) {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
   | ConsistentCase(Case(d1, rules, n)) =>
-    evaluate_case(env, None, d1, rules, n)
+    evaluate_case(ec, env, None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(env, Some((u, i, sigma)), d1, rules, n)
+    evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
   | EmptyHole(u, i, _) => Indet(EmptyHole(u, i, env))
   | NonEmptyHole(reason, u, i, _, d1) =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(d1')
     | Indet(d1') => Indet(NonEmptyHole(reason, u, i, env, d1'))
     }
@@ -728,7 +735,7 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
   | Keyword(_) => Indet(d)
   | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(d1') as result =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
       | (Hole, Hole) => result
@@ -754,11 +761,11 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(env, d');
+        evaluate(ec, env, d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(env, d');
+        evaluate(ec, env, d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
@@ -793,11 +800,11 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(env, d');
+        evaluate(ec, env, d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(env, d');
+        evaluate(ec, env, d');
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
@@ -812,7 +819,7 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
       }
     }
   | FailedCast(d1, ty, ty') =>
-    switch (evaluate(env, d1)) {
+    switch (evaluate(ec, env, d1)) {
     | BoxedValue(d1')
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
@@ -821,14 +828,15 @@ let rec evaluate = (env: Environment.t, d: DHExp.t): result => {
 }
 and evaluate_case =
     (
-      env: Environment.t,
+      ec: EvalEnv.EvalEnvCtx.t,
+      env: EvalEnv.t,
       inconsistent_info,
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
     : result =>
-  switch (evaluate(env, scrut)) {
+  switch (evaluate(ec, env, scrut)) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
@@ -851,9 +859,12 @@ and evaluate_case =
       | Matches(env') =>
         // extend environment with new bindings introduced
         // by the rule and evaluate the expression.
-        evaluate(Environment.union(env', env), d)
+        let (ec, env) =
+          EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
+        evaluate(ec, env, d);
       | DoesNotMatch =>
         evaluate_case(
+          ec,
           env,
           inconsistent_info,
           scrut,

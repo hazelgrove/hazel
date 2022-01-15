@@ -102,7 +102,8 @@ let view_of_hole_instance =
       ~font_metrics: FontMetrics.t,
       (u, i): HoleInstance.t,
     )
-    : Node.t =>
+    : Node.t => {
+  let (_, env) = EvalEnv.empty(EvalEnv.EvalEnvCtx.empty);
   view(
     ~inject,
     ~settings,
@@ -110,7 +111,8 @@ let view_of_hole_instance =
     ~font_metrics,
     ~width,
     ~pos,
-    DHExp.EmptyHole(u, i, []),
+    DHExp.EmptyHole(u, i, env),
   );
+};
 
 let view_of_var = x => Node.text(x);

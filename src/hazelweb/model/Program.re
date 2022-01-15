@@ -142,22 +142,27 @@ let rec renumber_result_only =
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
     (ConsistentCase(Case(d1, drules, n)), hii);
   | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
   | EmptyHole(u, _, sigma) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     (EmptyHole(u, i, sigma), hii);
   | NonEmptyHole(reason, u, _, sigma, d1) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (NonEmptyHole(reason, u, i, sigma, d1), hii);
   | FreeVar(u, _, sigma, x) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     (FreeVar(u, i, sigma, x), hii);
   | Keyword(u, _, sigma, k) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     (Keyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -242,24 +247,41 @@ let rec renumber_sigmas_only =
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
+    (
+      InconsistentBranches(
+        u,
+        i,
+        EvalEnv.unnumbered_evalenv_of_env(sigma),
+        Case(d1, rules, n),
+      ),
+      hii,
+    );
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (EmptyHole(u, i, sigma), hii);
+    (EmptyHole(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma)), hii);
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (NonEmptyHole(reason, u, i, sigma, d1), hii);
+    (
+      NonEmptyHole(
+        reason,
+        u,
+        i,
+        EvalEnv.unnumbered_evalenv_of_env(sigma),
+        d1,
+      ),
+      hii,
+    );
   | FreeVar(u, i, sigma, x) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (FreeVar(u, i, sigma, x), hii);
+    (FreeVar(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma), x), hii);
   | Keyword(u, i, sigma, k) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Keyword(u, i, sigma, k), hii);
+    (Keyword(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma), k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -292,7 +314,7 @@ and renumber_sigma =
       u: MetaVar.t,
       i: MetaVarInst.t,
       hii: HoleInstanceInfo.t,
-      sigma: Environment.t,
+      sigma: EvalEnv.t,
     )
     : (Environment.t, HoleInstanceInfo.t) => {
   let (sigma, hii) =
@@ -305,7 +327,7 @@ and renumber_sigma =
         let sigma_out = [(x, d), ...sigma_in];
         (sigma_out, hii);
       },
-      sigma,
+      EvalEnv.env_of_evalenv(sigma),
       ([], hii),
     );
 
@@ -344,8 +366,9 @@ let get_elaboration = (program: t): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
-  switch (program |> get_elaboration |> evaluate(Environment.empty)) {
+let get_result = (program: t): Result.t => {
+  let (ec, env) = EvalEnv.empty(EvalEnv.EvalEnvCtx.empty);
+  switch (program |> get_elaboration |> evaluate(ec, env)) {
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
@@ -354,6 +377,7 @@ let get_result = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
+};
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(

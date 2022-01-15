@@ -402,19 +402,22 @@ let rec renumber_result_only =
   | ListNil
   | Triv => (dp, hii)
   | EmptyHole(u, _) =>
-    let sigma = Environment.empty;
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let sigma = EvalEnv.empty_unnumbered;
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     (EmptyHole(u, i), hii);
   | NonEmptyHole(reason, u, _, dp1) =>
     /* TODO: see above */
-    let sigma = Environment.empty;
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let sigma = EvalEnv.empty_unnumbered;
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (NonEmptyHole(reason, u, i, dp1), hii);
   | Keyword(u, _, k) =>
     /* TODO: see above */
-    let sigma = Environment.empty;
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let sigma = EvalEnv.empty_unnumbered;
+    let (i, hii) =
+      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
     (Keyword(u, i, k), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);

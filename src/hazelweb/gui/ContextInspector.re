@@ -286,18 +286,18 @@ let view =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
         switch (selected_instance) {
-        | None => Environment.id_env(ctx)
+        | None => Environment.empty
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
-            Environment.id_env(ctx);
+            Environment.empty;
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Environment.id_env(ctx);
+        Environment.empty;
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
