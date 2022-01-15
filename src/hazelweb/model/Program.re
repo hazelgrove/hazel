@@ -106,10 +106,12 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
-  | Lam(x, ty, d1)
-  | Closure(_, x, ty, d1) =>
+  | Lam(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Lam(x, ty, d1), hii);
+  | Closure(sigma, x, ty, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (Closure(sigma, x, ty, d1), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -207,8 +209,37 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
-  | Lam(x, ty, d1)
-  | Closure(_, x, ty, d1) =>
+  | Lam(x, ty, d1) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    (Lam(x, ty, d1), hii);
+  | Closure(sigma, x, ty, d1) =>
+    /* Duplicated from renumber_sigma, but without adding (u, i) to the path;
+       TODO: clean up */
+    let (sigma, hii) =
+      List.fold_right(
+        (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+          let (x, d) = xd;
+          let (sigma_in, hii) = acc;
+          let (d, hii) = renumber_result_only(path, hii, d);
+          let sigma_out = [(x, d), ...sigma_in];
+          (sigma_out, hii);
+        },
+        EvalEnv.env_of_evalenv(sigma),
+        ([], hii),
+      );
+
+    let (_, hii) =
+      List.fold_right(
+        (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+          let (x, d) = xd;
+          let (sigma_in, hii) = acc;
+          let (d, hii) = renumber_sigmas_only(path, hii, d);
+          let sigma_out = [(x, d), ...sigma_in];
+          (sigma_out, hii);
+        },
+        sigma,
+        ([], hii),
+      );
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Lam(x, ty, d1), hii);
   | Ap(d1, d2) =>
