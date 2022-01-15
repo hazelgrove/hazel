@@ -31,7 +31,7 @@ let union = (ec: EvalEnvCtx.t, env1: t, env2: t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
   (
     ec,
-    (Some(ei), VarMap.union(env_of_evalenv(env2), env_of_evalenv(env1))),
+    (Some(ei), VarMap.union(env_of_evalenv(env1), env_of_evalenv(env2))),
   );
 };
 
