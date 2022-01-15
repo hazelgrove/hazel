@@ -8,6 +8,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   explanations: CodeExplanationSettings.t,
   settings: Settings.t,
+  cursor_inspector: CursorInspectorModel.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -54,6 +55,7 @@ let init = (): t => {
   };
   let explanations: CodeExplanationSettings.t = {highlight_summary: true};
   let settings = Settings.init;
+  let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -80,6 +82,7 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     explanations,
     settings,
+    cursor_inspector,
   };
 };
 

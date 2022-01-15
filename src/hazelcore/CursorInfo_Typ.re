@@ -39,12 +39,12 @@ let rec extract_cursor_term =
   | ZOperator(ztyp_operator, _) =>
     let (cursor_pos, uop) = ztyp_operator;
     let OpSeq(skel, _) as opseq = extract_parent_opseq(ztyp);
-    TypOp(cursor_pos, uop, Skel.get_root_num(skel), opseq);
+    TypOperator(cursor_pos, uop, Skel.get_root_num(skel), opseq);
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
-  | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
+  | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_term(ztyp)
   };

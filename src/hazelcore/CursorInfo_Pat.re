@@ -7,7 +7,7 @@ let rec extract_cursor_term =
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
     let (cursor_pos, uop) = zpat_operator;
-    PatOp(
+    PatOperator(
       cursor_pos,
       uop,
       Skel.get_root_num(skel),
@@ -17,7 +17,7 @@ let rec extract_cursor_term =
 }
 and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
-  | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
+  | CursorP(cursor_pos, upat_operand) => PatOperand(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
   | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)

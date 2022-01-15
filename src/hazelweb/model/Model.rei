@@ -15,6 +15,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   explanations: CodeExplanationSettings.t,
   settings: Settings.t,
+  cursor_inspector: CursorInspectorModel.t,
 };
 
 let cardstack_info: list(CardstackInfo.t);

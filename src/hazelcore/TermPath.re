@@ -24,10 +24,15 @@ let rec mk_cursor_path_steps =
   print_endline("In mk_cursor_path_steps");
   let cursor_paths =
     switch (cursor_term) {
-    | Exp(_, operand) => mk_cursor_path_steps_expoperand(operand, steps)
-    | Pat(_, operand) => [mk_cursor_path_steps_patoperand(operand, steps)]
-    | Typ(_, operand) => [mk_cursor_path_steps_typoperand(operand, steps)]
-    | ExpOp(_, operator, operator_index, opseq) => [
+    | ExpOperand(_, operand) =>
+      mk_cursor_path_steps_expoperand(operand, steps)
+    | PatOperand(_, operand) => [
+        mk_cursor_path_steps_patoperand(operand, steps),
+      ]
+    | TypOperand(_, operand) => [
+        mk_cursor_path_steps_typoperand(operand, steps),
+      ]
+    | ExpOperator(_, operator, operator_index, opseq) => [
         mk_cursor_path_steps_expoperator(
           ~step_sibling=true,
           operator,
@@ -36,7 +41,7 @@ let rec mk_cursor_path_steps =
           steps,
         ),
       ]
-    | PatOp(_, operator, _operator_index, opseq) => [
+    | PatOperator(_, operator, _operator_index, opseq) => [
         mk_cursor_path_steps_patoperator(
           ~step_sibling=true,
           operator,
@@ -44,7 +49,7 @@ let rec mk_cursor_path_steps =
           steps,
         ),
       ]
-    | TypOp(_, operator, _operator_index, opseq) => [
+    | TypOperator(_, operator, _operator_index, opseq) => [
         mk_cursor_path_steps_typoperator(
           ~step_sibling=true,
           operator,

@@ -108,21 +108,27 @@ type typed =
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
-  | OnLine
+  | OnNonLetLine
   | OnRule;
 
 /* Have enough info to build the children paths and such (do that in seperate pass) */
 /* Figure out how to highlight a block of code */
 [@deriving sexp]
 type cursor_term =
-  | Exp(CursorPosition.t, UHExp.operand)
-  | Pat(CursorPosition.t, UHPat.operand)
-  | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator, int, UHExp.opseq)
-  | PatOp(CursorPosition.t, UHPat.operator, int, UHPat.opseq)
-  | TypOp(CursorPosition.t, UHTyp.operator, int, UHTyp.opseq)
+  | ExpOperand(CursorPosition.t, UHExp.operand)
+  | PatOperand(CursorPosition.t, UHPat.operand)
+  | TypOperand(CursorPosition.t, UHTyp.operand)
+  | ExpOperator(CursorPosition.t, UHExp.operator, int, UHExp.opseq)
+  | PatOperator(CursorPosition.t, UHPat.operator, int, UHPat.opseq)
+  | TypOperator(CursorPosition.t, UHTyp.operator, int, UHTyp.opseq)
   | Line(CursorPosition.t, UHExp.line, option((UHExp.t, int)))
   | Rule(CursorPosition.t, UHExp.rule, int, UHExp.t);
+
+[@deriving sexp]
+type parent_info =
+  | AfterBranchClause
+  | BeforeEmptyHoleLine
+  | NoParentInfo;
 
 // TODO refactor into variants
 // based on term sort and shape
@@ -133,4 +139,5 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  parent_info,
 };

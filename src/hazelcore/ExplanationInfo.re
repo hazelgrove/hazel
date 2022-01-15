@@ -29,16 +29,16 @@ type explanation_info =
 let rec mk_explanation_info =
         (cursor_term: CursorInfo.cursor_term): explanation_info => {
   switch (cursor_term) {
-  | Exp(_, operand) => extract_exp_operand_info(operand)
-  | Pat(_, operand) => Pattern(extract_pat_operand_info(operand))
-  | Typ(_, operand) => Typ(extract_typ_operand_info(operand))
-  | ExpOp(_, operator, op_index, parent_opseq) =>
+  | ExpOperand(_, operand) => extract_exp_operand_info(operand)
+  | PatOperand(_, operand) => Pattern(extract_pat_operand_info(operand))
+  | TypOperand(_, operand) => Typ(extract_typ_operand_info(operand))
+  | ExpOperator(_, operator, op_index, parent_opseq) =>
     extract_exp_opseq_info(parent_opseq, Some((op_index, operator)))
-  | PatOp(_, operator, op_index, parent_opseq) =>
+  | PatOperator(_, operator, op_index, parent_opseq) =>
     Pattern(
       extract_pat_opseq_info(parent_opseq, Some((op_index, operator))),
     )
-  | TypOp(_, operator, op_index, parent_opseq) =>
+  | TypOperator(_, operator, op_index, parent_opseq) =>
     Typ(extract_typ_opseq_info(parent_opseq, Some((op_index, operator))))
   | Line(_, line, opt_body) => extract_exp_line_info(line, opt_body)
   | Rule(_, Rule(pat, clause), index, scrut) =>
