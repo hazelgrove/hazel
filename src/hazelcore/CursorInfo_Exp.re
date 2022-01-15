@@ -1025,20 +1025,9 @@ and syn_cursor_info_rule =
         let parent_info =
           ZExp.is_after(zclause) ? CursorInfo.AfterBranchClause : parent_info;
         let cursor_term = extract_from_zrule(zrule, scrut, rule_index);
-        switch (uses) {
-        | Some(uses) =>
-          Some(
-            CursorInfo_common.mk(
-              ~uses,
-              ~parent_info,
-              typed,
-              ctx,
-              cursor_term,
-            ),
-          )
-        | None =>
-          Some(CursorInfo_common.mk(~parent_info, typed, ctx, cursor_term))
-        };
+        Some(
+          CursorInfo_common.mk(~uses, ~parent_info, typed, ctx, cursor_term),
+        );
       };
     }
   }

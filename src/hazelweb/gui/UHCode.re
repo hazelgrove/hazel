@@ -255,6 +255,7 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
+      ~explanations: CodeExplanationSettings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
     )
@@ -270,7 +271,11 @@ let view =
       let code_text = view_of_box(UHBox.mk(l));
       /* TODO Hannah - about here call a method from Code Summary to get the paths and colors */
       let decorations = {
-        let dpaths = Program.get_decoration_paths(program);
+        let dpaths =
+          Program.get_decoration_paths(
+            program,
+            explanations.highlight_summary,
+          );
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {

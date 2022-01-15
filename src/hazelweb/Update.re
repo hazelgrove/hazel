@@ -197,11 +197,9 @@ let apply_action =
         }
       | ToggleHighlightSummary => {
           ...model,
-          explanations:
-            /*...model.explanations,*/
-            {
-              highlight_summary: !model.explanations.highlight_summary,
-            },
+          explanations: {
+            highlight_summary: !model.explanations.highlight_summary,
+          },
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateSettings(u) => {

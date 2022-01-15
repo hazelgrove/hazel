@@ -199,7 +199,7 @@ and syn_cursor_info_zoperand =
          CursorInfo_common.CursorOnDeferredVarPat(
            uses =>
              CursorInfo_common.mk(
-               ~uses,
+               ~uses=Some(uses),
                PatSynthesized(ty),
                ctx,
                extract_from_zpat_operand(zoperand),
@@ -478,7 +478,12 @@ and ana_cursor_info_zoperand =
       Some(
         CursorOnDeferredVarPat(
           uses =>
-            CursorInfo_common.mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
+            CursorInfo_common.mk(
+              ~uses=Some(uses),
+              PatAnalyzed(ty),
+              ctx,
+              cursor_term,
+            ),
           x,
         ),
       )

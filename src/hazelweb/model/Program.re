@@ -62,7 +62,8 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-let get_decoration_paths = (program: t): UHDecorationPaths.t => {
+let get_decoration_paths =
+    (program: t, show_explanation_highlight: bool): UHDecorationPaths.t => {
   let current_term =
     if (program.is_focused) {
       let (steps, _) = get_path(program);
@@ -98,36 +99,42 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
       List.map(use_steps => (use_steps, UHDecorationShape.VarUse), uses)
     | _ => []
     };
-  let explanation_info =
-    ExplanationInfo.mk_explanation_info(
-      get_cursor_info(program).cursor_term,
-    );
-  let color_map = CodeSummary.get_mapping(explanation_info, true);
-  ColorSteps.pring_color_map(color_map);
   let explanations =
-    List.map(
-      ((steps, color)) =>
+    if (show_explanation_highlight) {
+      let explanation_info =
+        ExplanationInfo.mk_explanation_info(
+          get_cursor_info(program).cursor_term,
+        );
+      let color_map = CodeSummary.get_mapping(explanation_info, true);
+      ColorSteps.pring_color_map(color_map);
+      let explanations =
         List.map(
-          steps => (steps, UHDecorationShape.ExplanationElems(color)),
-          TermPath.mk_cursor_path_steps(
-            (steps, get_cursor_info(program).cursor_term),
-            get_steps(program),
-          ),
-        ),
-      ColorSteps.to_list(color_map),
-    )
-    |> List.flatten;
-  ColorSteps.pring_color_map(color_map);
-  print_endline(string_of_int(List.length(explanations)));
-  let _ =
-    List.map(
-      ((steps, _)) =>
-        print_endline(
-          "Decoration Steps: "
-          ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
-        ),
-      explanations,
-    );
+          ((steps, color)) =>
+            List.map(
+              steps => (steps, UHDecorationShape.ExplanationElems(color)),
+              TermPath.mk_cursor_path_steps(
+                (steps, get_cursor_info(program).cursor_term),
+                get_steps(program),
+              ),
+            ),
+          ColorSteps.to_list(color_map),
+        )
+        |> List.flatten;
+      ColorSteps.pring_color_map(color_map);
+      print_endline(string_of_int(List.length(explanations)));
+      let _ =
+        List.map(
+          ((steps, _)) =>
+            print_endline(
+              "Decoration Steps: "
+              ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+            ),
+          explanations,
+        );
+      explanations;
+    } else {
+      [];
+    };
   List.concat([err_holes, var_uses, current_term, explanations]);
 };
 

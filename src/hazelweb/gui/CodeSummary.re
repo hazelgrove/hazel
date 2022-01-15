@@ -286,7 +286,6 @@ let let_line_msg =
     }
   };
 };
-/* TODO: Hannah - don't highlight terms when on the base operands (like an empty hole where it is highlighted as the current term anyway)*/
 let lambda_msg =
     (
       pattern_info: ExplanationInfo.pattern_info,
@@ -710,28 +709,24 @@ let summary_msg =
     let_line_msg(pattern_info, def, body, show_highlight)
   | ExpBaseOperand(operand) =>
     switch (operand) {
-    /* TODO: Hannah - should these really be highlighted when they these simple operands? */
+    /* TODO: Hannah - Should just be a text node if nothing fancy in them? */
     | EmptyHole(n) =>
       build_msg(
-        "[Empty expression hole]() with id " ++ string_of_int(n + 1),
+        "Empty expression hole with id " ++ string_of_int(n + 1),
         show_highlight,
       )
     | InvalidText(_, t) =>
       build_msg(
-        "[Invalid text " ++ t ++ "]() is not a valid name, keyword, or literal",
+        "Invalid text " ++ t ++ " is not a valid name, keyword, or literal",
         show_highlight,
       )
-    | Var(_, _, v) => build_msg("[Variable " ++ v ++ "]()", show_highlight)
-    | IntLit(_, n) =>
-      build_msg("[Integer literal " ++ n ++ "]()", show_highlight)
+    | Var(_, _, v) => build_msg("Variable " ++ v, show_highlight)
+    | IntLit(_, n) => build_msg("Integer literal " ++ n, show_highlight)
     | FloatLit(_, n) =>
-      build_msg("[Floating point literal " ++ n ++ "]()", show_highlight)
+      build_msg("Floating point literal " ++ n, show_highlight)
     | BoolLit(_, b) =>
-      build_msg(
-        "[Boolean literal " ++ string_of_bool(b) ++ "]()",
-        show_highlight,
-      )
-    | ListNil(_) => build_msg("[Empty list []]()", show_highlight) /*TODO: Hannah - the way the parser is implemented now this doesn't work to do highlighting - maybe I need to escape brackets or something when I want to actually show the brackets? */
+      build_msg("Boolean literal " ++ string_of_bool(b), show_highlight)
+    | ListNil(_) => build_msg("Empty list []", show_highlight)
     | Lam(_) => failwith("Explanation info should handle lambdas directly")
     | Inj(_, side, _exp) =>
       let side_str =

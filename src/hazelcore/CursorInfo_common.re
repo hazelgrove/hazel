@@ -98,7 +98,7 @@ let is_end_keyword =
   | _ => false
   };
 
-let mk = (~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
+let mk = (~uses=None, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
   typed,
   ctx,
   uses,
