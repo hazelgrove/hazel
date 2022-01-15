@@ -514,15 +514,30 @@ let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
   | Cons(d1, d2) => Cons(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
   | Inj(ty, side, d') => Inj(ty, side, fill_hole_envs(env, d'))
   | Pair(d1, d2) => Pair(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-  | ConsistentCase(_) => d /* TODO: implement this */
-  | InconsistentBranches(_) => d
+  | ConsistentCase(Case(d', rules, n)) =>
+    let d' = fill_hole_envs(env, d');
+    let rules = fill_hole_envs_rules(env, rules);
+    ConsistentCase(Case(d', rules, n));
+  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+    let d3 = fill_hole_envs(env, d3);
+    let rules = fill_hole_envs_rules(env, rules);
+    InconsistentBranches(u, i, sigma, Case(d3, rules, n));
   | Cast(d', ty1, ty2) => Cast(fill_hole_envs(env, d'), ty1, ty2)
   | FailedCast(d', ty1, ty2) =>
     FailedCast(fill_hole_envs(env, d'), ty1, ty2)
   | InvalidOperation(d', reason) =>
     InvalidOperation(fill_hole_envs(env, d'), reason)
   };
-};
+}
+and fill_hole_envs_rules =
+    (env: EvalEnv.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
+  List.map(
+    (r: DHExp.rule): DHExp.rule =>
+      switch (r) {
+      | Rule(dp, d) => Rule(dp, fill_hole_envs(env, d))
+      },
+    rules,
+  );
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
@@ -565,6 +580,14 @@ let eval_bin_float_op =
 
 let rec evaluate =
         (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, d: DHExp.t): result => {
+  open Sexplib.Sexp;
+  print_endline(
+    "D: "
+    ++ to_string(DHExp.sexp_of_t(d))
+    ++ " ENV: "
+    ++ to_string(EvalEnv.sexp_of_t(env)),
+  );
+
   switch (d) {
   | BoundVar(x) =>
     // the looked-up DHExp should be final, recursive call to evaluate wraps the
