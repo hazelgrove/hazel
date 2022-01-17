@@ -422,10 +422,18 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
+
+  // TODO: change signature of Action_Exp.syn_perform to also
+  //       return `option((MetaVar.t, UHExp.operand))`
   switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    // TODO: check if performing edit was hole filling
+    //       if so, fast pass (fill-and-resume):
+    //       - elaborate `UHExp.operand`
+    //       - fill specified hole in prior result with elaboration
+    //       - evaluate it
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
