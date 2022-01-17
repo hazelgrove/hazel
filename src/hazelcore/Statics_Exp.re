@@ -45,32 +45,42 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* ctx = syn_lines(ctx, leading);
   syn_opseq(ctx, conclusion);
 }
+
+
+
+// e1 l1 a2 a3
+// [[e1]]
+// [[e1],[l1]]
+// [[e1],[l1,a2]]
+// [[e1],[l1,a2,a3]]
+
+// old accumulator: result
+// new accumulator: (crtGroup, groupList(determined))
+
+
 and syn_lines = 
     (ctx:Contexts.t, lines:list(UHExp.line)):option(Contexts.t) => {
 
       // first pass: group lines
 
-     // [0, Let x:int = 1 in, And y:int = 2 in, 3] ->
-     // [[Let x:int = 1 in, And y:int = 2 in, 3], [0]]
-
       let groups = List.fold_left(
-        (result: list(list(UHExp.line)), line: UHExp.line) => {
+        (accu: (list(UHExp.line),list(list(UHExp.line))), line: UHExp.line) => {
           switch(line){
             | EmptyLine
             | CommentLine(_) 
+            | LetLine(And, _, _) => ([...accu.first, line], accu.second)
             | ExpLine(_)
-            | LetLine(And, _, _) => [List.hd(result)@[line]] @ List.tl(result)
-            | LetLine(Let, _, _) => [[line]] @ result
+            | LetLine(Let, _, _) => ([line], [...accu.second, accu.first])
           },
         }
-        [[]],
+        ([], []),
         lines,
       );
 
       // second pass: fold over groups
 
       groups
-      |> List.fold_right(
+      |> List.fold_left(
         (ctx_group: option(Contexts.t), group: list(UHExp.line)) => {
 
           // in each group, fold over each line to extend the ctx
