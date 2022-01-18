@@ -9,7 +9,10 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let evaluate: (EvalEnv.EvalEnvCtx.t, EvalEnv.t, DHExp.t) => result;
+let expand_closures_to_lambdas: DHExp.t => DHExp.t;
+
+let evaluate:
+  (EvalEnv.EvalEnvCtx.t, EvalEnv.t, DHExp.t) => (EvalEnv.EvalEnvCtx.t, result);
 
 /* closed substitution [d1/x]d2;
    Not needed for evaluation with environments,

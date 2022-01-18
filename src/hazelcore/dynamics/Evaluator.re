@@ -480,12 +480,84 @@ and matches_cast_Cons =
           d,
         ); */
 
-let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
+/* TODO: remove this */
+/* let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
+     switch (d) {
+     | EmptyHole(u, i, _) => EmptyHole(u, i, env)
+     | NonEmptyHole(reason, u, i, _, d') =>
+       NonEmptyHole(reason, u, i, env, fill_hole_envs(env, d'))
+     | Triv
+     | Keyword(_)
+     | FreeVar(_)
+     | InvalidText(_)
+     | BoolLit(_)
+     | IntLit(_)
+     | FloatLit(_)
+     | ListNil(_)
+     | BoundVar(_) => d
+     | Let(dp, d1, d2) =>
+       Let(dp, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | Lam(dp, ty, d') => Lam(dp, ty, fill_hole_envs(env, d'))
+     | Closure(env', dp, ty, d') =>
+       /* this should not occur */ Closure(
+         env',
+         dp,
+         ty,
+         fill_hole_envs(env, d'),
+       )
+     | Ap(d1, d2) => Ap(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | BinBoolOp(op, d1, d2) =>
+       BinBoolOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | BinIntOp(op, d1, d2) =>
+       BinIntOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | BinFloatOp(op, d1, d2) =>
+       BinFloatOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | Cons(d1, d2) => Cons(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | Inj(ty, side, d') => Inj(ty, side, fill_hole_envs(env, d'))
+     | Pair(d1, d2) => Pair(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+     | ConsistentCase(Case(d', rules, n)) =>
+       let d' = fill_hole_envs(env, d');
+       let rules = fill_hole_envs_rules(env, rules);
+       ConsistentCase(Case(d', rules, n));
+     | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+       let d3 = fill_hole_envs(env, d3);
+       let rules = fill_hole_envs_rules(env, rules);
+       InconsistentBranches(u, i, sigma, Case(d3, rules, n));
+     | Cast(d', ty1, ty2) => Cast(fill_hole_envs(env, d'), ty1, ty2)
+     | FailedCast(d', ty1, ty2) =>
+       FailedCast(fill_hole_envs(env, d'), ty1, ty2)
+     | InvalidOperation(d', reason) =>
+       InvalidOperation(fill_hole_envs(env, d'), reason)
+     };
+   }
+   and fill_hole_envs_rules =
+       (env: EvalEnv.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
+     List.map(
+       (r: DHExp.rule): DHExp.rule =>
+         switch (r) {
+         | Rule(dp, d) => Rule(dp, fill_hole_envs(env, d))
+         },
+       rules,
+     ); */
+
+/* expand_closures_to_lambdas recursively performs substitution
+   on the bodies of closures throughout the result (including
+   in hole environments)
+
+   env is the current environment carried by an enclosing closure.
+   It is only extended when examining a closure expression
+   in the result. The expanding process begins by calling
+   expand_closures_to_lambdas on an empty closure environment
+   and the top-level DHExp
+
+   expand_closures_in_holes is a helper that recurses through
+   hole environments
+
+   TODO: need to memoize environments (to help solve the performance
+   issue)
+   */
+let rec subst_vars_within_lambdas = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
   switch (d) {
-  | EmptyHole(u, i, _) => EmptyHole(u, i, env)
-  | NonEmptyHole(reason, u, i, _, d') =>
-    NonEmptyHole(reason, u, i, env, fill_hole_envs(env, d'))
-  | Triv
   | Keyword(_)
   | FreeVar(_)
   | InvalidText(_)
@@ -493,51 +565,155 @@ let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | BoundVar(_) => d
+  | Triv => d
+  /* Bound variables should be looked up within the closure environment */
+  | BoundVar(x) =>
+    switch (EvalEnv.lookup(env, x)) {
+    | Some(d') => d'
+    | None => d
+    }
+  /* Holes should be given the closure environment */
+  | EmptyHole(u, i, _) => EmptyHole(u, i, env)
+  | NonEmptyHole(reason, u, i, _, d') =>
+    let d'' = subst_vars_within_lambdas(env, d');
+    NonEmptyHole(reason, u, i, env, d'');
+  /* Regular expressions: expand recursively */
   | Let(dp, d1, d2) =>
-    Let(dp, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-  | Lam(dp, ty, d') => Lam(dp, ty, fill_hole_envs(env, d'))
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    Let(dp, d1', d2');
+  | Lam(dp, ty, d') =>
+    let d'' = subst_vars_within_lambdas(env, d');
+    Lam(dp, ty, d'');
   | Closure(env', dp, ty, d') =>
-    /* this should not occur */ Closure(
-      env',
-      dp,
-      ty,
-      fill_hole_envs(env, d'),
-    )
-  | Ap(d1, d2) => Ap(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+    let d'' = subst_vars_within_lambdas(env', d');
+    Lam(dp, ty, d'');
+  | Ap(d1, d2) =>
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    Ap(d1', d2');
   | BinBoolOp(op, d1, d2) =>
-    BinBoolOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    BinBoolOp(op, d1', d2');
   | BinIntOp(op, d1, d2) =>
-    BinIntOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    BinIntOp(op, d1', d2');
   | BinFloatOp(op, d1, d2) =>
-    BinFloatOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-  | Cons(d1, d2) => Cons(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-  | Inj(ty, side, d') => Inj(ty, side, fill_hole_envs(env, d'))
-  | Pair(d1, d2) => Pair(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-  | ConsistentCase(Case(d', rules, n)) =>
-    let d' = fill_hole_envs(env, d');
-    let rules = fill_hole_envs_rules(env, rules);
-    ConsistentCase(Case(d', rules, n));
-  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
-    let d3 = fill_hole_envs(env, d3);
-    let rules = fill_hole_envs_rules(env, rules);
-    InconsistentBranches(u, i, sigma, Case(d3, rules, n));
-  | Cast(d', ty1, ty2) => Cast(fill_hole_envs(env, d'), ty1, ty2)
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    BinFloatOp(op, d1', d2');
+  | Cons(d1, d2) =>
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    Cons(d1', d2');
+  | Inj(ty, side, d') =>
+    let d'' = subst_vars_within_lambdas(env, d');
+    Inj(ty, side, d'');
+  | Pair(d1, d2) =>
+    let d1' = subst_vars_within_lambdas(env, d1);
+    let d2' = subst_vars_within_lambdas(env, d2);
+    Pair(d1', d2');
+  /* Case and other hole expressions */
+  | ConsistentCase(_) => /* TODO */ d
+  | InconsistentBranches(_) => d
+  | Cast(d', ty1, ty2) =>
+    let d'' = subst_vars_within_lambdas(env, d');
+    Cast(d'', ty1, ty2);
   | FailedCast(d', ty1, ty2) =>
-    FailedCast(fill_hole_envs(env, d'), ty1, ty2)
+    let d'' = subst_vars_within_lambdas(env, d');
+    FailedCast(d'', ty1, ty2);
   | InvalidOperation(d', reason) =>
-    InvalidOperation(fill_hole_envs(env, d'), reason)
+    let d'' = subst_vars_within_lambdas(env, d');
+    InvalidOperation(d'', reason);
   };
 }
-and fill_hole_envs_rules =
-    (env: EvalEnv.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-  List.map(
-    (r: DHExp.rule): DHExp.rule =>
-      switch (r) {
-      | Rule(dp, d) => Rule(dp, fill_hole_envs(env, d))
-      },
-    rules,
-  );
+and expand_closures_to_lambdas = (d: DHExp.t): DHExp.t =>
+  switch (d) {
+  | Keyword(_)
+  | FreeVar(_)
+  | InvalidText(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => d
+  /* Variables should not appear outside holes or closures */
+  | BoundVar(x) =>
+    raise(EvaluatorError.Exception(EvaluatorError.FreeInvalidVar(x)))
+  /* Holes should have their environments recursively substituted.
+     Nonempty holes should recursively substitute their contained expressions. */
+  | EmptyHole(u, i, sigma) =>
+    let sigma' = expand_closures_in_holes(sigma);
+    EmptyHole(u, i, sigma');
+  | NonEmptyHole(reason, u, i, sigma, d') =>
+    let sigma' = expand_closures_in_holes(sigma);
+    let d'' = expand_closures_to_lambdas(d');
+    NonEmptyHole(reason, u, i, sigma', d'');
+  | Let(dp, d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    Let(dp, d1', d2');
+  /* Lambda should not appear outside closure in evaluated result */
+  | Lam(_) =>
+    raise(EvaluatorError.Exception(EvaluatorError.InvalidBoxedLam(d)))
+  /* Closure body is substituted with its environment, after the
+     environment has been recursively been substituted. */
+  | Closure(env', dp, ty, d') =>
+    let env'' = expand_closures_in_holes(env');
+    let d'' = subst_vars_within_lambdas(env'', d');
+    Lam(dp, ty, d'');
+  | Ap(d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    Ap(d1', d2');
+  | BinBoolOp(op, d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    BinBoolOp(op, d1', d2');
+  | BinIntOp(op, d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    BinIntOp(op, d1', d2');
+  | BinFloatOp(op, d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    BinFloatOp(op, d1', d2');
+  | Cons(d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    Cons(d1', d2');
+  | Inj(ty, side, d') =>
+    let d'' = expand_closures_to_lambdas(d');
+    Inj(ty, side, d'');
+  | Pair(d1, d2) =>
+    let d1' = expand_closures_to_lambdas(d1);
+    let d2' = expand_closures_to_lambdas(d2);
+    Pair(d1', d2');
+  | ConsistentCase(_) => /* TODO */ d
+  | InconsistentBranches(_) => d
+  | Cast(d', ty1, ty2) =>
+    let d'' = expand_closures_to_lambdas(d');
+    Cast(d'', ty1, ty2);
+  | FailedCast(d', ty1, ty2) =>
+    let d'' = expand_closures_to_lambdas(d');
+    FailedCast(d'', ty1, ty2);
+  | InvalidOperation(d', reason) =>
+    let d'' = expand_closures_to_lambdas(d');
+    InvalidOperation(d'', reason);
+  }
+and expand_closures_in_holes = (sigma: EvalEnv.t): EvalEnv.t => {
+  /* keep the same environment ID of the original sigma */
+  let (ei, _) = sigma;
+  let (_, (_, sigma')) =
+    EvalEnv.map(
+      EvalEnv.EvalEnvCtx.empty,
+      ((_, d)) => expand_closures_to_lambdas(d),
+      sigma,
+    );
+  (ei, sigma');
+};
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
@@ -579,15 +755,15 @@ let eval_bin_float_op =
 };
 
 let rec evaluate =
-        (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, d: DHExp.t): result => {
-  open Sexplib.Sexp;
-  print_endline(
-    "D: "
-    ++ to_string(DHExp.sexp_of_t(d))
-    ++ " ENV: "
-    ++ to_string(EvalEnv.sexp_of_t(env)),
-  );
-
+        (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, d: DHExp.t)
+        : (EvalEnv.EvalEnvCtx.t, result) => {
+  /* open Sexplib.Sexp;
+     print_endline(
+       "D: "
+       ++ to_string(DHExp.sexp_of_t(d))
+       ++ " ENV: "
+       ++ to_string(EvalEnv.sexp_of_t(env)),
+     ); */
   switch (d) {
   | BoundVar(x) =>
     // the looked-up DHExp should be final, recursive call to evaluate wraps the
@@ -599,34 +775,31 @@ let rec evaluate =
     |> evaluate(ec, env)
   | Let(dp, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(d1)
-    | Indet(d1) =>
+    | (ec, BoxedValue(d1))
+    | (ec, Indet(d1)) =>
       switch (matches(dp, d1)) {
-      | Indet => Indet(d)
-      | DoesNotMatch => Indet(d)
+      | Indet => (ec, Indet(d))
+      | DoesNotMatch => (ec, Indet(d))
       | Matches(env') =>
         let (ec, env) =
-          EvalEnv.union(
-            EvalEnv.EvalEnvCtx.empty,
-            EvalEnv.unnumbered_evalenv_of_env(env'),
-            env,
-          );
+          EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
         evaluate(ec, env, d2);
       }
     }
   | Lam(dp, ty, d) =>
-    let d' = fill_hole_envs(env, d);
-    BoxedValue(Closure(env, dp, ty, d'));
-  | Closure(_) => /* shouldn't reach this branch */ BoxedValue(d)
+    /* TODO: remove this */
+    /* let d' = fill_hole_envs(env, d); */
+    (ec, BoxedValue(Closure(env, dp, ty, d)))
+  | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(Closure(closure_env, dp, _, d3)) =>
+    | (ec, BoxedValue(Closure(closure_env, dp, _, d3))) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2)
-      | Indet(d2) =>
+      | (ec, BoxedValue(d2))
+      | (ec, Indet(d2)) =>
         switch (matches(dp, d2)) {
-        | DoesNotMatch => Indet(d)
-        | Indet => Indet(d)
+        | DoesNotMatch => (ec, Indet(d))
+        | Indet => (ec, Indet(d))
         | Matches(env') =>
           // evaluate a closure: extend the existing environment with the
           // closure environment and the new bindings introduced by the
@@ -637,145 +810,155 @@ let rec evaluate =
           evaluate(ec, env, d3);
         }
       }
-    | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
-    | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
+    | (ec, BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))))
+    | (ec, Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') =>
+      | (ec, BoxedValue(d2'))
+      | (ec, Indet(d2')) =>
         /* ap cast rule */
         evaluate(ec, env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
-    | BoxedValue(d1') =>
+    | (_, BoxedValue(d1')) =>
       raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
-    | Indet(d1') =>
+    | (ec, Indet(d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(Ap(d1', d2'))
+      | (ec, BoxedValue(d2'))
+      | (ec, Indet(d2')) => (ec, Indet(Ap(d1', d2')))
       }
     }
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | Triv => BoxedValue(d)
+  | Triv => (ec, BoxedValue(d))
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(BoolLit(b1) as d1') =>
+    | (ec, BoxedValue(BoolLit(b1) as d1')) =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
-      | Some(b3) => b3
+      | Some(b3) => (ec, b3)
       | None =>
         switch (evaluate(ec, env, d2)) {
-        | BoxedValue(BoolLit(b2)) =>
-          BoxedValue(eval_bin_bool_op(op, b1, b2))
-        | BoxedValue(d2') =>
+        | (ec, BoxedValue(BoolLit(b2))) => (
+            ec,
+            BoxedValue(eval_bin_bool_op(op, b1, b2)),
+          )
+        | (_, BoxedValue(d2')) =>
           raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
-        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+        | (ec, Indet(d2')) => (ec, Indet(BinBoolOp(op, d1', d2')))
         }
       }
-    | BoxedValue(d1') =>
+    | (_, BoxedValue(d1')) =>
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
-    | Indet(d1') =>
+    | (ec, Indet(d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
+      | (ec, BoxedValue(d2'))
+      | (ec, Indet(d2')) => (ec, Indet(BinBoolOp(op, d1', d2')))
       }
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(IntLit(n1) as d1') =>
+    | (ec, BoxedValue(IntLit(n1) as d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(IntLit(n2)) =>
+      | (ec, BoxedValue(IntLit(n2))) =>
         switch (op, n1, n2) {
-        | (Divide, _, 0) =>
-          Indet(
-            InvalidOperation(
-              BinIntOp(op, IntLit(n1), IntLit(n2)),
-              DivideByZero,
+        | (Divide, _, 0) => (
+            ec,
+            Indet(
+              InvalidOperation(
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                DivideByZero,
+              ),
             ),
           )
-        | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
+        | _ => (ec, BoxedValue(eval_bin_int_op(op, n1, n2)))
         }
-      | BoxedValue(d2') =>
+      | (_, BoxedValue(d2')) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
-      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
+      | (ec, Indet(d2')) => (ec, Indet(BinIntOp(op, d1', d2')))
       }
-    | BoxedValue(d1') =>
+    | (_, BoxedValue(d1')) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-    | Indet(d1') =>
+    | (ec, Indet(d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
+      | (ec, BoxedValue(d2'))
+      | (ec, Indet(d2')) => (ec, Indet(BinIntOp(op, d1', d2')))
       }
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(FloatLit(f1) as d1') =>
+    | (ec, BoxedValue(FloatLit(f1) as d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(FloatLit(f2)) =>
-        BoxedValue(eval_bin_float_op(op, f1, f2))
-      | BoxedValue(d2') =>
+      | (ec, BoxedValue(FloatLit(f2))) => (
+          ec,
+          BoxedValue(eval_bin_float_op(op, f1, f2)),
+        )
+      | (_, BoxedValue(d2')) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
-      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      | (ec, Indet(d2')) => (ec, Indet(BinFloatOp(op, d1', d2')))
       }
-    | BoxedValue(d1') =>
+    | (_, BoxedValue(d1')) =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
-    | Indet(d1') =>
+    | (ec, Indet(d1')) =>
       switch (evaluate(ec, env, d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
+      | (ec, BoxedValue(d2'))
+      | (ec, Indet(d2')) => (ec, Indet(BinFloatOp(op, d1', d2')))
       }
     }
   | Inj(ty, side, d1) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
-    | Indet(d1') => Indet(Inj(ty, side, d1'))
+    | (ec, BoxedValue(d1')) => (ec, BoxedValue(Inj(ty, side, d1')))
+    | (ec, Indet(d1')) => (ec, Indet(Inj(ty, side, d1')))
     }
   | Pair(d1, d2) =>
-    switch (evaluate(ec, env, d1), evaluate(ec, env, d2)) {
+    let (ec, d1') = evaluate(ec, env, d1);
+    let (ec, d2') = evaluate(ec, env, d2);
+    switch (d1', d2') {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
-    }
+    | (BoxedValue(d1), Indet(d2)) => (ec, Indet(Pair(d1, d2)))
+    | (BoxedValue(d1), BoxedValue(d2)) => (ec, BoxedValue(Pair(d1, d2)))
+    };
   | Cons(d1, d2) =>
-    switch (evaluate(ec, env, d1), evaluate(ec, env, d2)) {
+    let (ec, d1') = evaluate(ec, env, d1);
+    let (ec, d2') = evaluate(ec, env, d2);
+    switch (d1', d2') {
     | (Indet(d1), Indet(d2))
     | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
-    }
+    | (BoxedValue(d1), Indet(d2)) => (ec, Indet(Cons(d1, d2)))
+    | (BoxedValue(d1), BoxedValue(d2)) => (ec, BoxedValue(Cons(d1, d2)))
+    };
   | ConsistentCase(Case(d1, rules, n)) =>
     evaluate_case(ec, env, None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
-  | EmptyHole(u, i, _) => Indet(EmptyHole(u, i, env))
+  | EmptyHole(u, i, _) => (ec, Indet(EmptyHole(u, i, env)))
   | NonEmptyHole(reason, u, i, _, d1) =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(NonEmptyHole(reason, u, i, env, d1'))
+    | (ec, BoxedValue(d1'))
+    | (ec, Indet(d1')) => (ec, Indet(NonEmptyHole(reason, u, i, env, d1')))
     }
-  | FreeVar(_) => Indet(d)
-  | Keyword(_) => Indet(d)
-  | InvalidText(_) => Indet(d)
+  | FreeVar(_)
+  | Keyword(_)
+  | InvalidText(_) => (ec, Indet(d))
   | Cast(d1, ty, ty') =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(d1') as result =>
+    | (ec, BoxedValue(d1') as result) =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
+      | (Hole, Hole) => (ec, result)
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
-        result
+        (ec, result)
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
-        BoxedValue(Cast(d1', ty, ty'))
+        (ec, BoxedValue(Cast(d1', ty, ty')))
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
         | Cast(d1'', ty'', Hole) =>
           if (HTyp.eq(ty'', ty')) {
-            BoxedValue(d1'');
+            (ec, BoxedValue(d1''));
           } else {
-            Indet(FailedCast(d1', ty, ty'));
+            (ec, Indet(FailedCast(d1', ty, ty')));
           }
         | _ =>
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
@@ -792,33 +975,33 @@ let rec evaluate =
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
-        BoxedValue(Cast(d1', ty, ty'))
+        (ec, BoxedValue(Cast(d1', ty, ty')))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
         if (HTyp.eq(ty, ty')) {
-          result;
+          (ec, result);
         } else {
-          BoxedValue(Cast(d1', ty, ty'));
+          (ec, BoxedValue(Cast(d1', ty, ty')));
         }
       }
-    | Indet(d1') as result =>
+    | (ec, Indet(d1') as result) =>
       switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
+      | (Hole, Hole) => (ec, result)
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
-        result
+        (ec, result)
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
-        Indet(Cast(d1', ty, ty'))
+        (ec, Indet(Cast(d1', ty, ty')))
       | (Hole, Ground) =>
         switch (d1') {
         | Cast(d1'', ty'', Hole) =>
           if (HTyp.eq(ty'', ty')) {
-            Indet(d1'');
+            (ec, Indet(d1''));
           } else {
-            Indet(FailedCast(d1', ty, ty'));
+            (ec, Indet(FailedCast(d1', ty, ty')));
           }
-        | _ => Indet(Cast(d1', ty, ty'))
+        | _ => (ec, Indet(Cast(d1', ty, ty')))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
@@ -831,22 +1014,22 @@ let rec evaluate =
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
         /* can't do anything when casting between diseq, non-hole types */
-        Indet(Cast(d1', ty, ty'))
+        (ec, Indet(Cast(d1', ty, ty')))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* it might be eq in this case, so remove cast if so */
         if (HTyp.eq(ty, ty')) {
-          result;
+          (ec, result);
         } else {
-          Indet(Cast(d1', ty, ty'));
+          (ec, Indet(Cast(d1', ty, ty')));
         }
       }
     }
   | FailedCast(d1, ty, ty') =>
     switch (evaluate(ec, env, d1)) {
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
+    | (ec, BoxedValue(d1'))
+    | (ec, Indet(d1')) => (ec, Indet(FailedCast(d1', ty, ty')))
     }
-  | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
+  | InvalidOperation(d, err) => (ec, Indet(InvalidOperation(d, err)))
   };
 }
 and evaluate_case =
@@ -858,27 +1041,33 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : result =>
+    : (EvalEnv.EvalEnvCtx.t, result) =>
   switch (evaluate(ec, env, scrut)) {
-  | BoxedValue(scrut)
-  | Indet(scrut) =>
+  | (ec, BoxedValue(scrut))
+  | (ec, Indet(scrut)) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
       let case = DHExp.Case(scrut, rules, current_rule_index);
-      switch (inconsistent_info) {
-      | None => Indet(ConsistentCase(case))
-      | Some((u, i, sigma)) =>
-        Indet(InconsistentBranches(u, i, sigma, case))
-      };
-    | Some(Rule(dp, d)) =>
-      switch (matches(dp, scrut)) {
-      | Indet =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
+      (
+        ec,
         switch (inconsistent_info) {
         | None => Indet(ConsistentCase(case))
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
-        };
+        },
+      );
+    | Some(Rule(dp, d)) =>
+      switch (matches(dp, scrut)) {
+      | Indet =>
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        (
+          ec,
+          switch (inconsistent_info) {
+          | None => Indet(ConsistentCase(case))
+          | Some((u, i, sigma)) =>
+            Indet(InconsistentBranches(u, i, sigma, case))
+          },
+        );
       | Matches(env') =>
         // extend environment with new bindings introduced
         // by the rule and evaluate the expression.

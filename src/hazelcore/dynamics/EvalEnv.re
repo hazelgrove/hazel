@@ -15,6 +15,8 @@ let env_of_evalenv = ((_, ee): t): VarMap.t_(DHExp.t) => ee;
 let empty_unnumbered = (None, VarMap.empty);
 let unnumbered_evalenv_of_env = (e: Environment.t): t => (None, e);
 
+/* TODO: make this generate an EvalEnvCtx.t, and redefine
+   EvalEnv to be a variant type rather than having an optional component */
 let empty = (ec: EvalEnvCtx.t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
   (ec, (Some(ei), VarMap.empty));
