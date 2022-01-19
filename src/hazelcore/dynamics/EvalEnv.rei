@@ -28,13 +28,13 @@ module EvalEnvCtx: {
 type t = DHExp.evalenv;
 
 let id_of_evalenv: t => option(int);
-let env_of_evalenv: t => VarMap.t_(DHExp.t);
+let env_of_evalenv: t => Environment.t;
 
 let empty: (EvalEnvCtx.t, t);
 let unreached: t;
 let is_empty: t => bool;
 let length: t => int;
-let to_list: t => VarMap.t_(DHExp.t);
+let to_list: t => list(VarMap.t__(DHExp.t));
 let lookup: (t, Var.t) => option(DHExp.t);
 let contains: (t, Var.t) => bool;
 

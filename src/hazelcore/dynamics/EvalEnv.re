@@ -9,7 +9,7 @@ module EvalEnvCtx = {
   let sexp_of_t = Sexplib.Std.sexp_of_int;
   let t_of_sexp = Sexplib.Std.int_of_sexp;
 
-  let empty = (-1);
+  let empty = 0;
 
   /* ec => (ec', ei) */
   let next = (n: t): (t, t) => (n + 1, n);
