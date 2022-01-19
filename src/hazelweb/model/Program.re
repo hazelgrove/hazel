@@ -252,41 +252,24 @@ let rec renumber_sigmas_only =
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (
-      InconsistentBranches(
-        u,
-        i,
-        EvalEnv.unnumbered_evalenv_of_env(sigma),
-        Case(d1, rules, n),
-      ),
-      hii,
-    );
+    (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (EmptyHole(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma)), hii);
+    (EmptyHole(u, i, sigma), hii);
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (
-      NonEmptyHole(
-        reason,
-        u,
-        i,
-        EvalEnv.unnumbered_evalenv_of_env(sigma),
-        d1,
-      ),
-      hii,
-    );
+    (NonEmptyHole(reason, u, i, sigma, d1), hii);
   | FreeVar(u, i, sigma, x) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (FreeVar(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma), x), hii);
+    (FreeVar(u, i, sigma, x), hii);
   | Keyword(u, i, sigma, k) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Keyword(u, i, EvalEnv.unnumbered_evalenv_of_env(sigma), k), hii);
+    (Keyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -321,7 +304,7 @@ and renumber_sigma =
       hii: HoleInstanceInfo.t,
       sigma: EvalEnv.t,
     )
-    : (Environment.t, HoleInstanceInfo.t) => {
+    : (EvalEnv.t, HoleInstanceInfo.t) => {
   let (sigma, hii) =
     List.fold_right(
       (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
@@ -336,18 +319,22 @@ and renumber_sigma =
       ([], hii),
     );
 
-  List.fold_right(
-    (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
-      let (x, d) = xd;
-      let (sigma_in, hii) = acc;
-      let path = [((u, i), x), ...path];
-      let (d, hii) = renumber_sigmas_only(path, hii, d);
-      let sigma_out = [(x, d), ...sigma_in];
-      (sigma_out, hii);
-    },
-    sigma,
-    ([], hii),
-  );
+  let (ee, hii) =
+    List.fold_right(
+      (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+        let (x, d) = xd;
+        let (sigma_in, hii) = acc;
+        let path = [((u, i), x), ...path];
+        let (d, hii) = renumber_sigmas_only(path, hii, d);
+        let sigma_out = [(x, d), ...sigma_in];
+        (sigma_out, hii);
+      },
+      sigma,
+      ([], hii),
+    );
+
+  /* TODO: need to rewrite renumber_sigma, this is a temporary placeholder */
+  (Env(-1, ee), hii);
 };
 
 let renumber =
@@ -372,29 +359,29 @@ let get_elaboration = (program: t): DHExp.t =>
 exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t => {
-  let (ec, env) = EvalEnv.empty(EvalEnv.EvalEnvCtx.empty);
-  let (_, result) = program |> get_elaboration |> evaluate(ec, env);
-  /* open Sexplib.Sexp;
-     print_endline(
-       "EC: "
-       ++ string_of_int(ec)
-       ++ " RESULT: "
-       ++ to_string(Evaluator.sexp_of_result(result)),
-     ); */
+  let (ec, env) = EvalEnv.empty;
+  let (ec, result) = program |> get_elaboration |> evaluate(ec, env);
+  open Sexplib.Sexp;
+  print_endline(
+    "EC: "
+    ++ to_string(EvalEnv.EvalEnvCtx.sexp_of_t(ec))
+    ++ " RESULT: "
+    ++ to_string(Evaluator.sexp_of_result(result)),
+  );
   switch (result) {
   | BoxedValue(d) =>
-    /* print_endline(
-         "CONVERTED: "
-         ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
-       ); */
+    print_endline(
+      "CONVERTED: "
+      ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
+    );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
-    /* print_endline(
-         "CONVERTED: "
-         ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
-       ); */
+    print_endline(
+      "CONVERTED: "
+      ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
+    );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));

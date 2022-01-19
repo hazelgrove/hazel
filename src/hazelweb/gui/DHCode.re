@@ -103,7 +103,7 @@ let view_of_hole_instance =
       (u, i): HoleInstance.t,
     )
     : Node.t => {
-  let (_, env) = EvalEnv.empty(EvalEnv.EvalEnvCtx.empty);
+  let (_, env) = EvalEnv.empty;
   view(
     ~inject,
     ~settings,

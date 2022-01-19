@@ -162,7 +162,9 @@ and case =
 and rule =
   | Rule(DHPat.t, t)
 and environment = VarMap.t_(t)
-and evalenv = (option(int), environment);
+and evalenv =
+  | Env(int, VarMap.t_(t))
+  | UnreachedEnv;
 
 let constructor_string = (d: t): string =>
   switch (d) {

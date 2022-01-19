@@ -5,7 +5,7 @@ let empty: t;
 
 let next: (t, MetaVar.t, Environment.t, InstancePath.t) => (int, t);
 
-let update_environment: (t, HoleInstance.t, Environment.t) => t;
+let update_environment: (t, HoleInstance.t, EvalEnv.t) => t;
 
 let num_instances: (t, MetaVar.t) => int;
 

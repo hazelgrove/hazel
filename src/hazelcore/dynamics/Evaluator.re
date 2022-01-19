@@ -704,15 +704,7 @@ and expand_closures_to_lambdas = (d: DHExp.t): DHExp.t =>
     InvalidOperation(d'', reason);
   }
 and expand_closures_in_holes = (sigma: EvalEnv.t): EvalEnv.t => {
-  /* keep the same environment ID of the original sigma */
-  let (ei, _) = sigma;
-  let (_, (_, sigma')) =
-    EvalEnv.map(
-      EvalEnv.EvalEnvCtx.empty,
-      ((_, d)) => expand_closures_to_lambdas(d),
-      sigma,
-    );
-  (ei, sigma');
+  EvalEnv.map_keep_id(((_, d)) => expand_closures_to_lambdas(d), sigma);
 };
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
@@ -781,8 +773,7 @@ let rec evaluate =
       | Indet => (ec, Indet(d))
       | DoesNotMatch => (ec, Indet(d))
       | Matches(env') =>
-        let (ec, env) =
-          EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
+        let (ec, env) = EvalEnv.union_with_env(ec, env', env);
         evaluate(ec, env, d2);
       }
     }
@@ -805,8 +796,7 @@ let rec evaluate =
           // closure environment and the new bindings introduced by the
           // function application.
           let (ec, env) = EvalEnv.union(ec, closure_env, env);
-          let (ec, env) =
-            EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
+          let (ec, env) = EvalEnv.union_with_env(ec, env', env);
           evaluate(ec, env, d3);
         }
       }
@@ -1071,8 +1061,7 @@ and evaluate_case =
       | Matches(env') =>
         // extend environment with new bindings introduced
         // by the rule and evaluate the expression.
-        let (ec, env) =
-          EvalEnv.union(ec, EvalEnv.unnumbered_evalenv_of_env(env'), env);
+        let (ec, env) = EvalEnv.union_with_env(ec, env', env);
         evaluate(ec, env, d);
       | DoesNotMatch =>
         evaluate_case(

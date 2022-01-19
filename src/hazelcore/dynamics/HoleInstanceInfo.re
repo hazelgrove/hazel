@@ -17,8 +17,7 @@ let next =
   (List.length(envs) - 1, hii);
 };
 
-let update_environment =
-    (hii: t, inst: HoleInstance.t, sigma: Environment.t): t => {
+let update_environment = (hii: t, inst: HoleInstance.t, sigma: EvalEnv.t): t => {
   let (u, i) = inst;
   let hii =
     hii
@@ -31,7 +30,7 @@ let update_environment =
              instances,
              (inst_info: (Environment.t, InstancePath.t)) => {
                let (_, path) = inst_info;
-               (sigma, path);
+               (EvalEnv.env_of_evalenv(sigma), path);
              },
            );
          }),
