@@ -163,8 +163,11 @@ and rule =
   | Rule(DHPat.t, t)
 and environment = VarMap.t_(t)
 and evalenv =
-  | Env(int, VarMap.t_(t))
-  | UnreachedEnv;
+  | Env(int, VarMap.t_(result))
+  | UnreachedEnv
+and result =
+  | BoxedValue(t)
+  | Indet(t);
 
 let constructor_string = (d: t): string =>
   switch (d) {

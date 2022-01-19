@@ -30,7 +30,7 @@ let update_environment = (hii: t, inst: HoleInstance.t, sigma: EvalEnv.t): t => 
              instances,
              (inst_info: (Environment.t, InstancePath.t)) => {
                let (_, path) = inst_info;
-               (EvalEnv.env_of_evalenv(sigma), path);
+               (EvalEnv.environment_of_evalenv(sigma), path);
              },
            );
          }),

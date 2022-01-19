@@ -145,26 +145,51 @@ let rec renumber_result_only =
     (ConsistentCase(Case(d1, drules, n)), hii);
   | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
     let (i, hii) =
-      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
+      HoleInstanceInfo.next(
+        hii,
+        u,
+        EvalEnv.environment_of_evalenv(sigma),
+        path,
+      );
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
   | EmptyHole(u, _, sigma) =>
     let (i, hii) =
-      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
+      HoleInstanceInfo.next(
+        hii,
+        u,
+        EvalEnv.environment_of_evalenv(sigma),
+        path,
+      );
     (EmptyHole(u, i, sigma), hii);
   | NonEmptyHole(reason, u, _, sigma, d1) =>
     let (i, hii) =
-      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
+      HoleInstanceInfo.next(
+        hii,
+        u,
+        EvalEnv.environment_of_evalenv(sigma),
+        path,
+      );
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (NonEmptyHole(reason, u, i, sigma, d1), hii);
   | FreeVar(u, _, sigma, x) =>
     let (i, hii) =
-      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
+      HoleInstanceInfo.next(
+        hii,
+        u,
+        EvalEnv.environment_of_evalenv(sigma),
+        path,
+      );
     (FreeVar(u, i, sigma, x), hii);
   | Keyword(u, _, sigma, k) =>
     let (i, hii) =
-      HoleInstanceInfo.next(hii, u, EvalEnv.env_of_evalenv(sigma), path);
+      HoleInstanceInfo.next(
+        hii,
+        u,
+        EvalEnv.environment_of_evalenv(sigma),
+        path,
+      );
     (Keyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -315,7 +340,7 @@ and renumber_sigma =
         let sigma_out = [(x, d), ...sigma_in];
         (sigma_out, hii);
       },
-      EvalEnv.env_of_evalenv(sigma),
+      EvalEnv.environment_of_evalenv(sigma),
       ([], hii),
     );
 
@@ -333,8 +358,23 @@ and renumber_sigma =
       ([], hii),
     );
 
-  /* TODO: need to rewrite renumber_sigma, this is a temporary placeholder */
-  (Env(-1, ee), hii);
+  /* TODO: need to rewrite renumber_sigma, this is a temporary placeholder
+     and will give wrong results */
+  let (ec, _) = EvalEnv.empty;
+  let env = EvalEnv.unreached;
+  (
+    Env(
+      -1,
+      Environment.map(
+        ((_, d)) => {
+          let (_, dr) = Evaluator.evaluate(ec, env, d);
+          dr;
+        },
+        ee,
+      ),
+    ),
+    hii,
+  );
 };
 
 let renumber =

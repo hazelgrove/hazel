@@ -6,8 +6,6 @@
    2. Each EvalEnv has an ID associated with it (if evaluation reaches it),
       or is unreachable. (i.e., a placeholder environment)
 
-   (TODO: change mapping from DHExp.t to Evaluator.result)
-
    Environment.t may be useful in certain cases, namely pattern matching,
    when an evaluated result is not needed. EvalEnv is used for environents
    during evaluation, including hole environments. EvalEnvs are numbered
@@ -25,35 +23,38 @@ module EvalEnvCtx: {
 };
 
 [@deriving sexp]
-type t = DHExp.evalenv;
+type t = DHExp.evalenv
+and result = DHExp.result
+and result_map = VarMap.t_(result);
 
-let id_of_evalenv: t => option(int);
-let env_of_evalenv: t => Environment.t;
+let environment_of_evalenv: t => Environment.t;
 
 let empty: (EvalEnvCtx.t, t);
 let unreached: t;
 let is_empty: t => bool;
 let length: t => int;
-let to_list: t => list(VarMap.t__(DHExp.t));
-let lookup: (t, Var.t) => option(DHExp.t);
+let to_list: t => list(VarMap.t__(result));
+let lookup: (t, Var.t) => option(result);
 let contains: (t, Var.t) => bool;
 
 /* these functions require an EvalEnvCtx.t because they generate a new
    EvalEnv.t */
-let extend: (EvalEnvCtx.t, t, VarMap.t__(DHExp.t)) => (EvalEnvCtx.t, t);
+let extend: (EvalEnvCtx.t, t, VarMap.t__(result)) => (EvalEnvCtx.t, t);
 let map:
-  (EvalEnvCtx.t, VarMap.t__(DHExp.t) => DHExp.t, t) => (EvalEnvCtx.t, t);
+  (EvalEnvCtx.t, VarMap.t__(result) => result, t) => (EvalEnvCtx.t, t);
 let filter:
-  (EvalEnvCtx.t, VarMap.t__(DHExp.t) => bool, t) => (EvalEnvCtx.t, t);
+  (EvalEnvCtx.t, VarMap.t__(result) => bool, t) => (EvalEnvCtx.t, t);
 
 /* union(new_env, env) extends env with new_env (same argument order
    as in VarMap.union) */
 let union: (EvalEnvCtx.t, t, t) => (EvalEnvCtx.t, t);
-let union_from_env: (EvalEnvCtx.t, t, Environment.t) => (EvalEnvCtx.t, t);
-let union_with_env: (EvalEnvCtx.t, Environment.t, t) => (EvalEnvCtx.t, t);
+let union_from_env:
+  (EvalEnvCtx.t, t, VarMap.t_(result)) => (EvalEnvCtx.t, t);
+let union_with_env:
+  (EvalEnvCtx.t, VarMap.t_(result), t) => (EvalEnvCtx.t, t);
 
 /* same as map, but doesn't assign a new ID. (This is used when
    transforming an environment, such as in the closure->lambda stage
    after evaluation. More functions may be added like this as-needed
    for similar purposes.) */
-let map_keep_id: (VarMap.t__(DHExp.t) => DHExp.t, t) => t;
+let map_keep_id: (VarMap.t__(result) => result, t) => t;

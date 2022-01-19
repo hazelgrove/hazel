@@ -1,7 +1,5 @@
 [@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
+type result = EvalEnv.result;
 
 [@deriving sexp]
 type ground_cases =
@@ -36,7 +34,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   };
 
 type match_result =
-  | Matches(VarMap.t_(DHExp.t))
+  | Matches(Environment.t)
   | DoesNotMatch
   | Indet;
 
@@ -480,66 +478,6 @@ and matches_cast_Cons =
           d,
         ); */
 
-/* TODO: remove this */
-/* let rec fill_hole_envs = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
-     switch (d) {
-     | EmptyHole(u, i, _) => EmptyHole(u, i, env)
-     | NonEmptyHole(reason, u, i, _, d') =>
-       NonEmptyHole(reason, u, i, env, fill_hole_envs(env, d'))
-     | Triv
-     | Keyword(_)
-     | FreeVar(_)
-     | InvalidText(_)
-     | BoolLit(_)
-     | IntLit(_)
-     | FloatLit(_)
-     | ListNil(_)
-     | BoundVar(_) => d
-     | Let(dp, d1, d2) =>
-       Let(dp, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | Lam(dp, ty, d') => Lam(dp, ty, fill_hole_envs(env, d'))
-     | Closure(env', dp, ty, d') =>
-       /* this should not occur */ Closure(
-         env',
-         dp,
-         ty,
-         fill_hole_envs(env, d'),
-       )
-     | Ap(d1, d2) => Ap(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | BinBoolOp(op, d1, d2) =>
-       BinBoolOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | BinIntOp(op, d1, d2) =>
-       BinIntOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | BinFloatOp(op, d1, d2) =>
-       BinFloatOp(op, fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | Cons(d1, d2) => Cons(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | Inj(ty, side, d') => Inj(ty, side, fill_hole_envs(env, d'))
-     | Pair(d1, d2) => Pair(fill_hole_envs(env, d1), fill_hole_envs(env, d2))
-     | ConsistentCase(Case(d', rules, n)) =>
-       let d' = fill_hole_envs(env, d');
-       let rules = fill_hole_envs_rules(env, rules);
-       ConsistentCase(Case(d', rules, n));
-     | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
-       let d3 = fill_hole_envs(env, d3);
-       let rules = fill_hole_envs_rules(env, rules);
-       InconsistentBranches(u, i, sigma, Case(d3, rules, n));
-     | Cast(d', ty1, ty2) => Cast(fill_hole_envs(env, d'), ty1, ty2)
-     | FailedCast(d', ty1, ty2) =>
-       FailedCast(fill_hole_envs(env, d'), ty1, ty2)
-     | InvalidOperation(d', reason) =>
-       InvalidOperation(fill_hole_envs(env, d'), reason)
-     };
-   }
-   and fill_hole_envs_rules =
-       (env: EvalEnv.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-     List.map(
-       (r: DHExp.rule): DHExp.rule =>
-         switch (r) {
-         | Rule(dp, d) => Rule(dp, fill_hole_envs(env, d))
-         },
-       rules,
-     ); */
-
 /* expand_closures_to_lambdas recursively performs substitution
    on the bodies of closures throughout the result (including
    in hole environments)
@@ -569,7 +507,8 @@ let rec subst_vars_within_lambdas = (env: EvalEnv.t, d: DHExp.t): DHExp.t => {
   /* Bound variables should be looked up within the closure environment */
   | BoundVar(x) =>
     switch (EvalEnv.lookup(env, x)) {
-    | Some(d') => d'
+    | Some(Indet(d'))
+    | Some(BoxedValue(d')) => d'
     | None => d
     }
   /* Holes should be given the closure environment */
@@ -704,7 +643,14 @@ and expand_closures_to_lambdas = (d: DHExp.t): DHExp.t =>
     InvalidOperation(d'', reason);
   }
 and expand_closures_in_holes = (sigma: EvalEnv.t): EvalEnv.t => {
-  EvalEnv.map_keep_id(((_, d)) => expand_closures_to_lambdas(d), sigma);
+  EvalEnv.map_keep_id(
+    ((_, dr)) =>
+      switch (dr) {
+      | BoxedValue(d) => BoxedValue(expand_closures_to_lambdas(d))
+      | Indet(d) => Indet(expand_closures_to_lambdas(d))
+      },
+    sigma,
+  );
 };
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
@@ -757,14 +703,14 @@ let rec evaluate =
        ++ to_string(EvalEnv.sexp_of_t(env)),
      ); */
   switch (d) {
-  | BoundVar(x) =>
-    // the looked-up DHExp should be final, recursive call to evaluate wraps the
-    // DHExp as a result (BoxedValue or Indet) -- alternatively, can use
-    // an environment mapping Var -> result
-    x
-    |> EvalEnv.lookup(env)
-    |> OptUtil.get(_ => raise(EvaluatorError.Exception(FreeInvalidVar(x))))
-    |> evaluate(ec, env)
+  | BoundVar(x) => (
+      ec,
+      x
+      |> EvalEnv.lookup(env)
+      |> OptUtil.get(_ =>
+           raise(EvaluatorError.Exception(FreeInvalidVar(x)))
+         ),
+    )
   | Let(dp, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
     | (ec, BoxedValue(d1))
@@ -777,14 +723,12 @@ let rec evaluate =
         | (ec, Indet(d2')) => (ec, Indet(d2'))
         }
       | Matches(env') =>
-        let (ec, env) = EvalEnv.union_with_env(ec, env', env);
+        let match_result_map = map_environment_to_result_map(ec, env, env');
+        let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
         evaluate(ec, env, d2);
       }
     }
-  | Lam(dp, ty, d) =>
-    /* TODO: remove this */
-    /* let d' = fill_hole_envs(env, d); */
-    (ec, BoxedValue(Closure(env, dp, ty, d)))
+  | Lam(dp, ty, d) => (ec, BoxedValue(Closure(env, dp, ty, d)))
   | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
     switch (evaluate(ec, env, d1)) {
@@ -799,8 +743,9 @@ let rec evaluate =
           // evaluate a closure: extend the existing environment with the
           // closure environment and the new bindings introduced by the
           // function application.
+          let match_result_map = map_environment_to_result_map(ec, env, env');
           let (ec, env) = EvalEnv.union(ec, closure_env, env);
-          let (ec, env) = EvalEnv.union_with_env(ec, env', env);
+          let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
           evaluate(ec, env, d3);
         }
       }
@@ -1065,7 +1010,8 @@ and evaluate_case =
       | Matches(env') =>
         // extend environment with new bindings introduced
         // by the rule and evaluate the expression.
-        let (ec, env) = EvalEnv.union_with_env(ec, env', env);
+        let match_result_map = map_environment_to_result_map(ec, env, env');
+        let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
         evaluate(ec, env, d);
       | DoesNotMatch =>
         evaluate_case(
@@ -1078,4 +1024,35 @@ and evaluate_case =
         )
       }
     }
-  };
+  }
+and map_environment_to_result_map =
+    (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, sigma: Environment.t)
+    : VarMap.t_(result) =>
+  /* This function is specifically for wrapping final results from
+     pattern matching subexpressions in the result type. Basically, if we
+     call evaluate() on final expressions and using the same environment
+     that the entire matched expression was called on, then this should
+     leave the final subexpressions unchanged and wrap them in a result
+     type. This should also leave ec alone. If these assumptions are not
+     met, then the hole environments may be changed. */
+  Environment.map(
+    ((_, d)) => {
+      let (_, dr) = evaluate(ec, env, d);
+      /* for testing only: make sure that the expression is unchanged,
+         otherwise throw an exception
+
+         TODO: remove */
+      switch (dr) {
+      | BoxedValue(d')
+      | Indet(d') =>
+        if (d != d') {
+          exception TestException;
+          raise(TestException);
+        } else {
+          ();
+        }
+      };
+      dr;
+    },
+    sigma,
+  );

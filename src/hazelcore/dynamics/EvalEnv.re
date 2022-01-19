@@ -1,7 +1,9 @@
-exception KeepIdOnUnreachedEnvironment;
+exception InvalidEvalEnvType;
 
 [@deriving sexp]
-type t = DHExp.evalenv;
+type t = DHExp.evalenv
+and result = DHExp.result
+and result_map = VarMap.t_(result);
 
 module EvalEnvCtx = {
   type t = int;
@@ -21,7 +23,21 @@ let id_of_evalenv = (env: t): option(int) =>
   | UnreachedEnv => None
   };
 
-let env_of_evalenv = (env: t): VarMap.t_(DHExp.t) =>
+let environment_of_evalenv = (env: t): Environment.t =>
+  (
+    switch (env) {
+    | Env(_, ee) => ee
+    | UnreachedEnv => VarMap.empty
+    }
+  )
+  |> List.map(((x, res: result)) =>
+       switch (res) {
+       | Indet(d)
+       | BoxedValue(d) => (x, d)
+       }
+     );
+
+let result_map_of_evalenv = (env: t): result_map =>
   switch (env) {
   | Env(_, ee) => ee
   | UnreachedEnv => VarMap.empty
@@ -35,52 +51,62 @@ let empty: (EvalEnvCtx.t, t) = {
 
 let unreached: t = UnreachedEnv;
 
-let is_empty = (env: t) => VarMap.is_empty(env_of_evalenv(env));
+let is_empty = (env: t) => VarMap.is_empty(result_map_of_evalenv(env));
 
 let extend =
-    (ec: EvalEnvCtx.t, env: t, xa: VarMap.t__(DHExp.t)): (EvalEnvCtx.t, t) => {
+    (ec: EvalEnvCtx.t, env: t, xa: VarMap.t__(result)): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.extend(env_of_evalenv(env), xa)));
+  (ec, Env(ei, VarMap.extend(result_map_of_evalenv(env), xa)));
 };
 
 let union = (ec: EvalEnvCtx.t, env1: t, env2: t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.union(env_of_evalenv(env1), env_of_evalenv(env2))));
+  (
+    ec,
+    Env(
+      ei,
+      VarMap.union(
+        result_map_of_evalenv(env1),
+        result_map_of_evalenv(env2),
+      ),
+    ),
+  );
 };
 
 let union_from_env =
-    (ec: EvalEnvCtx.t, env1: t, env2: Environment.t): (EvalEnvCtx.t, t) => {
+    (ec: EvalEnvCtx.t, env1: t, env2: result_map): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.union(env_of_evalenv(env1), env2)));
+  (ec, Env(ei, VarMap.union(result_map_of_evalenv(env1), env2)));
 };
 
 let union_with_env =
-    (ec: EvalEnvCtx.t, env1: Environment.t, env2: t): (EvalEnvCtx.t, t) => {
+    (ec: EvalEnvCtx.t, env1: result_map, env2: t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.union(env1, env_of_evalenv(env2))));
+  (ec, Env(ei, VarMap.union(env1, result_map_of_evalenv(env2))));
 };
 
-let lookup = (env: t, x) => VarMap.lookup(env_of_evalenv(env), x);
+let lookup = (env: t, x) => VarMap.lookup(result_map_of_evalenv(env), x);
 
-let contains = (env: t, x) => VarMap.contains(env_of_evalenv(env), x);
+let contains = (env: t, x) =>
+  VarMap.contains(result_map_of_evalenv(env), x);
 
 let map = (ec: EvalEnvCtx.t, f, env: t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.map(f, env_of_evalenv(env))));
+  (ec, Env(ei, VarMap.map(f, result_map_of_evalenv(env))));
 };
 
 let map_keep_id = (f, env: t): t => {
   switch (id_of_evalenv(env)) {
-  | Some(ei) => Env(ei, VarMap.map(f, env_of_evalenv(env)))
-  | None => raise(KeepIdOnUnreachedEnvironment)
+  | Some(ei) => Env(ei, VarMap.map(f, result_map_of_evalenv(env)))
+  | None => raise(InvalidEvalEnvType)
   };
 };
 
 let filter = (ec: EvalEnvCtx.t, f, env: t): (EvalEnvCtx.t, t) => {
   let (ec, ei) = EvalEnvCtx.next(ec);
-  (ec, Env(ei, VarMap.filter(f, env_of_evalenv(env))));
+  (ec, Env(ei, VarMap.filter(f, result_map_of_evalenv(env))));
 };
 
-let length = (env: t): int => List.length(env_of_evalenv(env));
+let length = (env: t): int => List.length(result_map_of_evalenv(env));
 
-let to_list = env_of_evalenv;
+let to_list = result_map_of_evalenv;

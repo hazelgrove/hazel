@@ -1,7 +1,5 @@
 [@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
+type result = EvalEnv.result;
 
 [@deriving sexp]
 type ground_cases =
