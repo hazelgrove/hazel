@@ -374,17 +374,18 @@ let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t =
   let if_delim = Delim.if_If() |> annot_Tessera;
   let then_delim = Delim.then_If() |> annot_Tessera;
   let else_delim = Delim.else_If() |> annot_Tessera;
-  Doc.hcats([
-    if_delim,
-    t1 |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
-    then_delim,
-    linebreak_,
-    t2 |> pad_left_delimited_open_child(~with_border=false),
-    linebreak_,
-    else_delim,
-    linebreak_,
-    t3 |> pad_left_delimited_open_child(~with_border=false),
-  ])
+  Doc.(
+    vseps([
+      hcats([
+        if_delim,
+        t1 |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+        then_delim,
+      ]),
+      t2 |> pad_left_delimited_open_child(~with_border=false),
+      else_delim,
+      t3 |> pad_left_delimited_open_child(~with_border=false),
+    ])
+  )
   |> annot_Tessera
   |> annot_Operand(~sort=Exp);
 };
