@@ -770,8 +770,12 @@ let rec evaluate =
     | (ec, BoxedValue(d1))
     | (ec, Indet(d1)) =>
       switch (matches(dp, d1)) {
-      | Indet => (ec, Indet(d))
-      | DoesNotMatch => (ec, Indet(d))
+      | Indet
+      | DoesNotMatch =>
+        switch (evaluate(ec, env, d2)) {
+        | (ec, BoxedValue(d2'))
+        | (ec, Indet(d2')) => (ec, Indet(d2'))
+        }
       | Matches(env') =>
         let (ec, env) = EvalEnv.union_with_env(ec, env', env);
         evaluate(ec, env, d2);
