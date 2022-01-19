@@ -148,14 +148,14 @@ let rec mk =
       if (enforce_inline) {
         fail();
       } else {
-        hseps([
-          DHDoc_common.Delim.open_If,
-          mk_cast(go'(d1)),
-          DHDoc_common.Delim.open_Then,
-          linebreak(),
+        vseps([
+          hcats([
+            DHDoc_common.Delim.open_If,
+            mk_cast(go'(d1)),
+            DHDoc_common.Delim.open_Then,
+          ]),
           mk_cast(go'(d2)),
-          hcat(linebreak(), DHDoc_common.Delim.open_Else),
-          linebreak(),
+          DHDoc_common.Delim.open_Else,
           mk_cast(go'(d3)),
         ]);
       };
