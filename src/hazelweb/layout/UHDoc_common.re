@@ -370,6 +370,12 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
   |> annot_Case;
 };
 
+let pad_left_indented_open_child =
+  pad_delimited_open_child(
+    ~multiline_padding=(empty_, empty_),
+    ~inline_padding=(space_, empty_),
+  );
+
 let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t => {
   let if_delim = Delim.if_If() |> annot_Tessera;
   let then_delim = Delim.then_If() |> annot_Tessera;
@@ -381,9 +387,9 @@ let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t =
         t1 |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
         then_delim,
       ]),
-      t2 |> pad_left_delimited_open_child(~with_border=false),
+      t2 |> pad_left_indented_open_child(~with_border=false),
       else_delim,
-      t3 |> pad_left_delimited_open_child(~with_border=false),
+      t3 |> pad_left_indented_open_child(~with_border=false),
     ])
   )
   |> annot_Tessera
