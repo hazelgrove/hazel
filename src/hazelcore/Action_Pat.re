@@ -874,7 +874,9 @@ and syn_perform_operand =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
       );
-    mk_syn_result(ctx, id_gen, new_zp);
+    let (new_zp, _, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_z(ctx, id_gen, new_zp);
+    mk_syn_result(ctx, u_gen, new_zp);
 
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, CursorP(_)) => Failed
@@ -903,15 +905,13 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, id_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (syn_perform_operand(ctx, id_gen, a, zop)) {
+    switch (ana_perform_operand(ctx, id_gen, a, zop, UHTyp.expand(ann))) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
-    | Succeeded((ZOpSeq(_, zseq), _, ctx, id_gen)) =>
+    | Succeeded((ZOpSeq(_, zseq), ctx, id_gen)) =>
       let newseq = annotate_last_operand(zseq, ann);
-      let (zpat, ty, ctx, id_gen) =
-        mk_and_syn_fix_ZOpSeq(ctx, id_gen, newseq);
-      Succeeded((zpat, ty, ctx, id_gen));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, newseq));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
     switch (Action_Typ.perform(a, zann)) {

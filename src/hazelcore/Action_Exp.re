@@ -308,13 +308,11 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, id_gen)));
-  | Underscore as shape
-  | Var(_) as shape =>
-    let x =
-      switch (shape) {
-      | Var(x) => x
-      | _ => "_"
-      };
+  | Underscore =>
+    let (it, u_gen) = UHExp.new_InvalidText(id_gen, "_");
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  | Var(x) =>
     switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
@@ -324,7 +322,7 @@ let mk_syn_text =
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, id_gen)));
-    };
+    }
   };
 };
 
