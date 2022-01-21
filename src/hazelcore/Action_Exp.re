@@ -3602,7 +3602,7 @@ and ana_perform_operand =
     switch (Statics_Exp.ana(ctx, ZExp.erase(zt1), HTyp.Bool)) {
     | None => Failed
     | Some(_) =>
-      switch (ana_perform(ctx, a, (zt1, u_gen), ty)) {
+      switch (ana_perform(ctx, a, (zt1, u_gen), HTyp.Bool)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_operand(
