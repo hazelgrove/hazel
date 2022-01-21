@@ -1,0 +1,14 @@
+// import Hazel from "hazel"
+
+// let p1 = Hazel.htrue;
+// let p2 = Hazel.hfalse;
+// let p3 = Hazel.buildEmptyHole(312);
+
+// let result = Hazel.and(p1, p3)
+// let result = Hazel.and(result, p3)
+
+// Hazel.print_prog(result);
+
+import Hazel from "hazel"
+let result = Hazel.and(Hazel.htrue, Hazel.and(Hazel.htrue, Hazel.buildEmptyHole(7)))
+Hazel.print_prog(result)

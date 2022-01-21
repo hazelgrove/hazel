@@ -49,3 +49,6 @@ setup.log
 .vscode
 .history
 .code-workspace
+
+# Grain
+*.gr.wasm

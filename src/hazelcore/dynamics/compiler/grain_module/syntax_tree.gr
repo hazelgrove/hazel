@@ -1,0 +1,10 @@
+export enum BinBoolOp {
+    And,
+    Or,
+}
+
+export enum DHExp {
+    EmptyHole(Number),
+    BoolLit(Bool),
+    BinBoolOp(BinBoolOp, DHExp, DHExp),
+}
