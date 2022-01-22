@@ -59,7 +59,9 @@ module HTyp = {
   type t = HTyp.t;
   type join = HTyp.join;
 
-  let equiv = kcequiv;
+  // TODO: (eric) XXX redo kinded type equivalence
+  // let equiv = kcequiv;
+  let equiv = (_, _) => false;
 
   let rec consistent = (ctx: Contexts.t, x, y) =>
     switch (x, y) {
