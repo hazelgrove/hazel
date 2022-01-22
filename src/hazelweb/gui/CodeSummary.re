@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 //open Sexplib;
 let highlight =
-    (shortened_msg: string, steps: CursorPath.steps, mapping: ColorSteps.t)
+    (msg: list(Node.t), steps: CursorPath.steps, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(steps, mapping);
   /*print_endline(
@@ -14,7 +14,7 @@ let highlight =
   (
     Node.span(
       [Attr.style(Css_gen.(create(~field="background-color", ~value=c)))],
-      [Node.text(shortened_msg)],
+      msg,
     ),
     mapping,
   );
@@ -54,147 +54,80 @@ let comma_separated_list = (items: list(string)): string => {
   List.fold_left((acc, item) => acc ++ item, "", items);
 };
 
+let print_markdown = doc => {
+  print_endline("-----------------BEGIN PRINTING------------------");
+  let rec print_markdown' = doc => {
+    let _ =
+      List.mapi(
+        (index, element) => {
+          print_endline(string_of_int(index));
+          switch (element) {
+          | Omd.Paragraph(d) =>
+            print_endline("------Paragraph---------");
+            print_markdown'(d);
+          | Ul(_items) => print_endline("Ul")
+          | Ulp(_items) => print_endline("Ul  PPPPPP")
+          | Text(_) => print_endline("Text")
+          | Url(_) => print_endline("URL")
+          | _ => print_endline("Something else")
+          };
+        },
+        doc,
+      );
+    ();
+  };
+  print_markdown'(doc);
+  print_endline("---------------------END PRINTING-----------------");
+};
+
 /*
  Markdown like thing:
  highlighty thing : [thing to highlight](int indices)
  bulleted list: - list item
                 - list item
-  empty list [] : empty_list
  */
-/* TODO: Hannah maybe make intermediate representation of text and references then do pass to do color mappings*/
 let build_msg =
-    (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
-  print_endline(text);
-  let parse_steps = (step_str: string): option(CursorPath.steps) => {
-    let regex = Re.Str.regexp({| |});
-    let pieces = Re.Str.split(regex, step_str);
+    (text: string, _show_highlight: bool): (list(Node.t), ColorSteps.t) => {
+  let omd = Omd.of_string(text);
+  print_markdown(omd);
+  let rec translate =
+          (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
     List.fold_left(
-      (acc, piece) =>
-        switch (acc) {
-        | Some(steps)
-            when Re.Str.string_match(Re.Str.regexp("-?[0-9]+"), piece, 0) =>
-          Some(steps @ [int_of_string(piece)])
-        | _ => None
-        },
-      Some([]),
-      pieces,
-    );
-  };
-  let parse_line =
-      (line: string, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) => {
-    let regex = Re.Str.regexp({|\[\|\]\|(\|)|});
-    let pieces = Re.Str.full_split(regex, line);
-    let rec parse_line' =
-            (split_results: list(Re.Str.split_result), mapping: ColorSteps.t)
-            : (list(Node.t), ColorSteps.t) => {
-      switch (split_results) {
-      | [] => ([], mapping)
-      | [x, ...xs] =>
-        switch (x) {
-        | Delim("[") =>
-          switch (xs) {
-          | [
-              Text(msg),
-              Delim("]"),
-              Delim("("),
-              Text(indices),
-              Delim(")"),
-              ...xs,
-            ]
-              when Option.is_some(parse_steps(indices)) =>
-            let (msg_node, mapping) =
-              if (show_highlight) {
-                // TODO: Is the OptUtil and parsing the steps twice the right way to do this?
-                highlight(
-                  msg,
-                  OptUtil.get(() => [], parse_steps(indices)),
-                  mapping,
-                );
-              } else {
-                (Node.text(msg), mapping);
-              };
-            let (rest, mapping) = parse_line'(xs, mapping);
-            ([msg_node, ...rest], mapping);
-          | [Text(msg), Delim("]"), Delim("("), Delim(")"), ...xs] =>
-            let (msg_node, mapping) =
-              if (show_highlight) {
-                highlight(msg, [], mapping);
-              } else {
-                (Node.text(msg), mapping);
-              };
-            let (rest, mapping) = parse_line'(xs, mapping);
-            ([msg_node, ...rest], mapping);
-          | _ =>
-            let (rest, mapping) = parse_line'(xs, mapping);
-            ([Node.text("["), ...rest], mapping);
-          }
-
-        | Delim(t)
-        | Text(t) =>
-          let (rest, mapping) = parse_line'(xs, mapping);
-          ([Node.text(t), ...rest], mapping);
+      ((msg, mapping), elem) => {
+        switch (elem) {
+        | Omd.Paragraph(d) => translate(d, mapping)
+        | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
+        | Ul(items) =>
+          print_endline("IN THE LIST THINGY");
+          let (bullets, mapping) =
+            List.fold_left(
+              ((nodes, mapping), d) => {
+                let (n, mapping) = translate(d, mapping);
+                (List.append(nodes, [Node.li([], n)]), mapping);
+              },
+              ([], mapping),
+              items,
+            );
+          (List.append(msg, [Node.ul([], bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+        | Code(_name, t) => (List.append(msg, [Node.text(t)]), mapping)
+        | Url(path, d, _title) =>
+          let (d, mapping) = translate(d, mapping);
+          let path =
+            List.map(
+              int_of_string,
+              Re.Str.split(Re.Str.regexp({| |}), path),
+            );
+          let (inner_msg, mapping) = highlight(d, path, mapping);
+          (List.append(msg, [inner_msg]), mapping);
+        | _ =>
+          print_endline("OTHER");
+          (msg, mapping);
         }
-      };
-    };
-    /*let _ =
-      List.mapi(
-        (i, item) => {
-          switch (item) {
-          | Re.Str.Text(t) =>
-            print_endline(string_of_int(i) ++ " Text: " ++ t)
-          | Delim(d) => print_endline(string_of_int(i) ++ " Delim: " ++ d)
-          }
-        },
-        pieces,
-      );*/
-    parse_line'(pieces, mapping);
-  };
-  let pieces = Re.Str.split(Re.Str.regexp("\n"), text);
-  let rec parse =
-          (lines: list(string), mapping: ColorSteps.t)
-          : (list(Node.t), ColorSteps.t) => {
-    switch (lines) {
-    | [] => ([], mapping)
-    | [line, ...lines] =>
-      let trim = String.trim(line);
-      if (String.length(trim) > 0 && trim.[0] == '-') {
-        let rec parse_bullets =
-                (lines: list(string), mapping: ColorSteps.t)
-                : (list(Node.t), list(string), ColorSteps.t) => {
-          switch (lines) {
-          | [] => ([], [], mapping)
-          | [line, ...lines] =>
-            let trim = String.trim(line);
-            if (String.length(trim) > 0 && trim.[0] == '-') {
-              let trim = String.sub(trim, 1, String.length(trim) - 1);
-              let (tail_bullets, lines, mapping) =
-                parse_bullets(lines, mapping);
-              let (line, mapping) = parse_line(trim, mapping);
-              ([Node.li([], line), ...tail_bullets], lines, mapping); /* TODO Hannah Maybe this reverses the colors? */
-            } else {
-              ([], [line, ...lines], mapping);
-            };
-          };
-        };
-        let (bullets, lines, mapping) =
-          parse_bullets([line, ...lines], mapping);
-        let (rest, mapping) = parse(lines, mapping);
-        ([Node.ol([], bullets), ...rest], mapping);
-      } else {
-        let (nodes, mapping) = parse_line(trim, mapping);
-        let (rest, mapping) = parse(lines, mapping);
-        (nodes @ rest, mapping);
-      };
-    };
-  };
-  /*let _ =
-    List.mapi(
-      (i, item) => {
-        print_endline("Line " ++ string_of_int(i) ++ ": " ++ item)
       },
-      pieces,
-    );*/
-  parse(pieces, ColorSteps.empty);
+      ([], mapping),
+      doc,
+    );
+  translate(omd, ColorSteps.empty);
 };
 
 let let_line_msg =
@@ -213,7 +146,7 @@ let let_line_msg =
     | EmptyHole(n) =>
       build_msg(
         "Bind the [definition](1) to the pattern that fills [hole "
-        ++ string_of_int(n)
+        ++ string_of_int(n + 1)
         ++ "](0) and evaluate the [body](2)",
         show_highlight,
       )
@@ -302,7 +235,7 @@ let lambda_msg =
       build_msg(
         begin_msg
         ++ "when [hole "
-        ++ string_of_int(n)
+        ++ string_of_int(n + 1)
         ++ "](0) is filled with a valid pattern",
         show_highlight,
       )
@@ -621,7 +554,7 @@ let pattern_msg =
       build_msg(
         "[Function application]("
         ++ typ_annot_step
-        ++ ") is not a vlaid pattern. No values match this pattern",
+        ++ ") is not a valid pattern. No values match this pattern",
         show_highlight,
       )
     }
@@ -749,7 +682,7 @@ let summary_msg =
               } else {
                 "otherwise, ";
               };
-            "\n-"
+            "\n- "
             ++ start
             ++ "the ["
             ++ word_num
