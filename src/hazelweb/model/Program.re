@@ -384,6 +384,156 @@ let renumber =
   renumber_sigmas_only(path, hii, d);
 };
 
+/* RAPID PROTOTYPING HERE */
+
+module HoleClosureCtx = {
+  [@deriving sexp]
+  type t = MetaVarMap.t(IntMap.t((int, EvalEnv.t)));
+
+  let empty: t = IntMap.empty;
+
+  /* TODO: rename to find_opt_hole_closure */
+  let mem_hole_closure =
+      (hcc: t, u: MetaVar.t, env: EvalEnv.t): option((int, EvalEnv.t)) => {
+    switch (EvalEnv.id_of_evalenv(env)) {
+    | Some(ei) =>
+      switch (MetaVarMap.find_opt(u, hcc)) {
+      | Some(hole_closures) => IntMap.find_opt(ei, hole_closures)
+      | None => None
+      }
+    | None => None
+    };
+  };
+
+  /* TODO: rename to install_hole_closure */
+  let get_hole_closure_id = (hcc: t, u: MetaVar.t, env: EvalEnv.t): (t, int) => {
+    switch (EvalEnv.id_of_evalenv(env)) {
+    | Some(ei) =>
+      switch (MetaVarMap.find_opt(u, hcc)) {
+      | Some(hole_closures) =>
+        switch (IntMap.find_opt(ei, hole_closures)) {
+        | Some((ci, _)) => (hcc, ci)
+        | None =>
+          let ci = IntMap.cardinal(hole_closures);
+          (
+            MetaVarMap.add(u, IntMap.add(ei, (ci, env), hole_closures), hcc),
+            ci,
+          );
+        }
+      | None => (
+          MetaVarMap.add(u, MetaVarMap.singleton(ei, (0, env)), hcc),
+          0,
+        )
+      }
+    | None => raise(EvalEnv.InvalidEvalEnvType)
+    };
+  };
+};
+
+let rec trace_hole_closures_rec =
+        (hcc: HoleClosureCtx.t, d: DHExp.t): (HoleClosureCtx.t, DHExp.t) => {
+  switch (d) {
+  /* Non-hole forms */
+  | BoundVar(_)
+  | InvalidText(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => (hcc, d)
+  | Let(dp, d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, Let(dp, d1, d2));
+  | Lam(x, ty, d1) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    (hcc, Lam(x, ty, d1));
+  | Closure(_) =>
+    exception UnrevertedClosureException;
+    raise(UnrevertedClosureException);
+  | Ap(d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, Ap(d1, d2));
+  | BinBoolOp(op, d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, BinBoolOp(op, d1, d2));
+  | BinIntOp(op, d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, BinIntOp(op, d1, d2));
+  | BinFloatOp(op, d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, BinFloatOp(op, d1, d2));
+  | Cons(d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, Cons(d1, d2));
+  | Inj(ty, side, d') =>
+    let (hcc, d') = trace_hole_closures_rec(hcc, d');
+    (hcc, Inj(ty, side, d'));
+  | Pair(d1, d2) =>
+    let (hcc, d1) = trace_hole_closures_rec(hcc, d1);
+    let (hcc, d2) = trace_hole_closures_rec(hcc, d2);
+    (hcc, Pair(d1, d2));
+  | Cast(d', ty1, ty2) =>
+    let (hcc, d') = trace_hole_closures_rec(hcc, d');
+    (hcc, Cast(d', ty1, ty2));
+  /* Hole forms */
+  | EmptyHole(u, _, sigma) =>
+    /* TODO: only recurse through the hole's environment if it has not
+       already been seen */
+    switch (HoleClosureCtx.mem_hole_closure(hcc, u, sigma)) {
+    | Some((ci, sigma)) => (hcc, EmptyHole(u, ci, sigma))
+    | None =>
+      let (hcc, sigma) = trace_hole_closures_through_sigmas(hcc, sigma);
+      let (hcc, ci) = HoleClosureCtx.get_hole_closure_id(hcc, u, sigma);
+      (hcc, EmptyHole(u, ci, sigma));
+    }
+
+  /* TODO */
+  | _ =>
+    print_endline(
+      "Not implemented " ++ Sexplib.Sexp.to_string(DHExp.sexp_of_t(d)),
+    );
+    (hcc, d);
+  };
+}
+and trace_hole_closures_through_sigmas =
+    (hcc: HoleClosureCtx.t, sigma: EvalEnv.t): (HoleClosureCtx.t, EvalEnv.t) => {
+  /* Fold operation over each entry in the environment, keeping environment ID */
+  switch (EvalEnv.id_of_evalenv(sigma)) {
+  | Some(ei) =>
+    let (hcc, result_map) =
+      List.fold_right(
+        ((var, var_result), (hcc, result_map)) => {
+          let (hcc, var_result) =
+            switch (var_result) {
+            | DHExp.Indet(d) =>
+              let (hcc, d) = trace_hole_closures_rec(hcc, d);
+              (hcc, DHExp.Indet(d));
+            | DHExp.BoxedValue(d) =>
+              let (hcc, d) = trace_hole_closures_rec(hcc, d);
+              (hcc, DHExp.BoxedValue(d));
+            };
+          (hcc, [(var, var_result), ...result_map]);
+        },
+        EvalEnv.result_map_of_evalenv(sigma),
+        (hcc, []),
+      );
+    (hcc, Env(ei, result_map));
+  | None => raise(EvalEnv.InvalidEvalEnvType)
+  };
+};
+
+let trace_hole_closures = (d: DHExp.t): (HoleClosureCtx.t, DHExp.t) => {
+  trace_hole_closures_rec(HoleClosureCtx.empty, d);
+};
+
+/* END RAPID PROTOTYPING */
+
 exception DoesNotElaborate;
 let elaborate =
   Memo.general(
@@ -405,14 +555,26 @@ let get_result = (program: t): Result.t => {
   print_endline(
     "EC: "
     ++ to_string(EvalEnv.EvalEnvCtx.sexp_of_t(ec))
-    ++ " RESULT: "
+    ++ "\n\nRESULT: "
     ++ to_string(Evaluator.sexp_of_result(result)),
   );
   switch (result) {
   | BoxedValue(d) =>
     print_endline(
       "CONVERTED: "
-      ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
+      ++ to_string(
+           DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d)),
+         )
+      ++ "\n\nHOLEINFO: "
+      ++ to_string(
+           HoleClosureCtx.sexp_of_t(
+             switch (
+               trace_hole_closures(Evaluator.expand_closures_to_lambdas(d))
+             ) {
+             | (hcc, _) => hcc
+             },
+           ),
+         ),
     );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
@@ -420,7 +582,19 @@ let get_result = (program: t): Result.t => {
   | Indet(d) =>
     print_endline(
       "CONVERTED: "
-      ++ to_string(DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d))),
+      ++ to_string(
+           DHExp.sexp_of_t(Evaluator.expand_closures_to_lambdas(d)),
+         )
+      ++ "\n\nHOLEINFO: "
+      ++ to_string(
+           HoleClosureCtx.sexp_of_t(
+             switch (
+               trace_hole_closures(Evaluator.expand_closures_to_lambdas(d))
+             ) {
+             | (hcc, _) => hcc
+             },
+           ),
+         ),
     );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);

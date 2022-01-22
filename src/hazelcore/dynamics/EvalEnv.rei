@@ -22,11 +22,15 @@ module EvalEnvCtx: {
   type t;
 };
 
+exception InvalidEvalEnvType;
+
 [@deriving sexp]
 type t = DHExp.evalenv
 and result = DHExp.result
 and result_map = VarMap.t_(result);
 
+let id_of_evalenv: t => option(int);
+let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
 
 let empty: (EvalEnvCtx.t, t);
