@@ -7,7 +7,18 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let expand_closures_to_lambdas: DHExp.t => DHExp.t;
+/* TODO: annotate */
+module HoleClosureCtx: {
+  [@deriving sexp]
+  type t = MetaVarMap.t(IntMap.t((int, EvalEnv.t)));
+  let empty: t;
+  let mem_hole_closure:
+    (t, MetaVar.t, EvalEnv.t) => option((int, EvalEnv.t));
+  let get_hole_closure_id: (t, MetaVar.t, EvalEnv.t) => (t, int);
+};
+
+let expand_closures_to_lambdas:
+  (HoleClosureCtx.t, DHExp.t) => (HoleClosureCtx.t, DHExp.t);
 
 let evaluate:
   (EvalEnv.EvalEnvCtx.t, EvalEnv.t, DHExp.t) => (EvalEnv.EvalEnvCtx.t, result);
