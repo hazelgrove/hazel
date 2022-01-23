@@ -7,6 +7,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~loc: (float, float),
+    Contexts.t,
     CursorInspectorModel.t,
     CursorInfo.t
   ) =>

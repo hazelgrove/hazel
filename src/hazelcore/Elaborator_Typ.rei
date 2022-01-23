@@ -1,7 +1,7 @@
 module ElaborationResult: {
-  module Syn: {type t = option((HTyp.t, Kind.t, Delta.t));};
+  module Syn: {type t = option((DHTyp.t, Kind.t, Delta.t));};
 
-  module Ana: {type t = option((HTyp.t, Delta.t));};
+  module Ana: {type t = option((DHTyp.t, Delta.t));};
 
   include Monads.MONAD with type t('a) := option('a);
 };

@@ -597,45 +597,22 @@ let get_new_action_group =
         | ExpOperand(pos, uexp_operand) =>
           switch (uexp_operand) {
           | Var(_, InVarHole(Keyword(k), _), _) =>
-            switch (k) {
-            | Let =>
-              switch (
-                UndoHistoryCore.get_cursor_pos(
-                  new_cursor_term_info.cursor_term_before,
-                )
-              ) {
-              | OnText(pos) =>
-                if (pos == 3) {
-                  /* the caret is at the end of "let" */
-                  Some(
-                    ConstructEdit(SLet),
-                  );
-                } else {
-                  Some(ConstructEdit(SOp(SSpace)));
-                }
-              | OnDelim(_, _)
-              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-              }
-
-            | Case =>
-              switch (
-                UndoHistoryCore.get_cursor_pos(
-                  new_cursor_term_info.cursor_term_before,
-                )
-              ) {
-              | OnText(pos) =>
-                if (pos == 4) {
-                  /* the caret is at the end of "case" */
-                  Some(
-                    ConstructEdit(SCase),
-                  );
-                } else {
-                  Some(ConstructEdit(SOp(SSpace)));
-                }
-              | OnDelim(_, _)
-              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-              }
-            }
+            let (kw_len, kw_shape: Action.shape) =
+              switch (k) {
+              | Let => (3, SLet)
+              | Case => (4, SCase)
+              | TyAlias => (4, STyAlias)
+              };
+            switch (
+              UndoHistoryCore.get_cursor_pos(
+                new_cursor_term_info.cursor_term_before,
+              )
+            ) {
+            | OnText(pos) =>
+              Some(ConstructEdit(pos == kw_len ? kw_shape : SOp(SSpace)))
+            | OnDelim(_, _)
+            | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+            };
           | Var(_, _, var) =>
             switch (pos) {
             | OnText(index) =>

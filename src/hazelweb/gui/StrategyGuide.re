@@ -80,6 +80,9 @@ let lit_msg = (ty: HTyp.t) => {
   | Sum(_, _) => [sum_lit]
   | Prod(_) => [prod_lit]
   | List(_) => [list_lit]
+  // TODO: (eric) how to handle type variables in the strategy guide?
+  | TyVar(_)
+  | TyVarHole(_) => failwith(__LOC__ ++ ": not implemented")
   };
 };
 

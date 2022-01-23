@@ -109,6 +109,7 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
+      ctx: Contexts.t,
       (steps, cursor): CursorPath.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
@@ -129,6 +130,7 @@ let view_of_cursor_inspector =
   CursorInspector.view(
     ~inject,
     ~loc=(cursor_x, cursor_y),
+    ctx,
     cursor_inspector,
     cursor_info,
   );
@@ -209,6 +211,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
+      ctx: Contexts.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -238,6 +241,7 @@ let view =
             view_of_cursor_inspector(
               ~inject,
               ~font_metrics,
+              ctx,
               path,
               cursor_inspector,
               ci,

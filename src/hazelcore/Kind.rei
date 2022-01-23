@@ -5,6 +5,6 @@ type t =
   // higher singleton
   | Singleton(t, HTyp.t);
 
-let to_string: t => string;
+// let to_string: t => string;
 
-let is_singleton: t => bool;
+// let is_singleton: t => bool;

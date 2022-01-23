@@ -380,7 +380,7 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      if (Construction.HTyp.consistent(ctx, ty, ty')) {
+      if (HTyp.consistent(ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
@@ -3035,7 +3035,7 @@ and ana_perform_operand =
       | (Failed | CursorEscaped(_)) as outcome => outcome
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
       | Succeeded(SynDone((ze', ty', u_gen))) =>
-        if (Construction.HTyp.consistent(ctx, ty', ty)) {
+        if (HTyp.consistent(ty', ty)) {
           // prune unnecessary type annotation
           let ze' =
             switch (ze') {
@@ -3574,7 +3574,7 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
-      if (Construction.HTyp.consistent(ctx, ty, ty1)) {
+      if (HTyp.consistent(ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);

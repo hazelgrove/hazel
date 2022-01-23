@@ -10,7 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
-  | TyVar(VarErrStatus.t, TyId.t)
+  | TyVar(TyVarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 

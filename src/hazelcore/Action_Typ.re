@@ -59,17 +59,17 @@ let text_operand =
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (
       TyVar(
-        InVarHole(Keyword(k), u),
+        InTyVarHole(Keyword(k), u),
         k |> ExpandingKeyword.to_string |> TyId.of_string,
       ),
       u_gen,
     );
   | TyVar(id) =>
     if (TyVarCtx.contains(Contexts.tyvars(ctx), id)) {
-      (TyVar(NotInVarHole, id), u_gen);
+      (TyVar(NotInTyVarHole, id), u_gen);
     } else {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
-      (TyVar(InVarHole(Free, u), id), u_gen);
+      (TyVar(InTyVarHole(Free, u), id), u_gen);
     }
   };
 
@@ -161,7 +161,7 @@ let mk_syn_text =
           ZTyp.CursorT(
             text_cursor,
             TyVar(
-              InVarHole(Keyword(k), u),
+              InTyVarHole(Keyword(k), u),
               k |> ExpandingKeyword.to_string |> TyId.of_string,
             ),
           ),
@@ -174,7 +174,8 @@ let mk_syn_text =
       let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
       Succeeded({
-        zty: ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
+        zty:
+          ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInTyVarHole, x))),
         kind: k,
         u_gen,
       });
@@ -183,7 +184,7 @@ let mk_syn_text =
       Succeeded({
         zty:
           ZOpSeq.wrap(
-            ZTyp.CursorT(text_cursor, TyVar(InVarHole(Free, u), x)),
+            ZTyp.CursorT(text_cursor, TyVar(InTyVarHole(Free, u), x)),
           ),
         kind: Kind.KHole,
         u_gen,

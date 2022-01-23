@@ -71,8 +71,7 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
   // TODO: Should this be consistent?
-  if (Construction.HTyp.equiv(ctx, expected_ty, got_ty)
-      || Construction.HTyp.equiv(ctx, got_ty, HTyp.Hole)) {
+  if (HTyp.equiv(expected_ty, got_ty) || HTyp.equiv(got_ty, HTyp.Hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -91,7 +90,7 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (Construction.HTyp.consistent(ctx, ty, got_ty)) {
+    if (HTyp.consistent(ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ctx, ty, got_ty);
@@ -108,6 +107,7 @@ let syn_branch_clause_msg =
 
 let advanced_summary =
     (
+      ctx: Contexts.t,
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
@@ -205,6 +205,7 @@ let advanced_summary =
       exp_keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
+        ctx,
         join,
         typed,
         [syn],
@@ -222,9 +223,13 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
+    | OnType(_) => /*TODO */ [emphasize_text("Type")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | OnTPat(_) => /* TODO */ [emphasize_text("Type Pattern")]
+    | OnTPatHole => /* TODO */ [emphasize_text("Pattern Hole")]
+    | TypFree => /* TODO */ [emphasize_text("Free Type Variable")]
+    | TypKeyword(_) => /* TODO */ [emphasize_text("Type Keyword")]
     };
   };
   switch (typed) {
@@ -235,6 +240,7 @@ let advanced_summary =
 
 let novice_summary =
     (
+      ctx: Contexts.t,
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
@@ -250,7 +256,6 @@ let novice_summary =
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
-        ctx,
         expected_ty,
         got_ty,
         expecting_of_type,
@@ -384,6 +389,7 @@ let novice_summary =
       exp_keyword_msg(term, keyword, main_msg);
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
+        ctx,
         join,
         typed,
         [Node.text("Got " ++ article), term_tag, Node.text("of type")],
@@ -404,7 +410,7 @@ let novice_summary =
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
+    | OnType(_) => [Node.text("Got " ++ article), term_tag]
     | OnNonLetLine => /* TODO */ [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
@@ -415,6 +421,26 @@ let novice_summary =
         term_tag,
         emphasize_text(~only_right=true, "Rule"),
       ]
+    | OnTPatHole => /* TODO */ [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Pattern Hole"),
+      ]
+    | OnTPat(_) => /* TODO */ [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Pattern"),
+      ]
+    | TypFree => /* TODO */ [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Free Type Variable"),
+      ]
+    | TypKeyword(_) => /* TODO */ [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Keyword"),
+      ]
     };
   };
   message(typed);
@@ -423,6 +449,7 @@ let novice_summary =
 let summary_bar =
     (
       ~inject: ModelAction.t => Event.t,
+      ctx: Contexts.t,
       ci: CursorInfo.t,
       show_expansion_arrow: bool,
       show_expanded: bool,
@@ -462,8 +489,8 @@ let summary_bar =
         ),
       ],
       novice_mode
-        ? novice_summary(ci.typed, ci.cursor_term, tag_type)
-        : advanced_summary(ci.typed, ci.cursor_term, tag_type),
+        ? novice_summary(ctx, ci.typed, ci.cursor_term, tag_type)
+        : advanced_summary(ctx, ci.typed, ci.cursor_term, tag_type),
     );
   let fill_icon =
     Node.div(
@@ -496,9 +523,9 @@ let summary_bar =
 
 let view =
     (
-      ctx: Contexts.t,
       ~inject: ModelAction.t => Event.t,
       ~loc: (float, float),
+      ctx: Contexts.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
     )
@@ -546,15 +573,6 @@ let view =
   let expected_msg_indicator = msg =>
     expected_indicator("Expecting an expression of ", special_msg_bar(msg));
   let expected_any_indicator = expected_msg_indicator("any type");
-  let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
-  let expected_any_type_pattern =
-    expected_msg_indicator_pat("any type pattern");
-  let expected_a_type_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a type"));
-  let expected_a_line_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a line item"));
-  let expected_a_rule_indicator =
-    expected_indicator("Expecting ", special_msg_bar("a case rule"));
   let expected_inconsistent_branches_indicator =
       (branch_types, path_to_case, skipped_index) =>
     expected_indicator(
@@ -566,178 +584,20 @@ let view =
       ),
     );
 
-  let got_indicator = (title_text, type_div) =>
+  let got_msg_indicator = (~content=[], title_text) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
-      [Panel.view_of_other_title_bar(title_text), type_div],
+      [Panel.view_of_other_title_bar(title_text), ...content],
     );
+
+  let got_indicator = (title_text, type_div) =>
+    got_msg_indicator(title_text, ~content=[type_div]);
   let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
     got_indicator(
       "Got inconsistent branch types",
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
     );
 
-  let got_free_indicator =
-    got_indicator("Got a free variable", typebar(HTyp.Hole));
-  let got_free_tyvar_indicator =
-    got_indicator("Got a free type variable", typebar(HTyp.Hole));
-
-  let got_invalid_indicator =
-    got_indicator("Got invalid text", typebar(HTyp.Hole));
-
-  let got_consistent_indicator = got_ty =>
-    got_indicator("Got consistent type", typebar(got_ty));
-  let got_a_type_variable_indicator =
-    got_indicator("Got", special_msg_bar("a type variable"));
-  let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
-  let got_a_line_indicator =
-    got_indicator("Got", special_msg_bar("a line item"));
-  let got_a_rule_indicator =
-    got_indicator("Got", special_msg_bar("a case rule"));
-  let got_keyword_indicator =
-    got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
-  let got_builtin_type_indicator = typ =>
-    got_indicator("Got a builtin type", typebar(typ));
-
-  let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let rec get_indicator_info = (typed: CursorInfo.typed) =>
-    switch (typed) {
-    | Analyzed(ty) =>
-      let ind1 = expected_ty_indicator(ty);
-      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
-    | AnaAnnotatedLambda(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 =
-        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
-    | AnaTypeInconsistent(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
-    | AnaWrongLength(expected_len, got_len, _expected_ty) =>
-      let expected_msg = string_of_int(expected_len) ++ "-tuple";
-      let ind1 =
-        expected_indicator(
-          "Expecting an expression of type",
-          special_msg_bar(expected_msg),
-        );
-      let got_msg = string_of_int(got_len) ++ "-tuple";
-      let ind2 =
-        got_indicator(
-          "Got tuple of the wrong length",
-          special_msg_bar(got_msg),
-        );
-      (ind1, ind2, TypeInconsistency);
-    | AnaInvalid(expected_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
-    | AnaFree(expected_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
-    | AnaSubsumed(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 =
-        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
-    | AnaKeyword(expected_ty, _keyword) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
-    | Synthesized(ty) =>
-      let ind1 = expected_any_indicator;
-      let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
-    | SynInvalid =>
-      let ind1 = expected_any_indicator;
-      let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
-    | SynFree =>
-      let ind1 = expected_any_indicator;
-      let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
-    | SynKeyword(_keyword) =>
-      let ind1 = expected_any_indicator;
-      let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
-    | SynErrorArrow(expected_ty, got_ty) =>
-      let ind1 = expected_msg_indicator("function type");
-      let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
-    | SynMatchingArrow(syn_ty, matched_ty) =>
-      let ind1 = expected_msg_indicator("function type");
-      let ind2 =
-        switch (syn_ty) {
-        | HTyp.Hole =>
-          got_indicator(
-            "Got type ▶ matched to",
-            matched_ty_bar(syn_ty, matched_ty),
-          )
-        | _ => got_indicator("Got", typebar(syn_ty))
-        };
-      (ind1, ind2, OK);
-    | SynKeywordArrow(matched_ty, _k) =>
-      let ind1 = expected_msg_indicator("function type");
-      let ind2 =
-        got_indicator(
-          "Got a keyword ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
-        );
-      (ind1, ind2, BindingError);
-    | SynInvalidArrow(matched_ty) =>
-      let ind1 = expected_msg_indicator("function type");
-      let ind2 =
-        got_indicator(
-          "Got invalid text ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
-        );
-      (ind1, ind2, BindingError);
-    | SynFreeArrow(matched_ty) =>
-      let ind1 = expected_msg_indicator("function type");
-      let ind2 =
-        got_indicator(
-          "Got a free variable ▶ matched to",
-          matched_ty_bar(HTyp.Hole, matched_ty),
-        );
-      (ind1, ind2, BindingError);
-    | SynBranchClause(join, typed, branch_index) =>
-      let (ind1, ind2, err_state_b) = get_indicator_info(typed);
-      let ind1 =
-        switch (join) {
-        | NoBranches => ind1
-        | InconsistentBranchTys(rule_types, path_to_case) =>
-          expected_inconsistent_branches_indicator(
-            rule_types,
-            path_to_case,
-            branch_index,
-          )
-        | JoinTy(ty) => expected_ty_indicator_consistent(ty)
-        };
-      let (ind2, err_state_b) =
-        switch (join, typed) {
-        | (JoinTy(ty), Synthesized(got_ty)) =>
-          switch (
-            Construction.HTyp.consistent(ci.ctx, ty, got_ty),
-            Construction.HTyp.equiv(ci.ctx, ty, got_ty),
-          ) {
-          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
-          | (true, false) => (got_consistent_indicator(got_ty), OK)
-          | (false, _) => (
-              got_inconsistent_indicator(got_ty),
-              TypeInconsistency,
-            )
-          }
-        | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
-        | _ => (ind2, err_state_b)
-        };
-      (ind1, ind2, err_state_b);
-    };
   let expanded_msg =
     switch (cursor_info.typed) {
     | SynBranchClause(
@@ -761,88 +621,8 @@ let view =
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency);
-    | TypKeyword(_keyword) =>
-      let ind1 = expected_a_type_indicator;
-      let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
-    | TypFree =>
-      let ind1 = expected_a_type_indicator;
-      let ind2 = got_free_tyvar_indicator;
-      (ind1, ind2, BindingError);
-    | OnType(_kind) =>
-      let ind1 = expected_a_type_indicator;
-      let ind2 = got_a_type_indicator;
-      (ind1, ind2, OK);
-    | PatAnalyzed(ty) =>
-      let ind1 = expected_ty_indicator_pat(ty);
-      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
-    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
-    | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
-      let expected_msg = string_of_int(expected_len) ++ "-tuple";
-      let ind1 =
-        expected_indicator(
-          "Expecting a pattern of form",
-          special_msg_bar(expected_msg),
-        );
-      let got_msg = string_of_int(got_len) ++ "-tuple";
-      let ind2 =
-        got_indicator(
-          "Got tuple of the wrong length",
-          special_msg_bar(got_msg),
-        );
-      (ind1, ind2, TypeInconsistency);
-    | PatAnaInvalid(expected_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
-    | PatAnaSubsumed(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 =
-        Construction.HTyp.equiv(ci.ctx, expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
-    | PatAnaKeyword(expected_ty, _keyword) =>
-      let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
-    | PatSynthesized(ty) =>
-      let ind1 = expected_any_indicator_pat;
-      let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
-    | PatSynKeyword(_keyword) =>
-      let ind1 = expected_any_indicator_pat;
-      let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
-    | OnTPat(None)
-    | OnTPatHole =>
-      let ind1 = expected_any_type_pattern;
-      let ind2 = got_a_type_variable_indicator;
-      (ind1, ind2, OK);
-    | OnTPat(Some(e)) =>
-      let ind1 = expected_any_type_pattern;
-      let ind2 =
-        switch (e) {
-        | TPat.VarPatErrStatus.Keyword(_kw) => got_keyword_indicator
-        | TPat.VarPatErrStatus.BuiltInType(typ) =>
-          got_builtin_type_indicator(HTyp.t_of_builtintype(typ))
-        };
-      (ind1, ind2, BindingError);
-    | OnLine =>
-      /* TODO */
-      let ind1 = expected_a_line_indicator;
-      let ind2 = got_a_line_indicator;
-      (ind1, ind2, OK);
-    | OnRule =>
-      /* TODO */
-      let ind1 = expected_a_rule_indicator;
-      let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
+      Some([ind1, ind2]);
+    | _ => None
     };
 
   let rec get_err_state_b = (typed: CursorInfo.typed) =>
@@ -852,12 +632,14 @@ let view =
     | AnaSubsumed(_)
     | Synthesized(_)
     | SynMatchingArrow(_)
-    | OnType
     | PatAnalyzed(_)
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule => OK
+    | OnRule
+    | OnType(_)
+    | OnTPat(_)
+    | OnTPatHole => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
@@ -876,7 +658,9 @@ let view =
     | SynFreeArrow(_)
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
-    | PatSynKeyword(_) => BindingError
+    | PatSynKeyword(_)
+    | TypFree
+    | TypKeyword(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -942,6 +726,7 @@ let view =
   let summary =
     summary_bar(
       ~inject,
+      ctx,
       cursor_info,
       show_expansion_arrow,
       cursor_inspector.show_expanded,

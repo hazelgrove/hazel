@@ -5,13 +5,12 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole(MetaVar.t)
+  | TyVar(TyVar.Status.t, TyVar.Name.t)
+  | Hole
   | Unit
   | Int
   | Float
   | Bool
-  // TODO: introduce TyVarErrStatus instead: unbound, keyword (includes built-in types), invalid-text (for e.g. numbers)
-  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -60,8 +59,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole(0 /* TODO: What do we do here? */))
-      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
-      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInTyVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InTyVarHole(Free, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -100,8 +99,8 @@ let contract = (ty: HTyp.t): t => {
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole(_) => false
-  | TyVar(NotInVarHole, _) => true
-  | TyVar(InVarHole(_), _) => false
+  | TyVar(NotInTyVarHole, _) => true
+  | TyVar(InTyVarHole(_), _) => false
   | Unit => true
   | Int => true
   | Float => true

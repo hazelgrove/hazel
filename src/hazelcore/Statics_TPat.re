@@ -1,5 +1,3 @@
-open TPat;
-
 let matches = (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t): Contexts.t => {
   switch (t) {
   | EmptyHole => ctx
@@ -8,11 +6,11 @@ let matches = (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t): Contexts.t =
   };
 };
 
-let fix_holes = (ctx: Contexts.t, t: TPat.t, k: Kind.t): (Contexts.t, TPat.t) => {
-  switch (t) {
+let fix_holes = (ctx: Contexts.t, p: TPat.t, k: Kind.t): (Contexts.t, TPat.t) => {
+  switch (p) {
   | EmptyHole => (ctx, EmptyHole)
-  | TyVar(_, id) =>
-    switch (TPat.tyvar_of_tyid(id)) {
+  | TyVar(_, t) =>
+    switch (TPat.tyvar_of_tyid(t)) {
     | EmptyHole => (ctx, EmptyHole)
     | TyVar(None, id) as tvar => (
         Contexts.extend_tyvars(ctx, (id, k)),

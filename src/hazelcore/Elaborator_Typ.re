@@ -2,11 +2,11 @@ module ElaborationResult = {
   include OptUtil;
 
   module Syn = {
-    type t = option((HTyp.t, Kind.t, Delta.t));
+    type t = option((DHTyp.t, Kind.t, Delta.t));
   };
 
   module Ana = {
-    type t = option((HTyp.t, Delta.t));
+    type t = option((DHTyp.t, Delta.t));
   };
 };
 
@@ -35,57 +35,48 @@ and syn_skel = (ctx, delta, skel, seq) =>
     let (tys, ds) = ListUtil.unzip(rs);
     let delta =
       ds |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
-    let tau = HTyp.Prod(tys);
-    (tau, Kind.Singleton(Type, tau), delta);
+    let ty = HTyp.Prod(tys);
+    ((ty, Contexts.tyvars(ctx)), Kind.Singleton(Type, ty), delta);
   | BinOp(_, op, skel1, skel2) =>
     /* TElabSBinOp */
     let* (ty1, d1) = ana_skel(ctx, delta, Kind.Type, skel1, seq);
     let+ (ty2, d2) = ana_skel(ctx, delta, Kind.Type, skel2, seq);
-    let ty =
+    let ty: HTyp.t =
       switch (op) {
-      | Arrow => HTyp.Arrow(ty1, ty2)
-      | Sum => HTyp.Sum(ty1, ty2)
+      | Arrow => Arrow(ty1, ty2)
+      | Sum => Sum(ty1, ty2)
       | Prod => failwith("Impossible, Prod is matched first")
       };
-    (ty, Kind.Singleton(Type, ty), Delta.union(d1, d2));
+    let dty = (ty, Contexts.tyvars(ctx));
+    (dty, Kind.Singleton(Type, ty), Delta.union(d1, d2));
   }
 and syn_operand = (ctx, delta, operand) => {
-  let const = (c: HTyp.t) => {
+  let const = (ty: HTyp.t) => {
     /* TElabSConst */
-    Some((c, Kind.Singleton(Type, c), delta));
+    let tyvars = Contexts.tyvars(ctx);
+    Some(((ty, tyvars), Kind.Singleton(Type, ty), delta));
   };
 
   switch (operand) {
   | Hole(u) =>
     /* TElabSHole */
-    Some((
-      HTyp.Hole,
-      Kind.KHole,
-      Delta.add(
-        u,
-        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
-        delta,
-      ),
-    ))
+    let tyvars = Contexts.tyvars(ctx);
+    let dty = (HTyp.Hole, tyvars);
+    Some((dty, KHole, Delta.(add(u, Hole.Type(KHole, tyvars), delta))));
   // TODO: NEHole case
-  | TyVar(NotInVarHole, t) =>
+  | TyVar(NotInTyVarHole, t) =>
     /* TElabSVar */
     let+ idx = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
     let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-    let tau = HTyp.TyVar(idx, t);
-    (tau, Kind.Singleton(k, tau), delta);
-  | TyVar(InVarHole(_, u), t) =>
+    let ty = HTyp.TyVar(idx, t);
+    ((ty, Contexts.tyvars(ctx)), Kind.Singleton(k, ty), delta);
+  | TyVar(InTyVarHole(_, u), t) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
-    Some((
-      HTyp.TyVarHole(u, t),
-      Kind.KHole,
-      Delta.add(
-        u,
-        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
-        delta,
-      ),
-    ))
+    let tyvars = Contexts.tyvars(ctx);
+    let dty = (HTyp.TyVarHole(u, t), tyvars);
+    let delta' = Delta.(add(u, Hole.Type(Kind.KHole, tyvars), delta));
+    Some((dty, Kind.KHole, delta'));
   | Unit => const(Prod([]))
   | Int => const(Int)
   | Float => const(Float)
@@ -93,9 +84,11 @@ and syn_operand = (ctx, delta, operand) => {
   | Parenthesized(opseq) => syn(ctx, delta, opseq)
   | List(opseq) =>
     /* TElabSList */
-    let+ (ty, delta) = ana(ctx, delta, opseq, Kind.Type);
-    let tau = HTyp.List(ty);
-    (tau, Kind.Singleton(Type, tau), delta);
+    // TODO: (eric) how to resolve tyvars here?
+    let+ ((ty, _tyvars), delta) = ana(ctx, delta, opseq, Kind.Type);
+    let ty = HTyp.List(ty);
+    let dty = (ty, Contexts.tyvars(ctx));
+    (dty, Kind.Singleton(Type, ty), delta);
   };
 }
 
@@ -110,8 +103,8 @@ and ana_skel = (ctx, delta, kind, skel, seq) =>
     seq |> Seq.nth_operand(n) |> ana_operand(ctx, delta, kind)
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
-    let+ (ty, _, delta) = syn_skel(ctx, delta, skel, seq);
-    (ty, delta);
+    let+ (dty, _, delta) = syn_skel(ctx, delta, skel, seq);
+    (dty, delta);
   }
 and ana_operand = (ctx, delta, kind, operand) => {
   switch (operand) {
@@ -126,7 +119,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
       ),
     ))
   // TODO: Add an NEHole case when it's possible to have an arbitrary type hole
-  | TyVar(InVarHole(_, u), t) =>
+  | TyVar(InTyVarHole(_, u), t) =>
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
     Some((
@@ -138,7 +131,7 @@ and ana_operand = (ctx, delta, kind, operand) => {
       ),
     ))
   | Parenthesized(opseq) => ana(ctx, delta, opseq, kind)
-  | TyVar(NotInVarHole, _)
+  | TyVar(NotInTyVarHole, _)
   | Unit
   | Int
   | Float
@@ -191,25 +184,25 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) =>
     /* TElabSHole */
     (Hole(u), Kind.KHole, u_gen)
   // TODO: NEHole case
-  | TyVar(NotInVarHole, t) =>
+  | TyVar(NotInTyVarHole, t) =>
     /* TElabSVar */
     let idx_opt = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
     switch (idx_opt) {
     | Some(idx) =>
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-      (TyVar(NotInVarHole, t), k, u_gen);
+      (TyVar(NotInTyVarHole, t), k, u_gen);
     | None =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       (
-        UHTyp.TyVar(InVarHole(VarErrStatus.HoleReason.Free, u), t),
+        UHTyp.TyVar(InTyVarHole(TyVarErrStatus.HoleReason.Free, u), t),
         Kind.KHole,
         u_gen,
       );
     };
-  | TyVar(InVarHole(r, u), t) =>
+  | TyVar(InTyVarHole(r, u), t) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
-    (UHTyp.TyVar(InVarHole(r, u), t), Kind.KHole, u_gen)
+    (UHTyp.TyVar(InTyVarHole(r, u), t), Kind.KHole, u_gen)
   | Unit => (Unit, Kind.Singleton(Type, Prod([])), u_gen)
   | Int => (Int, Kind.Singleton(Type, Int), u_gen)
   | Float => (Float, Kind.Singleton(Type, Float), u_gen)
@@ -255,14 +248,14 @@ and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
   | UHTyp.Hole(u) =>
     /* TElabAHole */
     (Hole(u), u_gen)
-  | TyVar(InVarHole(r, u), t) =>
+  | TyVar(InTyVarHole(r, u), t) =>
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
-    (TyVar(InVarHole(r, u), t), u_gen)
+    (TyVar(InTyVarHole(r, u), t), u_gen)
   | Parenthesized(body) =>
     let (block, u_gen) = ana_fix_holes(ctx, u_gen, body, kind);
     (Parenthesized(block), u_gen);
-  | TyVar(NotInVarHole, _)
+  | TyVar(NotInTyVarHole, _)
   | Unit
   | Int
   | Float

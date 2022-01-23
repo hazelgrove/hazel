@@ -11,15 +11,15 @@ let rec mk =
   let diff_subtypes = (subtype_step, (ty1, ty2)) =>
     TupleUtil.map2(List.map(List.cons(subtype_step)), mk(ctx, ty1, ty2));
   switch (ty1, ty2) {
-  | (Hole, _)
-  | (_, Hole)
+  | (Hole(_), _)
+  | (_, Hole(_))
   | (TyVarHole(_, _), _)
   | (_, TyVarHole(_, _))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])
   // TODO: add ctx to TyVar
-  | (TyVar(i, _), TyVar(j, _)) => i == j ? ([], []) : ([[]], [[]])
+  | (TyVar((i, _)), TyVar((j, _))) => i == j ? ([], []) : ([[]], [[]])
   | (TyVar(_), _)
   | (_, TyVar(_)) => ([], [])
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))

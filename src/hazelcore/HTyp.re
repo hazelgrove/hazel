@@ -1,24 +1,11 @@
 open Sexplib.Std;
 
-module Index = {
-  [@deriving sexp]
-  type t = int;
-
-  /* TODO: What is identity function */
-  let of_int = x => x;
-
-  let eq = (==);
-
-  /* Lookup at the nth position in context */
-  let lookup = List.nth;
-};
-
 /* types with holes */
 [@deriving sexp]
 type t =
-  | TyVar(Index.t, TyId.t) /* bound type variable */
-  | TyVarHole(MetaVar.t, TyId.t) /* free type variables */
-  | Hole
+  | TyVar(TyVar.t)
+  | TyVarHole(MetaVar.t, TyVar.t)
+  | Hole(MetaVar.t)
   | Int
   | Float
   | Bool
@@ -26,11 +13,6 @@ type t =
   | Sum(t, t)
   | Prod(list(t))
   | List(t);
-
-[@deriving sexp]
-type join =
-  | GLB
-  | LUB;
 
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
@@ -41,7 +23,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole
+  | Hole(_)
   | Prod([])
   | TyVar(_)
   | TyVarHole(_)
@@ -54,9 +36,9 @@ let precedence = (ty: t): int =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole
-  | TyVarHole(_) => {
-      Some((Hole, Hole));
+  | Hole(u)
+  | TyVarHole(u, _) => {
+      Some((Hole(u), Hole(u)));
     }
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
@@ -71,9 +53,9 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole
-  | TyVarHole(_) => {
-      Some((Hole, Hole));
+  | Hole(u)
+  | TyVarHole(u, _) => {
+      Some((Hole(u), Hole(u)));
     }
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
@@ -81,15 +63,15 @@ let matched_sum =
 /* matched list types */
 let matched_list =
   fun
-  | Hole
-  | TyVarHole(_) => Some(Hole)
+  | Hole(u)
+  | TyVarHole(u, _) => Some(Hole(u))
   | List(ty) => Some(ty)
   | _ => None;
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole => false
+  | Hole(_) => false
   | TyVarHole(_) => false
   | TyVar(_) => true
   | Int => true
@@ -100,24 +82,17 @@ let rec complete =
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
-let rec tyvar_debruijn_increment = t =>
-  switch (t) {
-  | TyVar(idx, id) => TyVar(idx + 1, id)
-  | TyVarHole(_)
-  | Hole
-  | Int
-  | Float
-  | Bool => t
-  | Arrow(t1, t2) =>
-    Arrow(tyvar_debruijn_increment(t1), tyvar_debruijn_increment(t2))
-  | Sum(t1, t2) =>
-    Sum(tyvar_debruijn_increment(t1), tyvar_debruijn_increment(t2))
-  | List(t) => List(tyvar_debruijn_increment(t))
-  | Prod(lst) => Prod(List.map(tyvar_debruijn_increment, lst))
-  };
-
-let t_of_builtintype =
+let rec increment_indices: t => t =
   fun
-  | TyId.BuiltInType.Bool => Bool
-  | Float => Float
-  | Int => Int;
+  | TyVar((i, t)) => TyVar((Index.increment(i), t))
+  | (TyVarHole(_) | Hole(_) | Int | Float | Bool) as ty => ty
+  | Arrow(t1, t2) => Arrow(increment_indices(t1), increment_indices(t2))
+  | Sum(t1, t2) => Sum(increment_indices(t1), increment_indices(t2))
+  | List(t) => List(increment_indices(t))
+  | Prod(lst) => Prod(List.map(increment_indices, lst));
+
+// let t_of_builtintype =
+//   fun
+//   | TyId.BuiltInType.Bool => Bool
+//   | Float => Float
+//   | Int => Int;

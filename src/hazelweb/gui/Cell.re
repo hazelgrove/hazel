@@ -6,7 +6,7 @@ module Sexp = Sexplib.Sexp;
 
 open ViewUtil;
 
-let view = (~inject, model: Model.t) => {
+let view = (~inject, ctx: Contexts.t, model: Model.t) => {
   let settings = model.settings;
   let cursor_inspector = model.cursor_inspector;
   let performance = settings.performance;
@@ -29,6 +29,7 @@ let view = (~inject, model: Model.t) => {
                 ~font_metrics=model.font_metrics,
                 ~settings,
                 ~cursor_inspector,
+                ctx,
                 program,
               ),
             ],

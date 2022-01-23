@@ -98,7 +98,8 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
+let view =
+    (~inject: ModelAction.t => Event.t, ctx: Contexts.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
     "Page.view",
@@ -129,7 +130,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card_caption],
                           ),
-                          Cell.view(~inject, model),
+                          Cell.view(~inject, ctx, model),
                           cell_status,
                         ],
                       ),

@@ -1,20 +1,9 @@
-module Index: {
-  [@deriving sexp]
-  type t; /* we use de Bruijn */
-
-  let of_int: int => t;
-
-  let lookup: (list('a), t) => 'a;
-
-  let eq: (t, t) => bool;
-};
-
 /* types with holes */
 [@deriving sexp]
 type t =
-  | TyVar(Index.t, TyId.t) /* bound type variable */
-  | TyVarHole(MetaVar.t, TyId.t) /* free type variables */
-  | Hole
+  | TyVar(TyVar.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, TyVar.t) /* free type variables */
+  | Hole(MetaVar.t)
   | Int
   | Float
   | Bool
@@ -22,10 +11,6 @@ type t =
   | Sum(t, t)
   | Prod(list(t))
   | List(t);
-
-type join =
-  | GLB
-  | LUB;
 
 let precedence_Prod: int;
 let precedence_Arrow: int;
@@ -41,6 +26,6 @@ let matched_list: t => option(t);
 
 let complete: t => bool;
 
-let tyvar_debruijn_increment: t => t;
+let increment_indices: t => t;
 
-let t_of_builtintype: TyId.BuiltInType.t => t;
+// let t_of_builtintype: TyId.BuiltInType.t => t;

@@ -41,9 +41,9 @@ and find_tyuses_typ_operand =
   | Unit
   | Int
   | Float
-  | TyVar(InVarHole(_), _)
+  | TyVar(InTyVarHole(_), _)
   | Bool => []
-  | TyVar(NotInVarHole, x') => x == x' ? [steps] : []
+  | TyVar(NotInTyVarHole, x') => x == x' ? [steps] : []
   | Parenthesized(t)
   | List(t) => find_tyuses_typ(~steps=steps @ [0], x, t)
   };

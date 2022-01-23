@@ -134,9 +134,9 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, cursor_term))
   | CursorT(_, Unit | Int | Float | Bool) =>
     Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
-  | CursorT(_, TyVar(InVarHole(Free, _), _)) =>
+  | CursorT(_, TyVar(InTyVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
-  | CursorT(_, TyVar(InVarHole(Keyword(k), _), _)) =>
+  | CursorT(_, TyVar(InTyVarHole(Keyword(k), _), _)) =>
     Some(CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term))
   | CursorT(_, e) =>
     switch (Elaborator_Typ.syn_kind_operand(ctx, e)) {

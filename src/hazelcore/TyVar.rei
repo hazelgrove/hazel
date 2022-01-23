@@ -1,12 +1,11 @@
-/* type variable pattern errors */
 module HoleReason: {
   [@deriving sexp]
   type t =
+    | Unbound
     | Reserved
     | InvalidName;
 };
 
-/* type variable pattern hole status */
 module Status: {
   [@deriving sexp]
   type t =
@@ -14,7 +13,15 @@ module Status: {
     | InHole(HoleReason.t, MetaVar.t);
 };
 
+/* type variable names */
+module Name: {
+  [@deriving sexp]
+  type t = string;
+
+  let equal: (t, t) => bool;
+};
+
 [@deriving sexp]
-type t =
-  | EmptyHole
-  | TyVar(Status.t, TyVar.Name.t);
+type t = (Index.t, Name.t);
+
+let equal: (t, t) => bool;

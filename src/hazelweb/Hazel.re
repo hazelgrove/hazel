@@ -136,7 +136,8 @@ let create =
           };
         },
       model,
-      Page.view(~inject, model),
+      // TODO: (eric) is it ok to pass empty context to top-level Page.view?
+      Page.view(~inject, Contexts.empty, model),
     )
   );
 };
