@@ -760,8 +760,8 @@ let eval_bin_float_op =
 };
 
 let rec evaluate =
-        (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, d: DHExp.t)
-        : (EvalEnv.EvalEnvCtx.t, result) => {
+        (ec: EvalEnvIdGen.t, env: EvalEnv.t, d: DHExp.t)
+        : (EvalEnvIdGen.t, result) => {
   /* open Sexplib.Sexp;
      print_endline(
        "D: "
@@ -1040,14 +1040,14 @@ let rec evaluate =
 }
 and evaluate_case =
     (
-      ec: EvalEnv.EvalEnvCtx.t,
+      ec: EvalEnvIdGen.t,
       env: EvalEnv.t,
       inconsistent_info,
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : (EvalEnv.EvalEnvCtx.t, result) =>
+    : (EvalEnvIdGen.t, result) =>
   switch (evaluate(ec, env, scrut)) {
   | (ec, BoxedValue(scrut))
   | (ec, Indet(scrut)) =>
@@ -1093,7 +1093,7 @@ and evaluate_case =
     }
   }
 and map_environment_to_result_map =
-    (ec: EvalEnv.EvalEnvCtx.t, env: EvalEnv.t, sigma: Environment.t)
+    (ec: EvalEnvIdGen.t, env: EvalEnv.t, sigma: Environment.t)
     : VarMap.t_(result) =>
   /* This function is specifically for wrapping final results from
      pattern matching subexpressions in the result type. Basically, if we

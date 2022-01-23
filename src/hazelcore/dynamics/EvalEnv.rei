@@ -10,6 +10,9 @@
    during evaluation, including hole environments. EvalEnvs are numbered
    so that operations on them (e.g., during hole numbering) can be memoized.
 
+   Both EvalEnv.t and Environment.t are often named sigma (usually for hole
+   environments) or env.
+
    This mimicks the VarMap interface on the extended EvalEnv.t type. Most
    operations require an EvalEnvIdGen.t parameter, which is used to generate
    unique ID's for each environment, and is created using EvalEnv.empty

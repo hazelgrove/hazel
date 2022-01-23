@@ -11,7 +11,7 @@ let expand_closures_to_lambdas:
   (HoleClosureCtx.t, DHExp.t) => (HoleClosureCtx.t, DHExp.t);
 
 let evaluate:
-  (EvalEnv.EvalEnvCtx.t, EvalEnv.t, DHExp.t) => (EvalEnv.EvalEnvCtx.t, result);
+  (EvalEnvIdGen.t, EvalEnv.t, DHExp.t) => (EvalEnvIdGen.t, result);
 
 /* closed substitution [d1/x]d2;
    Not needed for evaluation with environments,

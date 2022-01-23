@@ -404,7 +404,7 @@ let get_result = (program: t): Result.t => {
   open Sexplib.Sexp;
   print_endline(
     "EC: "
-    ++ to_string(EvalEnv.EvalEnvCtx.sexp_of_t(ec))
+    ++ to_string(EvalEnvIdGen.sexp_of_t(ec))
     ++ "\n\nRESULT: "
     ++ to_string(Evaluator.sexp_of_result(result)),
   );
