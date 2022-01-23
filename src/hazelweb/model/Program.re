@@ -410,25 +410,23 @@ let get_result = (program: t): Result.t => {
   );
   switch (result) {
   | BoxedValue(d) =>
-    let (hcc, d') =
-      Evaluator.expand_closures_to_lambdas(HoleClosureCtx.empty, d);
+    let (hci, d') = Evaluator.trace_result_hcs(d);
     print_endline(
       "CONVERTED: "
       ++ to_string(DHExp.sexp_of_t(d'))
-      ++ "\n\nHCC: "
-      ++ to_string(HoleClosureCtx.sexp_of_t(hcc)),
+      ++ "\n\nHCI: "
+      ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
     );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
-    let (hcc, d') =
-      Evaluator.expand_closures_to_lambdas(HoleClosureCtx.empty, d);
+    let (hci, d') = Evaluator.trace_result_hcs(d);
     print_endline(
       "CONVERTED: "
       ++ to_string(DHExp.sexp_of_t(d'))
-      ++ "\n\nHCC: "
-      ++ to_string(HoleClosureCtx.sexp_of_t(hcc)),
+      ++ "\n\nHCI: "
+      ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
     );
 
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);

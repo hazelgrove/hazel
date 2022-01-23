@@ -7,6 +7,8 @@
 [@deriving sexp]
 type t = MetaVarMap.t(EvalEnvIdMap.t(HoleClosure.t));
 
+let empty: t;
+
 /* Returns the HoleClosure.t with the given u and sigma, if found */
 let find_hc_opt: (t, MetaVar.t, EvalEnv.t) => option(HoleClosure.t);
 

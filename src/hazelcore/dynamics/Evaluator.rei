@@ -7,8 +7,7 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let expand_closures_to_lambdas:
-  (HoleClosureCtx.t, DHExp.t) => (HoleClosureCtx.t, DHExp.t);
+let trace_result_hcs: DHExp.t => (HoleClosureInfo.t, DHExp.t);
 
 let evaluate:
   (EvalEnvIdGen.t, EvalEnv.t, DHExp.t) => (EvalEnvIdGen.t, result);

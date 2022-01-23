@@ -496,16 +496,16 @@ and matches_cast_Cons =
    TODO: rename this (and associated functions)
    */
 let rec subst_vars_within_lambdas =
-        (hcc: HoleClosureCtx.t, env: EvalEnv.t, d: DHExp.t)
-        : (HoleClosureCtx.t, DHExp.t) => {
+        (hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
+        : (HoleClosureInfo_.t, DHExp.t) => {
   switch (d) {
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
   | BoundVar(x) =>
     switch (EvalEnv.lookup(env, x)) {
     | Some(Indet(d'))
-    | Some(BoxedValue(d')) => (hcc, d')
-    | None => (hcc, d)
+    | Some(BoxedValue(d')) => (hci, d')
+    | None => (hci, d)
     }
 
   /* Non-hole expressions: expand recursively */
@@ -516,51 +516,51 @@ let rec subst_vars_within_lambdas =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (hcc, d)
+  | Triv => (hci, d)
   | Let(dp, d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, Let(dp, d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, Let(dp, d1', d2'));
   | Lam(dp, ty, d') =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    (hcc, Lam(dp, ty, d''));
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    (hci, Lam(dp, ty, d''));
   | Ap(d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, Ap(d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, Ap(d1', d2'));
   | BinBoolOp(op, d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, BinBoolOp(op, d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, BinBoolOp(op, d1', d2'));
   | BinIntOp(op, d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, BinIntOp(op, d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, BinIntOp(op, d1', d2'));
   | BinFloatOp(op, d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, BinFloatOp(op, d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, BinFloatOp(op, d1', d2'));
   | Cons(d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, Cons(d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, Cons(d1', d2'));
   | Inj(ty, side, d') =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    (hcc, Inj(ty, side, d''));
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    (hci, Inj(ty, side, d''));
   | Pair(d1, d2) =>
-    let (hcc, d1') = subst_vars_within_lambdas(hcc, env, d1);
-    let (hcc, d2') = subst_vars_within_lambdas(hcc, env, d2);
-    (hcc, Pair(d1', d2'));
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    (hci, Pair(d1', d2'));
   | Cast(d', ty1, ty2) =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    (hcc, Cast(d'', ty1, ty2));
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    (hci, Cast(d'', ty1, ty2));
   | FailedCast(d', ty1, ty2) =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    (hcc, FailedCast(d'', ty1, ty2));
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    (hci, FailedCast(d'', ty1, ty2));
   | InvalidOperation(d', reason) =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    (hcc, InvalidOperation(d'', reason));
-  | ConsistentCase(_) => /* TODO */ (hcc, d)
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    (hci, InvalidOperation(d'', reason));
+  | ConsistentCase(_) => /* TODO */ (hci, d)
 
   /* This shouldn't occur within a lambda body. */
   /* TODO: move this exception elsewhere. */
@@ -573,22 +573,22 @@ let rec subst_vars_within_lambdas =
      - Number the hole closure appropriately.
      - Recurse through inner expression (if any). */
   | EmptyHole(u, _, _) =>
-    /* Check if this hole closure already exists in hcc */
-    switch (HoleClosureCtx.mem_hole_closure(hcc, u, env)) {
-    | Some((ci, env)) => (hcc, EmptyHole(u, ci, env))
+    /* Check if this hole closure already exists in hci */
+    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
+    | Some((_, ci, env)) => (hci, EmptyHole(u, ci, env))
     | None =>
-      let (hcc, ci) = HoleClosureCtx.get_hole_closure_id(hcc, u, env);
-      (hcc, EmptyHole(u, ci, env));
+      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, EmptyHole(u, ci, env));
     }
   | NonEmptyHole(reason, u, _, _, d') =>
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env, d');
-    switch (HoleClosureCtx.mem_hole_closure(hcc, u, env)) {
-    | Some((ci, env)) => (hcc, NonEmptyHole(reason, u, ci, env, d''))
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
+    | Some((u, ci, env)) => (hci, NonEmptyHole(reason, u, ci, env, d''))
     | None =>
-      let (hcc, ci) = HoleClosureCtx.get_hole_closure_id(hcc, u, env);
-      (hcc, NonEmptyHole(reason, u, ci, env, d''));
+      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, NonEmptyHole(reason, u, ci, env, d''));
     };
-  | InconsistentBranches(_) => /* TODO */ (hcc, d)
+  | InconsistentBranches(_) => /* TODO */ (hci, d)
   };
 }
 
@@ -597,7 +597,7 @@ let rec subst_vars_within_lambdas =
 
    TODO: rename to encompass renumber operation */
 and expand_closures_to_lambdas =
-    (hcc: HoleClosureCtx.t, d: DHExp.t): (HoleClosureCtx.t, DHExp.t) =>
+    (hci: HoleClosureInfo_.t, d: DHExp.t): (HoleClosureInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | Keyword(_)
@@ -607,48 +607,48 @@ and expand_closures_to_lambdas =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (hcc, d)
+  | Triv => (hci, d)
   | Let(dp, d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, Let(dp, d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, Let(dp, d1', d2'));
   | Ap(d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, Ap(d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, Ap(d1', d2'));
   | BinBoolOp(op, d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, BinBoolOp(op, d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, BinBoolOp(op, d1', d2'));
   | BinIntOp(op, d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, BinIntOp(op, d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, BinIntOp(op, d1', d2'));
   | BinFloatOp(op, d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, BinFloatOp(op, d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, BinFloatOp(op, d1', d2'));
   | Cons(d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, Cons(d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, Cons(d1', d2'));
   | Inj(ty, side, d') =>
-    let (hcc, d'') = expand_closures_to_lambdas(hcc, d');
-    (hcc, Inj(ty, side, d''));
+    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    (hci, Inj(ty, side, d''));
   | Pair(d1, d2) =>
-    let (hcc, d1') = expand_closures_to_lambdas(hcc, d1);
-    let (hcc, d2') = expand_closures_to_lambdas(hcc, d2);
-    (hcc, Pair(d1', d2'));
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    (hci, Pair(d1', d2'));
   | Cast(d', ty1, ty2) =>
-    let (hcc, d'') = expand_closures_to_lambdas(hcc, d');
-    (hcc, Cast(d'', ty1, ty2));
+    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    (hci, Cast(d'', ty1, ty2));
   | FailedCast(d', ty1, ty2) =>
-    let (hcc, d'') = expand_closures_to_lambdas(hcc, d');
-    (hcc, FailedCast(d'', ty1, ty2));
-  | ConsistentCase(_) => /* TODO */ (hcc, d)
+    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    (hci, FailedCast(d'', ty1, ty2));
+  | ConsistentCase(_) => /* TODO */ (hci, d)
   | InvalidOperation(d', reason) =>
-    let (hcc, d'') = expand_closures_to_lambdas(hcc, d');
-    (hcc, InvalidOperation(d'', reason));
+    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    (hci, InvalidOperation(d'', reason));
 
   /* Bound variables should not appear outside holes or closures */
   | BoundVar(x) =>
@@ -664,60 +664,66 @@ and expand_closures_to_lambdas =
      - Fix environment recursively.
      - Body is recursively substituted with its environment. */
   | Closure(env', dp, ty, d') =>
-    let (hcc, env'') = expand_closures_in_holes(hcc, env');
-    let (hcc, d'') = subst_vars_within_lambdas(hcc, env'', d');
-    (hcc, Lam(dp, ty, d''));
+    let (hci, env'') = expand_closures_in_holes(hci, env');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env'', d');
+    (hci, Lam(dp, ty, d''));
 
   /* Hole expressions:
      - Fix environment recursively.
      - Number the hole closure appropriately.
      - Recurse through subexpressions if applicable. */
   | EmptyHole(u, _, env) =>
-    switch (HoleClosureCtx.mem_hole_closure(hcc, u, env)) {
-    | Some((ci, env)) => (hcc, EmptyHole(u, ci, env))
+    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
+    | Some((u, ci, env)) => (hci, EmptyHole(u, ci, env))
     | None =>
-      let (hcc, env) = expand_closures_in_holes(hcc, env);
-      let (hcc, ci) = HoleClosureCtx.get_hole_closure_id(hcc, u, env);
-      (hcc, EmptyHole(u, ci, env));
+      let (hci, env) = expand_closures_in_holes(hci, env);
+      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, EmptyHole(u, ci, env));
     }
   | NonEmptyHole(reason, u, _, env, d') =>
-    let (hcc, d'') = expand_closures_to_lambdas(hcc, d');
-    switch (HoleClosureCtx.mem_hole_closure(hcc, u, env)) {
-    | Some((ci, env)) => (hcc, NonEmptyHole(reason, u, ci, env, d''))
+    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
+    | Some((u, ci, env)) => (hci, NonEmptyHole(reason, u, ci, env, d''))
     | None =>
-      let (hcc, env) = expand_closures_in_holes(hcc, env);
-      let (hcc, ci) = HoleClosureCtx.get_hole_closure_id(hcc, u, env);
-      (hcc, NonEmptyHole(reason, u, ci, env, d''));
+      let (hci, env) = expand_closures_in_holes(hci, env);
+      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, NonEmptyHole(reason, u, ci, env, d''));
     };
-  | InconsistentBranches(_) => /* TODO */ (hcc, d)
+  | InconsistentBranches(_) => /* TODO */ (hci, d)
   }
 
 /* Apply expand_closures_to_lambdas to each expression in sigma,
-   threading hcc throughout. */
+   threading hci throughout. */
 and expand_closures_in_holes =
-    (hcc: HoleClosureCtx.t, sigma: EvalEnv.t): (HoleClosureCtx.t, EvalEnv.t) => {
+    (hci: HoleClosureInfo_.t, sigma: EvalEnv.t)
+    : (HoleClosureInfo_.t, EvalEnv.t) => {
   let ei =
     sigma
     |> EvalEnv.id_of_evalenv
     |> OptUtil.get(_ => raise(EvalEnv.InvalidEvalEnvType));
-  let (hcc, result_map) =
-    (hcc, [])
+  let (hci, result_map) =
+    (hci, [])
     |> List.fold_right(
-         ((var, var_result: result), (hcc, result_map)) => {
-           let (hcc, var_result: result) =
+         ((var, var_result: result), (hci, result_map)) => {
+           let (hci, var_result: result) =
              switch (var_result) {
              | BoxedValue(d) =>
-               let (hcc, d) = expand_closures_to_lambdas(hcc, d);
-               (hcc, BoxedValue(d));
+               let (hci, d) = expand_closures_to_lambdas(hci, d);
+               (hci, BoxedValue(d));
              | Indet(d) =>
-               let (hcc, d) = expand_closures_to_lambdas(hcc, d);
-               (hcc, Indet(d));
+               let (hci, d) = expand_closures_to_lambdas(hci, d);
+               (hci, Indet(d));
              };
-           (hcc, [(var, var_result), ...result_map]);
+           (hci, [(var, var_result), ...result_map]);
          },
          sigma |> EvalEnv.result_map_of_evalenv,
        );
-  (hcc, Env(ei, result_map));
+  (hci, Env(ei, result_map));
+};
+
+let trace_result_hcs = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
+  let (hci, d) = expand_closures_to_lambdas(HoleClosureInfo_.empty, d);
+  (hci |> HoleClosureInfo_.to_hole_closure_info, d);
 };
 
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>

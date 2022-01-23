@@ -1,6 +1,8 @@
 [@deriving sexp]
 type t = MetaVarMap.t(EvalEnvIdMap.t(HoleClosure.t));
 
+let empty: t = MetaVarMap.empty;
+
 let find_hc_opt =
     (hci: t, u: MetaVar.t, sigma: EvalEnv.t): option(HoleClosure.t) => {
   let ei =
