@@ -1,13 +1,13 @@
-[@deriving sexp]
+// [@deriving sexp]
 type t = {
   gamma: VarCtx.t,
   palette: PaletteCtx.t,
-  tyctx: TyCtx.t,
+  typing: TyCtx.t,
 };
 let empty = {
   gamma: VarCtx.empty,
   palette: PaletteCtx.empty,
-  tyctx: TyCtx.empty,
+  typing: TyCtx.empty,
 };
 
 let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
@@ -19,7 +19,7 @@ let gamma: t => VarCtx.t = ({gamma, _}) => gamma;
 
 let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
-// let tyvars: t => TyCtx.t = ({tyctx, _}) => tyctx;
+let typing: t => TyCtx.t = ({typing, _}) => typing;
 
 // let extend_tyvars = (t: TyVar.Name.t, k: Kind.t, ctx: t): t => {
 //   let increment_singleton: TyCtx.Vars.binding => TyCtx.Vars.binding =

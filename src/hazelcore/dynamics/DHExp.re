@@ -1,7 +1,7 @@
-open Sexplib.Std;
+// open Sexplib.Std;
 
 module BinBoolOp = {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | And
     | Or;
@@ -37,7 +37,7 @@ module BinBoolOp = {
 };
 
 module BinIntOp = {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | Minus
     | Plus
@@ -47,15 +47,15 @@ module BinIntOp = {
     | GreaterThan
     | Equals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.operator): option((t, DHTyp.t)) =>
     switch (op) {
-    | Minus => Some((Minus, Int))
-    | Plus => Some((Plus, Int))
-    | Times => Some((Times, Int))
-    | Divide => Some((Divide, Int))
-    | LessThan => Some((LessThan, Bool))
-    | GreaterThan => Some((GreaterThan, Bool))
-    | Equals => Some((Equals, Bool))
+    | Minus => Some((Minus, DHTyp.wrap(Int)))
+    | Plus => Some((Plus, DHTyp.wrap(Int)))
+    | Times => Some((Times, DHTyp.wrap(Int)))
+    | Divide => Some((Divide, DHTyp.wrap(Int)))
+    | LessThan => Some((LessThan, DHTyp.wrap(Bool)))
+    | GreaterThan => Some((GreaterThan, DHTyp.wrap(Bool)))
+    | Equals => Some((Equals, DHTyp.wrap(Bool)))
     | FPlus
     | FMinus
     | FTimes
@@ -83,7 +83,7 @@ module BinIntOp = {
 };
 
 module BinFloatOp = {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | FPlus
     | FMinus
@@ -93,15 +93,15 @@ module BinFloatOp = {
     | FGreaterThan
     | FEquals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.operator): option((t, DHTyp.t)) =>
     switch (op) {
-    | FPlus => Some((FPlus, Float))
-    | FMinus => Some((FMinus, Float))
-    | FTimes => Some((FTimes, Float))
-    | FDivide => Some((FDivide, Float))
-    | FLessThan => Some((FLessThan, Bool))
-    | FGreaterThan => Some((FGreaterThan, Bool))
-    | FEquals => Some((FEquals, Bool))
+    | FPlus => Some((FPlus, DHTyp.wrap(Float)))
+    | FMinus => Some((FMinus, DHTyp.wrap(Float)))
+    | FTimes => Some((FTimes, DHTyp.wrap(Float)))
+    | FDivide => Some((FDivide, DHTyp.wrap(Float)))
+    | FLessThan => Some((FLessThan, DHTyp.wrap(Bool)))
+    | FGreaterThan => Some((FGreaterThan, DHTyp.wrap(Bool)))
+    | FEquals => Some((FEquals, DHTyp.wrap(Bool)))
     | Plus
     | Minus
     | Times
@@ -128,7 +128,7 @@ module BinFloatOp = {
     };
 };
 
-[@deriving sexp]
+// [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
   | NonEmptyHole(
@@ -144,9 +144,9 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | TyAlias(TPat.t, HTyp.t, Kind.t, t)
-  | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | TyAlias(TPat.t, DHTyp.t, Kind.t, t)
+  | FixF(Var.t, DHTyp.t, t)
+  | Lam(DHPat.t, DHTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -154,15 +154,15 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListNil(HTyp.t)
+  | ListNil(DHTyp.t)
   | Cons(t, t)
-  | Inj(HTyp.t, InjSide.t, t)
+  | Inj(DHTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
-  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
+  | Cast(t, DHTyp.t, DHTyp.t)
+  | FailedCast(Contexts.t, t, DHTyp.t, DHTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -206,8 +206,8 @@ let rec mk_tuple: list(t) => t =
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-let cast = (ctx: Contexts.t, d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
-  HTyp.equiv(dty1, dty2) ? d : Cast(d, dty1, dty2);
+let cast = (d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
+  DHTyp.equivalent(dty1, dty2) ? d : Cast(d, dty1, dty2);
 
 let apply_casts = (d: t, casts: list((DHTyp.t, DHTyp.t))): t =>
   List.fold_left(

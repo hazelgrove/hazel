@@ -1,13 +1,13 @@
-open Sexplib.Std;
+// open Sexplib.Std;
 
-[@deriving sexp]
+// [@deriving sexp]
 type join_of_branches =
   | NoBranches
   // steps to the case
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
-[@deriving sexp]
+// [@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -106,17 +106,17 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type-pattern position */
-  | OnTPat(option(TPat.VarPatErrStatus.t))
+  | OnTPat(option(TPat.Status.t))
   | OnTPatHole
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
-  | OnType(Kind.t)
+  | OnType(Kind.t(DHTyp.t))
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;
 
-[@deriving sexp]
+// [@deriving sexp]
 type cursor_term =
   | ExpOperand(CursorPosition.t, UHExp.operand)
   | PatOperand(CursorPosition.t, UHPat.operand)
@@ -128,7 +128,7 @@ type cursor_term =
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
-[@deriving sexp]
+// [@deriving sexp]
 type parent_info =
   | AfterBranchClause
   | BeforeEmptyHoleLine

@@ -9,10 +9,12 @@ type mode =
  * we are looking for.
  * Return a VarCtx.t
  */
-let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
+let extract_vars = (ctx: Contexts.t, ty: HTyp.t) => {
   ctx
   |> Contexts.gamma
-  |> VarMap.filter(((_, ty: HTyp.t)) => HTyp.consistent(ty, typ));
+  |> VarMap.filter(((_, ty1: HTyp.t)) =>
+       ctx |> Contexts.typing |> TyCtx.consistent(ty1, ty)
+     );
 };
 
 /**
@@ -20,7 +22,7 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    */
 let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   let rec compatible_funs = right_ty =>
-    if (HTyp.consistent(right_ty, typ)) {
+    if (ctx |> Contexts.typing |> TyCtx.consistent(right_ty, typ)) {
       true;
     } else {
       switch (right_ty) {
@@ -58,29 +60,37 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
   | SynErrorArrow(_, actual)
-  | SynMatchingArrow(actual, _) => (Some(Hole), Some(actual), Synthetic)
+  | SynMatchingArrow(actual, _) => (
+      Some(Hole(0)),
+      Some(actual),
+      Synthetic,
+    )
 
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(Hole(0)), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | SynKeyword(_) => (Some(Hole(0)), Some(Hole(0)), Synthetic)
 
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (HTyp.consistent(ty, got_ty)) {
-        (Some(Hole), Some(got_ty), Synthetic);
+      if (ctx |> Contexts.typing |> TyCtx.consistent(ty, got_ty)) {
+        (Some(Hole(0)), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
     | _ => get_types_and_mode(ctx, typed)
     }
   | SynInconsistentBranchesArrow(_, _)
-  | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
+  | SynInconsistentBranches(_, _) => (
+      Some(Hole(0)),
+      Some(Hole(0)),
+      Synthetic,
+    )
 
   | PatAnaTypeInconsistent(expected, actual)
   | PatAnaSubsumed(expected, actual) => (
@@ -94,27 +104,28 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (Some(Hole(0)), Some(actual), Synthetic)
 
-  | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | PatSynKeyword(_) => (Some(Hole(0)), Some(Hole(0)), Synthetic)
 
   | OnTPat(status_opt) =>
     switch (status_opt) {
     | None => (None, None, UnknownMode)
-    | Some(BuiltInType(bt)) =>
-      let actual: HTyp.t =
-        switch (bt) {
-        | Bool => Bool
-        | Float => Float
-        | Int => Int
-        };
-      (None, Some(actual), UnknownMode);
-    | Some(Keyword(_)) => (None, None, UnknownMode)
+    // | Some(BuiltInType(bt)) =>
+    //   let actual: HTyp.t =
+    //     switch (bt) {
+    //     | Bool => Bool
+    //     | Float => Float
+    //     | Int => Int
+    //     };
+    //   (None, Some(actual), UnknownMode);
+    | Some(InHole(_)) => (None, None, UnknownMode)
+    | Some(NotInHole) => (None, None, UnknownMode)
     }
-  | OnTPatHole => (None, Some(Hole), UnknownMode)
+  | OnTPatHole => (None, Some(Hole(0)), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
-  | TypFree => (None, Some(Hole), UnknownMode)
+  | TypFree => (None, Some(Hole(0)), UnknownMode)
   | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
@@ -151,9 +162,9 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
  */
 let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
-  | Hole => "a"
-  | TyVarHole(_, _) => "a"
-  | TyVar(_, name) => "a " ++ TyId.to_string(name)
+  | Hole(_) => "a"
+  | TyVarHole(_) => "a"
+  | TyVar(_, name) => "a " ++ TyVar.Name.to_string(name)
   | Int => "an Integer"
   | Float => "a Float"
   | Bool => "a Boolean"

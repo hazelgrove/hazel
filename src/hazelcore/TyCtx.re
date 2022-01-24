@@ -1,12 +1,12 @@
 /** Associates a type variable with its kind */
 open TyVar;
-open Sexplib.Std;
+// open Sexplib.Std;
 
 module Vars = {
-  [@deriving sexp]
-  type binding = (Name.t, Kind.t);
+  // [@deriving sexp]
+  type binding = (Name.t, Kind.t(HTyp.t));
 
-  [@deriving sexp]
+  // [@deriving sexp]
   type t = list(binding);
 
   let empty: t = [];
@@ -14,7 +14,7 @@ module Vars = {
   let extend =
       (
         t: Name.t,
-        k: Kind.t,
+        k: Kind.t(HTyp.t),
         ~increment_singleton: binding => binding,
         tyvars: t,
       )
@@ -36,8 +36,13 @@ module Vars = {
     | [_, ...tyvars'] => i == 0 || tyvars' |> has_index(i - 1)
     };
 
-  let binding = (i: Index.t, tyvars: t): option((Name.t, Kind.t)) =>
+  let binding = (i: Index.t, tyvars: t): option((Name.t, Kind.t(HTyp.t))) =>
     List.nth_opt(tyvars, i);
+
+  let bound = (name: Name.t, vars: t): bool => vars |> List.mem_assoc(name);
+
+  let kind = (i: Index.t, vars: t): option(Kind.t(HTyp.t)) =>
+    List.nth_opt(vars, i) |> Option.map(snd);
 };
 
 /** Associates a hole with its kind */
@@ -45,29 +50,28 @@ module Holes = {
   include Map.Make(MetaVar);
 
   type map('a) = t('a);
+  type t = map(Kind.t(HTyp.t));
 
-  type t = map(Kind.t);
-
-  let sexp_of_t = (holes: t): Sexplib.Sexp.t =>
-    holes
-    |> bindings
-    |> Sexplib.Std.sexp_of_list(((u, k)) =>
-         List([MetaVar.sexp_of_t(u), Kind.sexp_of_t(k)])
-       );
-
-  let t_of_sexp = (sexp: Sexplib.Sexp.t): t => {
-    let binding: Sexplib.Sexp.t => (MetaVar.t, Kind.t) =
-      fun
-      | Sexplib.Sexp.List([u, k]) => (
-          MetaVar.t_of_sexp(u),
-          Kind.t_of_sexp(k),
-        )
-      | s => raise(Sexplib.Conv_error.tuple_of_size_n_expected("???", 2, s));
-    sexp |> Sexplib.Std.list_of_sexp(binding) |> List.to_seq |> of_seq;
-  };
+  let kind: (MetaVar.t, t) => option(Kind.t(HTyp.t)) = find_opt;
+  // let sexp_of_t = (holes: t): Sexplib.Sexp.t =>
+  //   holes
+  //   |> bindings
+  //   |> Sexplib.Std.sexp_of_list(((u, k)) =>
+  //        List([MetaVar.sexp_of_t(u), Kind.sexp_of_t(k)])
+  //      );
+  // let t_of_sexp = (sexp: Sexplib.Sexp.t): t => {
+  //   let binding: Sexplib.Sexp.t => (MetaVar.t, Kind.t(HTyp.t)) =
+  //     fun
+  //     | Sexplib.Sexp.List([u, k]) => (
+  //         MetaVar.t_of_sexp(u),
+  //         Kind.t(HTyp.t)_of_sexp(k),
+  //       )
+  //     | s => raise(Sexplib.Conv_error.tuple_of_size_n_expected("???", 2, s));
+  //   sexp |> Sexplib.Std.list_of_sexp(binding) |> List.to_seq |> of_seq;
+  // };
 };
 
-[@derivng sexp]
+// [@derivng sexp]
 type t = {
   vars: Vars.t,
   holes: Holes.t,
@@ -79,19 +83,54 @@ type join =
 
 let empty: t = {vars: Vars.empty, holes: Holes.empty};
 
+let var_index = (name: Name.t, ctx: t): option(Index.t) =>
+  ctx.vars |> Vars.index(name);
+let var_kind = (i: Index.t, ctx: t): option(Kind.t(HTyp.t)) =>
+  ctx.vars |> Vars.kind(i);
+
+let var_bound = (name: Name.t, ctx: t): bool => ctx.vars |> Vars.bound(name);
+
+let hole_kind = (u: MetaVar.t, ctx: t): option(Kind.t(HTyp.t)) =>
+  ctx.holes |> Holes.kind(u);
+
+/** Kind equivalence
+
+Kinds are equivalent if they are equal modulo singletons and singleton types
+are all equivalent.
+*/
+
+// TODO: (eric) find out if the formalism is right
+let rec equivalent_kind =
+        (k: Kind.t(HTyp.t), k': Kind.t(HTyp.t), ctx: t): bool =>
+  switch (k, k') {
+  | (KHole, KHole)
+  | (Type, Type) => true
+  | (KHole | Type, _) => false
+  | (Singleton(Singleton(_, ty), _), Singleton(_, ty'))
+  | (Singleton(_, ty), Singleton(Singleton(_, ty'), _))
+  | (Singleton(_, ty), Singleton(_, ty')) => ctx |> equivalent(ty, ty')
+  | (Singleton(_), _) => false
+  }
+
 /** Type equivalence
 
-Types are equivalent if they are closed, equal modulo holes,
-and of equiavalent kinds.
+Types are equivalent if they are closed and of equivalent kinds w.r.t. the
+environment, and consistent w.r.t. the empty environment.
 */
-let rec equivalent = (ty: HTyp.t, ty': HTyp.t, ctx: t): bool =>
+and equivalent = (ty: HTyp.t, ty': HTyp.t, ctx: t): bool =>
   switch (ty, ty') {
   /* bound type variables are equivalent to themselves */
-  | (TyVar((i, _)), TyVar(_)) => ty == ty' && ctx.vars |> Vars.has_index(i)
+  | (TyVar(i, name), TyVar(i', name')) =>
+    Index.equal(i, i')
+    && TyVar.Name.equal(name, name')
+    && Vars.has_index(i, ctx.vars)
   | (TyVar(_), _) => false
   /* type variable holes of known kind are equivalent to themselves */
-  | (TyVarHole(u, t), TyVarHole(u', t')) =>
-    MetaVar.eq(u, u') && TyVar.equal(t, t') && ctx.holes |> Holes.mem(u)
+  | (TyVarHole(reason, u, name), TyVarHole(reason', u', name')) =>
+    reason == reason'
+    && MetaVar.eq(u, u')
+    && TyVar.Name.equal(name, name')
+    && Holes.mem(u, ctx.holes)
   | (TyVarHole(_), _) => false
   /* empty type holes of known kind are equivalent to themselves */
   | (Hole(u), Hole(u')) => u == u' && ctx.holes |> Holes.mem(u)
@@ -121,7 +160,7 @@ let rec consistent = (ty: HTyp.t, ty': HTyp.t, ctx: t) =>
   | (_, TyVarHole(_))
   | (Hole(_), _)
   | (_, Hole(_)) => true
-  /* by definition, type variables are consistent with equivalent types */
+  /* type variables are consistent with equivalent types */
   | (TyVar(_), _)
   | (_, TyVar(_)) => ctx |> equivalent(ty, ty')
   | (Int | Float | Bool, _) => ty == ty'
@@ -131,33 +170,30 @@ let rec consistent = (ty: HTyp.t, ty': HTyp.t, ctx: t) =>
   | (Arrow(_, _), _) => false
   | (Sum(_, _), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.for_all2_opt(
-      (ty1, ty2) => ctx |> consistent(ty1, ty2),
-      tys1,
-      tys2,
-    )
-    |> Option.value(~default=false)
+    let check_component = (ty1, ty2) => ctx |> consistent(ty1, ty2);
+    ListUtil.for_all2_opt(check_component, tys1, tys2)
+    |> Option.value(~default=false);
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => ctx |> consistent(ty, ty')
   | (List(_), _) => false
   };
 
-let inconsistent = (ty1: HTyp.t, ty2: HTyp.t, ctx: t) =>
-  !(ctx |> consistent(ty1, ty2));
+// let inconsistent = (ty1: HTyp.t, ty2: HTyp.t, ctx: t) =>
+//   !(ctx |> consistent(ty1, ty2));
 
-let rec consistent_all = (types: list(HTyp.t), ctx: t): bool =>
-  switch (types) {
-  | [] => true
-  | [hd, ...tl] =>
-    !List.exists(x => ctx |> inconsistent(hd, x), tl)
-    || ctx
-    |> consistent_all(tl)
-  };
+// let rec consistent_all = (types: list(HTyp.t), ctx: t): bool =>
+//   switch (types) {
+//   | [] => true
+//   | [hd, ...tl] =>
+//     !List.exists(x => ctx |> inconsistent(hd, x), tl)
+//     || ctx
+//     |> consistent_all(tl)
+//   };
 
-let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t) => {
+let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t): option(HTyp.t) => {
   switch (ty1, ty2) {
-  | (TyVarHole(u, _), TyVarHole(u', _)) =>
-    Some(HTyp.Hole(MetaVar.join(u, u')))
+  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) =>
+    Some(Hole(MetaVar.join(u, u')))
   | (_, Hole(_))
   | (_, TyVarHole(_)) =>
     switch (j) {
@@ -170,7 +206,7 @@ let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t) => {
     | GLB => Some(Hole(0))
     | LUB => Some(ty2)
     }
-  | (TyVar((i, _)), _) =>
+  | (TyVar(i, _), _) =>
     open OptUtil.Syntax;
     let* (_, k) = ctx.vars |> Vars.binding(i);
     switch (k) {
@@ -178,7 +214,7 @@ let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t) => {
     | KHole => ctx |> join(j, Hole(0), ty2)
     | Type => failwith("impossible for bounded type variables (currently) 1")
     };
-  | (_, TyVar((i, _))) =>
+  | (_, TyVar(i, _)) =>
     open OptUtil.Syntax;
     let* (_, k) = ctx.vars |> Vars.binding(i);
     switch (k) {
@@ -218,35 +254,35 @@ let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t) => {
   };
 };
 
-let join_all = (j: join, types: list(HTyp.t), ctx: t): option(HTyp.t) => {
-  switch (types) {
-  | [] => None
-  | [hd] => Some(hd)
-  | [hd, ...tl] =>
-    if (!consistent_all(types, ctx)) {
-      None;
-    } else {
-      List.fold_left(
-        (common_opt, ty) =>
-          switch (common_opt) {
-          | None => None
-          | Some(common_ty) => ctx |> join(j, common_ty, ty)
-          },
-        Some(hd),
-        tl,
-      );
-    }
-  };
-};
+// let join_all = (j: join, types: list(HTyp.t), ctx: t): option(HTyp.t) => {
+//   switch (types) {
+//   | [] => None
+//   | [hd] => Some(hd)
+//   | [hd, ...tl] =>
+//     if (!consistent_all(types, ctx)) {
+//       None;
+//     } else {
+//       List.fold_left(
+//         (common_opt, ty) =>
+//           switch (common_opt) {
+//           | None => None
+//           | Some(common_ty) => ctx |> join(j, common_ty, ty)
+//           },
+//         Some(hd),
+//         tl,
+//       );
+//     }
+//   };
+// };
 
 // open Sexplib.Std;
 // [@deriving sexp]
-// type t = list((TyId.t, Kind.t));
+// type t = list((TyId.t, Kind.t(HTyp.t)));
 // // TODO: What is identity function
 // let of_list = x => x;
 // let to_list = x => x;
 // let empty = [];
-// let extend = (ctx: t, binding: (TyId.t, Kind.t)): t => {
+// let extend = (ctx: t, binding: (TyId.t, Kind.t(HTyp.t))): t => {
 //   let incr_if_singleton = ((id, k)) =>
 //     switch (k) {
 //     | Kind.Singleton(k', hty) => (
@@ -255,7 +291,7 @@ let join_all = (j: join, types: list(HTyp.t), ctx: t): option(HTyp.t) => {
 //       )
 //     | _ => (id, k)
 //     };
-//   let rest: list((TyId.t, Kind.t)) = ctx |> List.map(incr_if_singleton);
+//   let rest: list((TyId.t, Kind.t(HTyp.t))) = ctx |> List.map(incr_if_singleton);
 //   [incr_if_singleton(binding), ...rest];
 // };
 // let index_of = (ctx: t, x: TyId.t): option(TyVarIndex.t) => {

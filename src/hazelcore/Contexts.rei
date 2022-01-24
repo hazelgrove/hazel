@@ -1,4 +1,4 @@
-[@deriving sexp]
+// [@deriving sexp]
 type t;
 
 let empty: t;
@@ -9,7 +9,7 @@ let gamma: t => VarCtx.t;
 
 let palette_ctx: t => PaletteCtx.t;
 
-// let tyctx: t => TyCtx.t;
+let typing: t => TyCtx.t;
 
 // let extend_tyvars: (TyCtx.Vars.binding, t) => t;
 

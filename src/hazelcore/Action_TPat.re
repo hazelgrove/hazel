@@ -1,11 +1,11 @@
 module TyIdUtil = {
   let insert = (k, s, x) =>
-    StringUtil.insert(k, s, TyId.to_string(x)) |> TyId.of_string;
+    StringUtil.insert(k, s, TyVar.Name.to_string(x)) |> TyVar.Name.of_string;
   let delete = (k, x) =>
-    StringUtil.delete(k, TyId.to_string(x)) |> TyId.of_string;
+    StringUtil.delete(k, TyVar.Name.to_string(x)) |> TyVar.Name.of_string;
   let backspace = (k, x) =>
-    StringUtil.backspace(k, TyId.to_string(x)) |> TyId.of_string;
-  let is_empty = x => TyId.to_string(x) |> StringUtil.is_empty;
+    StringUtil.backspace(k, TyVar.Name.to_string(x)) |> TyVar.Name.of_string;
+  let is_empty = x => TyVar.Name.to_string(x) |> StringUtil.is_empty;
 };
 
 let rec move = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>

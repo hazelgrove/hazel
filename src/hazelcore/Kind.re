@@ -1,8 +1,23 @@
-[@deriving sexp]
-type t =
+// [@deriving sexp]
+type t('a) =
   | KHole
   | Type
-  | Singleton(t, HTyp.t);
+  | Singleton(t('a), 'a);
+
+/** Kind equality
+
+Kinds are equal (modulo indices) if they are structurally equal modulo types,
+and types are equal (modulo indices).
+*/;
+// let rec equal = (k: t, k': t): bool =>
+//   switch (k, k') {
+//   | (KHole, KHole)
+//   | (Type, Type) => true
+//   | (KHole | Type, _) => false
+//   | (Singleton(k1, ty), Singleton(k1', ty')) =>
+//     equal(k1, k1') && HTyp.equal(ty, ty')
+//   | (Singleton(_), _) => false
+//   };
 
 // let rec to_string: t => string =
 //   fun

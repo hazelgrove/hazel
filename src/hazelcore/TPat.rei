@@ -1,6 +1,6 @@
 /* type variable pattern errors */
 module HoleReason: {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | Reserved
     | InvalidName;
@@ -8,13 +8,15 @@ module HoleReason: {
 
 /* type variable pattern hole status */
 module Status: {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | NotInHole
     | InHole(HoleReason.t, MetaVar.t);
 };
 
-[@deriving sexp]
+// [@deriving sexp]
 type t =
   | EmptyHole
   | TyVar(Status.t, TyVar.Name.t);
+
+let binds_tyvar: (TyVar.Name.t, t) => bool;

@@ -1,4 +1,4 @@
-[@deriving sexp]
+// [@deriving sexp]
 type t =
   | CursorP(CursorPosition.t, TPat.t);
 
@@ -9,7 +9,7 @@ let erase =
 let place_after = (tpat: TPat.t): t =>
   switch (tpat) {
   | EmptyHole => CursorP(OnDelim(0, After), tpat)
-  | TyVar(_, id) => CursorP(OnText(TyId.length(id)), tpat)
+  | TyVar(_, name) => CursorP(OnText(TyVar.Name.length(name)), tpat)
   };
 
 let place_before = (tpat: TPat.t): t =>
@@ -21,7 +21,7 @@ let place_before = (tpat: TPat.t): t =>
 let valid_cursors: TPat.t => list(CursorPosition.t) =
   fun
   | EmptyHole => CursorPosition.delim_cursors_k(0)
-  | TyVar(_, id) => CursorPosition.text_cursors(TyId.length(id));
+  | TyVar(_, name) => CursorPosition.text_cursors(TyVar.Name.length(name));
 
 let is_valid_cursor = (cursor: CursorPosition.t, tp: TPat.t): bool =>
   valid_cursors(tp) |> List.mem(cursor);
@@ -32,7 +32,8 @@ let place_cursor = (cursor: CursorPosition.t, tp: TPat.t): option(t) =>
 let is_after =
   fun
   | CursorP(cursor, EmptyHole) => cursor == OnDelim(0, After)
-  | CursorP(cursor, TyVar(_, id)) => cursor == OnText(TyId.length(id));
+  | CursorP(cursor, TyVar(_, name)) =>
+    cursor == OnText(TyVar.Name.length(name));
 
 let is_before =
   fun

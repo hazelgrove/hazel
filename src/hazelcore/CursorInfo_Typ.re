@@ -134,17 +134,16 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, cursor_term))
   | CursorT(_, Unit | Int | Float | Bool) =>
     Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
-  | CursorT(_, TyVar(InTyVarHole(Free, _), _)) =>
+  | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
-  | CursorT(_, TyVar(InTyVarHole(Keyword(k), _), _)) =>
-    Some(CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term))
+  | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
+    open OptUtil.Syntax;
+    let+ k = ExpandingKeyword.mk(TyVar.Name.to_string(name));
+    CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
   | CursorT(_, e) =>
-    switch (Elaborator_Typ.syn_kind_operand(ctx, e)) {
-    | None => None
-    | Some(kind) =>
-      Some(CursorInfo_common.mk(OnType(kind), ctx, cursor_term))
-    }
-
+    open OptUtil.Syntax;
+    let+ kind = Elaborator_Typ.syn_kind_operand(ctx, e);
+    CursorInfo_common.mk(OnType(kind), ctx, cursor_term);
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
   };

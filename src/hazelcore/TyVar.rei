@@ -1,5 +1,5 @@
 module HoleReason: {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | Unbound
     | Reserved
@@ -7,21 +7,20 @@ module HoleReason: {
 };
 
 module Status: {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
-    | NotInHole
+    | NotInHole(Index.t)
     | InHole(HoleReason.t, MetaVar.t);
 };
 
 /* type variable names */
 module Name: {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t = string;
 
+  let of_string: string => t;
+  let to_string: t => string;
+  let length: t => int;
   let equal: (t, t) => bool;
+  let valid: string => bool;
 };
-
-[@deriving sexp]
-type t = (Index.t, Name.t);
-
-let equal: (t, t) => bool;

@@ -1,6 +1,6 @@
 /* type variable errors */
 module HoleReason = {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
     | Unbound
     | Reserved
@@ -9,23 +9,29 @@ module HoleReason = {
 
 /* type variable hole status */
 module Status = {
-  [@deriving sexp]
+  // [@deriving sexp]
   type t =
-    | NotInHole
+    | NotInHole(Index.t)
     | InHole(HoleReason.t, MetaVar.t);
 };
 
 /* type variable names */
 module Name = {
-  open Sexplib.Std;
+  // open Sexplib.Std;
 
-  [@deriving sexp]
+  // [@deriving sexp]
   type t = string;
 
+  let of_string: string => t = name => name;
+
+  let to_string: t => string = name => name;
+
+  let length: t => int = String.length;
+
   let equal: (t, t) => bool = String.equal;
+
+  let valid = {
+    let re = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
+    (s: string) => (Re.Str.string_match(re, s, 0): bool);
+  };
 };
-
-[@deriving sexp]
-type t = (Index.t, Name.t);
-
-let equal: (t, t) => bool = (==);

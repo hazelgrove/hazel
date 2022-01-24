@@ -2,7 +2,7 @@ module ElaborationResult = {
   include OptUtil;
 
   module Syn = {
-    type t = option((DHTyp.t, Kind.t, Delta.t));
+    type t = option((DHTyp.t, Kind.t(DHTyp.t), Delta.t));
   };
 
   module Ana = {
@@ -27,56 +27,60 @@ and syn_skel = (ctx, delta, skel, seq) =>
   | Placeholder(n) => seq |> Seq.nth_operand(n) |> syn_operand(ctx, delta)
   | BinOp(_, Prod, _, _) =>
     /* TElabSBinOp */
-    let+ rs =
+    let+ results =
       skel
       |> get_prod_elements
       |> List.map(skel => ana_skel(ctx, delta, Kind.Type, skel, seq))
       |> OptUtil.sequence;
-    let (tys, ds) = ListUtil.unzip(rs);
+    let (dtys, deltas) = ListUtil.unzip(results);
     let delta =
-      ds |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
-    let ty = HTyp.Prod(tys);
-    ((ty, Contexts.tyvars(ctx)), Kind.Singleton(Type, ty), delta);
+      deltas |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
+    let tyctx = Contexts.typing(ctx);
+    let ty = HTyp.Prod(dtys |> List.map(DHTyp.unlift));
+    let dty = DHTyp.lift(tyctx, ty);
+    (dty, Kind.Singleton(Type, dty), delta);
   | BinOp(_, op, skel1, skel2) =>
     /* TElabSBinOp */
-    let* (ty1, d1) = ana_skel(ctx, delta, Kind.Type, skel1, seq);
-    let+ (ty2, d2) = ana_skel(ctx, delta, Kind.Type, skel2, seq);
+    let* (dty1, d1) = ana_skel(ctx, delta, Kind.Type, skel1, seq);
+    let+ (dty2, d2) = ana_skel(ctx, delta, Kind.Type, skel2, seq);
+    let (ty1, ty2) = DHTyp.(unlift(dty1), unlift(dty2));
     let ty: HTyp.t =
       switch (op) {
       | Arrow => Arrow(ty1, ty2)
       | Sum => Sum(ty1, ty2)
       | Prod => failwith("Impossible, Prod is matched first")
       };
-    let dty = (ty, Contexts.tyvars(ctx));
-    (dty, Kind.Singleton(Type, ty), Delta.union(d1, d2));
+    let tyctx = Contexts.typing(ctx);
+    let dk = Kind.Singleton(Type, DHTyp.lift(tyctx, ty));
+    (DHTyp.lift(tyctx, ty), dk, Delta.union(d1, d2));
   }
 and syn_operand = (ctx, delta, operand) => {
+  let typing = Contexts.typing(ctx);
+
   let const = (ty: HTyp.t) => {
     /* TElabSConst */
-    let tyvars = Contexts.tyvars(ctx);
-    Some(((ty, tyvars), Kind.Singleton(Type, ty), delta));
+    let k = Kind.Singleton(Type, ty);
+    Some((DHTyp.lift(typing, ty), DHTyp.lift_kind(typing, k), delta));
   };
 
   switch (operand) {
   | Hole(u) =>
     /* TElabSHole */
-    let tyvars = Contexts.tyvars(ctx);
-    let dty = (HTyp.Hole, tyvars);
-    Some((dty, KHole, Delta.(add(u, Hole.Type(KHole, tyvars), delta))));
+    let typing = Contexts.typing(ctx);
+    let dty = DHTyp.lift(typing, Hole(0));
+    Some((dty, KHole, Delta.(add(u, Hole.Type(KHole, typing), delta))));
   // TODO: NEHole case
-  | TyVar(NotInTyVarHole, t) =>
+  | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    let+ idx = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
-    let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-    let ty = HTyp.TyVar(idx, t);
-    ((ty, Contexts.tyvars(ctx)), Kind.Singleton(k, ty), delta);
-  | TyVar(InTyVarHole(_, u), t) =>
+    let* _ = typing |> TyCtx.var_kind(i);
+    const(TyVar(i, name));
+  | TyVar(InHole(reason, u), name) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
-    let tyvars = Contexts.tyvars(ctx);
-    let dty = (HTyp.TyVarHole(u, t), tyvars);
-    let delta' = Delta.(add(u, Hole.Type(Kind.KHole, tyvars), delta));
-    Some((dty, Kind.KHole, delta'));
+    let ty = HTyp.TyVarHole(reason, u, name);
+    let k = Kind.KHole;
+    let delta' = Delta.(add(u, Hole.Type(k, typing), delta));
+    Some((DHTyp.lift(typing, ty), DHTyp.lift_kind(typing, k), delta'));
   | Unit => const(Prod([]))
   | Int => const(Int)
   | Float => const(Float)
@@ -84,62 +88,50 @@ and syn_operand = (ctx, delta, operand) => {
   | Parenthesized(opseq) => syn(ctx, delta, opseq)
   | List(opseq) =>
     /* TElabSList */
-    // TODO: (eric) how to resolve tyvars here?
-    let+ ((ty, _tyvars), delta) = ana(ctx, delta, opseq, Kind.Type);
-    let ty = HTyp.List(ty);
-    let dty = (ty, Contexts.tyvars(ctx));
-    (dty, Kind.Singleton(Type, ty), delta);
+    let+ (dty, delta) = ana(ctx, delta, opseq, Kind.Type);
+    let dk = Kind.Singleton(Type, dty);
+    (dty, dk, delta);
   };
 }
 
-and ana: (Contexts.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.Ana.t =
-  (ctx, delta, opseq, kind) =>
+and ana:
+  (Contexts.t, Delta.t, UHTyp.t, Kind.t(DHTyp.t)) => ElaborationResult.Ana.t =
+  (ctx, delta, opseq, k) =>
     switch (opseq) {
-    | OpSeq(skel, seq) => ana_skel(ctx, delta, kind, skel, seq)
+    | OpSeq(skel, seq) => ana_skel(ctx, delta, k, skel, seq)
     }
-and ana_skel = (ctx, delta, kind, skel, seq) =>
+and ana_skel = (ctx, delta, k, skel, seq): option((DHTyp.t, Delta.t)) =>
   switch (skel) {
-  | Placeholder(n) =>
-    seq |> Seq.nth_operand(n) |> ana_operand(ctx, delta, kind)
+  | Placeholder(n) => seq |> Seq.nth_operand(n) |> ana_operand(ctx, delta, k)
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
     let+ (dty, _, delta) = syn_skel(ctx, delta, skel, seq);
     (dty, delta);
   }
-and ana_operand = (ctx, delta, kind, operand) => {
+and ana_operand = (ctx, delta, k, operand) => {
+  let tyctx = Contexts.typing(ctx);
   switch (operand) {
   | UHTyp.Hole(u) =>
     /* TElabAHole */
-    Some((
-      Hole,
-      Delta.add(
-        u,
-        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
-        delta,
-      ),
-    ))
+    let ty = HTyp.Hole(u);
+    let dty = DHTyp.lift(tyctx, ty);
+    Some((dty, delta |> Delta.add(u, Delta.Hole.Type(Kind.KHole, tyctx))));
   // TODO: Add an NEHole case when it's possible to have an arbitrary type hole
-  | TyVar(InTyVarHole(_, u), t) =>
+  | TyVar(InHole(reason, u), t) =>
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
-    Some((
-      TyVarHole(u, t),
-      Delta.add(
-        u,
-        Delta.Hole.Type(Kind.KHole, Contexts.tyvars(ctx)),
-        delta,
-      ),
-    ))
-  | Parenthesized(opseq) => ana(ctx, delta, opseq, kind)
-  | TyVar(NotInTyVarHole, _)
+    let dty = DHTyp.lift(tyctx, TyVarHole(reason, u, t));
+    Some((dty, Delta.add(u, Delta.Hole.Type(Kind.KHole, tyctx), delta)));
+  | Parenthesized(opseq) => ana(ctx, delta, opseq, k)
+  | TyVar(NotInHole(_), _)
   | Unit
   | Int
   | Float
   | Bool
   | List(_) =>
     /* TElabASubsume */
-    let+ (ty, _, delta) = syn_operand(ctx, delta, operand);
-    (ty, delta);
+    let+ (dty, _, delta) = syn_operand(ctx, delta, operand);
+    (dty, delta);
   };
 };
 
@@ -150,8 +142,28 @@ let syn_kind_skel = (ctx, skel, seq) =>
 let syn_kind_operand = (ctx, operand) =>
   syn_operand(ctx, Delta.empty, operand) |> Option.map(((_, k, _)) => k);
 
+let rec ana_kind = (ctx, uhty, dk: Kind.t(DHTyp.t)): option(unit) => {
+  open OptUtil.Syntax;
+  let* dk' = syn_kind(ctx, uhty);
+  consistent_subkind(ctx, dk', dk) ? Some() : None;
+}
+and consistent_subkind =
+    (ctx: Contexts.t, k: Kind.t(DHTyp.t), k': Kind.t(DHTyp.t)): bool =>
+  DHTyp.equivalent_kind(k, k')
+  || (
+    switch (k, k') {
+    | (KHole, _)
+    | (_, KHole) => true
+    | (Singleton(_, dty), Type) =>
+      ana_kind(ctx, dty |> DHTyp.unlift |> UHTyp.contract, k')
+      |> Option.fold(~none=false, ~some=() => true)
+    | (_, _) => false
+    }
+  );
+
 let rec syn_fix_holes:
-  (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
+  (Contexts.t, MetaVarGen.t, UHTyp.t) =>
+  (UHTyp.t, Kind.t(DHTyp.t), MetaVarGen.t) =
   (ctx, u_gen) =>
     fun
     | OpSeq(skel, seq) => {
@@ -178,35 +190,40 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
     let (_, k, _) = syn_skel(ctx, Delta.empty, skel, seq) |> Option.get;
     (skel, seq, k, u_gen);
   }
-and syn_fix_holes_operand = (ctx, u_gen, operand) =>
+and syn_fix_holes_operand = (ctx, u_gen, operand) => {
+  let typing = Contexts.typing(ctx);
   switch (operand) {
   | UHTyp.Hole(u) =>
     /* TElabSHole */
     (Hole(u), Kind.KHole, u_gen)
   // TODO: NEHole case
-  | TyVar(NotInTyVarHole, t) =>
+  | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    let idx_opt = TyVarCtx.index_of(Contexts.tyvars(ctx), t);
-    switch (idx_opt) {
-    | Some(idx) =>
-      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
-      (TyVar(NotInTyVarHole, t), k, u_gen);
+    switch (typing |> TyCtx.var_kind(i)) {
+    | Some(k) =>
+      let ty = UHTyp.TyVar(NotInHole(i), name);
+      (ty, DHTyp.lift_kind(typing, k), u_gen);
     | None =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      (
-        UHTyp.TyVar(InTyVarHole(TyVarErrStatus.HoleReason.Free, u), t),
-        Kind.KHole,
-        u_gen,
-      );
-    };
-  | TyVar(InTyVarHole(r, u), t) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ty = UHTyp.TyVar(InHole(Unbound, u), name);
+      (ty, KHole, u_gen);
+    }
+  | TyVar(InHole(reason, u), name) =>
     /* TElabSUVar */
     // TODO: id(\Phi) in TyVarHole
-    (UHTyp.TyVar(InTyVarHole(r, u), t), Kind.KHole, u_gen)
-  | Unit => (Unit, Kind.Singleton(Type, Prod([])), u_gen)
-  | Int => (Int, Kind.Singleton(Type, Int), u_gen)
-  | Float => (Float, Kind.Singleton(Type, Float), u_gen)
-  | Bool => (Bool, Kind.Singleton(Type, Bool), u_gen)
+    (UHTyp.TyVar(InHole(reason, u), name), Kind.KHole, u_gen)
+  | Unit =>
+    let k = Kind.Singleton(Type, HTyp.Prod([]));
+    (Unit, DHTyp.lift_kind(typing, k), u_gen);
+  | Int =>
+    let k = Kind.Singleton(Type, HTyp.Int);
+    (Int, DHTyp.lift_kind(typing, k), u_gen);
+  | Float =>
+    let k = Kind.Singleton(Type, HTyp.Float);
+    (Float, DHTyp.lift_kind(typing, k), u_gen);
+  | Bool =>
+    let k = Kind.Singleton(Type, HTyp.Bool);
+    (Bool, DHTyp.lift_kind(typing, k), u_gen);
   | Parenthesized(body) =>
     let (block, kind, u_gen) = syn_fix_holes(ctx, u_gen, body);
     (Parenthesized(block), kind, u_gen);
@@ -217,9 +234,11 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) =>
     // TODO: Is there a better way around this than force-unwrapping?
     let (_, k, _) = syn(ctx, Delta.empty, opseq) |> Option.get;
     (List(opseq), k, u_gen);
-  }
+  };
+}
 and ana_fix_holes:
-  (Contexts.t, MetaVarGen.t, UHTyp.t, Kind.t) => (UHTyp.t, MetaVarGen.t) =
+  (Contexts.t, MetaVarGen.t, UHTyp.t, Kind.t(DHTyp.t)) =>
+  (UHTyp.t, MetaVarGen.t) =
   (ctx, u_gen, opseq, kind) =>
     switch (opseq) {
     | OpSeq(skel, seq) =>
@@ -227,35 +246,35 @@ and ana_fix_holes:
         ana_fix_holes_skel(ctx, u_gen, kind, skel, seq);
       (OpSeq(skel, seq), u_gen);
     }
-and ana_fix_holes_skel = (ctx, u_gen, kind, skel, seq) =>
+and ana_fix_holes_skel = (ctx, u_gen, k, skel, seq) =>
   switch (skel) {
   | Placeholder(n) =>
     let en = seq |> Seq.nth_operand(n);
-    let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, kind, en);
+    let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, k, en);
     let seq = seq |> Seq.update_nth_operand(n, en);
     (skel, seq, u_gen);
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
     let (skel, seq, k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-    if (Construction.consistent_subkind(ctx, k', kind)) {
+    if (consistent_subkind(ctx, k', k)) {
       (skel, seq, u_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole (this can't happen now)");
     };
   }
-and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
+and ana_fix_holes_operand = (ctx, u_gen, k, operand) => {
   switch (operand) {
   | UHTyp.Hole(u) =>
     /* TElabAHole */
     (Hole(u), u_gen)
-  | TyVar(InTyVarHole(r, u), t) =>
+  | TyVar(InHole(_), _) =>
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
-    (TyVar(InTyVarHole(r, u), t), u_gen)
+    (operand, u_gen)
   | Parenthesized(body) =>
-    let (block, u_gen) = ana_fix_holes(ctx, u_gen, body, kind);
+    let (block, u_gen) = ana_fix_holes(ctx, u_gen, body, k);
     (Parenthesized(block), u_gen);
-  | TyVar(NotInTyVarHole, _)
+  | TyVar(NotInHole(_), _)
   | Unit
   | Int
   | Float
@@ -263,11 +282,9 @@ and ana_fix_holes_operand = (ctx, u_gen, kind, operand) => {
   | List(_) =>
     /* TElabASubsume */
     let (ty, k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
-    if (Construction.consistent_subkind(ctx, k', kind)) {
-      (ty, u_gen);
-    } else {
-      failwith("TODO: Add inconsistent kind hole (this can't happen now)");
-    };
+    consistent_subkind(ctx, k', k)
+      ? (ty, u_gen)
+      : failwith("TODO: Add inconsistent kind hole (this can't happen now)");
   };
 };
 

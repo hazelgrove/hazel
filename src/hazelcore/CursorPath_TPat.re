@@ -31,11 +31,11 @@ let holes =
       mk_hole_sort(TPatHole(Empty), List.rev(rev_steps)),
       ...hs,
     ]
-  | TyVar(Some(_), _) => [
+  | TyVar(InHole(_), _) => [
       mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps)),
       ...hs,
     ]
-  | TyVar(None, _) => hs
+  | TyVar(NotInHole, _) => hs
   };
 
 let holes_z =
@@ -47,11 +47,11 @@ let holes_z =
         Some(mk_hole_sort(TPatHole(Empty), List.rev(rev_steps))),
       (),
     )
-  | CursorP(_, TyVar(Some(_), _)) =>
+  | CursorP(_, TyVar(InHole(_), _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
         Some(mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps))),
       (),
     )
-  | CursorP(_, TyVar(None, _)) => CursorPath_common.no_holes
+  | CursorP(_, TyVar(NotInHole, _)) => CursorPath_common.no_holes
   };

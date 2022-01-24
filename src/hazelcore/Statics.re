@@ -1,4 +1,4 @@
-[@deriving sexp]
+// [@deriving sexp]
 type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 
 /**

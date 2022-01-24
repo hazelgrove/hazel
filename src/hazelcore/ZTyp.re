@@ -1,4 +1,4 @@
-[@deriving sexp]
+// [@deriving sexp]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
@@ -18,7 +18,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Int => String.length("Int") |> CursorPosition.text_cursors
   | Float => String.length("Float") |> CursorPosition.text_cursors
   | Bool => String.length("Bool") |> CursorPosition.text_cursors
-  | TyVar(_, x) => CursorPosition.text_cursors(TyId.length(x))
+  | TyVar(_, name) => CursorPosition.text_cursors(TyVar.Name.length(name))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
 
@@ -80,7 +80,8 @@ and is_after_zoperand =
   | CursorT(cursor, Int) => cursor == OnText(String.length("Int"))
   | CursorT(cursor, Float) => cursor == OnText(String.length("Float"))
   | CursorT(cursor, Bool) => cursor == OnText(String.length("Bool"))
-  | CursorT(cursor, TyVar(_, x)) => cursor == OnText(TyId.length(x))
+  | CursorT(cursor, TyVar(_, name)) =>
+    cursor == OnText(TyVar.Name.length(name))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -111,7 +112,8 @@ and place_after_operand =
   | Int => CursorT(OnText(String.length("Int")), Int)
   | Float => CursorT(OnText(String.length("Float")), Float)
   | Bool => CursorT(OnText(String.length("Bool")), Bool)
-  | TyVar(_, x) as operand => CursorT(OnText(TyId.length(x)), operand)
+  | TyVar(_, name) as operand =>
+    CursorT(OnText(TyVar.Name.length(name)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>

@@ -1,9 +1,9 @@
-[@deriving sexp]
+// [@deriving sexp]
 type result =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-[@deriving sexp]
+// [@deriving sexp]
 type ground_cases =
   | Hole
   | Ground

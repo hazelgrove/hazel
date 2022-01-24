@@ -1,7 +1,7 @@
 module Hole = {
   type t =
     | Expression(HTyp.t, VarCtx.t)
-    | Type(Kind.t, TyVarCtx.t)
+    | Type(Kind.t(HTyp.t), TyCtx.t)
     | Pattern(HTyp.t, VarCtx.t);
 };
 

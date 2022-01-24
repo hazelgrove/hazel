@@ -1,8 +1,8 @@
 /* types with holes */
-[@deriving sexp]
+// [@deriving sexp]
 type t =
-  | TyVar(TyVar.t) /* bound type variable */
-  | TyVarHole(MetaVar.t, TyVar.t) /* free type variables */
+  | TyVar(Index.t, TyVar.Name.t)
+  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, TyVar.Name.t)
   | Hole(MetaVar.t)
   | Int
   | Float
@@ -17,11 +17,13 @@ let precedence_Arrow: int;
 let precedence_Sum: int;
 let precedence: t => int;
 
+let equal: (t, t) => bool;
+
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
-let matched_arrow: t => option((t, t));
-let matched_sum: t => option((t, t));
+let matched_arrow: (t, MetaVarGen.t) => option((t, t, MetaVarGen.t));
+let matched_sum: (t, MetaVarGen.t) => option((t, t, MetaVarGen.t));
 let matched_list: t => option(t);
 
 let complete: t => bool;

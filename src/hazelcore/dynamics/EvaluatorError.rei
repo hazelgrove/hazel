@@ -1,4 +1,4 @@
-[@deriving sexp]
+// [@deriving sexp]
 type t =
   | OutOfFuel
   | FreeInvalidVar(Var.t)
@@ -9,5 +9,5 @@ type t =
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t);
 
-[@deriving sexp]
+// [@deriving sexp]
 exception Exception(t);
