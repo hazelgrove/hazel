@@ -401,36 +401,47 @@ exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t => {
   let (ec, env) = EvalEnv.empty;
-  let (ec, result) = program |> get_elaboration |> evaluate(ec, env);
-  open Sexplib.Sexp;
-  print_endline(
-    "EC: "
-    ++ to_string(EvalEnvIdGen.sexp_of_t(ec))
-    ++ "\n\nRESULT: "
-    ++ to_string(Evaluator.sexp_of_result(result)),
-  );
+  let (_, result) =
+    TimeUtil.measure_time("Evaluator.evaluate", true, () =>
+      program |> get_elaboration |> evaluate(ec, env)
+    );
+  /* open Sexplib.Sexp;
+     print_endline(
+       "EC: "
+       ++ to_string(EvalEnvIdGen.sexp_of_t(ec))
+       ++ "\n\nRESULT: "
+       ++ to_string(Evaluator.sexp_of_result(result)),
+     ); */
   switch (result) {
   | BoxedValue(d) =>
-    let (hci, d') = Evaluator.trace_result_hcs(d);
-    print_endline(
-      "CONVERTED: "
-      ++ to_string(DHExp.sexp_of_t(d'))
-      ++ "\n\nHCI: "
-      ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
-    );
+    /* TODO: remove timing function */
+    let (hci, d) =
+      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+        Evaluator.trace_result_hcs(d)
+      );
+    /* print_endline(
+         "CONVERTED: "
+         ++ to_string(DHExp.sexp_of_t(d))
+         ++ "\n\nHCI: "
+         ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
+       ); */
     (d, hci, BoxedValue(d));
 
   /* TODO: remove */
   /* let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
      (d_renumbered, hii, BoxedValue(d_renumbered)); */
   | Indet(d) =>
-    let (hci, d') = Evaluator.trace_result_hcs(d);
-    print_endline(
-      "CONVERTED: "
-      ++ to_string(DHExp.sexp_of_t(d'))
-      ++ "\n\nHCI: "
-      ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
-    );
+    /* TODO: remove timing */
+    let (hci, d) =
+      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+        Evaluator.trace_result_hcs(d)
+      );
+    /* print_endline(
+         "CONVERTED: "
+         ++ to_string(DHExp.sexp_of_t(d))
+         ++ "\n\nHCI: "
+         ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
+       ); */
     (d, hci, Indet(d));
 
   /* TODO: remove */

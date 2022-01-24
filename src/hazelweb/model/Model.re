@@ -166,6 +166,7 @@ let select_hole_closure = ((u, i): HoleClosure.t, model: t): t =>
 let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
+    /* Note: checking for structural equality can be slow on large results */
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;

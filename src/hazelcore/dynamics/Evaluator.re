@@ -1114,17 +1114,19 @@ and map_environment_to_result_map =
       /* for testing only: make sure that the expression is unchanged,
          otherwise throw an exception
 
+         checking for structural equality here is slow
+
          TODO: remove */
-      switch (dr) {
-      | BoxedValue(d')
-      | Indet(d') =>
-        if (d != d') {
-          exception TestException;
-          raise(TestException);
-        } else {
-          ();
-        }
-      };
+      /* switch (dr) {
+         | BoxedValue(d')
+         | Indet(d') =>
+           if (d != d') {
+             exception TestException;
+             raise(TestException);
+           } else {
+             ();
+           }
+         }; */
       dr;
     },
     sigma,
