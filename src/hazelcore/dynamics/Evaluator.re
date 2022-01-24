@@ -805,13 +805,13 @@ let rec evaluate =
   | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | (ec, BoxedValue(Closure(closure_env, dp, _, d3))) =>
+    | (ec, BoxedValue(Closure(closure_env, dp, _, d3) as d1)) =>
       switch (evaluate(ec, env, d2)) {
       | (ec, BoxedValue(d2))
       | (ec, Indet(d2)) =>
         switch (matches(dp, d2)) {
-        | DoesNotMatch => (ec, Indet(d))
-        | Indet => (ec, Indet(d))
+        | DoesNotMatch
+        | Indet => (ec, Indet(Ap(d1, d2)))
         | Matches(env') =>
           // evaluate a closure: extend the existing environment with the
           // closure environment and the new bindings introduced by the
