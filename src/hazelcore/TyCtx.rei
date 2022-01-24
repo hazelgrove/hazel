@@ -9,9 +9,8 @@ module Vars: {
   type t = list(binding);
 
   let empty: t;
-  let extend:
+  let bind:
     (Name.t, Kind.t(HTyp.t), ~increment_singleton: binding => binding, t) => t;
-
   let index: (~offset: int=?, Name.t, t) => option(Index.t);
   let has_index: (Index.t, t) => bool;
   let binding: (Index.t, t) => option(binding);
@@ -43,10 +42,21 @@ type join =
   | LUB;
 
 let empty: t;
+
 let var_index: (Name.t, t) => option(Index.t);
 let var_kind: (Index.t, t) => option(Kind.t(HTyp.t));
 let var_bound: (Name.t, t) => bool;
+let bind_var:
+  (
+    TyVar.Name.t,
+    Kind.t(HTyp.t),
+    ~increment_singleton: Vars.binding => Vars.binding,
+    t
+  ) =>
+  t;
+
 let hole_kind: (MetaVar.t, t) => option(Kind.t(HTyp.t));
+
 let equivalent_kind: (Kind.t(HTyp.t), Kind.t(HTyp.t), t) => bool;
 let equivalent: (HTyp.t, HTyp.t, t) => bool;
 let consistent: (HTyp.t, HTyp.t, t) => bool;

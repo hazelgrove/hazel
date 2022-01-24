@@ -11,7 +11,7 @@ module Vars = {
 
   let empty: t = [];
 
-  let extend =
+  let bind =
       (
         t: Name.t,
         k: Kind.t(HTyp.t),
@@ -89,6 +89,18 @@ let var_kind = (i: Index.t, ctx: t): option(Kind.t(HTyp.t)) =>
   ctx.vars |> Vars.kind(i);
 
 let var_bound = (name: Name.t, ctx: t): bool => ctx.vars |> Vars.bound(name);
+
+let bind_var =
+    (
+      name: TyVar.Name.t,
+      k: Kind.t(HTyp.t),
+      ~increment_singleton: Vars.binding => Vars.binding,
+      ctx: t,
+    )
+    : t => {
+  let vars = ctx.vars |> Vars.bind(name, k, ~increment_singleton);
+  {...ctx, vars};
+};
 
 let hole_kind = (u: MetaVar.t, ctx: t): option(Kind.t(HTyp.t)) =>
   ctx.holes |> Holes.kind(u);

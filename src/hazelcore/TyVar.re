@@ -34,4 +34,7 @@ module Name = {
     let re = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
     (s: string) => (Re.Str.string_match(re, s, 0): bool);
   };
+
+  let builtin = (s: string): bool =>
+    s == "Int" || s == "Float" || s == "Bool";
 };

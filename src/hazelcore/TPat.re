@@ -25,18 +25,21 @@ type t =
 //   | TyVar(Some(_), _) => false
 //   | TyVar(None, _) => true;
 
-let tyvar_of_tyid = name => {
-  let status =
-    name
-    |> TyVar.Name.to_string
-    |> ExpandingKeyword.mk
-    |> Option.fold(
-         ~some=_ => Status.InHole(Reserved, u),
-         ~none=
-           TyVar.Name.to_builtin_type(name)
-           |> Option.map(e => VarPatErrStatus.BuiltInType(e)),
-       );
-  TyVar(status, name);
+let of_name = (name: TyVar.Name.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (status, u_gen) =
+    switch (name |> TyVar.Name.to_string |> ExpandingKeyword.mk) {
+    | Some(_) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (Status.InHole(Reserved, u), u_gen);
+    | None =>
+      TyVar.Name.builtin(name)
+        ? {
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          (Status.InHole(Reserved, u), u_gen);
+        }
+        : (Status.NotInHole, u_gen)
+    };
+  (TyVar(status, name), u_gen);
 };
 
 let binds_tyvar = (name: TyVar.Name.t): (t => bool) =>

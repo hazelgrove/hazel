@@ -23,4 +23,5 @@ module Name: {
   let length: t => int;
   let equal: (t, t) => bool;
   let valid: string => bool;
+  let builtin: string => bool;
 };

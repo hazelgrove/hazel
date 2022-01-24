@@ -150,4 +150,4 @@ let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t)
-  | CursorOnDeferredTyVarPat(UsageAnalysis.uses_list => 't, TyId.t);
+  | CursorOnDeferredTyVarPat(UsageAnalysis.uses_list => 't, TyVar.Name.t);

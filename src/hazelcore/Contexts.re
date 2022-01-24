@@ -21,6 +21,18 @@ let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
 let typing: t => TyCtx.t = ({typing, _}) => typing;
 
+let bind_tyvar = (name: TyVar.Name.t, k: Kind.t(HTyp.t), ctx: t): t => {
+  let increment_singleton: TyCtx.Vars.binding => TyCtx.Vars.binding =
+    fun
+    | (name, Singleton(k', ty)) => {
+        let k = Kind.Singleton(k', HTyp.increment_indices(ty));
+        (name, k);
+      }
+    | binding => binding;
+  let typing = ctx.typing |> TyCtx.bind_var(name, k, ~increment_singleton);
+  {...ctx, typing};
+};
+
 // let extend_tyvars = (t: TyVar.Name.t, k: Kind.t, ctx: t): t => {
 //   let increment_singleton: TyCtx.Vars.binding => TyCtx.Vars.binding =
 //     fun
