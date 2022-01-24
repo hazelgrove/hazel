@@ -575,18 +575,18 @@ let rec subst_vars_within_lambdas =
   | EmptyHole(u, _, _) =>
     /* Check if this hole closure already exists in hci */
     switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((_, ci, env)) => (hci, EmptyHole(u, ci, env))
+    | Some((i, env)) => (hci, EmptyHole(u, i, env))
     | None =>
-      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, EmptyHole(u, ci, env));
+      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, EmptyHole(u, i, env));
     }
   | NonEmptyHole(reason, u, _, _, d') =>
     let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
     switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((u, ci, env)) => (hci, NonEmptyHole(reason, u, ci, env, d''))
+    | Some((i, env)) => (hci, NonEmptyHole(reason, u, i, env, d''))
     | None =>
-      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, NonEmptyHole(reason, u, ci, env, d''));
+      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, NonEmptyHole(reason, u, i, env, d''));
     };
   | InconsistentBranches(_) => /* TODO */ (hci, d)
   };
@@ -674,20 +674,20 @@ and expand_closures_to_lambdas =
      - Recurse through subexpressions if applicable. */
   | EmptyHole(u, _, env) =>
     switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((u, ci, env)) => (hci, EmptyHole(u, ci, env))
+    | Some((i, env)) => (hci, EmptyHole(u, i, env))
     | None =>
       let (hci, env) = expand_closures_in_holes(hci, env);
-      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, EmptyHole(u, ci, env));
+      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, EmptyHole(u, i, env));
     }
   | NonEmptyHole(reason, u, _, env, d') =>
     let (hci, d'') = expand_closures_to_lambdas(hci, d');
     switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((u, ci, env)) => (hci, NonEmptyHole(reason, u, ci, env, d''))
+    | Some((i, env)) => (hci, NonEmptyHole(reason, u, i, env, d''))
     | None =>
       let (hci, env) = expand_closures_in_holes(hci, env);
-      let (hci, ci) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, NonEmptyHole(reason, u, ci, env, d''));
+      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      (hci, NonEmptyHole(reason, u, i, env, d''));
     };
   | InconsistentBranches(_) => /* TODO */ (hci, d)
   }

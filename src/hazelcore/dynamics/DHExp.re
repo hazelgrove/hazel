@@ -130,12 +130,18 @@ module BinFloatOp = {
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t, evalenv)
-  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, evalenv, t)
+  | EmptyHole(MetaVar.t, HoleClosureId.t, evalenv)
+  | NonEmptyHole(
+      ErrStatus.HoleReason.t,
+      MetaVar.t,
+      HoleClosureId.t,
+      evalenv,
+      t,
+    )
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, evalenv, ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, MetaVarInst.t, evalenv, Var.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, evalenv, string)
+  | Keyword(MetaVar.t, HoleClosureId.t, evalenv, ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, HoleClosureId.t, evalenv, Var.t)
+  | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | Lam(DHPat.t, HTyp.t, t)
@@ -153,7 +159,7 @@ type t =
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, evalenv, case)
+  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)

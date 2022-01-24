@@ -98,7 +98,7 @@ let rec mk =
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_instance: option(HoleInstance.t),
+          ~selected_hole_closure: option(HoleClosure.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -137,7 +137,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_instance)),
+            drs |> List.map(mk_rule(~settings, ~selected_hole_closure)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -159,19 +159,18 @@ let rec mk =
       switch (d) {
       | EmptyHole(u, i, _sigma) =>
         let selected =
-          switch (selected_instance) {
+          switch (selected_hole_closure) {
           | None => false
           | Some((u', i')) => u == u' && i == i'
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, _sigma, d) =>
+      | NonEmptyHole(reason, u, i, _, d) =>
         go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
-      | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
-      | FreeVar(u, i, _sigma, x) =>
+      | Keyword(u, i, _, k) => DHDoc_common.mk_Keyword((u, i), k)
+      | FreeVar(u, i, _, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, _sigma, t) =>
-        DHDoc_common.mk_InvalidText(t, (u, i))
+      | InvalidText(u, i, _, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -208,7 +207,7 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
+      | InconsistentBranches(u, i, _, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
@@ -311,9 +310,10 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
+    (~settings, ~selected_hole_closure, Rule(dp, dclause): DHExp.rule)
+    : DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance);
+  let mk' = mk(~settings, ~selected_hole_closure);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses

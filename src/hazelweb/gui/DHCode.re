@@ -24,7 +24,7 @@ let view_of_layout =
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)
              | Delim => ([with_cls("code-delim", txt)], ds)
-             | EmptyHole(selected, inst) => (
+             | EmptyHole(selected, hc) => (
                  [
                    Node.span(
                      [
@@ -33,7 +33,7 @@ let view_of_layout =
                          ...selected ? ["selected"] : [],
                        ]),
                        Attr.on_click(_ =>
-                         inject(ModelAction.SelectHoleInstance(inst))
+                         inject(ModelAction.SelectHoleClosure(hc))
                        ),
                      ],
                      txt,
@@ -76,7 +76,7 @@ let view =
     (
       ~inject,
       ~settings: Settings.Evaluation.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_hole_closure: option(HoleClosure.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -84,7 +84,7 @@ let view =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_closure)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -92,26 +92,27 @@ let view =
   |> view_of_layout(~inject, ~font_metrics);
 };
 
-let view_of_hole_instance =
+let view_of_hole_closure =
     (
       ~inject,
       ~width: int,
       ~pos=0,
-      ~selected_instance,
+      ~selected_hole_closure,
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
-      (u, i): HoleInstance.t,
+      (u, i): HoleClosure.t,
     )
     : Node.t => {
-  let (_, env) = EvalEnv.empty;
   view(
     ~inject,
     ~settings,
-    ~selected_instance,
+    ~selected_hole_closure,
     ~font_metrics,
     ~width,
     ~pos,
-    DHExp.EmptyHole(u, i, env),
+    /* doesn't matter what the hole environment is here,
+       don't have to look it up */
+    DHExp.EmptyHole(u, i, UnreachedEnv),
   );
 };
 

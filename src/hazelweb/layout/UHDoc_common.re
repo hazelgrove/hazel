@@ -287,7 +287,7 @@ let mk_Float = (): t =>
   Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
-let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
+let hole_inst_lbl = (u: MetaVar.t, i: HoleClosureId.t): string =>
   StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
 
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>

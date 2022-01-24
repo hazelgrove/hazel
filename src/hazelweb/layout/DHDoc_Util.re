@@ -43,7 +43,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
+  let empty_hole = ((u, i): HoleClosure.t): t => {
     let lbl =
       StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)

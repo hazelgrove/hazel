@@ -7,11 +7,11 @@ type t =
   | Term
   | HoleLabel
   | Delim
-  | EmptyHole(bool, HoleInstance.t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
-  | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
-  | InconsistentBranches(HoleInstance.t)
-  | Invalid(HoleInstance.t)
+  | EmptyHole(bool, HoleClosure.t)
+  | NonEmptyHole(ErrStatus.HoleReason.t, HoleClosure.t)
+  | VarHole(VarErrStatus.HoleReason.t, HoleClosure.t)
+  | InconsistentBranches(HoleClosure.t)
+  | Invalid(HoleClosure.t)
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration

@@ -38,7 +38,7 @@ type t =
   | PrevCard
   | UpdateSettings(Settings.update)
   | UpdateCursorInspector(CursorInspectorModel.update)
-  | SelectHoleInstance(HoleInstance.t)
+  | SelectHoleClosure(HoleClosure.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell
   | BlurCell

@@ -2,12 +2,12 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
+  | EmptyHole(MetaVar.t, HoleClosureId.t)
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
   | Wild
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, string)
+  | Keyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
+  | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | Var(Var.t)
   | IntLit(int)
   | FloatLit(float)

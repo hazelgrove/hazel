@@ -41,7 +41,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
+  let empty_hole = ((u, i): HoleClosure.t): t => {
     let lbl =
       StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)
@@ -81,16 +81,15 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+let mk_EmptyHole = (~selected=false, hc: HoleClosure.t) =>
+  Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
 
-let mk_Keyword = (u, i, k) =>
+let mk_Keyword = (hc, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
+  |> Doc.annot(DHAnnot.VarHole(Keyword(k), hc));
 
-let mk_InvalidText = (t, (u, i)) =>
-  Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
+let mk_InvalidText = (t, hc) =>
+  Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 

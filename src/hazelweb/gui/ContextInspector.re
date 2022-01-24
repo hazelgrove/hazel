@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_hole_closure: option(HoleClosure.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
@@ -54,7 +54,7 @@ let view =
                 DHCode.view(
                   ~inject,
                   ~settings,
-                  ~selected_instance,
+                  ~selected_hole_closure,
                   ~font_metrics,
                   ~width=30,
                   d,
@@ -83,7 +83,7 @@ let view =
     Panel.view_of_other_title_bar("Closure above observed at ");
 
   let hii_summary = (hii, (u, i) as inst) => {
-    let num_instances = HoleInstanceInfo.num_instances(hii, u);
+    let num_instances = HoleClosureInfo.num_unique_hcs(hii, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -94,10 +94,10 @@ let view =
               Node.div(
                 [Attr.classes(["hii-summary-inst"])],
                 [
-                  DHCode.view_of_hole_instance(
+                  DHCode.view_of_hole_closure(
                     ~inject,
                     ~width=30,
-                    ~selected_instance,
+                    ~selected_hole_closure,
                     ~settings,
                     ~font_metrics,
                     inst,
@@ -137,11 +137,11 @@ let view =
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
+            Attr.on_click(_ => inject(SelectHoleClosure(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance(prev_inst))] : [];
+                  ? [inject(SelectHoleClosure(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -164,11 +164,11 @@ let view =
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
+            Attr.on_click(_ => inject(SelectHoleClosure(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance(next_inst))] : [];
+                  ? [inject(SelectHoleClosure(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -193,88 +193,88 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
-  let view_of_path_item = ((inst, x)) =>
-    Node.div(
-      [Attr.classes(["path-item"])],
-      [
-        Node.div(
-          [Attr.classes(["inst"])],
-          [
-            DHCode.view_of_hole_instance(
-              ~inject,
-              ~width=30,
-              ~selected_instance,
-              ~settings,
-              ~font_metrics,
-              inst,
-            ),
-          ],
-        ),
-        Node.div(
-          [Attr.classes(["inst-var-separator"])],
-          [Node.text("·")],
-        ),
-        Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
-      ],
-    );
+  /* let view_of_path_item = ((inst, x)) =>
+       Node.div(
+         [Attr.classes(["path-item"])],
+         [
+           Node.div(
+             [Attr.classes(["inst"])],
+             [
+               DHCode.view_of_hole_closure(
+                 ~inject,
+                 ~width=30,
+                 ~selected_hole_closure,
+                 ~settings,
+                 ~font_metrics,
+                 inst,
+               ),
+             ],
+           ),
+           Node.div(
+             [Attr.classes(["inst-var-separator"])],
+             [Node.text("·")],
+           ),
+           Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
+         ],
+       );
 
-  let path_view = (inst, path: InstancePath.t) => {
-    let (titlebar_txt, path_area_children) =
-      switch (path) {
-      | [] => (
-          "which is in the result",
-          [
-            Node.div(
-              [Attr.classes(["special-msg"])],
-              [Node.div([], [Node.text("immediately")])],
-            ),
-          ],
-        )
-      | _ =>
-        let titlebar_txt = "which is in the result via path";
-        let path_area_children =
-          List.fold_left(
-            (acc, path_item) =>
-              [
-                view_of_path_item(path_item),
-                Node.span(
-                  [Attr.classes(["path-item-separator"])],
-                  [Node.text(" 〉 ")],
-                ),
-                ...acc,
-              ],
-            [
-              Node.div(
-                [Attr.classes(["trailing-inst"])],
-                [
-                  DHCode.view_of_hole_instance(
-                    ~inject,
-                    ~width=30,
-                    ~selected_instance,
-                    ~settings,
-                    ~font_metrics,
-                    inst,
-                  ),
-                ],
-              ),
-            ],
-            path,
-          );
+     let path_view = (inst, path: InstancePath.t) => {
+       let (titlebar_txt, path_area_children) =
+         switch (path) {
+         | [] => (
+             "which is in the result",
+             [
+               Node.div(
+                 [Attr.classes(["special-msg"])],
+                 [Node.div([], [Node.text("immediately")])],
+               ),
+             ],
+           )
+         | _ =>
+           let titlebar_txt = "which is in the result via path";
+           let path_area_children =
+             List.fold_left(
+               (acc, path_item) =>
+                 [
+                   view_of_path_item(path_item),
+                   Node.span(
+                     [Attr.classes(["path-item-separator"])],
+                     [Node.text(" 〉 ")],
+                   ),
+                   ...acc,
+                 ],
+               [
+                 Node.div(
+                   [Attr.classes(["trailing-inst"])],
+                   [
+                     DHCode.view_of_hole_instance(
+                       ~inject,
+                       ~width=30,
+                       ~selected_instance,
+                       ~settings,
+                       ~font_metrics,
+                       inst,
+                     ),
+                   ],
+                 ),
+               ],
+               path,
+             );
 
-        (
-          titlebar_txt,
-          [Node.div([Attr.classes(["path-area"])], path_area_children)],
-        );
-      };
+           (
+             titlebar_txt,
+             [Node.div([Attr.classes(["path-area"])], path_area_children)],
+           );
+         };
 
-    Node.div(
-      [Attr.classes(["path-view-with-path"])],
-      [
-        Panel.view_of_other_title_bar(titlebar_txt),
-        Node.div([Attr.classes(["path-area-parent"])], path_area_children),
-      ],
-    );
-  };
+       Node.div(
+         [Attr.classes(["path-view-with-path"])],
+         [
+           Panel.view_of_other_title_bar(titlebar_txt),
+           Node.div([Attr.classes(["path-area-parent"])], path_area_children),
+         ],
+       );
+     }; */
 
   let context_view = {
     let ctx =
@@ -285,15 +285,15 @@ let view =
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
-        switch (selected_instance) {
+        switch (selected_hole_closure) {
         | None => Environment.empty
-        | Some(inst) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
+        | Some((u, i)) =>
+          switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
             Environment.empty;
-          | Some((sigma, _)) => sigma
+          | Some(sigma) => sigma |> EvalEnv.environment_of_evalenv
           }
         };
       } else {
@@ -340,21 +340,24 @@ let view =
               ),
             ]
           | Some(u) =>
-            switch (selected_instance) {
+            switch (selected_hole_closure) {
             | None => [
                 instructional_msg("Click on a hole instance in the result"),
               ]
-            | Some((u', _) as inst) =>
+            | Some((u', i) as inst) =>
               if (MetaVar.eq(u, u')) {
-                switch (HoleInstanceInfo.lookup(hii, inst)) {
+                switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
                 | None =>
                   // raise(InvalidInstance)
                   [instructional_msg("Internal Error: InvalidInstance")]
-                | Some((_, path)) => [
-                    path_view_titlebar,
-                    hii_summary(hii, inst),
-                    path_view(inst, path),
-                  ]
+
+                /* TODO: need to update the way path works */
+                | Some(_) => [path_view_titlebar, hii_summary(hii, inst)]
+                /* | Some((_, path)) => [
+                     path_view_titlebar,
+                     hii_summary(hii, inst),
+                     path_view(inst, path),
+                   ] */
                 };
               } else {
                 [

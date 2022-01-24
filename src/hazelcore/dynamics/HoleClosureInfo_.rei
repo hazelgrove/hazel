@@ -5,12 +5,13 @@
    to identify the hole closures (similar to HoleInstanceInfo.t).
    */
 [@deriving sexp]
-type t = MetaVarMap.t(EvalEnvIdMap.t(HoleClosure.t));
+type t = MetaVarMap.t(EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t)));
 
 let empty: t;
 
 /* Returns the HoleClosure.t with the given u and sigma, if found */
-let find_hc_opt: (t, MetaVar.t, EvalEnv.t) => option(HoleClosure.t);
+let find_hc_opt:
+  (t, MetaVar.t, EvalEnv.t) => option((HoleClosureId.t, EvalEnv.t));
 
 /* Installs a hole closure and returns the HoleClosureId.t. If the
    hole closure already exists in the HoleClosureInfo_.t,
