@@ -95,3 +95,18 @@ let mk_tuple: list(t) => t;
 let cast: (t, HTyp.t, HTyp.t) => t;
 
 let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+
+/* Used for faster structural equality checking. Structural
+   checking may be slow when an expression is large,
+   in particular when environments are repeated many times.
+   We can optimize checking for structural equality of
+   environments simply by checking equality of environment ID's.
+
+   Note: assumes that environments with the same EvalEnvId.t
+   within both expressions are equivalent. This assumption
+   is true if comparing within a program evaluation (since
+   EvalEnvId.t numbers don't get reused within a single program
+   evaluation) or if all the environments are checked to be
+   equal (see Result.fast_equals).
+   */
+let fast_equals: (t, t) => bool;

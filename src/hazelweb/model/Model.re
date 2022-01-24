@@ -166,10 +166,16 @@ let select_hole_closure = ((u, i): HoleClosure.t, model: t): t =>
 let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
-    /* Note: checking for structural equality can be slow on large results */
+    let old_result = Program.get_result(old_program);
+    let new_result = Program.get_result(new_program);
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
+      TimeUtil.measure_time("Result.fast_equals", true, () =>
+        Result.fast_equals(old_result, new_result)
+          ? si : UserSelectedInstances.init
+      );
+    /* TODO: remove timing here */
+    /* Compare performance to old_result == new_result */
+
     switch (
       model.settings.evaluation.evaluate,
       new_program |> Program.cursor_on_exp_hole,

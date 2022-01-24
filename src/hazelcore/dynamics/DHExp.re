@@ -227,3 +227,109 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
     d,
     casts,
   );
+
+/* Helper for fast_equals. */
+let evalenv_equals = (sigma1: evalenv, sigma2: evalenv): bool => {
+  switch (sigma1, sigma2) {
+  | (Env(ei1, _), Env(ei2, _)) => ei1 == ei2
+  | _ => false
+  };
+};
+
+let rec fast_equals = (d1: t, d2: t): bool => {
+  switch (d1, d2) {
+  /* Primitive forms: regular structural equality */
+  | (BoundVar(_), _)
+  | (BoolLit(_), _)
+  | (IntLit(_), _)
+  | (FloatLit(_), _)
+  | (ListNil(_), _)
+  | (Triv, _) => d1 == d2
+
+  /* Non-hole forms: recurse */
+  | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
+    dp1 == dp2 && fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (Lam(dp1, ty1, d1), Lam(dp2, ty2, d2)) =>
+    dp1 == dp2 && ty1 == ty2 && fast_equals(d1, d2)
+  | (Ap(d11, d21), Ap(d12, d22))
+  | (Cons(d11, d21), Cons(d12, d22))
+  | (Pair(d11, d21), Pair(d12, d22)) =>
+    fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
+    op1 == op2 && fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
+    op1 == op2 && fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (BinFloatOp(op1, d11, d21), BinFloatOp(op2, d12, d22)) =>
+    op1 == op2 && fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
+    ty1 == ty2 && side1 == side2 && fast_equals(d1, d2)
+  | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
+  | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
+    fast_equals(d1, d2) && ty11 == ty12 && ty21 == ty22
+  | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
+    fast_equals(d1, d2) && reason1 == reason2
+  | (ConsistentCase(case1), ConsistentCase(case2)) =>
+    fast_equals_case(case1, case2)
+  | (Let(_), _)
+  | (Lam(_), _)
+  | (Ap(_), _)
+  | (Cons(_), _)
+  | (Pair(_), _)
+  | (BinBoolOp(_), _)
+  | (BinIntOp(_), _)
+  | (BinFloatOp(_), _)
+  | (Inj(_), _)
+  | (Cast(_), _)
+  | (FailedCast(_), _)
+  | (InvalidOperation(_), _)
+  | (ConsistentCase(_), _) => false
+
+  /* Hole forms: when checking environments, only check that
+     environment ID's are equal, don't check structural equality.
+
+     (This resolves a performance issue with many nested holes.) */
+  | (EmptyHole(u1, i1, sigma1), EmptyHole(u2, i2, sigma2)) =>
+    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2)
+  | (
+      NonEmptyHole(reason1, u1, i1, sigma1, d1),
+      NonEmptyHole(reason2, u2, i2, sigma2, d2),
+    ) =>
+    reason1 == reason2
+    && u1 == u2
+    && i1 == i2
+    && evalenv_equals(sigma1, sigma2)
+    && fast_equals(d1, d2)
+  | (Keyword(u1, i1, sigma1, kw1), Keyword(u2, i2, sigma2, kw2)) =>
+    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && kw1 == kw2
+  | (FreeVar(u1, i1, sigma1, x1), FreeVar(u2, i2, sigma2, x2)) =>
+    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && x1 == x2
+  | (InvalidText(u1, i1, sigma1, text1), InvalidText(u2, i2, sigma2, text2)) =>
+    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && text1 == text2
+  | (Closure(sigma1, dp1, ty1, d1), Closure(sigma2, dp2, ty2, d2)) =>
+    evalenv_equals(sigma1, sigma2) && dp1 == dp2 && ty1 == ty2 && d1 == d2
+  | (
+      InconsistentBranches(u1, i1, sigma1, case1),
+      InconsistentBranches(u2, i2, sigma2, case2),
+    ) =>
+    u1 == u2
+    && i1 == i2
+    && evalenv_equals(sigma1, sigma2)
+    && fast_equals_case(case1, case2)
+  | (EmptyHole(_), _)
+  | (NonEmptyHole(_), _)
+  | (Keyword(_), _)
+  | (FreeVar(_), _)
+  | (InvalidText(_), _)
+  | (Closure(_), _)
+  | (InconsistentBranches(_), _) => false
+  };
+}
+and fast_equals_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
+  fast_equals(d1, d2)
+  && List.for_all2(
+       (Rule(dp1, d1), Rule(dp2, d2)) => dp1 == dp2 && fast_equals(d1, d2),
+       rules1,
+       rules2,
+     )
+  && i1 == i2;
+};
