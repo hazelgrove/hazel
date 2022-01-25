@@ -19,11 +19,11 @@ type t =
   | EmptyHole
   | TyVar(Status.t, TyVar.Name.t);
 
-// let is_complete =
-//   fun
-//   | EmptyHole
-//   | TyVar(Some(_), _) => false
-//   | TyVar(None, _) => true;
+let is_complete =
+  fun
+  | EmptyHole
+  | TyVar(InHole(_), _) => false
+  | TyVar(NotInHole, _) => true;
 
 let of_name = (name: TyVar.Name.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (status, u_gen) =

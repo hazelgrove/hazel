@@ -1,7 +1,6 @@
 type t = (HTyp.t, TyCtx.t);
 
 let wrap = (ty: HTyp.t): t => (ty, TyCtx.empty);
-
 let lift = (ctx: TyCtx.t, ty: HTyp.t): t => (ty, ctx);
 let unlift = ((ty, _): t): HTyp.t => ty;
 let context = ((_, ctx): t): TyCtx.t => ctx;
@@ -11,6 +10,13 @@ let rec lift_kind = (ctx: TyCtx.t, k: Kind.t(HTyp.t)): Kind.t(t) =>
   | KHole => KHole
   | Type => Type
   | Singleton(k1, ty) => Singleton(lift_kind(ctx, k1), lift(ctx, ty))
+  };
+
+let rec unlift_kind = (dk: Kind.t(t)): Kind.t(HTyp.t) =>
+  switch (dk) {
+  | KHole => KHole
+  | Type => Type
+  | Singleton(k1, dty) => Singleton(unlift_kind(k1), unlift(dty))
   };
 
 /** Type equivalence

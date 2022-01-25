@@ -294,7 +294,13 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      zline: ZExp.zline,
+      suffix,
+      u_gen: MetaVarGen.t,
+    )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
@@ -349,7 +355,7 @@ and syn_cursor_info_line =
     };
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    let (def_ctx, _) = Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);

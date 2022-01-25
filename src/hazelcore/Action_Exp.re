@@ -1145,7 +1145,8 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
+    let (def_ctx, u_gen) =
+      Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def, u_gen);
     let ty_def =
       switch (Statics_Exp.syn(def_ctx, def)) {
       | None =>
@@ -1161,7 +1162,8 @@ and syn_perform_line =
       let (new_zp, ty_p, _, u_gen) =
         Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
       let p = ZPat.erase(new_zp);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let (def_ctx, u_gen) =
+        Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
       let new_zline = ZExp.LetLineZP(new_zp, new_def);
@@ -1174,7 +1176,8 @@ and syn_perform_line =
     | None => Failed
     | Some((ty_p, _)) =>
       let def = ZExp.erase(zdef);
-      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let (def_ctx, u_gen) =
+        Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
       switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)

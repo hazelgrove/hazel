@@ -1,84 +1,93 @@
 type elab_result_lines =
-  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t, MetaVarGen.t)
   | LinesDoNotElaborate;
 
 module ElaborationResult = {
   type t =
-    | Elaborates(DHExp.t, HTyp.t, Delta.t)
+    | Elaborates(DHExp.t, HTyp.t, Delta.t, MetaVarGen.t)
     | DoesNotElaborate;
 
   let to_option =
     fun
     | DoesNotElaborate => None
-    | Elaborates(pat, ty, delta) => Some((pat, ty, delta));
+    | Elaborates(pat, ty, delta, u_gen) => Some((pat, ty, delta, u_gen));
 
   let from_option =
     fun
     | None => DoesNotElaborate
-    | Some((pat, ty, delta)) => Elaborates(pat, ty, delta);
+    | Some((pat, ty, delta, u_gen)) => Elaborates(pat, ty, delta, u_gen);
 
-  let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
+  let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t, MetaVarGen.t)) => t): t =>
     switch (x) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, ty, delta) => f((dp, ty, delta))
+    | Elaborates(d, ty, delta, u_gen) => f((d, ty, delta, u_gen))
     };
 };
 
 module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
-        (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
-  syn_elab_block(ctx, delta, e)
+        (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, u_gen: MetaVarGen.t)
+        : ElaborationResult.t =>
+  syn_elab_block(ctx, delta, e, u_gen)
 and syn_elab_block =
-    (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
+    (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, u_gen: MetaVarGen.t)
+    : ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
-    switch (syn_elab_lines(ctx, delta, leading)) {
+    switch (syn_elab_lines(ctx, delta, leading, u_gen)) {
     | LinesDoNotElaborate => DoesNotElaborate
-    | LinesElaborate(prelude, ctx, delta) =>
-      switch (syn_elab_opseq(ctx, delta, conclusion)) {
+    | LinesElaborate(prelude, ctx, delta, u_gen) =>
+      switch (syn_elab_opseq(ctx, delta, conclusion, u_gen)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
       }
     }
   }
 and syn_elab_lines =
-    (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
+    (
+      ctx: Contexts.t,
+      delta: Delta.t,
+      lines: list(UHExp.line),
+      u_gen: MetaVarGen.t,
+    )
     : elab_result_lines =>
   switch (lines) {
-  | [] => LinesElaborate(d => d, ctx, delta)
+  | [] => LinesElaborate(d => d, ctx, delta, u_gen)
   | [line, ...lines] =>
-    switch (syn_elab_line(ctx, delta, line)) {
+    switch (syn_elab_line(ctx, delta, line, u_gen)) {
     | LinesDoNotElaborate => LinesDoNotElaborate
-    | LinesElaborate(prelude_line, ctx, delta) =>
-      switch (syn_elab_lines(ctx, delta, lines)) {
+    | LinesElaborate(prelude_line, ctx, delta, u_gen) =>
+      switch (syn_elab_lines(ctx, delta, lines, u_gen)) {
       | LinesDoNotElaborate => LinesDoNotElaborate
-      | LinesElaborate(prelude_lines, ctx, delta) =>
-        LinesElaborate(d => prelude_line(prelude_lines(d)), ctx, delta)
+      | LinesElaborate(prelude_lines, ctx, delta, u_gen) =>
+        let pl = d => prelude_line(prelude_lines(d));
+        LinesElaborate(pl, ctx, delta, u_gen);
       }
     }
   }
 and syn_elab_line =
-    (ctx: Contexts.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
+    (ctx: Contexts.t, delta: Delta.t, line: UHExp.line, u_gen: MetaVarGen.t)
+    : elab_result_lines =>
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
     | DoesNotElaborate => LinesDoNotElaborate
-    | Elaborates(d1, _, delta) =>
+    | Elaborates(d1, _, delta, u_gen) =>
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
-      LinesElaborate(prelude, ctx, delta);
+      LinesElaborate(prelude, ctx, delta, u_gen);
     }
   | EmptyLine
-  | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
+  | CommentLine(_) => LinesElaborate(d => d, ctx, delta, u_gen)
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotElaborate
     | Some((ty1, _)) =>
-      let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      let (ctx1, u_gen) = Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotElaborate
-      | Elaborates(d1, ty1', delta) =>
+      | Elaborates(d1, ty1', delta, u_gen) =>
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
@@ -112,11 +121,22 @@ and syn_elab_line =
     }
   }
 and syn_elab_opseq =
-    (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
+    (
+      ctx: Contexts.t,
+      delta: Delta.t,
+      OpSeq(skel, seq): UHExp.opseq,
+      u_gen: MetaVarGen.t,
+    )
     : ElaborationResult.t =>
-  syn_elab_skel(ctx, delta, skel, seq)
+  syn_elab_skel(ctx, delta, skel, seq, u_gen)
 and syn_elab_skel =
-    (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel, seq: UHExp.seq)
+    (
+      ctx: Contexts.t,
+      delta: Delta.t,
+      skel: UHExp.skel,
+      seq: UHExp.seq,
+      u_gen: MetaVarGen.t,
+    )
     : ElaborationResult.t =>
   switch (skel) {
   | Placeholder(n) =>
@@ -252,7 +272,12 @@ and syn_elab_skel =
     }
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
+    (
+      ctx: Contexts.t,
+      delta: Delta.t,
+      operand: UHExp.operand,
+      u_gen: MetaVarGen.t,
+    )
     : ElaborationResult.t =>
   switch (operand) {
   /* in hole */

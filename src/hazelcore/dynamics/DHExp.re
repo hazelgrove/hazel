@@ -144,7 +144,7 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | TyAlias(TPat.t, DHTyp.t, Kind.t, t)
+  | TyAlias(TPat.t, DHTyp.t, Kind.t(DHTyp.t), t)
   | FixF(Var.t, DHTyp.t, t)
   | Lam(DHPat.t, DHTyp.t, t)
   | Ap(t, t)

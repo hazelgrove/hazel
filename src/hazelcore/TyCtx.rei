@@ -61,6 +61,7 @@ let equivalent_kind: (Kind.t(HTyp.t), Kind.t(HTyp.t), t) => bool;
 let equivalent: (HTyp.t, HTyp.t, t) => bool;
 let consistent: (HTyp.t, HTyp.t, t) => bool;
 let join: (join, HTyp.t, HTyp.t, t) => option(HTyp.t);
+let join_all: (join, list(HTyp.t), t) => option(HTyp.t);
 
 // [@deriving sexp]
 // type t;

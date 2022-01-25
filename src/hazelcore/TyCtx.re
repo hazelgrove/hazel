@@ -190,17 +190,16 @@ let rec consistent = (ty: HTyp.t, ty': HTyp.t, ctx: t) =>
   | (List(_), _) => false
   };
 
-// let inconsistent = (ty1: HTyp.t, ty2: HTyp.t, ctx: t) =>
-//   !(ctx |> consistent(ty1, ty2));
+let inconsistent = (ty1: HTyp.t, ty2: HTyp.t, ctx: t) =>
+  !(ctx |> consistent(ty1, ty2));
 
-// let rec consistent_all = (types: list(HTyp.t), ctx: t): bool =>
-//   switch (types) {
-//   | [] => true
-//   | [hd, ...tl] =>
-//     !List.exists(x => ctx |> inconsistent(hd, x), tl)
-//     || ctx
-//     |> consistent_all(tl)
-//   };
+let rec consistent_all = (types: list(HTyp.t), ctx: t): bool =>
+  switch (types) {
+  | [] => true
+  | [hd, ...tl] =>
+    !List.exists(x => ctx |> inconsistent(hd, x), tl)
+    || consistent_all(tl, ctx)
+  };
 
 let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t): option(HTyp.t) => {
   switch (ty1, ty2) {
@@ -266,26 +265,26 @@ let rec join = (j: join, ty1: HTyp.t, ty2: HTyp.t, ctx: t): option(HTyp.t) => {
   };
 };
 
-// let join_all = (j: join, types: list(HTyp.t), ctx: t): option(HTyp.t) => {
-//   switch (types) {
-//   | [] => None
-//   | [hd] => Some(hd)
-//   | [hd, ...tl] =>
-//     if (!consistent_all(types, ctx)) {
-//       None;
-//     } else {
-//       List.fold_left(
-//         (common_opt, ty) =>
-//           switch (common_opt) {
-//           | None => None
-//           | Some(common_ty) => ctx |> join(j, common_ty, ty)
-//           },
-//         Some(hd),
-//         tl,
-//       );
-//     }
-//   };
-// };
+let join_all = (j: join, types: list(HTyp.t), ctx: t): option(HTyp.t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    if (!consistent_all(types, ctx)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => ctx |> join(j, common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    }
+  };
+};
 
 // open Sexplib.Std;
 // [@deriving sexp]
