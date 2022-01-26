@@ -156,9 +156,9 @@ let rec mk =
             space(),
             DHDoc_common.Delim.open_Then,
           ]),
-          mk_cast(go'(d2)),
+          indent_and_align(mk_cast(go'(d2))),
           DHDoc_common.Delim.open_Else,
-          mk_cast(go'(d3)),
+          indent_and_align(mk_cast(go'(d3))),
         ]);
       };
     let mk_left_associative_operands = (precedence_op, d1, d2) => (
