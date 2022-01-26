@@ -386,11 +386,14 @@ let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t =
         if_delim,
         t1 |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
         then_delim,
-      ])
-      |> annot_Operand(~sort=Exp),
-      t2 |> pad_left_indented_open_child(~with_border=false),
+      ]),
+      t2
+      |> pad_left_indented_open_child(~with_border=false)
+      |> Doc.annot(UHAnnot.OpenChild(Multiline)),
       else_delim,
-      t3 |> pad_left_indented_open_child(~with_border=false),
+      t3
+      |> pad_left_indented_open_child(~with_border=false)
+      |> Doc.annot(UHAnnot.OpenChild(Multiline)),
     ])
   )
   |> annot_Operand(~sort=Exp);
