@@ -151,7 +151,9 @@ let rec mk =
         vseps([
           hcats([
             DHDoc_common.Delim.open_If,
+            space(),
             mk_cast(go'(d1)),
+            space(),
             DHDoc_common.Delim.open_Then,
           ]),
           mk_cast(go'(d2)),
