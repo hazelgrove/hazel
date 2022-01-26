@@ -373,7 +373,7 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
 let pad_left_indented_open_child =
   pad_delimited_open_child(
     ~multiline_padding=(empty_, empty_),
-    ~inline_padding=(space_, empty_),
+    ~inline_padding=(indent_, empty_),
   );
 
 let mk_If = (t1: formatted_child, t2: formatted_child, t3: formatted_child): t => {
