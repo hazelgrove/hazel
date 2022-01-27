@@ -3621,48 +3621,40 @@ and ana_perform_operand =
       }
     }
   | (_, IfZ2(_, t1, zt2, t3)) =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(zt2))) {
-    | None => Failed
-    | Some(_) =>
-      switch (ana_perform(ctx, a, (zt2, u_gen), ty)) {
-      | Failed => Failed
-      | CursorEscaped(side) =>
-        ana_perform_operand(
-          ctx,
-          Action_common.escape(side),
-          (zoperand, u_gen),
-          ty,
-        )
-      | Succeeded((new_zt2, u_gen)) =>
-        /* Statics_Exp.syn_fix_holes() add later?? */
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            IfZ2(StandardErrStatus(NotInHole), t1, new_zt2, t3),
-          );
-        Succeeded(AnaDone((new_ze, u_gen)));
-      }
+    switch (ana_perform(ctx, a, (zt2, u_gen), ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      ana_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, u_gen),
+        ty,
+      )
+    | Succeeded((new_zt2, u_gen)) =>
+      /* Statics_Exp.syn_fix_holes() add later?? */
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          IfZ2(StandardErrStatus(NotInHole), t1, new_zt2, t3),
+        );
+      Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, IfZ3(_, t1, t2, zt3)) =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(zt3))) {
-    | None => Failed
-    | Some(ty) =>
-      switch (ana_perform(ctx, a, (zt3, u_gen), ty)) {
-      | Failed => Failed
-      | CursorEscaped(side) =>
-        ana_perform_operand(
-          ctx,
-          Action_common.escape(side),
-          (zoperand, u_gen),
-          ty,
-        )
-      | Succeeded((new_zt3, u_gen)) =>
-        /* Statics_Exp.syn_fix_holes() add later?? */
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            IfZ3(StandardErrStatus(NotInHole), t1, t2, new_zt3),
-          );
-        Succeeded(AnaDone((new_ze, u_gen)));
-      }
+    switch (ana_perform(ctx, a, (zt3, u_gen), ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      ana_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, u_gen),
+        ty,
+      )
+    | Succeeded((new_zt3, u_gen)) =>
+      /* Statics_Exp.syn_fix_holes() add later?? */
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          IfZ3(StandardErrStatus(NotInHole), t1, t2, new_zt3),
+        );
+      Succeeded(AnaDone((new_ze, u_gen)));
     }
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
