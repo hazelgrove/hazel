@@ -3471,30 +3471,33 @@ and ana_perform_subsume =
     }
   };
 
-
-let syn_perform = (
-  ctx: Contexts.t,
-  a: Action.t,
-  (_ze_init: ZExp.t, _ty: HTyp.t, _u_gen: MetaVarGen.t) as init_state: Statics.edit_state,
-) : ActionOutcome.t(syn_done) => {
+let syn_perform =
+    (
+      ctx: Contexts.t,
+      a: Action.t,
+      (_ze_init: ZExp.t, _ty: HTyp.t, _u_gen: MetaVarGen.t) as init_state: Statics.edit_state,
+    )
+    : ActionOutcome.t(syn_done) => {
   //TODO: label theorems with reference to paper
   //TODO: ana
   //TODO: valid_edit_state
   //TODO: comment on syn_perform (wrapped in a check)
   //TODO: contract metafn
-  switch(syn_perform(ctx, a, init_state)) {
-    | Succeeded((ze_final, ty_final, _)) as final_state =>
-    switch(Statics_Exp.syn(ctx, ZExp.erase(ze_final))) {
-      | None => failwith("syn_perform returned Succeeded but syn returned None.")
-      | Some(ty_final') =>
-        if (HTyp.eq(ty_final', ty_final)) {
-          final_state;
-        } else {
-          failwith("syn_perform returned Succeeded but syn returned inconsistent type.");
-        }
+  switch (syn_perform(ctx, a, init_state)) {
+  | Succeeded((ze_final, ty_final, _)) as final_state =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(ze_final))) {
+    | None =>
+      failwith("syn_perform returned Succeeded but syn returned None.")
+    | Some(ty_final') =>
+      if (HTyp.eq(ty_final', ty_final)) {
+        final_state;
+      } else {
+        failwith(
+          "syn_perform returned Succeeded but syn returned inconsistent type.",
+        );
+      }
     }
-    | CursorEscaped(e) => CursorEscaped(e)
-    | Failed => Failed
-  }
-
-}
+  | CursorEscaped(e) => CursorEscaped(e)
+  | Failed => Failed
+  };
+};

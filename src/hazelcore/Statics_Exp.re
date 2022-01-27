@@ -1296,8 +1296,23 @@ and ana_fix_holes_operand =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
       (op, u_gen);
+    | Hole(_) =>
+      print_endline("case ana fix holes Hole(Some()) case");
+
+      let (scrut, ty1, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
+      let (rules, u_gen, rule_types, common_type) =
+        syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1);
+      switch (common_type) {
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        //TODO: new error status flag
+        (Case(InconsistentBranches(rule_types, u), scrut, rules), u_gen);
+      | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
+      };
     | _ =>
       print_endline("case ana fix holes OTHER case");
+
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
       let (rules, u_gen) =
