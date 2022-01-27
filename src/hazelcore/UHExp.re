@@ -256,7 +256,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_),
       _,
       _,
     )

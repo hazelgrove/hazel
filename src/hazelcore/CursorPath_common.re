@@ -147,10 +147,12 @@ let holes_case_err =
     ) =>
   switch (err) {
   | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
-  | InconsistentBranches(_, u) => [
+  | InconsistentBranches(_, u, Syn) => [
       mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
+  | InconsistentBranches(_, _, Ana) => []
+  //TODO(andrew): attempted hacky? way of preventing hole draw in this case
   };
 
 let holes_skel_ =

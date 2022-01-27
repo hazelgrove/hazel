@@ -664,8 +664,9 @@ and holes_zoperand =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) =>
+      | InconsistentBranches(_, u, Syn) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
+      | InconsistentBranches(_, _, Ana) => None //TODO(andrew): confirm makes sense
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -750,9 +751,10 @@ and holes_zoperand =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) => [
+      | InconsistentBranches(_, u, Syn) => [
           mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
+      | InconsistentBranches(_, _, Ana) => [] // TODO(andrew): confirm makes sense
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zscrut, [0, ...rev_steps]);
@@ -773,9 +775,10 @@ and holes_zoperand =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) => [
+      | InconsistentBranches(_, u, Syn) => [
           mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
+      | InconsistentBranches(_, _, Ana) => [] // TODO(andrew): confirm makes sense
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_prefix =

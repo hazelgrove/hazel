@@ -147,7 +147,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
+  | Case(InconsistentBranches(rule_types, _, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
     let correct_rule_types =
@@ -163,7 +163,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       );
     correct_rule_types
       //TODO(andrew): should this still return none?
-      ? Some(HTyp.Hole(Some())) : /*None*/ Some(HTyp.Hole(Some()));
+      ? Some(HTyp.Hole(Some())) : None;
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole(Some()))
@@ -316,9 +316,9 @@ and ana_operand =
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
 
-  | Case(InconsistentBranches(_, _), _, _) =>
+  | Case(InconsistentBranches(_), _, _) =>
     //TODO(andrew): Not sure what to do. Should I condition on type being Hole(None)?
-    print_endline("ALERT: ana_operand case returns NONE");
+    print_endline("ana_operand case InconsistentBranches");
     //None;
     Some();
   /* not in hole */
@@ -851,8 +851,11 @@ and syn_fix_holes_operand =
     switch (common_type) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
+      print_endline(
+        "syn_fix_holes_operand: putting InconsistentBranches Syn",
+      );
       (
-        Case(InconsistentBranches(rule_types, u), scrut, rules),
+        Case(InconsistentBranches(rule_types, u, Syn), scrut, rules),
         HTyp.Hole(Some()),
         u_gen,
       );
@@ -1296,7 +1299,7 @@ and ana_fix_holes_operand =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
       (op, u_gen);
-    | Hole(_) =>
+    | Hole(Some ()) =>
       print_endline("case ana fix holes Hole(Some()) case");
 
       let (scrut, ty1, u_gen) =
@@ -1306,13 +1309,15 @@ and ana_fix_holes_operand =
       switch (common_type) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        //TODO: new error status flag
-        (Case(InconsistentBranches(rule_types, u), scrut, rules), u_gen);
+        //TODO(andrew): set new error status flag below to Ana
+        (
+          Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
+          u_gen,
+        );
       | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
       };
     | _ =>
       print_endline("case ana fix holes OTHER case");
-
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
       let (rules, u_gen) =

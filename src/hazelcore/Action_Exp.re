@@ -1078,6 +1078,8 @@ and syn_perform_line =
         Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
       let p = ZPat.erase(new_zp);
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      print_endline("letlineZP new ty_p:");
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_p)));
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
       let new_zline = ZExp.LetLineZP(new_zp, new_def);
@@ -1975,7 +1977,11 @@ and syn_perform_operand =
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
-              CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
+              CaseZE(
+                InconsistentBranches(rule_types, u, Syn),
+                zscrut,
+                rules,
+              ),
             );
           Succeeded(SynDone((new_ze, HTyp.Hole(Some()), u_gen)));
         | Some(ty) =>
@@ -2007,7 +2013,11 @@ and syn_perform_operand =
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
-              CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
+              CaseZR(
+                InconsistentBranches(rule_types, u, Syn),
+                scrut,
+                new_zrules,
+              ),
             );
           Succeeded(SynDone((new_ze, HTyp.Hole(Some()), u_gen)));
         | Some(ty) =>

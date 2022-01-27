@@ -164,7 +164,7 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _) =>
+        | Case(InconsistentBranches(types, _, _), _, _) =>
           InconsistentBranchesErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
@@ -527,7 +527,7 @@ and syn_cursor_info_zoperand =
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
-  | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
+  | CursorE(_, Case(InconsistentBranches(rule_types, _, _), _, _)) =>
     Some(
       CursorInfo_common.mk(
         SynInconsistentBranches(rule_types, steps),
@@ -875,7 +875,10 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Case(InconsistentBranches(_rule_types, _), _, _) =>
+    | Case(InconsistentBranches(_rule_types, _, Ana), _, _) =>
+      //TODO(andrew): make sense?
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | Case(InconsistentBranches(_rule_types, _, _), _, _) =>
       //TODO(andrew): only if hole prov is none?
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | Var(InHole(WrongLength, _), _, _)
