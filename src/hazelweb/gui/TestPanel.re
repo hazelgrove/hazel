@@ -91,17 +91,17 @@ let test_summary_str = (~test_map: TestMap.t): string => {
   | (_, 0, 0) => "All tests passing "
   | (n, _, c) when n == c => "All tests unfinished "
   | (n, f, _) when n == f => "All tests failing "
-  | (1, 1, 0) => "One failing test "
-  | (1, 0, 1) => "One unfinished test "
-  | (2, 1, 1) => "One failing and one unfinished test "
+  | (1, 0, 1) => "One test unfinished "
+  | (1, 1, 0) => "One test failing "
+  | (2, 1, 1) => "One test failing and one unfinished "
   | (_, 0, 1) => of_n_tests ++ one_unfinished
   | (_, 1, 0) => of_n_tests ++ one_failing
   | (_, 1, 1) => of_n_tests ++ one_failing ++ "and " ++ one_unfinished
-  | (_, _, 1) => of_n_tests ++ mny_failing ++ "and " ++ one_unfinished
   | (_, 1, _) => of_n_tests ++ one_failing ++ "and " ++ mny_unfinished
+  | (_, _, 1) => of_n_tests ++ mny_failing ++ "and " ++ one_unfinished
   | (_, 0, _) => of_n_tests ++ mny_unfinished
   | (_, _, 0) => of_n_tests ++ mny_failing
-  | _ => of_n_tests ++ mny_failing ++ ", and " ++ mny_unfinished
+  | (_, _, _) => of_n_tests ++ mny_failing ++ "and " ++ mny_unfinished
   };
 };
 
