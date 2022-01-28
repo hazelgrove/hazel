@@ -134,7 +134,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (ctx |> Contexts.typing |> TyCtx.consistent(ty, ty')) {
+      if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
@@ -938,7 +938,7 @@ and syn_perform_operand =
     // TODO: Do we need to thread delta through here?
     switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
-    | Some(((ty, _), kind, _)) =>
+    | Some((ty, kind, _)) =>
       switch (
         Action_Typ.syn_perform(
           ctx,
@@ -1103,7 +1103,7 @@ and ana_perform_opseq =
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
         switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
         | None => Failed
-        | Some(((ty', _), kind, _)) =>
+        | Some((ty', kind, _)) =>
           switch (
             Action_Typ.syn_perform(
               ctx,
@@ -1247,7 +1247,7 @@ and ana_perform_operand =
       switch (syn_perform(ctx, u_gen, a, zp')) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, ty', ctx, u_gen)) =>
-        if (ctx |> Contexts.typing |> TyCtx.consistent(ty, ty')) {
+        if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
           Succeeded((zp, ctx, u_gen));
         } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
                    && HTyp.get_prod_arity(ty) > 1) {
@@ -1428,8 +1428,8 @@ and ana_perform_operand =
     mk_ana_result(ctx, u_gen, new_zp, ty);
 
   | (Construct(SInj(side)), CursorP(_)) =>
-    switch (HTyp.matched_sum(ty, u_gen)) {
-    | Some((tyL, tyR, u_gen)) =>
+    switch (HTyp.matched_sum(ty)) {
+    | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_z(
@@ -1521,9 +1521,9 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(ty, u_gen)) {
+    switch (HTyp.matched_sum(ty)) {
     | None => Failed
-    | Some((tyL, tyR, u_gen)) =>
+    | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       switch (ana_perform(ctx, u_gen, a, zbody, body_ty)) {
       | Failed => Failed
@@ -1564,7 +1564,7 @@ and ana_perform_operand =
     // TODO: Do we need to thread delta through here?
     switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
-    | Some(((ty', _), kind, _)) =>
+    | Some((ty', kind, _)) =>
       switch (
         Action_Typ.syn_perform(
           ctx,
@@ -1585,7 +1585,7 @@ and ana_perform_operand =
         let (new_op, ctx, u_gen) =
           Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
         let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-        if (ctx |> Contexts.typing |> TyCtx.consistent(ty, ty')) {
+        if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
           Succeeded((new_zopseq, ctx, u_gen));
         } else {
           let (new_zopseq, u_gen) =
@@ -1599,7 +1599,7 @@ and ana_perform_operand =
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (ctx |> Contexts.typing |> TyCtx.consistent(ty, ty')) {
+      if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);

@@ -3,19 +3,18 @@ open TyVar;
 /** Associates a type variable with its kind */
 module Vars: {
   // [@deriving sexp]
-  type binding = (Name.t, Kind.t(HTyp.t));
+  type binding = (Name.t, Kind.t);
 
   // [@deriving sexp]
-  type t = list(binding);
+  type t;
 
   let empty: t;
-  let bind:
-    (Name.t, Kind.t(HTyp.t), ~increment_singleton: binding => binding, t) => t;
+  let bind: (Name.t, Kind.t, t) => t;
   let index: (~offset: int=?, Name.t, t) => option(Index.t);
   let has_index: (Index.t, t) => bool;
   let binding: (Index.t, t) => option(binding);
   let bound: (Name.t, t) => bool;
-  let kind: (Index.t, t) => option(Kind.t(HTyp.t));
+  let kind: (Index.t, t) => option(Kind.t);
 };
 
 /** Associates a hole with its kind */
@@ -23,54 +22,42 @@ module Holes: {
   type map(+'a);
   include Map.S with type key = Index.t and type t(+'a) := map('a);
 
-  type t = map(Kind.t(HTyp.t));
+  // type t = map(Kind.t);
+  type t;
 
-  let kind: (MetaVar.t, t) => option(Kind.t(HTyp.t));
+  let kind: (MetaVar.t, t) => option(Kind.t);
   // let sexp_of_t: t => Sexplib.Sexp.t;
-  // let t_of_sexp: Sexplib.Sexp.t => map(Kind.t(HTyp.t));
+  // let t_of_sexp: Sexplib.Sexp.t => map(Kind.t);
 };
 
 /** A typing context */
 // [@deriving sexp]
-type t = {
-  vars: Vars.t,
-  holes: Holes.t,
-};
-
-type join =
-  | GLB
-  | LUB;
+// type t = {
+//   vars: Vars.t,
+//   holes: Holes.t,
+// };
+type t;
 
 let empty: t;
 
+let bound_var: (Name.t, t) => bool;
+let has_var_index: (Index.t, t) => bool;
 let var_index: (Name.t, t) => option(Index.t);
-let var_kind: (Index.t, t) => option(Kind.t(HTyp.t));
-let var_bound: (Name.t, t) => bool;
-let bind_var:
-  (
-    TyVar.Name.t,
-    Kind.t(HTyp.t),
-    ~increment_singleton: Vars.binding => Vars.binding,
-    t
-  ) =>
-  t;
+let var_kind: (Index.t, t) => option(Kind.t);
+let var_binding: (Index.t, t) => option(Vars.binding);
+let bind_var: (TyVar.Name.t, Kind.t, t) => t;
 
-let hole_kind: (MetaVar.t, t) => option(Kind.t(HTyp.t));
-
-let equivalent_kind: (Kind.t(HTyp.t), Kind.t(HTyp.t), t) => bool;
-let equivalent: (HTyp.t, HTyp.t, t) => bool;
-let consistent: (HTyp.t, HTyp.t, t) => bool;
-let join: (join, HTyp.t, HTyp.t, t) => option(HTyp.t);
-let join_all: (join, list(HTyp.t), t) => option(HTyp.t);
+let has_hole: (MetaVar.t, t) => bool;
+let hole_kind: (MetaVar.t, t) => option(Kind.t);
 
 // [@deriving sexp]
 // type t;
-// let to_list: t => list((TyId.t, Kind.t(HTyp.t)));
-// let of_list: list((TyId.t, Kind.t(HTyp.t))) => t;
-// let extend: (t, (TyId.t, Kind.t(HTyp.t))) => t;
+// let to_list: t => list((TyId.t, Kind.t));
+// let of_list: list((TyId.t, Kind.t)) => t;
+// let extend: (t, (TyId.t, Kind.t)) => t;
 // let empty: t;
 // let index_of: (t, TyId.t) => option(TyVarIndex.t);
 // let index_of_exn: (t, TyId.t) => TyVarIndex.t;
 // let contains: (t, TyId.t) => bool;
-// let tyvar_with_idx: (t, TyVarIndex.t) => (TyId.t, Kind.t(HTyp.t));
+// let tyvar_with_idx: (t, TyVarIndex.t) => (TyId.t, Kind.t);
 // let consistent: (t, t) => bool;

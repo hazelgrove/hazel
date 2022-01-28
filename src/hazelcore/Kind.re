@@ -1,8 +1,8 @@
 // [@deriving sexp]
-type t('a) =
+type t =
   | KHole
   | Type
-  | Singleton(t('a), 'a);
+  | Singleton(t, HTypCore.t);
 
 /** Kind equality
 

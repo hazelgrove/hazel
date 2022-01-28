@@ -13,7 +13,7 @@ let extract_vars = (ctx: Contexts.t, ty: HTyp.t) => {
   ctx
   |> Contexts.gamma
   |> VarMap.filter(((_, ty1: HTyp.t)) =>
-       ctx |> Contexts.typing |> TyCtx.consistent(ty1, ty)
+       ctx |> Contexts.typing |> HTyp.consistent(ty1, ty)
      );
 };
 
@@ -22,7 +22,7 @@ let extract_vars = (ctx: Contexts.t, ty: HTyp.t) => {
    */
 let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   let rec compatible_funs = right_ty =>
-    if (ctx |> Contexts.typing |> TyCtx.consistent(right_ty, typ)) {
+    if (ctx |> Contexts.typing |> HTyp.consistent(right_ty, typ)) {
       true;
     } else {
       switch (right_ty) {
@@ -78,7 +78,7 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (ctx |> Contexts.typing |> TyCtx.consistent(ty, got_ty)) {
+      if (ctx |> Contexts.typing |> HTyp.consistent(ty, got_ty)) {
         (Some(Hole(0)), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);

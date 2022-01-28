@@ -11,7 +11,7 @@ let palette_ctx: t => PaletteCtx.t;
 
 let typing: t => TyCtx.t;
 
-let bind_tyvar: (TyVar.Name.t, Kind.t(HTyp.t), t) => t;
+let bind_tyvar: (TyVar.Name.t, Kind.t, t) => t;
 
 // let extend_tyvars: (TyCtx.Vars.binding, t) => t;
 

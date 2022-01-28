@@ -47,15 +47,15 @@ module BinIntOp = {
     | GreaterThan
     | Equals;
 
-  let of_op = (op: UHExp.operator): option((t, DHTyp.t)) =>
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | Minus => Some((Minus, DHTyp.wrap(Int)))
-    | Plus => Some((Plus, DHTyp.wrap(Int)))
-    | Times => Some((Times, DHTyp.wrap(Int)))
-    | Divide => Some((Divide, DHTyp.wrap(Int)))
-    | LessThan => Some((LessThan, DHTyp.wrap(Bool)))
-    | GreaterThan => Some((GreaterThan, DHTyp.wrap(Bool)))
-    | Equals => Some((Equals, DHTyp.wrap(Bool)))
+    | Minus => Some((Minus, Int))
+    | Plus => Some((Plus, Int))
+    | Times => Some((Times, Int))
+    | Divide => Some((Divide, Int))
+    | LessThan => Some((LessThan, Bool))
+    | GreaterThan => Some((GreaterThan, Bool))
+    | Equals => Some((Equals, Bool))
     | FPlus
     | FMinus
     | FTimes
@@ -93,15 +93,15 @@ module BinFloatOp = {
     | FGreaterThan
     | FEquals;
 
-  let of_op = (op: UHExp.operator): option((t, DHTyp.t)) =>
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | FPlus => Some((FPlus, DHTyp.wrap(Float)))
-    | FMinus => Some((FMinus, DHTyp.wrap(Float)))
-    | FTimes => Some((FTimes, DHTyp.wrap(Float)))
-    | FDivide => Some((FDivide, DHTyp.wrap(Float)))
-    | FLessThan => Some((FLessThan, DHTyp.wrap(Bool)))
-    | FGreaterThan => Some((FGreaterThan, DHTyp.wrap(Bool)))
-    | FEquals => Some((FEquals, DHTyp.wrap(Bool)))
+    | FPlus => Some((FPlus, Float))
+    | FMinus => Some((FMinus, Float))
+    | FTimes => Some((FTimes, Float))
+    | FDivide => Some((FDivide, Float))
+    | FLessThan => Some((FLessThan, Bool))
+    | FGreaterThan => Some((FGreaterThan, Bool))
+    | FEquals => Some((FEquals, Bool))
     | Plus
     | Minus
     | Times
@@ -144,9 +144,9 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | TyAlias(TPat.t, DHTyp.t, Kind.t(DHTyp.t), t)
-  | FixF(Var.t, DHTyp.t, t)
-  | Lam(DHPat.t, DHTyp.t, t)
+  | TyAlias(TPat.t, DHTyp.t, Kind.t, t)
+  | FixF(Var.t, HTyp.t, t)
+  | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -154,15 +154,15 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListNil(DHTyp.t)
+  | ListNil(HTyp.t)
   | Cons(t, t)
-  | Inj(DHTyp.t, InjSide.t, t)
+  | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, DHTyp.t, DHTyp.t)
-  | FailedCast(Contexts.t, t, DHTyp.t, DHTyp.t)
+  | Cast(t, HTyp.t, HTyp.t)
+  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -206,12 +206,8 @@ let rec mk_tuple: list(t) => t =
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-let cast = (d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
-  DHTyp.equivalent(dty1, dty2) ? d : Cast(d, dty1, dty2);
+let cast = (d: t, ty1: HTyp.t, ty2: HTyp.t): t =>
+  TyCtx.empty |> HTyp.equivalent(ty1, ty2) ? d : Cast(d, ty1, ty2);
 
-let apply_casts = (d: t, casts: list((DHTyp.t, DHTyp.t))): t =>
-  List.fold_left(
-    (d, (dty1, dty2): (DHTyp.t, DHTyp.t)) => {cast(d, dty1, dty2)},
-    d,
-    casts,
-  );
+let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+  List.fold_left((d, (ty1, ty2)) => {cast(d, ty1, ty2)}, d, casts);

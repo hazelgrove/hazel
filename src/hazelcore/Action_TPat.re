@@ -63,9 +63,7 @@ let rec move = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
     )
   };
 
-let rec perform =
-        (a: Action.t, zp: ZTPat.t, u_gen: MetaVarGen.t)
-        : ActionOutcome.t((ZTPat.t, MetaVarGen.t)) =>
+let rec perform = (a: Action.t, zp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
   switch (a, zp) {
   | (
       UpdateApPalette(_) |
@@ -96,7 +94,7 @@ let rec perform =
 
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     switch (move(a, zp)) {
-    | Succeeded(zp) => Succeeded((zp, u_gen))
+    | Succeeded(zp) => Succeeded(zp)
     | (CursorEscaped(_) | Failed) as outcome => outcome
     }
 
@@ -105,12 +103,12 @@ let rec perform =
   | (Delete, CursorP(OnDelim(_, After), _)) => CursorEscaped(After)
 
   | (Backspace, CursorP(OnDelim(k, After), EmptyHole)) =>
-    Succeeded((CursorP(OnDelim(k, Before), EmptyHole), u_gen))
+    Succeeded(CursorP(OnDelim(k, Before), EmptyHole))
 
   | (Backspace, CursorP(OnDelim(_, After), _)) => Failed
 
   | (Delete, CursorP(OnDelim(k, Before), zp)) =>
-    perform(Backspace, CursorP(OnDelim(k, After), zp), u_gen)
+    perform(Backspace, CursorP(OnDelim(k, After), zp))
 
   /* Backspace and delete on tyvar */
   | (Backspace, CursorP(OnText(k), TyVar(_, x))) =>
@@ -119,10 +117,10 @@ let rec perform =
     } else {
       let new_x = TyIdUtil.backspace(k, x);
       if (TyIdUtil.is_empty(new_x)) {
-        Succeeded((ZTPat.place_after(EmptyHole), u_gen));
+        Succeeded(ZTPat.place_after(EmptyHole));
       } else {
-        let (tp, u_gen) = TPat.of_name(new_x, u_gen);
-        Succeeded((CursorP(OnText(k - 1), tp), u_gen));
+        let tp = TPat.of_name(new_x);
+        Succeeded(CursorP(OnText(k - 1), tp));
       };
     }
 
@@ -134,28 +132,28 @@ let rec perform =
     } else {
       let new_x = TyIdUtil.delete(k, x);
       if (TyIdUtil.is_empty(new_x)) {
-        Succeeded((ZTPat.place_before(EmptyHole), u_gen));
+        Succeeded(ZTPat.place_before(EmptyHole));
       } else {
-        let (tp, u_gen) = TPat.of_name(new_x, u_gen);
-        Succeeded((CursorP(OnText(k - 1), tp), u_gen));
+        let tp = TPat.of_name(new_x);
+        Succeeded(CursorP(OnText(k - 1), tp));
       };
     }
 
   | (Delete, CursorP(OnText(_), _)) => Failed
   /* Construction */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
-    perform(MoveRight, zp, u_gen)
+    perform(MoveRight, zp)
 
   | (Construct(SOp(_)), _) => Failed
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole)) =>
-    let (tp, u_gen) = TPat.of_name(TyVar.Name.of_string(s), u_gen);
-    Succeeded((CursorP(OnText(1), tp), u_gen));
+    let tp = TPat.of_name(TyVar.Name.of_string(s));
+    Succeeded(CursorP(OnText(1), tp));
 
   | (Construct(SChar(s)), CursorP(OnText(k), TyVar(_, x))) =>
     let new_x = TyIdUtil.insert(k, s, x);
-    let (tp, u_gen) = TPat.of_name(new_x, u_gen);
-    Succeeded((CursorP(OnText(k + 1), tp), u_gen));
+    let tp = TPat.of_name(new_x);
+    Succeeded(CursorP(OnText(k + 1), tp));
 
   | (Construct(SChar(_)), _) => Failed
   | (Init, _) => failwith("Init action should not be performed")

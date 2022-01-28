@@ -25,22 +25,7 @@ let is_complete =
   | TyVar(InHole(_), _) => false
   | TyVar(NotInHole, _) => true;
 
-let of_name = (name: TyVar.Name.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (status, u_gen) =
-    switch (name |> TyVar.Name.to_string |> ExpandingKeyword.mk) {
-    | Some(_) =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (Status.InHole(Reserved, u), u_gen);
-    | None =>
-      TyVar.Name.builtin(name)
-        ? {
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          (Status.InHole(Reserved, u), u_gen);
-        }
-        : (Status.NotInHole, u_gen)
-    };
-  (TyVar(status, name), u_gen);
-};
+let of_name = (name: TyVar.Name.t): t => TyVar(NotInHole, name);
 
 let binds_tyvar = (name: TyVar.Name.t): (t => bool) =>
   fun

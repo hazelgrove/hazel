@@ -1,9 +1,9 @@
 // [@deriving sexp]
-type t('a) =
+type t =
   | KHole
   | Type
   // higher singleton
-  | Singleton(t('a), 'a);
+  | Singleton(t, HTypCore.t);
 
 // let equal: (t, t) => bool;
 

@@ -35,6 +35,12 @@ module Name = {
     (s: string) => (Re.Str.string_match(re, s, 0): bool);
   };
 
-  let builtin = (s: string): bool =>
-    s == "Int" || s == "Float" || s == "Bool";
+  let reserved = (s: string): bool =>
+    // built-in types
+    s == "Int"
+    || s == "Float"
+    || s == "Bool"
+    // keywords
+    || s == "let"
+    || s == "case";
 };

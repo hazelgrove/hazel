@@ -20,5 +20,5 @@ type t =
   | TyVar(Status.t, TyVar.Name.t);
 
 let is_complete: t => bool;
-let of_name: (TyVar.Name.t, MetaVarGen.t) => (t, MetaVarGen.t);
+let of_name: TyVar.Name.t => t;
 let binds_tyvar: (TyVar.Name.t, t) => bool;

@@ -294,13 +294,7 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (
-      ~steps: CursorPath.steps,
-      ctx: Contexts.t,
-      zline: ZExp.zline,
-      suffix,
-      u_gen: MetaVarGen.t,
-    )
+    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
@@ -331,7 +325,7 @@ and syn_cursor_info_line =
     let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
       | Some(ty) => ty
-      | None => HTyp.Hole
+      | None => Hole(0)
       };
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
@@ -355,7 +349,8 @@ and syn_cursor_info_line =
     };
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
-    let (def_ctx, _) = Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
+    let u_gen0 = MetaVarGen.init;
+    let (def_ctx, _) = Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen0);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
@@ -480,10 +475,13 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
-          |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
-        | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+          |> Option.map(ty =>
+               mk(SynErrorArrow(Arrow(Hole(0), Hole(1)), ty))
+             );
+        | Some(VarErr(Free)) =>
+          Some(mk(SynFreeArrow(Arrow(Hole(0), Hole(1)))))
         | Some(VarErr(Keyword(k))) =>
-          Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
+          Some(mk(SynKeywordArrow(Arrow(Hole(0), Hole(1)), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
         | Some(StandardErr(NotInHole)) =>
@@ -492,7 +490,8 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           switch (operand_nih) {
-          | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+          | InvalidText(_) =>
+            Some(mk(SynInvalidArrow(Arrow(Hole(0), Hole(1)))))
           | _ =>
             switch (
               Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
@@ -589,7 +588,7 @@ and syn_cursor_info_zoperand =
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
-      | _ => HTyp.Hole
+      | _ => Hole(0)
       };
     /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to
@@ -622,7 +621,7 @@ and syn_cursor_info_zoperand =
           switch (clause_types) {
           | None => None
           | Some(types) =>
-            switch (HTyp.join_all(ctx, LUB, types)) {
+            switch (ctx |> Contexts.typing |> HTyp.join_all(LUB, types)) {
             | None => Some(InconsistentBranchTys(List.rev(types), steps))
             | Some(lub) => Some(JoinTy(lub))
             }

@@ -1,120 +1,184 @@
-// open Sexplib.Std;
+/** Types with holes */
+include HTypCore;
 
-/* types with holes */
-// [@deriving sexp]
-type t =
-  | TyVar(Index.t, TyVar.Name.t)
-  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, TyVar.Name.t)
-  | Hole(MetaVar.t)
-  | Int
-  | Float
-  | Bool
-  | Arrow(t, t)
-  | Sum(t, t)
-  | Prod(list(t))
-  | List(t);
+type join =
+  | GLB
+  | LUB;
 
-let precedence_Prod = Operators_Typ.precedence(Prod);
-let precedence_Arrow = Operators_Typ.precedence(Arrow);
-let precedence_Sum = Operators_Typ.precedence(Sum);
-let precedence_const = Operators_Typ.precedence_const;
-let precedence = (ty: t): int =>
-  switch (ty) {
-  | Int
-  | Float
-  | Bool
-  | Hole(_)
-  | Prod([])
-  | List(_)
-  | TyVar(_)
-  | TyVarHole(_) => precedence_const
-  | Prod(_) => precedence_Prod
-  | Sum(_, _) => precedence_Sum
-  | Arrow(_, _) => precedence_Arrow
-  };
+/** Kind equivalence
 
-/** Type equality
-
-Types are equal if they are structurally equal modulo indices.
+Kinds are equivalent if they are equal modulo singletons and singleton types
+are all equivalent.
 */
-let rec equal = (ty: t, ty': t): bool =>
+let rec equivalent_kind = (k: Kind.t, k': Kind.t, ctx: TyCtx.t): bool =>
+  switch (k, k') {
+  | (KHole, KHole)
+  | (Type, Type) => true
+  | (KHole | Type, _) => false
+  | (Singleton(Singleton(_, ty), _), Singleton(_, ty'))
+  | (Singleton(_, ty), Singleton(Singleton(_, ty'), _))
+  | (Singleton(_, ty), Singleton(_, ty')) => ctx |> equivalent(ty, ty')
+  | (Singleton(_), _) => false
+  }
+
+/** Type equivalence */
+and equivalent = (ty: t, ty': t, ctx: TyCtx.t): bool =>
   switch (ty, ty') {
-  | (TyVar(_, name), TyVar(_, name')) => TyVar.Name.equal(name, name')
+  /* bound type variables are equivalent to themselves */
+  | (TyVar(i, _), TyVar(i', _)) =>
+    // need: symm, trans, singequiv, var
+    Index.equal(i, i') && TyCtx.has_var_index(i, ctx)
   | (TyVar(_), _) => false
-  | ((TyVarHole(_) | Hole(_) | Int | Float | Bool) as ty, ty') => ty == ty'
+  /* type variable holes of known kind are equivalent to themselves */
+  | (TyVarHole(reason, u, name), TyVarHole(reason', u', name')) =>
+    reason == reason'
+    && MetaVar.eq(u, u')
+    && TyVar.Name.equal(name, name')
+    && TyCtx.has_hole(u, ctx)
+  | (TyVarHole(_), _) => false
+  /* empty type holes of known kind are equivalent to themselves */
+  | (Hole(u), Hole(u')) => u == u' && TyCtx.has_hole(u, ctx)
+  | (Hole(_), _) => false
+  /* base types are equivalent to themselves */
+  | (Int | Float | Bool, _) => ty == ty'
+  /* composite types are equivalent when they are componentwise equivalent */
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    equal(ty1, ty1') && equal(ty2, ty2')
+    ctx |> equivalent(ty1, ty1') && ctx |> equivalent(ty2, ty2')
   | (Arrow(_) | Sum(_), _) => false
-  | (Prod(tys), Prod(tys')) => List.for_all2(equal, tys, tys')
+  | (Prod(tys), Prod(tys')) =>
+    List.for_all2((ty, ty') => ctx |> equivalent(ty, ty'), tys, tys')
   | (Prod(_), _) => false
-  | (List(ty1), List(ty1')) => equal(ty1, ty1')
+  | (List(ty), List(ty')) => ctx |> equivalent(ty, ty')
   | (List(_), _) => false
   };
 
-/* matched arrow types */
-let matched_arrow =
-    (ty: t, u_gen: MetaVarGen.t): option((t, t, MetaVarGen.t)) =>
-  switch (ty) {
-  | Hole(u)
-  | TyVarHole(_, u, _) =>
-    let (u', u_gen) = MetaVarGen.next(u_gen);
-    Some((Hole(u), Hole(u'), u_gen));
-  | Arrow(ty1, ty2) => Some((ty1, ty2, u_gen))
-  | _ => None
+/** Type consistency
+
+Types are consistent if they are equivalent modulo holes.
+*/
+let rec consistent = (ty: t, ty': t, ctx: TyCtx.t) =>
+  switch (ty, ty') {
+  /* holes are consistent with anything */
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_))
+  | (Hole(_), _)
+  | (_, Hole(_)) => true
+  /* type variables are consistent with equivalent types */
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => ctx |> equivalent(ty, ty')
+  | (Int | Float | Bool, _) => ty == ty'
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    ctx |> consistent(ty1, ty1') && ctx |> consistent(ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(_, _), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    let check_component = (ty1, ty2) => ctx |> consistent(ty1, ty2);
+    ListUtil.for_all2_opt(check_component, tys1, tys2)
+    |> Option.value(~default=false);
+  | (Prod(_), _) => false
+  | (List(ty), List(ty')) => ctx |> consistent(ty, ty')
+  | (List(_), _) => false
   };
 
-let get_prod_elements: t => list(t) =
-  fun
-  | Prod(tys) => tys
-  | _ as ty => [ty];
+let inconsistent = (ty1: t, ty2: t, ctx: TyCtx.t) =>
+  !(ctx |> consistent(ty1, ty2));
 
-let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
-
-/* matched sum types */
-let matched_sum = (ty: t, u_gen: MetaVarGen.t): option((t, t, MetaVarGen.t)) =>
-  switch (ty) {
-  | Hole(u)
-  | TyVarHole(_, u, _) =>
-    let (u', u_gen) = MetaVarGen.next(u_gen);
-    Some((Hole(u), Hole(u'), u_gen));
-  | Sum(tyL, tyR) => Some((tyL, tyR, u_gen))
-  | _ => None
+let rec consistent_all = (types: list(t), ctx: TyCtx.t): bool =>
+  switch (types) {
+  | [] => true
+  | [hd, ...tl] =>
+    !List.exists(x => ctx |> inconsistent(hd, x), tl)
+    || consistent_all(tl, ctx)
   };
 
-/* matched list types */
-let matched_list =
-  fun
-  | Hole(u)
-  | TyVarHole(_, u, _) => Some(Hole(u))
-  | List(ty) => Some(ty)
-  | _ => None;
+let rec join = (j: join, ty1: t, ty2: t, ctx: TyCtx.t): option(t) => {
+  switch (ty1, ty2) {
+  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) =>
+    Some(Hole(MetaVar.join(u, u')))
+  | (_, Hole(_))
+  | (_, TyVarHole(_)) =>
+    switch (j) {
+    | GLB => Some(Hole(0))
+    | LUB => Some(ty1)
+    }
+  | (Hole(_), _)
+  | (TyVarHole(_), _) =>
+    switch (j) {
+    | GLB => Some(Hole(0))
+    | LUB => Some(ty2)
+    }
+  | (TyVar(i, _), _) =>
+    open OptUtil.Syntax;
+    let* (_, k) = ctx |> TyCtx.var_binding(i);
+    switch (k) {
+    | Singleton(_, ty) => ctx |> join(j, ty, ty2)
+    | KHole => ctx |> join(j, Hole(0), ty2)
+    | Type => failwith("impossible for bounded type variables (currently) 1")
+    };
+  | (_, TyVar(i, _)) =>
+    open OptUtil.Syntax;
+    let* (_, k) = ctx |> TyCtx.var_binding(i);
+    switch (k) {
+    | Kind.Singleton(_, ty) => ctx |> join(j, ty1, ty)
+    | KHole => ctx |> join(j, ty1, Hole(0))
+    | Type => failwith("impossible for bounded type variables (currently) 2")
+    };
+  | (Int, Int) => Some(ty1)
+  | (Int, _) => None
+  | (Float, Float) => Some(ty1)
+  | (Float, _) => None
+  | (Bool, Bool) => Some(ty1)
+  | (Bool, _) => None
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    open OptUtil.Syntax;
+    let* ty1 = ctx |> join(j, ty1, ty1');
+    let+ ty2 = ctx |> join(j, ty2, ty2');
+    Arrow(ty1, ty2);
+  | (Arrow(_), _) => None
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    open OptUtil.Syntax;
+    let* ty1 = ctx |> join(j, ty1, ty1');
+    let+ ty2 = ctx |> join(j, ty2, ty2');
+    Sum(ty1, ty2);
+  | (Sum(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.map2_opt((ty1, ty2) => ctx |> join(j, ty1, ty2), tys1, tys2)
+    |> Option.map(OptUtil.sequence)
+    |> Option.join
+    |> Option.map(joined_types => Prod(joined_types))
+  | (Prod(_), _) => None
+  | (List(ty), List(ty')) =>
+    open OptUtil.Syntax;
+    let+ ty = ctx |> join(j, ty, ty');
+    List(ty);
+  | (List(_), _) => None
+  };
+};
 
-/* complete (i.e. does not have any holes) */
-let rec complete =
-  fun
-  | Hole(_)
-  | TyVarHole(_) => false
-  | TyVar(_)
-  | Int
-  | Float
-  | Bool => true
-  | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty) => complete(ty);
+let join_all = (j: join, types: list(t), ctx: TyCtx.t): option(t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    if (!consistent_all(types, ctx)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => ctx |> join(j, common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    }
+  };
+};
 
-let rec increment_indices: t => t =
-  fun
-  | TyVar(i, name) => TyVar(Index.increment(i), name)
-  | (TyVarHole(_) | Hole(_) | Int | Float | Bool) as ty => ty
-  | Arrow(t1, t2) => Arrow(increment_indices(t1), increment_indices(t2))
-  | Sum(t1, t2) => Sum(increment_indices(t1), increment_indices(t2))
-  | List(t) => List(increment_indices(t))
-  | Prod(lst) => Prod(List.map(increment_indices, lst));
-
-// let t_of_builtintype =
-//   fun
-//   | TyId.BuiltInType.Bool => Bool
-//   | Float => Float
-//   | Int => Int;
+let new_Hole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (Hole(u), u_gen);
+};

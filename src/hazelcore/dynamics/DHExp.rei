@@ -20,7 +20,7 @@ module BinIntOp: {
     | GreaterThan
     | Equals;
 
-  let of_op: UHExp.operator => option((t, DHTyp.t));
+  let of_op: UHExp.operator => option((t, HTyp.t));
 
   let to_op: t => UHExp.operator;
 };
@@ -36,7 +36,7 @@ module BinFloatOp: {
     | FGreaterThan
     | FEquals;
 
-  let of_op: UHExp.operator => option((t, DHTyp.t));
+  let of_op: UHExp.operator => option((t, HTyp.t));
 
   let to_op: t => UHExp.operator;
 };
@@ -57,9 +57,9 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | TyAlias(TPat.t, DHTyp.t, Kind.t(DHTyp.t), t)
-  | FixF(Var.t, DHTyp.t, t)
-  | Lam(DHPat.t, DHTyp.t, t)
+  | TyAlias(TPat.t, DHTyp.t, Kind.t, t)
+  | FixF(Var.t, HTyp.t, t)
+  | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -67,15 +67,15 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListNil(DHTyp.t)
+  | ListNil(HTyp.t)
   | Cons(t, t)
-  | Inj(DHTyp.t, InjSide.t, t)
+  | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, DHTyp.t, DHTyp.t)
-  | FailedCast(Contexts.t, t, DHTyp.t, DHTyp.t)
+  | Cast(t, HTyp.t, HTyp.t)
+  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -86,6 +86,6 @@ let constructor_string: t => string;
 
 let mk_tuple: list(t) => t;
 
-let cast: (t, DHTyp.t, DHTyp.t) => t;
+let cast: (t, HTyp.t, HTyp.t) => t;
 
-let apply_casts: (t, list((DHTyp.t, DHTyp.t))) => t;
+let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;

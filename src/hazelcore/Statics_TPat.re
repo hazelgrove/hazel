@@ -1,5 +1,4 @@
-let matches =
-    (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t(HTyp.t)): Contexts.t => {
+let matches = (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t): Contexts.t => {
   switch (t) {
   | EmptyHole => ctx
   | TyVar(NotInHole, name) => ctx |> Contexts.bind_tyvar(name, k)
@@ -8,12 +7,12 @@ let matches =
 };
 
 let fix_holes =
-    (ctx: Contexts.t, p: TPat.t, k: Kind.t(HTyp.t), u_gen: MetaVarGen.t)
+    (ctx: Contexts.t, p: TPat.t, k: Kind.t, u_gen: MetaVarGen.t)
     : (Contexts.t, TPat.t, MetaVarGen.t) => {
   switch (p) {
   | EmptyHole => (ctx, EmptyHole, u_gen)
   | TyVar(_, t) =>
-    let (tp, u_gen) = TPat.of_name(t, u_gen);
+    let tp = TPat.of_name(t);
     switch (tp) {
     | EmptyHole => (ctx, EmptyHole, u_gen)
     | TyVar(NotInHole, name) as t =>
@@ -25,7 +24,7 @@ let fix_holes =
 };
 
 let fix_holes_z =
-    (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t(HTyp.t), u_gen: MetaVarGen.t)
+    (ctx: Contexts.t, zp: ZTPat.t, k: Kind.t, u_gen: MetaVarGen.t)
     : (Contexts.t, ZTPat.t, MetaVarGen.t) => {
   let path = CursorPath_TPat.of_z(zp);
   let (ctx, new_p, u_gen) = fix_holes(ctx, ZTPat.erase(zp), k, u_gen);

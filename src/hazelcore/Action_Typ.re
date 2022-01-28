@@ -100,7 +100,7 @@ module Syn_success = {
     // [@deriving sexp]
     type t('z) = {
       zty: 'z,
-      kind: Kind.t(DHTyp.t),
+      kind: Kind.t,
       u_gen: MetaVarGen.t,
     };
   };
@@ -121,7 +121,6 @@ let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(Syn_success.t) => {
   let text_cursor = CursorPosition.OnText(caret_index);
-  let tyctx = Contexts.typing(ctx);
   switch (TyTextShape.of_tyvar_name(TyVar.Name.of_string(text))) {
   | None =>
     if (text |> StringUtil.is_empty) {
@@ -136,15 +135,15 @@ let mk_syn_text =
     }
   | Some(Bool) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool));
-    let kind = Kind.Singleton(Type, DHTyp.lift(tyctx, Bool));
+    let kind = Kind.Singleton(Type, Bool);
     Succeeded({zty, kind, u_gen});
   | Some(Int) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int));
-    let kind = Kind.Singleton(Type, DHTyp.lift(tyctx, Int));
+    let kind = Kind.Singleton(Type, Int);
     Succeeded({zty, kind, u_gen});
   | Some(Float) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
-    let kind = Kind.Singleton(Type, DHTyp.lift(tyctx, Float));
+    let kind = Kind.Singleton(Type, Float);
     Succeeded({zty, kind, u_gen});
   | Some(ExpandingKeyword(k)) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -163,15 +162,15 @@ let mk_syn_text =
       u_gen,
     });
   | Some(TyVar(name)) =>
-    let typing = ctx |> Contexts.typing;
+    let tyctx = ctx |> Contexts.typing;
     let (zoperand, kind, u_gen) =
       {
         open OptUtil.Syntax;
-        let* i = typing |> TyCtx.var_index(name);
-        let+ k = typing |> TyCtx.var_kind(i);
+        let* i = tyctx |> TyCtx.var_index(name);
+        let+ k = tyctx |> TyCtx.var_kind(i);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(u), name));
-        (zty, DHTyp.lift_kind(typing, k), u_gen);
+        (zty, k, u_gen);
       }
       |> Option.value(
            ~default={
@@ -678,12 +677,7 @@ module Ana_success = {
   type t = Poly.t(ZTyp.t);
 
   let mk_result =
-      (
-        _ctx: Contexts.t,
-        u_gen: MetaVarGen.t,
-        zty: ZTyp.t,
-        _k: Kind.t(DHTyp.t),
-      )
+      (_ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, _k: Kind.t)
       : Outcome.t(t) => {
     // TODO: Add an error status: Don't fail -- put an error status on it when it can fail
     succeeded({
@@ -695,11 +689,7 @@ module Ana_success = {
 open Ana_success.Poly;
 
 let rec ana_move =
-        (
-          a: Action.t,
-          {zty, u_gen: _} as ana_r: Ana_success.t,
-          kind: Kind.t(DHTyp.t),
-        )
+        (a: Action.t, {zty, u_gen: _} as ana_r: Ana_success.t, kind: Kind.t)
         : Outcome.t(Ana_success.t) =>
   switch (a) {
   | MoveTo(path) =>
@@ -748,7 +738,7 @@ and ana_perform_opseq =
       ctx: Contexts.t,
       a: Action.t,
       {zty: ZOpSeq(_, zseq) as zopseq, u_gen}: Ana_success.t,
-      k: Kind.t(DHTyp.t),
+      k: Kind.t,
     )
     : Outcome.t(Ana_success.t) => {
   switch (a, zseq) {
@@ -816,7 +806,7 @@ and ana_perform_operand =
       ctx: Contexts.t,
       a: Action.t,
       {zty: zoperand, u_gen}: Ana_success.Poly.t(ZTyp.zoperand),
-      kind: Kind.t(DHTyp.t),
+      kind: Kind.t,
     )
     : Outcome.t(Ana_success.t) => {
   open Outcome.Syntax;
