@@ -93,6 +93,15 @@ let get_edit_state = (model: t): Statics.edit_state => {
   program.edit_state;
 };
 
+// let update_edit_state = (model: t, edit_state: Statics.edit_state): t => {
+//   let program = get_program(model);
+//   let new_program = {
+//     ...program.
+//     edit_state: split_edit_states(edit_state);
+//   }
+//   put_program(new_program, model)
+// }
+
 let get_cursor_info = (model: t): CursorInfo.t =>
   model |> get_program |> Program.get_cursor_info;
 
@@ -288,3 +297,29 @@ let load_undo_history =
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances);
 };
+
+/* instructor mode -> student mode, we assume that
+     are exactly two comments meeting the specification
+     and that the tester and prelude are empty
+   */
+let tester_prelude_empty = (model: t): bool => {};
+let instructor_mode_comments_present = (model: t): bool => {};
+
+let in_instructor_mode = (model: t): bool => {
+  tester_prelude_empty(model) && instructor_mode_comments_present(model);
+};
+
+/*
+   we're in student mode if either the prelude or tester are nonempty
+ */
+let toggle_instructor_mode = (model: t): t =>
+  if (in_instructor_mode(model)) {
+    let program = get_program(model);
+    let new_program = {
+      ...program.
+      edit_state: split_edit_states(edit_state);
+    }
+    put_program(new_program, model)
+  } else {
+    {};
+  };

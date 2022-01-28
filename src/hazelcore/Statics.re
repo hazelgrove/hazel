@@ -14,6 +14,14 @@ type type_mode =
   | Syn
   | Ana(HTyp.t);
 
+/*
+   Split edit state into three parts, prelude, template, and tester.
+   We split based on the presence of two comments. TODO specify these comments.
+ */
+let split_edit_states = (edit_state: edit_state): edit_state => {};
+
+let combine_to_template = (edit_state: edit_state): edit_state => {};
+
 let merge_edit_states = (state: edit_state): ZExp.t => {
   let unzipped_template = ZExp.erase(state.template);
 
