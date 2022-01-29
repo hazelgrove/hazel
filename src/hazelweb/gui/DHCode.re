@@ -41,12 +41,13 @@ let view_of_layout =
                  ],
                  ds,
                )
+             | CastDelim => ([with_cls("CastDelim", txt)], ds)
+             | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],
                  ds,
                )
-             | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
              | TyVarHole => ([with_cls("TyVarHole", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)

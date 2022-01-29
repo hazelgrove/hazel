@@ -104,23 +104,28 @@ let rec mk =
         )
         : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
-  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
-    switch (ty) {
-    | Some(ty) when settings.show_casts =>
-      Doc.(
-        hcat(
-          doc,
-          annot(
-            DHAnnot.CastDecoration,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-          ),
-        )
-      )
+  let mk_cast = ((doc: DHDoc.t, ty_opt: option((HTyp.t, HTyp.t)))): DHDoc.t =>
+    switch (ty_opt) {
+    | Some((ty1, ty2)) when settings.show_casts =>
+      let cast_decoration =
+        Doc.(
+          hcats([
+            DHDoc_common.Delim.open_OkCast,
+            hseps([
+              DHDoc_Typ.mk(~enforce_inline=true, ty1),
+              DHDoc_common.Delim.arrow_OkCast,
+              DHDoc_Typ.mk(~enforce_inline=true, ty2),
+            ]),
+            DHDoc_common.Delim.close_OkCast,
+          ])
+          |> annot(DHAnnot.CastDecoration)
+        );
+      Doc.hcats([doc, cast_decoration]);
     | _ => doc
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc.t, option(HTyp.t)) => {
+          : (DHDoc.t, option((HTyp.t, HTyp.t))) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -153,7 +158,7 @@ let rec mk =
     );
     let cast =
       switch (d) {
-      | Cast(_, _, _, ty) => Some(ty)
+      | Cast(_, _, ty1, ty2) => Some((ty1, ty2))
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
