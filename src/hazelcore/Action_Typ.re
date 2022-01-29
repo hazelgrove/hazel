@@ -97,7 +97,7 @@ let construct_operator =
 open Outcome;
 module Syn_success = {
   module Poly = {
-    // [@deriving sexp]
+    [@deriving sexp]
     type t('z) = {
       zty: 'z,
       kind: Kind.t,
@@ -105,7 +105,7 @@ module Syn_success = {
     };
   };
 
-  // [@deriving sexp]
+  [@deriving sexp]
   type t = Poly.t(ZTyp.t);
 
   let mk_result =
@@ -673,7 +673,7 @@ module Ana_success = {
     let of_syn = ({Syn_success.Poly.zty, kind: _, u_gen}) => {zty, u_gen};
   };
 
-  // [@deriving sexp]
+  [@deriving sexp]
   type t = Poly.t(ZTyp.t);
 
   let mk_result =

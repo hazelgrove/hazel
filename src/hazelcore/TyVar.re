@@ -1,6 +1,6 @@
 /* type variable errors */
 module HoleReason = {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | Unbound
     | Reserved
@@ -9,7 +9,7 @@ module HoleReason = {
 
 /* type variable hole status */
 module Status = {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | NotInHole(Index.t)
     | InHole(HoleReason.t, MetaVar.t);
@@ -17,9 +17,9 @@ module Status = {
 
 /* type variable names */
 module Name = {
-  // open Sexplib.Std;
+  open Sexplib.Std;
 
-  // [@deriving sexp]
+  [@deriving sexp]
   type t = string;
 
   let of_string: string => t = name => name;

@@ -1,12 +1,16 @@
 /** Associates a type variable with its kind */
 open TyVar;
-// open Sexplib.Std;
+
+module HTyp = HTypCore;
+module Kind = KindCore;
 
 module Vars = {
-  // [@deriving sexp]
+  open Sexplib.Std;
+
+  [@deriving sexp]
   type binding = (Name.t, Kind.t);
 
-  // [@deriving sexp]
+  [@deriving sexp]
   type t = list(binding);
 
   let empty: t = [];
@@ -15,7 +19,7 @@ module Vars = {
     let increment_singleton: binding => binding =
       fun
       | (name, Singleton(k', ty)) => {
-          let k = Kind.Singleton(k', HTypCore.increment_indices(ty));
+          let k = Kind.Singleton(k', HTyp.increment_indices(ty));
           (name, k);
         }
       | binding => binding;
@@ -53,25 +57,27 @@ module Holes = {
   type t = map(Kind.t);
 
   let kind: (MetaVar.t, t) => option(Kind.t) = find_opt;
-  // let sexp_of_t = (holes: t): Sexplib.Sexp.t =>
-  //   holes
-  //   |> bindings
-  //   |> Sexplib.Std.sexp_of_list(((u, k)) =>
-  //        List([MetaVar.sexp_of_t(u), Kind.sexp_of_t(k)])
-  //      );
-  // let t_of_sexp = (sexp: Sexplib.Sexp.t): t => {
-  //   let binding: Sexplib.Sexp.t => (MetaVar.t, Kind.t) =
-  //     fun
-  //     | Sexplib.Sexp.List([u, k]) => (
-  //         MetaVar.t_of_sexp(u),
-  //         Kind.t_of_sexp(k),
-  //       )
-  //     | s => raise(Sexplib.Conv_error.tuple_of_size_n_expected("???", 2, s));
-  //   sexp |> Sexplib.Std.list_of_sexp(binding) |> List.to_seq |> of_seq;
-  // };
+
+  let sexp_of_t = (holes: t): Sexplib.Sexp.t =>
+    holes
+    |> bindings
+    |> Sexplib.Std.sexp_of_list(((u, k)) =>
+         List([MetaVar.sexp_of_t(u), Kind.sexp_of_t(k)])
+       );
+
+  let t_of_sexp = (sexp: Sexplib.Sexp.t): t => {
+    let binding: Sexplib.Sexp.t => (MetaVar.t, Kind.t) =
+      fun
+      | Sexplib.Sexp.List([u, k]) => (
+          MetaVar.t_of_sexp(u),
+          Kind.t_of_sexp(k),
+        )
+      | s => raise(Sexplib.Conv_error.tuple_of_size_n_expected("???", 2, s));
+    sexp |> Sexplib.Std.list_of_sexp(binding) |> List.to_seq |> of_seq;
+  };
 };
 
-// [@derivng sexp]
+[@deriving sexp]
 type t = {
   vars: Vars.t,
   holes: Holes.t,
@@ -102,7 +108,7 @@ let hole_kind = (u: MetaVar.t, ctx: t): option(Kind.t) =>
   ctx.holes |> Holes.kind(u);
 
 // open Sexplib.Std;
-// [@deriving sexp]
+// [@deriving sexp];
 // type t = list((TyId.t, Kind.t));
 // // TODO: What is identity function
 // let of_list = x => x;

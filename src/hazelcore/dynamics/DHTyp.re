@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = (HTyp.t, TyCtx.t);
 
 let lift = (ctx: TyCtx.t, ty: HTyp.t): t => (ty, ctx);

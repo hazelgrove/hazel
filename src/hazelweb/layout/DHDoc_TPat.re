@@ -5,8 +5,8 @@ let mk = (p: TPat.t, ~enforce_inline: bool): DHDoc.t => {
   switch (p) {
   | TPat.EmptyHole =>
     annot(DHAnnot.Delim, annot(DHAnnot.HoleLabel, text("?")))
-  | TPat.TyVar(None, tyid) => text(TyId.to_string(tyid))
-  | TPat.TyVar(Some(_kw), tyid) =>
-    annot(DHAnnot.TyVarHole, text(TyId.to_string(tyid)))
+  | TPat.TyVar(NotInHole, name) => text(TyVar.Name.to_string(name))
+  | TPat.TyVar(InHole(_reason, _u), name) =>
+    annot(DHAnnot.TyVarHole, text(TyVar.Name.to_string(name)))
   };
 };

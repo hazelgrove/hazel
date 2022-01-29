@@ -1,8 +1,7 @@
 /** The kind- and context-invariant parts of types with holes */
+open Sexplib.Std;
 
-// open Sexplib.Std;
-
-// [@deriving sexp]
+[@deriving sexp]
 type t =
   | TyVar(Index.t, TyVar.Name.t)
   | TyVarHole(TyVar.HoleReason.t, MetaVar.t, TyVar.Name.t)

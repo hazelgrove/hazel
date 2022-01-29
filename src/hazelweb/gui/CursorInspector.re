@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Hole),
+      HTypCode.view(HTyp.Hole(0)),
       emphasize_text(")"),
     ],
   );
@@ -71,7 +71,8 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
   // TODO: Should this be consistent?
-  if (HTyp.equiv(expected_ty, got_ty) || HTyp.equiv(got_ty, HTyp.Hole)) {
+  if (HTyp.equivalent(expected_ty, got_ty, TyCtx.empty)
+      || HTyp.equivalent(got_ty, HTyp.Hole(0), TyCtx.empty)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -90,7 +91,7 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.consistent(ty, got_ty)) {
+    if (TyCtx.empty |> HTyp.consistent(ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ctx, ty, got_ty);
@@ -664,7 +665,7 @@ let view =
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
+        if (TyCtx.empty |> HTyp.consistent(ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;

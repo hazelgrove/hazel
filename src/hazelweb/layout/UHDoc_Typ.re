@@ -51,8 +51,8 @@ and mk_operand =
       (
         switch (operand) {
         | Hole(_) => mk_EmptyHole("?")
-        | TyVar(_verr, tyid) =>
-          UHDoc_common.mk_Var(~sort=Typ, TyId.to_string(tyid))
+        | TyVar(_, name) =>
+          UHDoc_common.mk_Var(~sort=Typ, TyVar.Name.to_string(name))
         | Unit => UHDoc_common.mk_Unit()
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()

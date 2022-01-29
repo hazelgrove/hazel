@@ -1,7 +1,7 @@
-// open Sexplib.Std;
+open Sexplib.Std;
 
 module BinBoolOp = {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | And
     | Or;
@@ -37,7 +37,7 @@ module BinBoolOp = {
 };
 
 module BinIntOp = {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | Minus
     | Plus
@@ -83,7 +83,7 @@ module BinIntOp = {
 };
 
 module BinFloatOp = {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | FPlus
     | FMinus
@@ -128,7 +128,7 @@ module BinFloatOp = {
     };
 };
 
-// [@deriving sexp]
+[@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
   | NonEmptyHole(
@@ -161,7 +161,7 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
+  | Cast(Contexts.t, t, HTyp.t, HTyp.t)
   | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
@@ -195,7 +195,7 @@ let constructor_string = (d: t): string =>
   | Triv => "Triv"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
-  | Cast(_, _, _) => "Cast"
+  | Cast(_, _, _, _) => "Cast"
   | FailedCast(_, _, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   };
@@ -206,8 +206,19 @@ let rec mk_tuple: list(t) => t =
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-let cast = (d: t, ty1: HTyp.t, ty2: HTyp.t): t =>
-  TyCtx.empty |> HTyp.equivalent(ty1, ty2) ? d : Cast(d, ty1, ty2);
+let cast = (ctx: Contexts.t, d: t, ty1: HTyp.t, ty2: HTyp.t): t =>
+  if (ctx |> Contexts.typing |> HTyp.equivalent(ty1, ty2)) {
+    d;
+  } else {
+    Cast(ctx, d, ty1, ty2);
+  };
 
-let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
-  List.fold_left((d, (ty1, ty2)) => {cast(d, ty1, ty2)}, d, casts);
+let apply_casts = (d: t, casts: list((Contexts.t, HTyp.t, HTyp.t))): t =>
+  List.fold_left(
+    (d, c: (Contexts.t, HTyp.t, HTyp.t)) => {
+      let (ctx, ty1, ty2) = c;
+      cast(ctx, d, ty1, ty2);
+    },
+    d,
+    casts,
+  );

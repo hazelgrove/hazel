@@ -64,7 +64,7 @@ let lit_msg = (ty: HTyp.t) => {
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
   switch (ty) {
-  | Hole => [
+  | Hole(_) => [
       int_lit,
       float_lit,
       bool_lit,
@@ -175,7 +175,7 @@ let operator_options = (ctx, cursor_info) => {
     );
 
   switch (Assistant_common.get_type(ctx, cursor_info)) {
-  | Some(Hole) => [
+  | Some(Hole(_)) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
         float_operators_wrapper(float_options @ float_to_bool_options),

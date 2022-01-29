@@ -1,12 +1,8 @@
-// [@deriving sexp]
-type t =
-  | KHole
-  | Type
-  // higher singleton
-  | Singleton(t, HTypCore.t);
+/** Kinds */
 
-// let equal: (t, t) => bool;
+include (module type of {
+  include KindCore;
+});
 
-// let to_string: t => string;
-
-// let is_singleton: t => bool;
+let equivalent: (t, t, TyCtx.t) => bool;
+let consistent_subkind: (t, t, TyCtx.t) => bool;

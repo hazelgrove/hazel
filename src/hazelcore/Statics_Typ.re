@@ -17,14 +17,14 @@ let rec fix_holes =
     );
   switch (ty) {
   | TyVarHole(_, u, name) =>
-    if (TyVar.Name.valid(name) && ctx |> TyCtx.bound_var(name)) {
+    if (TyVar.Name.(valid(to_string(name))) && ctx |> TyCtx.bound_var(name)) {
       (ty, u_gen);
     } else {
       let (u, u_gen) =
         renumber_empty_holes ? (u, u_gen) : MetaVarGen.next(u_gen);
-      if (TyVar.Name.reserved(name)) {
+      if (TyVar.Name.(reserved(to_string(name)))) {
         (TyVarHole(Reserved, u, name), u_gen);
-      } else if (TyVar.Name.valid(name)) {
+      } else if (TyVar.Name.(valid(to_string(name)))) {
         (TyVarHole(Unbound, u, name), u_gen);
       } else {
         (TyVarHole(InvalidName, u, name), u_gen);

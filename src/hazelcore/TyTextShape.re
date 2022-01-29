@@ -1,4 +1,4 @@
-// [@deriving sexp]
+[@deriving sexp]
 type t =
   | Int
   | Float
@@ -21,6 +21,7 @@ let of_tyvar_name = (name: TyVar.Name.t): option(t) => {
   ) {
   | (Some(k), _) => Some(ExpandingKeyword(k))
   | (_, Some(ty)) => Some(ty)
-  | (None, None) => TyVar.Name.valid(name) ? Some(TyVar(name)) : None
+  | (None, None) =>
+    TyVar.Name.(valid(to_string(name))) ? Some(TyVar(name)) : None
   };
 };

@@ -5,24 +5,8 @@ type join =
   | GLB
   | LUB;
 
-/** Kind equivalence
-
-Kinds are equivalent if they are equal modulo singletons and singleton types
-are all equivalent.
-*/
-let rec equivalent_kind = (k: Kind.t, k': Kind.t, ctx: TyCtx.t): bool =>
-  switch (k, k') {
-  | (KHole, KHole)
-  | (Type, Type) => true
-  | (KHole | Type, _) => false
-  | (Singleton(Singleton(_, ty), _), Singleton(_, ty'))
-  | (Singleton(_, ty), Singleton(Singleton(_, ty'), _))
-  | (Singleton(_, ty), Singleton(_, ty')) => ctx |> equivalent(ty, ty')
-  | (Singleton(_), _) => false
-  }
-
 /** Type equivalence */
-and equivalent = (ty: t, ty': t, ctx: TyCtx.t): bool =>
+let rec equivalent = (ty: t, ty': t, ctx: TyCtx.t): bool =>
   switch (ty, ty') {
   /* bound type variables are equivalent to themselves */
   | (TyVar(i, _), TyVar(i', _)) =>
@@ -49,7 +33,7 @@ and equivalent = (ty: t, ty': t, ctx: TyCtx.t): bool =>
   | (Prod(tys), Prod(tys')) =>
     List.for_all2((ty, ty') => ctx |> equivalent(ty, ty'), tys, tys')
   | (Prod(_), _) => false
-  | (List(ty), List(ty')) => ctx |> equivalent(ty, ty')
+  | (List(ty1), List(ty1')) => ctx |> equivalent(ty1, ty1')
   | (List(_), _) => false
   };
 
@@ -121,7 +105,7 @@ let rec join = (j: join, ty1: t, ty2: t, ctx: TyCtx.t): option(t) => {
     open OptUtil.Syntax;
     let* (_, k) = ctx |> TyCtx.var_binding(i);
     switch (k) {
-    | Kind.Singleton(_, ty) => ctx |> join(j, ty1, ty)
+    | KindCore.Singleton(_, ty) => ctx |> join(j, ty1, ty)
     | KHole => ctx |> join(j, ty1, Hole(0))
     | Type => failwith("impossible for bounded type variables (currently) 2")
     };

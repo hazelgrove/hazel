@@ -1,4 +1,4 @@
-// [@deriving sexp]
+[@deriving sexp]
 type t =
   | Int
   | Float

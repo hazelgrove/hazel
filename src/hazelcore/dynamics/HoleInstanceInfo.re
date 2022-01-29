@@ -1,6 +1,6 @@
-// open Sexplib.Std;
+open Sexplib.Std;
 
-// [@deriving sexp]
+[@deriving sexp]
 type t = MetaVarMap.t(list((Environment.t, InstancePath.t)));
 
 let empty: t = (MetaVarMap.empty: t);

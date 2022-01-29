@@ -1,4 +1,4 @@
-// [@deriving sexp]
+[@deriving sexp]
 type t = VarMap.t_(PaletteDefinition.t);
 include (module type of VarMap);
 

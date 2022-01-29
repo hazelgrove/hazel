@@ -1,6 +1,6 @@
 /** De Bruijn indices */
 
-// [@deriving sexp]
+[@deriving sexp]
 type t = int;
 
 let to_int: t => int;

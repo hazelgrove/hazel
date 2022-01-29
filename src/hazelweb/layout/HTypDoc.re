@@ -40,13 +40,13 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   );
   let (doc, parenthesize) =
     switch (ty) {
-    | Hole => (
+    | Hole(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
       )
-    | TyVar(_idx, tyid) => (text(TyId.to_string(tyid)), parenthesize)
-    | TyVarHole(_, tyid) => (
-        annot(HTypAnnot.TyVarHole, text(TyId.to_string(tyid))),
+    | TyVar(_, name) => (text(TyVar.Name.to_string(name)), parenthesize)
+    | TyVarHole(_, _, name) => (
+        annot(HTypAnnot.TyVarHole, text(TyVar.Name.to_string(name))),
         parenthesize,
       )
     | Int => (text("Int"), parenthesize)

@@ -1,11 +1,11 @@
-// open Sexplib.Std;
+open Sexplib.Std;
 
-// [@deriving sexp]
+[@deriving sexp]
 type cursor_term = CursorInfo.cursor_term;
 
-// [@deriving sexp]
+[@deriving sexp]
 type start_from_insertion = bool;
-// [@deriving sexp]
+[@deriving sexp]
 type delete_group =
   | Term(cursor_term, start_from_insertion)
   /* cursor_term is insufficient for space, empty line and type annotation deletion,
@@ -14,7 +14,7 @@ type delete_group =
   | EmptyLine
   | TypeAnn;
 
-// [@deriving sexp]
+[@deriving sexp]
 type var_group =
   | Insert(cursor_term)
   | Edit({
@@ -22,14 +22,14 @@ type var_group =
       end_with: cursor_term,
     });
 
-// [@deriving sexp]
+[@deriving sexp]
 type swap_group =
   | Up
   | Down
   | Left
   | Right;
 
-// [@deriving sexp]
+[@deriving sexp]
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
@@ -40,7 +40,7 @@ type action_group =
   | SwapEdit(swap_group)
   | Init;
 
-// [@deriving sexp]
+[@deriving sexp]
 type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
@@ -50,7 +50,7 @@ type cursor_term_info = {
   next_is_empty_line: bool,
 };
 
-// [@deriving sexp]
+[@deriving sexp]
 type timestamp = float;
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {

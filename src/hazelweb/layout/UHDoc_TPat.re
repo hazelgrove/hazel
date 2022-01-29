@@ -6,8 +6,8 @@ let mk =
 
       switch (p) {
       | TPat.EmptyHole => UHDoc_common.mk_EmptyHole("?", ~sort=Typ)
-      | TPat.TyVar(_, tyid) =>
-        UHDoc_common.mk_Var(~sort=Typ, TyId.to_string(tyid))
+      | TPat.TyVar(_, name) =>
+        UHDoc_common.mk_Var(~sort=Typ, TyVar.Name.to_string(name))
       };
     })
   );

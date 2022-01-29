@@ -1,5 +1,5 @@
 module BinBoolOp: {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | And
     | Or;
@@ -10,7 +10,7 @@ module BinBoolOp: {
 };
 
 module BinIntOp: {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | Minus
     | Plus
@@ -26,7 +26,7 @@ module BinIntOp: {
 };
 
 module BinFloatOp: {
-  // [@deriving sexp]
+  [@deriving sexp]
   type t =
     | FPlus
     | FMinus
@@ -41,7 +41,7 @@ module BinFloatOp: {
   let to_op: t => UHExp.operator;
 };
 
-// [@deriving sexp]
+[@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
   | NonEmptyHole(
@@ -74,7 +74,7 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
+  | Cast(Contexts.t, t, HTyp.t, HTyp.t)
   | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
@@ -86,6 +86,6 @@ let constructor_string: t => string;
 
 let mk_tuple: list(t) => t;
 
-let cast: (t, HTyp.t, HTyp.t) => t;
+let cast: (Contexts.t, t, HTyp.t, HTyp.t) => t;
 
-let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+let apply_casts: (t, list((Contexts.t, HTyp.t, HTyp.t))) => t;

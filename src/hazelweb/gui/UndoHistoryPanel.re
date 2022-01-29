@@ -220,7 +220,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             indicate_words_view("type variable: "),
-            code_view(x |> TyId.to_string),
+            code_view(x |> TyVar.Name.to_string),
           ],
         )
       )
@@ -264,7 +264,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(
         Node.span(
           [],
-          [indicate_words_view("var: "), code_view(TyId.to_string(id))],
+          [
+            indicate_words_view("var: "),
+            code_view(TyVar.Name.to_string(id)),
+          ],
         )
       )
     };
