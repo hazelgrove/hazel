@@ -5,35 +5,46 @@ type join =
   | GLB
   | LUB;
 
-/** Type equivalence */
-let rec equivalent = (ty: t, ty': t, ctx: TyCtx.t): bool =>
+let rec equivalent = (ty: t, ty': t, k: Kind.t, ctx: TyCtx.t): bool =>
   switch (ty, ty') {
-  /* bound type variables are equivalent to themselves */
-  | (TyVar(i, _), TyVar(i', _)) =>
-    // need: symm, trans, singequiv, var
-    Index.equal(i, i') && TyCtx.has_var_index(i, ctx)
-  | (TyVar(_), _) => false
-  /* type variable holes of known kind are equivalent to themselves */
-  | (TyVarHole(reason, u, name), TyVarHole(reason', u', name')) =>
-    reason == reason'
-    && MetaVar.eq(u, u')
-    && TyVar.Name.equal(name, name')
-    && TyCtx.has_hole(u, ctx)
-  | (TyVarHole(_), _) => false
-  /* empty type holes of known kind are equivalent to themselves */
-  | (Hole(u), Hole(u')) => u == u' && TyCtx.has_hole(u, ctx)
-  | (Hole(_), _) => false
-  /* base types are equivalent to themselves */
+  | (TyVar(i1, _), ty2)
+  | (ty2, TyVar(i1, _)) =>
+    switch (ctx |> TyCtx.var_kind(i1)) {
+    | Some(k1) => ctx |> Kind.equivalent(k1, Singleton(k, ty2))
+    | None => failwith(__LOC__ ++ ": unbound type variable")
+    }
+  | (TyVarHole(_, u, _), ty2)
+  | (ty2, TyVarHole(_, u, _)) =>
+    // TODO: (johnson) figure out what goes here
+    switch (ctx |> TyCtx.hole_kind(u)) {
+    | Some(k1) => ctx |> Kind.equivalent(k1, Singleton(k, ty2))
+    | None => failwith(__LOC__ ++ ": unbound type hole")
+    }
+  | (Hole(u), ty2)
+  | (ty2, Hole(u)) =>
+    // TODO: (johnson) figure out what goes here
+    switch (ctx |> TyCtx.hole_kind(u)) {
+    | Some(k1) => ctx |> Kind.equivalent(k1, Singleton(k, ty2))
+    | None => failwith(__LOC__ ++ ": unbound type hole")
+    }
   | (Int | Float | Bool, _) => ty == ty'
-  /* composite types are equivalent when they are componentwise equivalent */
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    ctx |> equivalent(ty1, ty1') && ctx |> equivalent(ty2, ty2')
-  | (Arrow(_) | Sum(_), _) => false
-  | (Prod(tys), Prod(tys')) =>
-    List.for_all2((ty, ty') => ctx |> equivalent(ty, ty'), tys, tys')
+    // TODO: (johnson) what goes here?
+    let k1 = (??);
+    let k2 = (??);
+    ctx |> equivalent(ty1, ty1', k1) && ctx |> equivalent(ty2, ty2', k2);
+  | (Arrow(_, _), _) => false
+  | (Sum(_, _), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    let check_component = (ty1, ty2, k3) => ctx |> equivalent(ty1, ty2, k3);
+    ListUtil.for_all3_opt(check_component, tys1, tys2, ks)
+    |> Option.value(~default=false);
   | (Prod(_), _) => false
-  | (List(ty1), List(ty1')) => ctx |> equivalent(ty1, ty1')
+  | (List(ty), List(ty')) =>
+    // TODO: (johnson) what goes here?
+    let k1 = (??);
+    ctx |> equivalent(ty, ty', k1);
   | (List(_), _) => false
   };
 
@@ -50,7 +61,7 @@ let rec consistent = (ty: t, ty': t, ctx: TyCtx.t) =>
   | (_, Hole(_)) => true
   /* type variables are consistent with equivalent types */
   | (TyVar(_), _)
-  | (_, TyVar(_)) => ctx |> equivalent(ty, ty')
+  | (_, TyVar(_)) => ctx |> equivalent(ty, ty', k)
   | (Int | Float | Bool, _) => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
