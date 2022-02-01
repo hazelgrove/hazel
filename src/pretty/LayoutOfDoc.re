@@ -418,7 +418,7 @@ let rec fib3 =
   switch (x) {
   | Text3(mem, result, memo, text) =>
     let old_mem = mem^;
-    // TODO: optimize the memo here
+    // TODO: optimize the memo here?
     if (old_mem != gensym^) { flush_memo(memo); }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
@@ -431,7 +431,7 @@ let rec fib3 =
       let r =
         if (!benchmark) {
           if (new_pos > width) {
-            (1, [||], [||], [||]) // TODO: should this be 1 not 0?
+            (1, [||], [||], [||])
           } else {
             (2, [|new_pos|], [|0|], [|Layout.Text(text)|])
           }
@@ -439,7 +439,7 @@ let rec fib3 =
           (
             11,
             [|
-              new_pos + 0, // TODO
+              new_pos + 0,
               new_pos + 1,
               new_pos + 2,
               new_pos + 3,
@@ -469,12 +469,11 @@ let rec fib3 =
       set_memo(memo, memo_key, r);
       r
     };
-  | Fail3 => // DONE
+  | Fail3 =>
     // We can return without memoization only because there are no pointer equality concerns
-    (1, [||], [||], [||]) // TODO: should this be 1 not 0?
-  | Linebreak3(mem, result, memo) => // TODO
-    // TODO: optimize the memo here
-    // TODO: fail without memoization
+    (1, [||], [||], [||])
+  | Linebreak3(mem, result, memo) =>
+    // TODO: optimize the memo here by always returning (2, [|0|], [|1|], [|Layout.Linebreak|])
     let old_mem = mem^;
     if (old_mem != gensym^) { flush_memo(memo); }
     let memo_key = pos * 80 + width;
@@ -635,81 +634,6 @@ let _ = Js.export("Annot_share", (x, y) => Layout.Annot(x, y));
 let _ = Js.export("fib3_share", fib3);
 let _ = Js.export("layout_merge_share", layout_merge);
 
-let rec layout_of_doc_skel =
-        (doc: Doc.t(unit), ~width: int, ~pos: int)
-        : PosMap.t((Cost.t, Layout.t(unit))) => {
-  //Printf.printf("fast_layout_of_doc'");
-  count := count^ + 1;
-  // TODO: lift the switch(doc.doc) outside the lambda
-  switch (doc.doc) {
-  | Text(_string) =>
-    // TODO: cache text length in Text?
-    //let pos' = pos + String.length(string); //Unicode.length(string);
-    //let pos' = pos + 5;
-    // let cost =
-    //   if (pos' <= width) {
-    //     Cost.zero;
-    //   } else {
-    //     let overflow = pos' - width;
-    //     // overflow_cost = sum i from 1 to overflow
-    //     let overflow_cost = overflow * (overflow + 1) / 2;
-    //     Cost.mk_overflow(overflow_cost);
-    //   };
-    //let cost = Cost.zero;
-    //PosMap.singleton(pos', (cost, Layout.Text(string)));
-    linebreak_cost
-  | Cat(d1, d2) =>
-    let _l1 = layout_of_doc_skel(d1, ~width, ~pos);
-    let _l2 = layout_of_doc_skel(d2, ~width, ~pos);
-    // PosMap.fold_left(
-    //   (pos, z, (cost1, layout1)) => {
-    //     let l2 = fast_layout_of_doc'(d2, ~width, ~pos);
-    //     let layouts =
-    //       PosMap.map(
-    //         ((cost2, layout2)) =>
-    //           (Cost.add(cost1, cost2), Layout.Cat(layout1, layout2)),
-    //         l2,
-    //       );
-    //     m'_union(z, layouts);
-    //   },
-    //   PosMap.empty,
-    //   l1,
-    // );
-    linebreak_cost;
-  | Linebreak(_) => linebreak_cost
-  | Align(d) =>
-    // let layout = fast_layout_of_doc'(d, ~width=width - pos, ~pos=0);
-    // PosMap.mapk(
-    //   (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
-    //   layout,
-    // );
-    let _ = layout_of_doc_skel(d, ~width, ~pos);
-    linebreak_cost;
-  | Annot(_annot, d) =>
-    let _layout = layout_of_doc_skel(d, ~width, ~pos);
-    //PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
-    linebreak_cost;
-  | Fail(_) => PosMap.empty
-  | Choice(d1, d2) =>
-    let _l1 = layout_of_doc_skel(d1, ~width, ~pos);
-    let _l2 = layout_of_doc_skel(d2, ~width, ~pos);
-    //m'_union(l1, l2);
-    linebreak_cost;
-  // let h = (~width: int, ~pos: int): PosMap.t((Cost.t, Layout.t(unit))) => {
-  //   // let key = (width, pos);
-  //   // switch (Doc.M.find_opt(doc.mem, key)) {
-  //   // | Some(value) => value
-  //   // | None =>
-  //   //   let value = g(~width, ~pos);
-  //   //   //Doc.M.add(doc.mem, key, value);
-  //   //   value;
-  //   // };
-  //   g(~width, ~pos)
-  // };
-  // h;
-  };
-};
-
 let rec take = (n: int, lst: list('a)): list('a) => {
   switch (n, lst) {
   | (0, _) => []
@@ -790,24 +714,13 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
 };
 
 let layout_of_doc_25 = (~width: int, ~pos: int): option(Layout.t('annot)) => {
-  //let _l: list((int, (Cost.t, Layout.t('annot)))) =
-  //  Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
-  //Some(snd(snd(List.hd(l))));
-  //count := fib(Int1(25));
-  //Printf.printf("fast_layout_of_doc\n");
   gensym := gensym^ + 1;
   ignore(fib3(doc3_25, ~benchmark=true, ~width, ~pos));
-  // let (layout_s, layout_p, layout_c, layout_r) = fib3(mk_text("foo"), ~width, ~pos);
-  // Printf.printf("before print\n");
-  // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
-  // Printf.printf("sexp: %s\n", s);
-  // Printf.printf("after print\n");
   None;
 };
 
 let new_layout_of_doc =
     (doc: doc3, ~width: int, ~pos: int): option(Layout.t('annot)) => {
-  // let new_doc = doc_new_of_old(doc);
   gensym := gensym^ + 1;
   let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~benchmark=false, ~width, ~pos);
   let pos = ref(max_int);
@@ -822,29 +735,6 @@ let new_layout_of_doc =
   };
 
   res^;
-  // None;
-  // Printf.printf("l_s: %d\n", layout_s);
-  // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
-  // Printf.printf("sexp: %s\n", s);
-//   // let d = mk_text("foo");
-//   // let d = mk_linebreak();
-//   // let d = mk_annot(0, mk_align(mk_text("foo")));
-//   // let d = mk_choice(mk_text("foo1"), mk_text("foo2"));
-//   let d = mk_cat(mk_text("foo1"), mk_text("foo2"));
-// //   let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
-// // let mk_fail = (): doc3 => Fail3(mk_memo(), mk_result());
-// // let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
-// // let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
-// // let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
-// // let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), a, d);
-// // let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), d1, d2);
-//   // Js.debugger ();
-//   let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
-//   // let (layout_s, layout_p, layout_c, layout_r) = fib3(d, ~width, ~pos);
-//   Printf.printf("before print\n");
-//   let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("<annot>")}, layout_r[0]));
-//   Printf.printf("sexp: %s\n", s);
-  // Printf.printf("after print\n");
 };
 
 let layout_of_doc =
@@ -863,21 +753,10 @@ let layout_of_doc =
         minimum((pos, (cost, t)), rest);
       };
   };
-  // TODO: use options instead of max_int
-  // let start_time = Sys.time();
   let l =
     minimum(
       (max_int, (Cost.inf, None)),
       Obj.magic(layout_of_doc'(Obj.magic(doc), ~width, ~pos)),
     );
-  // let end_time = Sys.time();
-  /*
-   Printf.printf(
-     "layout_of_doc: %d \t%f\n",
-     -1, //fst(Lazy.force(memo_table))##.size,
-     //Memoize.WeakPoly.Table.length(fst(Lazy.force(memo_table))),
-     1000.0 *. (end_time -. start_time),
-   );
-   */
   l;
 };
