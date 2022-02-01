@@ -369,6 +369,13 @@ let get_doc = (~settings: Settings.t, program) => {
 
 let get_layout = (~settings: Settings.t, program) => {
   let doc = get_doc(~settings, program);
+  let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
+  let new_layout = Pretty.LayoutOfDoc.new_layout_of_doc(~width=80, ~pos=0, new_doc);
+  let str = switch (new_layout) {
+    | None => "<none>"
+    | Some(x) => Sexplib.Sexp.to_string(Pretty.Layout.sexp_of_t(_ => {Atom("<annot>")}, x));
+  };
+  Printf.printf("sexp: %s\n", str);
   TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc",
     settings.performance.measure
