@@ -48,8 +48,8 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
   };
 
 type result3 =
-  ( int /*size (+1?)*/,
-    Array.t(int) /*pos*/,
+  ( int /* ocaml size + 1 */,
+    Array.t(int) /*position*/,
     Array.t(int) /*cost*/,
     Array.t(Layout.t(unit)),
   );
@@ -106,7 +106,7 @@ module EqHash = {
 
 module EqHashtbl = Hashtbl.Make(EqHash);
 
-let rec doc_new_of_old = (old: Doc.t('annot)): doc3('annot) => {
+let doc_new_of_old = (old: Doc.t('annot)): doc3('annot) => {
   let seen: EqHashtbl.t(doc3('annot)) = EqHashtbl.create(0);
   let rec go = (old: Doc.t('annot)): doc3('annot) => {
     switch (EqHashtbl.find_opt(seen, Obj.magic(old))) {
@@ -427,9 +427,9 @@ let rec fib3 =
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     // TODO: optimize the memo here?
     let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+    let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
+      m
     } else {
       // TODO: should we cache the string length in Text3?
       let new_pos = pos + String.length(text);
@@ -483,13 +483,12 @@ let rec fib3 =
   | Align3(gen, memo, f) =>
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+    let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
+      m
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width=width - pos, ~pos=0, f);
       let out = layout_map_align(out1s, out1r);
-      flush_memo(memo);
       let r = (out1s, out1p, out1c, out);
       set_memo(memo, memo_key, r);
       r
@@ -498,13 +497,12 @@ let rec fib3 =
     // TODO: optimize to avoid memoization when possible
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+    let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
+      m
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f);
       let out = layout_map_annot(annot, out1s, out1r);
-      flush_memo(memo);
       let r = (out1s, out1p, out1c, out);
       set_memo(memo, memo_key, r);
       r
@@ -513,27 +511,25 @@ let rec fib3 =
     // TODO: maybe without memoization?
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+    let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
+      m
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
-      let (out_s, out_p, out_c, out_r) = layout_fold(benchmark, width, pos, f2, out1s, out1p, out1c, out1r);
-      let r = (out_s, out_p, out_c, out_r);
+      let r = layout_fold(benchmark, width, pos, f2, out1s, out1p, out1c, out1r);
       set_memo(memo, memo_key, r);
       r
     };
   | Choice3(gen, memo, f1, f2) =>
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+    let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
+      m
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
       let (out2s, out2p, out2c, out2r) = fib3(~benchmark, ~width, ~pos, f2);
-      let (out_s, out_p, out_c, out_r) = layout_merge(out1s, out1p, out1c, out1r, out2s, out2p, out2c, out2r);
-      let r = (out_s, out_p, out_c, out_r);
+      let r = layout_merge(out1s, out1p, out1c, out1r, out2s, out2p, out2c, out2r);
       set_memo(memo, memo_key, r);
       r
     };
