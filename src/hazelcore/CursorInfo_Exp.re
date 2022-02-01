@@ -328,9 +328,6 @@ and syn_cursor_info_line =
     let def = ZExp.erase(zdef);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    // TODO(andrew): should i add these to bring in accord with statics?
-    //let* _ = Statics_Exp.ana(def_ctx, def, ty_p);
-    //let* ty_def = Statics_Exp.syn(def_ctx, def);
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
@@ -875,11 +872,10 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Case(InconsistentBranches(_rule_types, _, Ana), _, _) =>
-      //TODO(andrew): make sense?
+    | Case(InconsistentBranches(_, _, Ana), _, _) =>
+      //TODO: does this make sense?
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-    | Case(InconsistentBranches(_rule_types, _, _), _, _) =>
-      //TODO(andrew): only if hole prov is none?
+    | Case(InconsistentBranches(_, _, Syn), _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)

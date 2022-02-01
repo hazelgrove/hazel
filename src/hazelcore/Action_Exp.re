@@ -1078,8 +1078,6 @@ and syn_perform_line =
         Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
       let p = ZPat.erase(new_zp);
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-      print_endline("letlineZP new ty_p:");
-      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_p)));
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
       let new_zline = ZExp.LetLineZP(new_zp, new_def);

@@ -152,7 +152,7 @@ let holes_case_err =
       ...hs,
     ]
   | InconsistentBranches(_, _, Ana) => []
-  //TODO(andrew): attempted hacky? way of preventing hole draw in this case
+  // NOTE: don't draw a hole in this case
   };
 
 let holes_skel_ =

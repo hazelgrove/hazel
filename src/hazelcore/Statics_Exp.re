@@ -161,9 +161,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         rule_types,
         rules,
       );
-    correct_rule_types
-      //TODO(andrew): should this still return none?
-      ? Some(HTyp.Hole(Some())) : None;
+    correct_rule_types ? Some(HTyp.Hole(Some())) : None;
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole(Some()))
@@ -316,11 +314,7 @@ and ana_operand =
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
 
-  | Case(InconsistentBranches(_), _, _) =>
-    //TODO(andrew): Not sure what to do. Should I condition on type being Hole(None)?
-    print_endline("ana_operand case InconsistentBranches");
-    //None;
-    Some();
+  | Case(InconsistentBranches(_), _, _) => Some()
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -593,9 +587,7 @@ and syn_fix_holes_line =
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, u_gen) =
       ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
-    print_endline("statics gonna call extend");
     let body_ctx = extend_let_body_ctx(ctx, p, def);
-    print_endline("statics called extend");
     (LetLine(p, def), body_ctx, u_gen);
   }
 and syn_fix_holes_opseq =
@@ -851,9 +843,6 @@ and syn_fix_holes_operand =
     switch (common_type) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      print_endline(
-        "syn_fix_holes_operand: putting InconsistentBranches Syn",
-      );
       (
         Case(InconsistentBranches(rule_types, u, Syn), scrut, rules),
         HTyp.Hole(Some()),
@@ -1289,19 +1278,12 @@ and ana_fix_holes_operand =
       };
     }
   | Case(_, scrut, rules) =>
-    print_endline("ana_fix_holes: CASE");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (ty) {
     | Hole(None) =>
-      print_endline("case ana fix holes Hole(None) case");
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
       let (op, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(op)));
       (op, u_gen);
     | Hole(Some ()) =>
-      print_endline("case ana fix holes Hole(Some()) case");
-
       let (scrut, ty1, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
       let (rules, u_gen, rule_types, common_type) =
@@ -1309,7 +1291,6 @@ and ana_fix_holes_operand =
       switch (common_type) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        //TODO(andrew): set new error status flag below to Ana
         (
           Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
           u_gen,
@@ -1317,7 +1298,6 @@ and ana_fix_holes_operand =
       | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
       };
     | _ =>
-      print_endline("case ana fix holes OTHER case");
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
       let (rules, u_gen) =
@@ -1330,7 +1310,7 @@ and ana_fix_holes_operand =
           ty,
         );
       (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-    };
+    }
 
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
@@ -1348,31 +1328,11 @@ and ana_fix_holes_operand =
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
-  Sexplib.Std.(
-    def
-    |> syn(extend_let_def_ctx(ctx, p, def))
-    |> OptUtil.get(_ => {
-         print_endline("EXTEND_LET_BODY_CTX: p def:");
-         print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
-         print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
-         print_endline(
-           Sexplib.Sexp.to_string_hum(
-             sexp_of_option(
-               HTyp.sexp_of_t,
-               Statics_Pat.syn(ctx, p) |> Option.map(((a, _)) => a),
-             ),
-           ),
-         );
-         print_endline(
-           Sexplib.Sexp.to_string_hum(
-             sexp_of_option(HTyp.sexp_of_t, syn(ctx, def)),
-           ),
-         );
-         failwith("extend_let_body_ctx: impossible syn");
-       })
-    |> Statics_Pat.ana(ctx, p)
-    |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"))
-  );
+  def
+  |> syn(extend_let_def_ctx(ctx, p, def))
+  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
+  |> Statics_Pat.ana(ctx, p)
+  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
 };
 
 let syn_fix_holes_z =

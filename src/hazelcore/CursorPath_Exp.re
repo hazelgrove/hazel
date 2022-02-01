@@ -363,7 +363,7 @@ let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_case_err =
-  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr)); //TODO(andrew): is this correct?
+  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
@@ -666,7 +666,7 @@ and holes_zoperand =
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u, Syn) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
-      | InconsistentBranches(_, _, Ana) => None //TODO(andrew): confirm makes sense
+      | InconsistentBranches(_, _, Ana) => None // NOTE: Don't draw a hole in this case
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -754,7 +754,7 @@ and holes_zoperand =
       | InconsistentBranches(_, u, Syn) => [
           mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
-      | InconsistentBranches(_, _, Ana) => [] // TODO(andrew): confirm makes sense
+      | InconsistentBranches(_, _, Ana) => [] // NOTE: Don't draw a hole in this case
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zscrut, [0, ...rev_steps]);
@@ -778,7 +778,7 @@ and holes_zoperand =
       | InconsistentBranches(_, u, Syn) => [
           mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
-      | InconsistentBranches(_, _, Ana) => [] // TODO(andrew): confirm makes sense
+      | InconsistentBranches(_, _, Ana) => [] // NOTE: Don't draw a hole in this case
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_prefix =
