@@ -706,7 +706,7 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
     };
-  | Case(InconsistentBranches(_, u, _), _, _) =>
+  | Case(InconsistentBranches(_, u, Syn), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
@@ -783,7 +783,8 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       };
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole), scrut, rules)
+  | Case(InconsistentBranches(_, _, Ana), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>

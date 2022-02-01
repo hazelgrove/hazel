@@ -405,7 +405,7 @@ and syn_fix_holes_operand =
     )
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole(Some())));
-    (operand_nih, Hole(Some()), ctx, u_gen);
+    (operand_nih, Hole(None), ctx, u_gen);
   | IntLit(_, _) => (operand_nih, Int, ctx, u_gen)
   | FloatLit(_, _) => (operand_nih, Float, ctx, u_gen)
   | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)
