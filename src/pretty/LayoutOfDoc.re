@@ -1182,7 +1182,7 @@ let new_layout_of_doc =
   let pos = ref(max_int);
   let cost = ref(max_int);
   let res = ref(None);
-  for (i in 1 to layout_s - 2) { // remember that _s is 1 greater than the ocaml length (b/c _s is the javascript length)
+  for (i in 0 to layout_s - 2) { // remember that _s is 1 greater than the ocaml length (b/c _s is the javascript length)
     if (layout_c[i] < cost^ || layout_c[i] == cost^ && layout_p[i] < pos^) {
       pos := layout_p[i];
       cost := layout_c[i];
