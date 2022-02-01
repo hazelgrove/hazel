@@ -105,6 +105,7 @@ let rec doc_new_of_old = (old: Doc.t('a)): doc3 => {
 };
 
 let count = ref(0);
+let mem_count = ref(0);
 let linebreak_cost =
   PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak));
 
@@ -239,7 +240,7 @@ let merge:
 let layout_map_align:
   (int, Array.t(Layout.t(unit))) => Array.t(Layout.t(unit)) =
   Js.Unsafe.js_expr(
-    "function layout_map_imp(size, input) {
+    "function layout_map_align(size, input) {
       var output = new Array(size);
       output[0] = 0;
       for (var i =  1; i < size; i++) {
@@ -247,7 +248,7 @@ let layout_map_align:
         output[i] = Align_share(res);
       }
       return output;
-      \"layout_map_imp\";
+      \"layout_map_align\";
     }
     ",
   );
@@ -255,20 +256,15 @@ let layout_map_align:
 let layout_map_annot:
   (unit, int, Array.t(Layout.t(unit))) => Array.t(Layout.t(unit)) =
   Js.Unsafe.js_expr(
-    "function layout_map_imp(annot, size, input) {
-      //var js_size = size + 1 | 0;
-      //console.log(\"size: %o\", size);
-      //console.log(\"input: %o\", input);
-      //throw 5;
+    "function layout_map_annot(annot, size, input) {
       var output = new Array(size);
       output[0] = 0;
       for (var i =  1; i < size; i++) {
         var res = input[i]
         output[i] = Annot_share(annot, res); // TODO: apply wrapper top
       }
-      //return [0, size, output];
       return output;
-      //\"layout_map_imp\";
+      \"layout_map_annot\";
     }
     ",
   );
@@ -287,109 +283,62 @@ let layout_merge:
   (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =
   Js.Unsafe.js_expr(
     "function layout_merge_imp(size1, pos1, cost1, res1, size2, pos2, cost2, res2) {
-      //\"layout_merge\";
-    var js_size = size1; // |0 (37-39)
-    var end = size1 + size2 | 0;
-    end = end - 1 | 0;
-    var pos = new Array(end);
-    pos[0] = 0;
-    var cost = new Array(end);
-    pos[0] = 0;
-    var res = new Array(end);
-    res[0] = 0;
-    var i = 1;
-    var i1 = 1;
-    var i2 = 1;
-    while (i1 < size1 && i2 < size2) {
-      if (pos1[i1] < pos2[i2]) {
-        //console.log(\"1\");
+      var js_size = size1;
+      var end = size1 + size2 | 0;
+      end = end - 1 | 0;
+      var pos = new Array(end);
+      pos[0] = 0;
+      var cost = new Array(end);
+      pos[0] = 0;
+      var res = new Array(end);
+      res[0] = 0;
+      var i = 1;
+      var i1 = 1;
+      var i2 = 1;
+      while (i1 < size1 && i2 < size2) {
+        if (pos1[i1] < pos2[i2]) {
+          pos[i] = pos1[i1];
+          res[i] = res1[i1];
+          cost[i] = cost1[i1];
+          i1 = i1 + 1 | 0;
+        } else if (pos1[i1] > pos2[i2]) {
+          pos[i] = pos2[i2];
+          res[i] = res2[i2];
+          cost[i] = cost2[i2];
+          i2 = i2 + 1 | 0;
+        } else {
+          // TODO: res1[i1] <=> res2[i2]
+          // Note: `<=` makes choice be left biased
+          if (cost1[i1] <= cost2[i2]) {
+            pos[i] = pos1[i1];
+            cost[i] = cost1[i1];
+            res[i] = res1[i1];
+          } else {
+            pos[i] = pos2[i2];
+            cost[i] = cost2[i2];
+            res[i] = res2[i2];
+          }
+          i1 = i1 + 1 | 0;
+          i2 = i2 + 1 | 0;
+        }
+        i = i + 1 | 0;
+      }
+      while (i1 < size1) {
         pos[i] = pos1[i1];
         res[i] = res1[i1];
         cost[i] = cost1[i1];
-        i1 = i1 + 1 | 0;
-      } else if (pos1[i1] > pos2[i2]) {
-        //console.log(\"2\");
+        i++;
+        i1++; // TODO: |0
+      }
+      while (i2 < size2) {
         pos[i] = pos2[i2];
         res[i] = res2[i2];
         cost[i] = cost2[i2];
-        i2 = i2 + 1 | 0;
-      } else {
-        //console.log(\"3\");
-        // TODO: res1[i1] <=> res2[i2]
-        // Note: this makes choice be left biased
-        if (cost1[i1] <= cost2[i2]) {
-          pos[i] = pos1[i1];
-          cost[i] = cost1[i1];
-          res[i] = res1[i1];
-        } else {
-          pos[i] = pos2[i2];
-          cost[i] = cost2[i2];
-          res[i] = res2[i2];
-        }
-        i1 = i1 + 1 | 0;
-        i2 = i2 + 1 | 0;
+        i++;
+        i2++;
       }
-      i = i + 1 | 0;
+      return [0, Math.min(i, 11), pos, cost, res];
     }
-    while (i1 < size1) {
-      pos[i] = pos1[i1];
-      res[i] = res1[i1];
-      cost[i] = cost1[i1];
-      i++;
-      i1++; // TODO: |0
-    }
-    while (i2 < size2) {
-      pos[i] = pos2[i2];
-      res[i] = res2[i2];
-      cost[i] = cost2[i2];
-      i++;
-      i2++;
-    }
-    //pos.length = js_size;
-    // res.length = js_size;
-    //res[0] = [0];
-    // var i1 = 1;
-    // var i2 = 1;
-    // var i = 1;
-    // while (i1 < js_size1 && i2 < js_size2) {
-    //   if (pos1[i1] < pos2[i2]) {
-    //     //console.log(\"1\");
-    //     pos[i] = pos1[i1];
-    //     res[i] = res1[i1] + 1 | 0;
-    //     i1 = i1 + 1 | 0;
-    //   } else if (pos1[i1] > pos2[i2]) {
-    //     //console.log(\"2\");
-    //     pos[i] = pos2[i2];
-    //     res[i] = res2[i2] + 1 | 0;
-    //     i2 = i2 + 1 | 0;
-    //   } else {
-    //     //console.log(\"3\");
-    //     // TODO: res1[i1] <=> res2[i2]
-    //     pos[i] = pos1[i1];
-    //     res[i] = res1[i1] + 1 | 0;
-    //     i1 = i1 + 1 | 0;
-    //     i2 = i2 + 1 | 0;
-    //   }
-    //   i = i + 1 | 0;
-    // }
-    // while (i1 < js_size1) {
-    //     //pos[i] = pos1[i1];
-    //     res[i] = res1[i1] + 1 | 0;
-    //     i1 = i1 + 1 | 0;
-    //     i = i + 1 | 0;
-    // }
-    // while (i2 < js_size2) {
-    //     //pos[i] = pos2[i2];
-    //     res[i] = res2[i2] + 1 | 0;
-    //     i2 = i2 + 1 | 0;
-    //     i = i + 1 | 0;
-    // }
-    //var size = i;
-    //return [0, size, pos, res];
-    // TODO: compute real costs
-    // console.log('merge end', i, pos, cost, res);
-    return [0, Math.min(i, 11), pos, cost, res];
-  }
     ",
   );
 
@@ -406,17 +355,13 @@ let layout_fold:
   (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =
   Js.Unsafe.js_expr(
     "function layout_fold_imp(width, pos, f2, size1, pos1, cost1, res1) {
-      //\"layout_fold\";
       if (size1 == 1) { return [0, 1, [0], [0], [0]]; }
-      var xxx = fib2_share(width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
-      // console.log('xxx', xxx[1], xxx[2], xxx[3]);
+      var xxx = fib3_share(width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
       var i = 2;
       while (i < size1) {
         var p = pos1[i];
-        var yyy = fib2_share(width, p, f2);
-        // console.log('yyy', yyy[1], yyy[2], yyy[3]);
+        var yyy = fib3_share(width, p, f2);
         xxx = layout_merge_share(xxx[1], xxx[2], xxx[3], xxx[4], yyy[1], yyy[2], yyy[3], yyy[4]);
-        // console.log('xxx2', xxx[1], xxx[2], xxx[3]);
         i = i + 1 | 0;
       }
       var len = xxx[1];
@@ -424,12 +369,10 @@ let layout_fold:
       var res = xxx[4];
       if (cost1 === undefined) { throw new Exception(); }
       for (var i = 1; i < len; i++) {
-        // console.log('cost1 and i', i, len, cost1, cost[i]);
         if (cost1[i] === undefined || !(cost1[i] < 1000) || !(cost[i] >= 0)) {
           console.log('cost1 and i', i, len, cost1[i], cost[i]);
           throw new Exception();
           }
-        //cost[i] = cost1; // + cost[i] | 0;
         cost[i] = cost[i] + cost1[i] | 0;
         res[i] = Cat_share(res1[i], res[i]);
       }
@@ -801,6 +744,7 @@ let rec fib3 =
   | Text3(mem, result, text) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
+      mem_count := mem_count^ + 1;
       result^
     } else {
       mem := gensym^;
@@ -809,7 +753,7 @@ let rec fib3 =
       let r = (
         11,
         [|
-          new_pos + 0,
+          new_pos + 0, // TODO
           new_pos + 1,
           new_pos + 2,
           new_pos + 3,
@@ -837,17 +781,17 @@ let rec fib3 =
       result := r;
       r
     };
-  | Fail3 =>
+  | Fail3 => // DONE
     // We can return without memoization only because there are no pointer equality concerns
     (0, [||], [||], [||])
-  | Linebreak3(mem, result) =>
+  | Linebreak3(mem, result) => // TODO
     // TODO: fail without memoization
     let old_mem = mem^;
     if (old_mem == gensym^) {
+      mem_count := mem_count^ + 1;
       result^
     } else {
       let res = 1;
-      let t = "Z";
       mem := gensym^;
       let r = (
         11,
@@ -875,16 +819,6 @@ let rec fib3 =
           Layout.Linebreak,
           Layout.Linebreak,
           Layout.Linebreak,
-          // res + 0,
-          // res + 1,
-          // res + 2,
-          // res + 3,
-          // res + 4,
-          // res + 5,
-          // res + 6,
-          // res + 7,
-          // res + 8,
-          // res + 9,
         |],
       );
       result := r;
@@ -892,7 +826,8 @@ let rec fib3 =
     };
   | Align3(mem, result, f) =>
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (old_mem == gensym^) { // TODO
+      mem_count := mem_count^ + 1;
       result^
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width=width - pos, ~pos=0, f);
@@ -901,7 +836,6 @@ let rec fib3 =
           layout_map_align,
           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
         );
-      // let out = out1r;
       mem := gensym^;
       let r = (out1s, out1p, out1c, out);
       result := r;
@@ -910,6 +844,7 @@ let rec fib3 =
   | Annot3(mem, result, annot, f) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
+      mem_count := mem_count^ + 1;
       result^
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f);
@@ -922,7 +857,6 @@ let rec fib3 =
             Js.Unsafe.inject(out1r),
           |],
         );
-      // let out = out1r;
       mem := gensym^;
       let r = (out1s, out1p, out1c, out);
       result := r;
@@ -932,10 +866,10 @@ let rec fib3 =
     // TODO: maybe without memoization?
     let old_mem = mem^;
     if (old_mem == gensym^) {
+      mem_count := mem_count^ + 1;
       result^
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
-      // let _ = fib2(~width, ~pos, f2);
       let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_fold,
@@ -957,13 +891,11 @@ let rec fib3 =
   | Choice3(mem, result, f1, f2) =>
     let old_mem = mem^;
     if (old_mem == gensym^) {
+      mem_count := mem_count^ + 1;
       result^
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
       let (out2s, out2p, out2c, out2r) = fib3(~width, ~pos, f2);
-      //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
-      //let out = out1r;
-      // let (out_s, out_p, out_r) = (out1s, out1p, out1r);
       let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_merge,
@@ -980,7 +912,6 @@ let rec fib3 =
         );
       mem := gensym^;
       let r = (out_s, out_p, out_c, out_r);
-      // (out1s, out1p, out1r);
       result := r;
       r
     };
@@ -990,15 +921,9 @@ let rec fib3 =
 let _ = Js.export("Cat_share", (x, y) => Layout.Cat(x, y));
 let _ = Js.export("Align_share", x => Layout.Align(x));
 let _ = Js.export("Annot_share", (x, y) => Layout.Annot(x, y));
-let _ = Js.export("fib2_share", fib3);
+let _ = Js.export("fib3_share", fib3);
 let _ = Js.export("layout_merge_share", layout_merge);
 
-// let rec fib = (x: int): int => {
-//   if (x < 2) { 1 }
-//   else { 1 + fib(x-1) + fib(x-2) }
-// }
-
-// avg:   3.3ms   per count:  15.9ns (count: 206668)
 let rec layout_of_doc_skel =
         (doc: Doc.t(unit), ~width: int, ~pos: int)
         : PosMap.t((Cost.t, Layout.t(unit))) => {
@@ -1245,8 +1170,3 @@ let layout_of_doc =
    */
   l;
 };
-
-// new (10 per): avg:  48.1ms   per count: 101.8ns (count: 472384)
-// new (2 per): avg:  9.9ms   per count:  41.9ns (count: 236192)
-// orig (1 per): avg:  52.8ms   per count: 255.6ns (count: 206668)
-// orig (2 per (via take)): avg: 1067.7ms   per count: 339.4ns (count: 3145725)

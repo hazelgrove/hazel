@@ -86,13 +86,13 @@ let benchmark = (model: Model.t): unit => {
         program,
       );
     let start_time = Sys.time();
-    Pretty.LayoutOfDoc.count := 0;
     for (_ in 1 to iters) {
       Pretty.LayoutOfDoc.count := 0;
+      Pretty.LayoutOfDoc.mem_count := 0;
       ignore(Pretty.LayoutOfDoc.layout_of_doc_25(~width, ~pos=0));
     };
     let end_time = Sys.time();
-    Printf.printf("count: %d\n", Pretty.LayoutOfDoc.count^);
+    Printf.printf("count: %d mem_count %d\n", Pretty.LayoutOfDoc.count^, Pretty.LayoutOfDoc.mem_count^);
     Printf.printf(
       "start: %f end: %f diff: %f\n",
       start_time,
