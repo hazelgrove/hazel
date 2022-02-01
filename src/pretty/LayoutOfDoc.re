@@ -83,7 +83,7 @@ let set_memo: (memo, /*key:*/ int, /*value:*/ result3) => unit = // This functio
 type doc3 =
   | Text3(ref(int), ref(result3), memo, string)
   | Fail3
-  | Linebreak3(ref(int), ref(result3), memo)
+  | Linebreak3
   | Cat3(ref(int), ref(result3), memo, doc3, doc3)
   | Align3(ref(int), ref(result3), memo, doc3)
   | Annot3(ref(int), ref(result3), memo, int, doc3)
@@ -93,7 +93,7 @@ let mk_memo = (): ref(int) => ref(0);
 let mk_result = (): ref(result3) => Obj.magic(ref(0));
 let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), create_memo(), s);
 let mk_fail = (): doc3 => Fail3;
-let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result(), create_memo());
+let mk_linebreak = (): doc3 => Linebreak3;
 let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), create_memo(), d1, d2);
 let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), create_memo(), d);
 let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), create_memo(), a, d);
@@ -432,6 +432,7 @@ let rec fib3 =
         if (!benchmark) {
           if (new_pos > width) {
             (1, [||], [||], [||])
+            // TODO: optimize to avoid memoization when possible
           } else {
             (2, [|new_pos|], [|0|], [|Layout.Text(text)|])
           }
@@ -472,53 +473,9 @@ let rec fib3 =
   | Fail3 =>
     // We can return without memoization only because there are no pointer equality concerns
     (1, [||], [||], [||])
-  | Linebreak3(mem, result, memo) =>
-    // TODO: optimize the memo here by always returning (2, [|0|], [|1|], [|Layout.Linebreak|])
-    let old_mem = mem^;
-    if (old_mem != gensym^) { flush_memo(memo); }
-    let memo_key = pos * 80 + width;
-    let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
-    if (memo_s != 1) {
-      (memo_s, memo_p, memo_c, memo_r)
-    } else {
-      mem := gensym^;
-      let r = 
-        if (!benchmark) {
-          (2, [|0|], [|1|], [|Layout.Linebreak|])
-        } else {
-          (
-            11,
-            [|
-              0,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-            |],
-            [|1, 1, 1, 1, 1, 1, 1, 1, 1, 1|],
-            [|
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-              Layout.Linebreak,
-            |],
-          )
-        };
-      result := r;
-      set_memo(memo, memo_key, r);
-      r
-    };
+  | Linebreak3 =>
+    // We can return without memoization only because there are no pointer equality concerns (is this actually valid?)
+    (2, [|0|], [|1|], [|Layout.Linebreak|])
   | Align3(mem, result, memo, f) =>
     let old_mem = mem^;
     if (old_mem != gensym^) { flush_memo(memo); }
@@ -541,6 +498,7 @@ let rec fib3 =
       r
     };
   | Annot3(mem, result, memo, annot, f) =>
+    // TODO: optimize to avoid memoization when possible
     let old_mem = mem^;
     if (old_mem != gensym^) { flush_memo(memo); }
     let memo_key = pos * 80 + width;
