@@ -52,26 +52,52 @@ type result3 =
     Array.t(int) /*pos*/,
     Array.t(int) /*cost*/,
     Array.t(Layout.t(unit)),
-  )
+  );
+
+module Js = Js_of_ocaml.Js;
+type memo;
+
+let create_memo: unit => memo =
+  Js.Unsafe.js_expr("function create_memo_imp(mem) { return [] }");
+let flush_memo: (memo) => unit =
+  Js.Unsafe.js_expr(
+    "function flush_memo_imp(mem) {
+      mem.length = 0;
+    }");
+let get_memo: (memo, /*key:*/ int) => result3 = // This function is slow (~10% of the runtime)
+  Js.Unsafe.js_expr(
+    "function get_memo_imp(mem, key) {
+      var x = mem[key];
+      if (x === undefined) {
+        return [0, 1, [0], [0], [0]];
+      } else {
+        return x;
+      }
+    }");
+let set_memo: (memo, /*key:*/ int, /*value:*/ result3) => unit = // This function is very slow (2x of the runtime)
+  Js.Unsafe.js_expr(
+    "function set_memo_imp(mem, key, value) {
+      mem[key] = value;
+    }");
 
 type doc3 =
-  | Text3(ref(int), ref(result3), string)
+  | Text3(ref(int), ref(result3), memo, string)
   | Fail3
-  | Linebreak3(ref(int), ref(result3))
-  | Cat3(ref(int), ref(result3), doc3, doc3)
-  | Align3(ref(int), ref(result3), doc3)
-  | Annot3(ref(int), ref(result3), int, doc3)
-  | Choice3(ref(int), ref(result3), doc3, doc3);
+  | Linebreak3(ref(int), ref(result3), memo)
+  | Cat3(ref(int), ref(result3), memo, doc3, doc3)
+  | Align3(ref(int), ref(result3), memo, doc3)
+  | Annot3(ref(int), ref(result3), memo, int, doc3)
+  | Choice3(ref(int), ref(result3), memo, doc3, doc3);
 
 let mk_memo = (): ref(int) => ref(0);
 let mk_result = (): ref(result3) => Obj.magic(ref(0));
-let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), s);
+let mk_text = (s: string): doc3 => Text3(mk_memo(), mk_result(), create_memo(), s);
 let mk_fail = (): doc3 => Fail3;
-let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result());
-let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), d1, d2);
-let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), d);
-let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), a, d);
-let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), d1, d2);
+let mk_linebreak = (): doc3 => Linebreak3(mk_memo(), mk_result(), create_memo());
+let mk_cat = (d1: doc3, d2: doc3): doc3 => Cat3(mk_memo(), mk_result(), create_memo(), d1, d2);
+let mk_align = (d: doc3): doc3 => Align3(mk_memo(), mk_result(), create_memo(), d);
+let mk_annot = (a: int, d: doc3): doc3 => Annot3(mk_memo(), mk_result(), create_memo(), a, d);
+let mk_choice = (d1: doc3, d2: doc3): doc3 => Choice3(mk_memo(), mk_result(), create_memo(), d1, d2);
 
 module EqHash = {
   type t = Doc.t(unit);
@@ -123,7 +149,8 @@ let rec make_fib = (x: int): doc3 =>
     | _ => failwith(__LOC__)
     };
   };
-let doc3_25 = make_fib(40);
+// let doc3_25 = make_fib(40);
+let doc3_25 = make_fib(26);
 
 // let rec make_fib_orig = (x: int): Doc.t(int) =>
 //   if (x < 2) {
@@ -140,8 +167,6 @@ let doc3_25 = make_fib(40);
 // let fib_orig_rec_25 = make_fib_orig(40);
 
 let gensym: ref(int) = ref(0);
-
-module Js = Js_of_ocaml.Js;
 
 let merge:
   (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
@@ -380,6 +405,10 @@ let layout_fold:
     }
     ",
   );
+
+/* if new_gen then flush
+if width * max_width + pos then return result
+else false */
 
 // let rec fib2 =
 //         (~width: int, ~pos: int, x: my_fib)
@@ -741,12 +770,19 @@ let rec fib3 =
         : result3 => {
   count := count^ + 1;
   switch (x) {
-  | Text3(mem, result, text) =>
+  | Text3(mem, result, memo, text) =>
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (false && old_mem == gensym^) {
       mem_count := mem_count^ + 1;
       result^
     } else {
+      // TODO: optimize the memo here
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       mem := gensym^;
       // TODO: should we cache the string length in Text3?
       let new_pos = pos + String.length(text);
@@ -779,19 +815,27 @@ let rec fib3 =
         |],
       );
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
   | Fail3 => // DONE
     // We can return without memoization only because there are no pointer equality concerns
-    (0, [||], [||], [||])
-  | Linebreak3(mem, result) => // TODO
+    (0, [||], [||], [||]) // TODO: should this be 1 not 0?
+  | Linebreak3(mem, result, memo) => // TODO
+    // TODO: optimize the memo here
     // TODO: fail without memoization
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (false && old_mem == gensym^) {
       mem_count := mem_count^ + 1;
       result^
     } else {
-      let res = 1;
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       mem := gensym^;
       let r = (
         11,
@@ -822,31 +866,48 @@ let rec fib3 =
         |],
       );
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
-  | Align3(mem, result, f) =>
+  | Align3(mem, result, memo, f) =>
     let old_mem = mem^;
-    if (old_mem == gensym^) { // TODO
+    if (false && old_mem == gensym^) { // TODO
       mem_count := mem_count^ + 1;
       result^
     } else {
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width=width - pos, ~pos=0, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_align,
           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
         );
+      flush_memo(memo);
       mem := gensym^;
       let r = (out1s, out1p, out1c, out);
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
-  | Annot3(mem, result, annot, f) =>
+  | Annot3(mem, result, memo, annot, f) =>
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (false && old_mem == gensym^) {
       mem_count := mem_count^ + 1;
       result^
     } else {
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
@@ -857,18 +918,27 @@ let rec fib3 =
             Js.Unsafe.inject(out1r),
           |],
         );
+      flush_memo(memo);
       mem := gensym^;
       let r = (out1s, out1p, out1c, out);
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
-  | Cat3(mem, result, f1, f2) =>
+  | Cat3(mem, result, memo, f1, f2) =>
     // TODO: maybe without memoization?
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (false && old_mem == gensym^) {
       mem_count := mem_count^ + 1;
       result^
     } else {
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
       let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
@@ -886,14 +956,22 @@ let rec fib3 =
       mem := gensym^;
       let r = (out_s, out_p, out_c, out_r);
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
-  | Choice3(mem, result, f1, f2) =>
+  | Choice3(mem, result, memo, f1, f2) =>
     let old_mem = mem^;
-    if (old_mem == gensym^) {
+    if (false && old_mem == gensym^) {
       mem_count := mem_count^ + 1;
       result^
     } else {
+      if (old_mem != gensym^) { flush_memo(memo); }
+      let memo_key = pos * 80 + width;
+      let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
+      if (memo_s != 1) {
+        (memo_s, memo_p, memo_c, memo_r)
+      } else {
       let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
       let (out2s, out2p, out2c, out2r) = fib3(~width, ~pos, f2);
       let (out_s, out_p, out_c, out_r) =
@@ -913,7 +991,9 @@ let rec fib3 =
       mem := gensym^;
       let r = (out_s, out_p, out_c, out_r);
       result := r;
+      set_memo(memo, memo_key, r);
       r
+      }
     };
   };
 };
