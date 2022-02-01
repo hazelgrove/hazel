@@ -381,7 +381,7 @@ let get_layout = (~settings: Settings.t, program) => {
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
   let new_layout': Pretty.Layout.t(UHAnnot.t) = switch (new_layout) {
     | None => Pretty.Layout.Text("<none>")
-    | Some(x) => Obj.magic(Pretty.Layout.remove_annots(x));
+    | Some(x) => x;
   };
   Pretty.Layout.Cat(old_layout, Pretty.Layout.Cat(Pretty.Layout.Linebreak, new_layout'));
 };
