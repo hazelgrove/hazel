@@ -47,7 +47,7 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
     PosMap.union(cost_union, p1, p2);
   };
 
-type result3 =
+type layout_result =
   ( int /* ocaml size + 1 */,
     Array.t(int) /*position*/,
     Array.t(int) /*cost*/,
@@ -64,7 +64,7 @@ let flush_memo: (memo) => unit =
     "function flush_memo_js(mem) {
       mem.length = 0;
     }");
-let get_memo: (memo, /*key:*/ int) => result3 = // This function is slow (~10% of the runtime)
+let get_memo: (memo, /*key:*/ int) => layout_result = // This function is slow (~10% of the runtime)
   Js.Unsafe.js_expr(
     "function get_memo_js(mem, key) {
       var x = mem[key];
@@ -74,29 +74,29 @@ let get_memo: (memo, /*key:*/ int) => result3 = // This function is slow (~10% o
         return x;
       }
     }");
-let set_memo: (memo, /*key:*/ int, /*value:*/ result3) => unit = // This function is very slow (2x of the runtime)
+let set_memo: (memo, /*key:*/ int, /*value:*/ layout_result) => unit = // This function is very slow (2x of the runtime)
   Js.Unsafe.js_expr(
     "function set_memo_js(mem, key, value) {
       mem[key] = value;
     }");
 
-type doc3('annot) =
-  | Text3(ref(int), memo, string)
-  | Fail3
-  | Linebreak3
-  | Cat3(ref(int), memo, doc3('annot), doc3('annot))
-  | Align3(ref(int), memo, doc3('annot))
-  | Annot3(ref(int), memo, 'annot, doc3('annot))
-  | Choice3(ref(int), memo, doc3('annot), doc3('annot));
+type mem_doc('annot) =
+  | MemText(ref(int), memo, string)
+  | MemFail
+  | MemLinebreak
+  | MemCat(ref(int), memo, mem_doc('annot), mem_doc('annot))
+  | MemAlign(ref(int), memo, mem_doc('annot))
+  | MemAnnot(ref(int), memo, 'annot, mem_doc('annot))
+  | MemChoice(ref(int), memo, mem_doc('annot), mem_doc('annot));
 
 let mk_gen = (): ref(int) => ref(0);
-let mk_text = (s: string): doc3('annot) => Text3(mk_gen(), create_memo(), s);
-let mk_fail = (): doc3('annot) => Fail3;
-let mk_linebreak = (): doc3('annot) => Linebreak3;
-let mk_cat = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Cat3(mk_gen(), create_memo(), d1, d2);
-let mk_align = (d: doc3('annot)): doc3('annot) => Align3(mk_gen(), create_memo(), d);
-let mk_annot = (a: 'annot, d: doc3('annot)): doc3('annot) => Annot3(mk_gen(), create_memo(), a, d);
-let mk_choice = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Choice3(mk_gen(), create_memo(), d1, d2);
+let mk_text = (s: string): mem_doc('annot) => MemText(mk_gen(), create_memo(), s);
+let mk_fail = (): mem_doc('annot) => MemFail;
+let mk_linebreak = (): mem_doc('annot) => MemLinebreak;
+let mk_cat = (d1: mem_doc('annot), d2: mem_doc('annot)): mem_doc('annot) => MemCat(mk_gen(), create_memo(), d1, d2);
+let mk_align = (d: mem_doc('annot)): mem_doc('annot) => MemAlign(mk_gen(), create_memo(), d);
+let mk_annot = (a: 'annot, d: mem_doc('annot)): mem_doc('annot) => MemAnnot(mk_gen(), create_memo(), a, d);
+let mk_choice = (d1: mem_doc('annot), d2: mem_doc('annot)): mem_doc('annot) => MemChoice(mk_gen(), create_memo(), d1, d2);
 
 module EqHash = {
   type t = Doc.t(unit);
@@ -106,9 +106,9 @@ module EqHash = {
 
 module EqHashtbl = Hashtbl.Make(EqHash);
 
-let doc_new_of_old = (old: Doc.t('annot)): doc3('annot) => {
-  let seen: EqHashtbl.t(doc3('annot)) = EqHashtbl.create(0);
-  let rec go = (old: Doc.t('annot)): doc3('annot) => {
+let mk_mem_doc = (old: Doc.t('annot)): mem_doc('annot) => {
+  let seen: EqHashtbl.t(mem_doc('annot)) = EqHashtbl.create(0);
+  let rec go = (old: Doc.t('annot)): mem_doc('annot) => {
     switch (EqHashtbl.find_opt(seen, Obj.magic(old))) {
     | Some(new_doc) => new_doc
     | None =>
@@ -128,99 +128,14 @@ let doc_new_of_old = (old: Doc.t('annot)): doc3('annot) => {
   };
   go(old);
 };
-let doc_new_of_old: 'annot. Doc.t('annot) => doc3('annot) = doc_new_of_old;
+let mk_mem_doc: 'annot. Doc.t('annot) => mem_doc('annot) = mk_mem_doc;
 
 let count = ref(0);
 let mem_count = ref(0);
 let linebreak_cost =
   PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak));
 
-let rec make_fib = (x: int): doc3('annot) =>
-  if (x == 0) {
-    mk_linebreak();
-  } else if (x == 1) {
-    mk_text("abc");
-  } else {
-    switch (x mod 4) {
-    | 0 => mk_annot(x, make_fib(x - 1))
-    | 1 => mk_align(make_fib(x - 1))
-    | 2 => mk_cat(make_fib(x - 1), make_fib(x - 2)) // must be 2, so that linebreak can happen
-    | 3 => mk_choice(make_fib(x - 1), make_fib(x - 2))
-    | _ => failwith(__LOC__)
-    };
-  };
-// let doc3_25 = make_fib(40);
-let doc3_25 = make_fib(26);
-
-// let rec make_fib_orig = (x: int): Doc.t(int) =>
-//   if (x < 2) {
-//     Doc.text("a");
-//   } else {
-//     switch (x mod 4) {
-//     | 0 => Doc.hcat(make_fib_orig(x - 1), make_fib_orig(x - 2))
-//     | 1 => Doc.align(make_fib_orig(x - 1))
-//     | 2 => Doc.annot(x, make_fib_orig(x - 1))
-//     | 3 => Doc.choice(make_fib_orig(x - 1), make_fib_orig(x - 2))
-//     | _ => failwith(__LOC__)
-//     };
-//   };
-// let fib_orig_rec_25 = make_fib_orig(40);
-
 let gensym: ref(int) = ref(0);
-
-let merge:
-  (int, Array.t(int), Array.t(int), int, Array.t(int), Array.t(int)) =>
-  (int, Array.t(int), Array.t(int)) =
-  Js.Unsafe.js_expr(
-    "function merge(js_size1, pos1, res1, js_size2, pos2, res2) {
-    //var len = input.length;
-    var pre_js_size = js_size1 + js_size2 | 0;
-    var js_size = pre_js_size - 1 | 0;
-    var pos = new Array(js_size);
-    pos[0] = [0];
-    var res = new Array(js_size);
-    res[0] = [0];
-    var i1 = 1;
-    var i2 = 1;
-    var i = 1;
-    while (i1 < js_size1 && i2 < js_size2) {
-      if (pos1[i1] < pos2[i2]) {
-        //console.log(\"1\");
-        pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-      } else if (pos1[i1] > pos2[i2]) {
-        //console.log(\"2\");
-        pos[i] = pos2[i2];
-        res[i] = res2[i2] + 1 | 0;
-        i2 = i2 + 1 | 0;
-      } else {
-        //console.log(\"3\");
-        // TODO: res1[i1] <=> res2[i2]
-        pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-        i2 = i2 + 1 | 0;
-      }
-      i = i + 1 | 0;
-    }
-    while (i1 < js_size1) {
-        //pos[i] = pos1[i1];
-        res[i] = res1[i1] + 1 | 0;
-        i1 = i1 + 1 | 0;
-        i = i + 1 | 0;
-    }
-    while (i2 < js_size2) {
-        //pos[i] = pos2[i2];
-        res[i] = res2[i2] + 1 | 0;
-        i2 = i2 + 1 | 0;
-        i = i + 1 | 0;
-    }
-    var size = i;
-    return [0, size, pos, res];
-  }
-    ",
-  );
 
 // * Discovery:
 //
@@ -376,7 +291,7 @@ let layout_fold =
   Obj.magic(Js.Unsafe.js_expr(
     "function layout_fold_js(benchmark, width, pos, f2, size1, pos1, cost1, res1) {
       if (size1 == 1) { return [0, 1, [0], [0], [0]]; }
-      var xxx = fib3_share(benchmark, width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
+      var xxx = new_layout_of_doc_go_share(benchmark, width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
       {
         var xxx_len = xxx[1];
         var xxx_cost = xxx[3];
@@ -389,7 +304,7 @@ let layout_fold =
       var i = 2;
       while (i < size1) {
         var p = pos1[i];
-        var yyy = fib3_share(benchmark, width, p, f2);
+        var yyy = new_layout_of_doc_go_share(benchmark, width, p, f2);
         var yyy_len = yyy[1];
         var yyy_cost = yyy[3];
         var yyy_res = yyy[4];
@@ -410,7 +325,7 @@ let layout_fold:
     bool,
     int,
     int,
-    doc3('annot),
+    mem_doc('annot),
     int,
     Array.t(int),
     Array.t(int),
@@ -418,12 +333,12 @@ let layout_fold:
   ) =>
   (int, Array.t(int), Array.t(int), Array.t(Layout.t('annot))) = layout_fold;
 
-let rec fib3 =
-        (~benchmark: bool, ~width: int, ~pos: int, x: doc3('annot))
-        : result3 => {
+let rec new_layout_of_doc_go =
+        (~benchmark: bool, ~width: int, ~pos: int, x: mem_doc('annot))
+        : layout_result => {
   count := count^ + 1;
   switch (x) {
-  | Text3(gen, memo, text) =>
+  | MemText(gen, memo, text) =>
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     // TODO: optimize the memo here?
     let memo_key = pos * 80 + width;
@@ -431,7 +346,7 @@ let rec fib3 =
     if (memo_s != 1) {
       m
     } else {
-      // TODO: should we cache the string length in Text3?
+      // TODO: should we cache the string length in MemText?
       let new_pos = pos + String.length(text);
       let r =
         if (!benchmark) {
@@ -474,26 +389,26 @@ let rec fib3 =
       set_memo(memo, memo_key, r);
       r
     };
-  | Fail3 =>
+  | MemFail =>
     // We can return without memoization only because there are no pointer equality concerns
     (1, [||], [||], [||])
-  | Linebreak3 =>
+  | MemLinebreak =>
     // We can return without memoization only because there are no pointer equality concerns (is this actually valid?)
     (2, [|0|], [|1|], [|Layout.Linebreak|])
-  | Align3(gen, memo, f) =>
+  | MemAlign(gen, memo, f) =>
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
       m
     } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width=width - pos, ~pos=0, f);
+      let (out1s, out1p, out1c, out1r) = new_layout_of_doc_go(~benchmark, ~width=width - pos, ~pos=0, f);
       let out = layout_map_align(out1s, out1r);
       let r = (out1s, out1p, out1c, out);
       set_memo(memo, memo_key, r);
       r
     };
-  | Annot3(gen, memo, annot, f) =>
+  | MemAnnot(gen, memo, annot, f) =>
     // TODO: optimize to avoid memoization when possible
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
@@ -501,13 +416,13 @@ let rec fib3 =
     if (memo_s != 1) {
       m
     } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f);
+      let (out1s, out1p, out1c, out1r) = new_layout_of_doc_go(~benchmark, ~width, ~pos, f);
       let out = layout_map_annot(annot, out1s, out1r);
       let r = (out1s, out1p, out1c, out);
       set_memo(memo, memo_key, r);
       r
     };
-  | Cat3(gen, memo, f1, f2) =>
+  | MemCat(gen, memo, f1, f2) =>
     // TODO: maybe without memoization?
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
@@ -515,34 +430,34 @@ let rec fib3 =
     if (memo_s != 1) {
       m
     } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
+      let (out1s, out1p, out1c, out1r) = new_layout_of_doc_go(~benchmark, ~width, ~pos, f1);
       let r = layout_fold(benchmark, width, pos, f2, out1s, out1p, out1c, out1r);
       set_memo(memo, memo_key, r);
       r
     };
-  | Choice3(gen, memo, f1, f2) =>
+  | MemChoice(gen, memo, f1, f2) =>
     if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, _, _, _) as m = get_memo(memo, memo_key);
     if (memo_s != 1) {
       m
     } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
-      let (out2s, out2p, out2c, out2r) = fib3(~benchmark, ~width, ~pos, f2);
+      let (out1s, out1p, out1c, out1r) = new_layout_of_doc_go(~benchmark, ~width, ~pos, f1);
+      let (out2s, out2p, out2c, out2r) = new_layout_of_doc_go(~benchmark, ~width, ~pos, f2);
       let r = layout_merge(out1s, out1p, out1c, out1r, out2s, out2p, out2c, out2r);
       set_memo(memo, memo_key, r);
       r
     };
   };
 };
-let fib3 = Obj.magic(fib3);
-let fib3:
-  'annot. (~benchmark: bool, ~width: int, ~pos: int, doc3('annot)) => result3 = fib3;
+let new_layout_of_doc_go = Obj.magic(new_layout_of_doc_go);
+let new_layout_of_doc_go:
+  'annot. (~benchmark: bool, ~width: int, ~pos: int, mem_doc('annot)) => layout_result = new_layout_of_doc_go;
 
 let _ = Js.export("Cat_share", (x, y) => Layout.Cat(x, y));
 let _ = Js.export("Align_share", x => Layout.Align(x));
 let _ = Js.export("Annot_share", (x, y) => Layout.Annot(x, y));
-let _ = Js.export("fib3_share", fib3);
+let _ = Js.export("new_layout_of_doc_go_share", new_layout_of_doc_go);
 let _ = Js.export("layout_merge_share", layout_merge);
 
 let rec take = (n: int, lst: list('a)): list('a) => {
@@ -624,16 +539,33 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
   h;
 };
 
+let rec make_test_doc = (x: int): mem_doc('annot) =>
+  if (x == 0) {
+    mk_linebreak();
+  } else if (x == 1) {
+    mk_text("abc");
+  } else {
+    switch (x mod 4) {
+    | 0 => mk_annot(x, make_test_doc(x - 1))
+    | 1 => mk_align(make_test_doc(x - 1))
+    | 2 => mk_cat(make_test_doc(x - 1), make_test_doc(x - 2)) // must be 2, so that linebreak can happen
+    | 3 => mk_choice(make_test_doc(x - 1), make_test_doc(x - 2))
+    | _ => failwith(__LOC__)
+    };
+  };
+// let benchmark_doc = make_test_doc(40);
+let benchmark_doc = make_test_doc(26);
+
 let layout_of_doc_25 = (~width: int, ~pos: int): option(Layout.t('annot)) => {
   gensym := gensym^ + 1;
-  ignore(fib3(doc3_25, ~benchmark=true, ~width, ~pos));
+  ignore(new_layout_of_doc_go(benchmark_doc, ~benchmark=true, ~width, ~pos));
   None;
 };
 
 let new_layout_of_doc =
-    (doc: doc3('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
+    (doc: mem_doc('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   gensym := gensym^ + 1;
-  let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~benchmark=false, ~width, ~pos);
+  let (layout_s, layout_p, layout_c, layout_r) = new_layout_of_doc_go(doc, ~benchmark=false, ~width, ~pos);
   let pos = ref(max_int);
   let cost = ref(max_int);
   let res = ref(None);
@@ -649,7 +581,7 @@ let new_layout_of_doc =
 };
 let new_layout_of_doc = Obj.magic(new_layout_of_doc);
 let new_layout_of_doc:
-  'annot. (doc3('annot), ~width: int, ~pos: int) => option(Layout.t('annot)) = new_layout_of_doc;
+  'annot. (mem_doc('annot), ~width: int, ~pos: int) => option(Layout.t('annot)) = new_layout_of_doc;
 
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {

@@ -369,7 +369,7 @@ let get_doc = (~settings: Settings.t, program) => {
 
 let get_layout = (~settings: Settings.t, program) => {
   let doc = get_doc(~settings, program);
-  let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
+  let new_doc = Pretty.LayoutOfDoc.mk_mem_doc(doc);
   let new_layout = Pretty.LayoutOfDoc.new_layout_of_doc(~width=program.width, ~pos=0, new_doc);
   let old_layout : Pretty.Layout.t(UHAnnot.t) = TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc",
