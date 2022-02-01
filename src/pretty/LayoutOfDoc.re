@@ -371,6 +371,7 @@ let layout_fold:
   (
     int,
     int,
+    int,
     doc3,
     int,
     Array.t(int),
@@ -379,394 +380,39 @@ let layout_fold:
   ) =>
   (int, Array.t(int), Array.t(int), Array.t(Layout.t(unit))) =
   Js.Unsafe.js_expr(
-    "function layout_fold_imp(width, pos, f2, size1, pos1, cost1, res1) {
+    "function layout_fold_imp(benchmark, width, pos, f2, size1, pos1, cost1, res1) {
       if (size1 == 1) { return [0, 1, [0], [0], [0]]; }
-      var xxx = fib3_share(width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
+      var xxx = fib3_share(benchmark, width, pos1[1], f2); // TODO: add cost1[i] to each of xxx
+      {
+        var xxx_len = xxx[1];
+        var xxx_cost = xxx[3];
+        var xxx_res = xxx[4];
+        for (var j = 1; j < xxx_len; j++) {
+          xxx_cost[j] = xxx_cost[j] + cost1[j] | 0;
+          xxx_res[j] = Cat_share(res1[j], xxx_res[j]);
+        }
+      }
       var i = 2;
       while (i < size1) {
         var p = pos1[i];
-        var yyy = fib3_share(width, p, f2);
+        var yyy = fib3_share(benchmark, width, p, f2);
+        var yyy_len = yyy[1];
+        var yyy_cost = yyy[3];
+        var yyy_res = yyy[4];
+        for (var j = 1; j < yyy_len; j++) {
+          yyy_cost[j] = yyy_cost[j] + cost1[j] | 0;
+          yyy_res[j] = Cat_share(res1[j], yyy_res[j]);
+        }
         xxx = layout_merge_share(xxx[1], xxx[2], xxx[3], xxx[4], yyy[1], yyy[2], yyy[3], yyy[4]);
         i = i + 1 | 0;
-      }
-      var len = xxx[1];
-      var cost = xxx[3];
-      var res = xxx[4];
-      if (cost1 === undefined) { throw new Exception(); }
-      for (var i = 1; i < len; i++) {
-        if (cost1[i] === undefined || !(cost1[i] < 1000) || !(cost[i] >= 0)) {
-          console.log('cost1 and i', i, len, cost1[i], cost[i]);
-          throw new Exception();
-          }
-        cost[i] = cost[i] + cost1[i] | 0;
-        res[i] = Cat_share(res1[i], res[i]);
       }
       return xxx;
     }
     ",
   );
 
-/* if new_gen then flush
-if width * max_width + pos then return result
-else false */
-
-// let rec fib2 =
-//         (~width: int, ~pos: int, x: my_fib)
-//         : (
-//             int /*size (+1?)*/,
-//             Array.t(int) /*pos*/,
-//             Array.t(int) /*cost*/,
-//             Array.t(Layout.t(unit)),
-//           ) => {
-//   count := count^ + 1;
-//   switch (x) {
-//   | Text2(mem, i) =>
-//     // TODO: without memoization
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|1111, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         //[|2222, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let res = 0;
-//       let t = "Z";
-//       mem := gensym^;
-//       (
-//         11,
-//         [|
-//           pos + 0,
-//           pos + 1,
-//           pos + 2,
-//           pos + 3,
-//           pos + 4,
-//           pos + 5,
-//           pos + 6,
-//           pos + 7,
-//           pos + 8,
-//           pos + 9,
-//         |],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           // 33331,
-//           // res + 1,
-//           // res + 2,
-//           // res + 3,
-//           // res + 4,
-//           // res + 5,
-//           // res + 6,
-//           // res + 7,
-//           // res + 8,
-//           // res + 9,
-//         |],
-//       );
-//     };
-//   | Fail2(mem) =>
-//     // TODO: fail without memoization
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let res = 1;
-//       let t = "Z";
-//       mem := gensym^;
-//       (
-//         11,
-//         [|
-//           pos + 0,
-//           pos + 1,
-//           pos + 2,
-//           pos + 3,
-//           pos + 4,
-//           pos + 5,
-//           pos + 6,
-//           pos + 7,
-//           pos + 8,
-//           pos + 9,
-//         |],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           // res + 0,
-//           // res + 1,
-//           // res + 2,
-//           // res + 3,
-//           // res + 4,
-//           // res + 5,
-//           // res + 6,
-//           // res + 7,
-//           // res + 8,
-//           // res + 9,
-//         |],
-//       );
-//     };
-//   | Linebreak2(mem) =>
-//     // TODO: fail without memoization
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|3333, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|4444, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let res = 1;
-//       let t = "Z";
-//       mem := gensym^;
-//       (
-//         11,
-//         [|
-//           pos + 0,
-//           pos + 1,
-//           pos + 2,
-//           pos + 3,
-//           pos + 4,
-//           pos + 5,
-//           pos + 6,
-//           pos + 7,
-//           pos + 8,
-//           pos + 9,
-//         |],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           Layout.Text(t),
-//           // res + 0,
-//           // res + 1,
-//           // res + 2,
-//           // res + 3,
-//           // res + 4,
-//           // res + 5,
-//           // res + 6,
-//           // res + 7,
-//           // res + 8,
-//           // res + 9,
-//         |],
-//       );
-//     };
-//   | Align2(mem, f) =>
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|5555, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|6666, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f);
-//       let out =
-//         Js.Unsafe.fun_call(
-//           layout_map_align,
-//           [|Js.Unsafe.inject(out1s), Js.Unsafe.inject(out1r)|],
-//         );
-//       // let out = out1r;
-//       mem := gensym^;
-//       (out1s, out1p, out1c, out);
-//     };
-//   | Annot2(mem, annot, f) =>
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|77770, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|88788, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f);
-//       let out =
-//         Js.Unsafe.fun_call(
-//           layout_map_annot,
-//           [|
-//             Js.Unsafe.inject(annot),
-//             Js.Unsafe.inject(out1s),
-//             Js.Unsafe.inject(out1r),
-//           |],
-//         );
-//       // let out = out1r;
-//       mem := gensym^;
-//       (out1s, out1p, out1c, out);
-//     };
-//   | Cat2(mem, f1, f2) =>
-//     // TODO: maybe without memoization?
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|999999990, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|121212120, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f1);
-//       // let _ = fib2(~width, ~pos, f2);
-//       let (out_s, out_p, out_c, out_r) =
-//         Js.Unsafe.fun_call(
-//           layout_fold,
-//           [|
-//             Js.Unsafe.inject(width),
-//             Js.Unsafe.inject(pos),
-//             Js.Unsafe.inject(f2),
-//             Js.Unsafe.inject(out1s),
-//             Js.Unsafe.inject(out1p),
-//             Js.Unsafe.inject(out1c),
-//             Js.Unsafe.inject(out1r),
-//           |],
-//         );
-//       mem := gensym^;
-//       (out_s, out_p, out_c, out_r);
-//     };
-//   | Choice2(mem, f1, f2) =>
-//     let old_mem = mem^;
-//     if (old_mem == gensym^) {
-//       (
-//         11,
-//         [|131313130, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         // [|141414140, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-//         [|
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//           Layout.Text("Z"),
-//         |],
-//       );
-//     } else {
-//       let (out1s, out1p, out1c, out1r) = fib2(~width, ~pos, f1);
-//       let (out2s, out2p, out2c, out2r) = fib2(~width, ~pos, f2);
-//       //let out = Js.Unsafe.fun_call(layout_map, [|Js.Unsafe.inject(out1r)|]);
-//       //let out = out1r;
-//       // let (out_s, out_p, out_r) = (out1s, out1p, out1r);
-//       let (out_s, out_p, out_c, out_r) =
-//         Js.Unsafe.fun_call(
-//           layout_merge,
-//           [|
-//             Js.Unsafe.inject(out1s),
-//             Js.Unsafe.inject(out1p),
-//             Js.Unsafe.inject(out1c),
-//             Js.Unsafe.inject(out1r),
-//             Js.Unsafe.inject(out2s),
-//             Js.Unsafe.inject(out2p),
-//             Js.Unsafe.inject(out2c),
-//             Js.Unsafe.inject(out2r),
-//           |],
-//         );
-//       mem := gensym^;
-//       (out_s, out_p, out_c, out_r);
-//       // (out1s, out1p, out1r);
-//     };
-//   };
-// };
-
 let rec fib3 =
-        (~width: int, ~pos: int, x: doc3)
+        (~benchmark: bool, ~width: int, ~pos: int, x: doc3)
         : result3 => {
   count := count^ + 1;
   switch (x) {
@@ -786,34 +432,43 @@ let rec fib3 =
       mem := gensym^;
       // TODO: should we cache the string length in Text3?
       let new_pos = pos + String.length(text);
-      let r = (
-        11,
-        [|
-          new_pos + 0, // TODO
-          new_pos + 1,
-          new_pos + 2,
-          new_pos + 3,
-          new_pos + 4,
-          new_pos + 5,
-          new_pos + 6,
-          new_pos + 7,
-          new_pos + 8,
-          new_pos + 9,
-        |],
-        [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
-        [|
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-          Layout.Text(text),
-        |],
-      );
+      let r =
+        if (!benchmark) {
+          if (new_pos > width) {
+            (1, [||], [||], [||]) // TODO: should this be 1 not 0?
+          } else {
+            (2, [|new_pos|], [|0|], [|Layout.Text(text)|])
+          }
+        } else {
+          (
+            11,
+            [|
+              new_pos + 0, // TODO
+              new_pos + 1,
+              new_pos + 2,
+              new_pos + 3,
+              new_pos + 4,
+              new_pos + 5,
+              new_pos + 6,
+              new_pos + 7,
+              new_pos + 8,
+              new_pos + 9,
+            |],
+            [|0, 0, 0, 0, 0, 0, 0, 0, 0, 0|],
+            [|
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+              Layout.Text(text),
+            |],
+          )
+        };
       result := r;
       set_memo(memo, memo_key, r);
       r
@@ -821,7 +476,7 @@ let rec fib3 =
     };
   | Fail3 => // DONE
     // We can return without memoization only because there are no pointer equality concerns
-    (0, [||], [||], [||]) // TODO: should this be 1 not 0?
+    (1, [||], [||], [||]) // TODO: should this be 1 not 0?
   | Linebreak3(mem, result, memo) => // TODO
     // TODO: optimize the memo here
     // TODO: fail without memoization
@@ -837,34 +492,39 @@ let rec fib3 =
         (memo_s, memo_p, memo_c, memo_r)
       } else {
       mem := gensym^;
-      let r = (
-        11,
-        [|
-          0,
-          1,
-          2,
-          3,
-          4,
-          5,
-          6,
-          7,
-          8,
-          9,
-        |],
-        [|1, 1, 1, 1, 1, 1, 1, 1, 1, 1|],
-        [|
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-          Layout.Linebreak,
-        |],
-      );
+      let r = 
+        if (!benchmark) {
+          (2, [|0|], [|1|], [|Layout.Linebreak|])
+        } else {
+          (
+            11,
+            [|
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+            |],
+            [|1, 1, 1, 1, 1, 1, 1, 1, 1, 1|],
+            [|
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+              Layout.Linebreak,
+            |],
+          )
+        };
       result := r;
       set_memo(memo, memo_key, r);
       r
@@ -882,7 +542,7 @@ let rec fib3 =
       if (memo_s != 1) {
         (memo_s, memo_p, memo_c, memo_r)
       } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~width=width - pos, ~pos=0, f);
+      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width=width - pos, ~pos=0, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_align,
@@ -908,7 +568,7 @@ let rec fib3 =
       if (memo_s != 1) {
         (memo_s, memo_p, memo_c, memo_r)
       } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f);
+      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f);
       let out =
         Js.Unsafe.fun_call(
           layout_map_annot,
@@ -939,11 +599,12 @@ let rec fib3 =
       if (memo_s != 1) {
         (memo_s, memo_p, memo_c, memo_r)
       } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
+      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
       let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_fold,
           [|
+            Js.Unsafe.inject(benchmark),
             Js.Unsafe.inject(width),
             Js.Unsafe.inject(pos),
             Js.Unsafe.inject(f2),
@@ -972,8 +633,8 @@ let rec fib3 =
       if (memo_s != 1) {
         (memo_s, memo_p, memo_c, memo_r)
       } else {
-      let (out1s, out1p, out1c, out1r) = fib3(~width, ~pos, f1);
-      let (out2s, out2p, out2c, out2r) = fib3(~width, ~pos, f2);
+      let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
+      let (out2s, out2p, out2c, out2r) = fib3(~benchmark, ~width, ~pos, f2);
       let (out_s, out_p, out_c, out_r) =
         Js.Unsafe.fun_call(
           layout_merge,
@@ -1165,7 +826,7 @@ let layout_of_doc_25 = (~width: int, ~pos: int): option(Layout.t('annot)) => {
   //count := fib(Int1(25));
   //Printf.printf("fast_layout_of_doc\n");
   gensym := gensym^ + 1;
-  ignore(fib3(doc3_25, ~width, ~pos));
+  ignore(fib3(doc3_25, ~benchmark=true, ~width, ~pos));
   // let (layout_s, layout_p, layout_c, layout_r) = fib3(mk_text("foo"), ~width, ~pos);
   // Printf.printf("before print\n");
   // let s = Sexplib.Sexp.to_string(Layout.sexp_of_t(x => {Atom("x")}, layout_r[0]));
@@ -1178,7 +839,7 @@ let new_layout_of_doc =
     (doc: doc3, ~width: int, ~pos: int): option(Layout.t('annot)) => {
   // let new_doc = doc_new_of_old(doc);
   gensym := gensym^ + 1;
-  let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~width, ~pos);
+  let (layout_s, layout_p, layout_c, layout_r) = fib3(doc, ~benchmark=false, ~width, ~pos);
   let pos = ref(max_int);
   let cost = ref(max_int);
   let res = ref(None);

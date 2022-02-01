@@ -369,14 +369,9 @@ let get_doc = (~settings: Settings.t, program) => {
 
 let get_layout = (~settings: Settings.t, program) => {
   let doc = get_doc(~settings, program);
-  /* let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
-  let new_layout = Pretty.LayoutOfDoc.new_layout_of_doc(~width=80, ~pos=0, new_doc);
-  let str = switch (new_layout) {
-    | None => "<none>"
-    | Some(x) => Sexplib.Sexp.to_string(Pretty.Layout.sexp_of_t(_ => {Atom("<annot>")}, x));
-  };
-  Printf.printf("sexp: %s\n", str); */
-  TimeUtil.measure_time(
+  let new_doc = Pretty.LayoutOfDoc.doc_new_of_old(doc);
+  let new_layout = Pretty.LayoutOfDoc.new_layout_of_doc(~width=program.width, ~pos=0, new_doc);
+  let old_layout : Pretty.Layout.t(UHAnnot.t) = TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc",
     settings.performance.measure
     && settings.performance.layoutOfDoc_layout_of_doc,
@@ -384,10 +379,15 @@ let get_layout = (~settings: Settings.t, program) => {
     Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0, doc)
   )
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+  let new_layout': Pretty.Layout.t(UHAnnot.t) = switch (new_layout) {
+    | None => Pretty.Layout.Text("<none>")
+    | Some(x) => Obj.magic(Pretty.Layout.remove_annots(x));
+  };
+  Pretty.Layout.Cat(old_layout, Pretty.Layout.Cat(Pretty.Layout.Linebreak, new_layout'));
 };
 
 let get_measured_layout = (~settings: Settings.t, program): UHMeasuredLayout.t => {
-  program |> get_layout(~settings) |> UHMeasuredLayout.mk;
+  program |> get_layout(~settings) |> UHMeasuredLayout.mk
 };
 
 let get_caret_position = (~settings: Settings.t, program): MeasuredPosition.t => {
