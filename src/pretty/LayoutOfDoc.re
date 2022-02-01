@@ -314,7 +314,7 @@ let layout_merge:
       var pos = new Array(end);
       pos[0] = 0;
       var cost = new Array(end);
-      pos[0] = 0;
+      cost[0] = 0;
       var res = new Array(end);
       res[0] = 0;
       var i = 1;
