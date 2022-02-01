@@ -81,23 +81,22 @@ let set_memo: (memo, /*key:*/ int, /*value:*/ result3) => unit = // This functio
     }");
 
 type doc3('annot) =
-  | Text3(ref(int), ref(result3), memo, string)
+  | Text3(ref(int), memo, string)
   | Fail3
   | Linebreak3
-  | Cat3(ref(int), ref(result3), memo, doc3('annot), doc3('annot))
-  | Align3(ref(int), ref(result3), memo, doc3('annot))
-  | Annot3(ref(int), ref(result3), memo, 'annot, doc3('annot))
-  | Choice3(ref(int), ref(result3), memo, doc3('annot), doc3('annot));
+  | Cat3(ref(int), memo, doc3('annot), doc3('annot))
+  | Align3(ref(int), memo, doc3('annot))
+  | Annot3(ref(int), memo, 'annot, doc3('annot))
+  | Choice3(ref(int), memo, doc3('annot), doc3('annot));
 
-let mk_memo = (): ref(int) => ref(0);
-let mk_result = (): ref(result3) => Obj.magic(ref(0));
-let mk_text = (s: string): doc3('annot) => Text3(mk_memo(), mk_result(), create_memo(), s);
+let mk_gen = (): ref(int) => ref(0);
+let mk_text = (s: string): doc3('annot) => Text3(mk_gen(), create_memo(), s);
 let mk_fail = (): doc3('annot) => Fail3;
 let mk_linebreak = (): doc3('annot) => Linebreak3;
-let mk_cat = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Cat3(mk_memo(), mk_result(), create_memo(), d1, d2);
-let mk_align = (d: doc3('annot)): doc3('annot) => Align3(mk_memo(), mk_result(), create_memo(), d);
-let mk_annot = (a: 'annot, d: doc3('annot)): doc3('annot) => Annot3(mk_memo(), mk_result(), create_memo(), a, d);
-let mk_choice = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Choice3(mk_memo(), mk_result(), create_memo(), d1, d2);
+let mk_cat = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Cat3(mk_gen(), create_memo(), d1, d2);
+let mk_align = (d: doc3('annot)): doc3('annot) => Align3(mk_gen(), create_memo(), d);
+let mk_annot = (a: 'annot, d: doc3('annot)): doc3('annot) => Annot3(mk_gen(), create_memo(), a, d);
+let mk_choice = (d1: doc3('annot), d2: doc3('annot)): doc3('annot) => Choice3(mk_gen(), create_memo(), d1, d2);
 
 module EqHash = {
   type t = Doc.t(unit);
@@ -424,16 +423,14 @@ let rec fib3 =
         : result3 => {
   count := count^ + 1;
   switch (x) {
-  | Text3(mem, result, memo, text) =>
-    let old_mem = mem^;
+  | Text3(gen, memo, text) =>
+    if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     // TODO: optimize the memo here?
-    if (old_mem != gensym^) { flush_memo(memo); }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
     if (memo_s != 1) {
       (memo_s, memo_p, memo_c, memo_r)
     } else {
-      mem := gensym^;
       // TODO: should we cache the string length in Text3?
       let new_pos = pos + String.length(text);
       let r =
@@ -474,7 +471,6 @@ let rec fib3 =
             |],
           )
         };
-      result := r;
       set_memo(memo, memo_key, r);
       r
     };
@@ -484,9 +480,8 @@ let rec fib3 =
   | Linebreak3 =>
     // We can return without memoization only because there are no pointer equality concerns (is this actually valid?)
     (2, [|0|], [|1|], [|Layout.Linebreak|])
-  | Align3(mem, result, memo, f) =>
-    let old_mem = mem^;
-    if (old_mem != gensym^) { flush_memo(memo); }
+  | Align3(gen, memo, f) =>
+    if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
     if (memo_s != 1) {
@@ -495,16 +490,13 @@ let rec fib3 =
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width=width - pos, ~pos=0, f);
       let out = layout_map_align(out1s, out1r);
       flush_memo(memo);
-      mem := gensym^;
       let r = (out1s, out1p, out1c, out);
-      result := r;
       set_memo(memo, memo_key, r);
       r
     };
-  | Annot3(mem, result, memo, annot, f) =>
+  | Annot3(gen, memo, annot, f) =>
     // TODO: optimize to avoid memoization when possible
-    let old_mem = mem^;
-    if (old_mem != gensym^) { flush_memo(memo); }
+    if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
     if (memo_s != 1) {
@@ -513,16 +505,13 @@ let rec fib3 =
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f);
       let out = layout_map_annot(annot, out1s, out1r);
       flush_memo(memo);
-      mem := gensym^;
       let r = (out1s, out1p, out1c, out);
-      result := r;
       set_memo(memo, memo_key, r);
       r
     };
-  | Cat3(mem, result, memo, f1, f2) =>
+  | Cat3(gen, memo, f1, f2) =>
     // TODO: maybe without memoization?
-    let old_mem = mem^;
-    if (old_mem != gensym^) { flush_memo(memo); }
+    if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
     if (memo_s != 1) {
@@ -530,15 +519,12 @@ let rec fib3 =
     } else {
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
       let (out_s, out_p, out_c, out_r) = layout_fold(benchmark, width, pos, f2, out1s, out1p, out1c, out1r);
-      mem := gensym^;
       let r = (out_s, out_p, out_c, out_r);
-      result := r;
       set_memo(memo, memo_key, r);
       r
     };
-  | Choice3(mem, result, memo, f1, f2) =>
-    let old_mem = mem^;
-    if (old_mem != gensym^) { flush_memo(memo); }
+  | Choice3(gen, memo, f1, f2) =>
+    if (benchmark && gen^ != gensym^) { flush_memo(memo); gen := gensym^; }
     let memo_key = pos * 80 + width;
     let (memo_s, memo_p, memo_c, memo_r) = get_memo(memo, memo_key);
     if (memo_s != 1) {
@@ -547,9 +533,7 @@ let rec fib3 =
       let (out1s, out1p, out1c, out1r) = fib3(~benchmark, ~width, ~pos, f1);
       let (out2s, out2p, out2c, out2r) = fib3(~benchmark, ~width, ~pos, f2);
       let (out_s, out_p, out_c, out_r) = layout_merge(out1s, out1p, out1c, out1r, out2s, out2p, out2c, out2r);
-      mem := gensym^;
       let r = (out_s, out_p, out_c, out_r);
-      result := r;
       set_memo(memo, memo_key, r);
       r
     };
@@ -558,7 +542,6 @@ let rec fib3 =
 let fib3 = Obj.magic(fib3);
 let fib3:
   'annot. (~benchmark: bool, ~width: int, ~pos: int, doc3('annot)) => result3 = fib3;
-
 
 let _ = Js.export("Cat_share", (x, y) => Layout.Cat(x, y));
 let _ = Js.export("Align_share", x => Layout.Align(x));
