@@ -873,7 +873,7 @@ and ana_cursor_info_zoperand =
         )
       };
     | Case(InconsistentBranches(_, _, Ana), _, _) =>
-      //TODO: does this make sense?
+      //TODO: Do we want something else here?
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Case(InconsistentBranches(_, _, Syn), _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)

@@ -3481,14 +3481,9 @@ let syn_perform =
     (
       ctx: Contexts.t,
       a: Action.t,
-      (_ze_init: ZExp.t, _ty: HTyp.t, _u_gen: MetaVarGen.t) as init_state: Statics.edit_state,
+      init_state: Statics.edit_state,
     )
     : ActionOutcome.t(syn_done) => {
-  //TODO: label theorems with reference to paper
-  //TODO: ana
-  //TODO: valid_edit_state
-  //TODO: comment on syn_perform (wrapped in a check)
-  //TODO: contract metafn
   switch (syn_perform(ctx, a, init_state)) {
   | Succeeded((ze_final, ty_final, _)) as final_state =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(ze_final))) {
