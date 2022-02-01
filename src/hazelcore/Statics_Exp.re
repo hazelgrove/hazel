@@ -35,7 +35,7 @@ let get_pattern_type = (ctx, UHExp.Rule(p, _)) =>
 
 let joined_pattern_type = (ctx, rules) => {
   let* tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  ctx |> Contexts.typing |> HTyp.join_all(LUB, tys);
+  HTyp.join_all(Contexts.typing(ctx), LUB, tys);
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
@@ -162,7 +162,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
           switch (syn_rule(ctx, rule, pat_ty)) {
           | None => false
           | Some(syn_ty) =>
-            ctx |> Contexts.typing |> HTyp.equivalent(rule_ty, syn_ty)
+            HTyp.equivalent(Contexts.typing(ctx), rule_ty, syn_ty)
           }
         },
         rule_types,
@@ -216,7 +216,7 @@ and syn_rules =
       Some([]),
       rules,
     );
-  let+ ty = ctx |> Contexts.typing |> HTyp.join_all(GLB, clause_types);
+  let+ ty = HTyp.join_all(Contexts.typing(ctx), GLB, clause_types);
   ty;
 }
 and syn_rule =
@@ -293,7 +293,7 @@ and ana_skel =
       _,
     ) =>
     let* ty' = syn_skel(ctx, skel, seq);
-    ctx |> Contexts.typing |> HTyp.consistent(ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
   }
 and ana_operand =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
@@ -334,7 +334,7 @@ and ana_operand =
   | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
-    ctx |> Contexts.typing |> HTyp.consistent(ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
   | Lam(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
@@ -347,7 +347,7 @@ and ana_operand =
     ana_rules(ctx, rules, ty1, ty);
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, operand);
-    ctx |> Contexts.typing |> HTyp.consistent(ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -917,7 +917,7 @@ and syn_fix_holes_rules =
       ([], u_gen, []),
       rules,
     );
-  let common_type = ctx |> Contexts.typing |> HTyp.join_all(GLB, rule_types);
+  let common_type = HTyp.join_all(Contexts.typing(ctx), GLB, rule_types);
   (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
 }
 and syn_fix_holes_rule =
@@ -1202,7 +1202,7 @@ and ana_fix_holes_skel =
     ) =>
     let (skel, seq, ty', u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
-    if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
+    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
       (skel, seq, u_gen);
     } else {
       let (OpSeq(skel, seq), u_gen) =
@@ -1234,7 +1234,7 @@ and ana_fix_holes_operand =
   | BoolLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
+    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1307,7 +1307,7 @@ and ana_fix_holes_operand =
     | None =>
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1333,7 +1333,7 @@ and ana_fix_holes_operand =
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (ctx |> Contexts.typing |> HTyp.consistent(ty, ty')) {
+    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);

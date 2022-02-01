@@ -36,7 +36,7 @@ let rec ground_cases_of = (ty: HTyp.t): ground_cases =>
     | _ => failwith(__LOC__ ++ ": unbound index")
     }
   | Prod(tys) =>
-    let equiv = ty => TyCtx.empty |> HTyp.equivalent(HTyp.Hole(0), ty);
+    let equiv = ty => HTyp.normalized_equivalent(HTyp.Hole(0), ty);
     List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum
@@ -709,7 +709,7 @@ let rec evaluate = (d: DHExp.t): result =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
         | Cast(ctx, d1'', ty'', Hole(_) | TyVarHole(_)) =>
-          if (TyCtx.empty |> HTyp.consistent(ty'', ty')) {
+          if (HTyp.normalized_consistent(ty'', ty')) {
             BoxedValue(d1'');
           } else {
             Indet(FailedCast(ctx, d1', ty, ty'));
@@ -739,7 +739,7 @@ let rec evaluate = (d: DHExp.t): result =>
         BoxedValue(Cast(ctx, d1', ty, ty'))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
-        if (ctx |> Contexts.typing |> HTyp.equivalent(ty, ty')) {
+        if (HTyp.equivalent(Contexts.typing(ctx), ty, ty')) {
           result;
         } else {
           BoxedValue(Cast(ctx, d1', ty, ty'));
@@ -757,7 +757,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, Ground) =>
         switch (d1') {
         | Cast(ctx, d1'', ty'', Hole(_)) =>
-          if (ctx |> Contexts.typing |> HTyp.equivalent(ty'', ty')) {
+          if (HTyp.equivalent(Contexts.typing(ctx), ty'', ty')) {
             Indet(d1'');
           } else {
             Indet(FailedCast(ctx, d1', ty, ty'));
@@ -785,7 +785,7 @@ let rec evaluate = (d: DHExp.t): result =>
         Indet(Cast(ctx, d1', ty, ty'))
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* it might be eq in this case, so remove cast if so */
-        if (ctx |> Contexts.typing |> HTyp.equivalent(ty, ty')) {
+        if (HTyp.equivalent(Contexts.typing(ctx), ty, ty')) {
           result;
         } else {
           Indet(Cast(ctx, d1', ty, ty'));

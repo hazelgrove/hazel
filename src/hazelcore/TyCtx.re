@@ -2,7 +2,7 @@
 open TyVar;
 
 module HTyp = HTypCore;
-module Kind = KindCore;
+module Kind = Kind;
 
 module Vars = {
   open Sexplib.Std;

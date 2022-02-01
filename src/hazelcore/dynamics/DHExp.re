@@ -207,7 +207,7 @@ let rec mk_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (ctx: Contexts.t, d: t, ty1: HTyp.t, ty2: HTyp.t): t =>
-  if (ctx |> Contexts.typing |> HTyp.equivalent(ty1, ty2)) {
+  if (HTyp.equivalent(Contexts.typing(ctx), ty1, ty2)) {
     d;
   } else {
     Cast(ctx, d, ty1, ty2);

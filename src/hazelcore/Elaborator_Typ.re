@@ -221,12 +221,12 @@ and ana_fix_holes_skel = (ctx, u_gen, k, skel, seq) =>
     (skel, seq, u_gen);
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
-    let (skel, seq, k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-    if (ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)) {
-      (skel, seq, u_gen);
-    } else {
-      failwith("TODO: Add inconsistent kind hole (this can't happen now)");
-    };
+    let (skel, seq, _k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
+    // if (ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)) {
+    (skel, seq, u_gen);
+  // } else {
+  //   failwith("TODO: Add inconsistent kind hole (this can't happen now)");
+  // };
   }
 and ana_fix_holes_operand = (ctx, u_gen, k, operand) => {
   switch (operand) {
@@ -247,10 +247,12 @@ and ana_fix_holes_operand = (ctx, u_gen, k, operand) => {
   | Bool
   | List(_) =>
     /* TElabASubsume */
-    let (ty, k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
-    ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)
-      ? (ty, u_gen)
-      : failwith("TODO: Add inconsistent kind hole (this can't happen now)");
+    let (ty, _k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
+    // if (ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)) {
+    (ty, u_gen);
+  // } else {
+  //   failwith("TODO: Add inconsistent kind hole (this can't happen now)");
+  // };
   };
 };
 

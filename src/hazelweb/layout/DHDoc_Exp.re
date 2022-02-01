@@ -267,7 +267,7 @@ let rec mk =
           mk_cast(go(~enforce_inline=false, dbody)),
         ])
       | FailedCast(_, Cast(_, d, ty1, ty2), ty2', ty3)
-          when TyCtx.empty |> HTyp.equivalent(ty2, ty2') =>
+          when HTyp.normalized_equivalent(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
