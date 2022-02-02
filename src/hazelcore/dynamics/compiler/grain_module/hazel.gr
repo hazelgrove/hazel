@@ -25,6 +25,7 @@ export buildBinBoolOpAnd
 export buildEmptyHole
 
 export and
+export or
 
 export let htrue = bool_to_number(true)
 export let hfalse = bool_to_number(false)

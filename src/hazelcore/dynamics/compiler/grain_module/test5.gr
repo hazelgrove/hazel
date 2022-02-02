@@ -1,0 +1,5 @@
+import Hazel from "hazel"
+let result = {let a = Hazel.htrue
+{let b = Hazel.hfalse
+Hazel.and(a, b)}}
+Hazel.print_prog(result)

@@ -105,7 +105,7 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
-  | FixF(Var.t, HTyp.t, t)
+  | RecFun(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
@@ -149,7 +149,10 @@ let rec of_DHExp = (d: DHExp.t): t =>
     InvalidText(var, varinst, of_DHExp_varmap(varmap), text)
   | BoundVar(v) => BoundVar(v)
   | Let(pat, d1, d2) => Let(pat, of_DHExp(d1), of_DHExp(d2))
-  | FixF(v, ty, d0) => FixF(v, ty, of_DHExp(d0))
+  | FixF(v, ty, d0) =>
+    let d0s =
+      Evaluator.subst_var(DHExp.BoundVar(String.concat(v, ["()"])), v, d0);
+    RecFun(v, ty, of_DHExp(d0s));
   | Lam(pat, ty, d0) => Lam(pat, ty, of_DHExp(d0))
   | Ap(d1, d2) => Ap(of_DHExp(d1), of_DHExp(d2))
   | BoolLit(b) => BoolLit(b)
