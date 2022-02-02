@@ -44,7 +44,7 @@ let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
+let new_EmptyHole: MetaVarGen.t => (operand, MetaVar.t, MetaVarGen.t);
 
 let is_EmptyHole: operand => bool;
 

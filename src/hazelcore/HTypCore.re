@@ -48,12 +48,21 @@ let rec equal = (ty: t, ty': t): bool =>
   | (List(_), _) => false
   };
 
+let new_Hole = (u_gen: MetaVarGen.t): (t, MetaVar.t, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (Hole(u), u, u_gen);
+};
+
 /* matched arrow types */
-let matched_arrow = (ty: t): option((t, t)) =>
+let matched_arrow =
+    (ty: t, u_gen: MetaVarGen.t): option((t, t, MetaVarGen.t)) =>
   switch (ty) {
-  | Hole(u)
-  | TyVarHole(_, u, _) => Some((Hole(u), Hole(u)))
-  | Arrow(ty1, ty2) => Some((ty1, ty2))
+  | Hole(_)
+  | TyVarHole(_, _, _) =>
+    let (ty1, _, u_gen) = new_Hole(u_gen);
+    let (ty2, _, u_gen) = new_Hole(u_gen);
+    Some((ty1, ty2, u_gen));
+  | Arrow(ty1, ty2) => Some((ty1, ty2, u_gen))
   | _ => None
   };
 

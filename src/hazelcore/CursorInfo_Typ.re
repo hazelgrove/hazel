@@ -51,25 +51,28 @@ and get_zoperand_from_ztyp_operand =
 };
 
 let rec cursor_info =
-        (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(CursorInfo.t) =>
-  cursor_info_zopseq(~steps, ctx, zty)
+        (~steps=[], ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
+        : option(CursorInfo.t) =>
+  cursor_info_zopseq(~steps, ctx, u_gen, zty)
 and cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
     )
     : option(CursorInfo.t) => {
   switch (zseq) {
   | ZOperator((_, Prod), _) =>
     // cursor on tuple comma
-    switch (Elaborator_Typ.syn_kind(ctx, zopseq |> ZTyp.erase)) {
+    switch (Elaborator_Typ.syn_kind(ctx, u_gen, zopseq |> ZTyp.erase)) {
     | None => None
-    | Some(kind) =>
+    | Some((kind, u_gen)) =>
       Some(
         CursorInfo_common.mk(
           OnType(kind),
           ctx,
+          u_gen,
           extract_cursor_term(zopseq),
         ),
       )
@@ -79,13 +82,14 @@ and cursor_info_zopseq =
     let skels = skel |> UHTyp.get_prod_elements;
     let cursor_skel =
       skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
-    cursor_info_skel(~steps, ctx, cursor_skel, zseq);
+    cursor_info_skel(~steps, ctx, u_gen, cursor_skel, zseq);
   };
 }
 and cursor_info_skel =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       skel: UHTyp.skel,
       zseq: ZTyp.zseq,
     )
@@ -98,14 +102,20 @@ and cursor_info_skel =
       cursor_info_zoperand(
         ~steps=steps @ [Seq.length_of_affix(prefix)],
         ctx,
+        u_gen,
         zoperand,
       )
     | ZOperator(_) =>
-      switch (Elaborator_Typ.syn_kind_skel(ctx, skel, seq)) {
+      switch (Elaborator_Typ.syn_kind_skel(ctx, u_gen, skel, seq)) {
       | None => None
-      | Some(kind) =>
+      | Some((kind, u_gen)) =>
         Some(
-          CursorInfo_common.mk(OnType(kind), ctx, extract_from_zseq(zseq)),
+          CursorInfo_common.mk(
+            OnType(kind),
+            ctx,
+            u_gen,
+            extract_from_zseq(zseq),
+          ),
         )
       }
     };
@@ -118,33 +128,38 @@ and cursor_info_skel =
         "Typ.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, Arrow | Sum, skel1, skel2) =>
-      switch (cursor_info_skel(~steps, ctx, skel1, zseq)) {
+      switch (cursor_info_skel(~steps, ctx, u_gen, skel1, zseq)) {
       | Some(_) as result => result
-      | None => cursor_info_skel(~steps, ctx, skel2, zseq)
+      | None => cursor_info_skel(~steps, ctx, u_gen, skel2, zseq)
       }
     };
   };
 }
 and cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZTyp.zoperand)
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      zoperand: ZTyp.zoperand,
+    )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_ztyp_operand(zoperand);
   switch (zoperand) {
   | CursorT(_, Hole(_)) =>
-    Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, cursor_term))
+    Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, u_gen, cursor_term))
   | CursorT(_, Unit | Int | Float | Bool) =>
-    Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
+    Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, u_gen, cursor_term))
   | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
-    Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
+    Some(CursorInfo_common.mk(TypFree, ctx, u_gen, cursor_term))
   | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
     open OptUtil.Syntax;
     let+ k = ExpandingKeyword.mk(TyVar.Name.to_string(name));
-    CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
+    CursorInfo_common.mk(TypKeyword(k), ctx, u_gen, cursor_term);
   | CursorT(_, e) =>
     open OptUtil.Syntax;
-    let+ kind = Elaborator_Typ.syn_kind_operand(ctx, e);
-    CursorInfo_common.mk(OnType(kind), ctx, cursor_term);
+    let+ (kind, u_gen) = Elaborator_Typ.syn_kind_operand(ctx, u_gen, e);
+    CursorInfo_common.mk(OnType(kind), ctx, u_gen, cursor_term);
   | ParenthesizedZ(zbody)
-  | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, u_gen, zbody)
   };
 };

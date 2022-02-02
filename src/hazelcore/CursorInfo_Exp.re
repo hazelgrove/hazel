@@ -250,13 +250,15 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
 };
 
 let rec syn_cursor_info =
-        (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo.t) => {
-  syn_cursor_info_zblock(~steps, ctx, ze);
+        (~steps=[], ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+        : option(CursorInfo.t) => {
+  syn_cursor_info_zblock(~steps, ctx, u_gen, ze);
 }
 and syn_cursor_info_zblock =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       (prefix, zline, suffix): ZExp.zblock,
     )
     : option(CursorInfo.t) =>
@@ -267,6 +269,7 @@ and syn_cursor_info_zblock =
       syn_cursor_info_line(
         ~steps=steps @ [List.length(prefix)],
         ctx,
+        u_gen,
         zline,
         suffix,
       )
@@ -294,7 +297,13 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      zline: ZExp.zline,
+      suffix,
+    )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
@@ -322,10 +331,12 @@ and syn_cursor_info_line =
       )
     }
   | LetLineZP(zp, def) =>
-    let ty_def =
+    let (ty_def, u_gen) =
       switch (Statics_Exp.syn(ctx, def)) {
-      | Some(ty) => ty
-      | None => Hole(0)
+      | Some(ty) => (ty, u_gen)
+      | None =>
+        let (ty, _, u_gen) = HTyp.new_Hole(u_gen);
+        (ty, u_gen);
       };
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(

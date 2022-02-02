@@ -16,5 +16,3 @@ let equivalent: (TyCtx.t, t, t) => bool;
 
 let join: (TyCtx.t, join, t, t) => option(t);
 let join_all: (TyCtx.t, join, list(t)) => option(t);
-
-let new_Hole: MetaVarGen.t => (t, MetaVarGen.t);

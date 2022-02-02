@@ -228,7 +228,7 @@ let place_cursor_operator =
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+  let (hole, _, u_gen) = UHPat.new_EmptyHole(u_gen);
   (place_before_operand(hole), u_gen);
 };
 

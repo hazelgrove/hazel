@@ -48,13 +48,14 @@ and get_zoperand_from_zpat_operand =
   };
 };
 let rec syn_cursor_info =
-        (~steps=[], ctx: Contexts.t, zp: ZPat.t)
+        (~steps=[], ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
-  syn_cursor_info_zopseq(~steps, ctx, zp)
+  syn_cursor_info_zopseq(~steps, ctx, u_gen, zp)
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       ZOpSeq(skel, zseq): ZPat.zopseq,
     )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
@@ -71,22 +72,24 @@ and syn_cursor_info_zopseq =
     // cursor on tuple comma
     skels
     |> List.fold_left(
-         (acc: option((list(HTyp.t), Contexts.t)), skel) =>
+         (acc: option((list(HTyp.t), Contexts.t, MetaVarGen.t)), skel) =>
            switch (acc) {
            | None => None
-           | Some((rev_tys, ctx)) =>
-             switch (Statics_Pat.syn_skel(ctx, skel, seq)) {
+           | Some((rev_tys, ctx, u_gen)) =>
+             switch (Statics_Pat.syn_skel(ctx, u_gen, skel, seq)) {
              | None => None
-             | Some((ty, ctx)) => Some(([ty, ...rev_tys], ctx))
+             | Some((ty, ctx, u_gen)) =>
+               Some(([ty, ...rev_tys], ctx, u_gen))
              }
            },
-         Some(([], ctx)),
+         Some(([], ctx, u_gen)),
        )
-    |> Option.map(((rev_tys, _)) =>
+    |> Option.map(((rev_tys, _, u_gen)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(Prod(rev_tys |> List.rev)),
              ctx,
+             u_gen,
              extract_cursor_pat_zseq(zseq),
            ),
          )
@@ -102,18 +105,18 @@ and syn_cursor_info_zopseq =
            (opt_ctx, skel) =>
              switch (opt_ctx) {
              | None => None
-             | Some(ctx) =>
-               Statics_Pat.syn_skel(ctx, skel, seq)
-               |> Option.map(((_, ctx)) => ctx)
+             | Some((ctx, u_gen)) =>
+               Statics_Pat.syn_skel(ctx, u_gen, skel, seq)
+               |> Option.map(((_, ctx, u_gen)) => (ctx, u_gen))
              },
-           Some(ctx),
+           Some((ctx, u_gen)),
          );
     switch (opt_ctx) {
     | None => None
-    | Some(ctx) =>
+    | Some((ctx, u_gen)) =>
       let cursor_skel =
         skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
-      syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
+      syn_cursor_info_skel(~steps, ctx, u_gen, cursor_skel, zseq);
     };
   };
 }
@@ -121,6 +124,7 @@ and syn_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
     )
@@ -134,15 +138,17 @@ and syn_cursor_info_skel =
       syn_cursor_info_zoperand(
         ~steps=steps @ [Seq.length_of_affix(prefix)],
         ctx,
+        u_gen,
         zoperand,
       )
     | ZOperator(_) =>
-      Statics_Pat.syn_skel(ctx, skel, seq)
-      |> Option.map(((ty, _)) => {
+      Statics_Pat.syn_skel(ctx, u_gen, skel, seq)
+      |> Option.map(((ty, _, u_gen)) => {
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatSynthesized(ty),
                ctx,
+               u_gen,
                extract_cursor_pat_zseq(zseq),
              ),
            )
@@ -157,30 +163,37 @@ and syn_cursor_info_skel =
         "Pat.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole(0))) {
+      let (hole, _, u_gen) = HTyp.new_Hole(u_gen);
+      switch (ana_cursor_info_skel(~steps, ctx, u_gen, skel1, zseq, hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(0))) {
+        switch (Statics_Pat.ana_skel(ctx, u_gen, skel1, seq, hole)) {
         | None => None
-        | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(0))
+        | Some((ctx, u_gen)) =>
+          ana_cursor_info_skel(~steps, ctx, u_gen, skel2, zseq, hole)
         }
-      }
+      };
     | BinOp(_, Cons, skel1, skel2) =>
-      switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+      switch (syn_cursor_info_skel(~steps, ctx, u_gen, skel1, zseq)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.syn_skel(ctx, skel1, seq)) {
+        switch (Statics_Pat.syn_skel(ctx, u_gen, skel1, seq)) {
         | None => None
-        | Some((ty_elt, ctx)) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.List(ty_elt))
+        | Some((ty_elt, ctx, u_gen)) =>
+          let ty = HTyp.List(ty_elt);
+          ana_cursor_info_skel(~steps, ctx, u_gen, skel2, zseq, ty);
         }
       }
     };
   };
 }
 and syn_cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZPat.zoperand)
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      zoperand: ZPat.zoperand,
+    )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zoperand) {
   | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
@@ -189,55 +202,61 @@ and syn_cursor_info_zoperand =
         CursorInfo_common.mk(
           PatSynKeyword(k),
           ctx,
+          u_gen,
           extract_from_zpat_operand(zoperand),
         ),
       ),
     )
   | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
-    Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) => {
+    Statics_Pat.syn_operand(ctx, u_gen, p)
+    |> Option.map(((ty, _, u_gen)) => {
          CursorInfo_common.CursorOnDeferredVarPat(
            uses =>
              CursorInfo_common.mk(
                ~uses,
                PatSynthesized(ty),
                ctx,
+               u_gen,
                extract_from_zpat_operand(zoperand),
              ),
            x,
          )
        })
   | CursorP(_, p) =>
-    Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) => {
+    Statics_Pat.syn_operand(ctx, u_gen, p)
+    |> Option.map(((ty, _, u_gen)) => {
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(ty),
              ctx,
+             u_gen,
              extract_from_zpat_operand(zoperand),
            ),
          )
        })
   | InjZ(_, _, zbody)
-  | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ParenthesizedZ(zbody) =>
+    syn_cursor_info(~steps=steps @ [0], ctx, u_gen, zbody)
   | TypeAnnZP(_, zop, ty) =>
     open OptUtil.Syntax;
-    let* (hty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ty);
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, hty);
+    let* (hty, _, _, u_gen) =
+      Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ty);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, u_gen, zop, hty);
   | TypeAnnZA(_, _, zann) =>
     zann
-    |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
+    |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, u_gen)
     |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
   }
 and ana_cursor_info =
-    (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
+    (~steps, ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
-  ana_cursor_info_zopseq(~steps, ctx, zp, ty);
+  ana_cursor_info_zopseq(~steps, ctx, u_gen, zp, ty);
 }
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
@@ -261,6 +280,7 @@ and ana_cursor_info_zopseq =
           CursorInfo_common.mk(
             PatAnalyzed(ty),
             ctx,
+            u_gen,
             extract_cursor_pat_zseq(zseq),
           ),
         ),
@@ -273,18 +293,20 @@ and ana_cursor_info_zopseq =
           CursorInfo_common.mk(
             PatAnaWrongLength(expected_length, got_length, ty),
             ctx,
+            u_gen,
             extract_cursor_pat_zseq(zseq),
           ),
         ),
       );
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-      Statics_Pat.syn_opseq(ctx, opseq')
-      |> Option.map(((ty', _)) => {
+      Statics_Pat.syn_opseq(ctx, u_gen, opseq')
+      |> Option.map(((ty', _, u_gen)) => {
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatAnaTypeInconsistent(ty, ty'),
                ctx,
+               u_gen,
                extract_cursor_pat_zseq(zseq),
              ),
            )
@@ -297,7 +319,7 @@ and ana_cursor_info_zopseq =
       // wrong length, switch to syn
       let zopseq_not_in_hole =
         zopseq |> ZPat.set_err_status_zopseq(NotInHole);
-      syn_cursor_info_zopseq(~steps, ctx, zopseq_not_in_hole);
+      syn_cursor_info_zopseq(~steps, ctx, u_gen, zopseq_not_in_hole);
     | Some(skel_tys) =>
       let opt_ctx =
         skel_tys
@@ -308,19 +330,20 @@ and ana_cursor_info_zopseq =
              (opt_ctx, (skel, ty)) =>
                switch (opt_ctx) {
                | None => None
-               | Some(ctx) => Statics_Pat.ana_skel(ctx, skel, seq, ty)
+               | Some((ctx, u_gen)) =>
+                 Statics_Pat.ana_skel(ctx, u_gen, skel, seq, ty)
                },
-             Some(ctx),
+             Some((ctx, u_gen)),
            );
       switch (opt_ctx) {
       | None => None
-      | Some(ctx) =>
+      | Some((ctx, u_gen)) =>
         let (cursor_skel, ty) =
           skel_tys
           |> List.find(((skel, _)) =>
                ZOpSeq.skel_contains_cursor(skel, zseq)
              );
-        ana_cursor_info_skel(~steps, ctx, cursor_skel, zseq, ty);
+        ana_cursor_info_skel(~steps, ctx, u_gen, cursor_skel, zseq, ty);
       };
     }
   };
@@ -329,6 +352,7 @@ and ana_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
       ty: HTyp.t,
@@ -343,6 +367,7 @@ and ana_cursor_info_skel =
       ana_cursor_info_zoperand(
         ~steps=steps @ [Seq.length_of_affix(prefix)],
         ctx,
+        u_gen,
         zoperand,
         ty,
       )
@@ -352,12 +377,13 @@ and ana_cursor_info_skel =
       let err = UHPat.get_err_status_opseq(opseq);
       switch (err) {
       | NotInHole =>
-        Statics_Pat.ana_skel(ctx, skel, seq, ty)
+        Statics_Pat.ana_skel(ctx, u_gen, skel, seq, ty)
         |> Option.map(_ =>
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
                  PatAnalyzed(ty),
                  ctx,
+                 u_gen,
                  extract_cursor_pat_zseq(zseq),
                ),
              )
@@ -366,12 +392,13 @@ and ana_cursor_info_skel =
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-        Statics_Pat.syn_opseq(ctx, opseq')
-        |> Option.map(((ty', _)) => {
+        Statics_Pat.syn_opseq(ctx, u_gen, opseq')
+        |> Option.map(((ty', _, u_gen)) => {
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
                  PatAnaTypeInconsistent(ty, ty'),
                  ctx,
+                 u_gen,
                  extract_cursor_pat_zseq(zseq),
                ),
              )
@@ -383,32 +410,34 @@ and ana_cursor_info_skel =
     switch (skel) {
     | Placeholder(_) => None
     | BinOp(InHole(_), _, _, _) =>
-      syn_cursor_info_skel(~steps, ctx, skel, zseq)
+      syn_cursor_info_skel(~steps, ctx, u_gen, skel, zseq)
     | BinOp(_, Comma, _, _) =>
       failwith(
         "Pat.ana_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole(0))) {
+      let (hole, _, u_gen) = HTyp.new_Hole(u_gen);
+      switch (ana_cursor_info_skel(~steps, ctx, u_gen, skel1, zseq, hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole(0))) {
+        switch (Statics_Pat.ana_skel(ctx, u_gen, skel1, seq, hole)) {
         | None => None
-        | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole(0))
+        | Some((ctx, u_gen)) =>
+          ana_cursor_info_skel(~steps, ctx, u_gen, skel2, zseq, hole)
         }
-      }
+      };
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
       | Some(ty_elt) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
+        switch (ana_cursor_info_skel(~steps, ctx, u_gen, skel1, zseq, ty_elt)) {
         | Some(_) as res => res
         | None =>
-          switch (Statics_Pat.ana_skel(ctx, skel1, seq, ty_elt)) {
+          switch (Statics_Pat.ana_skel(ctx, u_gen, skel1, seq, ty_elt)) {
           | None => None
-          | Some(ctx) =>
-            ana_cursor_info_skel(~steps, ctx, skel2, zseq, List(ty_elt))
+          | Some((ctx, u_gen)) =>
+            let ty = HTyp.List(ty_elt);
+            ana_cursor_info_skel(~steps, ctx, u_gen, skel2, zseq, ty);
           }
         }
       }
@@ -419,6 +448,7 @@ and ana_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
@@ -429,15 +459,17 @@ and ana_cursor_info_zoperand =
     switch (operand) {
     // in hole
     | EmptyHole(_) =>
+      let (hole, _, u_gen) = HTyp.new_Hole(u_gen);
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ty, Hole(0)),
+            PatAnaSubsumed(ty, hole),
             ctx,
+            u_gen,
             cursor_term,
           ),
         ),
-      )
+      );
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
@@ -447,14 +479,15 @@ and ana_cursor_info_zoperand =
     | TypeAnn(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-      switch (Statics_Pat.syn_operand(ctx, operand')) {
+      switch (Statics_Pat.syn_operand(ctx, u_gen, operand')) {
       | None => None
-      | Some((ty', _)) =>
+      | Some((ty', _, u_gen)) =>
         Some(
           CursorNotOnDeferredVarPat(
             CursorInfo_common.mk(
               PatAnaTypeInconsistent(ty, ty'),
               ctx,
+              u_gen,
               cursor_term,
             ),
           ),
@@ -471,21 +504,32 @@ and ana_cursor_info_zoperand =
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaKeyword(ty, k),
+            ctx,
+            u_gen,
+            cursor_term,
+          ),
         ),
       )
     // not in hole
     | InvalidText(_) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
+          CursorInfo_common.mk(PatAnaInvalid(ty), ctx, u_gen, cursor_term),
         ),
       )
     | Var(NotInHole, _, x) =>
       Some(
         CursorOnDeferredVarPat(
           uses =>
-            CursorInfo_common.mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
+            CursorInfo_common.mk(
+              ~uses,
+              PatAnalyzed(ty),
+              ctx,
+              u_gen,
+              cursor_term,
+            ),
           x,
         ),
       )
@@ -493,78 +537,94 @@ and ana_cursor_info_zoperand =
     | ListNil(NotInHole) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+          CursorInfo_common.mk(PatAnalyzed(ty), ctx, u_gen, cursor_term),
         ),
       )
     | IntLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Int),
+            ctx,
+            u_gen,
+            cursor_term,
+          ),
         ),
       )
     | FloatLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Float),
+            ctx,
+            u_gen,
+            cursor_term,
+          ),
         ),
       )
     | BoolLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Bool),
+            ctx,
+            u_gen,
+            cursor_term,
+          ),
         ),
       )
     | Inj(NotInHole, _, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+          CursorInfo_common.mk(PatAnalyzed(ty), ctx, u_gen, cursor_term),
         ),
       )
     | Parenthesized(body) =>
-      Statics_Pat.ana(ctx, body, ty)
+      Statics_Pat.ana(ctx, u_gen, body, ty)
       |> Option.map(_ =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
-             CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+             CursorInfo_common.mk(PatAnalyzed(ty), ctx, u_gen, cursor_term),
            )
          )
     | TypeAnn(NotInHole, op, _) =>
-      Statics_Pat.ana_operand(ctx, op, ty)
+      Statics_Pat.ana_operand(ctx, u_gen, op, ty)
       |> Option.map(_ =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
-             CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+             CursorInfo_common.mk(PatAnalyzed(ty), ctx, u_gen, cursor_term),
            )
          )
     }
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
-    syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    syn_cursor_info_zoperand(~steps, ctx, u_gen, zoperand)
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
+      ana_cursor_info(~steps=steps @ [0], ctx, u_gen, zbody, ty_body);
     }
   | ParenthesizedZ(zbody) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+    ana_cursor_info(~steps=steps @ [0], ctx, u_gen, zbody, ty)
   | TypeAnnZP(err, zop, ann) =>
     switch (err) {
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
+      syn_cursor_info_zoperand(~steps, ctx, u_gen, zoperand)
     | NotInHole =>
       open OptUtil.Syntax;
-      let* (hty, _, _) = Elaborator_Typ.syn(ctx, Delta.empty, ann);
-      ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, hty);
+      let* (hty, _, _, u_gen) =
+        Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ann);
+      ana_cursor_info_zoperand(~steps=steps @ [0], ctx, u_gen, zop, hty);
     }
   | TypeAnnZA(err, _, zann) =>
     switch (err) {
     | InHole(WrongLength, _) => None
     | InHole(TypeInconsistent, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
+      syn_cursor_info_zoperand(~steps, ctx, u_gen, zoperand)
     | NotInHole =>
       zann
-      |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
+      |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, u_gen)
       |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
     }
   };
