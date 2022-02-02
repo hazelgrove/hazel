@@ -89,7 +89,7 @@ let benchmark = (model: Model.t): unit => {
     for (_ in 1 to iters) {
       Pretty.LayoutOfDoc.count := 0;
       Pretty.LayoutOfDoc.mem_count := 0;
-      ignore(Pretty.LayoutOfDoc.layout_of_doc_25(~width, ~pos=0));
+      ignore(Pretty.LayoutOfDoc.benchmark_layout_of_doc(~width, ~pos=0));
     };
     let end_time = Sys.time();
     Printf.printf("count: %d mem_count %d\n", Pretty.LayoutOfDoc.count^, Pretty.LayoutOfDoc.mem_count^);

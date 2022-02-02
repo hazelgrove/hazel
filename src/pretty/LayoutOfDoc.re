@@ -556,7 +556,7 @@ let rec make_test_doc = (x: int): mem_doc('annot) =>
 // let benchmark_doc = make_test_doc(40);
 let benchmark_doc = make_test_doc(26);
 
-let layout_of_doc_25 = (~width: int, ~pos: int): option(Layout.t('annot)) => {
+let benchmark_layout_of_doc = (~width: int, ~pos: int): option(Layout.t('annot)) => {
   gensym := gensym^ + 1;
   ignore(new_layout_of_doc_go(benchmark_doc, ~benchmark=true, ~width, ~pos));
   None;
