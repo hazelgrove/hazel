@@ -57,6 +57,7 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
 // old accumulator: result
 // new accumulator: (crtGroup, groupList(determined))
 
+// removed .hd .tl
 
 and syn_lines = 
     (ctx:Contexts.t, lines:list(UHExp.line)):option(Contexts.t) => {
