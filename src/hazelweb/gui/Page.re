@@ -87,12 +87,12 @@ let benchmark = (model: Model.t): unit => {
       );
     let start_time = Sys.time();
     for (_ in 1 to iters) {
-      Pretty.LayoutOfDoc.count := 0;
-      Pretty.LayoutOfDoc.mem_count := 0;
-      ignore(Pretty.LayoutOfDoc.benchmark_layout_of_doc(~width, ~pos=0));
+      Pretty.NewLayoutOfDoc.count := 0;
+      Pretty.NewLayoutOfDoc.mem_count := 0;
+      ignore(Pretty.NewLayoutOfDoc.benchmark_layout_of_doc(~width, ~pos=0));
     };
     let end_time = Sys.time();
-    Printf.printf("count: %d mem_count %d\n", Pretty.LayoutOfDoc.count^, Pretty.LayoutOfDoc.mem_count^);
+    Printf.printf("count: %d mem_count %d\n", Pretty.NewLayoutOfDoc.count^, Pretty.NewLayoutOfDoc.mem_count^);
     Printf.printf(
       "start: %f end: %f diff: %f\n",
       start_time,
@@ -122,11 +122,11 @@ let benchmark = (model: Model.t): unit => {
     "avg: %5.1fms   per count: %5.1fns (count: %d)\n",
     avg *. 1000.0,
     avg
-    /. float_of_int(Pretty.LayoutOfDoc.count^)
+    /. float_of_int(Pretty.NewLayoutOfDoc.count^)
     *. 1000.0
     *. 1000.0
     *. 1000.0,
-    Pretty.LayoutOfDoc.count^,
+    Pretty.NewLayoutOfDoc.count^,
   );
 };
 
