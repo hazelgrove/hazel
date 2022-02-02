@@ -327,7 +327,7 @@ let mk_syn_text =
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, u_gen)));
-    };
+    }
   };
 };
 

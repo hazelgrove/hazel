@@ -5,6 +5,11 @@ export enum BinBoolOp {
 
 export enum DHExp {
     EmptyHole(Number),
+    NonEmptyHole(
+      Number,
+      DHExp,
+    ),
+    Ap(DHExp, DHExp),
     BoolLit(Bool),
     BinBoolOp(BinBoolOp, DHExp, DHExp),
 }
