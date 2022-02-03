@@ -4,45 +4,31 @@ let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
  * Get type mode of nth operand of an opseq in synthetic position
  */
 let syn_nth_type_mode:
-  (Contexts.t, MetaVarGen.t, int, UHPat.opseq) =>
-  option((Statics.type_mode, MetaVarGen.t));
+  (Contexts.t, int, UHPat.opseq) => option(Statics.type_mode);
 /**
  * Get type mode of nth operand of an opseq in analytic position
  */
 let ana_nth_type_mode:
-  (Contexts.t, MetaVarGen.t, int, UHPat.opseq, HTyp.t) =>
-  option((Statics.type_mode, MetaVarGen.t));
+  (Contexts.t, int, UHPat.opseq, HTyp.t) => option(Statics.type_mode);
 
 /**
  * Under context `ctx`, `syn(ctx, p)` synthesizes a type for `p` and
  * produces a new context with bindings introduced by `p` (if possible)
  */
-let syn:
-  (Contexts.t, MetaVarGen.t, UHPat.t) =>
-  option((HTyp.t, Contexts.t, MetaVarGen.t));
-let syn_opseq:
-  (Contexts.t, MetaVarGen.t, UHPat.opseq) =>
-  option((HTyp.t, Contexts.t, MetaVarGen.t));
+let syn: (Contexts.t, UHPat.t) => option((HTyp.t, Contexts.t));
+let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
-  (Contexts.t, MetaVarGen.t, UHPat.skel, UHPat.seq) =>
-  option((HTyp.t, Contexts.t, MetaVarGen.t));
-let syn_operand:
-  (Contexts.t, MetaVarGen.t, UHPat.operand) =>
-  option((HTyp.t, Contexts.t, MetaVarGen.t));
+  (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));
+let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `p` against `ty` and
  * produces a new context with bindings introduced by `p` if successful
  */
-let ana:
-  (Contexts.t, MetaVarGen.t, UHPat.t, HTyp.t) =>
-  option((Contexts.t, MetaVarGen.t));
-let ana_operand:
-  (Contexts.t, MetaVarGen.t, UHPat.operand, HTyp.t) =>
-  option((Contexts.t, MetaVarGen.t));
+let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
+let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 let ana_skel:
-  (Contexts.t, MetaVarGen.t, UHPat.skel, UHPat.seq, HTyp.t) =>
-  option((Contexts.t, MetaVarGen.t));
+  (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);
 
 /**
  * Given a pattern `p` in synthetic position under context `ctx`,

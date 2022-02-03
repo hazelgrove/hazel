@@ -16,15 +16,13 @@ let precedence_Arrow: int;
 let precedence_Sum: int;
 let precedence: t => int;
 
-let new_Hole: MetaVarGen.t => (t, MetaVar.t, MetaVarGen.t);
-
 /** Structural equality modulo DeBruijn indices */
 let equal: (t, t) => bool;
 
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
-let matched_arrow: (t, MetaVarGen.t) => option((t, t, MetaVarGen.t));
+let matched_arrow: t => option((t, t));
 let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
 

@@ -141,7 +141,6 @@ type t = {
   cursor_term,
   typed,
   ctx: Contexts.t,
-  u_gen: MetaVarGen.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
   tyuses: option(UsageAnalysis.uses_list),

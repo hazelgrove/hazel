@@ -46,16 +46,16 @@ let mk_and_ana_fix_ZOpSeq =
 let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : ActionOutcome.t(syn_success) =>
-  switch (Statics_Pat.syn(ctx, u_gen, zp |> ZPat.erase)) {
+  switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
-  | Some((ty, ctx, u_gen)) => Succeeded((zp, ty, ctx, u_gen))
+  | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
   };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : ActionOutcome.t(ana_success) =>
-  switch (Statics_Pat.ana(ctx, u_gen, zp |> ZPat.erase, ty)) {
+  switch (Statics_Pat.ana(ctx, zp |> ZPat.erase, ty)) {
   | None => Failed
-  | Some((ctx, u_gen)) => Succeeded((zp, ctx, u_gen))
+  | Some(ctx) => Succeeded((zp, ctx, u_gen))
   };
 
 let mk_syn_text =
@@ -525,9 +525,9 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Elaborator_Typ.syn_kind(ctx, u_gen, zann |> ZTyp.erase)) {
+        switch (Elaborator_Typ.syn_kind(ctx, zann |> ZTyp.erase)) {
         | None => Failed
-        | Some((kind, u_gen)) =>
+        | Some(kind) =>
           switch (
             Action_Typ.syn_perform(
               ctx,
@@ -593,15 +593,10 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
-      Statics_Pat.syn_nth_type_mode(
-        ctx,
-        u_gen,
-        n,
-        zopseq |> ZPat.erase_zopseq,
-      )
+      Statics_Pat.syn_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq)
     ) {
     | None => Failed
-    | Some((Syn, u_gen)) =>
+    | Some(Syn) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -610,7 +605,7 @@ and syn_perform_opseq =
         let zseq = resurround_z(zp, surround);
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
       }
-    | Some((Ana(ty_zoperand), u_gen)) =>
+    | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -828,14 +823,14 @@ and syn_perform_operand =
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
-    switch (Statics_Pat.syn(ctx, u_gen, zp |> ZPat.erase)) {
+    switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
-    | Some((body_ty, ctx, u_gen)) =>
-      let (hole, _, u_gen) = HTyp.new_Hole(u_gen);
+    | Some((body_ty, ctx)) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, hole)
-        | R => HTyp.Sum(hole, body_ty)
+        | L => HTyp.Sum(body_ty, Hole(u))
+        | R => HTyp.Sum(Hole(u), body_ty)
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
@@ -941,9 +936,9 @@ and syn_perform_operand =
     }
   | (_, TypeAnnZA(_, op, zann)) =>
     // TODO: Do we need to thread delta through here?
-    switch (Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))) {
+    switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
-    | Some((ty, kind, _, u_gen)) =>
+    | Some((ty, kind, _)) =>
       switch (
         Action_Typ.syn_perform(
           ctx,
@@ -1106,11 +1101,9 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (
-          Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))
-        ) {
+        switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
         | None => Failed
-        | Some((ty', kind, _, u_gen)) =>
+        | Some((ty', kind, _)) =>
           switch (
             Action_Typ.syn_perform(
               ctx,
@@ -1175,16 +1168,10 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
-      Statics_Pat.ana_nth_type_mode(
-        ctx,
-        u_gen,
-        n,
-        zopseq |> ZPat.erase_zopseq,
-        ty,
-      )
+      Statics_Pat.ana_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq, ty)
     ) {
     | None => Failed
-    | Some((Syn, u_gen)) =>
+    | Some(Syn) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -1193,7 +1180,7 @@ and ana_perform_opseq =
         let zseq = resurround_z(zp, surround);
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
-    | Some((Ana(ty_zoperand), u_gen)) =>
+    | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -1254,7 +1241,7 @@ and ana_perform_operand =
     let zp = ZOpSeq.wrap(zoperand);
     let zp' = zp |> ZPat.set_err_status(NotInHole);
     let p' = zp' |> ZPat.erase;
-    switch (Statics_Pat.syn(ctx, u_gen, p')) {
+    switch (Statics_Pat.syn(ctx, p')) {
     | None => Failed
     | Some(_) =>
       switch (syn_perform(ctx, u_gen, a, zp')) {
@@ -1575,9 +1562,9 @@ and ana_perform_operand =
     }
   | (_, TypeAnnZA(err, op, zann)) =>
     // TODO: Do we need to thread delta through here?
-    switch (Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))) {
+    switch (Elaborator_Typ.syn(ctx, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
-    | Some((ty', kind, _, u_gen)) =>
+    | Some((ty', kind, _)) =>
       switch (
         Action_Typ.syn_perform(
           ctx,

@@ -156,7 +156,7 @@ let ana_delete_text_ =
 let construct_operator_after_zoperand_ =
     (
       ~is_Space: 'operator => bool,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, _, MetaVarGen.t),
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
       ~place_after_operator: 'operator => option('zoperator),
@@ -171,7 +171,7 @@ let construct_operator_after_zoperand_ =
   | None =>
     // operator == Space
     // ... + [k]| + [k+1] + ...   ==>   ... + [k]  |_ + [k+1] + ...
-    let (hole, _, u_gen) = u_gen |> new_EmptyHole;
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zoperand = hole |> place_before_operand;
     (ZOperand(new_zoperand, (new_prefix, suffix)), u_gen);
@@ -185,7 +185,7 @@ let construct_operator_after_zoperand_ =
         (new_suffix, u_gen)
       | _ =>
         // ... + [k]| + [k+1] + ...   ==>   ... + [k] *| _ + [k+1] + ...
-        let (hole, _, u_gen) = u_gen |> new_EmptyHole;
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
         (Seq.S(hole, suffix), u_gen);
       };
     (ZOperator(zoperator, (new_prefix, new_suffix)), u_gen);
@@ -194,7 +194,7 @@ let construct_operator_after_zoperand_ =
 let construct_operator_before_zoperand_ =
     (
       ~is_Space: 'operator => bool,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, _, MetaVarGen.t),
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
       ~place_after_operator: 'operator => option('zoperator),
@@ -283,7 +283,7 @@ let complete_tuple_ =
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
       ~zcomma: 'zoperator,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, _, MetaVarGen.t),
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       OpSeq(_, seq): OpSeq.t('operand, 'operator),
       ty: HTyp.t,
@@ -291,7 +291,7 @@ let complete_tuple_ =
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   let (new_suffix: Seq.t(_), u_gen) = {
     // guaranteed to construct at least one empty hole
-    let (new_hole, _, u_gen) = u_gen |> new_EmptyHole;
+    let (new_hole, u_gen) = u_gen |> new_EmptyHole;
     let (new_holes, u_gen) =
       ty
       |> HTyp.get_prod_elements
@@ -301,7 +301,7 @@ let complete_tuple_ =
       // ensure that hole indices increase left to right
       |> List.fold_left(
            ((rev_holes, u_gen), _) => {
-             let (new_hole, _, u_gen) = u_gen |> new_EmptyHole;
+             let (new_hole, u_gen) = u_gen |> new_EmptyHole;
              ([new_hole, ...rev_holes], u_gen);
            },
            ([], u_gen),

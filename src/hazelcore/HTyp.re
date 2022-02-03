@@ -182,3 +182,8 @@ let join_all = (ctx: TyCtx.t, j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let new_Hole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (Hole(u), u_gen);
+};

@@ -111,8 +111,7 @@ module Syn_success = {
   let mk_result =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t): Outcome.t(t) => {
     open Outcome.Syntax;
-    let+ (kind, u_gen) =
-      Elaborator_Typ.syn_kind(ctx, u_gen, zty |> ZTyp.erase);
+    let+ kind = Elaborator_Typ.syn_kind(ctx, zty |> ZTyp.erase);
     Succeeded({Poly.zty, kind, u_gen});
   };
 };
@@ -261,8 +260,7 @@ let syn_split_text =
       let zoperand = roperand |> ZTyp.place_before_operand;
       ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    let* (kind, u_gen) =
-      Elaborator_Typ.syn_kind(ctx, u_gen, ZTyp.erase(new_zty));
+    let* kind = Elaborator_Typ.syn_kind(ctx, ZTyp.erase(new_zty));
     succeeded({zty: new_zty, kind, u_gen});
   };
 };
@@ -380,7 +378,7 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
 
-    let* (kind, u_gen) = Elaborator_Typ.syn_kind(ctx, u_gen, uhty);
+    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
     let* outcome = syn_perform_operand(ctx, a, {zty: zoperand, kind, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
@@ -749,7 +747,7 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     open Outcome.Syntax;
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
-    let* (kind, u_gen) = Elaborator_Typ.syn_kind(ctx, u_gen, uhty);
+    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
     let* outcome =
       syn_perform_operand(
         ctx,

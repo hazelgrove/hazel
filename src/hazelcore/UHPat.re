@@ -65,9 +65,9 @@ let new_InvalidText =
 };
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVar.t, MetaVarGen.t) => {
+let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
-  (EmptyHole(u), u, u_gen);
+  (EmptyHole(u), u_gen);
 };
 
 let is_EmptyHole =

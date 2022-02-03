@@ -147,15 +147,15 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   };
 
 let new_InvalidText =
-    (u_gen: MetaVarGen.t, t: string): (operand, MetaVar.t, MetaVarGen.t) => {
+    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
-  (InvalidText(u, t), u, u_gen);
+  (InvalidText(u, t), u_gen);
 };
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVar.t, MetaVarGen.t) => {
+let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
-  (EmptyHole(u), u, u_gen);
+  (EmptyHole(u), u_gen);
 };
 
 let is_EmptyHole =
@@ -164,8 +164,8 @@ let is_EmptyHole =
   | _ => false;
 
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
-  let (p, _, u_gen) = UHPat.new_EmptyHole(u_gen);
-  let (e, _, u_gen) = new_EmptyHole(u_gen);
+  let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
+  let (e, u_gen) = new_EmptyHole(u_gen);
   let rule = Rule(OpSeq.wrap(p), Block.wrap(e));
   (rule, u_gen);
 };
@@ -288,9 +288,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidTextShape(t) =>
-    let (e, _, u_gen) = new_InvalidText(u_gen, t);
-    (e, u_gen);
+  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
 let associate =
