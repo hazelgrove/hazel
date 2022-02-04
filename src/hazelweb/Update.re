@@ -56,7 +56,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | SelectCaseBranch(_)
   | Import(_)
   | ToggleImportPopup
-  | ToggleExportPopup
   | FocusCell
   | BlurCell
   | Undo
@@ -136,7 +135,6 @@ let apply_action =
           Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
         Model.import_uhexp(model, ast);
       | ToggleImportPopup => Model.toggle_import_popup(model)
-      | ToggleExportPopup => Model.toggle_export_popup(model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>

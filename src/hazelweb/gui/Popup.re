@@ -30,31 +30,6 @@ let set_textbox_text = (model, text_box_id, _) => {
   Vdom.Event.Ignore;
 };
 
-let export_body = (_, model) => {
-  Vdom.(
-    Node.div(
-      [],
-      [
-        Node.textarea(
-          [
-            Attr.id("parse-text-box"),
-            Attr.value(""),
-            Attr.classes(["import-text-area"]),
-            Attr.on_change((_, s) =>
-              update_textbox_value(model, "parse-text-box", s)
-            ),
-          ],
-          [],
-        ),
-        Node.button(
-          [Attr.on_click(set_textbox_text(model, "parse-text-box"))],
-          [Node.text("Export")],
-        ),
-      ],
-    )
-  );
-};
-
 let import_body = (inject, model) => {
   Vdom.(
     Node.div(
@@ -175,13 +150,3 @@ let import = (~inject, ~is_open, ~model) =>
     ~popup_body=import_body,
     ~model,
   );
-
-let export = (~inject, ~is_open, ~model) => {
-  mk_popup(
-    is_open,
-    ~inject,
-    ~on_toggle=_ => inject(ModelAction.ToggleExportPopup),
-    ~popup_body=export_body,
-    ~model,
-  );
-};
