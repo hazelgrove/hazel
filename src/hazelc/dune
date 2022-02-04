@@ -8,8 +8,9 @@
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
+ (inline_tests)
  (preprocess
-  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
+  (pps ppx_let ppx_sexp_conv ppx_inline_test)))
 
 (executable
  (name main)
