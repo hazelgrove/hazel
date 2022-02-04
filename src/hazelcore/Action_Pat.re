@@ -68,17 +68,16 @@ let mk_syn_text =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let pty = UHPat.EmptyHole(u);
       let zp = ZPat.place_before_operand(pty);
-      Succeeded((ZOpSeq.wrap(zp), Hole(u), ctx, u_gen));
+      Succeeded((ZOpSeq.wrap(zp), Hole, ctx, u_gen));
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let pty = UHPat.InvalidText(u, t);
       let zp = ZPat.CursorP(text_cursor, pty);
-      Succeeded((ZOpSeq.wrap(zp), Hole(u), ctx, u_gen));
+      Succeeded((ZOpSeq.wrap(zp), Hole, ctx, u_gen));
     }
   | Underscore =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, Hole(u), ctx, u_gen));
+    Succeeded((zp, Hole, ctx, u_gen));
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
     Succeeded((zp, Int, ctx, u_gen));
@@ -96,12 +95,11 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, Hole(u), ctx, u_gen));
+    Succeeded((zp, Hole, ctx, u_gen));
   | Var(x) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole(u)));
+    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, Hole(u), ctx, u_gen));
+    Succeeded((zp, Hole, ctx, u_gen));
   };
 };
 
@@ -674,16 +672,14 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
       ? {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        Succeeded((zp, Hole(u), ctx, u_gen));
+        Succeeded((zp, Hole, ctx, u_gen));
       }
       : CursorEscaped(Before);
   | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
       ? {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        Succeeded((zp, Hole(u), ctx, u_gen));
+        Succeeded((zp, Hole, ctx, u_gen));
       }
       : CursorEscaped(After);
 
@@ -703,7 +699,7 @@ and syn_perform_operand =
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let pty = UHPat.EmptyHole(u);
     let zp = ZPat.place_before_operand(pty);
-    Succeeded((ZOpSeq.wrap(zp), Hole(u), ctx, u_gen));
+    Succeeded((ZOpSeq.wrap(zp), Hole, ctx, u_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
@@ -809,9 +805,8 @@ and syn_perform_operand =
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Hole(u)), ctx, u_gen));
+    Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -826,11 +821,10 @@ and syn_perform_operand =
     switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((body_ty, ctx)) =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, Hole(u))
-        | R => HTyp.Sum(Hole(u), body_ty)
+        | L => HTyp.Sum(body_ty, Hole)
+        | R => HTyp.Sum(Hole, body_ty)
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
@@ -889,8 +883,7 @@ and syn_perform_operand =
     }
 
   | (Construct(SAnn), CursorP(_)) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole(u)));
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
     let new_zp =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
@@ -915,12 +908,11 @@ and syn_perform_operand =
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     | Succeeded((zbody, ty1, ctx, u_gen)) =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole(u))
-        | R => HTyp.Sum(Hole(u), ty1)
+        | L => HTyp.Sum(ty1, Hole)
+        | R => HTyp.Sum(Hole, ty1)
         };
       Succeeded((zp, ty, ctx, u_gen));
     }

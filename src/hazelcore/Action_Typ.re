@@ -80,14 +80,13 @@ let construct_operator =
     )
     : (MetaVarGen.t, ZTyp.zopseq) => {
   let operand = zoperand |> ZTyp.erase_zoperand;
-  let (u, u_gen) = MetaVarGen.next(u_gen);
   let (zoperand, surround) =
     if (ZTyp.is_before_zoperand(zoperand)) {
-      let zoperand = UHTyp.Hole(u) |> ZTyp.place_before_operand;
+      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
       let new_suffix = Seq.A(operator, S(operand, suffix));
       (zoperand, (prefix, new_suffix));
     } else {
-      let zoperand = UHTyp.Hole(u) |> ZTyp.place_before_operand;
+      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
       let new_prefix = Seq.A(operator, S(operand, prefix));
       (zoperand, (new_prefix, suffix));
     };
@@ -101,6 +100,7 @@ module Syn_success = {
     type t('z) = {
       zty: 'z,
       kind: Kind.t,
+      // ctx: Contexts.t,
       u_gen: MetaVarGen.t,
     };
   };
@@ -124,9 +124,8 @@ let mk_syn_text =
   switch (TyTextShape.of_tyvar_name(TyVar.Name.of_string(text))) {
   | None =>
     if (text |> StringUtil.is_empty) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded({
-        zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole(u))),
+        zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
         kind: Kind.KHole,
         u_gen,
       });
@@ -163,24 +162,27 @@ let mk_syn_text =
     });
   | Some(TyVar(name)) =>
     let tyctx = ctx |> Contexts.typing;
-    let (zoperand, kind, u_gen) =
+    let (zoperand, kind, /* ctx, */ u_gen) =
       {
         open OptUtil.Syntax;
         let* i = tyctx |> TyCtx.var_index(name);
         let+ k = tyctx |> TyCtx.var_kind(i);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(u), name));
-        (zty, k, u_gen);
+        // let ctx = Contexts.bind_tyvar(name, k, ctx);
+        (zty, k, /* ctx, */ u_gen);
       }
       |> Option.value(
            ~default={
              let (u, u_gen) = MetaVarGen.next(u_gen);
              let zoperand =
                ZTyp.CursorT(text_cursor, TyVar(InHole(Unbound, u), name));
-             (zoperand, Kind.KHole, u_gen);
+             let k = Kind.KHole;
+             //  let ctx = Contexts.bind_tyvar(name, k, ctx);
+             (zoperand, k, /* ctx, */ u_gen);
            },
          );
-    Succeeded({zty: ZOpSeq.wrap(zoperand), kind, u_gen});
+    Succeeded({zty: ZOpSeq.wrap(zoperand), kind, /* ctx, */ u_gen});
   };
 };
 
@@ -472,19 +474,18 @@ and syn_perform_operand =
       {zty: CursorT(OnDelim(k, After), operand), kind, u_gen},
     )
 
-  | (Backspace, CursorT(OnDelim(_, After), Hole(u))) =>
+  | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
     Syn_success.mk_result(
       ctx,
       u_gen,
-      ZOpSeq.wrap(ZTyp.place_before_operand(Hole(u))),
+      ZOpSeq.wrap(ZTyp.place_before_operand(Hole)),
     )
   | (Backspace, CursorT(OnDelim(_, After), Unit)) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     Syn_success.mk_result(
       ctx,
       u_gen,
-      ZOpSeq.wrap(ZTyp.place_before_operand(Hole(u))),
-    );
+      ZOpSeq.wrap(ZTyp.place_before_operand(Hole)),
+    )
 
   | (
       Backspace,
@@ -527,7 +528,7 @@ and syn_perform_operand =
     | Some(Succeeded(syn_r)) => syn_perform(ctx, a, syn_r)
     }
 
-  | (Construct(SChar(s)), CursorT(_, Hole(_))) =>
+  | (Construct(SChar(s)), CursorT(_, Hole)) =>
     syn_insert_text(ctx, u_gen, (0, s), "") |> Outcome.of_action_outcome
   | (Construct(SChar(s)), CursorT(OnText(j), Int)) =>
     syn_insert_text(ctx, u_gen, (j, s), "Int") |> Outcome.of_action_outcome

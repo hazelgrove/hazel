@@ -42,7 +42,7 @@ and find_tyuses_typ_operand =
     (~steps: CursorPath.steps, name: TyVar.Name.t, op: UHTyp.operand)
     : uses_list =>
   switch (op) {
-  | Hole(_)
+  | Hole
   | Unit
   | Int
   | Float

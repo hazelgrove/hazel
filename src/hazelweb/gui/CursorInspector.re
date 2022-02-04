@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Hole(0)),
+      HTypCode.view(HTyp.Hole),
       emphasize_text(")"),
     ],
   );
@@ -72,7 +72,7 @@ let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
   // TODO: Should this be consistent?
   if (HTyp.normalized_equivalent(expected_ty, got_ty)
-      || HTyp.normalized_equivalent(got_ty, HTyp.Hole(0))) {
+      || HTyp.normalized_equivalent(got_ty, HTyp.Hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg

@@ -19,13 +19,7 @@ let rec normalize = (ctx: TyCtx.t, ty: t): t =>
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable hole index")
     }
-  | Hole(u) =>
-    switch (ctx |> TyCtx.hole_kind(u)) {
-    | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
-    | Some(_) => ty
-    | None =>
-      failwith(__LOC__ ++ ": unknown type hole index: " ++ Int.to_string(u))
-    }
+  | Hole => ty
   | Int
   | Float
   | Bool => ty
@@ -40,11 +34,9 @@ let rec normalized_equivalent = (ty: t, ty': t): bool =>
   switch (ty, ty') {
   | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
   | (TyVar(_), _) => false
-  | (TyVarHole(_, u, _), TyVarHole(_, u', _))
-  | (Hole(u), Hole(u')) => MetaVar.eq(u, u')
-  | (TyVarHole(_, _, _), _)
-  | (Hole(_), _) => false
-  | (Int | Float | Bool, _) => ty == ty'
+  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+  | (TyVarHole(_, _, _), _) => false
+  | (Hole | Int | Float | Bool, _) => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
@@ -67,8 +59,8 @@ let rec normalized_consistent = (ty: t, ty': t): bool =>
   | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
   | (TyVar(_), _) => false
   // TODO: (eric) is a type variable holes consistent with everything (like an empty type hole) or itself (like a type variable hole)? check the theorems
-  | (TyVarHole(_) | Hole(_), _)
-  | (_, TyVarHole(_) | Hole(_)) => true
+  | (TyVarHole(_) | Hole, _)
+  | (_, TyVarHole(_) | Hole) => true
   | (Int | Float | Bool, _) => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
@@ -100,18 +92,17 @@ let rec consistent_all = (types: list(t), ctx: TyCtx.t): bool =>
 
 let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
   switch (ty1, ty2) {
-  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) =>
-    Some(Hole(MetaVar.join(u, u')))
-  | (_, Hole(_))
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+  | (_, Hole)
   | (_, TyVarHole(_)) =>
     switch (j) {
-    | GLB => Some(Hole(0))
+    | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole(_), _)
+  | (Hole, _)
   | (TyVarHole(_), _) =>
     switch (j) {
-    | GLB => Some(Hole(0))
+    | GLB => Some(Hole)
     | LUB => Some(ty2)
     }
   | (TyVar(i, _), _) =>
@@ -119,7 +110,7 @@ let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     let* (_, k) = ctx |> TyCtx.var_binding(i);
     switch (k) {
     | Singleton(_, ty) => join(ctx, j, ty, ty2)
-    | KHole => join(ctx, j, Hole(0), ty2)
+    | KHole => join(ctx, j, Hole, ty2)
     | Type => failwith("impossible for bounded type variables (currently) 1")
     };
   | (_, TyVar(i, _)) =>
@@ -127,7 +118,7 @@ let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     let* (_, k) = ctx |> TyCtx.var_binding(i);
     switch (k) {
     | Kind.Singleton(_, ty) => join(ctx, j, ty1, ty)
-    | KHole => join(ctx, j, ty1, Hole(0))
+    | KHole => join(ctx, j, ty1, Hole)
     | Type => failwith("impossible for bounded type variables (currently) 2")
     };
   | (Int, Int) => Some(ty1)
@@ -181,9 +172,4 @@ let join_all = (ctx: TyCtx.t, j: join, types: list(t)): option(t) => {
       );
     }
   };
-};
-
-let new_Hole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  (Hole(u), u_gen);
 };

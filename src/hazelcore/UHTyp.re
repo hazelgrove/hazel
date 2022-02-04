@@ -6,7 +6,7 @@ type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | TyVar(TyVar.Status.t, TyVar.Name.t)
-  | Hole(MetaVar.t)
+  | Hole
   | Unit
   | Int
   | Float
@@ -27,7 +27,7 @@ let rec get_prod_elements: skel => list(skel) =
 
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
-  | Hole(_)
+  | Hole
   | TyVar(_)
   | Unit
   | Int
@@ -58,7 +58,7 @@ let contract = (ty: HTyp.t): t => {
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
       switch (ty) {
-      | Hole(u) => Seq.wrap(Hole(u))
+      | Hole => Seq.wrap(Hole)
       | TyVar(i, name) => Seq.wrap(TyVar(NotInHole(i), name))
       | TyVarHole(reason, u, name) =>
         Seq.wrap(TyVar(InHole(reason, u), name))
@@ -99,7 +99,7 @@ let contract = (ty: HTyp.t): t => {
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
-  | Hole(_) => false
+  | Hole => false
   | TyVar(NotInHole(_), _) => true
   | TyVar(InHole(_), _) => false
   | Unit => true
@@ -123,3 +123,8 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
+
+// let new_Hole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+//   let (u, u_gen) = MetaVarGen.next(u_gen);
+//   (Hole, u_gen);
+// };

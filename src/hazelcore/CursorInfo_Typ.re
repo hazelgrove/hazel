@@ -130,7 +130,7 @@ and cursor_info_zoperand =
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_ztyp_operand(zoperand);
   switch (zoperand) {
-  | CursorT(_, Hole(_)) =>
+  | CursorT(_, Hole) =>
     Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, cursor_term))
   | CursorT(_, Unit | Int | Float | Bool) =>
     Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))

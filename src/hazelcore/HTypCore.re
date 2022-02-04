@@ -5,7 +5,7 @@ open Sexplib.Std;
 type t =
   | TyVar(Index.t, TyVar.Name.t)
   | TyVarHole(TyVar.HoleReason.t, MetaVar.t, TyVar.Name.t)
-  | Hole(MetaVar.t)
+  | Hole
   | Int
   | Float
   | Bool
@@ -23,7 +23,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole(_)
+  | Hole
   | Prod([])
   | List(_)
   | TyVar(_)
@@ -37,7 +37,7 @@ let rec equal = (ty: t, ty': t): bool =>
   switch (ty, ty') {
   | (TyVar(_, name), TyVar(_, name')) => TyVar.Name.equal(name, name')
   | (TyVar(_), _) => false
-  | ((TyVarHole(_) | Hole(_) | Int | Float | Bool) as ty, ty') => ty == ty'
+  | ((TyVarHole(_) | Hole | Int | Float | Bool) as ty, ty') => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     equal(ty1, ty1') && equal(ty2, ty2')
@@ -51,8 +51,8 @@ let rec equal = (ty: t, ty': t): bool =>
 /* matched arrow types */
 let matched_arrow = (ty: t): option((t, t)) =>
   switch (ty) {
-  | Hole(u)
-  | TyVarHole(_, u, _) => Some((Hole(u), Hole(u)))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None
   };
@@ -67,8 +67,8 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum = (ty: t): option((t, t)) =>
   switch (ty) {
-  | Hole(u)
-  | TyVarHole(_, u, _) => Some((Hole(u), Hole(u)))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None
   };
@@ -76,15 +76,15 @@ let matched_sum = (ty: t): option((t, t)) =>
 /* matched list types */
 let matched_list =
   fun
-  | Hole(u)
-  | TyVarHole(_, u, _) => Some(Hole(u))
+  | Hole
+  | TyVarHole(_) => Some(Hole)
   | List(ty) => Some(ty)
   | _ => None;
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole(_)
+  | Hole
   | TyVarHole(_) => false
   | TyVar(_)
   | Int
@@ -98,7 +98,7 @@ let rec complete =
 let rec increment_indices: t => t =
   fun
   | TyVar(i, name) => TyVar(Index.increment(i), name)
-  | (TyVarHole(_) | Hole(_) | Int | Float | Bool) as ty => ty
+  | (TyVarHole(_) | Hole | Int | Float | Bool) as ty => ty
   | Arrow(t1, t2) => Arrow(increment_indices(t1), increment_indices(t2))
   | Sum(t1, t2) => Sum(increment_indices(t1), increment_indices(t2))
   | List(t) => List(increment_indices(t))

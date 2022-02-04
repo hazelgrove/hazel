@@ -30,13 +30,7 @@ let rec fix_holes =
         (TyVarHole(InvalidName, u, name), u_gen);
       };
     }
-  | Hole(_) =>
-    if (renumber_empty_holes) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (Hole(u), u_gen);
-    } else {
-      (ty, u_gen);
-    }
+  | Hole => (ty, u_gen)
   | TyVar(_)
   | Int
   | Float

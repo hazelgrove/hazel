@@ -60,37 +60,29 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
   | SynErrorArrow(_, actual)
-  | SynMatchingArrow(actual, _) => (
-      Some(Hole(0)),
-      Some(actual),
-      Synthetic,
-    )
+  | SynMatchingArrow(actual, _) => (Some(Hole), Some(actual), Synthetic)
 
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole(0)), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole(0)), Some(Hole(0)), Synthetic)
+  | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(Contexts.typing(ctx), ty, got_ty)) {
-        (Some(Hole(0)), Some(got_ty), Synthetic);
+        (Some(Hole), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
     | _ => get_types_and_mode(ctx, typed)
     }
   | SynInconsistentBranchesArrow(_, _)
-  | SynInconsistentBranches(_, _) => (
-      Some(Hole(0)),
-      Some(Hole(0)),
-      Synthetic,
-    )
+  | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
 
   | PatAnaTypeInconsistent(expected, actual)
   | PatAnaSubsumed(expected, actual) => (
@@ -104,9 +96,9 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(Hole(0)), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
 
-  | PatSynKeyword(_) => (Some(Hole(0)), Some(Hole(0)), Synthetic)
+  | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
   | OnTPat(status_opt) =>
     switch (status_opt) {
@@ -122,10 +114,10 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
     | Some(InHole(_)) => (None, None, UnknownMode)
     | Some(NotInHole) => (None, None, UnknownMode)
     }
-  | OnTPatHole => (None, Some(Hole(0)), UnknownMode)
+  | OnTPatHole => (None, Some(Hole), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
-  | TypFree => (None, Some(Hole(0)), UnknownMode)
+  | TypFree => (None, Some(Hole), UnknownMode)
   | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
@@ -162,7 +154,7 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
  */
 let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
-  | Hole(_) => "a"
+  | Hole => "a"
   | TyVarHole(_) => "a"
   | TyVar(_, name) => "a " ++ TyVar.Name.to_string(name)
   | Int => "an Integer"

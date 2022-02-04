@@ -35,7 +35,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     }
   | TypOperand(_, typ) =>
     switch (typ) {
-    | Hole(_)
+    | Hole
     | Int
     | Float
     | Bool
@@ -60,7 +60,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
 let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | ExpOperand(_, EmptyHole(_))
-  | TypOperand(_, Hole(_))
+  | TypOperand(_, Hole)
   | TPat(_, EmptyHole) => true
   | PatOperand(_, EmptyHole(_)) => true
   | TPat(_, _)

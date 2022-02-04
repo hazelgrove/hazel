@@ -58,10 +58,10 @@ and syn_operand = (ctx, delta, operand) => {
   };
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | Hole(u) =>
-    /* TElabSHole */
-    let ty = HTyp.Hole(u);
-    Some((ty, KHole, Delta.(add(u, Hole.Type(KHole, tyctx), delta))));
+  | Hole => Some((HTyp.Hole, KHole, delta))
+  // /* TElabSHole */
+  // let ty = HTyp.Hole;
+  // Some((ty, KHole, Delta.(add(u, Hole.Type(KHole, tyctx), delta))));
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
@@ -102,10 +102,10 @@ and ana_skel = (ctx, delta, k, skel, seq): option((HTyp.t, Delta.t)) =>
 and ana_operand = (ctx, delta, k, operand) => {
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | UHTyp.Hole(u) =>
-    /* TElabAHole */
-    let ty = HTyp.Hole(u);
-    Some((ty, delta |> Delta.add(u, Delta.Hole.Type(KHole, tyctx))));
+  | UHTyp.Hole => Some((HTyp.Hole, delta))
+  // /* TElabAHole */
+  // let ty = HTyp.Hole;
+  // Some((ty, delta |> Delta.add(u, Delta.Hole.Type(KHole, tyctx))));
   // TODO: Add an NEHole case when it's possible to have an arbitrary type hole
   | TyVar(InHole(reason, u), t) =>
     /* TElabAUVar */
@@ -169,9 +169,9 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
 and syn_fix_holes_operand = (ctx, u_gen, operand) => {
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | UHTyp.Hole(u) =>
+  | UHTyp.Hole =>
     /* TElabSHole */
-    (Hole(u), KHole, u_gen)
+    (Hole, KHole, u_gen)
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
@@ -230,9 +230,9 @@ and ana_fix_holes_skel = (ctx, u_gen, k, skel, seq) =>
   }
 and ana_fix_holes_operand = (ctx, u_gen, k, operand) => {
   switch (operand) {
-  | UHTyp.Hole(u) =>
+  | UHTyp.Hole =>
     /* TElabAHole */
-    (Hole(u), u_gen)
+    (Hole, u_gen)
   | TyVar(InHole(_), _) =>
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole

@@ -33,7 +33,7 @@ let context = ((_, ctx): t): TyCtx.t => ctx;
 //       }
 //     | (TyVarHole(_), _) => false
 //     /* empty type holes of known kind are equivalent to themselves */
-//     | (Hole(u), Hole(u')) =>
+//     | (Hole, Hole) =>
 //       {
 //         open OptUtil.Syntax;
 //         let* k = ctx |> TyCtx.hole_kind(u);
@@ -41,7 +41,7 @@ let context = ((_, ctx): t): TyCtx.t => ctx;
 //         equivalent_kind(lift_kind(ctx, k), lift_kind(ctx', k'));
 //       }
 //       |> Option.value(~default=false)
-//     | (Hole(_), _) => false
+//     | (Hole, _) => false
 //     /* base types are equivalent to themselves */
 //     | (Int | Float | Bool, _) => true
 //     /* composite types are equivalent when they are componentwise equivalent */

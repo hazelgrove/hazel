@@ -2,7 +2,7 @@
 type t =
   | TyVar(Index.t, TyVar.Name.t)
   | TyVarHole(TyVar.HoleReason.t, MetaVar.t, TyVar.Name.t)
-  | Hole(MetaVar.t)
+  | Hole
   | Int
   | Float
   | Bool

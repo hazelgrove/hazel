@@ -325,7 +325,7 @@ and syn_cursor_info_line =
     let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
       | Some(ty) => ty
-      | None => Hole(0)
+      | None => Hole
       };
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
@@ -475,13 +475,10 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
-          |> Option.map(ty =>
-               mk(SynErrorArrow(Arrow(Hole(0), Hole(1)), ty))
-             );
-        | Some(VarErr(Free)) =>
-          Some(mk(SynFreeArrow(Arrow(Hole(0), Hole(1)))))
+          |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+        | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some(VarErr(Keyword(k))) =>
-          Some(mk(SynKeywordArrow(Arrow(Hole(0), Hole(1)), k)))
+          Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
         | Some(StandardErr(NotInHole)) =>
@@ -490,8 +487,7 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           switch (operand_nih) {
-          | InvalidText(_) =>
-            Some(mk(SynInvalidArrow(Arrow(Hole(0), Hole(1)))))
+          | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
           | _ =>
             switch (
               Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
@@ -588,7 +584,7 @@ and syn_cursor_info_zoperand =
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
-      | _ => Hole(0)
+      | _ => Hole
       };
     /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to

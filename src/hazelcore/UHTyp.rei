@@ -6,7 +6,7 @@ type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | TyVar(TyVar.Status.t, TyVar.Name.t)
-  | Hole(MetaVar.t)
+  | Hole
   | Unit
   | Int
   | Float

@@ -50,7 +50,7 @@ and mk_operand =
       (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
       (
         switch (operand) {
-        | Hole(_) => mk_EmptyHole("?")
+        | Hole => mk_EmptyHole("?")
         | TyVar(_, name) =>
           UHDoc_common.mk_Var(~sort=Typ, TyVar.Name.to_string(name))
         | Unit => UHDoc_common.mk_Unit()
