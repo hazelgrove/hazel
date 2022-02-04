@@ -813,13 +813,13 @@ and ana_elab_operand =
       }
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    switch (syn_elab(ctx, delta, t1)) {
+    switch (ana_elab(ctx, delta, t1, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
-      switch (syn_elab(ctx, delta, t2)) {
+      switch (ana_elab(ctx, delta, t2, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, _, delta) =>
-        switch (syn_elab(ctx, delta, t3)) {
+        switch (ana_elab(ctx, delta, t3, ty)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d3, ty, delta) =>
           let d = DHExp.ConsistentIf(If(d1, d2, d3));
