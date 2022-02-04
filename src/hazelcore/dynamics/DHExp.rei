@@ -74,8 +74,8 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(Contexts.t, t, HTyp.t, HTyp.t)
-  | FailedCast(Contexts.t, t, HTyp.t, HTyp.t)
+  | Cast(t, HTyp.t, HTyp.t)
+  | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -86,6 +86,6 @@ let constructor_string: t => string;
 
 let mk_tuple: list(t) => t;
 
-let cast: (Contexts.t, t, HTyp.t, HTyp.t) => t;
+let cast: (t, HTyp.t, HTyp.t) => t;
 
-let apply_casts: (t, list((Contexts.t, HTyp.t, HTyp.t))) => t;
+let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;

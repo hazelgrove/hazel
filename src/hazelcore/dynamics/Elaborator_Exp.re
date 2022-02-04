@@ -97,10 +97,10 @@ and syn_elab_line =
           switch (Statics_Exp.recursive_let_id(ctx, u_gen, p, def)) {
           | None => d1
           | Some(x) =>
-            let d = DHExp.cast(ctx, BoundVar(x), ty1', ty1);
+            let d = DHExp.cast(BoundVar(x), ty1', ty1);
             DHExp.FixF(x, ty1', Evaluator.subst_var(d, x, d1));
           };
-        let d1 = DHExp.cast(ctx, d1, ty1', ty1);
+        let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
@@ -170,8 +170,8 @@ and syn_elab_skel =
           switch (ana_elab_skel(ctx, u_gen, delta, skel2, seq, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d2, ty2', ctx, u_gen, delta) =>
-            let dc1 = DHExp.cast(ctx, d1, ty1', ty2_arrow_ty);
-            let dc2 = DHExp.cast(ctx, d2, ty2', ty2);
+            let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
+            let dc2 = DHExp.cast(d2, ty2', ty2);
             let d = DHExp.Ap(dc1, dc2);
             Elaborates(d, ty, ctx, u_gen, delta);
           }
@@ -216,7 +216,7 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, u_gen, delta, skel2, seq, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, ctx, u_gen, delta) =>
-        let d2c = DHExp.cast(ctx, d2, ty2, ty);
+        let d2c = DHExp.cast(d2, ty2, ty);
         let d = DHExp.Cons(d1, d2c);
         Elaborates(d, ty, ctx, u_gen, delta);
       };
@@ -232,8 +232,8 @@ and syn_elab_skel =
         switch (DHExp.BinIntOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
-          let dc1 = DHExp.cast(ctx, d1, ty1, Int);
-          let dc2 = DHExp.cast(ctx, d2, ty2, Int);
+          let dc1 = DHExp.cast(d1, ty1, Int);
+          let dc2 = DHExp.cast(d2, ty2, Int);
           Elaborates(BinIntOp(op, dc1, dc2), ty, ctx, u_gen, delta);
         }
       }
@@ -246,8 +246,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, u_gen, delta, skel2, seq, Float)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, dty2, ctx, u_gen, delta) =>
-        let dc1 = DHExp.cast(ctx, d1, dty1, Float);
-        let dc2 = DHExp.cast(ctx, d2, dty2, Float);
+        let dc1 = DHExp.cast(d1, dty1, Float);
+        let dc2 = DHExp.cast(d2, dty2, Float);
         switch (DHExp.BinFloatOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, dty)) =>
@@ -263,8 +263,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, u_gen, delta, skel2, seq, Bool)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, ctx, u_gen, delta) =>
-        let dc1 = DHExp.cast(ctx, d1, ty1, Bool);
-        let dc2 = DHExp.cast(ctx, d2, ty2, Bool);
+        let dc1 = DHExp.cast(d1, ty1, Bool);
+        let dc2 = DHExp.cast(d2, ty2, Bool);
         switch (DHExp.BinBoolOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some(op) =>
@@ -502,12 +502,7 @@ and syn_elab_rule =
     switch (syn_elab(ctx, u_gen, delta, clause)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, ctx, u_gen, delta) =>
-      Some((
-        Rule(dp, DHExp.cast(ctx, d1, ty1, clause_ty)),
-        ctx,
-        u_gen,
-        delta,
-      ))
+      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), ctx, u_gen, delta))
     }
   };
 }
@@ -705,12 +700,12 @@ and ana_elab_skel =
       switch (ana_elab_skel(ctx, u_gen, delta, skel1, seq, ty_elt)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty_elt', ctx, u_gen, delta) =>
-        let d1c = DHExp.cast(ctx, d1, ty_elt', ty_elt);
+        let d1c = DHExp.cast(d1, ty_elt', ty_elt);
         let ty_list = HTyp.List(ty_elt);
         switch (ana_elab_skel(ctx, u_gen, delta, skel2, seq, ty_list)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, ctx, u_gen, delta) =>
-          let d2c = DHExp.cast(ctx, d2, ty2, ty_list);
+          let d2c = DHExp.cast(d2, ty2, ty_list);
           let d = DHExp.Cons(d1c, d2c);
           Elaborates(d, ty_list, ctx, u_gen, delta);
         };
@@ -925,12 +920,7 @@ and ana_elab_rule =
     switch (ana_elab(ctx, u_gen, delta, clause, clause_ty)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, ctx, u_gen, delta) =>
-      Some((
-        Rule(dp, DHExp.cast(ctx, d1, ty1, clause_ty)),
-        ctx,
-        u_gen,
-        delta,
-      ))
+      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), ctx, u_gen, delta))
     }
   };
 };

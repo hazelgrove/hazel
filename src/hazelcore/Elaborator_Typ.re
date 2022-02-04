@@ -79,7 +79,7 @@ and syn_operand =
   };
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | UHTyp.Hole => Some((HTyp.Hole, Kind.KHole, delta, ctx, u_gen))
+  | Hole => Some((Hole, KHole, delta, ctx, u_gen))
   // /* TElabSHole */
   // let ty = HTyp.Hole;
   // Some((ty, KHole, Delta.(add(u, Hole.Type(KHole, tyctx), delta))));
@@ -137,7 +137,11 @@ and ana_operand =
     : ElaborationResult.Ana.t => {
   SexpUtil.print_many(
     ~at="ELABORATOR_TYP ana_operand",
-    [UHTyp.sexp_of_operand(operand), Contexts.sexp_of_t(ctx)],
+    [
+      UHTyp.sexp_of_operand(operand),
+      Kind.sexp_of_t(k),
+      Contexts.sexp_of_t(ctx),
+    ],
   );
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
