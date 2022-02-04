@@ -134,7 +134,7 @@ let apply_action =
       | Import(ast) =>
         let (ast, _, _) =
           Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
-        Model.load_uhexp(model, ast);
+        Model.import_uhexp(model, ast);
       | ToggleImportPopup => Model.toggle_import_popup(model)
       | ToggleExportPopup => Model.toggle_export_popup(model)
       | FocusCell => model |> Model.focus_cell

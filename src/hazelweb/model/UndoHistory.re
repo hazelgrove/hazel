@@ -677,6 +677,7 @@ let get_new_action_group =
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     }
+  | Import(_) => Some(Import)
   | _ => None
   };
 

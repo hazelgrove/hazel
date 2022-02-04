@@ -284,22 +284,36 @@ let toggle_export_popup = (model: t): t => {
   export_popup_open: !model.export_popup_open,
 };
 
+let import_uhexp = (model: t, e: UHExp.t): t => {
+  let new_program =
+    Program.mk(
+      ~width=model.cell_width,
+      Statics_Exp.fix_and_renumber_holes_z(
+        Contexts.empty,
+        ZExp.place_before(e),
+      ),
+    );
+  model
+  |> put_program(new_program)
+  |> put_undo_history(
+       {
+         let history = model |> get_undo_history;
+         let prev_cardstacks = model |> get_cardstacks;
+         let new_cardstacks =
+           model |> put_program(new_program) |> get_cardstacks;
+         UndoHistory.push_edit_state(
+           history,
+           prev_cardstacks,
+           new_cardstacks,
+           ModelAction.Import(e),
+         );
+       },
+     );
+};
+
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
 };
-
-let load_uhexp = (model: t, e: UHExp.t): t =>
-  model
-  // update program
-  |> put_program(
-       Program.mk(
-         ~width=model.cell_width,
-         Statics_Exp.fix_and_renumber_holes_z(
-           Contexts.empty,
-           ZExp.place_before(e),
-         ),
-       ),
-     );
 
 let load_undo_history =
     (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {

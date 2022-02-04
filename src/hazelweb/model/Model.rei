@@ -79,11 +79,14 @@ let toggle_import_popup: t => t;
 let toggle_export_popup: t => t;
 
 /**
+ * Load in imported text
+ */
+let import_uhexp: (t, UHExp.t) => t;
+
+/**
  * Load a selected cardstack into view
  */
 let load_cardstack: (t, int) => t;
-
-let load_uhexp: (t, UHExp.t) => t;
 
 /**
  * load_undo_history(model, undo_history, ~is_after_move)
