@@ -5,6 +5,30 @@ type join =
   | GLB
   | LUB;
 
+let rec head_normalize = (ctx: TyCtx.t, ty: t): t =>
+  switch (ty) {
+  | TyVar(i, _) =>
+    switch (ctx |> TyCtx.var_kind(i)) {
+    | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
+    | Some(_) => ty
+    | None => failwith(__LOC__ ++ ": unknown type variable index")
+    }
+  | TyVarHole(_, u, _) =>
+    switch (ctx |> TyCtx.hole_kind(u)) {
+    | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
+    | Some(_) => ty
+    | None => failwith(__LOC__ ++ ": unknown type variable hole index")
+    }
+  | Hole
+  | Int
+  | Float
+  | Bool
+  | Arrow(_, _)
+  | Sum(_, _)
+  | Prod(_)
+  | List(_) => ty
+  };
+
 let rec normalize = (ctx: TyCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
@@ -20,7 +44,7 @@ let rec normalize = (ctx: TyCtx.t, ty: t): t =>
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable hole index")
     };
-  | Hole => ty
+  | Hole
   | Int
   | Float
   | Bool => ty

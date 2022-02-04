@@ -8,6 +8,8 @@ type join =
   | GLB
   | LUB;
 
+let head_normalize: (TyCtx.t, t) => t;
+
 let normalized_consistent: (t, t) => bool;
 let normalized_equivalent: (t, t) => bool;
 
