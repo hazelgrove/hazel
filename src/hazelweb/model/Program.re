@@ -52,7 +52,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
+    CursorInfo_Exp.syn_cursor_info(Contexts.empty, MetaVarGen.init),
   );
 let get_cursor_info = (program: t) => {
   program
@@ -353,12 +353,12 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
+    Elaborator_Exp.syn_elab(Contexts.empty, MetaVarGen.init, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
   | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, _) => d
+  | Elaborates(d, _, _, _, _) => d
   };
 
 exception EvalError(EvaluatorError.t);

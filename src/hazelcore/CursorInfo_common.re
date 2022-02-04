@@ -118,9 +118,18 @@ let is_end_keyword =
   };
 
 let mk =
-    (~tyuses=?, ~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
+    (
+      ~tyuses=?,
+      ~uses=?,
+      ~parent_info=NoParentInfo,
+      typed,
+      ctx,
+      u_gen,
+      cursor_term,
+    ) => {
   typed,
   ctx,
+  u_gen,
   uses,
   tyuses,
   cursor_term,

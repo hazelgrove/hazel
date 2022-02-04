@@ -21,8 +21,13 @@ let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
 let typing: t => TyCtx.t = ({typing, _}) => typing;
 
-let bind_tyvar = (name: TyVar.Name.t, k: Kind.t, ctx: t): t => {
+let bind_tyvar = (ctx: t, name: TyVar.Name.t, k: Kind.t): t => {
   let typing = ctx.typing |> TyCtx.bind_var(name, k);
+  {...ctx, typing};
+};
+
+let bind_tyhole = (ctx: t, u: MetaVar.t, k: Kind.t): t => {
+  let typing = ctx.typing |> TyCtx.bind_hole(u, k);
   {...ctx, typing};
 };
 

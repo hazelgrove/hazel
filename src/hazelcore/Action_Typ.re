@@ -50,25 +50,42 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
 
 let text_operand =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, shape: TyTextShape.t)
-    : (UHTyp.operand, MetaVarGen.t) =>
+    : (UHTyp.operand, Contexts.t, MetaVarGen.t) =>
   switch (shape) {
-  | Int => (Int, u_gen)
-  | Bool => (Bool, u_gen)
-  | Float => (Float, u_gen)
+  | Int => (Int, ctx, u_gen)
+  | Bool => (Bool, ctx, u_gen)
+  | Float => (Float, ctx, u_gen)
   | ExpandingKeyword(k) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let name = k |> ExpandingKeyword.to_string |> TyVar.Name.of_string;
-    let ty = UHTyp.TyVar(InHole(Reserved, u), name);
-    (ty, u_gen);
+    let reason = TyVar.HoleReason.Reserved;
+    let ty = UHTyp.TyVar(InHole(reason, u), name);
+    let ctx =
+      Contexts.bind_tyhole(
+        ctx,
+        u,
+        Kind.Singleton(KHole, TyVarHole(reason, u, name)),
+      );
+    (ty, ctx, u_gen);
   | TyVar(name) =>
-    let (status, u_gen) =
+    let (status, ctx, u_gen) =
       switch (ctx |> Contexts.typing |> TyCtx.var_index(name)) {
-      | Some(i) => (TyVar.Status.NotInHole(i), u_gen)
+      | Some(i) =>
+        let ctx =
+          Contexts.bind_tyvar(ctx, name, Singleton(Type, TyVar(i, name)));
+        (TyVar.Status.NotInHole(i), ctx, u_gen);
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (InHole(Unbound, u), u_gen);
+        let reason = TyVar.HoleReason.Unbound;
+        let ctx =
+          Contexts.bind_tyhole(
+            ctx,
+            u,
+            Kind.Singleton(KHole, HTyp.TyVarHole(reason, u, name)),
+          );
+        (InHole(reason, u), ctx, u_gen);
       };
-    (TyVar(status, name), u_gen);
+    (TyVar(status, name), ctx, u_gen);
   };
 
 let construct_operator =
@@ -100,7 +117,7 @@ module Syn_success = {
     type t('z) = {
       zty: 'z,
       kind: Kind.t,
-      // ctx: Contexts.t,
+      ctx: Contexts.t,
       u_gen: MetaVarGen.t,
     };
   };
@@ -111,8 +128,8 @@ module Syn_success = {
   let mk_result =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t): Outcome.t(t) => {
     open Outcome.Syntax;
-    let+ kind = Elaborator_Typ.syn_kind(ctx, zty |> ZTyp.erase);
-    Succeeded({Poly.zty, kind, u_gen});
+    let+ kind = Elaborator_Typ.syn_kind(ctx, u_gen, zty |> ZTyp.erase);
+    Succeeded({Poly.zty, kind, ctx, u_gen});
   };
 };
 open Syn_success.Poly;
@@ -120,6 +137,7 @@ open Syn_success.Poly;
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(Syn_success.t) => {
+  SexpUtil.print(~at="ACTION_TYP mk_syn_text", Contexts.sexp_of_t(ctx));
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_tyvar_name(TyVar.Name.of_string(text))) {
   | None =>
@@ -127,6 +145,7 @@ let mk_syn_text =
       Succeeded({
         zty: ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
         kind: Kind.KHole,
+        ctx,
         u_gen,
       });
     } else {
@@ -135,42 +154,39 @@ let mk_syn_text =
   | Some(Bool) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool));
     let kind = Kind.Singleton(Type, Bool);
-    Succeeded({zty, kind, u_gen});
+    Succeeded({zty, kind, ctx, u_gen});
   | Some(Int) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int));
     let kind = Kind.Singleton(Type, Int);
-    Succeeded({zty, kind, u_gen});
+    Succeeded({zty, kind, ctx, u_gen});
   | Some(Float) =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
     let kind = Kind.Singleton(Type, Float);
-    Succeeded({zty, kind, u_gen});
+    Succeeded({zty, kind, ctx, u_gen});
   | Some(ExpandingKeyword(k)) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
-    Succeeded({
-      zty:
-        ZOpSeq.wrap(
-          ZTyp.CursorT(
-            text_cursor,
-            TyVar(
-              InHole(Reserved, u),
-              k |> ExpandingKeyword.to_string |> TyVar.Name.of_string,
-            ),
+    let zty =
+      ZOpSeq.wrap(
+        ZTyp.CursorT(
+          text_cursor,
+          UHTyp.TyVar(
+            InHole(Reserved, u),
+            k |> ExpandingKeyword.to_string |> TyVar.Name.of_string,
           ),
         ),
-      kind: Kind.KHole,
-      u_gen,
-    });
+      );
+    let kind = Kind.KHole;
+    let ctx = Contexts.bind_tyhole(ctx, u, kind);
+    Succeeded({zty, kind, ctx, u_gen});
   | Some(TyVar(name)) =>
     let tyctx = ctx |> Contexts.typing;
-    let (zoperand, kind, /* ctx, */ u_gen) =
+    let (zoperand, kind, ctx, u_gen) =
       {
         open OptUtil.Syntax;
         let* i = tyctx |> TyCtx.var_index(name);
         let+ k = tyctx |> TyCtx.var_kind(i);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(u), name));
-        // let ctx = Contexts.bind_tyvar(name, k, ctx);
-        (zty, k, /* ctx, */ u_gen);
+        let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(i), name));
+        (zty, k, ctx, u_gen);
       }
       |> Option.value(
            ~default={
@@ -178,11 +194,11 @@ let mk_syn_text =
              let zoperand =
                ZTyp.CursorT(text_cursor, TyVar(InHole(Unbound, u), name));
              let k = Kind.KHole;
-             //  let ctx = Contexts.bind_tyvar(name, k, ctx);
-             (zoperand, k, /* ctx, */ u_gen);
+             let ctx = Contexts.bind_tyhole(ctx, u, k);
+             (zoperand, k, ctx, u_gen);
            },
          );
-    Succeeded({zty: ZOpSeq.wrap(zoperand), kind, /* ctx, */ u_gen});
+    Succeeded({zty: ZOpSeq.wrap(zoperand), kind, ctx, u_gen});
   };
 };
 
@@ -190,7 +206,7 @@ open Outcome;
 open Outcome.Syntax;
 
 let rec syn_move =
-        (a: Action.t, {zty, kind: _, u_gen: _} as syn_r: Syn_success.t)
+        (a: Action.t, {zty, _} as syn_r: Syn_success.t)
         : Outcome.t(Syn_success.t) =>
   switch (a) {
   | MoveTo(path) =>
@@ -256,26 +272,24 @@ let syn_split_text =
   | (_, None, _)
   | (_, _, None) => None
   | (Some(lshape), Some(op), Some(rshape)) =>
-    let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
-    let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
+    let (loperand, ctx, u_gen) = text_operand(ctx, u_gen, lshape);
+    let (roperand, ctx, u_gen) = text_operand(ctx, u_gen, rshape);
     let new_zty = {
       let zoperand = roperand |> ZTyp.place_before_operand;
       ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    let* kind = Elaborator_Typ.syn_kind(ctx, ZTyp.erase(new_zty));
-    succeeded({zty: new_zty, kind, u_gen});
+    let* kind = Elaborator_Typ.syn_kind(ctx, u_gen, ZTyp.erase(new_zty));
+    succeeded({zty: new_zty, kind, ctx, u_gen});
   };
 };
 
 let rec syn_perform =
-        (ctx: Contexts.t, a: Action.t, syn_r: Syn_success.t)
-        : Outcome.t(Syn_success.t) =>
-  syn_perform_opseq(ctx, a, syn_r)
+        (a: Action.t, syn_r: Syn_success.t): Outcome.t(Syn_success.t) =>
+  syn_perform_opseq(a, syn_r)
 and syn_perform_opseq =
     (
-      ctx: Contexts.t,
       a: Action.t,
-      {zty: ZOpSeq(skel, zseq) as zopseq, kind: _, u_gen} as syn_r: Syn_success.t,
+      {zty: ZOpSeq(skel, zseq) as zopseq, kind: _, ctx, u_gen} as syn_r: Syn_success.t,
     )
     : Outcome.t(Syn_success.t) =>
   switch (a, zseq) {
@@ -300,12 +314,11 @@ and syn_perform_opseq =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    syn_perform_opseq(ctx, Action_common.escape(side), syn_r)
+    syn_perform_opseq(Action_common.escape(side), syn_r)
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
     syn_perform_opseq(
-      ctx,
       Backspace,
       {
         ...syn_r,
@@ -327,20 +340,19 @@ and syn_perform_opseq =
   /* Construction */
   /* construction on operators becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
-    syn_perform_opseq(ctx, MoveRight, syn_r)
+    syn_perform_opseq(MoveRight, syn_r)
   /* ...or construction after movement */
   | (Construct(_) as a, ZOperator((OnOp(side), _), _)) =>
-    let* outcome' =
-      syn_perform_opseq(ctx, Action_common.escape(side), syn_r);
+    let* outcome' = syn_perform_opseq(Action_common.escape(side), syn_r);
     switch (outcome') {
     | CursorEscaped(_) => None
-    | Succeeded(syn_r') => syn_perform(ctx, a, syn_r')
+    | Succeeded(syn_r') => syn_perform(a, syn_r')
     };
 
   /* Space becomes movement until we have proper type constructors */
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
       when ZTyp.is_after_zoperand(zoperand) =>
-    syn_perform_opseq(ctx, MoveRight, syn_r)
+    syn_perform_opseq(MoveRight, syn_r)
 
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
     open Outcome.Syntax;
@@ -380,16 +392,15 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
 
-    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
-    let* outcome = syn_perform_operand(ctx, a, {zty: zoperand, kind, u_gen});
+    let* kind = Elaborator_Typ.syn_kind(ctx, u_gen, uhty);
+    let* outcome = syn_perform_operand(a, {zty: zoperand, kind, ctx, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
       syn_perform_opseq(
-        ctx,
         Action_common.escape(side),
-        {zty: zopseq, kind, u_gen},
+        {zty: zopseq, kind, ctx, u_gen},
       )
-    | Succeeded({zty: ZOpSeq(_, zseq), kind: _, u_gen}) =>
+    | Succeeded({zty: ZOpSeq(_, zseq), ctx, u_gen, _}) =>
       switch (zseq) {
       | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
         let new_prefix = Seq.affix_affix(inner_prefix, prefix);
@@ -412,8 +423,12 @@ and syn_perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
-    (ctx: Contexts.t, a: Action.t, {zty: zoperand, kind, u_gen})
-    : Outcome.t(Syn_success.t) =>
+    (a: Action.t, {zty: zoperand, kind, ctx, u_gen})
+    : Outcome.t(Syn_success.t) => {
+  SexpUtil.print_many(
+    ~at="ACTION_TYP syn_perform_operand",
+    [Action.sexp_of_t(a), ZTyp.sexp_of_zoperand(zoperand)],
+  );
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -431,7 +446,7 @@ and syn_perform_operand =
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-    syn_move(a, {zty: ZOpSeq.wrap(zoperand), kind, u_gen})
+    syn_move(a, {zty: ZOpSeq.wrap(zoperand), kind, ctx, u_gen})
 
   /* Backspace and Delete */
 
@@ -459,19 +474,18 @@ and syn_perform_operand =
   | (Backspace, CursorT(OnDelim(_, Before), _)) =>
     zoperand |> ZTyp.is_before_zoperand
       ? cursor_escaped(Before)
-      : syn_perform_operand(ctx, MoveLeft, {zty: zoperand, kind, u_gen})
+      : syn_perform_operand(MoveLeft, {zty: zoperand, kind, ctx, u_gen})
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorT(OnDelim(_, After), _)) =>
     zoperand |> ZTyp.is_after_zoperand
       ? cursor_escaped(After)
-      : syn_perform_operand(ctx, MoveRight, {zty: zoperand, kind, u_gen})
+      : syn_perform_operand(MoveRight, {zty: zoperand, kind, ctx, u_gen})
 
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorT(OnDelim(k, Before), operand)) =>
     syn_perform_operand(
-      ctx,
       Backspace,
-      {zty: CursorT(OnDelim(k, After), operand), kind, u_gen},
+      {zty: CursorT(OnDelim(k, After), operand), kind, ctx, u_gen},
     )
 
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
@@ -512,20 +526,19 @@ and syn_perform_operand =
   /* Construction */
 
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
-    syn_perform_operand(ctx, MoveRight, {zty: zoperand, kind, u_gen})
+    syn_perform_operand(MoveRight, {zty: zoperand, kind, ctx, u_gen})
   | (Construct(_) as a, CursorT(OnDelim(_, side), _))
       when
         !ZTyp.is_before_zoperand(zoperand)
         && !ZTyp.is_after_zoperand(zoperand) =>
     switch (
       syn_perform_operand(
-        ctx,
         Action_common.escape(side),
-        {zty: zoperand, kind, u_gen},
+        {zty: zoperand, kind, ctx, u_gen},
       )
     ) {
     | (None | Some(CursorEscaped(_))) as err => err
-    | Some(Succeeded(syn_r)) => syn_perform(ctx, a, syn_r)
+    | Some(Succeeded(syn_r)) => syn_perform(a, syn_r)
     }
 
   | (Construct(SChar(s)), CursorT(_, Hole)) =>
@@ -623,15 +636,14 @@ and syn_perform_operand =
   /* Zipper Cases */
   | (_, ParenthesizedZ(zbody)) =>
     open Outcome.Syntax;
-    let* outcome = syn_perform(ctx, a, {zty: zbody, kind, u_gen});
+    let* outcome = syn_perform(a, {zty: zbody, kind, ctx, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
       syn_perform_operand(
-        ctx,
         Action_common.escape(side),
-        {zty: zoperand, kind, u_gen},
+        {zty: zoperand, kind, ctx, u_gen},
       )
-    | Succeeded({zty: zbody, u_gen, kind: _}) =>
+    | Succeeded({zty: zbody, kind: _, ctx, u_gen}) =>
       Syn_success.mk_result(
         ctx,
         u_gen,
@@ -640,15 +652,14 @@ and syn_perform_operand =
     };
   | (_, ListZ(zbody)) =>
     open Outcome.Syntax;
-    let* outcome = syn_perform(ctx, a, {zty: zbody, kind, u_gen});
+    let* outcome = syn_perform(a, {zty: zbody, kind, ctx, u_gen});
     switch (outcome) {
     | CursorEscaped(side) =>
       syn_perform_operand(
-        ctx,
         Action_common.escape(side),
-        {zty: zoperand, kind, u_gen},
+        {zty: zoperand, kind, ctx, u_gen},
       )
-    | Succeeded({zty: zbody, kind: _, u_gen}) =>
+    | Succeeded({zty: zbody, kind: _, ctx, u_gen}) =>
       Syn_success.mk_result(ctx, u_gen, ZOpSeq.wrap(ZTyp.ListZ(zbody)))
     };
 
@@ -660,6 +671,7 @@ and syn_perform_operand =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};
 
 open Outcome;
 open Outcome.Syntax;
@@ -668,21 +680,27 @@ module Ana_success = {
     [@deriving sexp]
     type t('z) = {
       zty: 'z,
+      ctx: Contexts.t,
       u_gen: MetaVarGen.t,
     };
 
-    let of_syn = ({Syn_success.Poly.zty, kind: _, u_gen}) => {zty, u_gen};
+    let of_syn = ({Syn_success.Poly.zty, kind: _, ctx, u_gen}) => {
+      zty,
+      ctx,
+      u_gen,
+    };
   };
 
   [@deriving sexp]
   type t = Poly.t(ZTyp.t);
 
   let mk_result =
-      (_ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, _k: Kind.t)
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, _k: Kind.t)
       : Outcome.t(t) => {
     // TODO: Add an error status: Don't fail -- put an error status on it when it can fail
     succeeded({
       Poly.zty,
+      ctx,
       u_gen,
     });
   };
@@ -690,7 +708,11 @@ module Ana_success = {
 open Ana_success.Poly;
 
 let rec ana_move =
-        (a: Action.t, {zty, u_gen: _} as ana_r: Ana_success.t, kind: Kind.t)
+        (
+          a: Action.t,
+          {zty, ctx: _, u_gen: _} as ana_r: Ana_success.t,
+          kind: Kind.t,
+        )
         : Outcome.t(Ana_success.t) =>
   switch (a) {
   | MoveTo(path) =>
@@ -733,37 +755,34 @@ let rec ana_move =
     )
   };
 
-let rec ana_perform = (ctx, a, s, k) => ana_perform_opseq(ctx, a, s, k)
+let rec ana_perform = (a, s, k) => ana_perform_opseq(a, s, k)
 and ana_perform_opseq =
     (
-      ctx: Contexts.t,
       a: Action.t,
-      {zty: ZOpSeq(_, zseq) as zopseq, u_gen}: Ana_success.t,
+      {zty: ZOpSeq(_, zseq) as zopseq, ctx, u_gen}: Ana_success.t,
       k: Kind.t,
     )
     : Outcome.t(Ana_success.t) => {
   switch (a, zseq) {
   | (_, ZOperand(zoperand, (E, E))) =>
-    ana_perform_operand(ctx, a, {zty: zoperand, u_gen}, k)
+    ana_perform_operand(a, {zty: zoperand, ctx, u_gen}, k)
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     open Outcome.Syntax;
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
-    let* kind = Elaborator_Typ.syn_kind(ctx, uhty);
+    let* kind = Elaborator_Typ.syn_kind(ctx, u_gen, uhty);
     let* outcome =
       syn_perform_operand(
-        ctx,
         a,
-        {Syn_success.Poly.zty: zoperand, kind, u_gen},
+        {Syn_success.Poly.zty: zoperand, kind, ctx, u_gen},
       );
     switch (outcome) {
     | CursorEscaped(side) =>
       ana_perform_opseq(
-        ctx,
         Action_common.escape(side),
-        {zty: zopseq, u_gen},
+        {zty: zopseq, ctx, u_gen},
         kind,
       )
-    | Succeeded({Syn_success.Poly.zty: ZOpSeq(_, zseq), u_gen, kind: _}) =>
+    | Succeeded({Syn_success.Poly.zty: ZOpSeq(_, zseq), ctx, u_gen, kind: _}) =>
       switch (zseq) {
       | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
         let new_prefix = Seq.affix_affix(inner_prefix, prefix);
@@ -791,9 +810,8 @@ and ana_perform_opseq =
 
     let* outcome =
       syn_perform_opseq(
-        ctx,
         a,
-        {Syn_success.Poly.zty: zopseq, u_gen, kind: k},
+        {Syn_success.Poly.zty: zopseq, ctx, u_gen, kind: k},
       );
     switch (outcome) {
     | CursorEscaped(side) => cursor_escaped(side)
@@ -804,9 +822,8 @@ and ana_perform_opseq =
 }
 and ana_perform_operand =
     (
-      ctx: Contexts.t,
       a: Action.t,
-      {zty: zoperand, u_gen}: Ana_success.Poly.t(ZTyp.zoperand),
+      {zty: zoperand, ctx, u_gen}: Ana_success.Poly.t(ZTyp.zoperand),
       kind: Kind.t,
     )
     : Outcome.t(Ana_success.t) => {
@@ -814,9 +831,8 @@ and ana_perform_operand =
 
   let* outcome =
     syn_perform_operand(
-      ctx,
       a,
-      {Syn_success.Poly.zty: zoperand, kind, u_gen},
+      {Syn_success.Poly.zty: zoperand, kind, ctx, u_gen},
     );
   switch (outcome) {
   | CursorEscaped(side) => cursor_escaped(side)

@@ -56,6 +56,8 @@ module Holes = {
   type map('a) = t('a);
   type t = map(Kind.t);
 
+  let bind: (MetaVar.t, Kind.t, t) => t = add;
+
   let kind: (MetaVar.t, t) => option(Kind.t) = find_opt;
 
   let sexp_of_t = (holes: t): Sexplib.Sexp.t =>
@@ -106,6 +108,11 @@ let has_hole = (u: MetaVar.t, ctx: t): bool => ctx.holes |> Holes.mem(u);
 
 let hole_kind = (u: MetaVar.t, ctx: t): option(Kind.t) =>
   ctx.holes |> Holes.kind(u);
+
+let bind_hole = (u: MetaVar.t, k: Kind.t, ctx: t): t => {
+  let holes = ctx.holes |> Holes.bind(u, k);
+  {...ctx, holes};
+};
 
 // open Sexplib.Std;
 // [@deriving sexp];

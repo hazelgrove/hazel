@@ -1,7 +1,7 @@
 let matches = (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t): Contexts.t => {
   switch (t) {
   | EmptyHole => ctx
-  | TyVar(NotInHole, name) => ctx |> Contexts.bind_tyvar(name, k)
+  | TyVar(NotInHole, name) => Contexts.bind_tyvar(ctx, name, k)
   | TyVar(InHole(_), _id) => ctx
   };
 };
@@ -16,7 +16,7 @@ let fix_holes =
     switch (tp) {
     | EmptyHole => (ctx, EmptyHole, u_gen)
     | TyVar(NotInHole, name) as t =>
-      let ctx = ctx |> Contexts.bind_tyvar(name, k);
+      let ctx = Contexts.bind_tyvar(ctx, name, k);
       (ctx, t, u_gen);
     | TyVar(InHole(_), _) as t => (ctx, t, u_gen)
     };

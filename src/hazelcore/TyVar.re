@@ -30,9 +30,9 @@ module Name = {
 
   let equal: (t, t) => bool = String.equal;
 
-  let valid = {
+  let valid: string => bool = {
     let re = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
-    (s: string) => (Re.Str.string_match(re, s, 0): bool);
+    s => Re.Str.string_match(re, s, 0);
   };
 
   let reserved = (s: string): bool =>

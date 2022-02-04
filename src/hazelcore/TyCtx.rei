@@ -14,3 +14,4 @@ let bind_var: (TyVar.Name.t, Kind.t, t) => t;
 
 let has_hole: (MetaVar.t, t) => bool;
 let hole_kind: (MetaVar.t, t) => option(Kind.t);
+let bind_hole: (MetaVar.t, Kind.t, t) => t;

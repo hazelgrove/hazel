@@ -797,7 +797,7 @@ and syn_perform_block =
 
   /* Zipper */
   | _ =>
-    switch (Statics_Exp.syn_lines(ctx, prefix)) {
+    switch (Statics_Exp.syn_lines(ctx, u_gen, prefix)) {
     | None => Failed
     | Some(ctx_zline) =>
       switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
@@ -823,7 +823,11 @@ and syn_perform_block =
         switch (suffix) {
         | [] =>
           switch (
-            Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
+            Statics_Exp.syn_block(
+              ctx_zline,
+              u_gen,
+              zblock |> ZExp.erase_zblock,
+            )
           ) {
           | None => Failed
           | Some(new_ty) =>
@@ -845,7 +849,7 @@ and syn_perform_line =
     (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
     : ActionOutcome.t(line_success) => {
   let mk_result = (u_gen, zlines): ActionOutcome.t(_) =>
-    switch (Statics_Exp.syn_lines(ctx, ZExp.erase_zblock(zlines))) {
+    switch (Statics_Exp.syn_lines(ctx, u_gen, ZExp.erase_zblock(zlines))) {
     | None => Failed
     | Some(ctx) => Succeeded(LineDone((zlines, ctx, u_gen)))
     };
@@ -1091,7 +1095,7 @@ and syn_perform_line =
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
-    switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
+    switch (Statics_Exp.syn_opseq(ctx, u_gen, ZExp.erase_zopseq(zopseq))) {
     | None => Failed
     | Some(ty) =>
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
@@ -1107,7 +1111,7 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(new_zp) =>
-      switch (Elaborator_Typ.syn_kind(ctx, ty)) {
+      switch (Elaborator_Typ.syn_kind(ctx, u_gen, ty)) {
       | None => Failed
       | Some(kind) =>
         let (body_ctx, new_zp, u_gen) =
@@ -1117,21 +1121,21 @@ and syn_perform_line =
       }
     }
   | (_, TyAliasLineT(p, zty)) =>
-    switch (Elaborator_Typ.syn_kind(ctx, zty |> ZTyp.erase)) {
+    switch (Elaborator_Typ.syn_kind(ctx, u_gen, zty |> ZTyp.erase)) {
     | None => Failed
     | Some(kind) =>
       switch (
         Action_Typ.syn_perform(
-          ctx,
           a,
-          {Action_Typ.Syn_success.Poly.u_gen, kind, zty},
+          {Action_Typ.Syn_success.Poly.ctx, u_gen, kind, zty},
         )
       ) {
       | None => Failed
       | Some(CursorEscaped(side)) => escape(u_gen, side)
       | Some(
           Succeeded({
-            Action_Typ.Syn_success.Poly.u_gen,
+            Action_Typ.Syn_success.Poly.ctx,
+            u_gen,
             kind: _,
             zty: new_zty,
           }),
@@ -1147,9 +1151,9 @@ and syn_perform_line =
 
   | (_, LetLineZP(zp, def)) =>
     let (def_ctx, u_gen) =
-      Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def, u_gen);
+      Statics_Exp.extend_let_def_ctx(ctx, u_gen, ZPat.erase(zp), def);
     let ty_def =
-      switch (Statics_Exp.syn(def_ctx, def)) {
+      switch (Statics_Exp.syn(def_ctx, u_gen, def)) {
       | None =>
         failwith("syn_perform_line: LetLineZP: definition doesn't synthesize")
       | Some(ty) => ty
@@ -1164,7 +1168,7 @@ and syn_perform_line =
         Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
       let p = ZPat.erase(new_zp);
       let (def_ctx, u_gen) =
-        Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
+        Statics_Exp.extend_let_def_ctx(ctx, u_gen, p, def);
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
       let new_zline = ZExp.LetLineZP(new_zp, new_def);
@@ -1174,12 +1178,12 @@ and syn_perform_line =
     };
 
   | (_, LetLineZE(p, zdef)) =>
-    switch (Statics_Pat.syn(ctx, p)) {
+    switch (Statics_Pat.syn(ctx, u_gen, p)) {
     | None => Failed
     | Some((ty_p, _)) =>
       let def = ZExp.erase(zdef);
       let (def_ctx, u_gen) =
-        Statics_Exp.extend_let_def_ctx(ctx, p, def, u_gen);
+        Statics_Exp.extend_let_def_ctx(ctx, u_gen, p, def);
       switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
@@ -1437,10 +1441,12 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     let opseq = ZExp.erase_zopseq(zopseq);
-    switch (Statics_Exp.syn_nth_type_mode(ctx, n, opseq)) {
+    switch (Statics_Exp.syn_nth_type_mode(ctx, u_gen, n, opseq)) {
     | None => Failed
     | Some(Syn) =>
-      switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+      switch (
+        Statics_Exp.syn_operand(ctx, u_gen, ZExp.erase_zoperand(zoperand))
+      ) {
       | None => Failed
       | Some(ty_zoperand) =>
         switch (syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))) {
@@ -1516,7 +1522,16 @@ and syn_perform_operand =
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
+  SexpUtil.print_many(
+    ~at="ACTION_EXP syn_perform_operand",
+    [
+      Action.sexp_of_t(a),
+      ZExp.sexp_of_zoperand(zoperand),
+      HTyp.sexp_of_t(ty),
+      Contexts.sexp_of_t(ctx),
+    ],
+  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1838,13 +1853,15 @@ and syn_perform_operand =
       let init_model_cmd = palette_defn.init_model;
       let (init_model, init_splice_info, u_gen) =
         SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
-      switch (Statics_Exp.ana_splice_map(ctx, init_splice_info.splice_map)) {
+      switch (
+        Statics_Exp.ana_splice_map(ctx, u_gen, init_splice_info.splice_map)
+      ) {
       | None => Failed
       | Some(splice_ctx) =>
         let expansion_ty = palette_defn.expansion_ty;
         let expand = palette_defn.expand;
         let expansion = expand(init_model);
-        switch (Statics_Exp.ana(splice_ctx, expansion, expansion_ty)) {
+        switch (Statics_Exp.ana(splice_ctx, u_gen, expansion, expansion_ty)) {
         | None => Failed
         | Some(_) =>
           Succeeded(
@@ -1990,7 +2007,7 @@ and syn_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty_p, ty_body)) =>
-      switch (Statics_Pat.syn(ctx, p)) {
+      switch (Statics_Pat.syn(ctx, u_gen, p)) {
       | None => Failed
       | Some((_, body_ctx)) =>
         switch (syn_perform(body_ctx, a, (zbody, ty_body, u_gen))) {
@@ -2051,7 +2068,7 @@ and syn_perform_operand =
        ));
      }; */
   | (_, CaseZE(_, zscrut, rules)) =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(zscrut))) {
+    switch (Statics_Exp.syn(ctx, u_gen, ZExp.erase(zscrut))) {
     | None => Failed
     | Some(ty1) =>
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
@@ -2083,7 +2100,7 @@ and syn_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
-    switch (Statics_Exp.syn(ctx, scrut)) {
+    switch (Statics_Exp.syn(ctx, u_gen, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
       switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
@@ -2115,7 +2132,8 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2243,7 +2261,7 @@ and syn_perform_rules =
     }
 
   | (_, RuleZE(p, zclause)) =>
-    switch (Statics_Pat.ana(ctx, p, pat_ty)) {
+    switch (Statics_Pat.ana(ctx, u_gen, p, pat_ty)) {
     | None => Failed
     | Some(ctx) =>
       switch (syn_perform(ctx, a, (zclause, pat_ty, u_gen))) {
@@ -2393,7 +2411,7 @@ and ana_perform_rules =
     }
 
   | (_, RuleZE(p, zclause)) =>
-    switch (Statics_Pat.ana(ctx, p, pat_ty)) {
+    switch (Statics_Pat.ana(ctx, u_gen, p, pat_ty)) {
     | None => Failed
     | Some(ctx) =>
       switch (ana_perform(ctx, a, (zclause, u_gen), clause_ty)) {
@@ -2591,7 +2609,7 @@ and ana_perform_block =
     }
   /* Zipper */
   | _ =>
-    switch (Statics_Exp.syn_lines(ctx, prefix)) {
+    switch (Statics_Exp.syn_lines(ctx, u_gen, prefix)) {
     | None => Failed
     | Some(ctx_zline) =>
       switch (suffix) {
@@ -2926,11 +2944,19 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
-      Statics_Exp.ana_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq, ty)
+      Statics_Exp.ana_nth_type_mode(
+        ctx,
+        u_gen,
+        n,
+        zopseq |> ZExp.erase_zopseq,
+        ty,
+      )
     ) {
     | None => Failed
     | Some(Syn) =>
-      switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+      switch (
+        Statics_Exp.syn_operand(ctx, u_gen, ZExp.erase_zoperand(zoperand))
+      ) {
       | None => Failed
       | Some(ty_zoperand) =>
         switch (syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))) {
@@ -3011,7 +3037,16 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  SexpUtil.print_many(
+    ~at="ACTION_EXP ana_perform_operand",
+    [
+      Action.sexp_of_t(a),
+      ZExp.sexp_of_zoperand(zoperand),
+      HTyp.sexp_of_t(ty),
+      Contexts.sexp_of_t(ctx),
+    ],
+  );
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3038,7 +3073,7 @@ and ana_perform_operand =
     let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
     let err = ZExp.get_err_status_zoperand(zoperand);
     let operand' = zoperand' |> ZExp.erase_zoperand;
-    switch (Statics_Exp.syn_operand(ctx, operand')) {
+    switch (Statics_Exp.syn_operand(ctx, u_gen, operand')) {
     | None => Failed
     | Some(ty') =>
       switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
@@ -3478,7 +3513,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      switch (Statics_Pat.ana(ctx, p, ty1_given)) {
+      switch (Statics_Pat.ana(ctx, u_gen, p, ty1_given)) {
       | None => Failed
       | Some(ctx_body) =>
         switch (ana_perform(ctx_body, a, (zbody, u_gen), ty2)) {
@@ -3516,7 +3551,7 @@ and ana_perform_operand =
       };
     }
   | (_, CaseZE(_, zscrut, rules)) =>
-    switch (Statics_Exp.syn(ctx, zscrut |> ZExp.erase)) {
+    switch (Statics_Exp.syn(ctx, u_gen, zscrut |> ZExp.erase)) {
     | None => Failed
     | Some(ty1) =>
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
@@ -3539,7 +3574,7 @@ and ana_perform_operand =
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
-    switch (Statics_Exp.syn(ctx, scrut)) {
+    switch (Statics_Exp.syn(ctx, u_gen, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
       switch (ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, ty)) {
@@ -3565,7 +3600,8 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_subsume =
     (
       ctx: Contexts.t,
@@ -3574,7 +3610,7 @@ and ana_perform_subsume =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) =>
-  switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+  switch (Statics_Exp.syn_operand(ctx, u_gen, ZExp.erase_zoperand(zoperand))) {
   | None => Failed
   | Some(ty1) =>
     // must call syn_perform_operand and not syn_perform

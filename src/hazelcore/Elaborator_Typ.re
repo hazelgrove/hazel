@@ -2,11 +2,11 @@ module ElaborationResult = {
   include OptUtil;
 
   module Syn = {
-    type t = option((HTyp.t, Kind.t, Delta.t));
+    type t = option((HTyp.t, Kind.t, Delta.t, Contexts.t, MetaVarGen.t));
   };
 
   module Ana = {
-    type t = option((HTyp.t, Delta.t));
+    type t = option((HTyp.t, Delta.t, Contexts.t, MetaVarGen.t));
   };
 };
 
@@ -18,29 +18,39 @@ let rec get_prod_elements: UHTyp.skel => list(UHTyp.skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let rec syn: (Contexts.t, Delta.t, UHTyp.t) => ElaborationResult.Syn.t =
-  (ctx, delta) =>
+let rec syn:
+  (Contexts.t, MetaVarGen.t, Delta.t, UHTyp.t) => ElaborationResult.Syn.t =
+  (ctx, u_gen, delta) =>
     fun
-    | OpSeq(skel, seq) => syn_skel(ctx, delta, skel, seq)
-and syn_skel = (ctx, delta, skel, seq) =>
+    | OpSeq(skel, seq) => syn_skel(ctx, u_gen, delta, skel, seq)
+and syn_skel = (ctx, u_gen, delta, skel, seq) =>
   switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> syn_operand(ctx, delta)
+  | Placeholder(n) =>
+    seq |> Seq.nth_operand(n) |> syn_operand(ctx, u_gen, delta)
   | BinOp(_, Prod, _, _) =>
     /* TElabSBinOp */
-    let+ results =
-      skel
-      |> get_prod_elements
-      |> List.map(skel => ana_skel(ctx, delta, Kind.Type, skel, seq))
-      |> OptUtil.sequence;
-    let (tys, deltas) = ListUtil.unzip(results);
+    let skels = get_prod_elements(skel);
+    let+ (tys, deltas, ctx, u_gen) =
+      List.fold_left(
+        (acc_opt, skel) => {
+          let* (tys, deltas, ctx, u_gen) = acc_opt;
+          let+ (ty, delta, ctx, u_gen) =
+            ana_skel(ctx, u_gen, delta, Kind.Type, skel, seq);
+          ([ty, ...tys], [delta, ...deltas], ctx, u_gen);
+        },
+        Some(([], [], ctx, u_gen)),
+        skels,
+      );
     let delta =
       deltas |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
     let ty = HTyp.Prod(tys);
-    (ty, Kind.Singleton(Type, ty), delta);
+    (ty, Kind.Singleton(Type, ty), delta, ctx, u_gen);
   | BinOp(_, op, skel1, skel2) =>
     /* TElabSBinOp */
-    let* (ty1, d1) = ana_skel(ctx, delta, Kind.Type, skel1, seq);
-    let+ (ty2, d2) = ana_skel(ctx, delta, Kind.Type, skel2, seq);
+    let* (ty1, d1, ctx, u_gen) =
+      ana_skel(ctx, u_gen, delta, Kind.Type, skel1, seq);
+    let+ (ty2, d2, ctx, u_gen) =
+      ana_skel(ctx, u_gen, delta, Kind.Type, skel2, seq);
     let ty: HTyp.t =
       switch (op) {
       | Arrow => Arrow(ty1, ty2)
@@ -48,17 +58,28 @@ and syn_skel = (ctx, delta, skel, seq) =>
       | Prod => failwith("Impossible, Prod is matched first")
       };
     let k = Kind.Singleton(Type, ty);
-    (ty, k, Delta.union(d1, d2));
+    (ty, k, Delta.union(d1, d2), ctx, u_gen);
   }
-and syn_operand = (ctx, delta, operand) => {
+and syn_operand =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      delta: Delta.t,
+      operand: UHTyp.operand,
+    )
+    : ElaborationResult.Syn.t => {
+  SexpUtil.print_many(
+    ~at="ELABORATOR_TYP syn_operand",
+    [UHTyp.sexp_of_operand(operand), Contexts.sexp_of_t(ctx)],
+  );
   let const = ty => {
     /* TElabSConst */
     let k = Kind.Singleton(Type, ty);
-    Some((ty, k, delta));
+    Some((ty, k, delta, ctx, u_gen));
   };
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | Hole => Some((HTyp.Hole, KHole, delta))
+  | UHTyp.Hole => Some((HTyp.Hole, Kind.KHole, delta, ctx, u_gen))
   // /* TElabSHole */
   // let ty = HTyp.Hole;
   // Some((ty, KHole, Delta.(add(u, Hole.Type(KHole, tyctx), delta))));
@@ -73,36 +94,54 @@ and syn_operand = (ctx, delta, operand) => {
     let ty = HTyp.TyVarHole(reason, u, name);
     let k = Kind.KHole;
     let delta' = Delta.(add(u, Hole.Type(k, tyctx), delta));
-    Some((ty, k, delta'));
+    let ctx = Contexts.bind_tyhole(ctx, u, k);
+    Some((ty, k, delta', ctx, u_gen));
   | Unit => const(Prod([]))
   | Int => const(Int)
   | Float => const(Float)
   | Bool => const(Bool)
-  | Parenthesized(opseq) => syn(ctx, delta, opseq)
+  | Parenthesized(opseq) => syn(ctx, u_gen, delta, opseq)
   | List(opseq) =>
     /* TElabSList */
-    let+ (ty, delta) = ana(ctx, delta, opseq, Kind.Type);
-    (ty, Kind.Singleton(Type, ty), delta);
+    let+ (ty, delta, ctx, u_gen) = ana(ctx, u_gen, delta, opseq, Kind.Type);
+    (ty, Kind.Singleton(Type, ty), delta, ctx, u_gen);
   };
 }
 
-and ana: (Contexts.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.Ana.t =
-  (ctx, delta, opseq, k) =>
+and ana:
+  (Contexts.t, MetaVarGen.t, Delta.t, UHTyp.t, Kind.t) =>
+  ElaborationResult.Ana.t =
+  (ctx, u_gen, delta, opseq, k) =>
     switch (opseq) {
-    | OpSeq(skel, seq) => ana_skel(ctx, delta, k, skel, seq)
+    | OpSeq(skel, seq) => ana_skel(ctx, u_gen, delta, k, skel, seq)
     }
-and ana_skel = (ctx, delta, k, skel, seq): option((HTyp.t, Delta.t)) =>
+and ana_skel =
+    (ctx, u_gen, delta, k, skel, seq)
+    : option((HTyp.t, Delta.t, Contexts.t, MetaVarGen.t)) =>
   switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> ana_operand(ctx, delta, k)
+  | Placeholder(n) =>
+    seq |> Seq.nth_operand(n) |> ana_operand(ctx, u_gen, delta, k)
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
-    let+ (ty, _, delta) = syn_skel(ctx, delta, skel, seq);
-    (ty, delta);
+    let+ (ty, _, delta, ctx, u_gen) = syn_skel(ctx, u_gen, delta, skel, seq);
+    (ty, delta, ctx, u_gen);
   }
-and ana_operand = (ctx, delta, k, operand) => {
+and ana_operand =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      delta: Delta.t,
+      k: Kind.t,
+      operand: UHTyp.operand,
+    )
+    : ElaborationResult.Ana.t => {
+  SexpUtil.print_many(
+    ~at="ELABORATOR_TYP ana_operand",
+    [UHTyp.sexp_of_operand(operand), Contexts.sexp_of_t(ctx)],
+  );
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
-  | UHTyp.Hole => Some((HTyp.Hole, delta))
+  | Hole => Some((HTyp.Hole, delta, ctx, u_gen))
   // /* TElabAHole */
   // let ty = HTyp.Hole;
   // Some((ty, delta |> Delta.add(u, Delta.Hole.Type(KHole, tyctx))));
@@ -111,8 +150,13 @@ and ana_operand = (ctx, delta, k, operand) => {
     /* TElabAUVar */
     // TODO: id(\Phi) in TyVarHole
     let ty = HTyp.TyVarHole(reason, u, t);
-    Some((ty, Delta.add(u, Delta.Hole.Type(KHole, tyctx), delta)));
-  | Parenthesized(opseq) => ana(ctx, delta, opseq, k)
+    Some((
+      ty,
+      Delta.add(u, Delta.Hole.Type(KHole, tyctx), delta),
+      ctx,
+      u_gen,
+    ));
+  | Parenthesized(opseq) => ana(ctx, u_gen, delta, opseq, k)
   | TyVar(NotInHole(_), _)
   | Unit
   | Int
@@ -120,17 +164,20 @@ and ana_operand = (ctx, delta, k, operand) => {
   | Bool
   | List(_) =>
     /* TElabASubsume */
-    let+ (ty, _, delta) = syn_operand(ctx, delta, operand);
-    (ty, delta);
+    let+ (ty, _, delta, ctx, u_gen) =
+      syn_operand(ctx, u_gen, delta, operand);
+    (ty, delta, ctx, u_gen);
   };
 };
 
-let syn_kind = (ctx, uhty) =>
-  syn(ctx, Delta.empty, uhty) |> Option.map(((_, k, _)) => k);
-let syn_kind_skel = (ctx, skel, seq) =>
-  syn_skel(ctx, Delta.empty, skel, seq) |> Option.map(((_, k, _)) => k);
-let syn_kind_operand = (ctx, operand) =>
-  syn_operand(ctx, Delta.empty, operand) |> Option.map(((_, k, _)) => k);
+let syn_kind = (ctx, u_gen, uhty) =>
+  syn(ctx, u_gen, Delta.empty, uhty) |> Option.map(((_, k, _, _, _)) => k);
+let syn_kind_skel = (ctx, u_gen, skel, seq) =>
+  syn_skel(ctx, u_gen, Delta.empty, skel, seq)
+  |> Option.map(((_, k, _, _, _)) => k);
+let syn_kind_operand = (ctx, u_gen, operand) =>
+  syn_operand(ctx, u_gen, Delta.empty, operand)
+  |> Option.map(((_, k, _, _, _)) => k);
 
 // let ana_kind = (ctx, uhty, k: Kind.t): option(unit) => {
 //   open OptUtil.Syntax;
@@ -163,7 +210,8 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
 
     let skel = Skel.BinOp(NotInHole, op, skel1, skel2);
     // TODO: Is there a better way around this than force-unwrapping?
-    let (_, k, _) = syn_skel(ctx, Delta.empty, skel, seq) |> Option.get;
+    let (_, k, _, _, _) =
+      syn_skel(ctx, u_gen, Delta.empty, skel, seq) |> Option.get;
     (skel, seq, k, u_gen);
   }
 and syn_fix_holes_operand = (ctx, u_gen, operand) => {
@@ -199,7 +247,7 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) => {
     /* TElabSList */
     let (opseq, u_gen) = ana_fix_holes(ctx, u_gen, opseq, Kind.Type);
     // TODO: Is there a better way around this than force-unwrapping?
-    let (_, k, _) = syn(ctx, Delta.empty, opseq) |> Option.get;
+    let (_, k, _, _, _) = syn(ctx, u_gen, Delta.empty, opseq) |> Option.get;
     (List(opseq), k, u_gen);
   };
 }
