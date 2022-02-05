@@ -2,6 +2,13 @@ open Format;
 
 exception NotImplemented;
 
+module Preamble = {
+  let sum_t = "enum HazelSum<a, b> { L(a), R(b) }";
+
+  let preamble = [sum_t];
+  let to_string = () => String.concat("\n", preamble);
+};
+
 let rec emit_expr = (d: IHExp.t) => {
   switch (d) {
   | BoundVar(v) => v
@@ -110,7 +117,10 @@ and emit_float_op = (op: IHExp.BinFloatOp.t) => {
   };
 };
 
+let emit_preamble = () => {
+  Preamble.to_string();
+};
+
 let emit = (d: IHExp.t) => {
-  let s = "enum HazelSum<a, b> { L(a), R(b) }\n";
-  sprintf("%s%s", s, emit_expr(d));
+  sprintf("%s\n%s", emit_preamble(), emit_expr(d));
 };
