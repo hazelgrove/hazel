@@ -42,7 +42,6 @@ type t =
   | SelectCaseBranch(CursorPath.steps, int)
   | Import(UHExp.block)
   | ToggleImportPopup
-  | ToggleExportPopup
   | FocusCell
   | BlurCell
   | Redo

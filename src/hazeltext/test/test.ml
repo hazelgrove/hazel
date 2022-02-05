@@ -12,8 +12,9 @@ let fix_ast_holes ast : UHExp.block option =
 
 let parse text : UHExp.block option =
   let lexbuf = Lexing.from_string text in
-  let ast, _ = Parsing.ast_of_lexbuf lexbuf in
-  fix_ast_holes ast
+  match Parsing.ast_of_lexbuf lexbuf with
+  | Ok ast -> fix_ast_holes (Some ast)
+  | Error _ -> None
 
 let test_parse text : bool =
   (*Get the first AST*)

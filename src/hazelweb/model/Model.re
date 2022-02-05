@@ -6,7 +6,6 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   import_popup_open: bool,
-  export_popup_open: bool,
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
@@ -36,7 +35,7 @@ let init = (): t => {
       cardstacks_after_action: cardstacks,
       cardstacks_after_move: cardstacks,
       cursor_term_info,
-      previous_action: Init,
+      previous_action: EditAction(Init),
       action_group: Init,
       timestamp,
     };
@@ -76,7 +75,6 @@ let init = (): t => {
     left_sidebar_open: false,
     right_sidebar_open: true,
     import_popup_open: false,
-    export_popup_open: false,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -167,7 +165,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: Action.t, new_program, model) => {
+let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -230,7 +228,8 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(a, new_program);
+      let ma = ModelAction.EditAction(a);
+      model |> update_program(ma, new_program);
     },
   );
 };
@@ -240,7 +239,8 @@ let move_via_key = (move_key, model) => {
     model
     |> get_program
     |> Program.move_via_key(~settings=model.settings, move_key);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let move_via_click = (row_col, model) => {
@@ -248,7 +248,8 @@ let move_via_click = (row_col, model) => {
     model
     |> get_program
     |> Program.move_via_click(~settings=model.settings, row_col);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let select_case_branch =
@@ -256,9 +257,10 @@ let select_case_branch =
   let program = model |> get_program;
   let action = Program.move_to_case_branch(path_to_case, branch_index);
   let new_program = Program.perform_edit_action(action, program);
+  let model_action = ModelAction.EditAction(action);
   model
   |> put_program(new_program)
-  |> update_program(action, new_program)
+  |> update_program(model_action, new_program)
   |> focus_cell;
 };
 
@@ -275,9 +277,32 @@ let toggle_import_popup = (model: t): t => {
   ...model,
   import_popup_open: !model.import_popup_open,
 };
-let toggle_export_popup = (model: t): t => {
-  ...model,
-  export_popup_open: !model.export_popup_open,
+
+let import_uhexp = (model: t, e: UHExp.t): t => {
+  let new_program =
+    Program.mk(
+      ~width=model.cell_width,
+      Statics_Exp.fix_and_renumber_holes_z(
+        Contexts.empty,
+        ZExp.place_before(e),
+      ),
+    );
+  model
+  |> put_program(new_program)
+  |> put_undo_history(
+       {
+         let history = model |> get_undo_history;
+         let prev_cardstacks = model |> get_cardstacks;
+         let new_cardstacks =
+           model |> put_program(new_program) |> get_cardstacks;
+         UndoHistory.push_edit_state(
+           history,
+           prev_cardstacks,
+           new_cardstacks,
+           ModelAction.Import(e),
+         );
+       },
+     );
 };
 
 let load_cardstack = (model, idx) => {

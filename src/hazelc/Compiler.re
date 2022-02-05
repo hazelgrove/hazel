@@ -1,16 +1,13 @@
 module Parsing = Hazeltext.Parsing;
 
-exception Unreachable;
-
 type compile_result = result(string, string);
 
 let parse = (lexbuf: Lexing.lexbuf) => {
   let res = lexbuf |> Parsing.ast_of_lexbuf;
 
   switch (res) {
-  | (Some(lines), _) => Ok(lines)
-  | (None, Some(err)) => Error(err)
-  | (None, None) => raise(Unreachable)
+  | Ok(lines) => Ok(lines)
+  | Error(err) => Error(err)
   };
 };
 

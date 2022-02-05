@@ -38,6 +38,7 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
+  | Import
   | Init;
 
 [@deriving sexp]
@@ -114,6 +115,7 @@ let group_action_group =
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)
   | (SwapEdit(_), _)
+  | (Import, _)
   | (Init, _) => false
   };
 
