@@ -401,10 +401,10 @@ exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t => {
   let (ec, env) = EvalEnv.empty;
-  let (_, result) =
-    TimeUtil.measure_time("Evaluator.evaluate", true, () =>
-      program |> get_elaboration |> evaluate(ec, env)
-    );
+  let (_, result) = program |> get_elaboration |> evaluate(ec, env);
+  /* TimeUtil.measure_time("Evaluator.evaluate", true, () =>
+       program |> get_elaboration |> evaluate(ec, env)
+     ); */
   /* open Sexplib.Sexp;
      print_endline(
        "EC: "
@@ -415,10 +415,10 @@ let get_result = (program: t): Result.t => {
   switch (result) {
   | BoxedValue(d) =>
     /* TODO: remove timing function */
-    let (hci, d) =
-      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
-        Evaluator.trace_result_hcs(d)
-      );
+    let (hci, d) = Evaluator.trace_result_hcs(d);
+    /* TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+         Evaluator.trace_result_hcs(d)
+       ); */
     /* print_endline(
          "CONVERTED: "
          ++ to_string(DHExp.sexp_of_t(d))
@@ -432,10 +432,10 @@ let get_result = (program: t): Result.t => {
      (d_renumbered, hii, BoxedValue(d_renumbered)); */
   | Indet(d) =>
     /* TODO: remove timing */
-    let (hci, d) =
-      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
-        Evaluator.trace_result_hcs(d)
-      );
+    let (hci, d) = Evaluator.trace_result_hcs(d);
+    /* TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+         Evaluator.trace_result_hcs(d)
+       ); */
     /* print_endline(
          "CONVERTED: "
          ++ to_string(DHExp.sexp_of_t(d))

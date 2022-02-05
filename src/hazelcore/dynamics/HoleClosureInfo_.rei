@@ -5,19 +5,37 @@
    to identify the hole closures (similar to HoleInstanceInfo.t).
    */
 [@deriving sexp]
-type t = MetaVarMap.t(EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t)));
+type t =
+  MetaVarMap.t(
+    EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
+  );
 
 let empty: t;
 
-/* Returns the HoleClosure.t with the given u and sigma, if found */
-let find_hc_opt:
-  (t, MetaVar.t, EvalEnv.t) => option((HoleClosureId.t, EvalEnv.t));
+/* Gets the hole closure id of a hole closure with the given
+   hole number and hole environment. Also adds the current parent
+   hole closure to the HoleClosureInfo_.t.
 
-/* Installs a hole closure and returns the HoleClosureId.t. If the
-   hole closure already exists in the HoleClosureInfo_.t,
-   thsi returns the HoleClosureInfo_.t unmodified and the
-   closure's HoleClosureId.t */
-let add_hc: (t, MetaVar.t, EvalEnv.t) => (t, HoleClosureId.t);
+   If a hole closure with this hole number and environment already
+   exists in the HoleClosureInfo_.t, then the parent hole closure is
+   added to the HoleClosureInfo_.t, and the HoleClosureId.t and
+   environment of the existing hole closure is returned.
+
+   Otherwise, a new HoleClosureId.t is assigned to this hole closure,
+   and is inserted into the HoleClosureId_.t. This is returned, along
+   with a None EvalEnv.t.
+
+   (similar to HoleInstanceInfo.next, but memoized by EvalEnvId.t)
+   */
+let get_hc_id:
+  (t, MetaVar.t, EvalEnv.t, HoleClosure.t) =>
+  (t, HoleClosureId.t, option(EvalEnv.t));
+
+/* Updates the environment of the specified hole closure.
+
+   (similar to HoleInstanceInfo.update_environment)
+   */
+let update_hc_env: (t, MetaVar.t, EvalEnv.t) => t;
 
 /* Converts HoleClosureInfo_.t to HoleClosureInfo.t */
 let to_hole_closure_info: t => HoleClosureInfo.t;

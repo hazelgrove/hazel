@@ -496,7 +496,12 @@ and matches_cast_Cons =
    TODO: rename this (and associated functions)
    */
 let rec subst_vars_within_lambdas =
-        (hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
+        (
+          hci: HoleClosureInfo_.t,
+          env: EvalEnv.t,
+          d: DHExp.t,
+          parent_hc: HoleClosure.t,
+        )
         : (HoleClosureInfo_.t, DHExp.t) => {
   switch (d) {
   /* Bound variables should be looked up within the closure
@@ -518,47 +523,47 @@ let rec subst_vars_within_lambdas =
   | ListNil(_)
   | Triv => (hci, d)
   | Let(dp, d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, Let(dp, d1', d2'));
   | Lam(dp, ty, d') =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, Lam(dp, ty, d''));
   | Ap(d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, Ap(d1', d2'));
   | BinBoolOp(op, d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, BinBoolOp(op, d1', d2'));
   | BinIntOp(op, d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, BinIntOp(op, d1', d2'));
   | BinFloatOp(op, d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, BinFloatOp(op, d1', d2'));
   | Cons(d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, Cons(d1', d2'));
   | Inj(ty, side, d') =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, Inj(ty, side, d''));
   | Pair(d1, d2) =>
-    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1);
-    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2);
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, Pair(d1', d2'));
   | Cast(d', ty1, ty2) =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, Cast(d'', ty1, ty2));
   | FailedCast(d', ty1, ty2) =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, FailedCast(d'', ty1, ty2));
   | InvalidOperation(d', reason) =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, InvalidOperation(d'', reason));
   | ConsistentCase(_) => /* TODO */ (hci, d)
 
@@ -571,22 +576,25 @@ let rec subst_vars_within_lambdas =
   /* Hole expressions:
      - Use the closure environment as the hole environment.
      - Number the hole closure appropriately.
-     - Recurse through inner expression (if any). */
+     - Recurse through inner expression (if any).
+
+     Note: we don't have to recurse through the hole environment; this
+     should have already happened inside the evaluation boundary
+     */
   | EmptyHole(u, _, _) =>
-    /* Check if this hole closure already exists in hci */
-    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((i, env)) => (hci, EmptyHole(u, i, env))
-    | None =>
-      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, EmptyHole(u, i, env));
-    }
+    let (hci, i, env_opt) =
+      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (env_opt) {
+    | Some(_)
+    | None => (hci, EmptyHole(u, i, env))
+    };
   | NonEmptyHole(reason, u, _, _, d') =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env, d');
-    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((i, env)) => (hci, NonEmptyHole(reason, u, i, env, d''))
-    | None =>
-      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
-      (hci, NonEmptyHole(reason, u, i, env, d''));
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
+    let (hci, i, env_opt) =
+      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (env_opt) {
+    | Some(_)
+    | None => (hci, NonEmptyHole(reason, u, i, env, d''))
     };
   | InconsistentBranches(_) => /* TODO */ (hci, d)
   };
@@ -597,7 +605,8 @@ let rec subst_vars_within_lambdas =
 
    TODO: rename to encompass renumber operation */
 and expand_closures_to_lambdas =
-    (hci: HoleClosureInfo_.t, d: DHExp.t): (HoleClosureInfo_.t, DHExp.t) =>
+    (hci: HoleClosureInfo_.t, d: DHExp.t, parent_hc: HoleClosure.t)
+    : (HoleClosureInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | Keyword(_)
@@ -609,45 +618,45 @@ and expand_closures_to_lambdas =
   | ListNil(_)
   | Triv => (hci, d)
   | Let(dp, d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, Let(dp, d1', d2'));
   | Ap(d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, Ap(d1', d2'));
   | BinBoolOp(op, d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, BinBoolOp(op, d1', d2'));
   | BinIntOp(op, d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, BinIntOp(op, d1', d2'));
   | BinFloatOp(op, d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, BinFloatOp(op, d1', d2'));
   | Cons(d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, Cons(d1', d2'));
   | Inj(ty, side, d') =>
-    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
     (hci, Inj(ty, side, d''));
   | Pair(d1, d2) =>
-    let (hci, d1') = expand_closures_to_lambdas(hci, d1);
-    let (hci, d2') = expand_closures_to_lambdas(hci, d2);
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, Pair(d1', d2'));
   | Cast(d', ty1, ty2) =>
-    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
     (hci, Cast(d'', ty1, ty2));
   | FailedCast(d', ty1, ty2) =>
-    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
     (hci, FailedCast(d'', ty1, ty2));
   | ConsistentCase(_) => /* TODO */ (hci, d)
   | InvalidOperation(d', reason) =>
-    let (hci, d'') = expand_closures_to_lambdas(hci, d');
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
     (hci, InvalidOperation(d'', reason));
 
   /* Bound variables should not appear outside holes or closures */
@@ -664,8 +673,8 @@ and expand_closures_to_lambdas =
      - Fix environment recursively.
      - Body is recursively substituted with its environment. */
   | Closure(env', dp, ty, d') =>
-    let (hci, env'') = expand_closures_in_holes(hci, env');
-    let (hci, d'') = subst_vars_within_lambdas(hci, env'', d');
+    let (hci, env'') = expand_closures_in_holes(hci, env', parent_hc);
+    let (hci, d'') = subst_vars_within_lambdas(hci, env'', d', parent_hc);
     (hci, Lam(dp, ty, d''));
 
   /* Hole expressions:
@@ -673,29 +682,37 @@ and expand_closures_to_lambdas =
      - Number the hole closure appropriately.
      - Recurse through subexpressions if applicable. */
   | EmptyHole(u, _, env) =>
-    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((i, env)) => (hci, EmptyHole(u, i, env))
+    let (hci, i, env_opt) =
+      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (env_opt) {
+    | Some(env) => (hci, EmptyHole(u, i, env))
     | None =>
-      let (hci, env) = expand_closures_in_holes(hci, env);
-      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, EmptyHole(u, i, env));
-    }
+    };
   | NonEmptyHole(reason, u, _, env, d') =>
-    let (hci, d'') = expand_closures_to_lambdas(hci, d');
-    switch (HoleClosureInfo_.find_hc_opt(hci, u, env)) {
-    | Some((i, env)) => (hci, NonEmptyHole(reason, u, i, env, d''))
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
+    let (hci, i, env_opt) =
+      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (env_opt) {
+    | Some(env) => (hci, NonEmptyHole(reason, u, i, env, d''))
     | None =>
-      let (hci, env) = expand_closures_in_holes(hci, env);
-      let (hci, i) = HoleClosureInfo_.add_hc(hci, u, env);
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, NonEmptyHole(reason, u, i, env, d''));
     };
   | InconsistentBranches(_) => /* TODO */ (hci, d)
   }
 
 /* Apply expand_closures_to_lambdas to each expression in sigma,
-   threading hci throughout. */
+   threading hci throughout.
+
+   hc is the current HoleClosure.t, which will be set as the
+   parent of any holes directly in the subexpressions
+   */
 and expand_closures_in_holes =
-    (hci: HoleClosureInfo_.t, sigma: EvalEnv.t)
+    (hci: HoleClosureInfo_.t, sigma: EvalEnv.t, hc: HoleClosure.t)
     : (HoleClosureInfo_.t, EvalEnv.t) => {
   let ei =
     sigma
@@ -708,10 +725,10 @@ and expand_closures_in_holes =
            let (hci, var_result: result) =
              switch (var_result) {
              | BoxedValue(d) =>
-               let (hci, d) = expand_closures_to_lambdas(hci, d);
+               let (hci, d) = expand_closures_to_lambdas(hci, d, hc);
                (hci, BoxedValue(d));
              | Indet(d) =>
-               let (hci, d) = expand_closures_to_lambdas(hci, d);
+               let (hci, d) = expand_closures_to_lambdas(hci, d, hc);
                (hci, Indet(d));
              };
            (hci, [(var, var_result), ...result_map]);
@@ -722,7 +739,12 @@ and expand_closures_in_holes =
 };
 
 let trace_result_hcs = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
-  let (hci, d) = expand_closures_to_lambdas(HoleClosureInfo_.empty, d);
+  let (hci, d) =
+    expand_closures_to_lambdas(
+      HoleClosureInfo_.empty,
+      d,
+      HoleClosure.result_hc,
+    );
   (hci |> HoleClosureInfo_.to_hole_closure_info, d);
 };
 
@@ -813,12 +835,11 @@ let rec evaluate =
         | DoesNotMatch
         | Indet => (ec, Indet(Ap(d1, d2)))
         | Matches(env') =>
-          // evaluate a closure: extend the existing environment with the
-          // closure environment and the new bindings introduced by the
-          // function application.
+          // evaluate a closure: extend the closure environment with the
+          // new bindings introduced by the function application.
           let match_result_map = map_environment_to_result_map(ec, env, env');
-          let (ec, env) = EvalEnv.union(ec, closure_env, env);
-          let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
+          let (ec, env) =
+            EvalEnv.union_with_env(ec, match_result_map, closure_env);
           evaluate(ec, env, d3);
         }
       }

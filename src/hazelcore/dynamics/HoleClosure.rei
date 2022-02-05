@@ -11,3 +11,10 @@ type t = (MetaVar.t, HoleClosureId.t);
 
 let u_of_hc: t => MetaVar.t;
 let i_of_hc: t => HoleClosureId.t;
+
+/* Special HoleClosure.t used to represent the parent
+   "hole instance" of the result. That is to say, if a hole
+   instance has this value as its parent, then it is
+   directly in the result.
+   */
+let result_hc: t;

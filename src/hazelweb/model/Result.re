@@ -21,7 +21,7 @@ let fast_equals = ((_, hci1, r1): t, (_, hci2, r2): t): bool => {
          && List.length(hcs1) == List.length(hcs2)
          && List.for_all2(
               /* Check that all hole closures are equal */
-              (sigma1, sigma2) =>
+              ((sigma1, _), (sigma2, _)) =>
                 EvalEnv.id_of_evalenv(sigma1)
                 == EvalEnv.id_of_evalenv(sigma2)
                 && List.for_all2(
