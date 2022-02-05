@@ -3,7 +3,7 @@
 (library
  (name hazelc)
  (modules :standard)
- (libraries hazelcore)
+ (libraries hazelcore hazeltext)
  (wrapped false)
  (js_of_ocaml
   (flags
