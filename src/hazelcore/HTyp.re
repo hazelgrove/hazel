@@ -38,7 +38,7 @@ let rec normalize = (ctx: TyCtx.t, ty: t): t =>
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
   | TyVarHole(_, u, _) =>
-    SexpUtil.print(~at="XXX", sexp_of_t(ty));
+    SexpUtil.print_many(~at="XXX", [sexp_of_t(ty), TyCtx.sexp_of_t(ctx)]);
     switch (ctx |> TyCtx.hole_kind(u)) {
     | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
     | Some(_) => ty

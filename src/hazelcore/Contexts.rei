@@ -10,6 +10,7 @@ let gamma: t => VarCtx.t;
 let palette_ctx: t => PaletteCtx.t;
 
 let typing: t => TyCtx.t;
+// let replace_typing: (t, TyCtx.t) => t;
 
 let bind_tyvar: (t, TyVar.Name.t, Kind.t) => t;
 let bind_tyhole: (t, MetaVar.t, Kind.t) => t;

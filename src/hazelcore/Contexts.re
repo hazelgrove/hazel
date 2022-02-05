@@ -21,6 +21,8 @@ let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
 let typing: t => TyCtx.t = ({typing, _}) => typing;
 
+// let replace_typing = (ctx: t, typing: TyCtx.t): t => {...ctx, typing};
+
 let bind_tyvar = (ctx: t, name: TyVar.Name.t, k: Kind.t): t => {
   let typing = ctx.typing |> TyCtx.bind_var(name, k);
   {...ctx, typing};

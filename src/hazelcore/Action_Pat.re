@@ -603,7 +603,7 @@ and syn_perform_opseq =
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq)
-      | Succeeded((zp, _, _, u_gen)) =>
+      | Succeeded((zp, _, ctx, u_gen)) =>
         let zseq = resurround_z(zp, surround);
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
       }
@@ -612,7 +612,7 @@ and syn_perform_opseq =
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_opseq(ctx, u_gen, Action_common.escape(side), zopseq)
-      | Succeeded((zp, _, u_gen)) =>
+      | Succeeded((zp, ctx, u_gen)) =>
         let new_zseq = resurround_z(zp, surround);
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
       }
@@ -939,6 +939,14 @@ and syn_perform_operand =
     switch (Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
     | Some((ty, kind, _, ctx, u_gen)) =>
+      SexpUtil.print_many(
+        ~at="AAA",
+        [
+          HTyp.sexp_of_t(ty),
+          Kind.sexp_of_t(kind),
+          Contexts.sexp_of_t(ctx),
+        ],
+      );
       switch (
         Action_Typ.syn_perform(
           a,
@@ -949,6 +957,14 @@ and syn_perform_operand =
       | Some(CursorEscaped(side)) =>
         syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
       | Some(Succeeded({zty: zann, ctx, u_gen, kind: _})) =>
+        SexpUtil.print_many(
+          ~at="BBB",
+          [
+            ZTyp.sexp_of_t(zann),
+            Kind.sexp_of_t(kind),
+            Contexts.sexp_of_t(ctx),
+          ],
+        );
         let (zpat, ctx, u_gen) =
           Statics_Pat.ana_fix_holes_z(
             ctx,
@@ -956,8 +972,16 @@ and syn_perform_operand =
             ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
             ty,
           );
+        SexpUtil.print_many(
+          ~at="CCC",
+          [
+            ZPat.sexp_of_t(zpat),
+            Kind.sexp_of_t(kind),
+            Contexts.sexp_of_t(ctx),
+          ],
+        );
         Succeeded((zpat, ty, ctx, u_gen));
-      }
+      };
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
