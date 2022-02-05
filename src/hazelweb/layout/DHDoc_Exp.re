@@ -256,7 +256,7 @@ let rec mk =
                  ~inline_padding=(space(), space()),
                  ~enforce_inline=false,
                ),
-            DHDoc_common.Delim.mk(":"),
+            DHDoc_common.Delim.mk("::"),
             DHDoc_Kind.mk(k)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
