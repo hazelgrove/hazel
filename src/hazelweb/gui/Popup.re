@@ -57,7 +57,7 @@ let import_body = (inject, model) => {
               let cur_text = JSUtil.force_get_attr("value", elem);
               let lexbuf = Lexing.from_string(cur_text);
               switch (Parsing.ast_of_lexbuf(lexbuf)) {
-              | (Some(ast), None) =>
+              | Ok(ast) =>
                 let (ast, _, _) =
                   Statics_Exp.fix_and_renumber_holes(Contexts.empty, ast);
                 JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
@@ -79,7 +79,7 @@ let import_body = (inject, model) => {
               let cur_text = JSUtil.force_get_attr("value", elem);
               let lexbuf = Lexing.from_string(cur_text);
               switch (Parsing.ast_of_lexbuf(lexbuf)) {
-              | (Some(ast), _) =>
+              | Ok(ast) =>
                 let (ast, _, _) =
                   Statics_Exp.syn_fix_holes(
                     Contexts.empty,
@@ -89,11 +89,10 @@ let import_body = (inject, model) => {
                 let errs_elem = JSUtil.force_get_elem_by_id("parse-errors");
                 errs_elem##.innerHTML := JSUtil.Js.string("");
                 inject(ModelAction.Import(ast));
-              | (_, Some(err_string)) =>
+              | Error(err_string) =>
                 let errs_elem = JSUtil.force_get_elem_by_id("parse-errors");
                 errs_elem##.innerHTML := JSUtil.Js.string(err_string);
                 Event.Ignore;
-              | (None, None) => Event.Ignore
               };
             }),
           ],
