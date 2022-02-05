@@ -40,6 +40,9 @@ type t =
   | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
+  | Import(UHExp.block)
+  | ToggleImportPopup
+  | ToggleExportPopup
   | FocusCell
   | BlurCell
   | Redo
