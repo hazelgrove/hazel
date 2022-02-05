@@ -276,6 +276,91 @@ let view =
        );
      }; */
 
+  let hc_parents_view = (hc_parents: HoleClosureParents.t) => {
+    let parents_info =
+      hc_parents
+      |> List.map(((u, i)) =>
+           (u, i) == HoleClosure.result_hc
+             ? Node.div([], [Node.text("directly in result")])
+             : Node.div(
+                 [],
+                 [
+                   DHCode.view_of_hole_closure(
+                     ~inject,
+                     ~width=30,
+                     ~selected_hole_closure,
+                     ~settings,
+                     ~font_metrics,
+                     (u, i),
+                   ),
+                 ],
+               )
+         );
+
+    Node.div(
+      [],
+      [
+        Panel.view_of_other_title_bar("Hole closure parents"),
+        ...parents_info,
+      ],
+    );
+    /* let (titlebar_txt, path_area_children) =
+         switch (path) {
+         | [] => (
+             "which is in the result",
+             [
+               Node.div(
+                 [Attr.classes(["special-msg"])],
+                 [Node.div([], [Node.text("immediately")])],
+               ),
+             ],
+           )
+         | _ =>
+           let titlebar_txt = "which is in the result via path";
+           let path_area_children =
+             List.fold_left(
+               (acc, path_item) =>
+                 [
+                   view_of_path_item(path_item),
+                   Node.span(
+                     [Attr.classes(["path-item-separator"])],
+                     [Node.text(" 〉 ")],
+                   ),
+                   ...acc,
+                 ],
+               [
+                 Node.div(
+                   [Attr.classes(["trailing-inst"])],
+                   [
+                     DHCode.view_of_hole_instance(
+                       ~inject,
+                       ~width=30,
+                       ~selected_instance,
+                       ~settings,
+                       ~font_metrics,
+                       inst,
+                     ),
+                   ],
+                 ),
+               ],
+               path,
+             );
+
+           (
+             titlebar_txt,
+             [Node.div([Attr.classes(["path-area"])], path_area_children)],
+           );
+         };
+
+       Node.div(
+         [Attr.classes(["path-view-with-path"])],
+         [
+           Panel.view_of_other_title_bar(titlebar_txt),
+           Node.div([Attr.classes(["path-area-parent"])], path_area_children),
+         ],
+       ); */
+  };
+
   let context_view = {
     let ctx =
       program
@@ -319,57 +404,54 @@ let view =
   };
 
   /**
-   * Shows the `InstancePath` to the currently selected instance.
+   * Shows the `HoleClosureParents.t` for the currently selected hole closure.
    */
   let path_viewer =
     if (settings.evaluate) {
-      let ctx =
-        program
-        |> Program.get_cursor_info
-        |> CursorInfo_common.get_ctx
-        |> Contexts.gamma;
+      /* let ctx =
+         program
+         |> Program.get_cursor_info
+         |> CursorInfo_common.get_ctx
+         |> Contexts.gamma; */
       let (_, hii, _) = program |> Program.get_result;
-      if (VarMap.is_empty(ctx)) {
-        Node.div([], []);
-      } else {
-        let children =
-          switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
+      /* if (VarMap.is_empty(ctx)) {
+           Node.div([], []);
+         } else { */
+      let children =
+        switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
+        | None => [
+            instructional_msg(
+              "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+            ),
+          ]
+        | Some(u) =>
+          switch (selected_hole_closure) {
           | None => [
-              instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see closures.",
-              ),
+              instructional_msg("Click on a hole instance in the result"),
             ]
-          | Some(u) =>
-            switch (selected_hole_closure) {
-            | None => [
-                instructional_msg("Click on a hole instance in the result"),
-              ]
-            | Some((u', i) as inst) =>
-              if (MetaVar.eq(u, u')) {
-                switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
-                | None =>
-                  // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: InvalidInstance")]
-
-                /* TODO: need to update the way path works */
-                | Some(_) => [path_view_titlebar, hii_summary(hii, inst)]
-                /* | Some((_, path)) => [
-                     path_view_titlebar,
-                     hii_summary(hii, inst),
-                     path_view(inst, path),
-                   ] */
-                };
-              } else {
-                [
-                  instructional_msg(
-                    "Internal Error: cursor is not at the selected hole instance.",
-                  ),
-                ];
-              }
+          | Some((u', i) as inst) =>
+            if (MetaVar.eq(u, u')) {
+              switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
+              | None =>
+                // raise(InvalidInstance)
+                [instructional_msg("Internal Error: InvalidInstance")]
+              | Some((_, hc_parents)) => [
+                  path_view_titlebar,
+                  hii_summary(hii, inst),
+                  hc_parents_view(hc_parents),
+                ]
+              };
+            } else {
+              [
+                instructional_msg(
+                  "Internal Error: cursor is not at the selected hole instance.",
+                ),
+              ];
             }
-          };
-        Node.div([Attr.classes(["the-path-viewer"])], children);
-      };
+          }
+        };
+      Node.div([Attr.classes(["the-path-viewer"])], children);
+      /* }; */
     } else {
       Node.div([], []);
     };

@@ -4,7 +4,7 @@
    */
 
 [@deriving sexp]
-type t;
+type t = list(HoleClosure.t);
 
 let add_parent: (t, HoleClosure.t) => t;
 let to_list: t => list(HoleClosure.t);
