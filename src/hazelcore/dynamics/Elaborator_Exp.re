@@ -79,6 +79,20 @@ and syn_elab_line =
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1', delta) =>
+        let d1 =
+          switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
+          | None => d1
+          | Some(x) =>
+            FixF(
+              x,
+              ty1',
+              Evaluator.subst_var(
+                DHExp.cast(BoundVar(x), ty1', ty1),
+                x,
+                d1,
+              ),
+            )
+          };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate

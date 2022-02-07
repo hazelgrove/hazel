@@ -56,6 +56,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FreeVar(_, _, _, _)) => Indet
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
+  | (_, FixF(_, _, _)) => DoesNotMatch
   | (_, Lam(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
@@ -199,6 +200,7 @@ and matches_cast_Inj =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -264,6 +266,7 @@ and matches_cast_Pair =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -335,6 +338,7 @@ and matches_cast_Cons =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -359,124 +363,140 @@ and matches_cast_Cons =
 /* closed substitution [d1/x]d2
    Not needed for evaluation with environments,
    leaving in case it's useful for something else */
-/* let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
-     switch (d2) {
-     | BoundVar(y) =>
-       if (Var.eq(x, y)) {
-         d1;
-       } else {
-         d2;
-       }
-     | FreeVar(_) => d2
-     | InvalidText(_) => d2
-     | Keyword(_) => d2
-     | Let(dp, d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 =
+let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
+  switch (d2) {
+  | BoundVar(y) =>
+    if (Var.eq(x, y)) {
+      d1;
+    } else {
+      d2;
+    }
+  | FreeVar(_) => d2
+  | InvalidText(_) => d2
+  | Keyword(_) => d2
+  | Let(dp, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 =
+      if (DHPat.binds_var(x, dp)) {
+        d4;
+      } else {
+        subst_var(d1, x, d4);
+      };
+    Let(dp, d3, d4);
+  | FixF(y, ty, d3) =>
+    let d3 =
+      if (Var.eq(x, y)) {
+        d3;
+      } else {
+        subst_var(d1, x, d3);
+      };
+    FixF(y, ty, d3);
+  | Lam(dp, ty, d3)
+  | Closure(_, dp, ty, d3) =>
+    if (DHPat.binds_var(x, dp)) {
+      d2;
+    } else {
+      let d3 = subst_var(d1, x, d3);
+      Lam(dp, ty, d3);
+    }
+  | Ap(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Ap(d3, d4);
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => d2
+  | Cons(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Cons(d3, d4);
+  | BinBoolOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinBoolOp(op, d3, d4);
+  | BinIntOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinIntOp(op, d3, d4);
+  | BinFloatOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinFloatOp(op, d3, d4);
+  | Inj(ty, side, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    Inj(ty, side, d3);
+  | Pair(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Pair(d3, d4);
+  | ConsistentCase(Case(d3, rules, n)) =>
+    let d3 = subst_var(d1, x, d3);
+    let rules = subst_var_rules(d1, x, rules);
+    ConsistentCase(Case(d3, rules, n));
+  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+    let d3 = subst_var(d1, x, d3);
+    let rules = subst_var_rules(d1, x, rules);
+    let sigma' = subst_var_env(d1, x, sigma);
+    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+  | EmptyHole(u, i, sigma) =>
+    let sigma' = subst_var_env(d1, x, sigma);
+    EmptyHole(u, i, sigma');
+  | NonEmptyHole(reason, u, i, sigma, d3) =>
+    let d3' = subst_var(d1, x, d3);
+    let sigma' = subst_var_env(d1, x, sigma);
+    NonEmptyHole(reason, u, i, sigma', d3');
+  | Cast(d, ty1, ty2) =>
+    let d' = subst_var(d1, x, d);
+    Cast(d', ty1, ty2);
+  | FailedCast(d, ty1, ty2) =>
+    let d' = subst_var(d1, x, d);
+    FailedCast(d', ty1, ty2);
+  | InvalidOperation(d, err) =>
+    let d' = subst_var(d1, x, d);
+    InvalidOperation(d', err);
+  }
+
+and subst_var_rules =
+    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
+  rules
+  |> List.map((r: DHExp.rule) =>
+       switch (r) {
+       | Rule(dp, d2) =>
          if (DHPat.binds_var(x, dp)) {
-           d4;
+           r;
          } else {
-           subst_var(d1, x, d4);
-         };
-       Let(dp, d3, d4);
-     | Lam(dp, ty, d3)
-     | Closure(_, dp, ty, d3) =>
-       if (DHPat.binds_var(x, dp)) {
-         d2;
-       } else {
-         let d3 = subst_var(d1, x, d3);
-         Lam(dp, ty, d3);
+           Rule(dp, subst_var(d1, x, d2));
+         }
        }
-     | Ap(d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       Ap(d3, d4);
-     | BoolLit(_)
-     | IntLit(_)
-     | FloatLit(_)
-     | ListNil(_)
-     | Triv => d2
-     | Cons(d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       Cons(d3, d4);
-     | BinBoolOp(op, d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       BinBoolOp(op, d3, d4);
-     | BinIntOp(op, d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       BinIntOp(op, d3, d4);
-     | BinFloatOp(op, d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       BinFloatOp(op, d3, d4);
-     | Inj(ty, side, d3) =>
-       let d3 = subst_var(d1, x, d3);
-       Inj(ty, side, d3);
-     | Pair(d3, d4) =>
-       let d3 = subst_var(d1, x, d3);
-       let d4 = subst_var(d1, x, d4);
-       Pair(d3, d4);
-     | ConsistentCase(Case(d3, rules, n)) =>
-       let d3 = subst_var(d1, x, d3);
-       let rules = subst_var_rules(d1, x, rules);
-       ConsistentCase(Case(d3, rules, n));
-     | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
-       let d3 = subst_var(d1, x, d3);
-       let rules = subst_var_rules(d1, x, rules);
-       let sigma' = subst_var_env(d1, x, sigma);
-       InconsistentBranches(u, i, sigma', Case(d3, rules, n));
-     | EmptyHole(u, i, sigma) =>
-       let sigma' = subst_var_env(d1, x, sigma);
-       EmptyHole(u, i, sigma');
-     | NonEmptyHole(reason, u, i, sigma, d3) =>
-       let d3' = subst_var(d1, x, d3);
-       let sigma' = subst_var_env(d1, x, sigma);
-       NonEmptyHole(reason, u, i, sigma', d3');
-     | Cast(d, ty1, ty2) =>
-       let d' = subst_var(d1, x, d);
-       Cast(d', ty1, ty2);
-     | FailedCast(d, ty1, ty2) =>
-       let d' = subst_var(d1, x, d);
-       FailedCast(d', ty1, ty2);
-     | InvalidOperation(d, err) =>
-       let d' = subst_var(d1, x, d);
-       InvalidOperation(d', err);
-     }
+     )
 
-   and subst_var_rules =
-       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-     rules
-     |> List.map((r: DHExp.rule) =>
-          switch (r) {
-          | Rule(dp, d2) =>
-            if (DHPat.binds_var(x, dp)) {
-              r;
-            } else {
-              Rule(dp, subst_var(d1, x, d2));
-            }
-          }
-        )
+and subst_var_env = (d1: DHExp.t, x: Var.t, sigma: EvalEnv.t): EvalEnv.t =>
+  switch (sigma) {
+  | UnreachedEnv =>
+    /* Do not recurse through empty environments */
+    sigma
+  | Env(_) =>
+    EvalEnv.map_keep_id(
+      ((_, dr)) =>
+        switch (dr) {
+        | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
+        | Indet(d) => Indet(subst_var(d1, x, d))
+        },
+      sigma,
+    )
+  };
 
-   and subst_var_env =
-       (d1: DHExp.t, x: Var.t, sigma: Environment.t): Environment.t =>
-     sigma
-     |> List.map(xd => {
-          let (y, d) = xd;
-          (y, subst_var(d1, x, d));
-        });
-
-   let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
-     env
-     |> List.fold_left(
-          (d2, xd: (Var.t, DHExp.t)) => {
-            let (x, d1) = xd;
-            subst_var(d1, x, d2);
-          },
-          d,
-        ); */
+let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
+  env
+  |> List.fold_left(
+       (d2, xd: (Var.t, DHExp.t)) => {
+         let (x, d1) = xd;
+         subst_var(d1, x, d2);
+       },
+       d,
+     );
 
 /* expand_closures_to_lambdas recursively performs substitution
    on the bodies of closures throughout the result (including
@@ -526,6 +546,9 @@ let rec subst_vars_within_lambdas =
     let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
     let (hci, d2') = subst_vars_within_lambdas(hci, env, d2, parent_hc);
     (hci, Let(dp, d1', d2'));
+  | FixF(f, ty, d1) =>
+    let (hci, d1') = subst_vars_within_lambdas(hci, env, d1, parent_hc);
+    (hci, FixF(f, ty, d1'));
   | Lam(dp, ty, d') =>
     let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
     (hci, Lam(dp, ty, d''));
@@ -621,6 +644,9 @@ and expand_closures_to_lambdas =
     let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
     let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
     (hci, Let(dp, d1', d2'));
+  | FixF(f, ty, d1) =>
+    let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
+    (hci, FixF(f, ty, d1'));
   | Ap(d1, d2) =>
     let (hci, d1') = expand_closures_to_lambdas(hci, d1, parent_hc);
     let (hci, d2') = expand_closures_to_lambdas(hci, d2, parent_hc);
@@ -823,6 +849,11 @@ let rec evaluate =
         evaluate(ec, env, d2);
       }
     }
+  | FixF(f, ty, d) =>
+    switch (evaluate(ec, env, d)) {
+    | (ec, BoxedValue(d')) => (ec, BoxedValue(FixF(f, ty, d')))
+    | (ec, Indet(d')) => (ec, Indet(FixF(f, ty, d')))
+    }
   | Lam(dp, ty, d) => (ec, BoxedValue(Closure(env, dp, ty, d)))
   | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
@@ -838,6 +869,29 @@ let rec evaluate =
           // evaluate a closure: extend the closure environment with the
           // new bindings introduced by the function application.
           let match_result_map = map_environment_to_result_map(ec, env, env');
+          let (ec, env) =
+            EvalEnv.union_with_env(ec, match_result_map, closure_env);
+          evaluate(ec, env, d3);
+        }
+      }
+    | (
+        ec,
+        BoxedValue(
+          FixF(f, _, Closure(closure_env, dp, _, d3) as d1) as fix_d,
+        ),
+      ) =>
+      switch (evaluate(ec, env, d2)) {
+      | (ec, BoxedValue(d2))
+      | (ec, Indet(d2)) =>
+        switch (matches(dp, d2)) {
+        | DoesNotMatch
+        | Indet => (ec, Indet(Ap(d1, d2)))
+        | Matches(env') =>
+          // evaluate a closure: extend the closure environment with the
+          // new bindings introduced by the function application.
+          let env'' = Environment.union(env', [(f, fix_d)]);
+          let match_result_map =
+            map_environment_to_result_map(ec, env, env'');
           let (ec, env) =
             EvalEnv.union_with_env(ec, match_result_map, closure_env);
           evaluate(ec, env, d3);

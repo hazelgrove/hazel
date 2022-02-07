@@ -47,6 +47,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
+  | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
@@ -279,8 +280,7 @@ let rec mk =
        };
        */
       // TODO: different handling of Closure?
-      | Lam(dp, ty, dbody)
-      | Closure(_, dp, ty, dbody) =>
+      | Lam(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -292,6 +292,26 @@ let rec mk =
             DHDoc_common.Delim.open_Lam,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Lam,
+          ]);
+        } else {
+          annot(DHAnnot.Collapsed, text("<fn>"));
+        }
+      | Closure(_) =>
+        exception ClosureInResult;
+        raise(ClosureInResult);
+      | FixF(x, ty, dbody) =>
+        if (settings.show_fn_bodies) {
+          let doc_body = (~enforce_inline) =>
+            go(~enforce_inline, dbody) |> mk_cast;
+          hcats([
+            DHDoc_common.Delim.fix_FixF,
+            space(),
+            text(x),
+            DHDoc_common.Delim.colon_FixF,
+            DHDoc_Typ.mk(~enforce_inline=true, ty),
+            DHDoc_common.Delim.open_FixF,
+            doc_body |> DHDoc_common.pad_child(~enforce_inline),
+            DHDoc_common.Delim.close_FixF,
           ]);
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));

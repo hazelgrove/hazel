@@ -15,5 +15,5 @@ let evaluate:
 /* closed substitution [d1/x]d2;
    Not needed for evaluation with environments,
    leaving in case it's useful for something else */
-/* let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
-   let subst: (Environment.t, DHExp.t) => DHExp.t; */
+let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;
+let subst: (Environment.t, DHExp.t) => DHExp.t;

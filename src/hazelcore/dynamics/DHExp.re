@@ -144,6 +144,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
+  | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Closure(evalenv, DHPat.t, HTyp.t, t)
   | Ap(t, t)
@@ -184,6 +185,7 @@ let constructor_string = (d: t): string =>
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
+  | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
   | Closure(_, _, _, _) => "Closure"
   | Ap(_, _) => "Ap"
@@ -249,6 +251,8 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   /* Non-hole forms: recurse */
   | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
     dp1 == dp2 && fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
+    f1 == f2 && ty1 == ty2 && fast_equals(d1, d2)
   | (Lam(dp1, ty1, d1), Lam(dp2, ty2, d2)) =>
     dp1 == dp2 && ty1 == ty2 && fast_equals(d1, d2)
   | (Ap(d11, d21), Ap(d12, d22))
@@ -271,6 +275,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   | (ConsistentCase(case1), ConsistentCase(case2)) =>
     fast_equals_case(case1, case2)
   | (Let(_), _)
+  | (FixF(_), _)
   | (Lam(_), _)
   | (Ap(_), _)
   | (Cons(_), _)
@@ -326,6 +331,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
 }
 and fast_equals_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
   fast_equals(d1, d2)
+  && List.length(rules1) == List.length(rules2)
   && List.for_all2(
        (Rule(dp1, d1), Rule(dp2, d2)) => dp1 == dp2 && fast_equals(d1, d2),
        rules1,

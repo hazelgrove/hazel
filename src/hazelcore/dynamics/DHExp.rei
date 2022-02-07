@@ -57,6 +57,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
+  | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Closure(evalenv, DHPat.t, HTyp.t, t)
   | Ap(t, t)

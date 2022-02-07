@@ -61,6 +61,11 @@ module Delim = {
   let open_Lam = mk(".{");
   let close_Lam = mk("}");
 
+  let fix_FixF = mk("fix");
+  let colon_FixF = mk(":");
+  let open_FixF = mk(".{");
+  let close_FixF = mk("}");
+
   let open_Inj = (inj_side: InjSide.t) =>
     mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
   let close_Inj = mk(")");
