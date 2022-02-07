@@ -398,55 +398,30 @@ let get_elaboration = (program: t): DHExp.t =>
   };
 
 exception EvalError(EvaluatorError.t);
-let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+let (ec_init, env_init) = EvalEnv.empty;
+let evaluate =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(ec_init, env_init),
+  );
 let get_result = (program: t): Result.t => {
-  let (ec, env) = EvalEnv.empty;
-  let (_, result) = program |> get_elaboration |> evaluate(ec, env);
-  /* TimeUtil.measure_time("Evaluator.evaluate", true, () =>
-       program |> get_elaboration |> evaluate(ec, env)
-     ); */
-  /* open Sexplib.Sexp;
-     print_endline(
-       "EC: "
-       ++ to_string(EvalEnvIdGen.sexp_of_t(ec))
-       ++ "\n\nRESULT: "
-       ++ to_string(Evaluator.sexp_of_result(result)),
-     ); */
-  switch (result) {
-  | BoxedValue(d) =>
-    /* TODO: remove timing function */
-    let (hci, d) = Evaluator.trace_result_hcs(d);
-    /* TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
-         Evaluator.trace_result_hcs(d)
-       ); */
-    /* print_endline(
-         "CONVERTED: "
-         ++ to_string(DHExp.sexp_of_t(d))
-         ++ "\n\nHCI: "
-         ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
-       ); */
+  switch (
+    TimeUtil.measure_time("Evaluator.evaluate", true, () =>
+      program |> get_elaboration |> evaluate
+    )
+  ) {
+  | (_, BoxedValue(d)) =>
+    let (hci, d) =
+      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+        Evaluator.trace_result_hcs(d)
+      );
     (d, hci, BoxedValue(d));
-
-  /* TODO: remove */
-  /* let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
-     (d_renumbered, hii, BoxedValue(d_renumbered)); */
-  | Indet(d) =>
-    /* TODO: remove timing */
-    let (hci, d) = Evaluator.trace_result_hcs(d);
-    /* TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
-         Evaluator.trace_result_hcs(d)
-       ); */
-    /* print_endline(
-         "CONVERTED: "
-         ++ to_string(DHExp.sexp_of_t(d))
-         ++ "\n\nHCI: "
-         ++ to_string(HoleClosureInfo.sexp_of_t(hci)),
-       ); */
+  | (_, Indet(d)) =>
+    let (hci, d) =
+      TimeUtil.measure_time("Evaluator.trace_result_hcs", true, () =>
+        Evaluator.trace_result_hcs(d)
+      );
     (d, hci, Indet(d));
-
-  /* TODO: remove */
-  /* let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
-     (d_renumbered, hii, Indet(d_renumbered)); */
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };
