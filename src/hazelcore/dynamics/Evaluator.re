@@ -605,19 +605,17 @@ let rec subst_vars_within_lambdas =
      should have already happened inside the evaluation boundary
      */
   | EmptyHole(u, _, _) =>
-    let (hci, i, env_opt) =
-      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
-    switch (env_opt) {
-    | Some(_)
-    | None => (hci, EmptyHole(u, i, env))
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, _)
+    | NewClosure(hci, i) => (hci, EmptyHole(u, i, env))
     };
   | NonEmptyHole(reason, u, _, _, d') =>
     let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent_hc);
-    let (hci, i, env_opt) =
-      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
-    switch (env_opt) {
-    | Some(_)
-    | None => (hci, NonEmptyHole(reason, u, i, env, d''))
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, _)
+    | NewClosure(hci, i) => (hci, NonEmptyHole(reason, u, i, env, d''))
     };
   | InconsistentBranches(_) => /* TODO */ (hci, d)
   };
@@ -708,22 +706,23 @@ and expand_closures_to_lambdas =
      - Number the hole closure appropriately.
      - Recurse through subexpressions if applicable. */
   | EmptyHole(u, _, env) =>
-    let (hci, i, env_opt) =
-      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
-    switch (env_opt) {
-    | Some(env) => (hci, EmptyHole(u, i, env))
-    | None =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
       let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, EmptyHole(u, i, env));
     };
   | NonEmptyHole(reason, u, _, env, d') =>
     let (hci, d'') = expand_closures_to_lambdas(hci, d', parent_hc);
-    let (hci, i, env_opt) =
-      HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
-    switch (env_opt) {
-    | Some(env) => (hci, NonEmptyHole(reason, u, i, env, d''))
-    | None =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent_hc);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (
+        hci,
+        NonEmptyHole(reason, u, i, env, d''),
+      )
+    | NewClosure(hci, i) =>
       let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, NonEmptyHole(reason, u, i, env, d''));

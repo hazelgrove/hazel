@@ -6,9 +6,12 @@ type t =
 
 let empty = MetaVarMap.empty;
 
+type hc_id_result =
+  | ExistClosure(t, HoleClosureId.t, EvalEnv.t)
+  | NewClosure(t, HoleClosureId.t);
 let get_hc_id =
     (hci: t, u: MetaVar.t, sigma: EvalEnv.t, parent_hc: HoleClosure.t)
-    : (t, HoleClosureId.t, option(EvalEnv.t)) => {
+    : hc_id_result => {
   let ei =
     sigma
     |> EvalEnv.id_of_evalenv
@@ -19,7 +22,8 @@ let get_hc_id =
     switch (hcs |> EvalEnvIdMap.find_opt(ei)) {
     /* Hole closure already exists in the HoleClosureInfo_.t.
        Add parent_eid to eids */
-    | Some((i, sigma', hole_parents)) => (
+    | Some((i, sigma', hole_parents)) =>
+      ExistClosure(
         hci
         |> MetaVarMap.add(
              u,
@@ -34,14 +38,14 @@ let get_hc_id =
                 ),
            ),
         i,
-        Some(sigma'),
+        sigma',
       )
     /* Hole exists in the HoleClosureInfo_.t but closure doesn't.
        Create a new hole closure with closure id equal to the number
        of unique hole closures for the hole. Return a None environment */
     | None =>
       let i = hcs |> EvalEnvIdMap.cardinal;
-      (
+      NewClosure(
         hci
         |> MetaVarMap.add(
              u,
@@ -52,11 +56,11 @@ let get_hc_id =
                 ),
            ),
         i,
-        None,
       );
     }
   /* Hole doesn't exist in the HoleClosureInfo_.t */
-  | None => (
+  | None =>
+    NewClosure(
       hci
       |> MetaVarMap.add(
            u,
@@ -66,7 +70,6 @@ let get_hc_id =
            ),
          ),
       0,
-      None,
     )
   };
 };
