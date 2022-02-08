@@ -1113,7 +1113,8 @@ and syn_perform_line =
     // switch (Statics_Exp.syn_opseq(ctx, u_gen, ZExp.erase_zopseq(zopseq))) {
     | DoesNotElaborate => Failed
     | Elaborates(_, ty, ctx, u_gen, _) =>
-      SexpUtil.print_many(~at="GGG", [Contexts.sexp_of_t(ctx)]);
+      let (ty, u_gen) =
+        Statics_Typ.fix_holes(Contexts.typing(ctx), ty, u_gen);
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))

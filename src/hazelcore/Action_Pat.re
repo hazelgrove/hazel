@@ -935,6 +935,8 @@ and syn_perform_operand =
     switch (Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
     | Some((ty, kind, _, ctx, u_gen)) =>
+      let (ty, u_gen) =
+        Statics_Typ.fix_holes(Contexts.typing(ctx), ty, u_gen);
       switch (
         Action_Typ.syn_perform(
           a,
@@ -953,7 +955,7 @@ and syn_perform_operand =
             ty,
           );
         Succeeded((zpat, ty, ctx, u_gen));
-      }
+      };
     }
 
   | (Init, _) => failwith("Init action should not be performed.")
@@ -1100,6 +1102,8 @@ and ana_perform_opseq =
         ) {
         | None => Failed
         | Some((ty', kind, _, ctx, u_gen)) =>
+          let (ty', u_gen) =
+            Statics_Typ.fix_holes(Contexts.typing(ctx), ty', u_gen);
           switch (
             Action_Typ.syn_perform(
               a,
@@ -1115,7 +1119,7 @@ and ana_perform_opseq =
                 surround,
               );
             Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
-          }
+          };
         }
       | _ => Failed
       }
@@ -1566,6 +1570,8 @@ and ana_perform_operand =
     switch (Elaborator_Typ.syn(ctx, u_gen, Delta.empty, ZTyp.erase(zann))) {
     | None => Failed
     | Some((ty', kind, _, ctx, u_gen)) =>
+      let (ty', u_gen) =
+        Statics_Typ.fix_holes(Contexts.typing(ctx), ty', u_gen);
       switch (
         Action_Typ.syn_perform(
           a,
@@ -1592,7 +1598,7 @@ and ana_perform_operand =
             new_zopseq |> ZPat.mk_inconsistent(u_gen);
           Succeeded((new_zopseq, ctx, u_gen));
         };
-      }
+      };
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>
