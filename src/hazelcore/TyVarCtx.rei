@@ -1,4 +1,4 @@
-/** A typing context */
+/** A tyvars context */
 
 [@deriving sexp]
 type t;

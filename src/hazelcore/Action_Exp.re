@@ -380,7 +380,7 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', ctx, u_gen))) =>
-      if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
         let (ze, u_gen) = Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty);
         Succeeded(AnaDone((ze, ctx, u_gen)));
       } else {
@@ -1114,7 +1114,7 @@ and syn_perform_line =
     | DoesNotElaborate => Failed
     | Elaborates(_, ty, ctx, u_gen, _) =>
       let (ty, u_gen) =
-        Statics_Typ.fix_holes(Contexts.typing(ctx), ty, u_gen);
+        Statics_Typ.fix_holes(Contexts.tyvars(ctx), ty, u_gen);
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
@@ -3105,7 +3105,7 @@ and ana_perform_operand =
       | (Failed | CursorEscaped(_)) as outcome => outcome
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
       | Succeeded(SynDone((ze', ty', ctx, u_gen))) =>
-        if (HTyp.consistent(Contexts.typing(ctx), ty', ty)) {
+        if (HTyp.consistent(Contexts.tyvars(ctx), ty', ty)) {
           // prune unnecessary type annotation
           let ze' =
             switch (ze') {
@@ -3651,7 +3651,7 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, ctx, u_gen))) =>
-      if (HTyp.consistent(Contexts.typing(ctx), ty, ty1)) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty1)) {
         Succeeded(AnaDone((ze, ctx, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);

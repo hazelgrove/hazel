@@ -73,7 +73,7 @@ and syn_operand =
     let k = Kind.Singleton(Type, ty);
     Some((ty, k, delta, ctx, u_gen));
   };
-  let tyctx = Contexts.typing(ctx);
+  let tyctx = Contexts.tyvars(ctx);
   switch (operand) {
   | Hole => Some((Hole, KHole, delta, ctx, u_gen))
   // /* TElabSHole */
@@ -82,7 +82,7 @@ and syn_operand =
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    let* _ = tyctx |> TyCtx.var_kind(i);
+    let* _ = tyctx |> TyVarCtx.var_kind(i);
     const(TyVar(i, name));
   | TyVar(InHole(reason, u), name) =>
     /* TElabSUVar */
@@ -131,7 +131,7 @@ and ana_operand =
       operand: UHTyp.operand,
     )
     : ElaborationResult.Ana.t => {
-  let tyctx = Contexts.typing(ctx);
+  let tyctx = Contexts.tyvars(ctx);
   switch (operand) {
   | Hole => Some((HTyp.Hole, delta, ctx, u_gen))
   // /* TElabAHole */
@@ -174,7 +174,7 @@ let syn_kind_operand = (ctx, u_gen, operand) =>
 // let ana_kind = (ctx, uhty, k: Kind.t): option(unit) => {
 //   open OptUtil.Syntax;
 //   let* dk' = syn_kind(ctx, uhty);
-//   ctx |> Contexts.typing |> Kind.consistent_subkind(dk', k) ? Some() : None;
+//   ctx |> Contexts.tyvars |> Kind.consistent_subkind(dk', k) ? Some() : None;
 // };
 
 let rec syn_fix_holes:
@@ -207,7 +207,7 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
     (skel, seq, k, u_gen);
   }
 and syn_fix_holes_operand = (ctx, u_gen, operand) => {
-  let tyctx = Contexts.typing(ctx);
+  let tyctx = Contexts.tyvars(ctx);
   switch (operand) {
   | UHTyp.Hole =>
     /* TElabSHole */
@@ -215,7 +215,7 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) => {
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    switch (tyctx |> TyCtx.var_kind(i)) {
+    switch (tyctx |> TyVarCtx.var_kind(i)) {
     | Some(k) =>
       let ty = UHTyp.TyVar(NotInHole(i), name);
       (ty, k, u_gen);
@@ -262,7 +262,7 @@ and ana_fix_holes_skel = (ctx, u_gen, k, skel, seq) =>
   | BinOp(_, _, _, _) =>
     /* TElabASubsume */
     let (skel, seq, _k', u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-    // if (ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)) {
+    // if (ctx |> Contexts.tyvars |> Kind.consistent_subkind(k', k)) {
     (skel, seq, u_gen);
   // } else {
   //   failwith("TODO: Add inconsistent kind hole (this can't happen now)");
@@ -288,7 +288,7 @@ and ana_fix_holes_operand = (ctx, u_gen, k, operand) => {
   | List(_) =>
     /* TElabASubsume */
     let (ty, _k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
-    // if (ctx |> Contexts.typing |> Kind.consistent_subkind(k', k)) {
+    // if (ctx |> Contexts.tyvars |> Kind.consistent_subkind(k', k)) {
     (ty, u_gen);
   // } else {
   //   failwith("TODO: Add inconsistent kind hole (this can't happen now)");

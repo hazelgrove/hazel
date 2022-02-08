@@ -114,7 +114,7 @@ and syn_elab_line =
     | None => LinesDoNotElaborate
     | Some((ty, k, delta, ctx, u_gen)) =>
       let ctx2 = Statics_TPat.matches(ctx, p, ty, k);
-      let dty = DHTyp.lift(Contexts.typing(ctx), ty);
+      let dty = DHTyp.lift(Contexts.tyvars(ctx), ty);
       let prelude = d => DHExp.TyAlias(p, dty, k, d);
       LinesElaborate(prelude, ctx2, u_gen, delta);
     }
@@ -729,7 +729,7 @@ and ana_elab_skel =
     switch (syn_elab_skel(ctx, u_gen, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty', ctx, u_gen, delta) =>
-      if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
         Elaborates(d, ty', ctx, u_gen, delta);
       } else {
         DoesNotElaborate;
@@ -814,7 +814,7 @@ and ana_elab_operand =
         | None => ty1_given
         | Some((ty_p, _)) => ty_p
         };
-      switch (HTyp.consistent(Contexts.typing(ctx), ty1_ann, ty1_given)) {
+      switch (HTyp.consistent(Contexts.tyvars(ctx), ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {

@@ -13,7 +13,7 @@ let view =
   open Vdom;
 
   /**
-   * Shows typing info for a context entry.
+   * Shows tyvars info for a context entry.
    */
   let static_info = ((x, ty)) =>
     Node.div(

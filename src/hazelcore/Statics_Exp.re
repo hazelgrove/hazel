@@ -37,7 +37,7 @@ let get_pattern_type = (ctx, u_gen, UHExp.Rule(p, _)) =>
 let joined_pattern_type = (ctx, u_gen, rules) => {
   let* tys =
     rules |> List.map(get_pattern_type(ctx, u_gen)) |> OptUtil.sequence;
-  HTyp.join_all(Contexts.typing(ctx), LUB, tys);
+  HTyp.join_all(Contexts.tyvars(ctx), LUB, tys);
 };
 
 let rec syn =
@@ -175,7 +175,7 @@ and syn_operand =
           switch (syn_rule(ctx, u_gen, rule, pat_ty)) {
           | None => false
           | Some(syn_ty) =>
-            HTyp.equivalent(Contexts.typing(ctx), rule_ty, syn_ty)
+            HTyp.equivalent(Contexts.tyvars(ctx), rule_ty, syn_ty)
           }
         },
         rule_types,
@@ -230,7 +230,7 @@ and syn_rules =
       Some([]),
       rules,
     );
-  let+ ty = HTyp.join_all(Contexts.typing(ctx), GLB, clause_types);
+  let+ ty = HTyp.join_all(Contexts.tyvars(ctx), GLB, clause_types);
   ty;
 }
 and syn_rule =
@@ -323,7 +323,7 @@ and ana_skel =
       _,
     ) =>
     let* ty' = syn_skel(ctx, u_gen, skel, seq);
-    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some() : None;
   }
 and ana_operand =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, operand: UHExp.operand, ty: HTyp.t)
@@ -365,7 +365,7 @@ and ana_operand =
   | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, u_gen, operand');
-    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some() : None;
   | Lam(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, u_gen, p, ty_p_given);
@@ -378,7 +378,7 @@ and ana_operand =
     ana_rules(ctx, u_gen, rules, ty1, ty);
   | ApPalette(NotInHole, _, _, _) =>
     let* ty' = syn_operand(ctx, u_gen, operand);
-    HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
+    HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, u_gen, body, ty)
   }
 and ana_rules =
@@ -794,7 +794,7 @@ and syn_fix_holes_skel =
     | Some((ty2, ty)) =>
       let fix_typ = (ty, u_gen) =>
         Statics_Typ.fix_holes(
-          ctx |> Contexts.typing,
+          ctx |> Contexts.tyvars,
           ty,
           ~renumber_empty_holes,
           u_gen,
@@ -970,7 +970,7 @@ and syn_fix_holes_rules =
       ([], u_gen, []),
       rules,
     );
-  let common_type = HTyp.join_all(Contexts.typing(ctx), GLB, rule_types);
+  let common_type = HTyp.join_all(Contexts.tyvars(ctx), GLB, rule_types);
   (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
 }
 and syn_fix_holes_rule =
@@ -1255,7 +1255,7 @@ and ana_fix_holes_skel =
     ) =>
     let (skel, seq, ty', u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
-    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+    if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
       (skel, seq, u_gen);
     } else {
       let (OpSeq(skel, seq), u_gen) =
@@ -1287,7 +1287,7 @@ and ana_fix_holes_operand =
   | BoolLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+    if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1309,7 +1309,7 @@ and ana_fix_holes_operand =
     | Some((ty1_given, ty2)) =>
       let fix_typ = (ty, u_gen) =>
         Statics_Typ.fix_holes(
-          ctx |> Contexts.typing,
+          ctx |> Contexts.tyvars,
           ty,
           ~renumber_empty_holes,
           u_gen,
@@ -1341,7 +1341,7 @@ and ana_fix_holes_operand =
     | Some((ty1, ty2)) =>
       let fix_typ = (ty, u_gen) =>
         Statics_Typ.fix_holes(
-          ctx |> Contexts.typing,
+          ctx |> Contexts.tyvars,
           ty,
           ~renumber_empty_holes,
           u_gen,
@@ -1360,7 +1360,7 @@ and ana_fix_holes_operand =
     | None =>
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -1386,7 +1386,7 @@ and ana_fix_holes_operand =
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+    if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);

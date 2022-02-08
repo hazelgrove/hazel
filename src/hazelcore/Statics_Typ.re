@@ -1,6 +1,6 @@
 let rec fix_holes =
         (
-          ctx: TyCtx.t,
+          ctx: TyVarCtx.t,
           ty: HTyp.t,
           ~renumber_empty_holes: bool=false,
           u_gen: MetaVarGen.t,
@@ -17,7 +17,9 @@ let rec fix_holes =
     );
   switch (ty) {
   | TyVarHole(_, u, name) =>
-    if (TyVar.Name.(valid(to_string(name))) && ctx |> TyCtx.bound_var(name)) {
+    if (TyVar.Name.(valid(to_string(name)))
+        && ctx
+        |> TyVarCtx.bound_var(name)) {
       (ty, u_gen);
     } else {
       let (u, u_gen) =

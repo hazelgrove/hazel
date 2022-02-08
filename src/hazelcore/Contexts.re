@@ -2,12 +2,12 @@
 type t = {
   gamma: VarCtx.t,
   palette: PaletteCtx.t,
-  typing: TyCtx.t,
+  tyvars: TyVarCtx.t,
 };
 let empty = {
   gamma: VarCtx.empty,
   palette: PaletteCtx.empty,
-  typing: TyCtx.empty,
+  tyvars: TyVarCtx.empty,
 };
 
 let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
@@ -19,29 +19,29 @@ let gamma: t => VarCtx.t = ({gamma, _}) => gamma;
 
 let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
-let typing: t => TyCtx.t = ({typing, _}) => typing;
+let tyvars: t => TyVarCtx.t = ({tyvars, _}) => tyvars;
 
-// let replace_typing = (ctx: t, typing: TyCtx.t): t => {...ctx, typing};
+// let replace_tyvars = (ctx: t, tyvars: TyVarCtx.t): t => {...ctx, tyvars};
 
 let bind_tyvar = (ctx: t, name: TyVar.Name.t, k: Kind.t): t => {
-  let typing = ctx.typing |> TyCtx.bind_var(name, k);
-  {...ctx, typing};
+  let tyvars = ctx.tyvars |> TyVarCtx.bind_var(name, k);
+  {...ctx, tyvars};
 };
 
 let bind_tyhole = (ctx: t, u: MetaVar.t, k: Kind.t): t => {
-  let typing = ctx.typing |> TyCtx.bind_hole(u, k);
-  {...ctx, typing};
+  let tyvars = ctx.tyvars |> TyVarCtx.bind_hole(u, k);
+  {...ctx, tyvars};
 };
 
 // let extend_tyvars = (t: TyVar.Name.t, k: Kind.t, ctx: t): t => {
-//   let increment_singleton: TyCtx.Vars.binding => TyCtx.Vars.binding =
+//   let increment_singleton: TyVarCtx.Vars.binding => TyVarCtx.Vars.binding =
 //     fun
 //     | (t', Singleton(k', ty)) => {
 //         let k = Kind.Singleton(k', HTyp.increment_indices(ty));
 //         (t', k);
 //       }
 //     | binding => binding;
-//   let vars = ctx.tyctx.vars |> TyCtx.Vars.extend(t, k, ~increment_singleton);
+//   let vars = ctx.tyctx.vars |> TyVarCtx.Vars.extend(t, k, ~increment_singleton);
 //   let tyctx = {...ctx.tyctx, vars};
 //   {...ctx, tyctx};
 // };

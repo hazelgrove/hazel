@@ -1,9 +1,9 @@
 [@deriving sexp]
-type t = (HTyp.t, TyCtx.t);
+type t = (HTyp.t, TyVarCtx.t);
 
-let lift = (ctx: TyCtx.t, ty: HTyp.t): t => (ty, ctx);
+let lift = (ctx: TyVarCtx.t, ty: HTyp.t): t => (ty, ctx);
 let type_ = ((ty, _): t): HTyp.t => ty;
-let context = ((_, ctx): t): TyCtx.t => ctx;
+let context = ((_, ctx): t): TyVarCtx.t => ctx;
 
 // /** Type equivalence
 
@@ -18,15 +18,15 @@ let context = ((_, ctx): t): TyCtx.t => ctx;
 //     | (TyVar(i, _), TyVar(i', _)) =>
 //       {
 //         open OptUtil.Syntax;
-//         let* k1 = ctx |> TyCtx.var_kind(i);
-//         let+ k1' = ctx' |> TyCtx.var_kind(i');
+//         let* k1 = ctx |> TyVarCtx.var_kind(i);
+//         let+ k1' = ctx' |> TyVarCtx.var_kind(i');
 //         equivalent_kind(lift_kind(ctx, k1), lift_kind(ctx', k1'));
 //       }
 //       |> Option.value(~default=false)
 //     | (TyVar(_), _) => false
 //     /* type variable holes of known kinds are equivalent to themselves */
 //     | (TyVarHole(_, u, _), TyVarHole(_, u', _)) =>
-//       switch (TyCtx.(hole_kind(u, ctx), hole_kind(u', ctx'))) {
+//       switch (TyVarCtx.(hole_kind(u, ctx), hole_kind(u', ctx'))) {
 //       | (Some(k), Some(k')) =>
 //         equivalent_kind(lift_kind(ctx, k), lift_kind(ctx', k'))
 //       | (_, _) => false
@@ -36,8 +36,8 @@ let context = ((_, ctx): t): TyCtx.t => ctx;
 //     | (Hole, Hole) =>
 //       {
 //         open OptUtil.Syntax;
-//         let* k = ctx |> TyCtx.hole_kind(u);
-//         let+ k' = ctx' |> TyCtx.hole_kind(u');
+//         let* k = ctx |> TyVarCtx.hole_kind(u);
+//         let+ k' = ctx' |> TyVarCtx.hole_kind(u');
 //         equivalent_kind(lift_kind(ctx, k), lift_kind(ctx', k'));
 //       }
 //       |> Option.value(~default=false)

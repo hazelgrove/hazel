@@ -69,7 +69,7 @@ let text_operand =
     (ty, ctx, u_gen);
   | TyVar(name) =>
     let (status, ctx, u_gen) =
-      switch (ctx |> Contexts.typing |> TyCtx.var_index(name)) {
+      switch (ctx |> Contexts.tyvars |> TyVarCtx.var_index(name)) {
       | Some(i) =>
         let ctx =
           Contexts.bind_tyvar(ctx, name, Singleton(Type, TyVar(i, name)));
@@ -178,12 +178,12 @@ let mk_syn_text =
     let ctx = Contexts.bind_tyhole(ctx, u, kind);
     Succeeded({zty, kind, ctx, u_gen});
   | Some(TyVar(name)) =>
-    let tyctx = ctx |> Contexts.typing;
+    let tyctx = ctx |> Contexts.tyvars;
     let (zoperand, kind, ctx, u_gen) =
       {
         open OptUtil.Syntax;
-        let* i = tyctx |> TyCtx.var_index(name);
-        let+ k = tyctx |> TyCtx.var_kind(i);
+        let* i = tyctx |> TyVarCtx.var_index(name);
+        let+ k = tyctx |> TyVarCtx.var_kind(i);
         let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(i), name));
         (zty, k, ctx, u_gen);
       }

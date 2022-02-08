@@ -26,7 +26,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(Hole, Hole)
   | List(Hole) => Ground
   | TyVar(_) => Ground
-  // switch (ctx |> TyCtx.var_kind(i)) {
+  // switch (ctx |> TyVarCtx.var_kind(i)) {
   // | Some(Singleton(_, ty2)) => ground_cases_of(ty2)
   // | Some(KHole) => Hole
   // | Some(Type) => Ground

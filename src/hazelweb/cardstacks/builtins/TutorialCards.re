@@ -24,7 +24,7 @@ let intro_caption =
         [],
         [
           txt(
-            "Fill hole 1 with a number literal by placing the caret before or after the hole and typing in ",
+            "Fill hole 1 with a number literal by placing the caret before or after the hole and tyvars in ",
           ),
           code("12345"),
           txt("."),

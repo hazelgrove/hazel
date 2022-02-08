@@ -7,7 +7,7 @@ open Virtual_dom;
 exception InvalidInstance;
 
 /**
- * Panel showing the typing context and environment at the cursor.
+ * Panel showing the tyvars context and environment at the cursor.
  */
 let view:
   (

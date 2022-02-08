@@ -5,16 +5,16 @@ type join =
   | GLB
   | LUB;
 
-let rec head_normalize = (ctx: TyCtx.t, ty: t): t =>
+let rec head_normalize = (ctx: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (ctx |> TyCtx.var_kind(i)) {
+    switch (ctx |> TyVarCtx.var_kind(i)) {
     | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
   | TyVarHole(_, u, _) =>
-    switch (ctx |> TyCtx.hole_kind(u)) {
+    switch (ctx |> TyVarCtx.hole_kind(u)) {
     | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable hole index")
@@ -29,16 +29,16 @@ let rec head_normalize = (ctx: TyCtx.t, ty: t): t =>
   | List(_) => ty
   };
 
-let rec normalize = (ctx: TyCtx.t, ty: t): t =>
+let rec normalize = (ctx: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (ctx |> TyCtx.var_kind(i)) {
+    switch (ctx |> TyVarCtx.var_kind(i)) {
     | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
   | TyVarHole(_, u, _) =>
-    switch (ctx |> TyCtx.hole_kind(u)) {
+    switch (ctx |> TyVarCtx.hole_kind(u)) {
     | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable hole index")
@@ -72,7 +72,7 @@ let rec normalized_equivalent = (ty: t, ty': t): bool =>
   | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
   | (List(_), _) => false
   };
-let equivalent = (ctx: TyCtx.t, ty: t, ty': t): bool => {
+let equivalent = (ctx: TyVarCtx.t, ty: t, ty': t): bool => {
   let ty = normalize(ctx, ty);
   let ty' = normalize(ctx, ty');
   normalized_equivalent(ty, ty');
@@ -98,23 +98,23 @@ let rec normalized_consistent = (ty: t, ty': t): bool =>
   };
 
 /** Type consistency */
-let consistent = (ctx: TyCtx.t, ty: t, ty': t) => {
+let consistent = (ctx: TyVarCtx.t, ty: t, ty': t) => {
   let ty = normalize(ctx, ty);
   let ty' = normalize(ctx, ty');
   normalized_consistent(ty, ty');
 };
 
-let inconsistent = (ctx: TyCtx.t, ty1: t, ty2: t) =>
+let inconsistent = (ctx: TyVarCtx.t, ty1: t, ty2: t) =>
   !consistent(ctx, ty1, ty2);
 
-let rec consistent_all = (types: list(t), ctx: TyCtx.t): bool =>
+let rec consistent_all = (types: list(t), ctx: TyVarCtx.t): bool =>
   switch (types) {
   | [] => true
   | [hd, ...tl] =>
     !List.exists(inconsistent(ctx, hd), tl) || consistent_all(tl, ctx)
   };
 
-let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
+let rec join = (ctx: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) => {
   switch (ty1, ty2) {
   | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
   | (_, Hole)
@@ -131,7 +131,7 @@ let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     }
   | (TyVar(i, _), _) =>
     open OptUtil.Syntax;
-    let* (_, k) = ctx |> TyCtx.var_binding(i);
+    let* (_, k) = ctx |> TyVarCtx.var_binding(i);
     switch (k) {
     | Singleton(_, ty) => join(ctx, j, ty, ty2)
     | KHole => join(ctx, j, Hole, ty2)
@@ -139,7 +139,7 @@ let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     };
   | (_, TyVar(i, _)) =>
     open OptUtil.Syntax;
-    let* (_, k) = ctx |> TyCtx.var_binding(i);
+    let* (_, k) = ctx |> TyVarCtx.var_binding(i);
     switch (k) {
     | Kind.Singleton(_, ty) => join(ctx, j, ty1, ty)
     | KHole => join(ctx, j, ty1, Hole)
@@ -177,7 +177,7 @@ let rec join = (ctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) => {
   };
 };
 
-let join_all = (ctx: TyCtx.t, j: join, types: list(t)): option(t) => {
+let join_all = (ctx: TyVarCtx.t, j: join, types: list(t)): option(t) => {
   switch (types) {
   | [] => None
   | [hd] => Some(hd)
