@@ -82,7 +82,7 @@ and syn_operand =
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    let* _ = tyctx |> TyVarCtx.var_kind(i);
+    let* _ = tyctx |> TyVarCtx.kind(i);
     const(TyVar(i, name));
   | TyVar(InHole(reason, u), name) =>
     /* TElabSUVar */
@@ -90,7 +90,6 @@ and syn_operand =
     let ty = HTyp.TyVarHole(reason, u, name);
     let k = Kind.KHole;
     let delta' = Delta.(add(u, Hole.Type(k, tyctx), delta));
-    let ctx = Contexts.bind_tyhole(ctx, u, k);
     Some((ty, k, delta', ctx, u_gen));
   | Unit => const(Prod([]))
   | Int => const(Int)
@@ -215,7 +214,7 @@ and syn_fix_holes_operand = (ctx, u_gen, operand) => {
   // TODO: NEHole case
   | TyVar(NotInHole(i), name) =>
     /* TElabSVar */
-    switch (tyctx |> TyVarCtx.var_kind(i)) {
+    switch (tyctx |> TyVarCtx.kind(i)) {
     | Some(k) =>
       let ty = UHTyp.TyVar(NotInHole(i), name);
       (ty, k, u_gen);

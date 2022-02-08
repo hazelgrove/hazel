@@ -1104,8 +1104,8 @@ and syn_perform_line =
 
   | (_, ExpLineZ(zopseq)) =>
     switch (Statics_Exp.syn_opseq(ctx, u_gen, ZExp.erase_zopseq(zopseq))) {
-    | DoesNotElaborate => Failed
-    | Elaborates(_, ty, ctx, u_gen, _) =>
+    | None => Failed
+    | Some(ty) =>
       let (ty, u_gen) =
         Statics_Typ.fix_holes(Contexts.tyvars(ctx), ty, u_gen);
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {

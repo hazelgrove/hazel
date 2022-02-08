@@ -8,17 +8,18 @@ type join =
 let rec head_normalize = (ctx: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (ctx |> TyVarCtx.var_kind(i)) {
+    switch (ctx |> TyVarCtx.kind(i)) {
     | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
-  | TyVarHole(_, u, _) =>
-    switch (ctx |> TyVarCtx.hole_kind(u)) {
-    | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
-    | Some(_) => ty
-    | None => failwith(__LOC__ ++ ": unknown type variable hole index")
-    }
+  // | TyVarHole(_, u, _) =>
+  //   switch (ctx |> TyVarCtx.hole_kind(u)) {
+  //   | Some(Singleton(_, ty1)) => head_normalize(ctx, ty1)
+  //   | Some(_) => ty
+  //   | None => failwith(__LOC__ ++ ": unknown type variable hole index")
+  //   }
+  | TyVarHole(_)
   | Hole
   | Int
   | Float
@@ -32,17 +33,18 @@ let rec head_normalize = (ctx: TyVarCtx.t, ty: t): t =>
 let rec normalize = (ctx: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (ctx |> TyVarCtx.var_kind(i)) {
+    switch (ctx |> TyVarCtx.kind(i)) {
     | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
-  | TyVarHole(_, u, _) =>
-    switch (ctx |> TyVarCtx.hole_kind(u)) {
-    | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
-    | Some(_) => ty
-    | None => failwith(__LOC__ ++ ": unknown type variable hole index")
-    }
+  // | TyVarHole(_, u, _) =>
+  //   switch (ctx |> TyVarCtx.hole_kind(u)) {
+  //   | Some(Singleton(_, ty1)) => normalize(ctx, ty1)
+  //   | Some(_) => ty
+  //   | None => failwith(__LOC__ ++ ": unknown type variable hole index")
+  //   }
+  | TyVarHole(_)
   | Hole
   | Int
   | Float
@@ -131,7 +133,7 @@ let rec join = (ctx: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     }
   | (TyVar(i, _), _) =>
     open OptUtil.Syntax;
-    let* (_, k) = ctx |> TyVarCtx.var_binding(i);
+    let* (_, k) = ctx |> TyVarCtx.binding(i);
     switch (k) {
     | Singleton(_, ty) => join(ctx, j, ty, ty2)
     | KHole => join(ctx, j, Hole, ty2)
@@ -139,7 +141,7 @@ let rec join = (ctx: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) => {
     };
   | (_, TyVar(i, _)) =>
     open OptUtil.Syntax;
-    let* (_, k) = ctx |> TyVarCtx.var_binding(i);
+    let* (_, k) = ctx |> TyVarCtx.binding(i);
     switch (k) {
     | Kind.Singleton(_, ty) => join(ctx, j, ty1, ty)
     | KHole => join(ctx, j, ty1, Hole)

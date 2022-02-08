@@ -21,34 +21,7 @@ let palette_ctx: t => PaletteCtx.t = ({palette, _}) => palette;
 
 let tyvars: t => TyVarCtx.t = ({tyvars, _}) => tyvars;
 
-// let replace_tyvars = (ctx: t, tyvars: TyVarCtx.t): t => {...ctx, tyvars};
-
 let bind_tyvar = (ctx: t, name: TyVar.Name.t, k: Kind.t): t => {
-  let tyvars = ctx.tyvars |> TyVarCtx.bind_var(name, k);
+  let tyvars = ctx.tyvars |> TyVarCtx.bind(name, k);
   {...ctx, tyvars};
 };
-
-let bind_tyhole = (ctx: t, u: MetaVar.t, k: Kind.t): t => {
-  let tyvars = ctx.tyvars |> TyVarCtx.bind_hole(u, k);
-  {...ctx, tyvars};
-};
-
-// let extend_tyvars = (t: TyVar.Name.t, k: Kind.t, ctx: t): t => {
-//   let increment_singleton: TyVarCtx.Vars.binding => TyVarCtx.Vars.binding =
-//     fun
-//     | (t', Singleton(k', ty)) => {
-//         let k = Kind.Singleton(k', HTyp.increment_indices(ty));
-//         (t', k);
-//       }
-//     | binding => binding;
-//   let vars = ctx.tyctx.vars |> TyVarCtx.Vars.extend(t, k, ~increment_singleton);
-//   let tyctx = {...ctx.tyctx, vars};
-//   {...ctx, tyctx};
-// };
-
-// let tyholes = ({tyholes, _}: t): TyVar.HoleCtx.t => tyholes;
-
-// let extend_tyholes = (ctx: t, u: MetaVar.t, k: Kind.t): t => {
-//   ...ctx,
-//   tyholes: ctx.tyholes |> TyVar.HoleCtx.add(u, k),
-// };

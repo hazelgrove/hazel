@@ -60,16 +60,10 @@ let text_operand =
     let name = k |> ExpandingKeyword.to_string |> TyVar.Name.of_string;
     let reason = TyVar.HoleReason.Reserved;
     let ty = UHTyp.TyVar(InHole(reason, u), name);
-    let ctx =
-      Contexts.bind_tyhole(
-        ctx,
-        u,
-        Kind.Singleton(KHole, TyVarHole(reason, u, name)),
-      );
     (ty, ctx, u_gen);
   | TyVar(name) =>
     let (status, ctx, u_gen) =
-      switch (ctx |> Contexts.tyvars |> TyVarCtx.var_index(name)) {
+      switch (Contexts.tyvars(ctx) |> TyVarCtx.index(name)) {
       | Some(i) =>
         let ctx =
           Contexts.bind_tyvar(ctx, name, Singleton(Type, TyVar(i, name)));
@@ -77,12 +71,6 @@ let text_operand =
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason = TyVar.HoleReason.Unbound;
-        let ctx =
-          Contexts.bind_tyhole(
-            ctx,
-            u,
-            Kind.Singleton(KHole, HTyp.TyVarHole(reason, u, name)),
-          );
         (InHole(reason, u), ctx, u_gen);
       };
     (TyVar(status, name), ctx, u_gen);
@@ -175,15 +163,14 @@ let mk_syn_text =
         ),
       );
     let kind = Kind.KHole;
-    let ctx = Contexts.bind_tyhole(ctx, u, kind);
     Succeeded({zty, kind, ctx, u_gen});
   | Some(TyVar(name)) =>
     let tyctx = ctx |> Contexts.tyvars;
     let (zoperand, kind, ctx, u_gen) =
       {
         open OptUtil.Syntax;
-        let* i = tyctx |> TyVarCtx.var_index(name);
-        let+ k = tyctx |> TyVarCtx.var_kind(i);
+        let* i = tyctx |> TyVarCtx.index(name);
+        let+ k = tyctx |> TyVarCtx.kind(i);
         let zty = ZTyp.CursorT(text_cursor, TyVar(NotInHole(i), name));
         (zty, k, ctx, u_gen);
       }
@@ -193,7 +180,6 @@ let mk_syn_text =
              let zoperand =
                ZTyp.CursorT(text_cursor, TyVar(InHole(Unbound, u), name));
              let k = Kind.KHole;
-             let ctx = Contexts.bind_tyhole(ctx, u, k);
              (zoperand, k, ctx, u_gen);
            },
          );

@@ -17,9 +17,7 @@ let rec fix_holes =
     );
   switch (ty) {
   | TyVarHole(_, u, name) =>
-    if (TyVar.Name.(valid(to_string(name)))
-        && ctx
-        |> TyVarCtx.bound_var(name)) {
+    if (TyVar.Name.(valid(to_string(name))) && TyVarCtx.bound(name, ctx)) {
       (ty, u_gen);
     } else {
       let (u, u_gen) =
