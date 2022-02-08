@@ -82,6 +82,7 @@ module Holes = {
 [@deriving sexp]
 type t = {
   vars: Vars.t,
+  // TODO: (eric) drop this
   holes: Holes.t,
 };
 

@@ -225,6 +225,7 @@ type line_success =
   | LineExpands(expanding_result)
   | LineDone((ZExp.zblock, Contexts.t, MetaVarGen.t));
 
+[@deriving sexp]
 type syn_done = (ZExp.t, HTyp.t, Contexts.t, MetaVarGen.t);
 type syn_success =
   | SynExpands(expanding_result)
@@ -1102,15 +1103,7 @@ and syn_perform_line =
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
-    switch (
-      Elaborator_Exp.syn_elab(
-        ctx,
-        u_gen,
-        Delta.empty,
-        ZExp.erase_zopseq(zopseq) |> UHExp.Block.wrap',
-      )
-    ) {
-    // switch (Statics_Exp.syn_opseq(ctx, u_gen, ZExp.erase_zopseq(zopseq))) {
+    switch (Statics_Exp.syn_opseq(ctx, u_gen, ZExp.erase_zopseq(zopseq))) {
     | DoesNotElaborate => Failed
     | Elaborates(_, ty, ctx, u_gen, _) =>
       let (ty, u_gen) =
@@ -1183,6 +1176,8 @@ and syn_perform_line =
       // holes if ty_def is inconsistent with pattern type
       let (new_zp, ty_p, _, u_gen) =
         Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
+      let (ty_p, u_gen) =
+        Statics_Typ.fix_holes(Contexts.tyvars(ctx), ty_p, u_gen);
       let p = ZPat.erase(new_zp);
       let (def_ctx, u_gen) =
         Statics_Exp.extend_let_def_ctx(ctx, u_gen, p, def);
