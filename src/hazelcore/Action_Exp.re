@@ -349,7 +349,7 @@ let mk_ana_text =
       text: string,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(_) => {
+    : ActionOutcome.t(ana_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
@@ -381,6 +381,7 @@ let mk_ana_text =
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', ctx, u_gen))) =>
       if (HTyp.consistent(Contexts.typing(ctx), ty, ty')) {
+        let (ze, u_gen) = Statics_Exp.ana_fix_holes_z(ctx, u_gen, ze, ty);
         Succeeded(AnaDone((ze, ctx, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
@@ -605,11 +606,7 @@ let rec syn_perform =
           a: Action.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
-        : ActionOutcome.t(syn_done) => {
-  SexpUtil.print_many(
-    ~at="ACTION_EXP syn_perform",
-    [Action.sexp_of_t(a), ZExp.sexp_of_t(ze), HTyp.sexp_of_t(ty)],
-  );
+        : ActionOutcome.t(syn_done) =>
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -646,8 +643,7 @@ let rec syn_perform =
       (prefix, zalias, subject' @ suffix) |> ZExp.prune_empty_hole_lines;
     let (ze, ty, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
     Succeeded((ze, ty, ctx, u_gen));
-  };
-}
+  }
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -808,11 +804,9 @@ and syn_perform_block =
 
   /* Zipper */
   | _ =>
-    SexpUtil.print_many(~at="AAAA", [Contexts.sexp_of_t(ctx)]);
     switch (Statics_Exp.syn_lines(ctx, u_gen, prefix)) {
     | None => Failed
     | Some(ctx_zline) =>
-      SexpUtil.print_many(~at="BBBB", [Contexts.sexp_of_t(ctx_zline)]);
       switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -833,10 +827,8 @@ and syn_perform_block =
             u_gen,
           )),
         ) =>
-        SexpUtil.print_many(~at="CCCC", [Contexts.sexp_of_t(ctx_suffix)]);
         switch (suffix) {
         | [] =>
-          SexpUtil.print_many(~at="DDDD", []);
           switch (
             Statics_Exp.syn_block(
               ctx_suffix,
@@ -848,18 +840,17 @@ and syn_perform_block =
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, ctx, u_gen)));
-          };
+          }
         | [_, ..._] =>
-          SexpUtil.print_many(~at="EEEE", []);
           let (suffix, new_ty, u_gen) =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
           let new_zblock =
             (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
             |> ZExp.prune_empty_hole_lines;
           Succeeded(SynDone((new_zblock, new_ty, ctx, u_gen)));
-        };
-      };
-    };
+        }
+      }
+    }
   }
 and syn_perform_line =
     (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
@@ -1127,8 +1118,7 @@ and syn_perform_line =
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, ctx, u_gen))) =>
-        SexpUtil.print_many(~at="HHH", [Contexts.sexp_of_t(ctx)]);
-        Succeeded(LineDone((ze, ctx, u_gen)));
+        Succeeded(LineDone((ze, ctx, u_gen)))
       };
     }
 
@@ -1558,16 +1548,7 @@ and syn_perform_operand =
       a: Action.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
-  SexpUtil.print_many(
-    ~at="ACTION_EXP syn_perform_operand",
-    [
-      Action.sexp_of_t(a),
-      ZExp.sexp_of_zoperand(zoperand),
-      HTyp.sexp_of_t(ty),
-      Contexts.sexp_of_t(ctx),
-    ],
-  );
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -2177,8 +2158,7 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -2478,11 +2458,7 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, Contexts.t, MetaVarGen.t)) => {
-  SexpUtil.print_many(
-    ~at="ACTION_EXP ana_perform",
-    [Action.sexp_of_t(a), ZExp.sexp_of_t(ze), HTyp.sexp_of_t(ty)],
-  );
+    : ActionOutcome.t((ZExp.t, Contexts.t, MetaVarGen.t)) =>
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2512,8 +2488,7 @@ and ana_perform =
     let (ze, u_gen) =
       Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty);
     Succeeded((ze, ctx, u_gen));
-  };
-}
+  }
 and ana_perform_block =
     (
       ctx: Contexts.t,
@@ -3095,16 +3070,7 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) => {
-  SexpUtil.print_many(
-    ~at="ACTION_EXP ana_perform_operand",
-    [
-      Action.sexp_of_t(a),
-      ZExp.sexp_of_zoperand(zoperand),
-      HTyp.sexp_of_t(ty),
-      Contexts.sexp_of_t(ctx),
-    ],
-  );
+    : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3665,8 +3631,7 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and ana_perform_subsume =
     (
       ctx: Contexts.t,

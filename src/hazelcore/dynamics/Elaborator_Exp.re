@@ -814,7 +814,7 @@ and ana_elab_operand =
         | None => ty1_given
         | Some((ty_p, _)) => ty_p
         };
-      switch (HTyp.normalized_consistent(ty1_ann, ty1_given)) {
+      switch (HTyp.consistent(Contexts.typing(ctx), ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
@@ -822,7 +822,7 @@ and ana_elab_operand =
         | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, u_gen, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d1, ty2, ctx, u_gen, delta) =>
+          | Elaborates(d1, ty2, _, u_gen, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
             let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, ctx, u_gen, delta);

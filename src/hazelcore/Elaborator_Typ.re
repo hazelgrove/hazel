@@ -68,10 +68,6 @@ and syn_operand =
       operand: UHTyp.operand,
     )
     : ElaborationResult.Syn.t => {
-  SexpUtil.print_many(
-    ~at="ELABORATOR_TYP syn_operand",
-    [UHTyp.sexp_of_operand(operand), Contexts.sexp_of_t(ctx)],
-  );
   let const = ty => {
     /* TElabSConst */
     let k = Kind.Singleton(Type, ty);
@@ -135,14 +131,6 @@ and ana_operand =
       operand: UHTyp.operand,
     )
     : ElaborationResult.Ana.t => {
-  SexpUtil.print_many(
-    ~at="ELABORATOR_TYP ana_operand",
-    [
-      UHTyp.sexp_of_operand(operand),
-      Kind.sexp_of_t(k),
-      Contexts.sexp_of_t(ctx),
-    ],
-  );
   let tyctx = Contexts.typing(ctx);
   switch (operand) {
   | Hole => Some((HTyp.Hole, delta, ctx, u_gen))

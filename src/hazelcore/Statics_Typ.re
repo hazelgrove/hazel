@@ -2,7 +2,7 @@ let rec fix_holes =
         (
           ctx: TyCtx.t,
           ty: HTyp.t,
-          ~renumber_empty_holes: bool,
+          ~renumber_empty_holes: bool=false,
           u_gen: MetaVarGen.t,
         )
         : (HTyp.t, MetaVarGen.t) => {

@@ -86,11 +86,7 @@ and syn_opseq =
   syn_skel(ctx, u_gen, skel, seq)
 and syn_skel =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, skel: UHExp.skel, seq: UHExp.seq)
-    : option(HTyp.t) => {
-  SexpUtil.print_many(
-    ~at="STATICS_EXP syn_skel",
-    [UHExp.sexp_of_opseq(OpSeq(skel, seq)), Contexts.sexp_of_t(ctx)],
-  );
+    : option(HTyp.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
@@ -141,8 +137,7 @@ and syn_skel =
     let ty = HTyp.List(ty1);
     let+ _ = ana_skel(ctx, u_gen, skel2, seq, ty);
     ty;
-  };
-}
+  }
 and syn_operand =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, operand: UHExp.operand)
     : option(HTyp.t) =>
@@ -302,15 +297,7 @@ and ana_skel =
       seq: UHExp.seq,
       ty: HTyp.t,
     )
-    : option(unit) => {
-  SexpUtil.print_many(
-    ~at="STATICS_EXP ana_skel",
-    [
-      UHExp.sexp_of_opseq(OpSeq(skel, seq)),
-      HTyp.sexp_of_t(ty),
-      Contexts.sexp_of_t(ctx),
-    ],
-  );
+    : option(unit) =>
   switch (skel) {
   | BinOp(_, Comma, _, _)
   | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -337,8 +324,7 @@ and ana_skel =
     ) =>
     let* ty' = syn_skel(ctx, u_gen, skel, seq);
     HTyp.consistent(Contexts.typing(ctx), ty, ty') ? Some() : None;
-  };
-}
+  }
 and ana_operand =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, operand: UHExp.operand, ty: HTyp.t)
     : option(unit) =>

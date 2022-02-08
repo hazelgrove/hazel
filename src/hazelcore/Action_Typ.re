@@ -137,7 +137,6 @@ open Syn_success.Poly;
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(Syn_success.t) => {
-  SexpUtil.print(~at="ACTION_TYP mk_syn_text", Contexts.sexp_of_t(ctx));
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_tyvar_name(TyVar.Name.of_string(text))) {
   | None =>
@@ -424,11 +423,7 @@ and syn_perform_opseq =
   }
 and syn_perform_operand =
     (a: Action.t, {zty: zoperand, kind, ctx, u_gen})
-    : Outcome.t(Syn_success.t) => {
-  SexpUtil.print_many(
-    ~at="ACTION_TYP syn_perform_operand",
-    [Action.sexp_of_t(a), ZTyp.sexp_of_zoperand(zoperand)],
-  );
+    : Outcome.t(Syn_success.t) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -671,7 +666,6 @@ and syn_perform_operand =
 
   | (Init, _) => failwith("Init action should not be performed.")
   };
-};
 
 open Outcome;
 open Outcome.Syntax;
