@@ -2,7 +2,7 @@
 type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 
 /**
- * The tyvars mode for some subexpression in the program
+ * The typing mode for some subexpression in the program
  */
 type type_mode =
   | Syn

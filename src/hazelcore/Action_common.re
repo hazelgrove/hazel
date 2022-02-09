@@ -66,13 +66,13 @@ let syn_insert_text_ =
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, 'ty) =>
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
-      ty: 'ty,
+      ty: HTyp.t,
     )
     : ActionOutcome.t('success) =>
   mk_ana_text(
@@ -102,13 +102,13 @@ let syn_backspace_text_ =
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, 'ty) =>
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
-      ty: 'ty,
+      ty: HTyp.t,
     )
     : ActionOutcome.t('success) =>
   if (caret_index == 0) {
@@ -137,13 +137,13 @@ let syn_delete_text_ =
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, 'ty) =>
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
-      ty: 'ty,
+      ty: HTyp.t,
     )
     : ActionOutcome.t('success) =>
   if (caret_index == String.length(text)) {

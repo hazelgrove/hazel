@@ -43,7 +43,7 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    * Collates expected type, actual type,
    * and mode information from CursorInfo
    */
-let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
+let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   switch (typed) {
   | AnaAnnotatedLambda(expected, actual)
   | AnaTypeInconsistent(expected, actual)
@@ -74,12 +74,12 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (HTyp.consistent(Contexts.tyvars(ctx), ty, got_ty)) {
+      if (HTyp.normalized_consistent(ty, got_ty)) {
         (Some(Hole), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
-    | _ => get_types_and_mode(ctx, typed)
+    | _ => get_types_and_mode(typed)
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
@@ -128,9 +128,8 @@ let rec get_types_and_mode = (ctx: Contexts.t, typed: CursorInfo.typed) => {
    * Gets the type of the expression at the cursor.
    * Return HTyp.t
    */
-let get_type = (ctx: Contexts.t, cursor_info: CursorInfo.t): option(HTyp.t) => {
-  let (expected_ty, actual_ty, mode) =
-    get_types_and_mode(ctx, cursor_info.typed);
+let get_type = (cursor_info: CursorInfo.t): option(HTyp.t) => {
+  let (expected_ty, actual_ty, mode) = get_types_and_mode(cursor_info.typed);
   switch (mode) {
   | Analytic => expected_ty
   | Synthetic => actual_ty
@@ -138,8 +137,8 @@ let get_type = (ctx: Contexts.t, cursor_info: CursorInfo.t): option(HTyp.t) => {
   };
 };
 
-let get_mode = (ctx: Contexts.t, cursor_info: CursorInfo.t) => {
-  let (_, _, mode) = get_types_and_mode(ctx, cursor_info.typed);
+let get_mode = (cursor_info: CursorInfo.t) => {
+  let (_, _, mode) = get_types_and_mode(cursor_info.typed);
   mode;
 };
 

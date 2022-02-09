@@ -170,12 +170,6 @@ let syn_kind_operand = (ctx, u_gen, operand) =>
   syn_operand(ctx, u_gen, Delta.empty, operand)
   |> Option.map(((_, k, _, _, _)) => k);
 
-// let ana_kind = (ctx, uhty, k: Kind.t): option(unit) => {
-//   open OptUtil.Syntax;
-//   let* dk' = syn_kind(ctx, uhty);
-//   ctx |> Contexts.tyvars |> Kind.consistent_subkind(dk', k) ? Some() : None;
-// };
-
 let rec syn_fix_holes:
   (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
   (ctx, u_gen) =>

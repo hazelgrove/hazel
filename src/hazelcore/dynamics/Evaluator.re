@@ -26,12 +26,6 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(Hole, Hole)
   | List(Hole) => Ground
   | TyVar(_) => Ground
-  // switch (ctx |> TyVarCtx.var_kind(i)) {
-  // | Some(Singleton(_, ty2)) => ground_cases_of(ty2)
-  // | Some(KHole) => Hole
-  // | Some(Type) => Ground
-  // | None => failwith(__LOC__ ++ ": unbound index")
-  // }
   | Prod(tys) =>
     let equiv = ty => HTyp.normalized_equivalent(HTyp.Hole, ty);
     List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
@@ -541,9 +535,7 @@ let rec evaluate = (d: DHExp.t): result =>
       switch (matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) =>
-        // TODO: (eric) do we need to substitute in ctx as well?
-        evaluate(subst(env, d2))
+      | Matches(env) => evaluate(subst(env, d2))
       }
     }
   | TyAlias(_, _, _, d) => evaluate(d)
@@ -560,7 +552,6 @@ let rec evaluate = (d: DHExp.t): result =>
         | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          // TODO: (eric) do we need to substitute in ctx as well?
           evaluate(subst(env, d3))
         }
       }
