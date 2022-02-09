@@ -2,14 +2,11 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
-  // List ?? is it empty and non-empty?
   | Truth
   | Falsity
   | Hole
   | Int(int)
   | NotInt(int)
-  | Bool(bool)
-  | NotBool(bool)
   | Float(float)
   | NotFloat(float)
   | And(t, t)
@@ -25,8 +22,6 @@ let rec constrains = (c: t, ty: HTyp.t): bool =>
   | (Hole, _) => true
   | (Int(_) | NotInt(_), Int) => true
   | (Int(_) | NotInt(_), _) => false
-  | (Bool(_) | NotBool(_), Bool) => true
-  | (Bool(_) | NotBool(_), _) => false
   | (Float(_) | NotFloat(_), Float) => true
   | (Float(_) | NotFloat(_), _) => false
   | (And(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
@@ -45,8 +40,6 @@ let rec dual = (c: t): t =>
   | Hole => Hole
   | Int(n) => NotInt(n)
   | NotInt(n) => Int(n)
-  | Bool(b) => NotBool(b)
-  | NotBool(b) => Bool(b)
   | Float(n) => NotFloat(n)
   | NotFloat(n) => Float(n)
   | And(c1, c2) => Or(dual(c1), dual(c2))
@@ -68,8 +61,6 @@ let rec truify = (c: t): t =>
   | Falsity
   | Int(_)
   | NotInt(_)
-  | Bool(_)
-  | NotBool(_)
   | Float(_)
   | NotFloat(_) => c
   | And(c1, c2) => And(truify(c1), truify(c2))
@@ -87,8 +78,6 @@ let rec falsify = (c: t): t =>
   | Falsity
   | Int(_)
   | NotInt(_)
-  | Bool(_)
-  | NotBool(_)
   | Float(_)
   | NotFloat(_) => c
   | And(c1, c2) => And(falsify(c1), falsify(c2))
