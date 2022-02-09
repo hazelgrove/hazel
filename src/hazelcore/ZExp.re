@@ -543,13 +543,15 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive,
       _,
       _,
     )
   | CaseZR(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive,
       _,
       _,
     )

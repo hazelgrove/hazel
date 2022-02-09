@@ -528,6 +528,8 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  /* TODO: add cursor info for not exhaustive */
+  | CursorE(_, Case(NotExhaustive, _, _)) => None
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -876,7 +878,8 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_) |
+        NotExhaustive,
         _,
         _,
       )
@@ -919,12 +922,14 @@ and ana_cursor_info_zoperand =
   | LamZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
   | CaseZE(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _) |
+      NotExhaustive,
       _,
       _,
     )
   | CaseZR(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _) |
+      NotExhaustive,
       _,
       _,
     )
