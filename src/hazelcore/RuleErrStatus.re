@@ -1,4 +1,4 @@
 [@deriving sexp]
 type t =
-  | Redundent
-  | NotRedundent;
+  | Redundant
+  | NotRedundant;

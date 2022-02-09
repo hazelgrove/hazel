@@ -269,11 +269,11 @@ let zcase_of_scrut_and_suffix =
   | ([ExpLine(OpSeq(_, S(EmptyHole(_), E)))], [_, ..._]) =>
     let zscrut = scrut |> ZExp.place_before;
     let (p_hole, u_gen) = u_gen |> UHPat.new_EmptyHole;
-    let rule = UHExp.Rule(NotRedundent, OpSeq.wrap(p_hole), suffix);
+    let rule = UHExp.Rule(NotRedundant, OpSeq.wrap(p_hole), suffix);
     (ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, [rule]), u_gen);
   | (_, [_, ..._]) =>
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-    let zrule = ZExp.RuleZP(NotRedundent, ZOpSeq.wrap(zp_hole), suffix);
+    let zrule = ZExp.RuleZP(NotRedundant, ZOpSeq.wrap(zp_hole), suffix);
     (
       ZExp.CaseZR(StandardErrStatus(NotInHole), scrut, ([], zrule, [])),
       u_gen,
@@ -1968,14 +1968,22 @@ and syn_perform_operand =
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
           let pats = UHExp.get_pats(rules);
+          let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
+          let idxs = Incon.generate_redundancy_list(cons);
           let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+          let new_rules =
+            List.fold_left(
+              (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+              rules,
+              idxs,
+            );
           let case_err =
             if (Incon.is_exhaustive(con)) {
               CaseErrStatus.StandardErrStatus(NotInHole);
             } else {
               NotExhaustive;
             };
-          let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, rules));
+          let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
       }
@@ -2005,7 +2013,16 @@ and syn_perform_operand =
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
           let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
+          let cons =
+            Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
+          let idxs = Incon.generate_redundancy_list(cons);
           let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+          let new_zrules =
+            List.fold_left(
+              (rs, idx) => ZExp.set_err_status_zrules(Redundant, idx, rs),
+              new_zrules,
+              idxs,
+            );
           let case_err =
             if (Incon.is_exhaustive(con)) {
               CaseErrStatus.StandardErrStatus(NotInHole);

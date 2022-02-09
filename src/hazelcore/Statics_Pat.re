@@ -163,8 +163,7 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
-  /* not in hole */
+    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
@@ -943,8 +942,7 @@ and case_ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1
-      ? Some((ctx, Constraints.Hole)) : None
-  /* not in hole */
+      ? Some((ctx, Constraints.Hole)) : None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
   | Var(NotInHole, NotInVarHole, x) =>

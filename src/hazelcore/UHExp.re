@@ -163,7 +163,7 @@ let is_EmptyHole =
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let rule = Rule(NotRedundent, OpSeq.wrap(p), Block.wrap(e));
+  let rule = Rule(NotRedundant, OpSeq.wrap(p), Block.wrap(e));
   (rule, u_gen);
 };
 
@@ -214,6 +214,23 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  };
+
+let rec set_err_status_rules =
+        (err: RuleErrStatus.t, idx: int, rules: rules): rules => {
+  List.mapi(
+    (pos, rule) =>
+      if (pos == idx) {
+        set_err_status_rule(err, rule);
+      } else {
+        rule;
+      },
+    rules,
+  );
+}
+and set_err_status_rule = (err: RuleErrStatus.t, rule): rule =>
+  switch (rule) {
+  | Rule(_, pat, e) => Rule(err, pat, e)
   };
 
 let is_inconsistent = operand =>

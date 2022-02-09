@@ -843,14 +843,23 @@ and syn_fix_holes_operand =
       );
     | Some(common_type) =>
       let pats = UHExp.get_pats(rules);
+      let cons =
+        Statics_Pat.generate_rules_constraints(ctx, pats, common_type);
+      let idxs = Incon.generate_redundancy_list(cons);
       let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let new_rules =
+        List.fold_left(
+          (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+          rules,
+          idxs,
+        );
       let case_err =
         if (Incon.is_exhaustive(con)) {
           CaseErrStatus.StandardErrStatus(NotInHole);
         } else {
           NotExhaustive;
         };
-      (Case(case_err, scrut, rules), common_type, u_gen);
+      (Case(case_err, scrut, new_rules), common_type, u_gen);
     };
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1288,14 +1297,22 @@ and ana_fix_holes_operand =
         ty,
       );
     let pats = UHExp.get_pats(rules);
+    let cons = Statics_Pat.generate_rules_constraints(ctx, pats, scrut_ty);
+    let idxs = Incon.generate_redundancy_list(cons);
     let con = Statics_Pat.generate_one_constraints(ctx, pats, scrut_ty);
+    let new_rules =
+      List.fold_left(
+        (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+        rules,
+        idxs,
+      );
     let case_err =
       if (Incon.is_exhaustive(con)) {
         CaseErrStatus.StandardErrStatus(NotInHole);
       } else {
         NotExhaustive;
       };
-    (Case(case_err, scrut, rules), u_gen);
+    (Case(case_err, scrut, new_rules), u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

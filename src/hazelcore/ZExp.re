@@ -503,6 +503,31 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
+let rec set_err_status_zrules =
+        (err: RuleErrStatus.t, idx: int, zrules: zrules): zrules =>
+  ZList.mapi(
+    (pos, zrule) =>
+      if (pos == idx) {
+        set_err_status_zrule(err, zrule);
+      } else {
+        zrule;
+      },
+    (pos, rule) =>
+      if (pos == idx) {
+        UHExp.set_err_status_rule(err, rule);
+      } else {
+        rule;
+      },
+    zrules,
+  )
+and set_err_status_zrule = (err: RuleErrStatus.t, zrule: zrule): zrule =>
+  switch (zrule) {
+  | CursorR(cur, rule) =>
+    CursorR(cur, rule |> UHExp.set_err_status_rule(err))
+  | RuleZP(_, zpat, e) => RuleZP(err, zpat, e)
+  | RuleZE(_, pat, ze) => RuleZE(err, pat, ze)
+  };
+
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   ze |> mk_inconsistent_zblock(u_gen)
 and mk_inconsistent_zblock =
@@ -570,7 +595,7 @@ let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
   let zrule =
-    RuleZP(NotRedundent, ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
+    RuleZP(NotRedundant, ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
   (zrule, u_gen);
 };
 
