@@ -410,17 +410,11 @@ let novice_summary =
       ]
     | OnRule(Redundant(_)) => [
         Node.text("Got a"),
-        emphasize_text("redundant case rule"),
+        emphasize_text("Redundant Rule"),
       ]
-    | OnRule(NotRedundant) => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Rule"),
-      ]
+    | OnRule(NotRedundant) => [Node.text("Got a"), emphasize_text("Rule")]
     | CaseNotExhaustive(_) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("but got a"),
+        Node.text("Got a"),
         emphasize_text("Non-Exhaustive Case"),
       ]
     };

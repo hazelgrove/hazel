@@ -856,31 +856,29 @@ and case_ana_opseq =
     | _ => None
     }
   | Some(skel_tys) =>
-    switch (
-      List.fold_left(
-        (acc: option(Contexts.t), (skel, ty)) =>
-          switch (acc) {
-          | None => None
-          | Some(ctx) => ana_skel(ctx, skel, seq, ty)
-          },
-        Some(ctx),
-        skel_tys,
-      )
-    ) {
-    // really need to think how to do it here.
-    | None => None
-    | Some(ctx) =>
-      let lst =
-        List.map(
-          ((skel, ty)) => case_ana_skel(ctx, skel, seq, ty),
+    switch (List.rev(skel_tys)) {
+    | [] => None
+    | [(skel, ty)] => case_ana_skel(ctx, skel, seq, ty)
+    | [(skel, ty), ...skel_tys] =>
+      switch (case_ana_skel(ctx, skel, seq, ty)) {
+      | None => None
+
+      | Some((ctx, con)) =>
+        List.fold_left(
+          (acc: option((Contexts.t, Constraints.t)), (skel, ty)) =>
+            switch (acc) {
+            | None => None
+            | Some((ctx, con)) =>
+              switch (case_ana_skel(ctx, skel, seq, ty)) {
+              | None => None
+              | Some((ctx, con')) =>
+                Some((ctx, Constraints.Pair(con', con)))
+              }
+            },
+          Some((ctx, con)),
           skel_tys,
-        );
-      switch (lst) {
-      | [Some((_, c))] => Some((ctx, c))
-      | [Some((_, c1)), Some((_, c2))] =>
-        Some((ctx, Constraints.Pair(c1, c2)))
-      | _ => None
-      };
+        )
+      }
     }
   }
 and case_ana_skel =
