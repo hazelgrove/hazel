@@ -10,6 +10,8 @@ let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
+  | CaseErrHole(NotExhaustive) => "case-err-hole-notexhaustive"
+  | CaseErrHole(InconsistentBranches) => "case-err-hole-inconsistentbranches"
   | VarUse => "var-use"
   | CurrentTerm => "current-term";
 
@@ -25,6 +27,8 @@ let decoration_view =
     switch (shape) {
     | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
     | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+    | CaseErrHole(_) =>
+      CaseErrHole.view(~contains_current_term, ~corner_radii)
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
