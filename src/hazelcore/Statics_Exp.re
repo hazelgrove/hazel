@@ -65,13 +65,13 @@ and syn_lines =
       // first pass: group lines
 
       let groups = List.fold_left(
-        (accu: (list(UHExp.line),list(list(UHExp.line))), line: UHExp.line) => {
+        ((cur_block, blocks): (list(UHExp.line),list(list(UHExp.line))), line: UHExp.line) => {
           switch(line){
             | EmptyLine
             | CommentLine(_) 
-            | LetLine(And, _, _) => ([...accu.first, line], accu.second)
+            | LetLine(And, _, _) => (List.append(cur_block, [line]), blocks)
             | ExpLine(_)
-            | LetLine(Let, _, _) => ([line], [...accu.second, accu.first])
+            | LetLine(Let, _, _) => ([line], List.append(blocks, [cur_block]))
           },
         }
         ([], []),
