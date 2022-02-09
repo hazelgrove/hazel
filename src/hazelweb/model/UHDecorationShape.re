@@ -9,6 +9,7 @@ module CaseReason = {
 [@deriving sexp]
 type t =
   | CaseErrHole(CaseReason.t)
+  | RuleErrHole
   | ErrHole
   | VarErrHole
   | VarUse

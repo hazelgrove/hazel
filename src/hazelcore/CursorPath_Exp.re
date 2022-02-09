@@ -382,6 +382,8 @@ let holes_case_err = err =>
   };
 
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+let holes_rule_err =
+  CursorPath_common.holes_rule_err(~hole_sort=hole_sort(RedundantRule));
 
 let rec holes =
         (
@@ -481,14 +483,15 @@ and holes_operand =
   }
 and holes_rule =
     (
-      Rule(_, p, clause): UHExp.rule,
+      Rule(rerr, p, clause): UHExp.rule,
       rev_steps: CursorPath.rev_steps,
       hs: CursorPath.hole_list,
     )
     : CursorPath.hole_list => {
   hs
   |> holes(clause, [1, ...rev_steps])
-  |> CursorPath_Pat.holes(p, [0, ...rev_steps]);
+  |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  |> holes_rule_err(rerr, rev_steps);
 };
 
 let rec holes_z =

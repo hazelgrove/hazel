@@ -34,7 +34,8 @@ type exp_hole_shape =
   | TypeErr
   | VarErr
   | Empty
-  | CaseErr(case_hole_shape);
+  | CaseErr(case_hole_shape)
+  | RedundantRule;
 
 [@deriving sexp]
 type hole_sort =

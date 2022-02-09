@@ -1,4 +1,4 @@
 [@deriving sexp]
 type t =
-  | Redundant
+  | Redundant(MetaVar.t)
   | NotRedundant;

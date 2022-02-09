@@ -480,6 +480,22 @@ module CaseErrHole = {
       );
 };
 
+module RuleErrHole = {
+  let view:
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    (~contains_current_term) =>
+      Decoration_common.CaseErrHole.view(
+        ~vtrim=
+          contains_current_term
+            ? 0.0 : CurrentTerm.inline_open_child_border_height,
+      );
+};
+
 module Caret = {
   let view =
       (~font_metrics: FontMetrics.t, {row, col}: MeasuredPosition.t): Node.t => {

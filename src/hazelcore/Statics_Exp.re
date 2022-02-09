@@ -845,13 +845,22 @@ and syn_fix_holes_operand =
       let pats = UHExp.get_pats(rules);
       let cons =
         Statics_Pat.generate_rules_constraints(ctx, pats, common_type);
-      let idxs = Incon.generate_redundancy_list(cons);
+      let flags = Incon.generate_redundancy_list(cons);
       let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
       let new_rules =
-        List.fold_left(
-          (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+        List.map2(
+          (rule, flag) => {
+            let err =
+              if (flag == 1) {
+                RuleErrStatus.Redundant(u);
+              } else {
+                NotRedundant;
+              };
+            UHExp.set_err_status_rule(err, rule);
+          },
           rules,
-          idxs,
+          flags,
         );
       let (case_err, u_gen) =
         if (Incon.is_exhaustive(con)) {
@@ -1299,13 +1308,22 @@ and ana_fix_holes_operand =
       );
     let pats = UHExp.get_pats(rules);
     let cons = Statics_Pat.generate_rules_constraints(ctx, pats, scrut_ty);
-    let idxs = Incon.generate_redundancy_list(cons);
+    let flags = Incon.generate_redundancy_list(cons);
     let con = Statics_Pat.generate_one_constraints(ctx, pats, scrut_ty);
+    let (u, u_gen) = MetaVarGen.next(u_gen);
     let new_rules =
-      List.fold_left(
-        (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+      List.map2(
+        (rule, flag) => {
+          let err =
+            if (flag == 1) {
+              RuleErrStatus.Redundant(u);
+            } else {
+              NotRedundant;
+            };
+          UHExp.set_err_status_rule(err, rule);
+        },
         rules,
-        idxs,
+        flags,
       );
     let (case_err, u_gen) =
       if (Incon.is_exhaustive(con)) {

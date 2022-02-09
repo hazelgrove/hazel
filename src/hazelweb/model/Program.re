@@ -95,6 +95,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            switch (shape) {
            | Empty => None
            | CaseErr(_) => None
+           | RedundantRule => None
            | VarErr
            | TypeErr => Some((shape, steps))
            }
@@ -117,6 +118,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | Empty => None
            | VarErr => None
            | TypeErr => None
+           | RedundantRule => None
            | CaseErr(_) => Some((shape, steps))
            }
          }
@@ -127,12 +129,30 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | (_case_err_incon, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
+  let rule_err_holes =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole => None
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr => None
+           | TypeErr => None
+           | CaseErr(_) => None
+           | RedundantRule => Some((shape, steps))
+           }
+         }
+       )
+    |> List.map(snd);
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
   {
+    rule_err_holes,
     case_err_holes: (case_err_notex, case_err_incon),
     current_term,
     err_holes: pat_err_holes @ exp_err_holes,

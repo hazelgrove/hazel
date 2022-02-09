@@ -31,7 +31,7 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
-let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
+let prev_hole_steps = (zhole_list: CursorPath.zhole_list): option(steps) => {
   switch (
     List.rev(zhole_list.holes_before),
     List.rev(zhole_list.holes_after),
@@ -42,7 +42,7 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   };
 };
 
-let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
+let next_hole_steps = (zhole_list: CursorPath.zhole_list): option(steps) => {
   switch (zhole_list.holes_before, zhole_list.holes_after) {
   | ([], []) => None
   | (_, [hi, ..._])
@@ -157,6 +157,21 @@ let holes_case_err =
         steps: List.rev(rev_steps),
         ap_steps: List.rev(rev_steps),
       },
+      ...hs,
+    ]
+  };
+
+let holes_rule_err =
+    (
+      ~hole_sort: MetaVar.t => hole_sort,
+      rerr: RuleErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (rerr) {
+  | NotRedundant => hs
+  | Redundant(u) => [
+      mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
   };

@@ -1969,13 +1969,22 @@ and syn_perform_operand =
         | Some(ty) =>
           let pats = UHExp.get_pats(rules);
           let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
-          let idxs = Incon.generate_redundancy_list(cons);
+          let flags = Incon.generate_redundancy_list(cons);
           let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+          let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_rules =
-            List.fold_left(
-              (rs, idx) => UHExp.set_err_status_rules(Redundant, idx, rs),
+            List.map2(
+              (rule, flag) => {
+                let err =
+                  if (flag == 1) {
+                    RuleErrStatus.Redundant(u);
+                  } else {
+                    NotRedundant;
+                  };
+                UHExp.set_err_status_rule(err, rule);
+              },
               rules,
-              idxs,
+              flags,
             );
           let (case_err, u_gen) =
             if (Incon.is_exhaustive(con)) {
@@ -2016,13 +2025,22 @@ and syn_perform_operand =
           let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
           let cons =
             Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
-          let idxs = Incon.generate_redundancy_list(cons);
+          let flags = Incon.generate_redundancy_list(cons);
           let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
-          let new_zrules =
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let (new_zrules, _) =
             List.fold_left(
-              (rs, idx) => ZExp.set_err_status_zrules(Redundant, idx, rs),
-              new_zrules,
-              idxs,
+              ((rs, idx), flag) => {
+                let err =
+                  if (flag == 1) {
+                    RuleErrStatus.Redundant(u);
+                  } else {
+                    NotRedundant;
+                  };
+                (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
+              },
+              (new_zrules, 0),
+              flags,
             );
           let (case_err, u_gen) =
             if (Incon.is_exhaustive(con)) {
