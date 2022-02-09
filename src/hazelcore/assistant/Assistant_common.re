@@ -100,7 +100,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | OnType
   | OnNonLetLine
-  | OnRule => (None, None, UnknownMode)
+  | OnRule(_) => (None, None, UnknownMode)
   | CaseNotExhaustive(got_ty) => (None, Some(got_ty), UnknownMode)
   };
 };

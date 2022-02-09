@@ -1009,8 +1009,8 @@ and syn_cursor_info_rule =
     )
     : option(CursorInfo.t) =>
   switch (zrule) {
-  | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
+  | CursorR(_, Rule(err, _, _)) =>
+    Some(CursorInfo_common.mk(OnRule(err), ctx, extract_from_zrule(zrule)))
   | RuleZP(_, zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
@@ -1056,8 +1056,8 @@ and ana_cursor_info_rule =
     )
     : option(CursorInfo.t) =>
   switch (zrule) {
-  | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
+  | CursorR(_, Rule(err, _, _)) =>
+    Some(CursorInfo_common.mk(OnRule(err), ctx, extract_from_zrule(zrule)))
   | RuleZP(_, zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)

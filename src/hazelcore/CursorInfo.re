@@ -109,7 +109,7 @@ type typed =
   | OnType
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
-  | OnRule
+  | OnRule(RuleErrStatus.t)
   | CaseNotExhaustive(HTyp.t);
 
 [@deriving sexp]
