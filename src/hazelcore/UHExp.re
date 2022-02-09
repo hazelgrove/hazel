@@ -27,7 +27,7 @@ and operand =
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t)
+  | Rule(RuleErrStatus.t, UHPat.t, t)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
@@ -163,7 +163,7 @@ let is_EmptyHole =
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let rule = Rule(OpSeq.wrap(p), Block.wrap(e));
+  let rule = Rule(NotRedundent, OpSeq.wrap(p), Block.wrap(e));
   (rule, u_gen);
 };
 
@@ -308,7 +308,7 @@ and is_complete_block = (b: block): bool => {
 }
 and is_complete_rule = (rule: rule): bool => {
   switch (rule) {
-  | Rule(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | Rule(_, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   };
 }
 and is_complete_rules = (rules: rules): bool => {
@@ -350,6 +350,6 @@ and is_complete = (exp: t): bool => {
 let get_pats = (rs: rules): list(UHPat.t) =>
   List.map(
     fun
-    | Rule(pat, _) => pat,
+    | Rule(_, pat, _) => pat,
     rs,
   );

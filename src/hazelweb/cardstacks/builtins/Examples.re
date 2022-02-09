@@ -33,8 +33,13 @@ let map_example: UHExp.t = {
       case(
         Block.wrap(var("xs")),
         [
-          Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(listnil())),
           Rule(
+            NotRedundent,
+            OpSeq.wrap(UHPat.listnil()),
+            Block.wrap(listnil()),
+          ),
+          Rule(
+            NotRedundent,
             UHPat.(
               Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
               |> mk_OpSeq
@@ -111,8 +116,13 @@ let qsort_example: UHExp.t = {
       case(
         Block.wrap(var("xs")),
         [
-          Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(var("ys"))),
           Rule(
+            NotRedundent,
+            OpSeq.wrap(UHPat.listnil()),
+            Block.wrap(var("ys")),
+          ),
+          Rule(
+            NotRedundent,
             UHPat.(
               Seq.mk(var("z"), [(Operators_Pat.Cons, var("zs"))])
               |> mk_OpSeq
@@ -181,6 +191,7 @@ let qsort_example: UHExp.t = {
           Block.wrap(var("xs")),
           [
             Rule(
+              NotRedundent,
               OpSeq.wrap(UHPat.listnil()),
               Block.wrap(
                 Parenthesized(
@@ -191,6 +202,7 @@ let qsort_example: UHExp.t = {
               ),
             ),
             Rule(
+              NotRedundent,
               UHPat.(
                 Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
                 |> mk_OpSeq
@@ -223,6 +235,7 @@ let qsort_example: UHExp.t = {
                     ),
                     [
                       Rule(
+                        NotRedundent,
                         OpSeq.wrap(UHPat.boollit(true)),
                         Block.wrap(
                           Parenthesized(
@@ -237,6 +250,7 @@ let qsort_example: UHExp.t = {
                         ),
                       ),
                       Rule(
+                        NotRedundent,
                         OpSeq.wrap(UHPat.boollit(false)),
                         Block.wrap(
                           Parenthesized(
@@ -361,14 +375,17 @@ let inconsistent_branches: UHExp.t =
         Block.wrap(UHExp.IntLit(NotInHole, "1")),
         [
           Rule(
+            NotRedundent,
             OpSeq.wrap(UHPat.IntLit(NotInHole, "0")),
             Block.wrap(UHExp.BoolLit(NotInHole, true)),
           ),
           Rule(
+            NotRedundent,
             OpSeq.wrap(UHPat.IntLit(NotInHole, "1")),
             Block.wrap(UHExp.FloatLit(NotInHole, "1.")),
           ),
           Rule(
+            NotRedundent,
             OpSeq.wrap(UHPat.IntLit(NotInHole, "2")),
             Block.wrap(UHExp.FloatLit(NotInHole, "2.")),
           ),

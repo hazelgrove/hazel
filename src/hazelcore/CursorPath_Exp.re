@@ -44,8 +44,8 @@ and of_zrules = (zrules: ZExp.zrules): CursorPath.t => {
 and of_zrule = (zrule: ZExp.zrule): CursorPath.t =>
   switch (zrule) {
   | CursorR(cursor, _) => ([], cursor)
-  | RuleZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
-  | RuleZE(_, zclause) => cons'(1, of_z(zclause))
+  | RuleZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | RuleZE(_, _, zclause) => cons'(1, of_z(zclause))
   };
 
 let rec follow = (path: CursorPath.t, e: UHExp.t): option(ZExp.t) =>
@@ -182,7 +182,10 @@ and follow_rules =
     }
   }
 and follow_rule =
-    ((steps, cursor): CursorPath.t, Rule(p, clause) as rule: UHExp.rule)
+    (
+      (steps, cursor): CursorPath.t,
+      Rule(err, p, clause) as rule: UHExp.rule,
+    )
     : option(ZExp.zrule) =>
   switch (steps) {
   | [] => rule |> ZExp.place_cursor_rule(cursor)
@@ -191,11 +194,11 @@ and follow_rule =
     | 0 =>
       p
       |> CursorPath_Pat.follow((xs, cursor))
-      |> Option.map(zp => ZExp.RuleZP(zp, clause))
+      |> Option.map(zp => ZExp.RuleZP(err, zp, clause))
     | 1 =>
       clause
       |> follow((xs, cursor))
-      |> Option.map(zclause => ZExp.RuleZE(p, zclause))
+      |> Option.map(zclause => ZExp.RuleZE(err, p, zclause))
     | _ => None
     }
   };
@@ -347,7 +350,7 @@ and of_steps_rule =
       };
     Some(of_zrule(place_cursor(rule)));
   | [x, ...xs] =>
-    let Rule(p, clause) = rule;
+    let Rule(_, p, clause) = rule;
     switch (x) {
     | 0 =>
       p
@@ -464,7 +467,7 @@ and holes_operand =
   }
 and holes_rule =
     (
-      Rule(p, clause): UHExp.rule,
+      Rule(_, p, clause): UHExp.rule,
       rev_steps: CursorPath.rev_steps,
       hs: CursorPath.hole_list,
     )
@@ -844,7 +847,7 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   | CursorR(OnOp(_) | OnText(_), _) =>
     // invalid cursor position
     CursorPath_common.no_holes
-  | CursorR(OnDelim(k, _), Rule(p, clause)) =>
+  | CursorR(OnDelim(k, _), Rule(_, p, clause)) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_clause = holes(clause, [1, ...rev_steps], []);
     switch (k) {
@@ -858,11 +861,11 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
       )
     | _ => CursorPath_common.no_holes
     };
-  | RuleZP(zp, clause) =>
+  | RuleZP(_, zp, clause) =>
     let zholes_p = CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
     let holes_clause = holes(clause, [1, ...rev_steps], []);
     {...zholes_p, holes_after: zholes_p.holes_after @ holes_clause};
-  | RuleZE(p, zclause) =>
+  | RuleZE(_, p, zclause) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let zholes_clause = holes_z(zclause, [1, ...rev_steps]);
     {...zholes_clause, holes_before: holes_p @ zholes_clause.holes_before};

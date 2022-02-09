@@ -456,7 +456,7 @@ and syn_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
@@ -823,7 +823,7 @@ and ana_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
