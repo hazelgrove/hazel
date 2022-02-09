@@ -109,7 +109,8 @@ type typed =
   | OnType
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
-  | OnRule;
+  | OnRule
+  | CaseNotExhaustive(HTyp.t);
 
 [@deriving sexp]
 type cursor_term =

@@ -841,11 +841,16 @@ and syn_fix_holes_operand =
         HTyp.Hole,
         u_gen,
       );
-    | Some(common_type) => (
-        Case(StandardErrStatus(NotInHole), scrut, rules),
-        common_type,
-        u_gen,
-      )
+    | Some(common_type) =>
+      let pats = UHExp.get_pats(rules);
+      let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let case_err =
+        if (Incon.is_exhaustive(con)) {
+          CaseErrStatus.StandardErrStatus(NotInHole);
+        } else {
+          NotExhaustive;
+        };
+      (Case(case_err, scrut, rules), common_type, u_gen);
     };
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
@@ -1282,7 +1287,15 @@ and ana_fix_holes_operand =
         scrut_ty,
         ty,
       );
-    (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+    let pats = UHExp.get_pats(rules);
+    let con = Statics_Pat.generate_one_constraints(ctx, pats, scrut_ty);
+    let case_err =
+      if (Incon.is_exhaustive(con)) {
+        CaseErrStatus.StandardErrStatus(NotInHole);
+      } else {
+        NotExhaustive;
+      };
+    (Case(case_err, scrut, rules), u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

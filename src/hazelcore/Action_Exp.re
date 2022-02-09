@@ -1967,10 +1967,15 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
-            );
+          let pats = UHExp.get_pats(rules);
+          let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+          let case_err =
+            if (Incon.is_exhaustive(con)) {
+              CaseErrStatus.StandardErrStatus(NotInHole);
+            } else {
+              NotExhaustive;
+            };
+          let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, rules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
       }
@@ -1999,10 +2004,15 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
-            );
+          let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
+          let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+          let case_err =
+            if (Incon.is_exhaustive(con)) {
+              CaseErrStatus.StandardErrStatus(NotInHole);
+            } else {
+              NotExhaustive;
+            };
+          let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
       }

@@ -529,7 +529,12 @@ and syn_cursor_info_zoperand =
       ),
     )
   /* TODO: add cursor info for not exhaustive */
-  | CursorE(_, Case(NotExhaustive, _, _)) => None
+  | CursorE(_, Case(NotExhaustive, _, _) as e) =>
+    switch (Statics_Exp.syn_operand(ctx, e)) {
+    | None => None
+    | Some(ty) =>
+      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
+    }
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None

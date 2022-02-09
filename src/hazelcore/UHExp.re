@@ -346,3 +346,10 @@ and is_complete_operand = (operand: 'operand): bool => {
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
 };
+
+let get_pats = (rs: rules): list(UHPat.t) =>
+  List.map(
+    fun
+    | Rule(pat, _) => pat,
+    rs,
+  );

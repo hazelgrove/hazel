@@ -42,17 +42,19 @@ let is_inconsistent_bool = (xis: list(Constraints.t)): bool => {
     );
   if (BoolSet.cardinal(bool_set) > 1) {
     true;
+  } else if (List.fold_left(
+               (incon, n) =>
+                 if (incon) {
+                   incon;
+                 } else {
+                   BoolSet.mem(n, bool_set);
+                 },
+               false,
+               not_bool_list,
+             )) {
+    true;
   } else {
-    List.fold_left(
-      (incon, n) =>
-        if (incon) {
-          incon;
-        } else {
-          BoolSet.mem(n, bool_set);
-        },
-      false,
-      not_bool_list,
-    );
+    List.mem(true, not_bool_list) && List.mem(false, not_bool_list);
   };
 };
 
@@ -167,7 +169,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
           xis,
         )
       ) {
-      | (_, []) => failwith("wait for is_inconsistent_nums")
+      | (bs, []) => is_inconsistent_bool(bs)
       | (bs, other) => is_inconsistent(~may, other @ bs)
       }
     | Float(_)
@@ -181,7 +183,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
           xis,
         )
       ) {
-      | (_, []) => failwith("wait for is_inconsistent_nums")
+      | (fs, []) => is_inconsistent_float(fs)
       | (fs, other) => is_inconsistent(~may, other @ fs)
       }
     | Pair(_, _) =>

@@ -222,6 +222,10 @@ let advanced_summary =
     | OnType => []
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | CaseNotExhaustive(_) => [emphasize_text("Non-Exhaustive Case")]
+    // let ind1 = expected_any_indicator_pat;
+    // let ind2 = got_indicator("Not Exhaustive Case", got_ty_indicator(ty));
+    // (ind1, ind2, BindingError);
     };
   };
   switch (typed) {
@@ -411,6 +415,11 @@ let novice_summary =
         term_tag,
         emphasize_text(~only_right=true, "Rule"),
       ]
+    | CaseNotExhaustive(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Non-Exhaustive Case"),
+      ]
     };
   };
   message(typed);
@@ -586,6 +595,73 @@ let view =
       let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
       Some([ind]);
     | _ => None
+    //   let ind1 = expected_msg_indicator("function type");
+    //   let ind2 =
+    //     got_inconsistent_branches_indicator(rule_types, path_to_case);
+    //   (ind1, ind2, TypeInconsistency);
+    // | OnType =>
+    //   let ind1 = expected_a_type_indicator;
+    //   let ind2 = got_a_type_indicator;
+    //   (ind1, ind2, OK);
+    // | PatAnalyzed(ty) =>
+    //   let ind1 = expected_ty_indicator_pat(ty);
+    //   let ind2 = got_indicator("Got", special_msg_bar("as expected"));
+    //   (ind1, ind2, OK);
+    // | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+    //   let ind1 = expected_ty_indicator_pat(expected_ty);
+    //   let ind2 = got_inconsistent_indicator(got_ty);
+    //   (ind1, ind2, TypeInconsistency);
+    // | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
+    //   let expected_msg = string_of_int(expected_len) ++ "-tuple";
+    //   let ind1 =
+    //     expected_indicator(
+    //       "Expecting a pattern of form",
+    //       special_msg_bar(expected_msg),
+    //     );
+    //   let got_msg = string_of_int(got_len) ++ "-tuple";
+    //   let ind2 =
+    //     got_indicator(
+    //       "Got tuple of the wrong length",
+    //       special_msg_bar(got_msg),
+    //     );
+    //   (ind1, ind2, TypeInconsistency);
+    // | PatAnaInvalid(expected_ty) =>
+    //   let ind1 = expected_ty_indicator(expected_ty);
+    //   let ind2 = got_invalid_indicator;
+    //   (ind1, ind2, BindingError);
+    // | PatAnaSubsumed(expected_ty, got_ty) =>
+    //   let ind1 = expected_ty_indicator_pat(expected_ty);
+    //   let ind2 =
+    //     HTyp.eq(expected_ty, got_ty)
+    //       ? got_as_expected_ty_indicator(got_ty)
+    //       : got_consistent_indicator(got_ty);
+    //   (ind1, ind2, OK);
+    // | PatAnaKeyword(expected_ty, _keyword) =>
+    //   let ind1 = expected_ty_indicator_pat(expected_ty);
+    //   let ind2 = got_keyword_indicator;
+    //   (ind1, ind2, BindingError);
+    // | PatSynthesized(ty) =>
+    //   let ind1 = expected_any_indicator_pat;
+    //   let ind2 = got_ty_indicator(ty);
+    //   (ind1, ind2, OK);
+    // | PatSynKeyword(_keyword) =>
+    //   let ind1 = expected_any_indicator_pat;
+    //   let ind2 = got_keyword_indicator;
+    //   (ind1, ind2, BindingError);
+    // | OnLine =>
+    //   /* TODO */
+    //   let ind1 = expected_a_line_indicator;
+    //   let ind2 = got_a_line_indicator;
+    //   (ind1, ind2, OK);
+    // | OnRule =>
+    //   /* TODO */
+    //   let ind1 = expected_a_rule_indicator;
+    //   let ind2 = got_a_rule_indicator;
+    //   (ind1, ind2, OK);
+    // | CaseNotExhaustive(ty) =>
+    //   let ind1 = expected_any_indicator_pat;
+    //   let ind2 = got_indicator("Not Exhaustive Case", got_ty_indicator(ty));
+    //   (ind1, ind2, BindingError);
     };
 
   let rec get_err_state_b = (typed: CursorInfo.typed) =>
@@ -619,7 +695,8 @@ let view =
     | SynFreeArrow(_)
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
-    | PatSynKeyword(_) => BindingError
+    | PatSynKeyword(_)
+    | CaseNotExhaustive(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>

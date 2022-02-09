@@ -752,182 +752,243 @@ let ana_fix_holes_z =
   (zp, ctx, u_gen);
 };
 
-/*
- let rec case_syn =
-         (ctx: Contexts.t, p: UHPat.t)
-         : option((HTyp.t, Contexts.t, Constraints.t)) =>
-   case_syn_opseq(ctx, p)
- and case_syn_opseq =
-     (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
-     : option((HTyp.t, Contexts.t, Constraints.t)) =>
-   case_syn_skel(ctx, skel, seq)
- and case_syn_skel =
-     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
-     : option((HTyp.t, Contexts.t, Constraints.t)) =>
-   switch (skel) {
-   | Placeholder(n) =>
-     let pn = seq |> Seq.nth_operand(n);
-     case_syn_operand(ctx, pn);
-   | BinOp(InHole(_), _, _, _) => None // todo
-   | BinOp(NotInHole, Comma, _, _) => None // todo
-   | BinOp(NotInHole, Space, _, _) => None // todo
-   | BinOp(NotInHole, Cons, _, _) => None // todo list constr
-   }
- and case_syn_operand =
-     (ctx: Contexts.t, operand: UHPat.operand)
-     : option((HTyp.t, Contexts.t, Constraints.t)) =>
-   switch (operand) {
-   /* in hole */
-   | EmptyHole(_) => Some((Hole, ctx, Hole))
-   | InvalidText(_) => Some((Hole, ctx, Falsity))
-   | Wild(InHole(TypeInconsistent, _))
-   | Var(InHole(TypeInconsistent, _), _, _)
-   | IntLit(InHole(TypeInconsistent, _), _)
-   | FloatLit(InHole(TypeInconsistent, _), _)
-   | BoolLit(InHole(TypeInconsistent, _), _)
-   | ListNil(InHole(TypeInconsistent, _))
-   | Inj(InHole(TypeInconsistent, _), _, _) =>
-     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-     case_syn_operand(ctx, operand')
-     |> Option.map(((_, gamma, con)) => (HTyp.Hole, gamma, con));
-   | Wild(InHole(WrongLength, _))
-   | Var(InHole(WrongLength, _), _, _)
-   | IntLit(InHole(WrongLength, _), _)
-   | FloatLit(InHole(WrongLength, _), _)
-   | BoolLit(InHole(WrongLength, _), _)
-   | ListNil(InHole(WrongLength, _))
-   | Inj(InHole(WrongLength, _), _, _) => None
-   /* not in hole */
-   | Wild(NotInHole) => Some((Hole, ctx, Truth))
-   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-   | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
-     Some((Hole, ctx, Falsity))
-   | Var(NotInHole, NotInVarHole, x) =>
-     Var.check_valid(
-       x,
-       Some((
-         HTyp.Hole,
-         Contexts.extend_gamma(ctx, (x, Hole)),
-         Constraints.Truth,
-       )),
-     )
-   | IntLit(NotInHole, n) => Some((Int, ctx, Int(int_of_string(n))))
-   | FloatLit(NotInHole, n) => Some((Float, ctx, Float(float_of_string(n))))
-   | BoolLit(NotInHole, b) => Some((Bool, ctx, Bool(b)))
-   | ListNil(NotInHole) => Some((List(Hole), ctx, Truth)) // todo: fix when list constr is defined
-   | Inj(NotInHole, inj_side, p1) =>
-     switch (case_syn(ctx, p1)) {
-     | None => None
-     | Some((ty1, ctx, con)) =>
-       switch (inj_side) {
-       | L => Some((HTyp.Sum(ty1, Hole), ctx, InjL(con)))
-       | R => Some((HTyp.Sum(Hole, ty1), ctx, InjR(con)))
-       }
-     }
-   | Parenthesized(p) => case_syn(ctx, p)
-   }
- and case_ana =
-     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t)
-     : option((Contexts.t, Constraints.t)) =>
-   case_ana_opseq(ctx, p, ty)
- and case_ana_opseq =
-     (_ctx: Contexts.t, OpSeq(_skel, _seq) as _opseq: UHPat.opseq, ty: HTyp.t)
-     : option((Contexts.t, Constraints.t)) =>
-   switch (tuple_zip(_skel, ty)) {
-   | None => None // todo
-   | Some(_skel_tys) => None
-   }
- and case_ana_skel =
-     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
-     : option((Contexts.t, Constraints.t)) =>
-   switch (skel) {
-   | BinOp(_, Comma, _, _)
-   | BinOp(InHole(WrongLength, _), _, _, _) =>
-     failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
-   | Placeholder(n) =>
-     let pn = Seq.nth_operand(n, seq);
-     case_ana_operand(ctx, pn, ty);
-   | _ => None
-   }
- and case_ana_operand =
-     (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t)
-     : option((Contexts.t, Constraints.t)) =>
-   switch (operand) {
-   /* in hole */
-   | EmptyHole(_) => Some((ctx, Hole))
-   | InvalidText(_) => Some((ctx, Falsity))
-   | Wild(InHole(TypeInconsistent, _))
-   | Var(InHole(TypeInconsistent, _), _, _)
-   | IntLit(InHole(TypeInconsistent, _), _)
-   | FloatLit(InHole(TypeInconsistent, _), _)
-   | BoolLit(InHole(TypeInconsistent, _), _)
-   | ListNil(InHole(TypeInconsistent, _))
-   | Inj(InHole(TypeInconsistent, _), _, _) => None // todo here
-   | Wild(InHole(WrongLength, _))
-   | Var(InHole(WrongLength, _), _, _)
-   | IntLit(InHole(WrongLength, _), _)
-   | FloatLit(InHole(WrongLength, _), _)
-   | BoolLit(InHole(WrongLength, _), _)
-   | ListNil(InHole(WrongLength, _))
-   | Inj(InHole(WrongLength, _), _, _) => None // todo here
-   /* not in hole */
-   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
-   | Var(NotInHole, NotInVarHole, x) =>
-     Var.check_valid(
-       x,
-       Some((Contexts.extend_gamma(ctx, (x, ty)), Constraints.Truth)),
-     )
-   | Wild(NotInHole) => Some((ctx, Truth))
-   | IntLit(NotInHole, n) =>
-     switch (syn_operand(ctx, operand)) {
-     | None => None
-     | Some((ty', ctx')) =>
-       if (HTyp.consistent(ty, ty')) {
-         Some((ctx', Int(int_of_string(n))));
-       } else {
-         None;
-       }
-     }
-   | FloatLit(NotInHole, n) =>
-     switch (syn_operand(ctx, operand)) {
-     | None => None
-     | Some((ty', ctx')) =>
-       if (HTyp.consistent(ty, ty')) {
-         Some((ctx', Float(float_of_string(n))));
-       } else {
-         None;
-       }
-     }
-   | BoolLit(NotInHole, b) =>
-     switch (syn_operand(ctx, operand)) {
-     | None => None
-     | Some((ty', ctx')) =>
-       if (HTyp.consistent(ty, ty')) {
-         Some((ctx', Bool(b)));
-       } else {
-         None;
-       }
-     }
-   | ListNil(NotInHole) =>
-     switch (HTyp.matched_list(ty)) {
-     | None => None
-     | Some(_) => Some((ctx, Truth)) // todo: fix when list constraint is defined
-     }
-   | Inj(NotInHole, side, p1) =>
-     switch (HTyp.matched_sum(ty)) {
-     | None => None
-     | Some((tyL, tyR)) =>
-       let ty1 = InjSide.pick(side, tyL, tyR);
-       switch (case_ana(ctx, p1, ty1)) {
-       | None => None
-       | Some((ctx', con')) =>
-         switch (side) {
-         | L => Some((ctx', InjL(con')))
-         | R => Some((ctx', InjR(con')))
-         }
-       };
-     }
-   | Parenthesized(p) => case_ana(ctx, p, ty)
-   };
- */
+let rec case_syn =
+        (ctx: Contexts.t, p: UHPat.t)
+        : option((HTyp.t, Contexts.t, Constraints.t)) =>
+  case_syn_opseq(ctx, p)
+and case_syn_opseq =
+    (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
+    : option((HTyp.t, Contexts.t, Constraints.t)) =>
+  case_syn_skel(ctx, skel, seq)
+and case_syn_skel =
+    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
+    : option((HTyp.t, Contexts.t, Constraints.t)) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    let pn = seq |> Seq.nth_operand(n);
+    case_syn_operand(ctx, pn);
+  | BinOp(InHole(_), _, _, _) => None // todo
+  | BinOp(NotInHole, Comma, _, _) => None // todo
+  | BinOp(NotInHole, Space, _, _) => None // todo
+  | BinOp(NotInHole, Cons, _, _) => None // todo list constr
+  }
+and case_syn_operand =
+    (ctx: Contexts.t, operand: UHPat.operand)
+    : option((HTyp.t, Contexts.t, Constraints.t)) =>
+  switch (operand) {
+  /* in hole */
+  | EmptyHole(_) => Some((Hole, ctx, Hole))
+  | InvalidText(_) => Some((Hole, ctx, Falsity))
+  | Wild(InHole(TypeInconsistent, _))
+  | Var(InHole(TypeInconsistent, _), _, _)
+  | IntLit(InHole(TypeInconsistent, _), _)
+  | FloatLit(InHole(TypeInconsistent, _), _)
+  | BoolLit(InHole(TypeInconsistent, _), _)
+  | ListNil(InHole(TypeInconsistent, _))
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
+    let operand' = UHPat.set_err_status_operand(NotInHole, operand);
+    case_syn_operand(ctx, operand')
+    |> Option.map(((_, gamma, con)) => (HTyp.Hole, gamma, con));
+  | Wild(InHole(WrongLength, _))
+  | Var(InHole(WrongLength, _), _, _)
+  | IntLit(InHole(WrongLength, _), _)
+  | FloatLit(InHole(WrongLength, _), _)
+  | BoolLit(InHole(WrongLength, _), _)
+  | ListNil(InHole(WrongLength, _))
+  | Inj(InHole(WrongLength, _), _, _)
+  | TypeAnn(InHole(WrongLength, _), _, _) => None
+  /* not in hole */
+  | Wild(NotInHole) => Some((Hole, ctx, Truth))
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
+    Some((Hole, ctx, Falsity))
+  | Var(NotInHole, NotInVarHole, x) =>
+    Var.check_valid(
+      x,
+      Some((
+        HTyp.Hole,
+        Contexts.extend_gamma(ctx, (x, Hole)),
+        Constraints.Truth,
+      )),
+    )
+  | IntLit(NotInHole, n) => Some((Int, ctx, Int(int_of_string(n))))
+  | FloatLit(NotInHole, n) => Some((Float, ctx, Float(float_of_string(n))))
+  | BoolLit(NotInHole, b) => Some((Bool, ctx, Bool(b)))
+  | ListNil(NotInHole) => Some((List(Hole), ctx, Truth)) // todo: fix when list constr is defined
+  | Inj(NotInHole, inj_side, p1) =>
+    switch (case_syn(ctx, p1)) {
+    | None => None
+    | Some((ty1, ctx, con)) =>
+      switch (inj_side) {
+      | L => Some((HTyp.Sum(ty1, Hole), ctx, InjL(con)))
+      | R => Some((HTyp.Sum(Hole, ty1), ctx, InjR(con)))
+      }
+    }
+  | TypeAnn(NotInHole, op, ann) =>
+    let ty = UHTyp.expand(ann);
+    switch (case_ana_operand(ctx, op, ty)) {
+    | None => None
+    | Some((ctx, con)) => Some((ty, ctx, con))
+    };
+  | Parenthesized(p) => case_syn(ctx, p)
+  }
+and case_ana =
+    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t)
+    : option((Contexts.t, Constraints.t)) =>
+  case_ana_opseq(ctx, p, ty)
+and case_ana_opseq =
+    (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
+    : option((Contexts.t, Constraints.t)) =>
+  switch (tuple_zip(skel, ty)) {
+  | None =>
+    switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+    | (InHole(TypeInconsistent, _), [_])
+    | (InHole(WrongLength, _), _) =>
+      let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
+      syn_opseq(ctx, opseq') |> Option.map(_ => (ctx, Constraints.Hole));
+    | _ => None
+    }
+  | Some(skel_tys) =>
+    switch (
+      List.fold_left(
+        (acc: option(Contexts.t), (skel, ty)) =>
+          switch (acc) {
+          | None => None
+          | Some(ctx) => ana_skel(ctx, skel, seq, ty)
+          },
+        Some(ctx),
+        skel_tys,
+      )
+    ) {
+    | None => None
+    | Some(ctx) =>
+      let lst =
+        List.map(
+          ((skel, ty)) => case_ana_skel(ctx, skel, seq, ty),
+          skel_tys,
+        );
+      switch (lst) {
+      | [Some((_, c))] => Some((ctx, c))
+      | [Some((_, c1)), Some((_, c2))] =>
+        Some((ctx, Constraints.Pair(c1, c2)))
+      | _ => None
+      };
+    }
+  }
+and case_ana_skel =
+    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
+    : option((Contexts.t, Constraints.t)) =>
+  switch (skel) {
+  | BinOp(_, Comma, _, _)
+  | BinOp(InHole(WrongLength, _), _, _, _) =>
+    failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
+  | Placeholder(n) =>
+    let pn = Seq.nth_operand(n, seq);
+    case_ana_operand(ctx, pn, ty);
+  | _ => None
+  }
+and case_ana_operand =
+    (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t)
+    : option((Contexts.t, Constraints.t)) =>
+  switch (operand) {
+  /* in hole */
+  | EmptyHole(_) => Some((ctx, Hole))
+  | InvalidText(_) => Some((ctx, Falsity))
+  | Wild(InHole(TypeInconsistent, _))
+  | Var(InHole(TypeInconsistent, _), _, _)
+  | IntLit(InHole(TypeInconsistent, _), _)
+  | FloatLit(InHole(TypeInconsistent, _), _)
+  | BoolLit(InHole(TypeInconsistent, _), _)
+  | ListNil(InHole(TypeInconsistent, _))
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
+    let operand' = UHPat.set_err_status_operand(NotInHole, operand);
+    syn_operand(ctx, operand')
+    |> Option.map(((_, ctx)) => (ctx, Constraints.Hole));
+  | Wild(InHole(WrongLength, _))
+  | Var(InHole(WrongLength, _), _, _)
+  | IntLit(InHole(WrongLength, _), _)
+  | FloatLit(InHole(WrongLength, _), _)
+  | BoolLit(InHole(WrongLength, _), _)
+  | ListNil(InHole(WrongLength, _))
+  | Inj(InHole(WrongLength, _), _, _)
+  | TypeAnn(InHole(WrongLength, _), _, _) =>
+    failwith("not implemented wrong length")
+  /* not in hole */
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
+  | Var(NotInHole, NotInVarHole, x) =>
+    Var.check_valid(
+      x,
+      Some((Contexts.extend_gamma(ctx, (x, ty)), Constraints.Truth)),
+    )
+  | Wild(NotInHole) => Some((ctx, Truth))
+  | IntLit(NotInHole, n) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some((ty', ctx')) =>
+      if (HTyp.consistent(ty, ty')) {
+        Some((ctx', Int(int_of_string(n))));
+      } else {
+        None;
+      }
+    }
+  | FloatLit(NotInHole, n) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some((ty', ctx')) =>
+      if (HTyp.consistent(ty, ty')) {
+        Some((ctx', Float(float_of_string(n))));
+      } else {
+        None;
+      }
+    }
+  | BoolLit(NotInHole, b) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some((ty', ctx')) =>
+      if (HTyp.consistent(ty, ty')) {
+        Some((ctx', Bool(b)));
+      } else {
+        None;
+      }
+    }
+  | ListNil(NotInHole) => failwith("Not implemented listnil")
+  | Inj(NotInHole, side, p1) =>
+    switch (HTyp.matched_sum(ty)) {
+    | None => None
+    | Some((tyL, tyR)) =>
+      let ty1 = InjSide.pick(side, tyL, tyR);
+      switch (case_ana(ctx, p1, ty1)) {
+      | None => None
+      | Some((ctx', con')) =>
+        switch (side) {
+        | L => Some((ctx', InjL(con')))
+        | R => Some((ctx', InjR(con')))
+        }
+      };
+    }
+  | TypeAnn(NotInHole, op, ann) =>
+    let ty_ann = UHTyp.expand(ann);
+    HTyp.consistent(ty, ty_ann) ? case_ana_operand(ctx, op, ty_ann) : None;
+  | Parenthesized(p) => case_ana(ctx, p, ty)
+  };
+
+let generate_rules_constraints =
+    (ctx: Contexts.t, pats: list(UHPat.t), scrut_ty: HTyp.t)
+    : list(Constraints.t) =>
+  List.map(
+    pat =>
+      switch (case_ana(ctx, pat, scrut_ty)) {
+      | None => failwith("No constraint generated")
+      | Some((_, c)) => c
+      },
+    pats,
+  );
+
+let generate_one_constraints =
+    (ctx: Contexts.t, pats: list(UHPat.t), scrut_ty: HTyp.t): Constraints.t => {
+  let clst = generate_rules_constraints(ctx, pats, scrut_ty);
+  Constraints.or_constraints(List.rev(clst));
+};

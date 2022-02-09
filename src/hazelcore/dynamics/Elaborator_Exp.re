@@ -276,8 +276,6 @@ and syn_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
-  /* TODO: add support for not exhaustive */
-  | Case(NotExhaustive, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -379,7 +377,7 @@ and syn_elab_operand =
         };
       Elaborates(d, ty, delta);
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
@@ -685,7 +683,6 @@ and ana_elab_operand =
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
   /* TODO: add support for not exhaustive */
-  | Case(NotExhaustive, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -763,7 +760,7 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       };
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
