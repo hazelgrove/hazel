@@ -7,7 +7,7 @@ let get_model_action_from_kc =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (cursor_on_type, cursor_on_comment) =
+  let (cursor_on_type, _cursor_on_comment) =
     switch (cursor_info) {
     | {typed: OnType(_), _} => (true, false)
     | {cursor_term: Line(_, CommentLine(_)), _} => (false, true)
@@ -41,7 +41,6 @@ let get_model_action_from_kc =
   | Asterisk => construct(SOp(STimes))
   | Slash => construct(SOp(SDivide))
   | LT => construct(SOp(SLessThan))
-  | Space when cursor_on_comment => construct(SChar(" "))
   | Space => construct(SOp(SSpace))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
