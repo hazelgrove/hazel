@@ -28,8 +28,8 @@ let decoration_view =
     switch (shape) {
     | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
     | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
-    | CaseErrHole(_) =>
-      CaseErrHole.view(~contains_current_term, ~corner_radii)
+    | CaseErrHole(reason) =>
+      CaseErrHole.view(~contains_current_term, reason, ~corner_radii)
     | RuleErrHole => RuleErrHole.view(~contains_current_term, ~corner_radii)
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>

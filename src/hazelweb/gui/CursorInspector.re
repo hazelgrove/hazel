@@ -409,10 +409,8 @@ let novice_summary =
         emphasize_text(~only_right=true, "Line"),
       ]
     | OnRule(Redundant(_)) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("but got a"),
-        emphasize_text("a redundant case rule"),
+        Node.text("Got a"),
+        emphasize_text("redundant case rule"),
       ]
     | OnRule(NotRedundant) => [
         Node.text("Got " ++ article),

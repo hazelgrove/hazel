@@ -468,15 +468,17 @@ module CaseErrHole = {
   let view:
     (
       ~contains_current_term: bool,
+      UHDecorationShape.CaseReason.t,
       ~corner_radii: (float, float),
       UHMeasuredLayout.with_offset
     ) =>
     Node.t =
-    (~contains_current_term) =>
+    (~contains_current_term, reason) =>
       Decoration_common.CaseErrHole.view(
         ~vtrim=
           contains_current_term
             ? 0.0 : CurrentTerm.inline_open_child_border_height,
+        reason,
       );
 };
 
@@ -489,7 +491,7 @@ module RuleErrHole = {
     ) =>
     Node.t =
     (~contains_current_term) =>
-      Decoration_common.CaseErrHole.view(
+      Decoration_common.RuleErrHole.view(
         ~vtrim=
           contains_current_term
             ? 0.0 : CurrentTerm.inline_open_child_border_height,
