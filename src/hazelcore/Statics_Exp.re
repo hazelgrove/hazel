@@ -177,7 +177,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | R => Sum(Hole, ty)
     };
   | Case(StandardErrStatus(NotInHole), scrut, rules)
-  | Case(NotExhaustive, scrut, rules) =>
+  | Case(NotExhaustive(_), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | ApPalette(NotInHole, name, serialized_model, psi) =>
@@ -330,7 +330,7 @@ and ana_operand =
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
-  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
   | ApPalette(NotInHole, _, _, _) =>
@@ -853,11 +853,12 @@ and syn_fix_holes_operand =
           rules,
           idxs,
         );
-      let case_err =
+      let (case_err, u_gen) =
         if (Incon.is_exhaustive(con)) {
-          CaseErrStatus.StandardErrStatus(NotInHole);
+          (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
         } else {
-          NotExhaustive;
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          (NotExhaustive(u), u_gen);
         };
       (Case(case_err, scrut, new_rules), common_type, u_gen);
     };
@@ -1306,11 +1307,12 @@ and ana_fix_holes_operand =
         rules,
         idxs,
       );
-    let case_err =
+    let (case_err, u_gen) =
       if (Incon.is_exhaustive(con)) {
-        CaseErrStatus.StandardErrStatus(NotInHole);
+        (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
       } else {
-        NotExhaustive;
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (NotExhaustive(u), u_gen);
       };
     (Case(case_err, scrut, new_rules), u_gen);
   | ApPalette(_, _, _, _) =>

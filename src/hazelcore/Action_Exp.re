@@ -1977,11 +1977,12 @@ and syn_perform_operand =
               rules,
               idxs,
             );
-          let case_err =
+          let (case_err, u_gen) =
             if (Incon.is_exhaustive(con)) {
-              CaseErrStatus.StandardErrStatus(NotInHole);
+              (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
             } else {
-              NotExhaustive;
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              (NotExhaustive(u), u_gen);
             };
           let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
@@ -2023,11 +2024,12 @@ and syn_perform_operand =
               new_zrules,
               idxs,
             );
-          let case_err =
+          let (case_err, u_gen) =
             if (Incon.is_exhaustive(con)) {
-              CaseErrStatus.StandardErrStatus(NotInHole);
+              (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
             } else {
-              NotExhaustive;
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              (NotExhaustive(u), u_gen);
             };
           let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
           Succeeded(SynDone((new_ze, ty, u_gen)));

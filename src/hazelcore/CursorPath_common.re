@@ -151,7 +151,14 @@ let holes_case_err =
       mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
-  | NotExhaustive => hs
+  | NotExhaustive(u) => [
+      {
+        sort: hole_sort(u),
+        steps: List.rev(rev_steps),
+        ap_steps: List.rev(rev_steps),
+      },
+      ...hs,
+    ]
   };
 
 let holes_skel_ =

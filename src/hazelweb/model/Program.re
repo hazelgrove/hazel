@@ -63,26 +63,24 @@ let get_cursor_info = (program: t) => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) =
+  // TODO: (eric) should we be ignoring pattern error holes here?
+  let (err_holes, var_err_holes, _pat_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map(hole_info =>
-         switch (CursorPath.get_sort(hole_info)) {
-         | TypHole => None
-         | PatHole(_, shape)
-         | ExpHole(_, shape) =>
-           switch (shape) {
-           | Empty => None
-           | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
-           }
-         }
-       )
-    |> List.partition(
-         fun
-         | (CursorPath.TypeErr, _) => true
-         | (_var_err, _) => false,
-       )
-    |> TupleUtil.map2(List.map(snd));
+    |> List.fold_left(
+         ((exp_holes, var_holes, pat_holes), hole_info) =>
+           switch (CursorPath.get_sort(hole_info)) {
+           | TypHole
+           | PatHole(_, Empty)
+           | ExpHole(_, Empty) => (exp_holes, var_holes, pat_holes)
+           | PatHole(_, VarErr | TypeErr) =>
+             let pat_hole = CursorPath.get_steps(hole_info);
+             (exp_holes, var_holes, [pat_hole, ...pat_holes]);
+           | ExpHole(_, VarErr | TypeErr | CaseErr(_)) =>
+             let exp_hole = CursorPath.get_steps(hole_info);
+             ([exp_hole, ...exp_holes], var_holes, pat_holes);
+           },
+         ([], [], []),
+       );
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses

@@ -365,8 +365,22 @@ and of_steps_rule =
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
-let holes_case_err =
-  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+let holes_case_err = err =>
+  switch (err) {
+  | CaseErrStatus.NotExhaustive(_) =>
+    CursorPath_common.holes_case_err(
+      ~hole_sort=hole_sort(CaseErr(NotExhaustive)),
+      err,
+    )
+  | InconsistentBranches(_, _) =>
+    CursorPath_common.holes_case_err(
+      ~hole_sort=hole_sort(CaseErr(InconsistentBranches)),
+      err,
+    )
+  | StandardErrStatus(_) =>
+    CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr), err)
+  };
+
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
@@ -665,10 +679,22 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole)
-      | NotExhaustive => None
-      | StandardErrStatus(InHole(_, u))
+      | StandardErrStatus(NotInHole) => None
+      | NotExhaustive(u) =>
+        Some(
+          mk_hole_sort(
+            ExpHole(u, CaseErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        )
       | InconsistentBranches(_, u) =>
+        Some(
+          mk_hole_sort(
+            ExpHole(u, CaseErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        )
+      | StandardErrStatus(InHole(_, u)) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
@@ -752,10 +778,20 @@ and holes_zoperand =
   | CaseZE(err, zscrut, rules) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole)
-      | NotExhaustive => []
-      | StandardErrStatus(InHole(_, u))
+      | StandardErrStatus(NotInHole) => []
+      | NotExhaustive(u) => [
+          mk_hole_sort(
+            ExpHole(u, CaseErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        ]
       | InconsistentBranches(_, u) => [
+          mk_hole_sort(
+            CursorPath.ExpHole(u, CaseErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        ]
+      | StandardErrStatus(InHole(_, u)) => [
           mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
@@ -776,11 +812,21 @@ and holes_zoperand =
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole)
-      | NotExhaustive => []
-      | StandardErrStatus(InHole(_, u))
+      | StandardErrStatus(NotInHole) => []
+      | NotExhaustive(u) => [
+          mk_hole_sort(
+            CursorPath.ExpHole(u, CaseErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        ]
       | InconsistentBranches(_, u) => [
-          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(
+            ExpHole(u, CaseErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        ]
+      | StandardErrStatus(InHole(_, u)) => [
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);

@@ -569,14 +569,14 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _) |
-      NotExhaustive,
+      NotExhaustive(_),
       _,
       _,
     )
   | CaseZR(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _) |
-      NotExhaustive,
+      NotExhaustive(_),
       _,
       _,
     )
