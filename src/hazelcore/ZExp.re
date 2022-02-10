@@ -943,7 +943,17 @@ and move_cursor_right_zrule =
     | Some(zclause) => Some(RuleZE(p, zclause))
     };
 
-let rec cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
+let rec cursor_on_next_EmptyHole = ze =>
+  switch (cursor_on_EmptyHole(ze)) {
+  | Some(u) => Some(u)
+  | None =>
+    switch (move_cursor_right(ze)) {
+    | Some(ze) => cursor_on_next_EmptyHole(ze)
+    | None => None
+    }
+  }
+
+and cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
 and cursor_on_EmptyHole_zblock = ((_, zline, _)) =>
   cursor_on_EmptyHole_zline(zline)
 and cursor_on_EmptyHole_zline =

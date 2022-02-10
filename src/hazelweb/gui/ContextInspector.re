@@ -333,7 +333,7 @@ let view =
         Node.div([], []);
       } else {
         let children =
-          switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
+          switch (program |> Program.get_zexp |> ZExp.cursor_on_next_EmptyHole) {
           | None => [
               instructional_msg(
                 "Move cursor to a hole, or click a hole instance in the result, to see closures.",

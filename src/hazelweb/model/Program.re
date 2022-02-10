@@ -520,5 +520,5 @@ let move_via_key =
 };
 
 let cursor_on_exp_hole_ =
-  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_next_EmptyHole);
 let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
