@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
@@ -5,6 +7,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
+  | TyVar(TyVar.Status.t, string)
   | Hole
   | Unit
   | Int
@@ -27,6 +30,7 @@ let rec get_prod_elements: skel => list(skel) =
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
+  | TyVar(_)
   | Unit
   | Int
   | Float
@@ -57,6 +61,9 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
+      | TyVar(i, name) => Seq.wrap(TyVar(NotInHole(i), name))
+      | TyVarHole(reason, u, name) =>
+        Seq.wrap(TyVar(InHole(reason, u), name))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -114,6 +121,8 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
+  | TyVar(NotInHole(i), name) => TyVar(i, name)
+  | TyVar(InHole(reason, u), name) => TyVarHole(reason, u, name)
   | Hole => Hole
   | Unit => Prod([])
   | Int => Int
@@ -125,6 +134,8 @@ and expand_operand =
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
+  | TyVar(NotInHole(_), _) => true
+  | TyVar(InHole(_), _) => false
   | Unit => true
   | Int => true
   | Float => true

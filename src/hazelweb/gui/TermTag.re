@@ -6,6 +6,7 @@ let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => 
   | ExpOperator(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
+  | TPat(_, _)
   | PatOperand(_, _)
   | PatOperator(_, _) => Pat
   | TypOperand(_, _)

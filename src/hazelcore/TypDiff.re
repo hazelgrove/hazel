@@ -13,9 +13,15 @@ let rec mk =
   switch (ty1, ty2) {
   | (Hole, _)
   | (_, Hole)
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])
+  // TODO: add ctx to TyVar
+  | (TyVar(i, _), TyVar(j, _)) => i == j ? ([], []) : ([[]], [[]])
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => ([], [])
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     let (steps1, steps1') = diff_subtypes(0, (ty1, ty1'));

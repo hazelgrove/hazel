@@ -3,6 +3,8 @@ open Sexplib.Std;
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(Index.t, string)
+  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, string)
   | Hole
   | Int
   | Float
@@ -28,7 +30,9 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
-  | List(_) => precedence_const
+  | List(_)
+  | TyVar(_)
+  | TyVarHole(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
@@ -42,6 +46,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
+  | (TyVar(_), _)
+  | (TyVarHole(_), _) => false
   | (Hole, _)
   | (_, Hole) => true
   | (Int, Int) => true
@@ -107,9 +113,11 @@ let matched_list =
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole => false
-  | Int => true
-  | Float => true
+  | Hole
+  | TyVarHole(_) => false
+  | TyVar(_)
+  | Int
+  | Float
   | Bool => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
@@ -118,16 +126,20 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+  | (_, Hole)
+  | (_, TyVarHole(_)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole, _)
+  | (TyVarHole(_), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
     }
+  | (TyVar(_), _) => failwith(__LOC__ ++ ": not implemented")
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)

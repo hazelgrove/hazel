@@ -1,6 +1,6 @@
 open Action;
 
-let shape_to_string = (shape: shape): string => {
+let shape_to_string = (shape: shape): string =>
   switch (shape) {
   | SList => "list type"
   | SParenthesized => "parentheses"
@@ -20,6 +20,7 @@ let shape_to_string = (shape: shape): string => {
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
+  | STyAlias => "type alias binding"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"
@@ -39,7 +40,6 @@ let shape_to_string = (shape: shape): string => {
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };
-};
 
 let escape: Side.t => t =
   fun

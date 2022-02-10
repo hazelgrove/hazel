@@ -450,7 +450,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
 };
 
 /* This function is unused at runtime, its purpose is to catch
-  * new cases added to the Acion.t type, but forgotten about in this
+  * new cases added to the Action.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
   * inside generate_panel_body with a description of the new action.
   * Afterwards the below function can be updated to not error anymore.
@@ -495,6 +495,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
+  | Construct(STyAlias) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added

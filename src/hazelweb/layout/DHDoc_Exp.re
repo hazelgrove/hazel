@@ -46,6 +46,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
+  | TyAlias(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -235,6 +236,31 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
+      | TyAlias(p, dty, dbody) =>
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk("type"),
+            DHDoc_TPat.mk(p)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.mk("="),
+            DHDoc_Typ.mk(dty)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            // DHDoc_common.Delim.mk("::"),
+            // DHDoc_Kind.mk(k)
+            // |> DHDoc_common.pad_child(
+            //      ~inline_padding=(space(), space()),
+            //      ~enforce_inline,
+            //    ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          mk_cast(go(~enforce_inline=false, dbody)),
+        ])
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =

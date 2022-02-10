@@ -74,6 +74,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
+  | TyAlias => Construct(STyAlias)
   };
 
 //TBD
@@ -232,6 +233,8 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_SynExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
+  SynExpands({kw: TyAlias, u_gen, prefix, suffix, subject: nextLine});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -246,6 +249,8 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_AnaExpandsToTyAlias = (~u_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
+  AnaExpands({kw: TyAlias, u_gen, prefix, suffix, subject: nextLine});
 let wrap_in_AnaDone:
   ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
@@ -327,7 +332,7 @@ let mk_syn_text =
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, u_gen)));
-    };
+    }
   };
 };
 
@@ -413,6 +418,7 @@ let syn_split_text =
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
+      | TyAlias => mk_SynExpandsToTyAlias(~u_gen, ~nextLine=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -453,6 +459,7 @@ let ana_split_text =
       switch (kw) {
       | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
+      | TyAlias => mk_AnaExpandsToTyAlias(~u_gen, ~nextLine=subject, ())
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -606,6 +613,26 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  | Succeeded(SynExpands({kw: TyAlias, prefix, subject, suffix, u_gen})) =>
+    let zalias =
+      ZExp.TyAliasLineP(
+        ZTPat.place_before(EmptyHole),
+        OpSeq.wrap(UHTyp.Hole),
+      );
+
+    // Special case: If the subject is a blank line, then we don't want to
+    // insert it above the suffix
+    let subject' =
+      switch (subject) {
+      | [UHExp.ExpLine(OpSeq(Placeholder(_), Seq.(S(EmptyHole(_), E))))] =>
+        []
+      | ys => ys
+      };
+
+    let new_ze =
+      (prefix, zalias, subject' @ suffix) |> ZExp.prune_empty_hole_lines;
+    let (ze, ty, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
+    Succeeded((ze, ty, u_gen));
   };
 }
 and syn_perform_block =
@@ -840,7 +867,7 @@ and syn_perform_line =
   | (
       _,
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
-      CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+      CursorL(OnText(_) | OnOp(_), LetLine(_) | TyAliasLine(_)) |
       CursorL(OnOp(_), CommentLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
@@ -923,6 +950,23 @@ and syn_perform_line =
     } else {
       let new_ze = k == 2 ? def |> ZExp.place_after : def |> ZExp.place_before; // changed 3 to 2?
       fix_and_mk_result(u_gen, new_ze);
+    }
+
+  | (Backspace, CursorL(OnDelim(k, After), TyAliasLine(p, ty))) =>
+    switch (k) {
+    | 0 =>
+      let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+      mk_result(u_gen, new_zblock);
+    | 1 =>
+      /* type x<| = Int   ==>   type x| = 2 */
+      let zp = p |> ZTPat.place_after;
+      let new_zblock = ([], ZExp.TyAliasLineP(zp, ty), []);
+      fix_and_mk_result(u_gen, new_zblock);
+    | 2 =>
+      let zty = ty |> ZTyp.place_after;
+      let new_zblock = ([], ZExp.TyAliasLineT(p, zty), []);
+      fix_and_mk_result(u_gen, new_zblock);
+    | _ => failwith(Printf.sprintf("Delim too large: %d\n", k))
     }
 
   /* #| some comment => | */
@@ -1038,7 +1082,7 @@ and syn_perform_line =
   | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
   /* Invalid swap actions */
-  | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_)) => Failed
+  | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | TyAliasLineP(_)) => Failed
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
@@ -1054,6 +1098,26 @@ and syn_perform_line =
       | Succeeded(SynDone((ze, _, u_gen))) =>
         Succeeded(LineDone((ze, ctx, u_gen)))
       }
+    }
+
+  | (_, TyAliasLineP(zp, ty)) =>
+    switch (Action_TPat.perform(a, zp)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded(new_zp) =>
+      let (body_ctx, new_zp, u_gen) =
+        Statics_TPat.fix_holes_z(ctx, new_zp, u_gen);
+      let new_zline = ZExp.TyAliasLineP(new_zp, ty);
+      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
+    }
+  | (_, TyAliasLineT(tp, zty)) =>
+    switch (Action_Typ.perform(ctx, a, zty, u_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((new_zty, u_gen)) =>
+      let (body_ctx, new_p, u_gen) = Statics_TPat.fix_holes(ctx, tp, u_gen);
+      let new_zline = ZExp.TyAliasLineT(new_p, new_zty);
+      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     }
 
   | (_, LetLineZP(zp, def)) =>
@@ -1606,6 +1670,14 @@ and syn_perform_operand =
       mk_SynExpandsToLet(
         ~u_gen,
         ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        (),
+      ),
+    )
+  | (Construct(STyAlias), CursorE(_, operand)) =>
+    Succeeded(
+      mk_SynExpandsToTyAlias(
+        ~u_gen,
+        ~nextLine=UHExp.Block.wrap'(OpSeq.wrap(operand)),
         (),
       ),
     )
@@ -2323,6 +2395,17 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+  | Succeeded(AnaExpands({kw: TyAlias, prefix, subject, suffix, u_gen})) =>
+    let zalias =
+      ZExp.TyAliasLineP(
+        ZTPat.place_before(EmptyHole),
+        OpSeq.wrap(UHTyp.Hole),
+      );
+    let new_zblock =
+      (prefix, zalias, subject @ suffix) |> ZExp.prune_empty_hole_lines;
+    let (ze, u_gen) =
+      Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty);
+    Succeeded((ze, u_gen));
   }
 and ana_perform_block =
     (
@@ -2425,7 +2508,11 @@ and ana_perform_block =
       suffix,
     ) {
     | (None, _, _) => Failed
-    | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+    | (
+        Some((_, LetLine(_) | TyAliasLine(_))),
+        ExpLine(OpSeq(_, S(EmptyHole(_), E))),
+        [],
+      ) =>
       Failed
     /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
     | (Some((rest, EmptyLine)), _, []) =>
@@ -2447,7 +2534,12 @@ and ana_perform_block =
     switch (suffix, zline) {
     | ([], _) => Failed
     /* avoid swap down for the Let line if it is second to last */
-    | ([_], LetLineZP(_) | CursorL(_, LetLine(_))) => Failed
+    | (
+        [_],
+        LetLineZP(_) | TyAliasLineP(_) |
+        CursorL(_, LetLine(_) | TyAliasLine(_)),
+      ) =>
+      Failed
     /* handle corner case when the second to last line is an EmptyLine */
     | ([last], CursorL(_, EmptyLine)) =>
       let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -2474,7 +2566,9 @@ and ana_perform_block =
         switch (zline) {
         | CursorL(_)
         | LetLineZP(_)
-        | LetLineZE(_) => Failed
+        | LetLineZE(_)
+        | TyAliasLineP(_)
+        | TyAliasLineT(_) => Failed
         | ExpLineZ(zopseq) =>
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
@@ -3088,6 +3182,14 @@ and ana_perform_operand =
   | (Construct(SLet), CursorE(_, operand)) =>
     Succeeded(
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
+    )
+  | (Construct(STyAlias), CursorE(_, operand)) =>
+    Succeeded(
+      mk_AnaExpandsToTyAlias(
+        ~u_gen,
+        ~nextLine=UHExp.Block.wrap(operand),
+        (),
+      ),
     )
 
   // TODO consider relaxing guards and

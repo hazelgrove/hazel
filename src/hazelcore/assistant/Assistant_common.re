@@ -98,6 +98,12 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
+  | OnTPat(_status_opt) => (None, None, UnknownMode)
+  | OnTPatHole => (None, Some(Hole), UnknownMode)
+
+  | TypKeyword(_) => (None, None, UnknownMode)
+  | TypFree => (None, Some(Hole), UnknownMode)
+
   | OnType
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
@@ -134,6 +140,8 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
 let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
   | Hole => "a"
+  | TyVarHole(_) => "a"
+  | TyVar(_, name) => "a " ++ name
   | Int => "an Integer"
   | Float => "a Float"
   | Bool => "a Boolean"

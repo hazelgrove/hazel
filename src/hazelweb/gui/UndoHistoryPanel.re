@@ -209,7 +209,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [indicate_words_view("type: "), code_keywords_view("Hole")],
         )
       )
-
+    | TyVar(_, name) =>
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("type variable: "), code_view(name)],
+        )
+      )
     | Unit =>
       Vdom.(
         Node.span(
@@ -243,6 +249,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let tpat_view = (tp: TPat.t) => {
+    switch (tp) {
+    | EmptyHole => indicate_words_view("hole")
+    | TyVar(_, id) =>
+      Vdom.(Node.span([], [indicate_words_view("var: "), code_view(id)]))
+    };
+  };
+
   let cursor_term_view =
       (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
@@ -252,6 +266,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ExpOperator(_, op) => code_view(Operators_Exp.to_string(op))
     | PatOperator(_, op) => code_view(Operators_Pat.to_string(op))
     | TypOperator(_, op) => code_view(Operators_Typ.to_string(op))
+    | TPat(_, tpat) => tpat_view(tpat)
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
@@ -275,6 +290,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
 
       | ExpLine(_) => indicate_words_view("expression line")
+      | TyAliasLine(_) =>
+        Vdom.(
+          Node.span(
+            [],
+            [code_keywords_view("type"), indicate_words_view(" binding")],
+          )
+        )
       }
     | Rule(_, _) =>
       Vdom.(
@@ -294,6 +316,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | STyAlias =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("type"), indicate_words_view(" binding")],
+        )
+      )
     | SLet =>
       Vdom.(
         Node.span(

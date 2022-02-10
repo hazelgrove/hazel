@@ -105,7 +105,12 @@ type typed =
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
+  /* cursor in type-pattern position */
+  | OnTPat(option(TPat.Status.t))
+  | OnTPatHole
   /* cursor in type position */
+  | TypKeyword(ExpandingKeyword.t)
+  | TypFree
   | OnType
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
@@ -119,6 +124,7 @@ type cursor_term =
   | ExpOperator(CursorPosition.t, UHExp.operator)
   | PatOperator(CursorPosition.t, UHPat.operator)
   | TypOperator(CursorPosition.t, UHTyp.operator)
+  | TPat(CursorPosition.t, TPat.t)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
@@ -137,5 +143,6 @@ type t = {
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  tyuses: option(UsageAnalysis.uses_list),
   parent_info,
 };

@@ -11,6 +11,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
+  | TyAliasLine(TPat.t, UHTyp.t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -79,6 +80,7 @@ module Line = {
     | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
+    | TyAliasLine(_)
     | LetLine(_) => line
     };
 
@@ -86,6 +88,7 @@ module Line = {
     fun
     | EmptyLine
     | CommentLine(_)
+    | TyAliasLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -298,6 +301,7 @@ let rec is_complete_line = (l: line): bool => {
   | EmptyLine
   | CommentLine(_) => true
   | LetLine(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | TyAliasLine(tpat, ty) => TPat.is_complete(tpat) && UHTyp.is_complete(ty)
   | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
   };
 }

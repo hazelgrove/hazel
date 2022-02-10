@@ -1,21 +1,18 @@
 [@deriving sexp]
 type t =
   | Let
-  | Case;
+  | Case
+  | TyAlias;
 
-let is_Let = String.equal("let");
-let is_Case = String.equal("case");
-
-let mk = (text: string): option(t) =>
-  if (text |> is_Let) {
-    Some(Let);
-  } else if (text |> is_Case) {
-    Some(Case);
-  } else {
-    None;
-  };
+let of_string: string => option(t) =
+  fun
+  | "let" => Some(Let)
+  | "case" => Some(Case)
+  | "type" => Some(TyAlias)
+  | _ => None;
 
 let to_string =
   fun
   | Let => "let"
-  | Case => "case";
+  | Case => "case"
+  | TyAlias => "type";

@@ -219,9 +219,13 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
-    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
-    | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | OnType => [emphasize_text("Type")]
+    | OnNonLetLine => [emphasize_text("Line")]
+    | OnRule => [emphasize_text("Rule")]
+    | OnTPat(_) => [emphasize_text("Type Pattern")]
+    | OnTPatHole => [emphasize_text("Pattern Hole")]
+    | TypFree => [emphasize_text("Free Type Variable")]
+    | TypKeyword(_) => [emphasize_text("Type Keyword")]
     };
   };
   switch (typed) {
@@ -401,15 +405,35 @@ let novice_summary =
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
-    | OnNonLetLine => /* TODO */ [
+    | OnNonLetLine => [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
-    | OnRule => /* TODO */ [
+    | OnRule => [
         Node.text("Got " ++ article),
         term_tag,
         emphasize_text(~only_right=true, "Rule"),
+      ]
+    | OnTPatHole => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Pattern Hole"),
+      ]
+    | OnTPat(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Pattern"),
+      ]
+    | TypFree => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Free Type Variable"),
+      ]
+    | TypKeyword(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Keyword"),
       ]
     };
   };
@@ -595,12 +619,14 @@ let view =
     | AnaSubsumed(_)
     | Synthesized(_)
     | SynMatchingArrow(_)
-    | OnType
     | PatAnalyzed(_)
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule => OK
+    | OnRule
+    | OnType
+    | OnTPat(_)
+    | OnTPatHole => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
@@ -619,7 +645,9 @@ let view =
     | SynFreeArrow(_)
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
-    | PatSynKeyword(_) => BindingError
+    | PatSynKeyword(_)
+    | TypFree
+    | TypKeyword(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>

@@ -1,6 +1,8 @@
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(Index.t, string)
+  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, string)
   | Hole
   | Int
   | Float

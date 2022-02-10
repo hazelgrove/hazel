@@ -144,6 +144,7 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
+  | TyAlias(TPat.t, DHTyp.t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
@@ -177,6 +178,7 @@ let constructor_string = (d: t): string =>
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
+  | TyAlias(_) => "TyAlias"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
   | Ap(_, _) => "Ap"

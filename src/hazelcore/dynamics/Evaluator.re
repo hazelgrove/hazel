@@ -17,6 +17,7 @@ let grounded_List = NotGroundOrHole(List(Hole));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
+  | TyVarHole(_)
   | Hole => Hole
   | Bool
   | Int
@@ -24,17 +25,14 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
   | List(Hole) => Ground
+  | TyVar(_) => Ground
   | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
+    let equiv = ty => HTyp.consistent(HTyp.Hole, ty);
+    List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
-
 type match_result =
   | Matches(Environment.t)
   | DoesNotMatch
@@ -202,6 +200,7 @@ and matches_cast_Inj =
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
+  | TyAlias(_) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
@@ -262,6 +261,7 @@ and matches_cast_Pair =
   | Cast(d', Hole, Prod(_)) =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
+  | TyAlias(_) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -333,6 +333,7 @@ and matches_cast_Cons =
   | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
+  | TyAlias(_) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
@@ -380,6 +381,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4);
+  | TyAlias(dp, dty, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    TyAlias(dp, dty, d3);
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {
@@ -538,6 +542,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Matches(env) => evaluate(subst(env, d2))
       }
     }
+  | TyAlias(_, _, d) => evaluate(d)
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>

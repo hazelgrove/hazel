@@ -67,7 +67,11 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>
          switch (CursorPath.get_sort(hole_info)) {
+         | TPatHole(Empty)
          | TypHole => None
+         | TPatHole(_)
+         | TyVarHole =>
+           Some((CursorPath.VarErr, CursorPath.get_steps(hole_info)))
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
@@ -88,7 +92,12 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let tyvar_uses =
+    switch (get_cursor_info(program)) {
+    | {tyuses: Some(tyuses), _} => tyuses
+    | _ => []
+    };
+  {current_term, err_holes, var_uses, tyvar_uses, var_err_holes};
 };
 
 let rec renumber_result_only =
@@ -106,6 +115,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, d3) =>
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (TyAlias(dp, dty, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -204,6 +216,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, d3) =>
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (TyAlias(dp, dty, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
