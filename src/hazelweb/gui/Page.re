@@ -98,6 +98,10 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
+let import_popup = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
+  Popup.import(~inject, ~is_open=model.import_popup_open, ~model);
+};
+
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
@@ -148,6 +152,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                 ],
               ),
               right_sidebar(~inject, ~model),
+              import_popup(~inject, ~model),
             ],
           ),
         ],

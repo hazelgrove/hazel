@@ -25,6 +25,7 @@ let menu_entries: list(menu_entry) = [
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
+  {label: "Open import popup", shortcut: None, action: ToggleImportPopup},
 ];
 
 let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
