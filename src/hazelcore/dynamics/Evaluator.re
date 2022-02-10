@@ -823,14 +823,17 @@ let rec evaluate =
        ++ to_string(EvalEnv.sexp_of_t(env)),
      ); */
   switch (d) {
-  | BoundVar(x) => (
-      ec,
+  | BoundVar(x) =>
+    let dr =
       x
       |> EvalEnv.lookup(env)
       |> OptUtil.get(_ =>
            raise(EvaluatorError.Exception(FreeInvalidVar(x)))
-         ),
-    )
+         );
+    switch (dr) {
+    | BoxedValue(FixF(_) as d) => evaluate(ec, env, d)
+    | _ => (ec, dr)
+    };
   | Let(dp, d1, d2) =>
     switch (evaluate(ec, env, d1)) {
     | (ec, BoxedValue(d1))
@@ -850,8 +853,13 @@ let rec evaluate =
     }
   | FixF(f, ty, d) =>
     switch (evaluate(ec, env, d)) {
-    | (ec, BoxedValue(d')) => (ec, BoxedValue(FixF(f, ty, d')))
-    | (ec, Indet(d')) => (ec, Indet(FixF(f, ty, d')))
+    | (ec, BoxedValue(Closure(env', x, ty', d') as d'')) =>
+      let (ec, env'') =
+        EvalEnv.extend(ec, env', (f, BoxedValue(FixF(f, ty, d''))));
+      (ec, BoxedValue(Closure(env'', x, ty', d')));
+    | _ =>
+      exception FixFWithoutClosure;
+      raise(FixFWithoutClosure);
     }
   | Lam(dp, ty, d) => (ec, BoxedValue(Closure(env, dp, ty, d)))
   | Closure(_) => (ec, BoxedValue(d))
@@ -868,29 +876,6 @@ let rec evaluate =
           // evaluate a closure: extend the closure environment with the
           // new bindings introduced by the function application.
           let match_result_map = map_environment_to_result_map(ec, env, env');
-          let (ec, env) =
-            EvalEnv.union_with_env(ec, match_result_map, closure_env);
-          evaluate(ec, env, d3);
-        }
-      }
-    | (
-        ec,
-        BoxedValue(
-          FixF(f, _, Closure(closure_env, dp, _, d3) as d1) as fix_d,
-        ),
-      ) =>
-      switch (evaluate(ec, env, d2)) {
-      | (ec, BoxedValue(d2))
-      | (ec, Indet(d2)) =>
-        switch (matches(dp, d2)) {
-        | DoesNotMatch
-        | Indet => (ec, Indet(Ap(d1, d2)))
-        | Matches(env') =>
-          // evaluate a closure: extend the closure environment with the
-          // new bindings introduced by the function application.
-          let env'' = Environment.union(env', [(f, fix_d)]);
-          let match_result_map =
-            map_environment_to_result_map(ec, env, env'');
           let (ec, env) =
             EvalEnv.union_with_env(ec, match_result_map, closure_env);
           evaluate(ec, env, d3);
@@ -1017,11 +1002,37 @@ let rec evaluate =
     evaluate_case(ec, env, None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
     evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
-  | EmptyHole(u, i, _) => (ec, Indet(EmptyHole(u, i, env)))
-  | NonEmptyHole(reason, u, i, _, d1) =>
+  | EmptyHole(u, i, env') => (
+      ec,
+      Indet(
+        EmptyHole(
+          u,
+          i,
+          switch (env') {
+          | UnreachedEnv => env
+          | Env(_) => env'
+          },
+        ),
+      ),
+    )
+  | NonEmptyHole(reason, u, i, env', d1) =>
     switch (evaluate(ec, env, d1)) {
     | (ec, BoxedValue(d1'))
-    | (ec, Indet(d1')) => (ec, Indet(NonEmptyHole(reason, u, i, env, d1')))
+    | (ec, Indet(d1')) => (
+        ec,
+        Indet(
+          NonEmptyHole(
+            reason,
+            u,
+            i,
+            switch (env') {
+            | UnreachedEnv => env
+            | Env(_) => env'
+            },
+            d1',
+          ),
+        ),
+      )
     }
   | FreeVar(_)
   | Keyword(_)
