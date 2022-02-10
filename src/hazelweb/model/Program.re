@@ -521,4 +521,12 @@ let move_via_key =
 
 let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_next_EmptyHole);
-let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+let cursor_on_exp_hole = program => {
+  let res = program |> get_zexp |> cursor_on_exp_hole_;
+  // Debug..
+  switch (res) {
+  | Some(i) => print_endline(Printf.sprintf("HI: %d", i + 1))
+  | None => print_endline(Printf.sprintf("HI: X"))
+  };
+  res;
+};
