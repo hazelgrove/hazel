@@ -4,8 +4,9 @@
    */
 
 [@deriving sexp]
-type t = list(HoleClosure.t);
+type t_ = (Var.t, HoleClosure.t)
+and t = list(t_);
 
-let add_parent: (t, HoleClosure.t) => t;
-let to_list: t => list(HoleClosure.t);
-let singleton: HoleClosure.t => t;
+let add_parent: (t, t_) => t;
+let to_list: t => list(t_);
+let singleton: t_ => t;

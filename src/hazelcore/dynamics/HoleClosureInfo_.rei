@@ -36,7 +36,8 @@ type hc_id_result =
 
    (similar to HoleInstanceInfo.next, but memoized by EvalEnvId.t)
    */
-let get_hc_id: (t, MetaVar.t, EvalEnv.t, HoleClosure.t) => hc_id_result;
+let get_hc_id:
+  (t, MetaVar.t, EvalEnv.t, HoleClosureParents.t_) => hc_id_result;
 
 /* Updates the environment of the specified hole closure.
 

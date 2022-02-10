@@ -35,14 +35,7 @@ let view =
    */
   let dynamic_info = (sigma: Environment.t, x) =>
     switch (VarMap.lookup(sigma, x)) {
-    | None =>
-      Some(
-        Node.div(
-          [Attr.classes(["dynamic-info"])],
-          [Node.div([], [Node.span([], [Node.text("NONE!!!!!!")])])],
-        ),
-      )
-    | Some(DHExp.BoundVar(x')) when Var.eq(x, x') => None
+    | None => None
     | Some(d) =>
       Some(
         Node.div(
@@ -279,19 +272,38 @@ let view =
   let hc_parents_view = (hc_parents: HoleClosureParents.t) => {
     let parents_info =
       hc_parents
-      |> List.map(((u, i)) =>
+      |> List.map(((x, (u, i))) =>
            (u, i) == HoleClosure.result_hc
              ? Node.div([], [Node.text("directly in result")])
              : Node.div(
-                 [],
+                 [Attr.classes(["path-area-parent"])],
                  [
-                   DHCode.view_of_hole_closure(
-                     ~inject,
-                     ~width=30,
-                     ~selected_hole_closure,
-                     ~settings,
-                     ~font_metrics,
-                     (u, i),
+                   Node.div(
+                     [Attr.classes(["path-area"])],
+                     [
+                       Node.div(
+                         [Attr.classes(["path-item"])],
+                         [
+                           Node.div(
+                             [Attr.classes(["inst"])],
+                             [
+                               DHCode.view_of_hole_closure(
+                                 ~inject,
+                                 ~width=30,
+                                 ~selected_hole_closure,
+                                 ~settings,
+                                 ~font_metrics,
+                                 (u, i),
+                               ),
+                             ],
+                           ),
+                           Node.span(
+                             [Attr.classes(["path-item-separator"])],
+                             [Node.text(" 〉 " ++ x)],
+                           ),
+                         ],
+                       ),
+                     ],
                    ),
                  ],
                )

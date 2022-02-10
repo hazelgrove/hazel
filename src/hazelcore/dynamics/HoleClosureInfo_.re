@@ -10,7 +10,7 @@ type hc_id_result =
   | ExistClosure(t, HoleClosureId.t, EvalEnv.t)
   | NewClosure(t, HoleClosureId.t);
 let get_hc_id =
-    (hci: t, u: MetaVar.t, sigma: EvalEnv.t, parent_hc: HoleClosure.t)
+    (hci: t, u: MetaVar.t, sigma: EvalEnv.t, parent: HoleClosureParents.t_)
     : hc_id_result => {
   let ei =
     sigma
@@ -33,7 +33,7 @@ let get_hc_id =
                   (
                     i,
                     sigma,
-                    parent_hc |> HoleClosureParents.add_parent(hole_parents),
+                    parent |> HoleClosureParents.add_parent(hole_parents),
                   ),
                 ),
            ),
@@ -52,7 +52,7 @@ let get_hc_id =
              hcs
              |> EvalEnvIdMap.add(
                   ei,
-                  (i, sigma, parent_hc |> HoleClosureParents.singleton),
+                  (i, sigma, parent |> HoleClosureParents.singleton),
                 ),
            ),
         i,
@@ -66,7 +66,7 @@ let get_hc_id =
            u,
            EvalEnvIdMap.singleton(
              ei,
-             (0, sigma, parent_hc |> HoleClosureParents.singleton),
+             (0, sigma, parent |> HoleClosureParents.singleton),
            ),
          ),
       0,
@@ -86,9 +86,7 @@ let update_hc_env = (hci: t, u: MetaVar.t, sigma: EvalEnv.t): t => {
          hcs
          |> EvalEnvIdMap.update(
               ei,
-              Option.map(((hcid, _, parent_hcs)) =>
-                (hcid, sigma, parent_hcs)
-              ),
+              Option.map(((hcid, _, parents)) => (hcid, sigma, parents)),
             )
        }),
      );
