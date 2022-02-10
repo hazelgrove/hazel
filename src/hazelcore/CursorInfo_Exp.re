@@ -239,7 +239,11 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
 
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(CursorInfo.t) => {
-  syn_cursor_info_zblock(~steps, ctx, ze);
+  syn_cursor_info_zblock(
+    ~steps,
+    ctx,
+    Option.value(ZExp.zexp_of_cursor_on_next_EmptyHole(ze), ~default=ze),
+  );
 }
 and syn_cursor_info_zblock =
     (

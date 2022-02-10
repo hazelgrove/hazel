@@ -944,11 +944,21 @@ and move_cursor_right_zrule =
     };
 
 let rec cursor_on_next_EmptyHole = ze =>
+  switch (zexp_of_cursor_on_next_EmptyHole_(ze)) {
+  | Some((u, _)) => Some(u)
+  | None => None
+  }
+and zexp_of_cursor_on_next_EmptyHole = ze =>
+  switch (zexp_of_cursor_on_next_EmptyHole_(ze)) {
+  | Some((_, ze)) => Some(ze)
+  | None => None
+  }
+and zexp_of_cursor_on_next_EmptyHole_ = ze =>
   switch (cursor_on_EmptyHole(ze)) {
-  | Some(u) => Some(u)
+  | Some(u) => Some((u, ze))
   | None =>
     switch (move_cursor_right(ze)) {
-    | Some(ze) => cursor_on_next_EmptyHole(ze)
+    | Some(ze) => zexp_of_cursor_on_next_EmptyHole_(ze)
     | None => None
     }
   }
