@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 include HTypCore;
 
 [@deriving sexp]
@@ -29,49 +31,176 @@ let precedence = (ty: t): int =>
    but this will change when polymorphic types are implemented */
 let eq = (==);
 
-/* type consistency */
-let rec consistent = (x, y) =>
-  switch (x, y) {
-  | (TyVar(_), _)
-  | (TyVarHole(_), _) => false
-  | (Hole, _)
-  | (_, Hole) => true
-  | (Int, Int) => true
-  | (Int, _) => false
-  | (Float, Float) => true
-  | (Float, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
+/* type variable normalization */
+let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): t =>
+  switch (ty) {
+  | TyVar(i, _) =>
+    switch (TyVarCtx.kind(tyvars, i)) {
+    | Some(Singleton(_, ty1)) => head_normalize(tyvars, ty1)
+    | Some(_) => ty
+    | None => failwith(__LOC__ ++ ": unknown type variable index")
+    }
+  | TyVarHole(_)
+  | Hole
+  | Int
+  | Float
+  | Bool
+  | Arrow(_, _)
+  | Sum(_, _)
+  | Prod(_)
+  | List(_) => ty
+  };
+
+/*
+ Type normalization replaces each type variable of singleton kind with the
+ (recursively nomalized) type embedded in the kind.
+ */
+let rec normalize = (tyvars: TyVarCtx.t, ty: t): t =>
+  switch (ty) {
+  | TyVar(i, _) =>
+    switch (TyVarCtx.kind(tyvars, i)) {
+    | Some(Singleton(_, ty1)) => normalize(tyvars, ty1)
+    | Some(_) => ty
+    | None => failwith(__LOC__ ++ ": unbound type variable index")
+    }
+  | TyVarHole(_)
+  | Hole
+  | Int
+  | Float
+  | Bool => ty
+  | Arrow(ty1, ty2) =>
+    Arrow(normalize(tyvars, ty1), normalize(tyvars, ty2))
+  | Sum(ty1, ty2) => Sum(normalize(tyvars, ty1), normalize(tyvars, ty2))
+  | Prod(tys) => Prod(List.map(normalize(tyvars), tys))
+  | List(ty1) => List(normalize(tyvars, ty1))
+  };
+
+/* type equivalence for normalized types is context independent */
+let rec normalized_equivalent = (ty: t, ty': t): bool =>
+  switch (ty, ty') {
+  | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
+  | (TyVar(_), _) => false
+  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+  | (TyVarHole(_, _, _), _) => false
+  | (Hole | Int | Float | Bool, _) => eq(ty, ty')
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    consistent(ty1, ty1') && consistent(ty2, ty2')
+    normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
   | (Arrow(_, _), _) => false
   | (Sum(_, _), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.for_all2_opt(consistent, tys1, tys2)
-    |> Option.value(~default=false)
+    List.for_all2(normalized_equivalent, tys1, tys2)
   | (Prod(_), _) => false
-  | (List(ty), List(ty')) => consistent(ty, ty')
+  | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
   | (List(_), _) => false
   };
 
-let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
+/* type consistency for normalized types is context independent */
+let rec normalized_consistent = (ty: t, ty': t): bool =>
+  switch (ty, ty') {
+  | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
+  | (TyVar(_), _) => false
+  | (TyVarHole(_) | Hole, _)
+  | (_, TyVarHole(_) | Hole) => true
+  | (Int | Float | Bool, _) => ty == ty'
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    normalized_consistent(ty1, ty1') && normalized_consistent(ty2, ty2')
+  | (Arrow(_) | Sum(_), _) => false
+  | (Prod(tys), Prod(tys')) =>
+    List.for_all2(normalized_consistent, tys, tys')
+  | (Prod(_), _) => false
+  | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
+  | (List(_), _) => false
+  };
 
-let rec consistent_all = (types: list(t)): bool =>
-  switch (types) {
+let normalized_inconsistent = (ty: t, ty': t): bool =>
+  !normalized_consistent(ty, ty');
+
+let rec normalized_consistent_all: list(t) => bool =
+  fun
   | [] => true
   | [hd, ...tl] =>
-    if (List.exists(inconsistent(hd), tl)) {
-      false;
-    } else {
-      consistent_all(tl);
+    !List.exists(normalized_inconsistent(hd), tl)
+    || normalized_consistent_all(tl);
+
+// TODO: (eric) normalized join and join_all
+let rec normalized_join = (j: join, ty1: t, ty2: t): option(t) =>
+  switch (ty1, ty2) {
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+  | (_, Hole)
+  | (_, TyVarHole(_)) =>
+    switch (j) {
+    | GLB => Some(Hole)
+    | LUB => Some(ty1)
     }
+  | (Hole, _)
+  | (TyVarHole(_), _) =>
+    switch (j) {
+    | GLB => Some(Hole)
+    | LUB => Some(ty2)
+    }
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => failwith("impossible for normalized types")
+  | (Int | Float | Bool, _) => eq(ty1, ty2) ? Some(ty1) : None
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    let* ty1 = normalized_join(j, ty1, ty1');
+    let+ ty2 = normalized_join(j, ty2, ty2');
+    Arrow(ty1, ty2);
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    let* ty1 = normalized_join(j, ty1, ty1');
+    let+ ty2 = normalized_join(j, ty2, ty2');
+    Sum(ty1, ty2);
+  | (Prod(tys1), Prod(tys2)) =>
+    let+ joined_tys =
+      List.map2(normalized_join(j), tys1, tys2) |> OptUtil.sequence;
+    Prod(joined_tys);
+  | (List(ty), List(ty')) =>
+    let+ ty = normalized_join(j, ty, ty');
+    List(ty);
+  | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
   };
+
+let normalized_join_all = (j: join, types: list(t)): option(t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    !normalized_consistent_all(types)
+      ? None
+      : List.fold_left(
+          (common_opt, ty) => {
+            let* common_ty = common_opt;
+            normalized_join(j, common_ty, ty);
+          },
+          Some(hd),
+          tl,
+        )
+  };
+};
+
+/* context-dependent type equivalence */
+let equivalent = (ctx: TyVarCtx.t, ty: t, ty': t): bool => {
+  let ty = normalize(ctx, ty);
+  let ty' = normalize(ctx, ty');
+  normalized_equivalent(ty, ty');
+};
+
+/* context-dependent type consistency */
+let consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+  normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
+
+// let inconsistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+//   !consistent(tyvars, ty, ty');
+
+// let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
+//   normalized_consistent_all(List.map(normalize(tyvars), types));
 
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -85,14 +214,16 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole => Some(Hole)
+  | Hole
+  | TyVarHole(_) => Some(Hole)
   | List(ty) => Some(ty)
   | _ => None;
 
@@ -110,71 +241,8 @@ let rec complete =
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
-let rec join = (j, ty1, ty2) =>
-  switch (ty1, ty2) {
-  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
-  | (_, Hole)
-  | (_, TyVarHole(_)) =>
-    switch (j) {
-    | GLB => Some(Hole)
-    | LUB => Some(ty1)
-    }
-  | (Hole, _)
-  | (TyVarHole(_), _) =>
-    switch (j) {
-    | GLB => Some(Hole)
-    | LUB => Some(ty2)
-    }
-  | (TyVar(_), _) => failwith(__LOC__ ++ ": not implemented")
-  | (Int, Int) => Some(ty1)
-  | (Int, _) => None
-  | (Float, Float) => Some(ty1)
-  | (Float, _) => None
-  | (Bool, Bool) => Some(ty1)
-  | (Bool, _) => None
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
-    | _ => None
-    }
-  | (Arrow(_), _) => None
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
-  | (Sum(_), _) => None
-  | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.map2_opt(join(j), tys1, tys2)
-    |> Option.map(OptUtil.sequence)
-    |> Option.join
-    |> Option.map(joined_types => Prod(joined_types))
-  | (Prod(_), _) => None
-  | (List(ty), List(ty')) =>
-    switch (join(j, ty, ty')) {
-    | Some(ty) => Some(List(ty))
-    | None => None
-    }
-  | (List(_), _) => None
-  };
+let join = (tyvars, j, ty1, ty2) =>
+  normalized_join(j, normalize(tyvars, ty1), normalize(tyvars, ty2));
 
-let join_all = (j: join, types: list(t)): option(t) => {
-  switch (types) {
-  | [] => None
-  | [hd] => Some(hd)
-  | [hd, ...tl] =>
-    if (!consistent_all(types)) {
-      None;
-    } else {
-      List.fold_left(
-        (common_opt, ty) =>
-          switch (common_opt) {
-          | None => None
-          | Some(common_ty) => join(j, common_ty, ty)
-          },
-        Some(hd),
-        tl,
-      );
-    }
-  };
-};
+let join_all = (tyvars: TyVarCtx.t, j: join, types: list(t)): option(t) =>
+  normalized_join_all(j, List.map(normalize(tyvars), types));

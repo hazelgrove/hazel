@@ -659,7 +659,7 @@ and ana_elab_skel =
     switch (syn_elab_skel(ctx, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty', delta) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
         Elaborates(d, ty', delta);
       } else {
         DoesNotElaborate;
@@ -732,7 +732,7 @@ and ana_elab_operand =
         | None => ty1_given
         | Some((ty_p, _)) => ty_p
         };
-      switch (HTyp.consistent(ty1_ann, ty1_given)) {
+      switch (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {

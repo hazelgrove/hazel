@@ -88,7 +88,7 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.consistent(ty, got_ty)) {
+    if (HTyp.normalized_consistent(ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
@@ -651,7 +651,7 @@ let view =
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
+        if (HTyp.normalized_consistent(ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;

@@ -129,7 +129,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
@@ -1192,7 +1192,7 @@ and ana_perform_operand =
       switch (syn_perform(ctx, u_gen, a, zp')) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, ty', ctx, u_gen)) =>
-        if (HTyp.consistent(ty, ty')) {
+        if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
           Succeeded((zp, ctx, u_gen));
         } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
                    && HTyp.get_prod_arity(ty) > 1) {
@@ -1521,7 +1521,7 @@ and ana_perform_operand =
       let (new_op, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
       let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
         Succeeded((new_zopseq, ctx, u_gen));
       } else {
         let (new_zopseq, u_gen) = new_zopseq |> ZPat.mk_inconsistent(u_gen);
@@ -1533,7 +1533,7 @@ and ana_perform_operand =
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);

@@ -27,7 +27,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | List(Hole) => Ground
   | TyVar(_) => Ground
   | Prod(tys) =>
-    let equiv = ty => HTyp.consistent(HTyp.Hole, ty);
+    let equiv = ty => HTyp.normalized_equivalent(HTyp.Hole, ty);
     List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum

@@ -299,6 +299,7 @@ and syn_cursor_info_line =
   switch (zline) {
   | CursorL(_, LetLine(p, def)) =>
     let+ ty = Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix]);
+    let ty = HTyp.normalize(Contexts.tyvar_ctx(ctx), ty);
     CursorInfo_common.CursorNotOnDeferredVarPat(
       CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
     );
@@ -379,7 +380,7 @@ and syn_cursor_info_zopseq =
     Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
     |> Option.map(ty =>
          CursorInfo_common.mk(
-           Synthesized(ty),
+           Synthesized(HTyp.normalize(Contexts.tyvar_ctx(ctx), ty)),
            ctx,
            extract_from_zexp_zseq(zseq),
          )
@@ -416,7 +417,7 @@ and syn_cursor_info_skel =
       Statics_Exp.syn_skel(ctx, skel, seq)
       |> Option.map(ty =>
            CursorInfo_common.mk(
-             Synthesized(ty),
+             Synthesized(HTyp.normalize(Contexts.tyvar_ctx(ctx), ty)),
              ctx,
              extract_from_zexp_zseq(zseq),
            )
@@ -561,7 +562,8 @@ and syn_cursor_info_zoperand =
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty) =>
-      Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
+      let ty = HTyp.normalize(Contexts.tyvar_ctx(ctx), ty);
+      Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term));
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
@@ -615,9 +617,10 @@ and syn_cursor_info_zoperand =
           switch (clause_types) {
           | None => None
           | Some(types) =>
-            switch (HTyp.join_all(LUB, types)) {
+            switch (HTyp.join_all(Contexts.tyvar_ctx(ctx), LUB, types)) {
             | None => Some(InconsistentBranchTys(List.rev(types), steps))
-            | Some(lub) => Some(JoinTy(lub))
+            | Some(lub) =>
+              Some(JoinTy(HTyp.normalize(Contexts.tyvar_ctx(ctx), lub)))
             }
           };
         };
