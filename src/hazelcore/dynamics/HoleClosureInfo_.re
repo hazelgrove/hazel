@@ -22,7 +22,7 @@ let get_hc_id =
     switch (hcs |> EvalEnvIdMap.find_opt(ei)) {
     /* Hole closure already exists in the HoleClosureInfo_.t.
        Add parent_eid to eids */
-    | Some((i, sigma', hole_parents)) =>
+    | Some((i, sigma, hole_parents)) =>
       ExistClosure(
         hci
         |> MetaVarMap.add(
@@ -38,7 +38,7 @@ let get_hc_id =
                 ),
            ),
         i,
-        sigma',
+        sigma,
       )
     /* Hole exists in the HoleClosureInfo_.t but closure doesn't.
        Create a new hole closure with closure id equal to the number
