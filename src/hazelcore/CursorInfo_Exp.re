@@ -626,24 +626,8 @@ and syn_cursor_info_zoperand =
   /* Prob need to fix later */
   | IfZ1(_, t1, _, _) =>
     ana_cursor_info(~steps=steps @ [0], ctx, t1, HTyp.Bool)
-  | IfZ2(_, _, t2, t3) =>
-    switch (Statics_Exp.syn(ctx, t3)) {
-    | Some(ty3) =>
-      switch (ty3) {
-      | HTyp.Hole => syn_cursor_info(~steps=steps @ [1], ctx, t2)
-      | _ => ana_cursor_info(~steps=steps @ [1], ctx, t2, ty3)
-      }
-    | None => syn_cursor_info(~steps=steps @ [1], ctx, t2)
-    }
-  | IfZ3(_, _, t2, t3) =>
-    switch (Statics_Exp.syn(ctx, t2)) {
-    | Some(ty2) =>
-      switch (ty2) {
-      | HTyp.Hole => syn_cursor_info(~steps=steps @ [2], ctx, t3)
-      | _ => ana_cursor_info(~steps=steps @ [2], ctx, t3, ty2)
-      }
-    | None => syn_cursor_info(~steps=steps @ [2], ctx, t3)
-    }
+  | IfZ2(_, _, t2, _) => syn_cursor_info(~steps=steps @ [1], ctx, t2)
+  | IfZ3(_, _, _, t3) => syn_cursor_info(~steps=steps @ [1], ctx, t3)
   /* syn_cursor_info(~steps=steps @ [2], ctx, t3) */
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
