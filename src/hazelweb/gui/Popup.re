@@ -30,73 +30,83 @@ let set_textbox_text = (model, text_box_id, _) => {
   Vdom.Event.Ignore;
 };
 
+let console_button =
+  Vdom.Node.button(
+    [
+      Vdom.Attr.id("parse-console-button"),
+      Vdom.Attr.on_click(_ => {
+        let elem = JSUtil.force_get_elem_by_id("text-editor-text-box");
+        let cur_text = JSUtil.force_get_attr("value", elem);
+        let lexbuf = Lexing.from_string(cur_text);
+        switch (Parsing.ast_of_lexbuf(lexbuf)) {
+        | Ok(ast) =>
+          let (ast, _, _) =
+            Statics_Exp.fix_and_renumber_holes(Contexts.empty, ast);
+          JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
+          Vdom.Event.Ignore;
+        | _ => Vdom.Event.Ignore
+        };
+      }),
+    ],
+    [Vdom.Node.text("Parse to Console")],
+  );
+
+let load_program_button = inject =>
+  Vdom.Node.button(
+    [
+      Vdom.Attr.id("load-program-button"),
+      Vdom.Attr.on_click(_ => {
+        let elem = JSUtil.force_get_elem_by_id("text-editor-text-box");
+        let cur_text = JSUtil.force_get_attr("value", elem);
+        let lexbuf = Lexing.from_string(cur_text);
+        switch (Parsing.ast_of_lexbuf(lexbuf)) {
+        | Ok(ast) =>
+          let (ast, _, _) =
+            Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
+          let errs_elem = JSUtil.force_get_elem_by_id("text-editor-errors");
+          errs_elem##.innerHTML := JSUtil.Js.string("");
+          inject(ModelAction.Import(ast));
+        | Error(err_string) =>
+          let errs_elem = JSUtil.force_get_elem_by_id("text-editor-errors");
+          errs_elem##.innerHTML := JSUtil.Js.string(err_string);
+          Vdom.Event.Ignore;
+        };
+      }),
+    ],
+    [Vdom.Node.text("Load program")],
+  );
+
 let import_body = (inject, model) => {
   Vdom.(
     Node.div(
-      [],
+      [Attr.id("popup-page")],
       [
         Node.textarea(
           [
-            Attr.id("parse-text-box"),
+            Attr.id("text-editor-text-box"),
             Attr.value(""),
-            Attr.classes(["import-text-area"]),
             Attr.on_change((_, s) =>
-              update_textbox_value(model, "parse-text-box", s)
+              update_textbox_value(model, "text-editor-text-box", s)
             ),
           ],
           [],
         ),
-        Node.textarea(
-          [Attr.id("parse-errors"), Attr.classes(["import-errors"])],
-          [],
-        ),
-        Node.button(
+        Node.textarea([Attr.id("text-editor-errors")], []),
+        Node.div(
+          [Attr.id("text-editor-button-bar")],
           [
-            Attr.on_click(_ => {
-              let elem = JSUtil.force_get_elem_by_id("parse-text-box");
-              let cur_text = JSUtil.force_get_attr("value", elem);
-              let lexbuf = Lexing.from_string(cur_text);
-              switch (Parsing.ast_of_lexbuf(lexbuf)) {
-              | Ok(ast) =>
-                let (ast, _, _) =
-                  Statics_Exp.fix_and_renumber_holes(Contexts.empty, ast);
-                JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
-                Event.Ignore;
-              | _ => Event.Ignore
-              };
-            }),
+            Node.button(
+              [
+                Attr.id("edit-program-button"),
+                Attr.on_click(
+                  set_textbox_text(model, "text-editor-text-box"),
+                ),
+              ],
+              [Node.text("Edit current program")],
+            ),
+            load_program_button(inject),
+            console_button,
           ],
-          [Node.text("Parse to Console")],
-        ),
-        Node.button(
-          [Attr.on_click(set_textbox_text(model, "parse-text-box"))],
-          [Node.text("Load current program")],
-        ),
-        Node.button(
-          [
-            Attr.on_click(_ => {
-              let elem = JSUtil.force_get_elem_by_id("parse-text-box");
-              let cur_text = JSUtil.force_get_attr("value", elem);
-              let lexbuf = Lexing.from_string(cur_text);
-              switch (Parsing.ast_of_lexbuf(lexbuf)) {
-              | Ok(ast) =>
-                let (ast, _, _) =
-                  Statics_Exp.syn_fix_holes(
-                    Contexts.empty,
-                    MetaVarGen.init,
-                    ast,
-                  );
-                let errs_elem = JSUtil.force_get_elem_by_id("parse-errors");
-                errs_elem##.innerHTML := JSUtil.Js.string("");
-                inject(ModelAction.Import(ast));
-              | Error(err_string) =>
-                let errs_elem = JSUtil.force_get_elem_by_id("parse-errors");
-                errs_elem##.innerHTML := JSUtil.Js.string(err_string);
-                Event.Ignore;
-              };
-            }),
-          ],
-          [Node.text("Import")],
         ),
       ],
     )
@@ -122,19 +132,11 @@ let mk_popup =
       [
         Node.div(
           [
-            Attr.id("popup-body"),
-            Attr.classes(popup_open ? ["popup-body"] : []),
+            Attr.id("popup-page-area"),
+            Attr.classes(popup_open ? ["popup-page-area"] : []),
             Attr.on_click(_ => Event.Stop_propagation),
           ],
-          [
-            Node.div(
-              [
-                Attr.id("popup-text-block"),
-                Attr.classes(popup_open ? ["popup-text-block"] : []),
-              ],
-              pop_body,
-            ),
-          ],
+          pop_body,
         ),
       ],
     )
