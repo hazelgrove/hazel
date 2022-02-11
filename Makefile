@@ -57,7 +57,7 @@ repl:
 
 test:
 	dune build @src/fmt --auto-promote || true
-	dune runtest || true
+	dune runtest -f || true
 
 fix-test-answers:
 	dune promote || true
