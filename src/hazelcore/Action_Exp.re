@@ -375,7 +375,7 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty')) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
@@ -1116,7 +1116,7 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(new_zp) =>
-      switch (Statics_Typ.syn(Contexts.tyvar_ctx(ctx), UHTyp.expand(ty))) {
+      switch (Statics_Typ.syn(Contexts.tyvars(ctx), UHTyp.expand(ty))) {
       | None => Failed
       | Some(kind) =>
         let (body_ctx, new_zp, u_gen) =
@@ -1131,7 +1131,7 @@ and syn_perform_line =
     print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zline(zline)));
     print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     let ty = UHTyp.expand(ZTyp.erase(zty));
-    switch (Statics_Typ.syn(Contexts.tyvar_ctx(ctx), ty)) {
+    switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some(kind) =>
       switch (Action_Typ.perform(ctx, a, zty, u_gen)) {
@@ -3037,7 +3037,7 @@ and ana_perform_operand =
       | (Failed | CursorEscaped(_)) as outcome => outcome
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
       | Succeeded(SynDone((ze', ty', u_gen))) =>
-        if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty', ty)) {
+        if (HTyp.consistent(Contexts.tyvars(ctx), ty', ty)) {
           // prune unnecessary type annotation
           let ze' =
             switch (ze') {
@@ -3577,7 +3577,7 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
-      if (HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, ty1)) {
+      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);

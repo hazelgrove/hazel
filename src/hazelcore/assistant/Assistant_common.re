@@ -13,7 +13,7 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   ctx
   |> Contexts.gamma
   |> VarMap.filter(((_, ty: HTyp.t)) =>
-       HTyp.consistent(Contexts.tyvar_ctx(ctx), ty, typ)
+       HTyp.consistent(Contexts.tyvars(ctx), ty, typ)
      );
 };
 
@@ -22,7 +22,7 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    */
 let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   let rec compatible_funs = right_ty =>
-    if (HTyp.consistent(Contexts.tyvar_ctx(ctx), right_ty, typ)) {
+    if (HTyp.consistent(Contexts.tyvars(ctx), right_ty, typ)) {
       true;
     } else {
       switch (right_ty) {

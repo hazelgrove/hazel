@@ -35,13 +35,13 @@ let text_operand =
     let name = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(Reserved, u), name), ctx, u_gen);
   | TyVar(name) =>
-    switch (TyVarCtx.index(Contexts.tyvar_ctx(ctx), name)) {
+    switch (TyVarCtx.index(Contexts.tyvars(ctx), name)) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (TyVar(InHole(Unbound, u), name), ctx, u_gen);
     | Some(i) =>
       let kind = Kind.Singleton(Type, TyVar(i, name));
-      let ctx = Contexts.extend_tyvar_ctx(ctx, name, kind);
+      let ctx = Contexts.extend_tyvars(ctx, name, kind);
       (TyVar(NotInHole(i), name), ctx, u_gen);
     }
   };
@@ -105,9 +105,9 @@ let mk_syn_text =
     Succeeded((zty, u_gen));
   | Some(TyVar(name)) =>
     print_endline("==> TyVar " ++ name);
-    let tyvar_ctx = Contexts.tyvar_ctx(ctx);
+    let tyvars = Contexts.tyvars(ctx);
     let (status: TyVar.Status.t, u_gen) =
-      switch (TyVarCtx.index(tyvar_ctx, name)) {
+      switch (TyVarCtx.index(tyvars, name)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (InHole(Unbound, u), u_gen);
