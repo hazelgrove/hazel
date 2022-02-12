@@ -1,8 +1,12 @@
 module Parsing = Hazeltext.Parsing;
 
+type compile_opts = {expr_only: bool};
+
 type compile_result = result(string, string);
 
-let parse = (lexbuf: Lexing.lexbuf) => {
+let default_opts = {expr_only: false};
+
+let parse = lexbuf => {
   let res = lexbuf |> Parsing.ast_of_lexbuf;
 
   switch (res) {
@@ -16,27 +20,34 @@ let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
 
 let translate = Translator.translate;
 
-let emit = Emit.emit;
+let emit = (~opts=default_opts, d) =>
+  if (opts.expr_only) {
+    Emit.emit_expr(d);
+  } else {
+    Emit.emit(d);
+  };
 
-let compile_dhexp = (d: DHExp.t) => {
-  Ok(d |> translate |> emit);
+let compile_dhexp = (~opts=default_opts, d) => {
+  Ok(d |> translate |> emit(~opts));
 };
 
-let compile_uhexp = (e: UHExp.t) => {
+let compile_uhexp = (~opts=default_opts, e) => {
   let res = e |> elaborate;
   switch (res) {
-  | Elaborates(d, _, _) => compile_dhexp(d)
+  | Elaborates(d, _, _) => compile_dhexp(~opts, d)
   | DoesNotElaborate => Error("Does not elaborate")
   };
 };
 
-let compile_buf = (lexbuf: Lexing.lexbuf) => {
+let compile_buf = (~opts=default_opts, lexbuf) => {
   switch (parse(lexbuf)) {
-  | Ok(e) => compile_uhexp(e)
+  | Ok(e) => compile_uhexp(~opts, e)
   | Error(err) => Error(err)
   };
 };
 
-let compile_string = (s: string) => s |> Lexing.from_string |> compile_buf;
+let compile_string = (~opts=default_opts, s) =>
+  s |> Lexing.from_string |> compile_buf(~opts);
 
-let compile_file = (f: in_channel) => f |> Lexing.from_channel |> compile_buf;
+let compile_file = (~opts=default_opts, f) =>
+  f |> Lexing.from_channel |> compile_buf(~opts);
