@@ -418,9 +418,16 @@ and syn_fix_holes_operand =
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
     let ty = UHTyp.expand(ann);
-    let (op, ctx, u_gen) =
-      ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
-    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
+    if (HTyp.complete(ty)) {
+      let (op, ctx, u_gen) =
+        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
+      (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
+    } else {
+      let (op, ty, ctx, u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (UHPat.TypeAnn(InHole(TypeInconsistent, u), op, ann), ty, ctx, u_gen);
+    };
   };
 }
 and ana_fix_holes =

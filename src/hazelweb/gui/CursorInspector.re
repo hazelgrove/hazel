@@ -70,7 +70,8 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+  if (HTyp.normalized_equivalent(expected_ty, got_ty)
+      || HTyp.normalized_equivalent(got_ty, HTyp.Hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
