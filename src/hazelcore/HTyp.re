@@ -124,21 +124,14 @@ let rec normalized_consistent_all: list(t) => bool =
     !List.exists(normalized_inconsistent(hd), tl)
     || normalized_consistent_all(tl);
 
-// TODO: (eric) normalized join and join_all
 let rec normalized_join = (j: join, ty1: t, ty2: t): option(t) =>
   switch (ty1, ty2) {
   | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
-  | (_, Hole)
-  | (_, TyVarHole(_)) =>
+  | (ty, Hole | TyVarHole(_))
+  | (Hole | TyVarHole(_), ty) =>
     switch (j) {
     | GLB => Some(Hole)
-    | LUB => Some(ty1)
-    }
-  | (Hole, _)
-  | (TyVarHole(_), _) =>
-    switch (j) {
-    | GLB => Some(Hole)
-    | LUB => Some(ty2)
+    | LUB => Some(ty)
     }
   | (TyVar(_), _)
   | (_, TyVar(_)) => failwith("impossible for normalized types")
@@ -189,12 +182,6 @@ let equivalent = (ctx: TyVarCtx.t, ty: t, ty': t): bool => {
 /* context-dependent type consistency */
 let consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
   normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
-
-// let inconsistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
-//   !consistent(tyvars, ty, ty');
-
-// let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
-//   normalized_consistent_all(List.map(normalize(tyvars), types));
 
 /* matched arrow types */
 let matched_arrow =

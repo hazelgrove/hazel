@@ -23,7 +23,7 @@ and syn_skel = (ctx, delta, skel, seq) =>
       List.fold_left(
         (acc_opt, skel) => {
           let* (tys, deltas) = acc_opt;
-          let+ (ty, delta) = ana_skel(ctx, delta, skel, seq);
+          let+ (ty, delta) = syn_skel(ctx, delta, skel, seq);
           ([ty, ...tys], [delta, ...deltas]);
         },
         Some(([], [])),
@@ -34,8 +34,8 @@ and syn_skel = (ctx, delta, skel, seq) =>
     let ty = HTyp.Prod(tys);
     (ty, delta);
   | BinOp(_, op, skel1, skel2) =>
-    let* (ty1, d1) = ana_skel(ctx, delta, skel1, seq);
-    let+ (ty2, d2) = ana_skel(ctx, delta, skel2, seq);
+    let* (ty1, d1) = syn_skel(ctx, delta, skel1, seq);
+    let+ (ty2, d2) = syn_skel(ctx, delta, skel2, seq);
     let ty: HTyp.t =
       switch (op) {
       | Arrow => Arrow(ty1, ty2)
@@ -59,42 +59,8 @@ and syn_operand =
   | Int => const(Int)
   | Float => const(Float)
   | Bool => const(Bool)
-  | Parenthesized(opseq) => syn(ctx, delta, opseq)
-  | List(opseq) =>
-    let+ (ty, delta) = ana(ctx, delta, opseq);
-    (ty, delta);
-  };
-}
-
-and ana: (Contexts.t, Delta.t, UHTyp.t) => ElaborationResult.t =
-  (ctx, delta, opseq) =>
-    switch (opseq) {
-    | OpSeq(skel, seq) => ana_skel(ctx, delta, skel, seq)
-    }
-and ana_skel = (ctx, delta, skel, seq): ElaborationResult.t =>
-  switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> ana_operand(ctx, delta)
-  | BinOp(_, _, _, _) =>
-    let+ (ty, delta) = syn_skel(ctx, delta, skel, seq);
-    (ty, delta);
-  }
-and ana_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHTyp.operand)
-    : ElaborationResult.t => {
-  switch (operand) {
-  | Hole => Some((Hole, delta))
-  | TyVar(InHole(reason, u), t) =>
-    let ty = HTyp.TyVarHole(reason, u, t);
-    Some((ty, Delta.add(u, Delta.Hole.Type, delta)));
-  | Parenthesized(opseq) => ana(ctx, delta, opseq)
-  | TyVar(NotInHole(_), _)
-  | Unit
-  | Int
-  | Float
-  | Bool
-  | List(_) =>
-    let+ (ty, delta) = syn_operand(ctx, delta, operand);
-    (ty, delta);
+  | Parenthesized(ty) => syn(ctx, delta, ty)
+  | List(ty) => syn(ctx, delta, ty)
   };
 };
 
@@ -114,8 +80,8 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
     let seq = seq |> Seq.update_nth_operand(n, en);
     (skel, seq, u_gen);
   | BinOp(_, op, skel1, skel2) =>
-    let (skel1, seq, u_gen) = ana_fix_holes_skel(ctx, u_gen, skel1, seq);
-    let (skel2, seq, u_gen) = ana_fix_holes_skel(ctx, u_gen, skel2, seq);
+    let (skel1, seq, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel1, seq);
+    let (skel2, seq, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel2, seq);
 
     let skel = Skel.BinOp(NotInHole, op, skel1, skel2);
     (skel, seq, u_gen);
@@ -142,55 +108,56 @@ and syn_fix_holes_operand =
     (Parenthesized(block), u_gen);
   | List(opseq) =>
     /* TElabSList */
-    let (opseq, u_gen) = ana_fix_holes(ctx, u_gen, opseq);
+    let (opseq, u_gen) = syn_fix_holes(ctx, u_gen, opseq);
     (List(opseq), u_gen);
-  };
-}
-and ana_fix_holes:
-  (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, MetaVarGen.t) =
-  (ctx, u_gen, opseq) =>
-    switch (opseq) {
-    | OpSeq(skel, seq) =>
-      let (skel, seq, u_gen) = ana_fix_holes_skel(ctx, u_gen, skel, seq);
-      (OpSeq(skel, seq), u_gen);
-    }
-and ana_fix_holes_skel = (ctx, u_gen, skel, seq) =>
-  switch (skel) {
-  | Placeholder(n) =>
-    let en = seq |> Seq.nth_operand(n);
-    let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, en);
-    let seq = seq |> Seq.update_nth_operand(n, en);
-    (skel, seq, u_gen);
-  | BinOp(_, _, _, _) =>
-    let (skel, seq, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-    (skel, seq, u_gen);
-  }
-and ana_fix_holes_operand = (ctx, u_gen, operand) => {
-  switch (operand) {
-  | UHTyp.Hole => (Hole, u_gen)
-  | TyVar(InHole(_), _) => (operand, u_gen)
-  | Parenthesized(body) =>
-    let (block, u_gen) = ana_fix_holes(ctx, u_gen, body);
-    (Parenthesized(block), u_gen);
-  | TyVar(NotInHole(_), _)
-  | Unit
-  | Int
-  | Float
-  | Bool
-  | List(_) => syn_fix_holes_operand(ctx, u_gen, operand)
   };
 };
 
-let syn_fix_holes_z = (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t) => {
-  let path = CursorPath_Typ.of_z(zty);
-  let (ty, u_gen) = syn_fix_holes(ctx, u_gen, ZTyp.erase(zty));
-  let zty =
-    CursorPath_Typ.follow(path, ty)
-    |> OptUtil.get(() =>
-         failwith(
-           "fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
-         )
-       );
-  (zty, u_gen);
-};
+// and ana_fix_holes:
+//   (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, MetaVarGen.t) =
+//   (ctx, u_gen, opseq) =>
+//     switch (opseq) {
+//     | OpSeq(skel, seq) =>
+//       let (skel, seq, u_gen) = ana_fix_holes_skel(ctx, u_gen, skel, seq);
+//       (OpSeq(skel, seq), u_gen);
+//     }
+// and ana_fix_holes_skel = (ctx, u_gen, skel, seq) =>
+//   switch (skel) {
+//   | Placeholder(n) =>
+//     let en = seq |> Seq.nth_operand(n);
+//     let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, en);
+//     let seq = seq |> Seq.update_nth_operand(n, en);
+//     (skel, seq, u_gen);
+//   | BinOp(_, _, _, _) =>
+//     let (skel, seq, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
+//     (skel, seq, u_gen);
+//   }
+// and ana_fix_holes_operand = (ctx, u_gen, operand) => {
+//   switch (operand) {
+//   | UHTyp.Hole => (Hole, u_gen)
+//   | TyVar(InHole(_), _) => (operand, u_gen)
+//   | Parenthesized(body) =>
+//     let (block, u_gen) = ana_fix_holes(ctx, u_gen, body);
+//     (Parenthesized(block), u_gen);
+//   | TyVar(NotInHole(_), _)
+//   | Unit
+//   | Int
+//   | Float
+//   | Bool
+//   | List(_) => syn_fix_holes_operand(ctx, u_gen, operand)
+//   };
+// };
+
+// let syn_fix_holes_z = (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t) => {
+//   let path = CursorPath_Typ.of_z(zty);
+//   let (ty, u_gen) = syn_fix_holes(ctx, u_gen, ZTyp.erase(zty));
+//   let zty =
+//     CursorPath_Typ.follow(path, ty)
+//     |> OptUtil.get(() =>
+//          failwith(
+//            "fix_holes did not preserve path "
+//            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+//          )
+//        );
+//   (zty, u_gen);
+// };
