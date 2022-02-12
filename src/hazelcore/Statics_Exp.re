@@ -68,8 +68,10 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let* ty_def = syn(def_ctx, def);
     Statics_Pat.ana(ctx, p, ty_def);
   | TyAliasLine(p, ty) =>
-    let hty = UHTyp.expand(ty);
-    Some(Statics_TPat.matches(ctx, p, hty));
+    open OptUtil.Syntax;
+    let ty = UHTyp.expand(ty);
+    let+ kind = Statics_Typ.syn(Contexts.tyvar_ctx(ctx), ty);
+    Statics_TPat.matches(ctx, p, ty, kind);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -577,7 +579,10 @@ and syn_fix_holes_line =
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
   | TyAliasLine(p, ty) =>
-    let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, u_gen);
+    let kind =
+      Statics_Typ.syn(Contexts.tyvar_ctx(ctx), UHTyp.expand(ty))
+      |> Option.value(~default=Kind.KHole);
+    let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, kind, u_gen);
     (TyAliasLine(p, ty), ctx, u_gen);
   | LetLine(p, def) =>
     let (p, ty_p, _, u_gen) =

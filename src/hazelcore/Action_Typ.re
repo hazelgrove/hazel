@@ -24,19 +24,26 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   };
 
 let text_operand =
-    (shape: TyTextShape.t, u_gen: MetaVarGen.t)
-    : (UHTyp.operand, MetaVarGen.t) =>
+    (ctx: Contexts.t, shape: TyTextShape.t, u_gen: MetaVarGen.t)
+    : (UHTyp.operand, Contexts.t, MetaVarGen.t) =>
   switch (shape) {
-  | Int => (Int, u_gen)
-  | Bool => (Bool, u_gen)
-  | Float => (Float, u_gen)
+  | Int => (Int, ctx, u_gen)
+  | Bool => (Bool, ctx, u_gen)
+  | Float => (Float, ctx, u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let name = ExpandingKeyword.to_string(kw);
-    (TyVar(InHole(Reserved, u), name), u_gen);
+    (TyVar(InHole(Reserved, u), name), ctx, u_gen);
   | TyVar(name) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    (TyVar(InHole(Unbound, u), name), u_gen);
+    switch (TyVarCtx.index(Contexts.tyvar_ctx(ctx), name)) {
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (TyVar(InHole(Unbound, u), name), ctx, u_gen);
+    | Some(i) =>
+      let kind = Kind.Singleton(Type, TyVar(i, name));
+      let ctx = Contexts.extend_tyvar_ctx(ctx, name, kind);
+      (TyVar(NotInHole(i), name), ctx, u_gen);
+    }
   };
 
 let construct_operator =
@@ -62,8 +69,10 @@ let construct_operator =
 };
 
 let mk_syn_text =
-    (_ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
+  print_endline("ACTION_TYP mk_syn_text " ++ text);
+  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_string(text)) {
   | None =>
@@ -95,11 +104,16 @@ let mk_syn_text =
       );
     Succeeded((zty, u_gen));
   | Some(TyVar(name)) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let zty =
-      ZOpSeq.wrap(
-        ZTyp.CursorT(text_cursor, TyVar(InHole(Unbound, u), name)),
-      );
+    print_endline("==> TyVar " ++ name);
+    let tyvar_ctx = Contexts.tyvar_ctx(ctx);
+    let (status: TyVar.Status.t, u_gen) =
+      switch (TyVarCtx.index(tyvar_ctx, name)) {
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (InHole(Unbound, u), u_gen);
+      | Some(i) => (NotInHole(i), u_gen)
+      };
+    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, name)));
     Succeeded((zty, u_gen));
   };
 };
@@ -165,13 +179,13 @@ let delete_text = Action_common.syn_delete_text_(~mk_syn_text);
 
 let split_text =
     (
-      _ctx: Contexts.t,
+      ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       sop: Action.operator_shape,
       text: string,
     )
-    : option((ZTyp.t, MetaVarGen.t)) => {
+    : option((ZTyp.t, Contexts.t, MetaVarGen.t)) => {
   let (l, r) = StringUtil.split_string(caret_index, text);
   switch (
     TyTextShape.of_string(l),
@@ -182,18 +196,18 @@ let split_text =
   | (_, None, _)
   | (_, _, None) => None
   | (Some(lshape), Some(op), Some(rshape)) =>
-    let (loperand, u_gen) = text_operand(lshape, u_gen);
-    let (roperand, u_gen) = text_operand(rshape, u_gen);
+    let (loperand, ctx, u_gen) = text_operand(ctx, lshape, u_gen);
+    let (roperand, ctx, u_gen) = text_operand(ctx, rshape, u_gen);
     let zoperand = ZTyp.place_before_operand(roperand);
     let zty =
       ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
-    Some((zty, u_gen));
+    Some((zty, ctx, u_gen));
   };
 };
 
 let rec perform =
         (ctx: Contexts.t, a: Action.t, zty: ZTyp.t, u_gen: MetaVarGen.t)
-        : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+        : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
   perform_opseq(ctx, a, zty, u_gen)
 and perform_opseq =
     (
@@ -202,7 +216,7 @@ and perform_opseq =
       ZOpSeq(skel, zseq) as zopseq,
       u_gen: MetaVarGen.t,
     )
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -223,7 +237,7 @@ and perform_opseq =
     | Failed => Failed
     | CursorEscaped(side) =>
       perform(ctx, Action_common.escape(side), zopseq, u_gen)
-    | Succeeded(zty) => Succeeded((zty, u_gen))
+    | Succeeded(zty) => Succeeded((zty, ctx, u_gen))
     }
 
   /* Deletion */
@@ -248,6 +262,7 @@ and perform_opseq =
     let S(_, new_suffix) = suffix;
     Succeeded((
       ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+      ctx,
       u_gen,
     ));
 
@@ -260,7 +275,7 @@ and perform_opseq =
     switch (perform_opseq(ctx, Action_common.escape(side), zopseq, u_gen)) {
     | Failed
     | CursorEscaped(_) => Failed
-    | Succeeded((zty, u_gen)) => perform(ctx, a, zty, u_gen)
+    | Succeeded((zty, ctx, u_gen)) => perform(ctx, a, zty, u_gen)
     }
 
   /* Space becomes movement until we have proper type constructors */
@@ -273,7 +288,7 @@ and perform_opseq =
     | None => Failed
     | Some(op) =>
       let (zty, u_gen) = construct_operator(op, zoperand, surround, u_gen);
-      Succeeded((zty, u_gen));
+      Succeeded((zty, ctx, u_gen));
     }
 
   /* SwapLeft and SwapRight is handled at block level */
@@ -291,7 +306,7 @@ and perform_opseq =
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded((ZTyp.mk_ZOpSeq(new_zseq), u_gen));
+    Succeeded((ZTyp.mk_ZOpSeq(new_zseq), ctx, u_gen));
   | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
   | (
       SwapRight,
@@ -302,7 +317,7 @@ and perform_opseq =
     ) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded((ZTyp.mk_ZOpSeq(new_zseq), u_gen));
+    Succeeded((ZTyp.mk_ZOpSeq(new_zseq), ctx, u_gen));
 
   /* Zipper */
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
@@ -310,13 +325,14 @@ and perform_opseq =
     | Failed => Failed
     | CursorEscaped(side) =>
       perform_opseq(ctx, Action_common.escape(side), zopseq, u_gen)
-    | Succeeded((ZOpSeq(_, zseq), u_gen)) =>
+    | Succeeded((ZOpSeq(_, zseq), ctx, u_gen)) =>
       switch (zseq) {
       | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
         let new_prefix = Seq.affix_affix(inner_prefix, prefix);
         let new_suffix = Seq.affix_affix(inner_suffix, suffix);
         Succeeded((
           ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+          ctx,
           u_gen,
         ));
       | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
@@ -324,6 +340,7 @@ and perform_opseq =
         let new_suffix = Seq.seq_affix(inner_suffix, suffix);
         Succeeded((
           ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+          ctx,
           u_gen,
         ));
       }
@@ -337,7 +354,7 @@ and perform_operand =
       zoperand: ZTyp.zoperand,
       u_gen: MetaVarGen.t,
     )
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -359,24 +376,42 @@ and perform_operand =
     | Failed => Failed
     | CursorEscaped(side) =>
       perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
-    | Succeeded(zty) => Succeeded((zty, u_gen))
+    | Succeeded(zty) => Succeeded((zty, ctx, u_gen))
     }
 
   /* Backspace and Delete */
 
   | (Backspace, CursorT(OnText(caret_index), Int)) =>
-    backspace_text(Contexts.empty, u_gen, caret_index, "Int")
+    switch (backspace_text(ctx, u_gen, caret_index, "Int")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Backspace, CursorT(OnText(caret_index), Bool)) =>
-    backspace_text(Contexts.empty, u_gen, caret_index, "Bool")
+    switch (backspace_text(ctx, u_gen, caret_index, "Bool")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Backspace, CursorT(OnText(caret_index), Float)) =>
-    backspace_text(Contexts.empty, u_gen, caret_index, "Float")
+    switch (backspace_text(ctx, u_gen, caret_index, "Float")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
 
   | (Delete, CursorT(OnText(caret_index), Int)) =>
-    delete_text(Contexts.empty, u_gen, caret_index, "Int")
+    switch (delete_text(ctx, u_gen, caret_index, "Int")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Delete, CursorT(OnText(caret_index), Bool)) =>
-    delete_text(Contexts.empty, u_gen, caret_index, "Bool")
+    switch (delete_text(ctx, u_gen, caret_index, "Bool")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Delete, CursorT(OnText(caret_index), Float)) =>
-    delete_text(Contexts.empty, u_gen, caret_index, "Float")
+    switch (delete_text(ctx, u_gen, caret_index, "Float")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorT(OnDelim(_, Before), _)) =>
@@ -399,9 +434,9 @@ and perform_operand =
     )
 
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
-    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), u_gen))
+    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), ctx, u_gen))
   | (Backspace, CursorT(OnDelim(_, After), Unit)) =>
-    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), u_gen))
+    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), ctx, u_gen))
 
   | (
       Backspace,
@@ -410,9 +445,15 @@ and perform_operand =
     failwith("Impossible: Int|Float|Bool|TyVar are treated as text")
   /* TyVar-related Backspace & Delete */
   | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
-    delete_text(Contexts.empty, u_gen, caret_index, text)
+    switch (delete_text(ctx, u_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Backspace, CursorT(OnText(caret_index), TyVar(_, text))) =>
-    backspace_text(Contexts.empty, u_gen, caret_index, text)
+    switch (backspace_text(ctx, u_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -421,7 +462,7 @@ and perform_operand =
       CursorT(OnDelim(k, After), Parenthesized(body) | List(body)),
     ) =>
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
-    Succeeded((place_cursor(body), u_gen));
+    Succeeded((place_cursor(body), ctx, u_gen));
 
   /* Construction */
 
@@ -435,35 +476,51 @@ and perform_operand =
       perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
     ) {
     | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zty, u_gen)) => perform(ctx, a, zty, u_gen)
+    | Succeeded((zty, ctx, u_gen)) => perform(ctx, a, zty, u_gen)
     }
 
   | (Construct(SChar(s)), CursorT(_, Hole)) =>
-    insert_text(Contexts.empty, u_gen, (0, s), "")
+    switch (insert_text(ctx, u_gen, (0, s), "")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Construct(SChar(s)), CursorT(OnText(j), Int)) =>
-    insert_text(Contexts.empty, u_gen, (j, s), "Int")
+    switch (insert_text(ctx, u_gen, (j, s), "Int")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Construct(SChar(s)), CursorT(OnText(j), Bool)) =>
-    insert_text(Contexts.empty, u_gen, (j, s), "Bool")
+    switch (insert_text(ctx, u_gen, (j, s), "Bool")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Construct(SChar(s)), CursorT(OnText(j), Float)) =>
-    insert_text(Contexts.empty, u_gen, (j, s), "Float")
+    switch (insert_text(ctx, u_gen, (j, s), "Float")) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
 
   | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
-    insert_text(Contexts.empty, u_gen, (j, s), x)
+    switch (insert_text(ctx, u_gen, (j, s), x)) {
+    | (Failed | CursorEscaped(_)) as result => result
+    | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
+    }
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
-    Succeeded((ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))), u_gen))
+    Succeeded((ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))), ctx, u_gen))
 
   | (Construct(SCloseSquareBracket), ListZ(zopseq))
       when ZTyp.is_after(zopseq) =>
     let zty =
       ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq)));
-    Succeeded((ZOpSeq.wrap(zty), u_gen));
+    Succeeded((ZOpSeq.wrap(zty), ctx, u_gen));
   | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded((
       ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
+      ctx,
       u_gen,
     ))
 
@@ -496,13 +553,14 @@ and perform_operand =
       when ZTyp.is_after(zopseq) =>
     let zopseq =
       ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq)));
-    Succeeded((ZOpSeq.wrap(zopseq), u_gen));
+    Succeeded((ZOpSeq.wrap(zopseq), ctx, u_gen));
   | (
       Construct(SCloseParens),
       CursorT(OnDelim(1, Before), Parenthesized(opseq)),
     ) =>
     Succeeded((
       ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+      ctx,
       u_gen,
     ))
   | (Construct(SCloseParens), CursorT(_, _)) => Failed
@@ -511,7 +569,7 @@ and perform_operand =
     | None => Failed
     | Some(op) =>
       let (zty, u_gen) = construct_operator(op, zoperand, (E, E), u_gen);
-      Succeeded((zty, u_gen));
+      Succeeded((zty, ctx, u_gen));
     }
 
   /* Invalid SwapLeft and SwapRight actions */
@@ -523,16 +581,16 @@ and perform_operand =
     | Failed => Failed
     | CursorEscaped(side) =>
       perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
-    | Succeeded((zbody, u_gen)) =>
-      Succeeded((ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)), u_gen))
+    | Succeeded((zbody, ctx, u_gen)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)), ctx, u_gen))
     }
   | (_, ListZ(zbody)) =>
     switch (perform(ctx, a, zbody, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
-    | Succeeded((zbody, u_gen)) =>
-      Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), u_gen))
+    | Succeeded((zbody, ctx, u_gen)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), ctx, u_gen))
     }
 
   /* Invalid cursor positions */

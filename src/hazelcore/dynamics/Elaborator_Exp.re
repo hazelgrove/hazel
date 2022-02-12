@@ -106,10 +106,14 @@ and syn_elab_line =
     switch (Elaborator_Typ.syn(ctx, delta, ty)) {
     | None => LinesDoNotElaborate
     | Some((ty, delta)) =>
-      let ctx2 = Statics_TPat.matches(ctx, p, ty);
-      let dty = ty;
-      let prelude = d => DHExp.TyAlias(p, dty, d);
-      LinesElaborate(prelude, ctx2, delta);
+      switch (Statics_Typ.syn(Contexts.tyvar_ctx(ctx), ty)) {
+      | None => LinesDoNotElaborate
+      | Some(kind) =>
+        let ctx2 = Statics_TPat.matches(ctx, p, ty, kind);
+        let dty = ty;
+        let prelude = d => DHExp.TyAlias(p, dty, d);
+        LinesElaborate(prelude, ctx2, delta);
+      }
     }
   }
 and syn_elab_opseq =
