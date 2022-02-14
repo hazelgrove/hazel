@@ -4,7 +4,7 @@ open SexpResult;
 module Parsing = Hazeltext.Parsing;
 
 [@deriving sexp]
-type opts = {expr_only: bool};
+type opts = {exp_only: bool};
 
 [@deriving sexp]
 type err =
@@ -14,7 +14,7 @@ type err =
 [@deriving sexp]
 type compile_result = result(string, err);
 
-let default_opts = {expr_only: false};
+let default_opts = {exp_only: false};
 
 let parse = lexbuf => {
   let res = lexbuf |> Parsing.ast_of_lexbuf;
@@ -30,15 +30,15 @@ let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
 
 let transform = Transformer.transform;
 
-let emit = (~opts=default_opts, d) =>
-  if (opts.expr_only) {
-    Emit.emit_expr(d);
+let translate = (~opts=default_opts, d) =>
+  if (opts.exp_only) {
+    Translator.translate_exp(d);
   } else {
-    Emit.emit(d);
+    Translator.translate(d);
   };
 
 let compile_dhexp = (~opts=default_opts, d) => {
-  Ok(d |> transform |> emit(~opts));
+  Ok(d |> transform |> translate(~opts));
 };
 
 let compile_uhexp = (~opts=default_opts, e) => {

@@ -1,5 +1,5 @@
 [@deriving sexp]
-type opts = {expr_only: bool};
+type opts = {exp_only: bool};
 
 [@deriving sexp]
 type err =

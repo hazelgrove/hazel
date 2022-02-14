@@ -15,7 +15,7 @@ type expect =
 type t = (exp, expect);
 
 let compile = exp => {
-  let opts: Compiler.opts = {expr_only: true};
+  let opts: Compiler.opts = {exp_only: true};
 
   switch (exp) {
   | Str(s) => Compiler.compile_string(~opts, s)

@@ -9,18 +9,18 @@ module Preamble = {
   let to_string = () => String.concat("\n", preamble);
 };
 
-let rec emit_expr = (d: IHExp.t) => {
+let rec translate_exp = (d: IHExp.t) => {
   switch (d) {
   | BoundVar(v) => v
   | Let(dp, d1, d2) =>
     Printf.sprintf(
       "let %s = %s\n%s",
-      emit_pat(dp),
-      emit_expr(d1),
-      emit_expr(d2),
+      translate_pat(dp),
+      translate_exp(d1),
+      translate_exp(d2),
     )
   | Lam(dp, _, d1) =>
-    Printf.sprintf("((%s) => {%s})", emit_pat(dp), emit_expr(d1))
+    Printf.sprintf("((%s) => {%s})", translate_pat(dp), translate_exp(d1))
   // TODO: Do this without copying Evaluator.subst_var?
   | FixF(_var, _, _d1) =>
     /* let d1s = */
@@ -29,29 +29,47 @@ let rec emit_expr = (d: IHExp.t) => {
     /* var, */
     /* d1, */
     /* ); */
-    /* Printf.sprintf("{let rec %s = () => {%s}}", var, emit_expr(d1s)); */
+    /* Printf.sprintf("{let rec %s = () => {%s}}", var, translate_exp(d1s)); */
     raise(NotImplemented)
-  | Ap(d1, d2) => Printf.sprintf("%s(%s)", emit_expr(d1), emit_expr(d2))
+  | Ap(d1, d2) =>
+    Printf.sprintf("%s(%s)", translate_exp(d1), translate_exp(d2))
   | BoolLit(b) => b ? "true" : "false"
   | IntLit(i) => sprintf("%i", i)
   | FloatLit(f) => sprintf("%f", f)
   | BinBoolOp(op, d1, d2) =>
-    sprintf("(%s %s %s)", emit_expr(d1), emit_bool_op(op), emit_expr(d2))
+    sprintf(
+      "(%s %s %s)",
+      translate_exp(d1),
+      translate_bool_op(op),
+      translate_exp(d2),
+    )
   | BinIntOp(op, d1, d2) =>
     // TODO: this is wrong
-    sprintf("(%s %s %s)", emit_expr(d1), emit_int_op(op), emit_expr(d2))
+    sprintf(
+      "(%s %s %s)",
+      translate_exp(d1),
+      translate_int_op(op),
+      translate_exp(d2),
+    )
   | BinFloatOp(op, d1, d2) =>
-    sprintf("(%s %s %s)", emit_expr(d1), emit_float_op(op), emit_expr(d2))
-  | Pair(d1, d2) => sprintf("(%s, %s)", emit_expr(d1), emit_expr(d2))
+    sprintf(
+      "(%s %s %s)",
+      translate_exp(d1),
+      translate_float_op(op),
+      translate_exp(d2),
+    )
+  | Pair(d1, d2) =>
+    sprintf("(%s, %s)", translate_exp(d1), translate_exp(d2))
   | ConsistentCase(Case(d1, lr, _)) =>
-    let rules = lr |> List.map(emit_rule) |> String.concat("");
-    sprintf("match (%s){\n%s}", emit_expr(d1), rules);
+    let rules = lr |> List.map(translate_rule) |> String.concat("");
+    sprintf("match (%s){\n%s}", translate_exp(d1), rules);
   | ListNil(_) => sprintf("[]")
-  | Cons(d1, d2) => sprintf("[{%s}, ...%s]", emit_expr(d1), emit_expr(d2))
+  | Cons(d1, d2) =>
+    sprintf("[{%s}, ...%s]", translate_exp(d1), translate_exp(d2))
   | Inj(_, side, d1) =>
     switch (side) {
-    | L => sprintf("L(%s)", emit_expr(d1))
-    | R => sprintf("R(%s)", emit_expr(d1))
+    | L => sprintf("L(%s)", translate_exp(d1))
+    | R => sprintf("R(%s)", translate_exp(d1))
     }
   | Triv => "void"
   | EmptyHole(_)
@@ -65,11 +83,11 @@ let rec emit_expr = (d: IHExp.t) => {
   | InvalidOperation(_) => raise(NotImplemented)
   };
 }
-and emit_rule = (r: IHExp.rule) => {
+and translate_rule = (r: IHExp.rule) => {
   let Rule(dp, d0) = r;
-  sprintf("%s => %s\n", emit_pat(dp), emit_expr(d0));
+  sprintf("%s => %s\n", translate_pat(dp), translate_exp(d0));
 }
-and emit_pat = (dp: IHPat.t) => {
+and translate_pat = (dp: IHPat.t) => {
   switch (dp) {
   | EmptyHole(_)
   | NonEmptyHole(_)
@@ -85,16 +103,17 @@ and emit_pat = (dp: IHPat.t) => {
   | IntLit(i) => sprintf("%i", i)
   | FloatLit(f) => sprintf("%f", f)
   | BoolLit(b) => b ? "true" : "false"
-  | Pair(dp1, dp2) => sprintf("(%s, %s)", emit_pat(dp1), emit_pat(dp2))
+  | Pair(dp1, dp2) =>
+    sprintf("(%s, %s)", translate_pat(dp1), translate_pat(dp2))
   };
 }
-and emit_bool_op = (op: IHExp.BinBoolOp.t) => {
+and translate_bool_op = (op: IHExp.BinBoolOp.t) => {
   switch (op) {
   | And => "&&"
   | Or => "||"
   };
 }
-and emit_int_op = (op: IHExp.BinIntOp.t) => {
+and translate_int_op = (op: IHExp.BinIntOp.t) => {
   switch (op) {
   | Minus => "-"
   | Plus => "+"
@@ -105,7 +124,7 @@ and emit_int_op = (op: IHExp.BinIntOp.t) => {
   | Equals => "=="
   };
 }
-and emit_float_op = (op: IHExp.BinFloatOp.t) => {
+and translate_float_op = (op: IHExp.BinFloatOp.t) => {
   switch (op) {
   | FPlus => "+"
   | FMinus => "-"
@@ -117,10 +136,10 @@ and emit_float_op = (op: IHExp.BinFloatOp.t) => {
   };
 };
 
-let emit_preamble = () => {
+let translate_preamble = () => {
   Preamble.to_string();
 };
 
-let emit = (d: IHExp.t) => {
-  sprintf("%s\n%s", emit_preamble(), emit_expr(d));
+let translate = (d: IHExp.t) => {
+  sprintf("%s\n%s", translate_preamble(), translate_exp(d));
 };
