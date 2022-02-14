@@ -590,7 +590,9 @@ let rec subst_vars_within_lambdas =
   | InvalidOperation(d', reason) =>
     let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent);
     (hci, InvalidOperation(d'', reason));
-  | ConsistentCase(_) => /* TODO */ (hci, d)
+  | ConsistentCase(Case(scrut, rules, i)) =>
+    let (hci, scrut') = subst_vars_within_lambdas(hci, env, scrut, parent);
+    (hci, ConsistentCase(Case(scrut', rules, i)));
 
   /* This shouldn't occur within a lambda body. */
   /* TODO: move this exception elsewhere. */
@@ -690,7 +692,9 @@ and expand_closures_to_lambdas =
   | FailedCast(d', ty1, ty2) =>
     let (hci, d'') = expand_closures_to_lambdas(hci, d', parent);
     (hci, FailedCast(d'', ty1, ty2));
-  | ConsistentCase(_) => /* TODO */ (hci, d)
+  | ConsistentCase(Case(scrut, rules, i)) =>
+    let (hci, scrut') = expand_closures_to_lambdas(hci, scrut, parent);
+    (hci, ConsistentCase(Case(scrut', rules, i)));
   | InvalidOperation(d', reason) =>
     let (hci, d'') = expand_closures_to_lambdas(hci, d', parent);
     (hci, InvalidOperation(d'', reason));
