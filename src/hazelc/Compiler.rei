@@ -1,9 +1,16 @@
-type compile_opts = {expr_only: bool};
+[@deriving sexp]
+type opts = {expr_only: bool};
 
-type compile_result = result(string, string);
+[@deriving sexp]
+type err =
+  | Parse(string)
+  | Elab;
 
-let compile_uhexp: (~opts: compile_opts=?, UHExp.t) => compile_result;
-let compile_dhexp: (~opts: compile_opts=?, DHExp.t) => compile_result;
-let compile_buf: (~opts: compile_opts=?, Lexing.lexbuf) => compile_result;
-let compile_string: (~opts: compile_opts=?, string) => compile_result;
-let compile_file: (~opts: compile_opts=?, in_channel) => compile_result;
+[@deriving sexp]
+type compile_result = result(string, err);
+
+let compile_uhexp: (~opts: opts=?, UHExp.t) => compile_result;
+let compile_dhexp: (~opts: opts=?, DHExp.t) => compile_result;
+let compile_buf: (~opts: opts=?, Lexing.lexbuf) => compile_result;
+let compile_string: (~opts: opts=?, string) => compile_result;
+let compile_file: (~opts: opts=?, in_channel) => compile_result;

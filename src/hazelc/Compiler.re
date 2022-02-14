@@ -1,8 +1,18 @@
+open Sexplib.Std;
+open SexpResult;
+
 module Parsing = Hazeltext.Parsing;
 
-type compile_opts = {expr_only: bool};
+[@deriving sexp]
+type opts = {expr_only: bool};
 
-type compile_result = result(string, string);
+[@deriving sexp]
+type err =
+  | Parse(string)
+  | Elab;
+
+[@deriving sexp]
+type compile_result = result(string, err);
 
 let default_opts = {expr_only: false};
 
@@ -11,7 +21,7 @@ let parse = lexbuf => {
 
   switch (res) {
   | Ok(lines) => Ok(lines)
-  | Error(err) => Error(err)
+  | Error(err) => Error(Parse(err))
   };
 };
 
@@ -35,7 +45,7 @@ let compile_uhexp = (~opts=default_opts, e) => {
   let res = e |> elaborate;
   switch (res) {
   | Elaborates(d, _, _) => compile_dhexp(~opts, d)
-  | DoesNotElaborate => Error("Does not elaborate")
+  | DoesNotElaborate => Error(Elab)
   };
 };
 
