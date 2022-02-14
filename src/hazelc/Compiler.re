@@ -12,7 +12,7 @@ type err =
   | Elab;
 
 [@deriving sexp]
-type compile_result = result(string, err);
+type grain_result = result(string, err);
 
 let default_opts = {exp_only: false};
 
@@ -37,27 +37,27 @@ let translate = (~opts=default_opts, d) =>
     Translator.translate(d);
   };
 
-let compile_dhexp = (~opts=default_opts, d) => {
+let grain_compile_dhexp = (~opts=default_opts, d) => {
   Ok(d |> transform |> translate(~opts));
 };
 
-let compile_uhexp = (~opts=default_opts, e) => {
+let grain_compile_uhexp = (~opts=default_opts, e) => {
   let res = e |> elaborate;
   switch (res) {
-  | Elaborates(d, _, _) => compile_dhexp(~opts, d)
+  | Elaborates(d, _, _) => grain_compile_dhexp(~opts, d)
   | DoesNotElaborate => Error(Elab)
   };
 };
 
-let compile_buf = (~opts=default_opts, lexbuf) => {
+let grain_compile_buf = (~opts=default_opts, lexbuf) => {
   switch (parse(lexbuf)) {
-  | Ok(e) => compile_uhexp(~opts, e)
+  | Ok(e) => grain_compile_uhexp(~opts, e)
   | Error(err) => Error(err)
   };
 };
 
-let compile_string = (~opts=default_opts, s) =>
-  s |> Lexing.from_string |> compile_buf(~opts);
+let grain_compile_string = (~opts=default_opts, s) =>
+  s |> Lexing.from_string |> grain_compile_buf(~opts);
 
-let compile_file = (~opts=default_opts, f) =>
-  f |> Lexing.from_channel |> compile_buf(~opts);
+let grain_compile_file = (~opts=default_opts, f) =>
+  f |> Lexing.from_channel |> grain_compile_buf(~opts);

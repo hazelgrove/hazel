@@ -18,9 +18,9 @@ let compile = exp => {
   let opts: Compiler.opts = {exp_only: true};
 
   switch (exp) {
-  | Str(s) => Compiler.compile_string(~opts, s)
-  | UH(e) => Compiler.compile_uhexp(~opts, e)
-  | DH(d) => Compiler.compile_dhexp(~opts, d)
+  | Str(s) => Compiler.grain_compile_string(~opts, s)
+  | UH(e) => Compiler.grain_compile_uhexp(~opts, e)
+  | DH(d) => Compiler.grain_compile_dhexp(~opts, d)
   };
 };
 
