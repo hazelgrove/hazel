@@ -2,25 +2,33 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type exp =
-  | String(string)
+  | Str(string)
   | UH(UHExp.t)
   | DH(DHExp.t);
 
-module type Case = {
-  let expr: exp;
-  let expect: Compiler.compile_result;
+[@deriving sexp]
+type expect =
+  | Fail
+  | Pass(string);
+
+[@deriving sexp]
+type t = (exp, expect);
+
+let compile = exp => {
+  let opts: Compiler.opts = {expr_only: true};
+
+  switch (exp) {
+  | Str(s) => Compiler.compile_string(~opts, s)
+  | UH(e) => Compiler.compile_uhexp(~opts, e)
+  | DH(d) => Compiler.compile_dhexp(~opts, d)
+  };
 };
 
-module Make = (X: Case) => {
-  let opts: Compiler.compile_opts = {expr_only: true};
-
-  let compile = () => {
-    switch (X.expr) {
-    | String(s) => Compiler.compile_string(~opts, s)
-    | UH(e) => Compiler.compile_uhexp(~opts, e)
-    | DH(d) => Compiler.compile_dhexp(~opts, d)
+let test = ((exp, expect)) => {
+  let res =
+    switch (compile(exp)) {
+    | Ok(output) => Pass(output)
+    | Error(_) => Fail
     };
-  };
-
-  let%test _ = compile() == X.expect;
+  res == expect;
 };

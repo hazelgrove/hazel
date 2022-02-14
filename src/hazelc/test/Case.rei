@@ -1,11 +1,16 @@
 [@deriving sexp]
 type exp =
-  | String(string)
+  | Str(string)
   | UH(UHExp.t)
   | DH(DHExp.t);
 
-module type Case = {
-  let expr: exp;
-  let expect: Compiler.compile_result;
-};
-module Make: (X: Case) => {let compile: unit => Compiler.compile_result;};
+[@deriving sexp]
+type expect =
+  | Fail
+  | Pass(string);
+
+[@deriving sexp]
+type t = (exp, expect);
+
+let compile: exp => Compiler.compile_result;
+let test: t => bool;

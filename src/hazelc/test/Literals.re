@@ -1,50 +1,12 @@
-open Case;
+let test = Case.test;
 
-module Bool_Lit_True =
-  Make({
-    let expr = String("true");
-    let expect = Ok("true");
-  });
+let%test "bool true" = test((Str("true"), Pass("true")));
+let%test "bool false" = test((Str("false"), Pass("false")));
 
-module BoolLit_False =
-  Make({
-    let expr = String("false");
-    let expect = Ok("false");
-  });
+let%test "int 0" = test((Str("0"), Pass("0")));
+let%test "int 5" = test((Str("5"), Pass("5")));
 
-module IntLit_0 =
-  Make({
-    let expr = String("0");
-    let expect = Ok("0");
-  });
+let%test "unit" = test((DH(Triv), Pass("void")));
 
-module IntLit_5 =
-  Make({
-    let expr = String("5");
-    let expect = Ok("5");
-  });
-
-module FloatLit_1_01 =
-  Make({
-    let expr = String("1.01");
-    let expect = Ok("1.01");
-  });
-
-module UnitLit =
-  Make({
-    // TODO: No way to represent triv in text yet
-    let expr = DH(Triv);
-    let expect = Ok("void");
-  });
-
-module ListNil =
-  Make({
-    let expr = String("[]");
-    let expect = Ok("[]");
-  });
-
-module ListCons =
-  Make({
-    let expr = String("true::[]");
-    let expect = Ok("[true, ...[]]");
-  });
+let%test "list nil" = test((Str("[]"), Pass("[]")));
+let%test "list cons" = test((Str("true::[]"), Pass("[true, ...[]")));
