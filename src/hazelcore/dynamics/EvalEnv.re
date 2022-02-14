@@ -48,6 +48,45 @@ let extend =
   (ec, Env(ei, VarMap.extend(result_map_of_evalenv(env), xa)));
 };
 
+let extend_with_closure =
+    (ec: EvalEnvIdGen.t, env: t, xa: VarMap.t__(result))
+    : (EvalEnvIdGen.t, t) => {
+  let (ec, ei) = EvalEnvIdGen.next(ec);
+  // The input expression is either a closure or a closure in a
+  // cast from elaboration.
+  switch (xa) {
+  | (f, BoxedValue(Closure(_, x, ty, d))) =>
+    let rec env' =
+      DHExp.Env(
+        ei,
+        // Cannot use VarMap.extend, due to the nature of let rec for
+        // recursive data; recursive definitions cannot be used as
+        // function arguments
+        [
+          (f, BoxedValue(d')),
+          ...List.remove_assoc(f, result_map_of_evalenv(env)),
+        ],
+      )
+    and d' = Closure(env', x, ty, d);
+    (ec, env');
+  | (f, BoxedValue(Cast(Closure(_, x, ty, d), ty1, ty1'))) =>
+    let rec env' =
+      DHExp.Env(
+        ei,
+        // See note above.
+        [
+          (f, BoxedValue(d')),
+          ...List.remove_assoc(f, result_map_of_evalenv(env)),
+        ],
+      )
+    and d' = Cast(Closure(env', x, ty, d), ty1, ty1');
+    (ec, env');
+  | _ =>
+    exception NotAClosureExpression;
+    raise(NotAClosureExpression);
+  };
+};
+
 let union = (ec: EvalEnvIdGen.t, env1: t, env2: t): (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
   (

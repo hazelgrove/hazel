@@ -46,6 +46,10 @@ let map:
 let filter:
   (EvalEnvIdGen.t, VarMap.t__(result) => bool, t) => (EvalEnvIdGen.t, t);
 
+/* special form of extend that adds the  */
+let extend_with_closure:
+  (EvalEnvIdGen.t, t, VarMap.t__(result)) => (EvalEnvIdGen.t, t);
+
 /* union(new_env, env) extends env with new_env (same argument order
    as in VarMap.union) */
 let union: (EvalEnvIdGen.t, t, t) => (EvalEnvIdGen.t, t);

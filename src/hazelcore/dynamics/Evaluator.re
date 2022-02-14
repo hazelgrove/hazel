@@ -859,9 +859,21 @@ let rec evaluate =
         | (ec, Indet(d2')) => (ec, Indet(d2'))
         }
       | Matches(env') =>
-        let match_result_map = map_environment_to_result_map(ec, env, env');
-        let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
-        evaluate(ec, env, d2);
+        switch (dp, d1) {
+        | (Var(f), Cast(Closure(_), _, _) as d)
+        | (Var(f), Closure(_) as d) =>
+          // If lambda function on RHS.
+          // Note: this follows elaborator and only allows for mutual recursion
+          // if there is only a variable pattern on the LHS and a single lambda
+          // on the RHS. May be good to generalize this in the future.
+          let (ec, env) =
+            EvalEnv.extend_with_closure(ec, env, (f, BoxedValue(d)));
+          evaluate(ec, env, d2);
+        | _ =>
+          let match_result_map = map_environment_to_result_map(ec, env, env');
+          let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
+          evaluate(ec, env, d2);
+        }
       }
     }
   | FixF(f, ty, d) =>
