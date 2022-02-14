@@ -28,7 +28,7 @@ let parse = lexbuf => {
 // TODO: Update this when builtin-fns branch is merged.
 let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
 
-let translate = Translator.translate;
+let transform = Transformer.transform;
 
 let emit = (~opts=default_opts, d) =>
   if (opts.expr_only) {
@@ -38,7 +38,7 @@ let emit = (~opts=default_opts, d) =>
   };
 
 let compile_dhexp = (~opts=default_opts, d) => {
-  Ok(d |> translate |> emit(~opts));
+  Ok(d |> transform |> emit(~opts));
 };
 
 let compile_uhexp = (~opts=default_opts, e) => {
