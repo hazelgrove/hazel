@@ -520,17 +520,13 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        print_endline("ACTION_PAT syn_perform_opseq");
-        print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-        print_endline(Sexplib.Sexp.to_string_hum(ZPat.sexp_of_t(zopseq)));
-        print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
         switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
         | Succeeded((new_zann, ctx, u_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
         | _ => Failed
-        };
+        }
       | _ => Failed
       }
     | Some(operator) =>
@@ -908,12 +904,6 @@ and syn_perform_operand =
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
-    print_endline("ACTION_PAT syn_perform_operand");
-    print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-    print_endline(
-      Sexplib.Sexp.to_string_hum(ZPat.sexp_of_zoperand(zoperand)),
-    );
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -928,7 +918,7 @@ and syn_perform_operand =
           ty,
         );
       Succeeded((zpat, ty, ctx, u_gen));
-    };
+    }
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -1069,11 +1059,6 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        print_endline("ACTION_PAT ana_perform_opseq");
-        print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-        print_endline(Sexplib.Sexp.to_string_hum(ZPat.sexp_of_t(zopseq)));
-        print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-        print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
         switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
         | Succeeded((new_zann, ctx, u_gen)) =>
           let new_zseq =
@@ -1081,7 +1066,7 @@ and ana_perform_opseq =
           let ty' = UHTyp.expand(ZTyp.erase(new_zann));
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty'));
         | _ => Failed
-        };
+        }
       | _ => Failed
       }
     | Some(operator) =>
@@ -1521,13 +1506,6 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    print_endline("ACTION_PAT ana_perform_operand");
-    print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-    print_endline(
-      Sexplib.Sexp.to_string_hum(ZPat.sexp_of_zoperand(zoperand)),
-    );
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -1549,7 +1527,7 @@ and ana_perform_operand =
         let (new_zopseq, u_gen) = new_zopseq |> ZPat.mk_inconsistent(u_gen);
         Succeeded((new_zopseq, ctx, u_gen));
       };
-    };
+    }
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {

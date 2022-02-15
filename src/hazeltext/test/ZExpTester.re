@@ -141,7 +141,7 @@ let report =
           show_sexp(ZExp.sexp_of_t(result.edited)),
         );
         Printf.printf(
-          "\nTest %s!\nExpect: %s\nActual: %s\n",
+          "\nTest %s!\nExpect: \"%s\"\nActual: \"%s\"\n",
           String.equal(result.printed, expect) ? "Passed" : "Failed",
           expect,
           result.printed,

@@ -5,3 +5,11 @@ let%test _ =
     [Backspace, Backspace, Backspace],
     "λx : ?.{x}",
   );
+
+// let%test _ =
+//   ZExpTester.test(
+//     "type ? = Int in λx : t.{x}",
+//     ([], OnDelim(0, Before)),
+//     [],
+//     "",
+//   );

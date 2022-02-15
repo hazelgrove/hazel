@@ -71,8 +71,6 @@ let construct_operator =
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
-  print_endline("ACTION_TYP mk_syn_text " ++ text);
-  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_string(text)) {
   | None =>
@@ -104,7 +102,6 @@ let mk_syn_text =
       );
     Succeeded((zty, u_gen));
   | Some(TyVar(name)) =>
-    print_endline("==> TyVar " ++ name);
     let tyvars = Contexts.tyvars(ctx);
     let (status: TyVar.Status.t, u_gen) =
       switch (TyVarCtx.index(tyvars, name)) {

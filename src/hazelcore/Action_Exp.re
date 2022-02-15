@@ -793,17 +793,9 @@ and syn_perform_block =
 
   /* Zipper */
   | _ =>
-    print_endline("ACTION_Exp syn_perform_block");
-    print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-    print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zblock(zblock)));
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Statics_Exp.syn_lines(ctx, prefix)) {
     | None => Failed
     | Some(ctx_zline) =>
-      print_endline(
-        Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx_zline)),
-      );
       switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -824,9 +816,6 @@ and syn_perform_block =
             u_gen,
           )),
         ) =>
-        print_endline(
-          Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx_suffix)),
-        );
         switch (suffix) {
         | [] =>
           switch (
@@ -844,9 +833,9 @@ and syn_perform_block =
             (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
             |> ZExp.prune_empty_hole_lines;
           Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-        };
-      };
-    };
+        }
+      }
+    }
   }
 and syn_perform_line =
     (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
@@ -1126,10 +1115,6 @@ and syn_perform_line =
       }
     }
   | (_, TyAliasLineT(tp, zty)) =>
-    print_endline("ACTION_EXP syn_perform_line");
-    print_endline(Sexplib.Sexp.to_string_hum(Action.sexp_of_t(a)));
-    print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zline(zline)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     let ty = UHTyp.expand(ZTyp.erase(zty));
     switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
     | None => Failed
