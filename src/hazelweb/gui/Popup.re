@@ -76,7 +76,7 @@ let load_program_button = inject =>
     [Vdom.Node.text("Load program")],
   );
 
-let import_body = (inject, model) => {
+let text_editor_body = (inject, model) => {
   Vdom.(
     Node.div(
       [Attr.id("popup-page")],
@@ -143,11 +143,11 @@ let mk_popup =
   );
 };
 
-let import = (~inject, ~is_open, ~model) =>
+let text_editor = (~inject, ~is_open, ~model) =>
   mk_popup(
     is_open,
     ~inject,
-    ~on_toggle=_ => inject(ModelAction.ToggleImportPopup),
-    ~popup_body=import_body,
+    ~on_toggle=_ => inject(ModelAction.ToggleTextEditorPopup),
+    ~popup_body=text_editor_body,
     ~model,
   );
