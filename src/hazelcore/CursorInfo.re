@@ -111,7 +111,7 @@ type typed =
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
-  | OnType
+  | OnType(Kind.t)
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;

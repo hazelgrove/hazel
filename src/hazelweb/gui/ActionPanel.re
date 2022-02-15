@@ -200,8 +200,8 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let is_action_allowed_with_on_type_check = (~on_type, action) => {
     switch (cursor_info.typed) {
-    | OnType when on_type => is_action_allowed(action)
-    | OnType => false
+    | OnType(_) when on_type => is_action_allowed(action)
+    | OnType(_) => false
     | _ when on_type => false
     | _ => is_action_allowed(action)
     };

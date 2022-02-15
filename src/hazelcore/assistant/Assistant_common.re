@@ -106,7 +106,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | TypKeyword(_) => (None, None, UnknownMode)
   | TypFree => (None, Some(Hole), UnknownMode)
 
-  | OnType
+  | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
   };

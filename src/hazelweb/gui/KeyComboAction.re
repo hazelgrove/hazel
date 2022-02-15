@@ -9,7 +9,7 @@ let get_model_action_from_kc =
 
   let cursor_on_type =
     switch (cursor_info) {
-    | {typed: OnType, _} => true
+    | {typed: OnType(_), _} => true
     | _ => false
     };
 

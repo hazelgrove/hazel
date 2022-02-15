@@ -12,6 +12,14 @@ let rec extract_cursor_term = (ztyp: ZTyp.t): cursor_term => {
     }
   };
 }
+and extract_from_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  switch (zseq) {
+  | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+  | ZOperator(ztyp_operator, _) =>
+    let (cursor_pos, uop) = ztyp_operator;
+    TypOperator(cursor_pos, uop);
+  };
+}
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
@@ -42,6 +50,102 @@ and get_zoperand_from_ztyp_operand =
   };
 };
 
-let cursor_info =
-    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
-  Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));
+let rec cursor_info =
+        (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(CursorInfo.t) =>
+  cursor_info_zopseq(~steps, ctx, zty)
+and cursor_info_zopseq =
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
+    )
+    : option(CursorInfo.t) => {
+  let ty = UHTyp.expand(ZTyp.erase(zopseq));
+  switch (zseq) {
+  | ZOperator((_, Prod), _) =>
+    // cursor on tuple comma
+    switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
+    | None => None
+    | Some(kind) =>
+      Some(
+        CursorInfo_common.mk(
+          OnType(kind),
+          ctx,
+          extract_cursor_term(zopseq),
+        ),
+      )
+    }
+  | _ =>
+    // cursor within tuple element
+    let skels = skel |> UHTyp.get_prod_elements;
+    let cursor_skel =
+      skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
+    cursor_info_skel(~steps, ctx, cursor_skel, zseq);
+  };
+}
+and cursor_info_skel =
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      skel: UHTyp.skel,
+      zseq: ZTyp.zseq,
+    )
+    : option(CursorInfo.t) =>
+  if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+    // found cursor
+    switch (zseq) {
+    | ZOperand(zoperand, (prefix, _)) =>
+      cursor_info_zoperand(
+        ~steps=steps @ [Seq.length_of_affix(prefix)],
+        ctx,
+        zoperand,
+      )
+    | ZOperator(_) =>
+      let ty = UHTyp.mk_OpSeq(ZTyp.erase_zseq(zseq)) |> UHTyp.expand;
+      switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
+      | None => None
+      | Some(kind) =>
+        Some(
+          CursorInfo_common.mk(OnType(kind), ctx, extract_from_zseq(zseq)),
+        )
+      };
+    };
+  } else {
+    // recurse toward cursor
+    switch (skel) {
+    | Placeholder(_) => None
+    | BinOp(_, Prod, _, _) =>
+      failwith(
+        "Typ.syn_cursor_info_skel: expected commas to be handled at opseq level",
+      )
+    | BinOp(_, Arrow | Sum, skel1, skel2) =>
+      switch (cursor_info_skel(~steps, ctx, skel1, zseq)) {
+      | Some(_) as result => result
+      | None => cursor_info_skel(~steps, ctx, skel2, zseq)
+      }
+    };
+  }
+and cursor_info_zoperand =
+    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZTyp.zoperand)
+    : option(CursorInfo.t) => {
+  let cursor_term = extract_from_ztyp_operand(zoperand);
+  switch (zoperand) {
+  | CursorT(_, Hole) =>
+    Some(CursorInfo_common.mk(OnType(Kind.KHole), ctx, cursor_term))
+  | CursorT(_, Unit | Int | Float | Bool) =>
+    Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
+  | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
+    Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
+  | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
+    open OptUtil.Syntax;
+    let+ k = ExpandingKeyword.of_string(name);
+    CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
+  | CursorT(_, ty) =>
+    open OptUtil.Syntax;
+    let+ kind =
+      Statics_Typ.syn(Contexts.tyvars(ctx), UHTyp.expand_operand(ty));
+    CursorInfo_common.mk(OnType(kind), ctx, cursor_term);
+  | ParenthesizedZ(zbody)
+  | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
+  };
+};

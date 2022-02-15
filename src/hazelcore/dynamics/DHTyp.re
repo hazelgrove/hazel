@@ -1,2 +1,2 @@
 [@deriving sexp]
-type t = HTyp.t;
+type t = (TyVarCtx.t, HTyp.t);

@@ -110,7 +110,7 @@ and syn_elab_line =
       | None => LinesDoNotElaborate
       | Some(kind) =>
         let ctx2 = Statics_TPat.matches(ctx, p, ty, kind);
-        let dty = ty;
+        let dty = (Contexts.tyvars(ctx), ty);
         let prelude = d => DHExp.TyAlias(p, dty, d);
         LinesElaborate(prelude, ctx2, delta);
       }
