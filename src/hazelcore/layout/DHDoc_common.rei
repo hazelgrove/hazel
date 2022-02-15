@@ -58,6 +58,10 @@ module Delim: {
   let arrow_Cast: DHDoc.t;
   let close_Cast: DHDoc.t;
 
+  let open_OkCast: Pretty.Doc.t(DHAnnot.t);
+  let arrow_OkCast: Pretty.Doc.t(DHAnnot.t);
+  let close_OkCast: Pretty.Doc.t(DHAnnot.t);
+
   let open_FailedCast: Pretty.Doc.t(DHAnnot.t);
   let arrow_FailedCast: Pretty.Doc.t(DHAnnot.t);
   let close_FailedCast: Pretty.Doc.t(DHAnnot.t);

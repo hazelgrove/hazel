@@ -80,6 +80,11 @@ module Delim = {
   let arrow_Cast = mk(Unicode.castArrowSym);
   let close_Cast = mk(">");
 
+  let open_OkCast = open_Cast |> Doc.annot(DHAnnot.CastDelim);
+  let arrow_OkCast =
+    mk(Unicode.castArrowSym) |> Doc.annot(DHAnnot.CastDelim);
+  let close_OkCast = close_Cast |> Doc.annot(DHAnnot.CastDelim);
+
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
   let arrow_FailedCast =
     mk(Unicode.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);

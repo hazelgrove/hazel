@@ -1169,11 +1169,14 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
+.DHCode .CastDelim {
+  color: green;
+}
 .DHCode .FailedCastDelim {
   color: red;
 }
 .DHCode .CastDecoration {
-  background-color: rgba(150, 0, 255, 0.2);
+  background-color: rgba(0, 255, 0, 0.2);
 }
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
