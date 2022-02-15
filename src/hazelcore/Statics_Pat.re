@@ -417,7 +417,12 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let ty = UHTyp.expand(ann);
+    let (ty, u_gen) =
+      Statics_Typ.syn_fix_holes(
+        Contexts.tyvars(ctx),
+        UHTyp.expand(ann),
+        u_gen,
+      );
     if (HTyp.complete(ty)) {
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
