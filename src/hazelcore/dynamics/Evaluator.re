@@ -699,9 +699,8 @@ and expand_closures_to_lambdas =
     let (hci, d'') = expand_closures_to_lambdas(hci, d', parent);
     (hci, InvalidOperation(d'', reason));
 
-  /* Bound variables should not appear outside holes or closures */
-  | BoundVar(x) =>
-    raise(EvaluatorError.Exception(EvaluatorError.FreeInvalidVar(x)))
+  /* This only happens with a FixF form */
+  | BoundVar(_) => (hci, d)
 
   /* Lambda should not appear outside closure in evaluated result */
   /* TODO: move this exception somewhere else */
@@ -713,7 +712,57 @@ and expand_closures_to_lambdas =
      - Fix environment recursively.
      - Body is recursively substituted with its environment. */
   | Closure(env', dp, ty, d') =>
-    let (hci, d'') = subst_vars_within_lambdas(hci, env', d', parent);
+    print_endline("Reached here");
+    let remove_recursive_bindings = env => {
+      let ei =
+        env
+        |> EvalEnv.id_of_evalenv
+        |> OptUtil.get(_ => raise(EvalEnv.InvalidEvalEnvType));
+      EvalEnv.map_keep_id(
+        ((x, dr)) =>
+          switch (dr) {
+          | BoxedValue(Closure(env', _, _, _)) =>
+            if (EvalEnv.id_of_evalenv(env) == EvalEnv.id_of_evalenv(env')) {
+              // Note: EvalEnv.extend without changing the environment ID;
+              // want to modify env in place
+              let prev_env =
+                DHExp.Env(
+                  // Previous env has id (ei - 1), but this is an implementation
+                  // detail that should be hidden
+                  ei - 1,
+                  VarMap.extend(
+                    List.remove_assoc(x, EvalEnv.result_map_of_evalenv(env)),
+                    (x, Indet(BoundVar(x))),
+                  ),
+                );
+              DHExp.BoxedValue(FixF(x, ty, Closure(prev_env, dp, ty, d')));
+            } else {
+              dr;
+            }
+          | BoxedValue(Cast(Closure(env', _, _, _), ty1, ty2)) =>
+            if (EvalEnv.id_of_evalenv(env) == EvalEnv.id_of_evalenv(env')) {
+              let prev_env =
+                DHExp.Env(
+                  ei - 1,
+                  VarMap.extend(
+                    List.remove_assoc(x, EvalEnv.result_map_of_evalenv(env)),
+                    (x, Indet(BoundVar(x))),
+                  ),
+                );
+              DHExp.BoxedValue(
+                Cast(FixF(x, ty, Closure(prev_env, dp, ty, d')), ty1, ty2),
+              );
+            } else {
+              dr;
+            }
+          | _ => dr
+          },
+        env,
+      );
+    };
+
+    let env'' = remove_recursive_bindings(env');
+    let (hci, d'') = subst_vars_within_lambdas(hci, env'', d', parent);
     (hci, Lam(dp, ty, d''));
 
   /* Hole expressions:
