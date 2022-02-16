@@ -10,24 +10,27 @@ let extract_program_string = model => {
   Print.string_of_layout(lay);
 };
 
-let update_textbox_value = (_, text_box_id, str) => {
-  let text_box = JSUtil.force_get_elem_by_id(text_box_id);
-  text_box##setAttribute(
-    Js_of_ocaml.Js.string("value"),
-    JSUtil.Js.string(str),
-  );
+let update_textbox_value = (text_box_id, str) => {
+  let elem = JSUtil.force_get_elem_by_id(text_box_id);
+  elem##setAttribute(Js_of_ocaml.Js.string("value"), JSUtil.Js.string(str));
+  // Additionally set the textarea value, so the box
+  // visually updates
+  let text_area =
+    Js.Opt.get(Dom_html.CoerceTo.textarea(elem), _ => assert(false));
+  text_area##.value := JSUtil.Js.string(str);
   Vdom.Event.Ignore;
 };
 
-let set_textbox_text = (model, text_box_id, _) => {
-  let program_string = extract_program_string(model);
+let ast_from_textbox = text_box_id => {
   let elem = JSUtil.force_get_elem_by_id(text_box_id);
-  elem##.innerHTML := JSUtil.Js.string(program_string);
-  elem##setAttribute(
-    Js_of_ocaml.Js.string("value"),
-    JSUtil.Js.string(program_string),
-  );
-  Vdom.Event.Ignore;
+  let cur_text = JSUtil.force_get_attr("value", elem);
+  let lexbuf = Lexing.from_string(cur_text);
+  Parsing.ast_of_lexbuf(lexbuf);
+};
+
+let set_errors_text = str => {
+  let errs_elem = JSUtil.force_get_elem_by_id("text-editor-errors");
+  errs_elem##.innerHTML := JSUtil.Js.string(str);
 };
 
 let console_button =
@@ -35,17 +38,12 @@ let console_button =
     [
       Vdom.Attr.id("parse-console-button"),
       Vdom.Attr.on_click(_ => {
-        let elem = JSUtil.force_get_elem_by_id("text-editor-text-box");
-        let cur_text = JSUtil.force_get_attr("value", elem);
-        let lexbuf = Lexing.from_string(cur_text);
-        switch (Parsing.ast_of_lexbuf(lexbuf)) {
+        switch (ast_from_textbox("text-editor-text-box")) {
         | Ok(ast) =>
-          let (ast, _, _) =
-            Statics_Exp.fix_and_renumber_holes(Contexts.empty, ast);
           JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
           Vdom.Event.Ignore;
         | _ => Vdom.Event.Ignore
-        };
+        }
       }),
     ],
     [Vdom.Node.text("Parse to Console")],
@@ -56,21 +54,14 @@ let load_program_button = inject =>
     [
       Vdom.Attr.id("load-program-button"),
       Vdom.Attr.on_click(_ => {
-        let elem = JSUtil.force_get_elem_by_id("text-editor-text-box");
-        let cur_text = JSUtil.force_get_attr("value", elem);
-        let lexbuf = Lexing.from_string(cur_text);
-        switch (Parsing.ast_of_lexbuf(lexbuf)) {
+        switch (ast_from_textbox("text-editor-text-box")) {
         | Ok(ast) =>
-          let (ast, _, _) =
-            Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
-          let errs_elem = JSUtil.force_get_elem_by_id("text-editor-errors");
-          errs_elem##.innerHTML := JSUtil.Js.string("");
+          set_errors_text("");
           inject(ModelAction.Import(ast));
         | Error(err_string) =>
-          let errs_elem = JSUtil.force_get_elem_by_id("text-editor-errors");
-          errs_elem##.innerHTML := JSUtil.Js.string(err_string);
+          set_errors_text(err_string);
           Vdom.Event.Ignore;
-        };
+        }
       }),
     ],
     [Vdom.Node.text("Load program")],
@@ -86,7 +77,7 @@ let text_editor_body = (inject, model) => {
             Attr.id("text-editor-text-box"),
             Attr.value(""),
             Attr.on_change((_, s) =>
-              update_textbox_value(model, "text-editor-text-box", s)
+              update_textbox_value("text-editor-text-box", s)
             ),
           ],
           [],
@@ -98,8 +89,11 @@ let text_editor_body = (inject, model) => {
             Node.button(
               [
                 Attr.id("edit-program-button"),
-                Attr.on_click(
-                  set_textbox_text(model, "text-editor-text-box"),
+                Attr.on_click(_ =>
+                  update_textbox_value(
+                    "text-editor-text-box",
+                    extract_program_string(model),
+                  )
                 ),
               ],
               [Node.text("Edit current program")],
