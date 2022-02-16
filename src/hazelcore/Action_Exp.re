@@ -1105,30 +1105,35 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(new_zp) =>
-      switch (Statics_Typ.syn(Contexts.tyvars(ctx), UHTyp.expand(ty))) {
+      switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
       | None => Failed
-      | Some(kind) =>
+      | Some((ty', k, _)) =>
         let (body_ctx, new_zp, u_gen) =
-          Statics_TPat.fix_holes_z(ctx, new_zp, kind, u_gen);
-        let new_zline = ZExp.TyAliasLineP(new_zp, ty);
+          Statics_TPat.fix_holes_z(ctx, new_zp, k, u_gen);
+        let new_zline = ZExp.TyAliasLineP(new_zp, UHTyp.contract(ty'));
         Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
       }
     }
   | (_, TyAliasLineT(tp, zty)) =>
-    let ty = UHTyp.expand(ZTyp.erase(zty));
-    switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
+    switch (
+      Elaborator_Typ.syn_elab(
+        Contexts.tyvars(ctx),
+        Delta.empty,
+        ZTyp.erase(zty),
+      )
+    ) {
     | None => Failed
-    | Some(kind) =>
+    | Some((_, k, _)) =>
       switch (Action_Typ.perform(ctx, a, zty, u_gen)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zty, ctx, u_gen)) =>
         let (body_ctx, new_p, u_gen) =
-          Statics_TPat.fix_holes(ctx, tp, kind, u_gen);
+          Statics_TPat.fix_holes(ctx, tp, k, u_gen);
         let new_zline = ZExp.TyAliasLineT(new_p, new_zty);
         Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
       }
-    };
+    }
 
   | (_, LetLineZP(zp, def)) =>
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);

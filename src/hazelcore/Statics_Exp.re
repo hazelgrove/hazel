@@ -70,8 +70,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     Statics_Pat.ana(ctx, p, ty_def);
   | TyAliasLine(p, ty) =>
     open OptUtil.Syntax;
-    let ty = UHTyp.expand(ty);
-    let+ kind = Statics_Typ.syn(Contexts.tyvars(ctx), ty);
+    let+ (ty, kind, _) =
+      Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty);
     Statics_TPat.matches(ctx, p, ty, kind);
   }
 and syn_opseq =
@@ -581,11 +581,15 @@ and syn_fix_holes_line =
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
   | TyAliasLine(p, ty) =>
-    let kind =
-      Statics_Typ.syn(Contexts.tyvars(ctx), UHTyp.expand(ty))
-      |> Option.value(~default=Kind.KHole);
-    let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, kind, u_gen);
-    (TyAliasLine(p, ty), ctx, u_gen);
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
+    | Some((_, kind, _)) =>
+      let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, kind, u_gen);
+      (TyAliasLine(p, ty), ctx, u_gen);
+    | None =>
+      let (ty, _, u_gen) =
+        Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ty);
+      (TyAliasLine(p, ty), ctx, u_gen);
+    }
   | LetLine(p, def) =>
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);

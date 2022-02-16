@@ -103,7 +103,7 @@ and syn_elab_line =
       };
     }
   | TyAliasLine(tp, ty1) =>
-    switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), delta, ty1)) {
     | None => LinesDoNotElaborate
     | Some((ty1, k, delta)) =>
       let ctx1 = Statics_TPat.matches(ctx, tp, ty1, k);

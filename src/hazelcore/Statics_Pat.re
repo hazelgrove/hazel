@@ -87,7 +87,8 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let* (ty_ann, _, _) =
+      Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann);
     let+ op_ctx = ana_operand(ctx, op, ty_ann);
     (ty_ann, op_ctx);
   }
@@ -184,7 +185,8 @@ and ana_operand =
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
+    let* (ty_ann, _, _) =
+      Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann);
     HTyp.consistent(Contexts.tyvars(ctx), ty, ty_ann)
       ? ana_operand(ctx, op, ty_ann) : None;
   };
@@ -417,19 +419,29 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let (ann, _, u_gen) =
-      Statics_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
-    let ty_ann = UHTyp.expand(ann);
-    if (HTyp.complete(ty_ann)) {
-      let (op, ctx, u_gen) =
-        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
-      (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
-    } else {
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
+    | Some((ty_ann, _, _)) =>
+      if (HTyp.complete(ty_ann)) {
+        let (op, ctx, u_gen) =
+          ana_fix_holes_operand(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            op,
+            ty_ann,
+          );
+        (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
+      } else {
+        let (ann, _, u_gen) =
+          Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+        (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
+      }
+    | None =>
       let (op, ty, ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (UHPat.TypeAnn(InHole(TypeInconsistent, u), op, ann), ty, ctx, u_gen);
-    };
+    }
   };
 }
 and ana_fix_holes =
@@ -709,12 +721,14 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
-    let ty_ann = UHTyp.expand(ann);
-    if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty_ann)) {
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
+    | Some((ty_ann, _, _))
+        when HTyp.consistent(Contexts.tyvars(ctx), ty, ty_ann) =>
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
       (TypeAnn(NotInHole, op, ann), ctx, u_gen);
-    } else {
+    | Some(_)
+    | None =>
       let (op, _, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -726,7 +740,7 @@ and ana_fix_holes_operand =
         ctx,
         u_gen,
       );
-    };
+    }
   };
 };
 

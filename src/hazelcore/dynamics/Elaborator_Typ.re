@@ -10,14 +10,14 @@ let rec get_prod_elements: UHTyp.skel => list(UHTyp.skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let rec syn_elab: (Contexts.t, Delta.t, UHTyp.t) => ElaborationResult.t =
-  (ctx, delta) =>
+let rec syn_elab: (TyVarCtx.t, Delta.t, UHTyp.t) => ElaborationResult.t =
+  (tyvars, delta) =>
     fun
-    | OpSeq(skel, seq) => syn_elab_skel(ctx, delta, skel, seq)
-and syn_elab_skel = (ctx, delta, skel, seq) =>
+    | OpSeq(skel, seq) => syn_elab_skel(tyvars, delta, skel, seq)
+and syn_elab_skel = (tyvars, delta, skel, seq) =>
   switch (skel) {
   | Placeholder(n) =>
-    seq |> Seq.nth_operand(n) |> syn_elab_operand(ctx, delta)
+    seq |> Seq.nth_operand(n) |> syn_elab_operand(tyvars, delta)
   | BinOp(_, Prod, _, _) =>
     let skels = get_prod_elements(skel);
     let+ (tys, deltas) =
@@ -25,7 +25,7 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
         (acc_opt, skel) => {
           let* (tys, deltas) = acc_opt;
           let+ (ty, _, delta) =
-            ana_elab_skel(ctx, delta, skel, seq, Kind.Type);
+            ana_elab_skel(tyvars, delta, skel, seq, Kind.Type);
           ([ty, ...tys], [delta, ...deltas]);
         },
         Some(([], [])),
@@ -36,8 +36,10 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
     let ty = HTyp.Prod(tys);
     (ty, Kind.Singleton(ty), delta);
   | BinOp(_, op, skel1, skel2) =>
-    let* (ty1, _, delta1) = ana_elab_skel(ctx, delta, skel1, seq, Kind.Type);
-    let+ (ty2, _, delta2) = ana_elab_skel(ctx, delta, skel2, seq, Kind.Type);
+    let* (ty1, _, delta1) =
+      ana_elab_skel(tyvars, delta, skel1, seq, Kind.Type);
+    let+ (ty2, _, delta2) =
+      ana_elab_skel(tyvars, delta, skel2, seq, Kind.Type);
     let ty: HTyp.t =
       switch (op) {
       | Arrow => Arrow(ty1, ty2)
@@ -47,7 +49,7 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
     (ty, Kind.Singleton(ty), Delta.union(delta1, delta2));
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHTyp.operand)
+    (tyvars: TyVarCtx.t, delta: Delta.t, operand: UHTyp.operand)
     : ElaborationResult.t => {
   let const = (ty: HTyp.t) => Some((ty, Kind.Singleton(ty), delta));
   switch (operand) {
@@ -60,34 +62,33 @@ and syn_elab_operand =
   | Int => const(Int)
   | Float => const(Float)
   | Bool => const(Bool)
-  | Parenthesized(ty) => syn_elab(ctx, delta, ty)
-  | List(ty) => syn_elab(ctx, delta, ty)
+  | Parenthesized(ty) => syn_elab(tyvars, delta, ty)
+  | List(ty) => syn_elab(tyvars, delta, ty)
   };
 }
 
-and ana_elab: (Contexts.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
-  (ctx, delta, opseq, k) =>
+and ana_elab: (TyVarCtx.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
+  (tyvars, delta, opseq, k) =>
     switch (opseq) {
-    | OpSeq(skel, seq) => ana_elab_skel(ctx, delta, skel, seq, k)
+    | OpSeq(skel, seq) => ana_elab_skel(tyvars, delta, skel, seq, k)
     }
-and ana_elab_skel = (ctx, delta, skel, seq, k): ElaborationResult.t =>
+and ana_elab_skel = (tyvars, delta, skel, seq, k): ElaborationResult.t =>
   switch (skel) {
   | Placeholder(n) =>
     let ty_n = seq |> Seq.nth_operand(n);
-    ana_elab_operand(ctx, delta, ty_n, k);
+    ana_elab_operand(tyvars, delta, ty_n, k);
   | BinOp(_, _, _, _) =>
-    let* (ty, k', delta) = syn_elab_skel(ctx, delta, skel, seq);
-    Kind.consistent_subkind(Contexts.tyvars(ctx), k', k)
-      ? Some((ty, k', delta)) : None;
+    let* (ty, k', delta) = syn_elab_skel(tyvars, delta, skel, seq);
+    Kind.consistent_subkind(tyvars, k', k) ? Some((ty, k', delta)) : None;
   }
 and ana_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
+    (tyvars: TyVarCtx.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
     : ElaborationResult.t => {
   switch (operand) {
   | Hole => Some((HTyp.Hole, Kind.KHole, delta))
   | TyVar(InHole(reason, u), t) =>
     Some((HTyp.TyVarHole(reason, u, t), Kind.KHole, delta))
-  | Parenthesized(opseq) => ana_elab(ctx, delta, opseq, k)
+  | Parenthesized(opseq) => ana_elab(tyvars, delta, opseq, k)
   // subsumption
   | TyVar(NotInHole(_), _)
   | Unit
@@ -95,57 +96,122 @@ and ana_elab_operand =
   | Float
   | Bool
   | List(_) =>
-    let* (ty, k', delta) = syn_elab_operand(ctx, delta, operand);
-    Kind.consistent_subkind(Contexts.tyvars(ctx), k', k)
-      ? Some((ty, k', delta)) : None;
+    let* (ty, k', delta) = syn_elab_operand(tyvars, delta, operand);
+    Kind.consistent_subkind(tyvars, k', k) ? Some((ty, k', delta)) : None;
   };
 };
 
-// and ana_fix_holes:
-//   (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, MetaVarGen.t) =
-//   (ctx, u_gen, opseq) =>
-//     switch (opseq) {
-//     | OpSeq(skel, seq) =>
-//       let (skel, seq, u_gen) = ana_fix_holes_skel(ctx, u_gen, skel, seq);
-//       (OpSeq(skel, seq), u_gen);
-//     }
-// and ana_fix_holes_skel = (ctx, u_gen, skel, seq) =>
-//   switch (skel) {
-//   | Placeholder(n) =>
-//     let en = seq |> Seq.nth_operand(n);
-//     let (en, u_gen) = ana_fix_holes_operand(ctx, u_gen, en);
-//     let seq = seq |> Seq.update_nth_operand(n, en);
-//     (skel, seq, u_gen);
-//   | BinOp(_, _, _, _) =>
-//     let (skel, seq, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-//     (skel, seq, u_gen);
-//   }
-// and ana_fix_holes_operand = (ctx, u_gen, operand) => {
-//   switch (operand) {
-//   | UHTyp.Hole => (Hole, u_gen)
-//   | TyVar(InHole(_), _) => (operand, u_gen)
-//   | Parenthesized(body) =>
-//     let (block, u_gen) = ana_fix_holes(ctx, u_gen, body);
-//     (Parenthesized(block), u_gen);
-//   | TyVar(NotInHole(_), _)
-//   | Unit
-//   | Int
-//   | Float
-//   | Bool
-//   | List(_) => syn_fix_holes_operand(ctx, u_gen, operand)
-//   };
-// };
+let rec syn_fix_holes:
+  (TyVarCtx.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
+  (tyvars, u_gen, ty) =>
+    switch (ty) {
+    | OpSeq(skel, seq) =>
+      let (skel, seq, k, u_gen) =
+        syn_fix_holes_skel(tyvars, u_gen, skel, seq);
+      (OpSeq(skel, seq), k, u_gen);
+    }
+and syn_fix_holes_skel = (tyvars, u_gen, skel, seq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    let ty_n = seq |> Seq.nth_operand(n);
+    let (ty_n, k, u_gen) = syn_fix_holes_operand(tyvars, u_gen, ty_n);
+    let seq = seq |> Seq.update_nth_operand(n, ty_n);
+    (skel, seq, k, u_gen);
+  | BinOp(_, op, skel1, skel2) =>
+    let (skel1, seq, _, u_gen) =
+      ana_fix_holes_skel(tyvars, u_gen, skel1, seq, Kind.Type);
+    let (skel2, seq, _, u_gen) =
+      ana_fix_holes_skel(tyvars, u_gen, skel2, seq, Kind.Type);
+    switch (syn_elab(tyvars, Delta.empty, UHTyp.mk_OpSeq(seq))) {
+    | Some((_, k, _)) =>
+      let skel = Skel.BinOp(NotInHole, op, skel1, skel2);
+      (skel, seq, k, u_gen);
+    | None =>
+      failwith("TODO: Add inconsistent kind hole (this can't happen now) 1")
+    };
+  }
+and syn_fix_holes_operand =
+    (tyvars: TyVarCtx.t, u_gen: MetaVarGen.t, operand: UHTyp.operand)
+    : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
+  switch (operand) {
+  | Hole => (Hole, Kind.KHole, u_gen)
+  | TyVar(NotInHole(_), name) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let ty = UHTyp.TyVar(InHole(Unbound, u), name);
+    (ty, Kind.Singleton(TyVarHole(Unbound, u, name)), u_gen);
+  | TyVar(InHole(reason, u), name) => (
+      UHTyp.TyVar(InHole(reason, u), name),
+      Kind.Singleton(HTyp.TyVarHole(reason, u, name)),
+      u_gen,
+    )
+  | Unit
+  | Int
+  | Float
+  | Bool => (operand, Kind.Singleton(UHTyp.expand_operand(operand)), u_gen)
+  | Parenthesized(body) =>
+    let (block, k, u_gen) = syn_fix_holes(tyvars, u_gen, body);
+    (Parenthesized(block), k, u_gen);
+  | List(opseq) =>
+    let (opseq, k, u_gen) = syn_fix_holes(tyvars, u_gen, opseq);
+    (List(opseq), k, u_gen);
+  };
+}
 
-// let syn_fix_holes_z = (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t) => {
-//   let path = CursorPath_Typ.of_z(zty);
-//   let (ty, u_gen) = syn_fix_holes(ctx, u_gen, ZTyp.erase(zty));
-//   let zty =
-//     CursorPath_Typ.follow(path, ty)
-//     |> OptUtil.get(() =>
-//          failwith(
-//            "fix_holes did not preserve path "
-//            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
-//          )
-//        );
-//   (zty, u_gen);
-// };
+and ana_fix_holes:
+  (TyVarCtx.t, MetaVarGen.t, UHTyp.t, Kind.t) =>
+  (UHTyp.t, Kind.t, MetaVarGen.t) =
+  (tyvars, u_gen, opseq, k) =>
+    switch (opseq) {
+    | OpSeq(skel, seq) =>
+      let (skel, seq, k', u_gen) =
+        ana_fix_holes_skel(tyvars, u_gen, skel, seq, k);
+      if (Kind.consistent_subkind(tyvars, k', k)) {
+        (OpSeq(skel, seq), k', u_gen);
+      } else {
+        failwith(
+          "TODO: Add inconsistent kind hole (this can't happen now) 2",
+        );
+      };
+    }
+and ana_fix_holes_skel = (tyvars, u_gen, skel, seq, k) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    let ty_n = seq |> Seq.nth_operand(n);
+    let (ty_n, k', u_gen) = ana_fix_holes_operand(tyvars, u_gen, ty_n, k);
+    let seq = seq |> Seq.update_nth_operand(n, ty_n);
+    (skel, seq, k', u_gen);
+  | BinOp(_, _, _, _) =>
+    let (skel, seq, k', u_gen) =
+      syn_fix_holes_skel(tyvars, u_gen, skel, seq);
+    if (Kind.consistent_subkind(tyvars, k', k)) {
+      (skel, seq, k', u_gen);
+    } else {
+      failwith("TODO: Add inconsistent kind hole (this can't happen now) 3");
+    };
+  }
+and ana_fix_holes_operand = (tyvars, u_gen, operand, k) => {
+  switch (operand) {
+  | UHTyp.Hole => (Hole, Kind.KHole, u_gen)
+  | TyVar(InHole(_), _) => (operand, Kind.KHole, u_gen)
+  | Parenthesized(body) =>
+    let (block, k', u_gen) = ana_fix_holes(tyvars, u_gen, body, k);
+    if (Kind.consistent_subkind(tyvars, k', k)) {
+      (Parenthesized(block), k', u_gen);
+    } else {
+      failwith("TODO: Add inconsistent kind hole (this can't happen now) 4");
+    };
+  // subsumption
+  | TyVar(NotInHole(_), _)
+  | Unit
+  | Int
+  | Float
+  | Bool
+  | List(_) =>
+    let (ty, k', u_gen) = syn_fix_holes_operand(tyvars, u_gen, operand);
+    if (Kind.consistent_subkind(tyvars, k', k)) {
+      (ty, k', u_gen);
+    } else {
+      failwith("TODO: Add inconsistent kind hole (this can't happen now) 5");
+    };
+  };
+};

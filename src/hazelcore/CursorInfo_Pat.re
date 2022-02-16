@@ -220,7 +220,11 @@ and syn_cursor_info_zoperand =
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | TypeAnnZP(_, zop, ty) =>
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, UHTyp.expand(ty))
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
+    | None => None
+    | Some((ty', _, _)) =>
+      ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty')
+    }
   | TypeAnnZA(_, _, zann) =>
     zann
     |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
@@ -545,8 +549,13 @@ and ana_cursor_info_zoperand =
     | InHole(TypeInconsistent, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | NotInHole =>
-      let ty_ann = UHTyp.expand(ann);
-      ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty_ann);
+      switch (
+        Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)
+      ) {
+      | None => None
+      | Some((ty_ann, _, _)) =>
+        ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty_ann)
+      }
     }
   | TypeAnnZA(err, _, zann) =>
     switch (err) {

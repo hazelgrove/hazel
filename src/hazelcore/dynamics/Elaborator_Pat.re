@@ -169,7 +169,10 @@ and syn_elab_operand =
       Elaborates(dp, ty, ctx, delta);
     }
   | TypeAnn(_, p1, ty1) =>
-    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1))
+    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), delta, ty1)) {
+    | None => DoesNotElaborate
+    | Some((ty1, _, _)) => ana_elab_operand(ctx, delta, p1, ty1)
+    }
   }
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)

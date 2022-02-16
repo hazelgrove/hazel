@@ -60,19 +60,20 @@ and cursor_info_zopseq =
       ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
     )
     : option(CursorInfo.t) => {
-  let ty = UHTyp.expand(ZTyp.erase(zopseq));
   switch (zseq) {
   | ZOperator((_, Prod), _) =>
     // cursor on tuple comma
-    switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
+    switch (
+      Elaborator_Typ.syn_elab(
+        Contexts.tyvars(ctx),
+        Delta.empty,
+        ZTyp.erase(zopseq),
+      )
+    ) {
     | None => None
-    | Some(kind) =>
+    | Some((_, k, _)) =>
       Some(
-        CursorInfo_common.mk(
-          OnType(kind),
-          ctx,
-          extract_cursor_term(zopseq),
-        ),
+        CursorInfo_common.mk(OnType(k), ctx, extract_cursor_term(zopseq)),
       )
     }
   | _ =>
@@ -101,13 +102,11 @@ and cursor_info_skel =
         zoperand,
       )
     | ZOperator(_) =>
-      let ty = UHTyp.mk_OpSeq(ZTyp.erase_zseq(zseq)) |> UHTyp.expand;
-      switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
+      let ty = UHTyp.mk_OpSeq(ZTyp.erase_zseq(zseq));
+      switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
       | None => None
-      | Some(kind) =>
-        Some(
-          CursorInfo_common.mk(OnType(kind), ctx, extract_from_zseq(zseq)),
-        )
+      | Some((_, k, _)) =>
+        Some(CursorInfo_common.mk(OnType(k), ctx, extract_from_zseq(zseq)))
       };
     };
   } else {
@@ -142,9 +141,9 @@ and cursor_info_zoperand =
     CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
   | CursorT(_, ty) =>
     open OptUtil.Syntax;
-    let+ kind =
-      Statics_Typ.syn(Contexts.tyvars(ctx), UHTyp.expand_operand(ty));
-    CursorInfo_common.mk(OnType(kind), ctx, cursor_term);
+    let+ (_, k, _) =
+      Elaborator_Typ.syn_elab_operand(Contexts.tyvars(ctx), Delta.empty, ty);
+    CursorInfo_common.mk(OnType(k), ctx, cursor_term);
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
   };
