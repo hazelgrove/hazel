@@ -135,15 +135,45 @@ and syn_fix_holes_operand =
     : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
   switch (operand) {
   | Hole => (Hole, Kind.KHole, u_gen)
-  | TyVar(NotInHole(_), name) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let ty = UHTyp.TyVar(InHole(Unbound, u), name);
-    (ty, Kind.Singleton(TyVarHole(Unbound, u, name)), u_gen);
-  | TyVar(InHole(reason, u), name) => (
-      UHTyp.TyVar(InHole(reason, u), name),
-      Kind.Singleton(HTyp.TyVarHole(reason, u, name)),
-      u_gen,
-    )
+  | TyVar(NotInHole(i), name) =>
+    let k' = Kind.Singleton(HTyp.TyVar(i, name));
+    switch (TyVarCtx.kind(tyvars, i)) {
+    | Some(k) when Kind.consistent_subkind(tyvars, k', k) => (
+        operand,
+        k',
+        u_gen,
+      )
+    | Some(_)
+    | None =>
+      let reason: TyVar.HoleReason.t =
+        if (TyVar.reserved_word(name)) {
+          Reserved;
+        } else if (TyVar.valid_name(name)) {
+          Unbound;
+        } else {
+          InvalidName;
+        };
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ty = UHTyp.TyVar(InHole(reason, u), name);
+      (ty, Kind.Singleton(TyVarHole(reason, u, name)), u_gen);
+    };
+  | TyVar(InHole(_, u), name) =>
+    if (TyVar.reserved_word(name)) {
+      let ty = UHTyp.TyVar(InHole(Reserved, u), name);
+      (ty, Kind.Singleton(TyVarHole(Reserved, u, name)), u_gen);
+    } else if (TyVar.valid_name(name)) {
+      switch (TyVarCtx.index(tyvars, name)) {
+      | None =>
+        let ty = UHTyp.TyVar(InHole(Unbound, u), name);
+        (ty, Kind.Singleton(TyVarHole(Unbound, u, name)), u_gen);
+      | Some(i) =>
+        let ty = UHTyp.TyVar(NotInHole(i), name);
+        (ty, Kind.Singleton(TyVar(i, name)), u_gen);
+      };
+    } else {
+      let ty = UHTyp.TyVar(InHole(InvalidName, u), name);
+      (ty, Kind.Singleton(TyVarHole(InvalidName, u, name)), u_gen);
+    }
   | Unit
   | Int
   | Float
@@ -192,7 +222,6 @@ and ana_fix_holes_skel = (tyvars, u_gen, skel, seq, k) =>
 and ana_fix_holes_operand = (tyvars, u_gen, operand, k) => {
   switch (operand) {
   | UHTyp.Hole => (Hole, Kind.KHole, u_gen)
-  | TyVar(InHole(_), _) => (operand, Kind.KHole, u_gen)
   | Parenthesized(body) =>
     let (block, k', u_gen) = ana_fix_holes(tyvars, u_gen, body, k);
     if (Kind.consistent_subkind(tyvars, k', k)) {
@@ -201,7 +230,7 @@ and ana_fix_holes_operand = (tyvars, u_gen, operand, k) => {
       failwith("TODO: Add inconsistent kind hole (this can't happen now) 4");
     };
   // subsumption
-  | TyVar(NotInHole(_), _)
+  | TyVar(_)
   | Unit
   | Int
   | Float

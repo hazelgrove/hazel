@@ -1101,10 +1101,10 @@ and syn_perform_line =
     }
 
   | (_, TyAliasLineP(zp, ty)) =>
-    switch (Action_TPat.perform(a, zp)) {
+    switch (Action_TPat.perform(a, zp, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
-    | Succeeded(new_zp) =>
+    | Succeeded((new_zp, u_gen)) =>
       switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
       | None => Failed
       | Some((ty', k, _)) =>

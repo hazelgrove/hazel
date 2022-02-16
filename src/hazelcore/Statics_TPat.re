@@ -7,20 +7,30 @@ let matches = (ctx: Contexts.t, t: TPat.t, _ty: HTyp.t, k: Kind.t): Contexts.t =
 };
 
 let fix_holes =
-    (ctx: Contexts.t, p: TPat.t, k: Kind.t, u_gen: MetaVarGen.t)
+    (ctx: Contexts.t, tp: TPat.t, k: Kind.t, u_gen: MetaVarGen.t)
     : (Contexts.t, TPat.t, MetaVarGen.t) => {
-  switch (p) {
+  switch (tp) {
   | EmptyHole => (ctx, EmptyHole, u_gen)
-  | TyVar(_, t) =>
-    // TODO: (eric) check if t is a reserved word before succeeding
-    let tp = TPat.of_string(t);
-    switch (tp) {
-    | EmptyHole => (ctx, EmptyHole, u_gen)
-    | TyVar(NotInHole, name) as t =>
-      let ctx = Contexts.extend_tyvars(ctx, name, k);
-      (ctx, t, u_gen);
-    | TyVar(InHole(_), _) as t => (ctx, t, u_gen)
-    };
+  | TyVar(_, name) =>
+    switch (TyTextShape.of_string(name)) {
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (ctx, TyVar(InHole(InvalidName, u), name), u_gen);
+    | Some(Int | Bool | Float) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (ctx, TyVar(InHole(BuiltinType, u), name), u_gen);
+    | Some(ExpandingKeyword(_)) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (ctx, TyVar(InHole(ReservedKeyword, u), name), u_gen);
+    | Some(TyVar(_)) =>
+      if (TyVar.valid_name(name)) {
+        let ctx = Contexts.extend_tyvars(ctx, name, k);
+        (ctx, TyVar(NotInHole, name), u_gen);
+      } else {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (ctx, TyVar(InHole(InvalidName, u), name), u_gen);
+      }
+    }
   };
 };
 

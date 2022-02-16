@@ -100,7 +100,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
-  | OnTPat(_status_opt) => (None, None, UnknownMode)
+  | OnTPat(_) => (None, None, UnknownMode)
   | OnTPatHole => (None, Some(Hole), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
