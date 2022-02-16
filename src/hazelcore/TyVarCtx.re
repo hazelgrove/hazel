@@ -1,11 +1,8 @@
 /** Associates a type variable with its kind */
 open Sexplib.Std;
 
-module HTyp = HTypCore;
-module Kind = Kind;
-
 [@deriving sexp]
-type binding = (string, Kind.t);
+type binding = (string, KindCore.t);
 
 [@deriving sexp]
 type t = list(binding);
@@ -27,11 +24,11 @@ let rec has_index = (tyvars: t, i: Index.t): bool =>
 
 /* Updaters */
 
-let bind = (tyvars: t, name: string, k: Kind.t): t => {
+let bind = (tyvars: t, name: string, k: KindCore.t): t => {
   let increment_singleton: binding => binding =
     fun
-    | (name, Singleton(k', ty)) => {
-        let k = Kind.Singleton(k', HTyp.increment_indices(ty));
+    | (name, Singleton(ty)) => {
+        let k = KindCore.Singleton(HTypCore.increment_indices(ty));
         (name, k);
       }
     | binding => binding;
@@ -41,10 +38,10 @@ let bind = (tyvars: t, name: string, k: Kind.t): t => {
 
 /* Accessors */
 
-let binding = (tyvars: t, i: Index.t): option((string, Kind.t)) =>
+let binding = (tyvars: t, i: Index.t): option((string, KindCore.t)) =>
   List.nth_opt(tyvars, i);
 
-let kind = (vars: t, i: Index.t): option(Kind.t) =>
+let kind = (vars: t, i: Index.t): option(KindCore.t) =>
   List.nth_opt(vars, i) |> Option.map(snd);
 
 let rec index = (tyvars: t, name: string): option(Index.t) =>

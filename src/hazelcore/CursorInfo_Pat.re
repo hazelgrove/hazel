@@ -531,7 +531,7 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);

@@ -27,8 +27,8 @@ let equivalent: (TyVarCtx.t, t, t) => bool;
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
-let matched_arrow: t => option((t, t));
-let matched_sum: t => option((t, t));
+let matched_arrow: (TyVarCtx.t, t) => option((t, t));
+let matched_sum: (TyVarCtx.t, t) => option((t, t));
 let matched_list: t => option(t);
 
 let complete: t => bool;
@@ -36,5 +36,4 @@ let complete: t => bool;
 let join: (TyVarCtx.t, join, t, t) => option(t);
 let join_all: (TyVarCtx.t, join, list(t)) => option(t);
 
-// TODO: (eric) why can't I put increment_indices into HTyp (instead of HTypCore)?
 let increment_indices: t => t;

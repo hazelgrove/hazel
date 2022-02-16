@@ -102,18 +102,14 @@ and syn_elab_line =
         };
       };
     }
-  | TyAliasLine(p, ty) =>
-    switch (Elaborator_Typ.syn(ctx, delta, ty)) {
+  | TyAliasLine(tp, ty1) =>
+    switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
     | None => LinesDoNotElaborate
-    | Some((ty, delta)) =>
-      switch (Statics_Typ.syn(Contexts.tyvars(ctx), ty)) {
-      | None => LinesDoNotElaborate
-      | Some(kind) =>
-        let ctx2 = Statics_TPat.matches(ctx, p, ty, kind);
-        let dty = (Contexts.tyvars(ctx), ty);
-        let prelude = d => DHExp.TyAlias(p, dty, d);
-        LinesElaborate(prelude, ctx2, delta);
-      }
+    | Some((ty1, k, delta)) =>
+      let ctx1 = Statics_TPat.matches(ctx, tp, ty1, k);
+      let dty = (Contexts.tyvars(ctx), ty1);
+      let prelude = d => DHExp.TyAlias(tp, dty, d);
+      LinesElaborate(prelude, ctx1, delta);
     }
   }
 and syn_elab_opseq =
@@ -144,7 +140,7 @@ and syn_elab_skel =
     switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
     | None => DoesNotElaborate
     | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
+      switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty1)) {
       | None => DoesNotElaborate
       | Some((ty2, ty)) =>
         let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
@@ -728,7 +724,7 @@ and ana_elab_operand =
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
   | Lam(NotInHole, p, body) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
       let ty1_ann =
@@ -753,7 +749,7 @@ and ana_elab_operand =
       };
     }
   | Inj(NotInHole, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
     | Some((ty1, ty2)) =>
       let e1ty = InjSide.pick(side, ty1, ty2);

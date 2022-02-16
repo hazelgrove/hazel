@@ -226,7 +226,7 @@ let advanced_summary =
     | OnTPat(_) => [emphasize_text("Type Pattern")]
     | OnTPatHole => [emphasize_text("Pattern Hole")]
     | TypFree => [emphasize_text("Free Type Variable")]
-    | TypKeyword(_) => [emphasize_text("Type Keyword")]
+    | TypKeyword(_) => [emphasize_text("Reserved Keyword")]
     };
   };
   switch (typed) {

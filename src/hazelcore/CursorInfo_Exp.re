@@ -492,7 +492,7 @@ and syn_cursor_info_skel =
             ) {
             | None => None
             | Some(ty) =>
-              HTyp.matched_arrow(ty)
+              HTyp.matched_arrow(Contexts.tyvars(ctx), ty)
               |> Option.map(((ty1, ty2)) =>
                    mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
                  )
@@ -503,7 +503,7 @@ and syn_cursor_info_skel =
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some(ty) =>
-          switch (HTyp.matched_arrow(ty)) {
+          switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
           | None => None
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -517,7 +517,7 @@ and syn_cursor_info_skel =
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some(ty) =>
-          switch (HTyp.matched_arrow(ty)) {
+          switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
           | None => None
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -978,7 +978,7 @@ and ana_cursor_info_zoperand =
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
-    let* (ty_p_given, _) = HTyp.matched_arrow(ty);
+    let* (ty_p_given, _) = HTyp.matched_arrow(Contexts.tyvars(ctx), ty);
     let+ defferrable =
       CursorInfo_Pat.ana_cursor_info(
         ~steps=steps @ [0],
@@ -995,14 +995,15 @@ and ana_cursor_info_zoperand =
     };
 
   | LamZE(NotInHole, p, zbody) =>
-    let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ty);
+    let* (ty_p_given, ty_body_given) =
+      HTyp.matched_arrow(Contexts.tyvars(ctx), ty);
     switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
     | None => None
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
   | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => None
     | Some((ty1, ty2)) =>
       ana_cursor_info(

@@ -36,7 +36,7 @@ let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
     switch (TyVarCtx.kind(tyvars, i)) {
-    | Some(Singleton(_, ty1)) => head_normalize(tyvars, ty1)
+    | Some(Singleton(ty1)) => head_normalize(tyvars, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
@@ -59,7 +59,7 @@ let rec normalize = (tyvars: TyVarCtx.t, ty: t): t =>
   switch (ty) {
   | TyVar(i, _) =>
     switch (TyVarCtx.kind(tyvars, i)) {
-    | Some(Singleton(_, ty1)) => normalize(tyvars, ty1)
+    | Some(Singleton(ty1)) => normalize(tyvars, ty1)
     | Some(_) => ty
     | None => failwith(__LOC__ ++ ": unbound type variable index")
     }
@@ -136,12 +136,13 @@ let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
   };
 
 /* matched arrow types */
-let matched_arrow =
-  fun
+let matched_arrow = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
+  switch (head_normalize(tyvars, ty)) {
   | Hole
   | TyVarHole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
-  | _ => None;
+  | _ => None
+  };
 
 let get_prod_elements: t => list(t) =
   fun
@@ -151,12 +152,13 @@ let get_prod_elements: t => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 /* matched sum types */
-let matched_sum =
-  fun
+let matched_sum = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
+  switch (head_normalize(tyvars, ty)) {
   | Hole
   | TyVarHole(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
+  | _ => None
+  };
 
 /* matched list types */
 let matched_list =
@@ -193,7 +195,7 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     open OptUtil.Syntax;
     let* k = TyVarCtx.kind(tyvars, i);
     switch (k) {
-    | Singleton(_, ty) => join(tyvars, j, ty, ty2)
+    | Singleton(ty) => join(tyvars, j, ty, ty2)
     | KHole => join(tyvars, j, Hole, ty2)
     | Type => failwith("impossible for bounded type variables (currently) 1")
     };
@@ -201,7 +203,7 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     open OptUtil.Syntax;
     let* k = TyVarCtx.kind(tyvars, i);
     switch (k) {
-    | Kind.Singleton(_, ty) => join(tyvars, j, ty1, ty)
+    | KindCore.Singleton(ty) => join(tyvars, j, ty1, ty)
     | KHole => join(tyvars, j, ty1, Hole)
     | Type => failwith("impossible for bounded type variables (currently) 2")
     };

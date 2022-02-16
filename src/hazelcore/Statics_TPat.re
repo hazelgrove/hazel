@@ -12,6 +12,7 @@ let fix_holes =
   switch (p) {
   | EmptyHole => (ctx, EmptyHole, u_gen)
   | TyVar(_, t) =>
+    // TODO: (eric) check if t is a reserved word before succeeding
     let tp = TPat.of_string(t);
     switch (tp) {
     | EmptyHole => (ctx, EmptyHole, u_gen)

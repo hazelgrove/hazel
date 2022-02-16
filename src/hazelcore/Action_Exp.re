@@ -1962,7 +1962,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, LamZE(_, p, zbody)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((ty_p, ty_body)) =>
       switch (Statics_Pat.syn(ctx, p)) {
@@ -3115,7 +3115,7 @@ and ana_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let (p, body_ctx, u_gen) =
@@ -3244,7 +3244,7 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Construct(SInj(side)), CursorE(_)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let (zbody, u_gen) =
@@ -3267,7 +3267,7 @@ and ana_perform_operand =
 
   | (Construct(SLam), CursorE(_)) =>
     let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | Some((_, ty2)) =>
       let (body, u_gen) = Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
@@ -3434,7 +3434,7 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1_given)) {
@@ -3453,7 +3453,7 @@ and ana_perform_operand =
       }
     }
   | (_, LamZE(_, p, zbody)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       switch (Statics_Pat.ana(ctx, p, ty1_given)) {
@@ -3475,7 +3475,7 @@ and ana_perform_operand =
       }
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let picked = InjSide.pick(side, ty1, ty2);

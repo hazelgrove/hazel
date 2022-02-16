@@ -40,7 +40,7 @@ let text_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (TyVar(InHole(Unbound, u), name), ctx, u_gen);
     | Some(i) =>
-      let kind = Kind.Singleton(Type, TyVar(i, name));
+      let kind = Kind.Singleton(TyVar(i, name));
       let ctx = Contexts.extend_tyvars(ctx, name, kind);
       (TyVar(NotInHole(i), name), ctx, u_gen);
     }

@@ -179,7 +179,7 @@ and ana_operand =
     let+ _ = HTyp.matched_list(ty);
     ctx;
   | Inj(NotInHole, side, p1) =>
-    let* (tyL, tyR) = HTyp.matched_sum(ty);
+    let* (tyL, tyR) = HTyp.matched_sum(Contexts.tyvars(ctx), ty);
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
@@ -213,7 +213,7 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          let* (ty2, _) = HTyp.matched_arrow(ty1);
+          let* (ty2, _) = HTyp.matched_arrow(Contexts.tyvars(ctx), ty1);
           ana_go(skel2, ty2);
         }
       }
@@ -333,7 +333,7 @@ and syn_fix_holes_skel =
       let (skel1, seq, ty, ctx, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let (skel1, seq, u_gen) =
-        switch (HTyp.matched_arrow(ty)) {
+        switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
         | Some(_) => (skel1, seq, u_gen)
         | None =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -417,16 +417,13 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let (ty, u_gen) =
-      Statics_Typ.syn_fix_holes(
-        Contexts.tyvars(ctx),
-        UHTyp.expand(ann),
-        u_gen,
-      );
-    if (HTyp.complete(ty)) {
+    let (ann, _, u_gen) =
+      Statics_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+    let ty_ann = UHTyp.expand(ann);
+    if (HTyp.complete(ty_ann)) {
       let (op, ctx, u_gen) =
-        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
-      (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
+        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
+      (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
     } else {
       let (op, ty, ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
@@ -568,7 +565,7 @@ and ana_fix_holes_skel =
       let (skel1, seq, ty, ctx, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let (skel1, seq, u_gen) =
-        switch (HTyp.matched_arrow(ty)) {
+        switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
         | Some(_) => (skel1, seq, u_gen)
         | None =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -699,7 +696,7 @@ and ana_fix_holes_operand =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
     (Parenthesized(p1), ctx, u_gen);
   | Inj(_, side, p1) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let (p1, ctx, u_gen) =

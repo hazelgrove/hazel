@@ -12,7 +12,8 @@ let recursive_let_id =
     ) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => None
-    | Some((ty_p, _)) => Option.map(_ => x, HTyp.matched_arrow(ty_p))
+    | Some((ty_p, _)) =>
+      Option.map(_ => x, HTyp.matched_arrow(Contexts.tyvars(ctx), ty_p))
     }
   | _ => None
   };
@@ -108,7 +109,7 @@ and syn_skel =
     HTyp.Bool;
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let* ty1 = syn_skel(ctx, skel1, seq);
-    let* (ty2, ty) = HTyp.matched_arrow(ty1);
+    let* (ty2, ty) = HTyp.matched_arrow(Contexts.tyvars(ctx), ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty2);
     ty;
   | BinOp(NotInHole, Comma, _, _) =>
@@ -328,11 +329,12 @@ and ana_operand =
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some() : None;
   | Lam(NotInHole, p, body) =>
-    let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
+    let* (ty_p_given, ty_body) =
+      HTyp.matched_arrow(Contexts.tyvars(ctx), ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
   | Inj(NotInHole, side, body) =>
-    let* (ty1, ty2) = HTyp.matched_sum(ty);
+    let* (ty1, ty2) = HTyp.matched_sum(Contexts.tyvars(ctx), ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
@@ -392,7 +394,7 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          let* (ty2, _) = HTyp.matched_arrow(ty1);
+          let* (ty2, _) = HTyp.matched_arrow(Contexts.tyvars(ctx), ty1);
           ana_go(skel2, ty2);
         }
       }
@@ -724,7 +726,7 @@ and syn_fix_holes_skel =
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ty1, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-    switch (HTyp.matched_arrow(ty1)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty1)) {
     | Some((ty2, ty)) =>
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1233,7 +1235,7 @@ and ana_fix_holes_operand =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
   | Lam(_, p, def) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
     | Some((ty1_given, ty2)) =>
       let (p, ctx, u_gen) =
         Statics_Pat.ana_fix_holes(
@@ -1256,7 +1258,7 @@ and ana_fix_holes_operand =
       );
     }
   | Inj(_, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | Some((ty1, ty2)) =>
       let (e1, u_gen) =
         ana_fix_holes(

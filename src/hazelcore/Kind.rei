@@ -1,5 +1,5 @@
-[@deriving sexp]
-type t =
-  | KHole
-  | Type
-  | Singleton(t, HTypCore.t);
+include (module type of {
+  include KindCore;
+});
+
+let consistent_subkind: (TyVarCtx.t, t, t) => bool;

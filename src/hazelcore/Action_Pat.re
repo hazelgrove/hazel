@@ -1373,7 +1373,7 @@ and ana_perform_operand =
     mk_ana_result(ctx, u_gen, new_zp, ty);
 
   | (Construct(SInj(side)), CursorP(_)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, u_gen) =
@@ -1466,7 +1466,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => Failed
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);

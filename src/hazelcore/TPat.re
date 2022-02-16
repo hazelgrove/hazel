@@ -4,7 +4,8 @@ open Sexplib.Std;
 module HoleReason = {
   [@deriving sexp]
   type t =
-    | Reserved
+    | ReservedKeyword
+    | BuiltinType
     | InvalidName;
 };
 

@@ -369,7 +369,7 @@ and ana_elab_operand =
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
   | Inj(NotInHole, side, p1) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
