@@ -231,9 +231,7 @@ and perform_opseq =
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     switch (move(a, zopseq)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      perform(ctx, Action_common.escape(side), zopseq, u_gen)
+    | (Failed | CursorEscaped(_)) as outcome => outcome
     | Succeeded(zty) => Succeeded((zty, ctx, u_gen))
     }
 
