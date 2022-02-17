@@ -115,6 +115,15 @@ block:
   | exp_line SEMICOLON block { $1::$3 }
 ;
 
+exp_line:
+  expr { UHExp.ExpLine (UHExp.mk_OpSeq $1) }
+
+line:
+  COMMENT { UHExp.CommentLine $1 }
+  | EMPTY { UHExp.EmptyLine }
+  | let_binding { $1 }
+;
+
 let_binding:
   LET pat EQUAL block IN { mk_let_line $2 $4 }
 ;
@@ -173,20 +182,11 @@ pat_:
   | WILD { UHPat.wild () }
 ;
 
-pat_constant:
+%inline pat_constant:
   INT { UHPat.intlit $1 }
   | FLOAT { UHPat.floatlit $1 }
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
-;
-
-exp_line:
-  expr { UHExp.ExpLine (UHExp.mk_OpSeq $1) }
-
-line:
-  COMMENT { UHExp.CommentLine $1 }
-  | EMPTY { UHExp.EmptyLine }
-  | let_binding { $1 }
 ;
 
 expr:
@@ -200,7 +200,7 @@ expr:
 
 simple_expr:
   LPAREN block RPAREN { UHExp.Parenthesized($2) }
-  | constant { $1 }
+  | expr_constant { $1 }
   | IDENT {
     if Var.is_valid $1 then
       UHExp.var $1
@@ -244,7 +244,7 @@ rule:
   | COMMA { Operators_Exp.Comma }
 ;
 
-constant:
+expr_constant:
   INT { UHExp.intlit $1 }
   | FLOAT { UHExp.floatlit $1 }
   | TRUE { UHExp.boollit true }
