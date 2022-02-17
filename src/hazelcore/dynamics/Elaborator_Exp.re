@@ -724,6 +724,7 @@ and ana_elab_operand =
     };
   | If(InconsistentBranches(_, u), _, _, _)
   | Case(InconsistentBranches(_, u), _, _) =>
+    print_endline("If(InconsistentBranches)");
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
@@ -731,7 +732,7 @@ and ana_elab_operand =
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(d, e_ty, delta);
-    }
+    };
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -813,20 +814,28 @@ and ana_elab_operand =
       }
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+    print_endline("If(StandardErrStatus(NotInHole))");
     switch (ana_elab(ctx, delta, t1, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, _, delta) =>
+    | Elaborates(d1, ty1, delta) =>
       switch (ana_elab(ctx, delta, t2, ty)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d2, _, delta) =>
+      | Elaborates(d2, ty2, delta) =>
         switch (ana_elab(ctx, delta, t3, ty)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d3, ty, delta) =>
-          let d = DHExp.ConsistentIf(If(d1, d2, d3));
+        | Elaborates(d3, ty3, delta) =>
+          let d =
+            DHExp.ConsistentIf(
+              If(
+                DHExp.cast(d1, ty1, Bool),
+                DHExp.cast(d2, ty2, ty),
+                DHExp.cast(d3, ty3, ty),
+              ),
+            );
           Elaborates(d, ty, delta);
         }
       }
-    }
+    };
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
