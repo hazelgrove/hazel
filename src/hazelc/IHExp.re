@@ -143,7 +143,7 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(IHPat.t, t, t)
-  | FixF(Var.t, HTyp.t, t)
+  | RecFun(Var.t, HTyp.t, IHPat.t, t)
   | Lam(IHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)

@@ -22,15 +22,13 @@ let rec translate_exp = (d: IHExp.t) => {
   | Lam(dp, _, d1) =>
     Printf.sprintf("((%s) => {%s})", translate_pat(dp), translate_exp(d1))
   // TODO: Do this without copying Evaluator.subst_var?
-  | FixF(_var, _, _d1) =>
-    /* let d1s = */
-    /* Evaluator.subst_var( */
-    /* IHExp.BoundVar(String.concat(var, ["()"])), */
-    /* var, */
-    /* d1, */
-    /* ); */
-    /* Printf.sprintf("{let rec %s = () => {%s}}", var, translate_exp(d1s)); */
-    raise(NotImplemented)
+  | RecFun(var, _, dp, d1) =>
+    Printf.sprintf(
+      "{let rec %s = (%s) => {%s}}",
+      var,
+      translate_pat(dp),
+      translate_exp(d1),
+    )
   | Ap(d1, d2) =>
     Printf.sprintf("%s(%s)", translate_exp(d1), translate_exp(d2))
   | BoolLit(b) => b ? "true" : "false"

@@ -1,3 +1,5 @@
+exception FixF_Error;
+
 let rec transform = (d: DHExp.t) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
@@ -18,7 +20,9 @@ let rec transform = (d: DHExp.t) => {
   | BoundVar(x) => IHExp.BoundVar(x)
   | Let(dp, d1, d2) =>
     IHExp.Let(transform_pat(dp), transform(d1), transform(d2))
-  | FixF(x, ty, d1) => IHExp.FixF(x, ty, transform(d1))
+  | FixF(x, ty0, Lam(dp, _, d3)) =>
+    IHExp.RecFun(x, ty0, transform_pat(dp), transform(d3))
+  | FixF(_) => raise(FixF_Error)
   | Lam(dp, ty, d3) => IHExp.Lam(transform_pat(dp), ty, transform(d3))
   | Ap(d1, d2) => IHExp.Ap(transform(d1), transform(d2))
   | BoolLit(b) => IHExp.BoolLit(b)

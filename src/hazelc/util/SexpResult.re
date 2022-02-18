@@ -16,7 +16,10 @@ let result_of_sexp = (a__of_sexp, b__of_sexp, sexp) => {
   | List([Atom("ok" | "Ok"), el]) => Ok(a__of_sexp(el))
   | List([Atom("error" | "Error"), el]) => Error(b__of_sexp(el))
   | List(_) =>
-    of_sexp_error("result_of_sexp: list must be (some el) or (error el)", sexp)
+    of_sexp_error(
+      "result_of_sexp: list must be (some el) or (error el)",
+      sexp,
+    )
   | Atom(_) => of_sexp_error("result_of_sexp: list needed", sexp)
   };
 };
