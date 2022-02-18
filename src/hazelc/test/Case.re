@@ -15,7 +15,16 @@ type expect =
 type t = (exp, expect);
 
 let compile = exp => {
-  let opts: Compiler.opts = {exp_only: true};
+  let opts: Compiler.opts = {
+    exp_only: true,
+    grain: {
+      grain: None,
+      optimize: None,
+      includes: None,
+      debug: Some(true),
+      wat: None,
+    },
+  };
 
   switch (exp) {
   | Str(s) => Compiler.grain_compile_string(~opts, s)
