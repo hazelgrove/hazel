@@ -1,0 +1,31 @@
+import RString from "runtime/string"
+import Array from "array"
+import String from "string"
+import WasmI32 from "runtime/unsafe/wasmi32"
+import { coerceNumberToWasmI32 } from "runtime/numbers"
+import PrintWasm from "runtime/unsafe/printWasm"
+import * from "./syntax_tree"
+import * from "./syntax_tree_helper"
+import HPrinter from "./syntax_tree_printer"
+import * from "./hazel_util"
+import * from "./hazel_function"
+
+export let print_prog = (prog) => {
+    if (is_indet(prog)) {
+        let prog = to_DHExp(prog)
+        let string_prog = HPrinter.printer(prog)
+        print(string_prog)
+    } else {
+        print(prog)
+    }
+}
+
+export buildBoolLit
+export buildBinBoolOpAnd
+export buildEmptyHole
+
+export and
+export or
+
+export let htrue = bool_to_number(true)
+export let hfalse = bool_to_number(false)
