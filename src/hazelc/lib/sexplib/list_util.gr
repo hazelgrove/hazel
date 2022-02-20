@@ -1,0 +1,7 @@
+export let revMap = (f, l) => {
+  let rec rmap = (accu, lst) => match (lst) {
+    [] => accu,
+    [a, ...l] => rmap([f(a), ...accu], l)
+  }
+  rmap([], l)
+}

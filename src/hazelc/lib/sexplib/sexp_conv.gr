@@ -1,0 +1,166 @@
+import Bytes from "bytes"
+import List from "list"
+import Map from "map"
+import Number from "number"
+import Option from "option"
+import Result from "result"
+import String from "string"
+
+import Sexp from "./sexp"
+import ListUtil from "./list_util"
+
+export exception OfSexpError(String,Sexp.Sexp)
+export let ofSexpError = (conv, what, sexp) =>
+  throw OfSexpError(String.concat(String.concat(conv, ": "), what), sexp)
+
+export let sexpOfVoid = v => Sexp.List([])
+export let sexpOfBool = b => Sexp.Atom(toString(b))
+export let sexpOfInt = n => Sexp.Atom(toString(n))
+export let sexpOfFloat = f => Sexp.Atom(toString(f))
+export let sexpOfString = s => Sexp.Atom(s)
+export let sexpOfBytes = bytes => Sexp.Atom(Bytes.toString(bytes))
+export let sexpOfChar = c => Sexp.Atom(toString(c))
+
+export let sexpOfOption = (sexpOfA, option) =>
+  match (option) {
+    Some(x) => Sexp.List([Sexp.Atom("some"), sexpOfA(x)]),
+    None => Sexp.Atom("none"),
+  }
+
+export let sexpOfResult = (sexpOfA, sexpOfB, result) =>
+  match (result) {
+    Ok(x) => Sexp.List([Sexp.Atom("ok"), sexpOfA(x)]),
+    Err(err) => Sexp.List([Sexp.Atom("error"), sexpOfB(err)]),
+  }
+
+export let sexpOfPair = (sexpOfA, sexpOfB, (a, b)) =>
+  Sexp.List([sexpOfA(a), sexpOfB(b)])
+
+export let sexpOfTriple = (sexpOfA, sexpOfB, sexpOfC, (a, b, c)) =>
+  Sexp.List([sexpOfA(a), sexpOfB(b), sexpOfC(c)])
+
+export let sexpOfList = (sexpOfA, lst) =>
+  Sexp.List(List.reverse(ListUtil.revMap(sexpOfA, lst)))
+
+export let sexpOfMap = (sexpOfKey, sexpOfVal, map) => {
+  let coll = (k, v, acc) => [Sexp.List([sexpOfKey(k), sexpOfVal(v)]), ...acc]
+  Sexp.List(Map.reduce(coll, [], map))
+}
+
+export let voidOfSexp = sexp =>
+  match (sexp) {
+    Sexp.List([]) => void,
+    _ => ofSexpError("voidOfSexp", "empty list needed", sexp),
+  }
+
+export let boolOfSexp = sexp =>
+  match (sexp) {
+    Sexp.Atom(s) when s == "true" || s == "True" => true,
+    Sexp.Atom(s) when s == "false" || s == "False" => false,
+    Sexp.Atom(_) => ofSexpError("boolOfSexp", "unknown string", sexp),
+    Sexp.List(_) => ofSexpError("boolOfSexp", "atom needed", sexp),
+  }
+
+export let stringOfSexp = sexp =>
+  match (sexp) {
+    Sexp.Atom(s) => s,
+    Sexp.List(_) => ofSexpError("stringOfSexp", "atom needed", sexp),
+  }
+
+export let bytesOfSexp = sexp =>
+  match (sexp) {
+    Sexp.Atom(s) => Bytes.fromString(s),
+    Sexp.List(_) => ofSexpError("bytesOfSexp", "atom needed", sexp),
+  }
+
+export let intOfSexp = sexp =>
+  match (sexp) {
+    Sexp.Atom(s) =>
+      match (Number.parseInt(s, 10)) {
+        Ok(n) => n,
+        Err(err) => ofSexpError("intOfSexp", err, sexp),
+      },
+    Sexp.List(_) => ofSexpError("intOfSexp", "atom needed", sexp),
+  }
+
+export let charOfSexp = sexp =>
+  match (sexp) {
+    Sexp.Atom(s) when String.length(s) == 1 => String.charAt(0, s),
+    Sexp.Atom(_) =>
+      ofSexpError(
+        "charOfSexp",
+        "atom string must contain one character only",
+        sexp
+      ),
+    Sexp.List(_) => ofSexpError("char_of_sexp", "atom needed", sexp),
+  }
+
+export let optionOfSexp = (aOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.Atom(s) when s == "none" || s == "None" => None,
+    Sexp.List([el]) => Some(aOfSexp(el)),
+    Sexp.List([Sexp.Atom(s), el]) when s == "some" || s == "Some" =>
+      Some(aOfSexp(el)),
+    Sexp.Atom(_) => ofSexpError("optionOfSexp", "only none can be atom", sexp),
+    Sexp.List(_) => ofSexpError("optionOfSexp", "list must be (some el)", sexp),
+  }
+
+export let resultOfSexp = (aOfSexp, bOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.List([Sexp.Atom(s), el]) when s == "ok" || s == "Ok" =>
+      Ok(aOfSexp(el)),
+    Sexp.List([Sexp.Atom(s), el]) when s == "error" || s == "Error" =>
+      Err(bOfSexp(el)),
+    Sexp.List(_) =>
+      ofSexpError("resultOfSexp", "list must be (ok el) or (error el)", sexp),
+    Sexp.Atom(_) => ofSexpError("resultOfSexp", "list needed", sexp),
+  }
+
+export let pairOfSexp = (aOfSexp, bOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.List([aSexp, bSexp]) => (aOfSexp(aSexp), bOfSexp(bSexp)),
+    Sexp.List(_) =>
+      ofSexpError(
+        "pairOfSexp",
+        "list must contain exactly two elements only",
+        sexp
+      ),
+    _ => ofSexpError("pairOfSexp", "list needed", sexp),
+  }
+
+export let tripleOfSexp = (aOfSexp, bOfSexp, cOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.List([aSexp, bSexp, cSexp]) =>
+      (aOfSexp(aSexp), bOfSexp(bSexp), cOfSexp(cSexp)),
+    Sexp.List(_) =>
+      ofSexpError(
+        "pairOfSexp",
+        "list must contain exactly three elements only",
+        sexp
+      ),
+    _ => ofSexpError("pairOfSexp", "list needed", sexp),
+  }
+
+export let listOfSexp = (aOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.List(lst) => ListUtil.revMap(aOfSexp, lst),
+    _ => ofSexpError("listOfSexp", "list needed", sexp),
+  }
+
+export let mapOfSexp = (keyOfSexp, valOfSexp, sexp) =>
+  match (sexp) {
+    Sexp.List(lst) => {
+      let map = Map.make()
+      let act = sexp =>
+        match (sexp) {
+          Sexp.List([kSexp, vSexp]) => {
+            Map.set(keyOfSexp(kSexp), valOfSexp(vSexp), map)
+            Ok(void)
+          },
+          _ => ofSexpError("mapOfSexp", "tuple list needed", sexp),
+        }
+      List.forEach(act, lst)
+      map
+    },
+    Sexp.Atom(_) => ofSexpError("mapOfSexp", "list needed", sexp),
+  }

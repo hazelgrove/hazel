@@ -1,0 +1,33 @@
+import List from "list"
+import String from "string"
+
+export enum Sexp {
+  Atom(String),
+  List(List<Sexp>),
+}
+
+export let rec toString = sexp => {
+  match (sexp) {
+    Atom(s) => s,
+    List(lst) => {
+      let inner = List.join(" ", List.map(toString, lst))
+      String.concat(String.concat("(", inner), ")")
+    },
+  }
+}
+
+export let rec equal = (lhs, rhs) => {
+  let rec equalList = (lst1, lst2) => {
+    match ((lst1, lst2)) {
+      ([], []) => true,
+      ([hd1, ...tl1], [hd2, ...tl2]) => equal(hd1, hd2) && equalList(tl1, tl2),
+      (_, _) => false,
+    }
+  }
+
+  match ((lhs, rhs)) {
+    (Atom(s1), Atom(s2)) => s1 == s2,
+    (List(lst1), List(lst2)) => equalList(lst1, lst2),
+    (_, _) => false,
+  }
+}

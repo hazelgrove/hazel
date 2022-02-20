@@ -1,0 +1,15 @@
+import * from "./sexp_conv"
+
+let assertInverse = (a, aOfSexp, sexpOfA) => {
+  assert a == aOfSexp(sexpOfA(a))
+}
+
+assertInverse(void, voidOfSexp, sexpOfVoid)
+assertInverse(true, boolOfSexp, sexpOfBool)
+assertInverse(false, boolOfSexp, sexpOfBool)
+assertInverse(0, intOfSexp, sexpOfInt)
+assertInverse(5, intOfSexp, sexpOfInt)
+assertInverse(10, intOfSexp, sexpOfInt)
+assertInverse("", stringOfSexp, sexpOfString)
+assertInverse("abc", stringOfSexp, sexpOfString)
+assertInverse('a', charOfSexp, sexpOfChar)
