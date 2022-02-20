@@ -93,11 +93,9 @@ let compile_grain = (~opts=default_opts, outpath, grain_res) => {
   switch (grain_res) {
   | Ok(grain_output) =>
     let grain_outpath = write_temporary(grain_output);
-    let grain_opts = opts.grain;
-
     switch (
       Grain.compile(
-        ~opts=grain_opts,
+        ~opts=opts.grain,
         {file: grain_outpath, output: Some(outpath)},
       )
     ) {

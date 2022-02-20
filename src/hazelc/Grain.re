@@ -19,8 +19,7 @@ module Opts = {
     Printf.sprintf("%s %s", use_grain(opts), subcmd);
 
   let use_arg = (arg, cmd) => Printf.sprintf("%s %s", cmd, arg);
-  let use_flag = (flag, arg, cmd) =>
-    cmd |> use_arg("--" ++ flag) |> use_arg(arg);
+  let use_flag = (flag, arg, cmd) => cmd |> use_arg(flag) |> use_arg(arg);
   let use_args = (args_list, cmd) =>
     List.fold_left((cmd, use) => use(cmd), cmd, args_list);
 };
@@ -35,19 +34,25 @@ module Compile = {
   [@deriving sexp]
   type compile_result = result(unit, int);
 
+  let use_includes = (opts: Opts.t) =>
+    switch (opts.includes) {
+    | Some(includes) =>
+      Opts.use_args(List.map(Opts.use_flag("-I"), includes))
+    | None => Opts.identity
+    };
   let use_optimize = (opts: Opts.t) =>
     switch (opts.optimize) {
-    | Some(level) => Opts.use_flag("O", string_of_int(level))
+    | Some(level) => Opts.use_flag("-O", string_of_int(level))
     | None => Opts.identity
     };
   let use_debug = (opts: Opts.t) =>
     switch (opts.debug) {
-    | Some(true) => Opts.use_flag("debug", "")
+    | Some(true) => Opts.use_flag("--debug", "")
     | _ => Opts.identity
     };
   let use_wat = (opts: Opts.t) =>
     switch (opts.wat) {
-    | Some(true) => Opts.use_flag("wat", "")
+    | Some(true) => Opts.use_flag("--wat", "")
     | _ => Opts.identity
     };
 
@@ -59,6 +64,7 @@ module Compile = {
     };
 
   let args_list = (opts, copts) => [
+    use_includes(opts),
     use_optimize(opts),
     use_debug(opts),
     use_wat(opts),
