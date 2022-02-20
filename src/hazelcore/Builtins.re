@@ -8,9 +8,9 @@ module Impl = {
     let e = DHExp.ApBuiltin(ident, args);
     switch (args) {
     | [] => Indet(e)
-    | [d1, ..._] => 
+    | [d1, ..._] =>
       let d1' = evaluate(d1);
-      f(d1', e)
+      f(d1', e);
     };
   };
 
