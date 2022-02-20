@@ -23,6 +23,9 @@ _build/
 *.byte
 *.native
 
+# wasm targets
+*.wasm
+
 # oasis generated files
 setup.data
 setup.log
