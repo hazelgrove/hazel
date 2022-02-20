@@ -12,7 +12,7 @@ follow these instructions instead of the shorter instructions in the
 
   - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
 
-    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu). This will open a PowerShell command prompt.
+    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu).
 
     - Run the following command at the PowerShell prompt:
 
