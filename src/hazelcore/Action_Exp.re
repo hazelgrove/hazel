@@ -109,9 +109,9 @@ let construct_operator_after_zoperand =
 //TBD
 let complete_tuple =
   Action_common.complete_tuple_(
-    ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
+    ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
     ~comma=Operators_Exp.Comma,
-    ~zcomma=(OnOp(After), Operators_Exp.Comma),
+    ~place_before_opseq=ZExp.place_before_opseq,
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 
@@ -2698,7 +2698,7 @@ and ana_perform_opseq =
         ZExp.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
         && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (opseq, u_gen) =
+    let (OpSeq(_, opseq), u_gen) =
       Statics_Exp.ana_fix_holes_opseq(
         ctx,
         u_gen,
@@ -3140,7 +3140,7 @@ and ana_perform_operand =
 
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty);
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
@@ -3478,11 +3478,7 @@ and ana_perform_subsume =
   };
 
 let syn_perform =
-    (
-      ctx: Contexts.t,
-      a: Action.t,
-      init_state: Statics.edit_state,
-    )
+    (ctx: Contexts.t, a: Action.t, init_state: Statics.edit_state)
     : ActionOutcome.t(syn_done) => {
   switch (syn_perform(ctx, a, init_state)) {
   | Succeeded((ze_final, ty_final, _)) as final_state =>
