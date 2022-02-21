@@ -2,7 +2,12 @@ open EvaluatorResult;
 
 module Impl = {
   [@deriving sexp]
-  type t = (list(DHExp.t), DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+  type t =
+    (
+      /* args: */ list(DHExp.t),
+      /* evaluate: */ DHExp.t => EvaluatorResult.t
+    ) =>
+    EvaluatorResult.t;
 
   let mk_one_arg = (f, ident, args, evaluate) => {
     let e = DHExp.ApBuiltin(ident, args);
@@ -13,7 +18,9 @@ module Impl = {
       f(d1', e);
     };
   };
+};
 
+module Impls = {
   let int_of_float =
     (
       (d1', e) =>
@@ -24,7 +31,7 @@ module Impl = {
         | _ => Indet(e)
         }
     )
-    |> mk_one_arg;
+    |> Impl.mk_one_arg;
 
   let float_of_int =
     (
@@ -36,12 +43,12 @@ module Impl = {
         | _ => Indet(e)
         }
     )
-    |> mk_one_arg;
+    |> Impl.mk_one_arg;
 };
 
 let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
-  ("int_of_float", (Arrow(Float, Int), Impl.int_of_float)),
-  ("float_of_int", (Arrow(Int, Float), Impl.float_of_int)),
+  ("int_of_float", (Arrow(Float, Int), Impls.int_of_float)),
+  ("float_of_int", (Arrow(Int, Float), Impls.float_of_int)),
 ];
 
 let ctx: VarCtx.t = List.map(((x, (ty, _))) => (x, ty), builtins);

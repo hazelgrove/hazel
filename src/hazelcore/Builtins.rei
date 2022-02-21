@@ -1,6 +1,11 @@
 module Impl: {
   [@deriving sexp]
-  type t = (list(DHExp.t), DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+  type t =
+    (
+      /* args: */ list(DHExp.t),
+      /* evaluate: */ DHExp.t => EvaluatorResult.t
+    ) =>
+    EvaluatorResult.t;
 };
 
 let ctx: VarCtx.t;
