@@ -1,3 +1,12 @@
+/*
+   Built-in functions for Hazel.
+
+   To add a built-in function or constant, write the implementation in the
+   `Impls` module below and add it to the `built-ins` list.
+
+   See the existing ones for reference.
+ */
+
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -22,6 +31,18 @@ module Impl = {
     ) =>
     EvaluatorResult.t;
 
+  /*
+     Build the elaborated DHExp for a built-in function.
+
+     For example:
+       mk_elab("mod", Arrow(Int, Arrow(Int, Int)))
+         =>
+          Lam("x0", Arrow(Int, Arrow(Int, Int)),
+            Lam("x1", Arrow(Int, Int),
+              Apbuilt-in("mod", [BoundVar("x0"), BoundVar("x1")])
+            )
+          )
+   */
   let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
     let rec mk_elab_inner =
             (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
@@ -38,17 +59,20 @@ module Impl = {
     mk_elab_inner(ty, 0, []);
   };
 
+  /*
+     Create a built-in function.
+   */
   let mk = (ident: Var.t, ty: HTyp.t, fn: f): t => {
-    let form = {
-      let eval = (args, evaluate) =>
-        fn(args, evaluate, DHExp.ApBuiltin(ident, args));
-      let elab = mk_elab(ident, ty);
-      (eval, elab);
-    };
+    let eval = (args, evaluate) =>
+      fn(args, evaluate, DHExp.ApBuiltin(ident, args));
+    let elab = mk_elab(ident, ty);
 
-    (ident, ty, form);
+    (ident, ty, (eval, elab));
   };
 
+  /*
+     Create a built-in constant.
+   */
   let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
     let fn = (args, evaluate, _d) => {
       switch (args) {
@@ -60,6 +84,10 @@ module Impl = {
     mk(ident, ty, fn);
   };
 
+  /*
+     Create a built-in function that takes a single argument. The given type
+     must be correct.
+   */
   let mk_one =
       (
         ident: Var.t,
@@ -79,6 +107,10 @@ module Impl = {
     mk(ident, ty, fn);
   };
 
+  /*
+     Create a built-in function that takes two arguments. The given type must be
+     correct.
+   */
   let mk_two =
       (
         ident: Var.t,
@@ -104,6 +136,7 @@ module Impl = {
 module Impls = {
   open EvaluatorResult;
 
+  /* int_of_float implementation. */
   let int_of_float = (d1', d) =>
     switch (d1') {
     | BoxedValue(FloatLit(f)) =>
@@ -112,6 +145,7 @@ module Impls = {
     | _ => Indet(d)
     };
 
+  /* float_of_int implementation. */
   let float_of_int = (d1', e) =>
     switch (d1') {
     | BoxedValue(IntLit(i)) =>
@@ -120,6 +154,7 @@ module Impls = {
     | _ => Indet(e)
     };
 
+  /* mod implementation */
   let int_mod = (d1', d2', e) =>
     switch (d1', d2') {
     | (BoxedValue(IntLit(n)), BoxedValue(IntLit(m))) =>
@@ -127,6 +162,7 @@ module Impls = {
     | _ => Indet(e)
     };
 
+  /* PI implementation. */
   let pi = DHExp.FloatLit(Float.pi);
 };
 

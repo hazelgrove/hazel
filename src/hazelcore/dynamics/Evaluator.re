@@ -800,6 +800,7 @@ and evaluate_case =
       }
     }
   }
+/* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
     (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
   switch (Builtins.lookup_form(ident)) {

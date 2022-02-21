@@ -8,14 +8,14 @@ type form = (
 [@deriving sexp]
 type t = (Var.t, HTyp.t, form);
 
-/* Context of builtin functions. */
+/* Context of built-in functions. */
 let ctx: VarCtx.t;
 
-/* Map of builtin function names to implementations. */
+/* Map of built-in function names to implementations. */
 let forms: VarMap.t_(form);
 
-/* Lookup the type of a builtin function. */
+/* Lookup the type of a built-in function. */
 let lookup_type: Var.t => option(HTyp.t);
 
-/* Lookup the implementation of a builtin function. */
+/* Lookup the implementation of a built-in function. */
 let lookup_form: Var.t => option(form);
