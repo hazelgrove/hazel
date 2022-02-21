@@ -9,10 +9,10 @@ module Impl = {
     ) =>
     EvaluatorResult.t;
 
-  let mk_one_arg = (f, ident, args, evaluate) => {
+  let mk_one_arg = (f, name, ident, args, evaluate) => {
     let e = DHExp.ApBuiltin(ident, args);
     switch (args) {
-    | [] => Indet(e)
+    | [] => raise(EvaluatorError.Exception(BadBuiltinAp(name, args)))
     | [d1, ..._] =>
       let d1' = evaluate(d1);
       f(d1', e);
@@ -46,9 +46,11 @@ module Impls = {
     |> Impl.mk_one_arg;
 };
 
-let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
-  ("int_of_float", (Arrow(Float, Int), Impls.int_of_float)),
-  ("float_of_int", (Arrow(Int, Float), Impls.float_of_int)),
+let define = (name: string, ty: HTyp.t, impl) => (name, (ty, impl(name)));
+
+let builtins = [
+  define("int_of_float", Arrow(Float, Int), Impls.int_of_float),
+  define("float_of_int", Arrow(Int, Float), Impls.float_of_int),
 ];
 
 let ctx: VarCtx.t = List.map(((x, (ty, _))) => (x, ty), builtins);

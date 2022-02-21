@@ -8,7 +8,8 @@ type t =
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t)
-  | InvalidBuiltin(string);
+  | InvalidBuiltin(string)
+  | BadBuiltinAp(string, list(DHExp.t));
 
 [@deriving sexp]
 exception Exception(t);
