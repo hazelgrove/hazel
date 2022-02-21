@@ -109,9 +109,9 @@ let rec renumber_result_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
+    (Fun(x, ty, d1), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -207,9 +207,9 @@ let rec renumber_sigmas_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
+    (Fun(x, ty, d1), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -346,18 +346,17 @@ let get_elaboration = (program: t): DHExp.t =>
   | Elaborates(d, _, _) => d
   };
 
-exception InvalidInput;
-
+exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_elaboration |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
+  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 
 let get_doc = (~settings: Settings.t, program) => {
@@ -401,6 +400,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
+
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
@@ -412,8 +412,10 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, u_gen);
       };
+    ();
     program |> put_edit_state(new_edit_state);
   };
+  // };
 };
 
 exception HoleNotFound;

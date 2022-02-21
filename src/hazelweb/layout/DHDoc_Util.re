@@ -58,10 +58,10 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  let sym_Lam = mk(Unicode.lamSym);
-  let colon_Lam = mk(":");
-  let open_Lam = mk(".{");
-  let close_Lam = mk("}");
+  let sym_Fun = mk(Unicode.lamSym);
+  let colon_Fun = mk(":");
+  let open_Fun = mk(".{");
+  let close_Fun = mk("}");
 
   let fix_FixF = mk("fix");
   let colon_FixF = mk(":");

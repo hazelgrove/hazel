@@ -177,7 +177,7 @@ and mk_operand =
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
         | ListNil(_) => mk_ListNil()
-        | Lam(_, p, body) =>
+        | Fun(_, p, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, body);

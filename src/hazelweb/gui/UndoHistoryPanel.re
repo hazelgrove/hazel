@@ -111,7 +111,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListNil(_) => indicate_words_view("empty list")
-    | Lam(_) => indicate_words_view("function")
+    | Fun(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {

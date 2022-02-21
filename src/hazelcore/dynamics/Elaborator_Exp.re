@@ -253,7 +253,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -272,7 +272,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -354,19 +354,15 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Lam(NotInHole, p, body) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => DoesNotElaborate
-    | Some((ty1, _)) =>
-      switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+  | Fun(NotInHole, p, body) =>
+    switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(dp, ty1, ctx, delta) =>
+      switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, _, ctx, delta) =>
-        switch (syn_elab(ctx, delta, body)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty2, delta) =>
-          let d = DHExp.Lam(dp, ty1, d1);
-          Elaborates(d, Arrow(ty1, ty2), delta);
-        }
+      | Elaborates(d1, ty2, delta) =>
+        let d = DHExp.Fun(dp, ty1, d1);
+        Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
   | Inj(NotInHole, side, body) =>
@@ -408,7 +404,7 @@ and syn_elab_operand =
              (fun bound entry ->
                let (n, typ_exp) = entry in
                let (htyp, hexp) = typ_exp in
-               let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
+               let lam = UHExp.Tm NotInHole (UHExp.Fun (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
                let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
                let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
                let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
@@ -672,7 +668,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -700,7 +696,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
@@ -721,7 +717,7 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
@@ -740,7 +736,7 @@ and ana_elab_operand =
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Lam(dp, ty1p, d1);
+            let d = DHExp.Fun(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }

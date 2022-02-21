@@ -85,7 +85,7 @@ module type PALETTE = {
      UHExp.(
        Tm(
          NotInHole,
-         Lam(
+         Fun(
            fVarPat,
            None,
            Tm(
@@ -184,7 +184,7 @@ module type PALETTE = {
      UHExp.(
        Tm(
          NotInHole,
-         Lam(
+         Fun(
            fPat,
            None,
            Tm(NotInHole, OpSeq(UHExp.associate(body), body)),
