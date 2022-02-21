@@ -146,20 +146,23 @@ module Impls = {
     };
 
   /* float_of_int implementation. */
-  let float_of_int = (d1', e) =>
+  let float_of_int = (d1', d) =>
     switch (d1') {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
       BoxedValue(FloatLit(f));
-    | _ => Indet(e)
+    | _ => Indet(d)
     };
 
   /* mod implementation */
-  let int_mod = (d1', d2', e) =>
+  let int_mod = (d1', d2', d) =>
     switch (d1', d2') {
     | (BoxedValue(IntLit(n)), BoxedValue(IntLit(m))) =>
-      BoxedValue(IntLit(n mod m))
-    | _ => Indet(e)
+      switch (n, m) {
+      | (_, 0) => Indet(InvalidOperation(d, DivideByZero))
+      | (n, m) => BoxedValue(IntLit(n mod m))
+      }
+    | _ => Indet(d)
     };
 
   /* PI implementation. */
