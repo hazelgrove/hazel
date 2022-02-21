@@ -802,8 +802,8 @@ and evaluate_case =
   }
 and evaluate_ap_builtin =
     (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
-  switch (Builtins.lookup_impl(ident)) {
-  | Some(impl) => impl(args, evaluate)
+  switch (Builtins.lookup_form(ident)) {
+  | Some((eval, _)) => eval(args, evaluate)
   | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
   };
 };

@@ -839,14 +839,9 @@ let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
   | Elaborates(d, ty, delta) =>
     let d' =
       List.fold_left(
-        (d', (x, _)) =>
-          DHExp.Let(
-            Var(x),
-            Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])),
-            d',
-          ),
+        (d', (x, (_, elab))) => DHExp.Let(Var(x), elab, d'),
         d,
-        Builtins.impls,
+        Builtins.forms,
       );
     Elaborates(d', ty, delta);
   | DoesNotElaborate => DoesNotElaborate
