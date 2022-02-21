@@ -46,8 +46,6 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   syn_opseq(ctx, conclusion);
 }
 
-
-
 // e1 l1 a2 a3
 // [[e1]]
 // [[e1],[l1]]
@@ -59,67 +57,74 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
 
 // removed .hd .tl
 
-and syn_lines = 
-    (ctx:Contexts.t, lines:list(UHExp.line)):option(Contexts.t) => {
+and syn_lines =
+    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
+  // first pass: group lines
 
-      // first pass: group lines
-
-      let groups = List.fold_left(
-        ((cur_block, blocks): (list(UHExp.line),list(list(UHExp.line))), line: UHExp.line) => {
-          switch(line){
-            | EmptyLine
-            | CommentLine(_) 
-            | LetLine(And, _, _) => (List.append(cur_block, [line]), blocks)
-            | ExpLine(_)
-            | LetLine(Let, _, _) => ([line], List.append(blocks, [cur_block]))
-          },
+  let groups =
+    List.fold_left(
+      (
+        (cur_block, blocks): (list(UHExp.line), list(list(UHExp.line))),
+        line: UHExp.line,
+      ) => {
+        switch (line) {
+        | EmptyLine
+        | CommentLine(_)
+        | LetLine(And, _, _) => (List.append(cur_block, [line]), blocks)
+        | ExpLine(_)
+        | LetLine(Let, _, _) => ([line], List.append(blocks, [cur_block]))
         }
-        ([], []),
-        lines,
-      );
+      },
+      ([], []),
+      lines,
+    );
 
-      // second pass: fold over groups
+  // second pass: fold over groups
 
-      groups
-      |> List.fold_left(
-        (ctx_group: option(Contexts.t), group: list(UHExp.line)) => {
+  groups
+  |> List.fold_left(
+       (ctx_group: option(Contexts.t), group: list(UHExp.line)) => {
+         // in each group, fold over each line to extend the ctx
+         let new_ctx =
+           List.fold_left(
+             (ctx_line: option(Contexts.t), line: UHExp.line) => {
+               switch (line) {
+               | EmptyLine
+               | CommentLine(_) => ctx_line
+               | ExpLine(opseq) =>
+                 let* ctx = ctx_line;
+                 let+ _ = syn_opseq(ctx, opseq);
+                 Some(ctx);
+               | LetLine(_, p, def) =>
+                 let* ctx = ctx_line;
+                 Some(extend_let_def_ctx(ctx, p, def));
+               }
+             },
+             ctx.group,
+             group,
+           );
 
-          // in each group, fold over each line to extend the ctx
-          let new_ctx = List.fold_left(
-            (ctx_line: option(Contexts.t), line: UHExp.line) => {
-              | EmptyLine
-              | CommentLine(_) => ctx_line
-              | ExpLine(opseq) =>
-                let *ctx = ctx_line;
-                let+ _ = syn_opseq(ctx, opseq);
-                Some(ctx);
-              | LetLine(_, p, def) =>
-                let *ctx = ctx_line;
-                Some(extend_let_def_ctx(ctx, p, def));
-            },
-            ctx.group,
-            group,
-          );
-
-          // analyze against to check type
-          group
-          |> List.fold_left(
-            (ctx_line: option(Contexts.t), line: UHExp.line) => {
-              | EmptyLine
-              | CommentLine(_)
-              | ExpLine(_) => ctx_line
-              | LetLine(_, p, def) => 
-                let *def_ctx = ctx_line;
-                let* ty_def = syn(def_ctx, def);
-                Statics_Pat.ana(def_ctx, p, ty_def);
-            },
-            new_ctx,
-            group,
-          );
-        },
-        Some(ctx),
-      );
-    }
+         // analyze against to check type
+         group
+         |> List.fold_left(
+              (ctx_line: option(Contexts.t), line: UHExp.line) => {
+                switch (line) {
+                | EmptyLine
+                | CommentLine(_)
+                | ExpLine(_) => ctx_line
+                | LetLine(_, p, def) =>
+                  let* def_ctx = ctx_line;
+                  let* ty_def = syn(def_ctx, def);
+                  Statics_Pat.ana(def_ctx, p, ty_def);
+                }
+              },
+              new_ctx,
+              group,
+            );
+       },
+       Some(ctx),
+     );
+}
 
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
