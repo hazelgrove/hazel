@@ -277,25 +277,21 @@ let delete_operator_ =
  */
 let complete_tuple_ =
     (
-      ~mk_ZOpSeq:
-         ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+      ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~place_before_opseq:
+         OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
-      ~zcomma: 'zoperator,
       ~new_EmptyHole: IDGen.t => ('operand, IDGen.t),
       id_gen: IDGen.t,
-      OpSeq(_, seq): OpSeq.t('operand, 'operator),
+      first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), IDGen.t) => {
-  let (new_suffix: Seq.t(_), id_gen) = {
-    // guaranteed to construct at least one empty hole
-    let (new_hole, id_gen) = id_gen |> new_EmptyHole;
+  let (new_suffix: Seq.affix(_), id_gen) = {
     let (new_holes, id_gen) =
       ty
       |> HTyp.get_prod_elements
-      // assuming ty has at least 2 elems
-      |> List.tl
       |> List.tl
       // ensure that hole indices increase left to right
       |> List.fold_left(
@@ -310,19 +306,15 @@ let complete_tuple_ =
         | (rev_holes, id_gen) => (rev_holes |> List.rev, id_gen)
       );
     (
-      Seq.S(
-        new_hole,
-        List.fold_right(
-          (new_hole, suffix: Seq.affix(_)) =>
-            A(comma, S(new_hole, suffix)),
-          new_holes,
-          Seq.E,
-        ),
+      List.fold_right(
+        (new_hole, suffix: Seq.affix(_)) => A(comma, S(new_hole, suffix)),
+        new_holes,
+        Seq.E,
       ),
       id_gen,
     );
   };
   let new_zopseq =
-    mk_ZOpSeq(ZOperator(zcomma, (seq |> Seq.rev, new_suffix)));
+    place_before_opseq(mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix)));
   (new_zopseq, id_gen);
 };

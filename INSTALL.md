@@ -12,7 +12,7 @@ follow these instructions instead of the shorter instructions in the
 
   - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
 
-    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu). This will open a PowerShell command prompt.
+    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu).
 
     - Run the following command at the PowerShell prompt:
 
@@ -119,12 +119,12 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 4.08.1 (some older versions may also work, but see the
+- Install OCaml 4.12.1 (some older versions may also work, but see the
   ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
   why we do not use newer versions).
 
   ```sh
-  opam switch create 4.08.1 ocaml-base-compiler.4.08.1
+  opam switch create 4.12.1 ocaml-base-compiler.4.12.1
   ```
 
 ## Clone the Source Code
