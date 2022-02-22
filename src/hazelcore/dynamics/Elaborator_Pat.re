@@ -304,7 +304,7 @@ and ana_elab_skel =
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
@@ -366,7 +366,7 @@ and ana_elab_operand =
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) => Elaborates(ListNil, HTyp.List(ty_elt), ctx, delta)
     }

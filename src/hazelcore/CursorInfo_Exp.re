@@ -837,7 +837,7 @@ and ana_cursor_info_skel =
         "Exp.ana_cursor_info_skel: expected commas too be handled at opseq level",
       )
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
+      switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_go(skel1, ty_elt)) {

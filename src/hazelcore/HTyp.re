@@ -158,18 +158,21 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 let matched_sum = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
-  | TyVarHole(_) => Some((Hole, Hole))
+  | TyVarHole(_)
+  | TyVar(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None
   };
 
 /* matched list types */
-let matched_list =
-  fun
+let matched_list = (tyvars: TyVarCtx.t, ty: t): option(t) =>
+  switch (head_normalize(tyvars, ty)) {
   | Hole
-  | TyVarHole(_) => Some(Hole)
+  | TyVarHole(_)
+  | TyVar(_) => Some(Hole)
   | List(ty) => Some(ty)
-  | _ => None;
+  | _ => None
+  };
 
 /* complete (i.e. does not have any holes) */
 let rec complete =

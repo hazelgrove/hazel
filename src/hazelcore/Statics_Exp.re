@@ -267,7 +267,7 @@ and ana_skel =
     let en = Seq.nth_operand(n, seq);
     ana_operand(ctx, en, ty);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* ty_elt = HTyp.matched_list(ty);
+    let* ty_elt = HTyp.matched_list(Contexts.tyvars(ctx), ty);
     let* _ = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, List(ty_elt));
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
@@ -319,7 +319,7 @@ and ana_operand =
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
-    let+ _ = HTyp.matched_list(ty);
+    let+ _ = HTyp.matched_list(Contexts.tyvars(ctx), ty);
     ();
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
@@ -479,7 +479,7 @@ and ana_nth_type_mode' =
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
+      switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
       | None => None
       | Some(ty_elt) =>
         n <= Skel.rightmost_tm_index(skel1)
@@ -1127,7 +1127,7 @@ and ana_fix_holes_skel =
     let seq = seq |> Seq.update_nth_operand(n, en);
     (skel, seq, u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | Some(ty_elt) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1228,7 +1228,7 @@ and ana_fix_holes_operand =
       (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
     };
   | ListNil(_) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);

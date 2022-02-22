@@ -399,7 +399,7 @@ and ana_cursor_info_skel =
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
+      switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {

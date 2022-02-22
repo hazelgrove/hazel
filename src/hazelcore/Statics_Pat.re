@@ -135,7 +135,7 @@ and ana_skel =
     let* ctx = ana_skel(ctx, skel1, seq, HTyp.Hole);
     ana_skel(ctx, skel2, seq, HTyp.Hole);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* ty_elt = HTyp.matched_list(ty);
+    let* ty_elt = HTyp.matched_list(Contexts.tyvars(ctx), ty);
     let* ctx = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, HTyp.List(ty_elt));
   }
@@ -177,7 +177,7 @@ and ana_operand =
     let* (ty', ctx') = syn_operand(ctx, operand);
     HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some(ctx') : None;
   | ListNil(NotInHole) =>
-    let+ _ = HTyp.matched_list(ty);
+    let+ _ = HTyp.matched_list(Contexts.tyvars(ctx), ty);
     ctx;
   | Inj(NotInHole, side, p1) =>
     let* (tyL, tyR) = HTyp.matched_sum(Contexts.tyvars(ctx), ty);
@@ -266,7 +266,7 @@ and ana_nth_type_mode' =
       n <= Skel.rightmost_tm_index(skel1)
         ? go(skel1, HTyp.Hole) : go(skel2, HTyp.Hole)
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      let* ty_elt = HTyp.matched_list(ty);
+      let* ty_elt = HTyp.matched_list(Contexts.tyvars(ctx), ty);
       n <= Skel.rightmost_tm_index(skel1)
         ? go(skel1, ty_elt) : go(skel2, ty);
     };
@@ -611,7 +611,7 @@ and ana_fix_holes_skel =
       );
     (skel, seq, ctx, u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | Some(ty_elt) =>
       let (skel1, seq, ctx, u_gen) =
         ana_fix_holes_skel(
@@ -699,7 +699,7 @@ and ana_fix_holes_operand =
       );
     };
   | ListNil(_) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | Some(_) => (ListNil(NotInHole), ctx, u_gen)
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);

@@ -29,7 +29,7 @@ let get_prod_arity: t => int;
 
 let matched_arrow: (TyVarCtx.t, t) => option((t, t));
 let matched_sum: (TyVarCtx.t, t) => option((t, t));
-let matched_list: t => option(t);
+let matched_list: (TyVarCtx.t, t) => option(t);
 
 let complete: t => bool;
 
