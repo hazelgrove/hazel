@@ -24,11 +24,7 @@ type t = (Var.t, HTyp.t, form);
 module Impl = {
   [@deriving sexp]
   type f =
-    (
-      /* args: */ args,
-      /* evaluate: */ DHExp.t => EvaluatorResult.t,
-      /* exp: */ DHExp.t
-    ) =>
+    (/* args: */ args, /* evaluate: */ DHExp.t => EvaluatorResult.t) =>
     EvaluatorResult.t;
 
   /*
@@ -63,8 +59,7 @@ module Impl = {
      Create a built-in function.
    */
   let mk = (ident: Var.t, ty: HTyp.t, fn: f): t => {
-    let eval = (args, evaluate) =>
-      fn(args, evaluate, DHExp.ApBuiltin(ident, args));
+    let eval = (args, evaluate) => fn(args, evaluate);
     let elab = mk_elab(ident, ty);
 
     (ident, ty, (eval, elab));
@@ -74,7 +69,7 @@ module Impl = {
      Create a built-in constant.
    */
   let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
-    let fn = (args, evaluate, _d) => {
+    let fn = (args, evaluate) => {
       switch (args) {
       | [] => evaluate(v)
       | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
@@ -92,14 +87,14 @@ module Impl = {
       (
         ident: Var.t,
         ty: HTyp.t,
-        fn: (EvaluatorResult.t, DHExp.t) => EvaluatorResult.t,
+        fn: (Var.t, EvaluatorResult.t) => EvaluatorResult.t,
       )
       : t => {
-    let fn = (args, evaluate, d) => {
+    let fn = (args, evaluate) => {
       switch (args) {
       | [d1] =>
         let d1' = evaluate(d1);
-        fn(d1', d);
+        fn(ident, d1');
       | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
       };
     };
@@ -115,16 +110,15 @@ module Impl = {
       (
         ident: Var.t,
         ty: HTyp.t,
-        fn:
-          (EvaluatorResult.t, EvaluatorResult.t, DHExp.t) => EvaluatorResult.t,
+        fn: (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t,
       )
       : t => {
-    let fn = (args, evaluate, d) => {
+    let fn = (args, evaluate) => {
       switch (args) {
       | [d1, d2] =>
         let d1' = evaluate(d1);
         let d2' = evaluate(d2);
-        fn(d1', d2', d);
+        fn(ident, d1', d2');
       | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
       };
     };
@@ -137,32 +131,36 @@ module Impls = {
   open EvaluatorResult;
 
   /* int_of_float implementation. */
-  let int_of_float = (d1', d) =>
+  let int_of_float = (ident, d1') =>
     switch (d1') {
     | BoxedValue(FloatLit(f)) =>
       let i = int_of_float(f);
       BoxedValue(IntLit(i));
-    | _ => Indet(d)
+    | BoxedValue(d1')
+    | Indet(d1') => Indet(ApBuiltin(ident, [d1']))
     };
 
   /* float_of_int implementation. */
-  let float_of_int = (d1', d) =>
+  let float_of_int = (ident, d1') =>
     switch (d1') {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
       BoxedValue(FloatLit(f));
-    | _ => Indet(d)
+    | BoxedValue(d1')
+    | Indet(d1') => Indet(ApBuiltin(ident, [d1']))
     };
 
   /* mod implementation */
-  let int_mod = (d1', d2', d) =>
+  let int_mod = (ident, d1', d2') =>
     switch (d1', d2') {
-    | (BoxedValue(IntLit(n)), BoxedValue(IntLit(m))) =>
+    | (BoxedValue(IntLit(n) as d1'), BoxedValue(IntLit(m) as d2')) =>
       switch (n, m) {
-      | (_, 0) => Indet(InvalidOperation(d, DivideByZero))
+      | (_, 0) =>
+        Indet(InvalidOperation(ApBuiltin(ident, [d1', d2']), DivideByZero))
       | (n, m) => BoxedValue(IntLit(n mod m))
       }
-    | _ => Indet(d)
+    | (BoxedValue(d1') | Indet(d1'), BoxedValue(d2') | Indet(d2')) =>
+      Indet(ApBuiltin(ident, [d1', d2']))
     };
 
   /* PI implementation. */
