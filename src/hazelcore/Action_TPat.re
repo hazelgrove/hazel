@@ -147,7 +147,7 @@ let rec perform =
         Succeeded((ZTPat.place_before(EmptyHole), u_gen));
       } else {
         let tp = TPat.of_string(new_name);
-        Succeeded((CursorP(OnText(k - 1), tp), u_gen));
+        Succeeded((CursorP(OnText(k), tp), u_gen));
       };
     }
 
