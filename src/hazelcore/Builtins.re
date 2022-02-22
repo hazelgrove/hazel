@@ -93,8 +93,8 @@ module Impl = {
     let fn = (args, evaluate) => {
       switch (args) {
       | [d1] =>
-        let d1' = evaluate(d1);
-        fn(ident, d1');
+        let r1 = evaluate(d1);
+        fn(ident, r1);
       | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
       };
     };
@@ -116,9 +116,9 @@ module Impl = {
     let fn = (args, evaluate) => {
       switch (args) {
       | [d1, d2] =>
-        let d1' = evaluate(d1);
-        let d2' = evaluate(d2);
-        fn(ident, d1', d2');
+        let r1 = evaluate(d1);
+        let r2 = evaluate(d2);
+        fn(ident, r1, r2);
       | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
       };
     };
@@ -131,36 +131,36 @@ module Impls = {
   open EvaluatorResult;
 
   /* int_of_float implementation. */
-  let int_of_float = (ident, d1') =>
-    switch (d1') {
+  let int_of_float = (ident, r1) =>
+    switch (r1) {
     | BoxedValue(FloatLit(f)) =>
       let i = int_of_float(f);
       BoxedValue(IntLit(i));
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(ApBuiltin(ident, [d1']))
+    | BoxedValue(d1)
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
   /* float_of_int implementation. */
-  let float_of_int = (ident, d1') =>
-    switch (d1') {
+  let float_of_int = (ident, r1) =>
+    switch (r1) {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
       BoxedValue(FloatLit(f));
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(ApBuiltin(ident, [d1']))
+    | BoxedValue(d1)
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
   /* mod implementation */
-  let int_mod = (ident, d1', d2') =>
-    switch (d1', d2') {
-    | (BoxedValue(IntLit(n) as d1'), BoxedValue(IntLit(m) as d2')) =>
+  let int_mod = (ident, r1, r2) =>
+    switch (r1, r2) {
+    | (BoxedValue(IntLit(n) as d1), BoxedValue(IntLit(m) as d2)) =>
       switch (n, m) {
       | (_, 0) =>
-        Indet(InvalidOperation(ApBuiltin(ident, [d1', d2']), DivideByZero))
+        Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
       | (n, m) => BoxedValue(IntLit(n mod m))
       }
-    | (BoxedValue(d1') | Indet(d1'), BoxedValue(d2') | Indet(d2')) =>
-      Indet(ApBuiltin(ident, [d1', d2']))
+    | (BoxedValue(d1) | Indet(d1), BoxedValue(d2) | Indet(d2)) =>
+      Indet(ApBuiltin(ident, [d1, d2]))
     };
 
   /* PI implementation. */
