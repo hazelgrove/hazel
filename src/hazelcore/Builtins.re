@@ -13,19 +13,24 @@ open Sexplib.Std;
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type form = (
-  /* eval: */ (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t,
-  /* elab: */ DHExp.t,
-);
+type eval = (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
 
 [@deriving sexp]
-type t = (Var.t, HTyp.t, form);
+type elab = DHExp.t;
+
+[@deriving sexp]
+type t = {
+  ident: Var.t,
+  ty: HTyp.t,
+  eval,
+  elab,
+};
 
 module Impl = {
+  type evaluate = DHExp.t => EvaluatorResult.t;
+
   [@deriving sexp]
-  type f =
-    (/* args: */ args, /* evaluate: */ DHExp.t => EvaluatorResult.t) =>
-    EvaluatorResult.t;
+  type f = (/* args: */ args, /* evaluate: */ evaluate) => EvaluatorResult.t;
 
   /*
      Build the elaborated DHExp for a built-in function.
@@ -62,7 +67,7 @@ module Impl = {
     let eval = (args, evaluate) => fn(args, evaluate);
     let elab = mk_elab(ident, ty);
 
-    (ident, ty, (eval, elab));
+    {ident, ty, eval, elab};
   };
 
   /*
@@ -174,8 +179,12 @@ let builtins = [
   Impl.mk_two("mod", Arrow(Int, Arrow(Int, Int)), Impls.int_mod),
 ];
 
-let ctx = List.map(((ident, ty, _)) => (ident, ty), builtins);
-let forms = List.map(((ident, _, form)) => (ident, form), builtins);
+let ctx = List.map(({ident, ty, _}) => (ident, ty), builtins);
+let forms =
+  List.map(
+    ({ident, ty: _ty, eval, elab}) => (ident, (eval, elab)),
+    builtins,
+  );
 
 let lookup_type = VarMap.lookup(ctx);
 let lookup_form = VarMap.lookup(forms);

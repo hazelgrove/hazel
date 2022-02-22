@@ -1,21 +1,28 @@
 [@deriving sexp]
-type form = (
-  /* eval: */ (list(DHExp.t), DHExp.t => EvaluatorResult.t) =>
-              EvaluatorResult.t,
-  /* elab: */ DHExp.t,
-);
+type args = list(DHExp.t);
 
 [@deriving sexp]
-type t = (Var.t, HTyp.t, form);
+type eval = (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+
+[@deriving sexp]
+type elab = DHExp.t;
+
+[@deriving sexp]
+type t = {
+  ident: Var.t,
+  ty: HTyp.t,
+  eval,
+  elab,
+};
 
 /* Context of built-in functions. */
 let ctx: VarCtx.t;
 
 /* Map of built-in function names to implementations. */
-let forms: VarMap.t_(form);
+let forms: VarMap.t_((eval, elab));
 
 /* Lookup the type of a built-in function. */
 let lookup_type: Var.t => option(HTyp.t);
 
 /* Lookup the implementation of a built-in function. */
-let lookup_form: Var.t => option(form);
+let lookup_form: Var.t => option((eval, elab));
