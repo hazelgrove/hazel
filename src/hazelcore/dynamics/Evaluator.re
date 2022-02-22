@@ -397,9 +397,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | ApBuiltin(x', args) =>
+  | ApBuiltin(ident, args) =>
     let args = List.map(subst_var(d1, x), args);
-    ApBuiltin(x', args);
+    ApBuiltin(ident, args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -571,7 +571,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
-  | ApBuiltin(x, args) => evaluate_ap_builtin(x, args)
+  | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
