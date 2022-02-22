@@ -98,10 +98,12 @@ let rec normalized_equivalent = (ty: t, ty': t): bool =>
 /* type consistency for normalized types is context independent */
 let rec normalized_consistent = (ty: t, ty': t): bool =>
   switch (ty, ty') {
-  | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
-  | (TyVar(_), _) => false
-  | (TyVarHole(_) | Hole, _)
-  | (_, TyVarHole(_) | Hole) => true
+  | (TyVar(i, _), TyVar(i', _)) =>
+    // normalization eliminates all type variables of singleton kind, so these
+    // must be of kind Type or KHole
+    Index.equal(i, i')
+  | (TyVar(_) | TyVarHole(_) | Hole, _)
+  | (_, TyVar(_) | TyVarHole(_) | Hole) => true
   | (Int | Float | Bool, _) => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
@@ -139,7 +141,8 @@ let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
 let matched_arrow = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
-  | TyVarHole(_) => Some((Hole, Hole))
+  | TyVarHole(_)
+  | TyVar(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None
   };
