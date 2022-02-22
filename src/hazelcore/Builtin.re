@@ -18,6 +18,7 @@ type t = {
 };
 
 module Impl = {
+  /* Evaluator alias. */
   [@deriving sexp]
   type evaluate = DHExp.t => EvaluatorResult.t;
 

@@ -837,7 +837,7 @@ and ana_elab_rule =
 /* Bind built-ins before an elaborated expression. */
 let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   List.fold_left(
-    (d', (x, (_, elab))) => DHExp.Let(Var(x), elab, d'),
+    (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
     d,
     Builtins.forms,
   );
