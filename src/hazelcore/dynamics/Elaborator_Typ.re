@@ -21,15 +21,15 @@ and syn_elab_skel = (tyvars, delta, skel, seq) =>
   | BinOp(_, Prod, _, _) =>
     let skels = get_prod_elements(skel);
     let+ (tys, deltas) =
-      List.fold_left(
-        (acc_opt, skel) => {
+      List.fold_right(
+        (skel, acc_opt) => {
           let* (tys, deltas) = acc_opt;
           let+ (ty, _, delta) =
             ana_elab_skel(tyvars, delta, skel, seq, Kind.Type);
           ([ty, ...tys], [delta, ...deltas]);
         },
-        Some(([], [])),
         skels,
+        Some(([], [])),
       );
     let delta =
       deltas |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
