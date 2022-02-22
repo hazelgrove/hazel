@@ -63,7 +63,10 @@ and syn_elab_operand =
   | Float => const(Float)
   | Bool => const(Bool)
   | Parenthesized(ty) => syn_elab(tyvars, delta, ty)
-  | List(ty) => syn_elab(tyvars, delta, ty)
+  | List(ty) =>
+    let+ (ty_elt, _, delta) = syn_elab(tyvars, delta, ty);
+    let ty = HTyp.List(ty_elt);
+    (ty, Kind.Singleton(ty), delta);
   };
 }
 
