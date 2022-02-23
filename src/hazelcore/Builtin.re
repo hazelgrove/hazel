@@ -49,9 +49,6 @@ let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
   mk_elab_inner(ty, 0, []);
 };
 
-/*
-   Create a built-in function.
- */
 let mk = (ident: Var.t, ty: HTyp.t, eval: eval): t => {
   let elab = mk_elab(ident, ty);
   {ident, ty, eval, elab};

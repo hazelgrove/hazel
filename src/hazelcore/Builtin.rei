@@ -16,6 +16,11 @@ type t = {
 };
 
 /*
+   Create a built-in function.
+ */
+let mk: (Var.t, HTyp.t, eval) => t;
+
+/*
    Create a built-in constant.
  */
 let mk_zero: (Var.t, HTyp.t, DHExp.t) => t;
