@@ -1,10 +1,14 @@
 open Sexplib.Std;
 
+/* Evaluator alias. */
+[@deriving sexp]
+type evaluate = DHExp.t => EvaluatorResult.t;
+
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval = (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+type eval = (args, evaluate) => EvaluatorResult.t;
 
 [@deriving sexp]
 type elab = DHExp.t;
@@ -17,49 +21,40 @@ type t = {
   elab,
 };
 
-module Impl = {
-  /* Evaluator alias. */
-  [@deriving sexp]
-  type evaluate = DHExp.t => EvaluatorResult.t;
+/*
+   Build the elaborated DHExp for a built-in function.
 
-  [@deriving sexp]
-  type f = (args, evaluate) => EvaluatorResult.t;
-
-  /*
-     Build the elaborated DHExp for a built-in function.
-
-     For example:
-       mk_elab("mod", Arrow(Int, Arrow(Int, Int)))
-         =>
-          Lam("x0", Arrow(Int, Arrow(Int, Int)),
-            Lam("x1", Arrow(Int, Int),
-              Apbuilt-in("mod", [BoundVar("x0"), BoundVar("x1")])
-            )
-          )
-   */
-  let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
-    let rec mk_elab_inner =
-            (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
-      switch (ty') {
-      | Arrow(_, ty'') =>
-        let var = "x" ++ string_of_int(n);
-        Lam(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
-      | _ =>
-        let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
-        ApBuiltin(ident, bindings);
-      };
+   For example:
+   mk_elab("mod", Arrow(Int, Arrow(Int, Int)))
+   =>
+   Lam("x0", Arrow(Int, Arrow(Int, Int)),
+   Lam("x1", Arrow(Int, Int),
+   Apbuilt-in("mod", [BoundVar("x0"), BoundVar("x1")])
+   )
+   )
+ */
+let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
+  let rec mk_elab_inner =
+          (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
+    switch (ty') {
+    | Arrow(_, ty'') =>
+      let var = "x" ++ string_of_int(n);
+      Lam(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
+    | _ =>
+      let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
+      ApBuiltin(ident, bindings);
     };
-
-    mk_elab_inner(ty, 0, []);
   };
 
-  /*
-     Create a built-in function.
-   */
-  let mk = (ident: Var.t, ty: HTyp.t, eval: f): t => {
-    let elab = mk_elab(ident, ty);
-    {ident, ty, eval, elab};
-  };
+  mk_elab_inner(ty, 0, []);
+};
+
+/*
+   Create a built-in function.
+ */
+let mk = (ident: Var.t, ty: HTyp.t, eval: eval): t => {
+  let elab = mk_elab(ident, ty);
+  {ident, ty, eval, elab};
 };
 
 let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
@@ -70,7 +65,7 @@ let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
     };
   };
 
-  Impl.mk(ident, ty, fn);
+  mk(ident, ty, fn);
 };
 
 let mk_one =
@@ -89,7 +84,7 @@ let mk_one =
     };
   };
 
-  Impl.mk(ident, ty, fn);
+  mk(ident, ty, fn);
 };
 
 let mk_two =
@@ -109,5 +104,5 @@ let mk_two =
     };
   };
 
-  Impl.mk(ident, ty, fn);
+  mk(ident, ty, fn);
 };
