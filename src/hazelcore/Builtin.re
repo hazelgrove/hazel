@@ -56,10 +56,8 @@ module Impl = {
   /*
      Create a built-in function.
    */
-  let mk = (ident: Var.t, ty: HTyp.t, fn: f): t => {
-    let eval = (args, evaluate) => fn(args, evaluate);
+  let mk = (ident: Var.t, ty: HTyp.t, eval: f): t => {
     let elab = mk_elab(ident, ty);
-
     {ident, ty, eval, elab};
   };
 };
