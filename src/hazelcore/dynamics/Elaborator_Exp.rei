@@ -11,3 +11,5 @@ module ElaborationResult: {
 let syn_elab: (Contexts.t, Delta.t, UHExp.t) => ElaborationResult.t;
 
 let ana_elab: (Contexts.t, Delta.t, UHExp.t, HTyp.t) => ElaborationResult.t;
+
+let elab: (Contexts.t, Delta.t, UHExp.t) => ElaborationResult.t;

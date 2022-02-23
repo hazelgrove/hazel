@@ -1,9 +1,4 @@
 [@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
-[@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
@@ -205,6 +200,7 @@ and matches_cast_Inj =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -270,6 +266,7 @@ and matches_cast_Pair =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -341,6 +338,7 @@ and matches_cast_Cons =
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -399,6 +397,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | ApBuiltin(ident, args) =>
+    let args = List.map(subst_var(d1, x), args);
+    ApBuiltin(ident, args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -493,7 +494,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoxedValue(BoolLit(true)))
   | (And, false) => Some(BoxedValue(BoolLit(false)))
@@ -525,7 +526,7 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (d: DHExp.t): result =>
+let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   switch (d) {
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
@@ -570,6 +571,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
+  | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
@@ -771,7 +773,7 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : result =>
+    : EvaluatorResult.t =>
   switch (evaluate(scrut)) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
@@ -797,4 +799,12 @@ and evaluate_case =
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
+  }
+/* Evaluate the application of a built-in function. */
+and evaluate_ap_builtin =
+    (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
+  switch (Builtins.lookup_form(ident)) {
+  | Some((eval, _)) => eval(args, evaluate)
+  | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
   };
+};
