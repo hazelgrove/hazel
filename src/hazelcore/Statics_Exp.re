@@ -220,7 +220,7 @@ and ana_splice_map =
       Contexts.extend_gamma(splice_ctx, (splice_var, ty));
     },
     splice_map,
-    Some(Contexts.empty),
+    Some(Contexts.initial),
   )
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
