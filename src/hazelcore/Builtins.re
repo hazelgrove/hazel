@@ -16,7 +16,8 @@ module Impls = {
     | BoxedValue(FloatLit(f)) =>
       let i = int_of_float(f);
       BoxedValue(IntLit(i));
-    | BoxedValue(d1)
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
@@ -26,21 +27,33 @@ module Impls = {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
       BoxedValue(FloatLit(f));
-    | BoxedValue(d1)
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
   /* mod implementation */
   let int_mod = (ident, r1, r2) =>
-    switch (r1, r2) {
-    | (BoxedValue(IntLit(n) as d1), BoxedValue(IntLit(m) as d2)) =>
-      switch (n, m) {
-      | (_, 0) =>
-        Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
-      | (n, m) => BoxedValue(IntLit(n mod m))
+    switch (r1) {
+    | BoxedValue(IntLit(n) as d1) =>
+      switch (r2) {
+      | BoxedValue(IntLit(m) as d2) =>
+        switch (n, m) {
+        | (_, 0) =>
+          Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
+        | (n, m) => BoxedValue(IntLit(n mod m))
+        }
+      | BoxedValue(d2) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
       }
-    | (BoxedValue(d1) | Indet(d1), BoxedValue(d2) | Indet(d2)) =>
-      Indet(ApBuiltin(ident, [d1, d2]))
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+    | Indet(d1) =>
+      switch (r2) {
+      | BoxedValue(d2)
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      }
     };
 
   /* PI implementation. */
