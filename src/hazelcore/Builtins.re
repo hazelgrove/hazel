@@ -180,7 +180,7 @@ let builtins: list(Builtin.t) = [
     Arrow(Bool, String),
     Impls.bool_of_string,
   ),
-  Builtin.mk_one("string_length", Arrow(String, Int), Impls.string_length),
+  Builtin.mk_one("length", Arrow(String, Int), Impls.string_length),
 ];
 
 let ctx: VarCtx.t =
