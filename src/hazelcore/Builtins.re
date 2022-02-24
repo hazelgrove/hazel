@@ -56,6 +56,99 @@ module Impls = {
       }
     };
 
+  let string_of_int = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(IntLit(i)) =>
+      let s = string_of_int(i) |> UnescapedString.from_string_unchecked;
+      BoxedValue(StringLit(s, []));
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let string_of_float = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(FloatLit(f)) =>
+      let s = string_of_float(f) |> UnescapedString.from_string_unchecked;
+      BoxedValue(StringLit(s, []));
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let string_of_bool = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(BoolLit(b)) =>
+      let s = string_of_bool(b) |> UnescapedString.from_string_unchecked;
+      BoxedValue(StringLit(s, []));
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let int_of_string = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(StringLit(s, errors) as d1) =>
+      switch (errors) {
+      | [] =>
+        let s = s |> UnescapedString.to_string;
+        switch (int_of_string_opt(s)) {
+        | Some(i) => BoxedValue(IntLit(i))
+        | None => Indet(InvalidOperation(d1, InvalidIntOfString))
+        };
+      | _ => Indet(InvalidOperation(d1, InvalidIntOfString))
+      }
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let float_of_string = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(StringLit(s, errors) as d1) =>
+      switch (errors) {
+      | [] =>
+        let s = s |> UnescapedString.to_string;
+        switch (float_of_string_opt(s)) {
+        | Some(f) => BoxedValue(FloatLit(f))
+        | None => Indet(InvalidOperation(d1, InvalidFloatOfString))
+        };
+      | _ => Indet(InvalidOperation(d1, InvalidFloatOfString))
+      }
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let bool_of_string = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(StringLit(s, errors) as d1) =>
+      switch (errors) {
+      | [] =>
+        let s = s |> UnescapedString.to_string;
+        switch (bool_of_string_opt(s)) {
+        | Some(b) => BoxedValue(BoolLit(b))
+        | None => Indet(InvalidOperation(d1, InvalidBoolOfString))
+        };
+      | _ => Indet(InvalidOperation(d1, InvalidBoolOfString))
+      }
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
+  let string_length = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(StringLit(s, errors) as d1) =>
+      switch (errors) {
+      | [] => BoxedValue(IntLit(UnescapedString.length(s)))
+      | _ => Indet(d1)
+      }
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
+
   /* PI implementation. */
   let pi = DHExp.FloatLit(Float.pi);
 };
@@ -65,6 +158,29 @@ let builtins: list(Builtin.t) = [
   Builtin.mk_one("int_of_float", Arrow(Float, Int), Impls.int_of_float),
   Builtin.mk_one("float_of_int", Arrow(Int, Float), Impls.float_of_int),
   Builtin.mk_two("mod", Arrow(Int, Arrow(Int, Int)), Impls.int_mod),
+  Builtin.mk_one("string_of_int", Arrow(Int, String), Impls.string_of_int),
+  Builtin.mk_one(
+    "string_of_float",
+    Arrow(Float, String),
+    Impls.string_of_float,
+  ),
+  Builtin.mk_one(
+    "string_of_bool",
+    Arrow(Bool, String),
+    Impls.string_of_bool,
+  ),
+  Builtin.mk_one("int_of_string", Arrow(Int, String), Impls.int_of_string),
+  Builtin.mk_one(
+    "float_of_string",
+    Arrow(Float, String),
+    Impls.float_of_string,
+  ),
+  Builtin.mk_one(
+    "bool_of_string",
+    Arrow(Bool, String),
+    Impls.bool_of_string,
+  ),
+  Builtin.mk_one("string_length", Arrow(String, Int), Impls.string_length),
 ];
 
 let ctx: VarCtx.t =
