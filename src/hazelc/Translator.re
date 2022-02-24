@@ -31,6 +31,7 @@ let rec translate_exp = (d: IHExp.t) => {
     )
   | Ap(d1, d2) =>
     Printf.sprintf("%s(%s)", translate_exp(d1), translate_exp(d2))
+  | ApBuiltin(_, _) => raise(NotImplemented)
   | BoolLit(b) => b ? "true" : "false"
   | IntLit(i) => sprintf("%i", i)
   | FloatLit(f) => sprintf("%f", f)

@@ -44,8 +44,7 @@ let parse = lexbuf => {
   };
 };
 
-// TODO: Update this when builtin-fns branch is merged.
-let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
+let elaborate = Elaborator_Exp.syn_elab(Contexts.initial, Delta.empty);
 
 let transform = Transformer.transform;
 

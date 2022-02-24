@@ -59,6 +59,7 @@ type t =
   | RecFun(Var.t, HTyp.t, IHPat.t, t)
   | Lam(IHPat.t, HTyp.t, t)
   | Ap(t, t)
+  | ApBuiltin(Var.t, list(t))
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
