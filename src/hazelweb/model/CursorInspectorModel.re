@@ -12,7 +12,7 @@ type t = {
 };
 
 let init = {
-  visible: true,
+  visible: false,
   show_expanded: false,
   novice_mode: true,
   strategy_guide: false,

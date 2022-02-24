@@ -24,8 +24,7 @@ let update_textbox_value = (text_box_id, str) => {
 let ast_from_textbox = text_box_id => {
   let elem = JSUtil.force_get_elem_by_id(text_box_id);
   let cur_text = JSUtil.force_get_attr("value", elem);
-  let lexbuf = Lexing.from_string(cur_text);
-  Parsing.ast_of_lexbuf(lexbuf);
+  Parsing.ast_of_string(cur_text);
 };
 
 let set_errors_text = str => {

@@ -34,7 +34,7 @@ let ast_of_lexbuf l =
   try
     Ok
       ( parse l (Parse.Incremental.main l.lex_curr_p)
-      |> Statics_Exp.fix_and_renumber_holes Contexts.empty
+      |> Statics_Exp.fix_and_renumber_holes Contexts.initial
       |> fun (ast, _, _) -> ast )
   with
   | SyntaxError (Some (line, col), tok) ->
