@@ -129,10 +129,10 @@ exp_line:
 line:
   COMMENT { UHExp.CommentLine $1 }
   | EMPTY { UHExp.EmptyLine }
-  | let_binding { $1 }
+  | let_line { $1 }
 ;
 
-let_binding:
+let_line:
   LET pat EQUAL block IN { mk_let_line $2 $4 }
 ;
 
@@ -147,11 +147,7 @@ typ_:
   | LBRACK typ RBRACK { mk_typ_list $2 }
 ;
 
-typ_annotation:
-  pat_ COLON typ { mk_typ_ann $1 $3 }
-;
-
-atomic_type:
+%inline atomic_type:
   IDENT {
     match $1 with
     | "Int" -> UHTyp.Int
@@ -195,6 +191,10 @@ pat_:
   | FLOAT { UHPat.floatlit $1 }
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
+;
+
+typ_annotation:
+  pat_ COLON typ { mk_typ_ann $1 $3 }
 ;
 
 expr:
