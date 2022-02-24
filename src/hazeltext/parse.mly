@@ -53,41 +53,52 @@
   let mk_empty_list = UHExp.listnil ()
 %}
 
-%token LET
-%token IN
-%token <string> INT
-%token <string> FLOAT
-%token TRUE FALSE
-%token PLUS MINUS
-%token MULT DIV
-%token FPLUS FMINUS
-%token FMULT FDIV
+%token ARROW
+%token BAR
+%token CASE
 %token COLON
 %token COLONCOLON
-%token SEMICOLON
+%token COMMA
+%token <string> COMMENT
+%token DIV
+%token EMPTY
+%token EMPTY_HOLE
+%token END
+%token EOF
 %token EQUAL
 %token EQUALEQUAL
+%token FALSE
+%token FDIV
 %token FEQUALEQUAL
-%token GREATER LESSER
-%token FGREATER FLESSER
-%token PERIOD
-%token COMMA
-%token INJL INJR
-%token EOF
+%token FGREATER
+%token FLESSER
+%token <string> FLOAT
+%token FMINUS
+%token FMULT
+%token FPLUS
+%token GREATER
 %token <string> IDENT
-%token LPAREN RPAREN
-%token LBRACE RBRACE
-%token LBRACK RBRACK
-%token EMPTY_HOLE
+%token IN
+%token INJL
+%token INJR
+%token <string> INT
 %token LAMBDA
-%token WILD
-%token CASE
-%token BAR
-%token ARROW
+%token LBRACE
+%token LBRACK
+%token LESSER
+%token LET
+%token LPAREN
+%token MINUS
+%token MULT
+%token PERIOD
+%token PLUS
+%token RBRACE
+%token RBRACK
+%token RPAREN
+%token SEMICOLON
 %token TARROW
-%token END
-%token <string> COMMENT
-%token EMPTY
+%token TRUE
+%token WILD
 
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
