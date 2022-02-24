@@ -5,7 +5,7 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  import_popup_open: bool,
+  text_editor_popup_open: bool,
   font_metrics: FontMetrics.t,
   /**
    * Preview on undo history entry mainly implemented by
@@ -74,7 +74,7 @@ let toggle_right_sidebar: t => t;
 /**
  * Show/hide import popup
  */
-let toggle_import_popup: t => t;
+let toggle_text_editor_popup: t => t;
 
 /**
  * Load in imported text
