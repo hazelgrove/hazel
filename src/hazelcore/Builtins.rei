@@ -1,12 +1,11 @@
-module Impl: {
-  [@deriving sexp]
-  type t = (list(DHExp.t), DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
-};
-
+/* Context of built-in functions. */
 let ctx: VarCtx.t;
 
-let impls: VarMap.t_(Impl.t);
+/* Map of built-in function names to implementations. */
+let forms: VarMap.t_((Builtin.eval, Builtin.elab));
 
-let lookup_type: string => option(HTyp.t);
+/* Lookup the type of a built-in function. */
+let lookup_type: Var.t => option(HTyp.t);
 
-let lookup_impl: string => option(Impl.t);
+/* Lookup the implementation of a built-in function. */
+let lookup_form: Var.t => option((Builtin.eval, Builtin.elab));

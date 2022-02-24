@@ -1,169 +1,79 @@
-open EvaluatorResult;
+/*
+   Built-in functions for Hazel.
 
-module Impl = {
-  [@deriving sexp]
-  type t = (list(DHExp.t), DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+   To add a built-in function or constant, write the implementation in the
+   `Impls` module below and add it to the `builtins` list.
 
-  let mk_one_arg = (f, ident, args, evaluate) => {
-    let e = DHExp.ApBuiltin(ident, args);
-    switch (args) {
-    | [] => Indet(e)
-    | [d1, ..._] =>
-      let d1' = evaluate(d1);
-      f(d1', e);
+   See the existing ones for reference.
+ */
+
+module Impls = {
+  open EvaluatorResult;
+
+  /* int_of_float implementation. */
+  let int_of_float = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(FloatLit(f)) =>
+      let i = int_of_float(f);
+      BoxedValue(IntLit(i));
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
-  };
 
-  let int_of_float =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(FloatLit(f)) =>
-          let i = int_of_float(f);
-          BoxedValue(IntLit(i));
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
+  /* float_of_int implementation. */
+  let float_of_int = (ident, r1) =>
+    switch (r1) {
+    | BoxedValue(IntLit(i)) =>
+      let f = float_of_int(i);
+      BoxedValue(FloatLit(f));
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    };
 
-  let float_of_int =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(IntLit(i)) =>
-          let f = float_of_int(i);
-          BoxedValue(FloatLit(f));
-        | _ => Indet(e)
+  /* mod implementation */
+  let int_mod = (ident, r1, r2) =>
+    switch (r1) {
+    | BoxedValue(IntLit(n) as d1) =>
+      switch (r2) {
+      | BoxedValue(IntLit(m) as d2) =>
+        switch (n, m) {
+        | (_, 0) =>
+          Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
+        | (n, m) => BoxedValue(IntLit(n mod m))
         }
-    )
-    |> mk_one_arg;
+      | BoxedValue(d2) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      }
+    | BoxedValue(d1) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+    | Indet(d1) =>
+      switch (r2) {
+      | BoxedValue(d2)
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      }
+    };
 
-  let string_of_int =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(IntLit(i)) =>
-          let s = string_of_int(i) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s, []));
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let string_of_float =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(FloatLit(f)) =>
-          let s = string_of_float(f) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s, []));
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let string_of_bool =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(BoolLit(b)) =>
-          let s = string_of_bool(b) |> UnescapedString.from_string_unchecked;
-          BoxedValue(StringLit(s, []));
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let int_of_string =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(StringLit(s, errors)) =>
-          switch (errors) {
-          | [] =>
-            let s = s |> UnescapedString.to_string;
-            switch (int_of_string_opt(s)) {
-            | Some(i) => BoxedValue(IntLit(i))
-            | None => Indet(InvalidOperation(e, InvalidIntOfString))
-            };
-          | _ => Indet(InvalidOperation(e, InvalidIntOfString))
-          }
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let float_of_string =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(StringLit(s, errors)) =>
-          switch (errors) {
-          | [] =>
-            let s = s |> UnescapedString.to_string;
-            switch (float_of_string_opt(s)) {
-            | Some(f) => BoxedValue(FloatLit(f))
-            | None => Indet(InvalidOperation(e, InvalidFloatOfString))
-            };
-          | _ => Indet(InvalidOperation(e, InvalidFloatOfString))
-          }
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let bool_of_string =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(StringLit(s, errors)) =>
-          switch (errors) {
-          | [] =>
-            let s = s |> UnescapedString.to_string;
-            switch (bool_of_string_opt(s)) {
-            | Some(b) => BoxedValue(BoolLit(b))
-            | None => Indet(InvalidOperation(e, InvalidBoolOfString))
-            };
-          | _ => Indet(InvalidOperation(e, InvalidBoolOfString))
-          }
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
-
-  let string_length =
-    (
-      (d1', e) =>
-        switch (d1') {
-        | BoxedValue(StringLit(s, errors) as d1') =>
-          switch (errors) {
-          | [] => BoxedValue(IntLit(UnescapedString.length(s)))
-          | _ => Indet(d1')
-          }
-        | _ => Indet(e)
-        }
-    )
-    |> mk_one_arg;
+  /* PI implementation. */
+  let pi = DHExp.FloatLit(Float.pi);
 };
 
-let builtins: VarMap.t_((HTyp.t, string => Impl.t)) = [
-  ("int_of_float", (Arrow(Float, Int), Impl.int_of_float)),
-  ("float_of_int", (Arrow(Int, Float), Impl.float_of_int)),
-  ("string_of_int", (Arrow(Int, String), Impl.string_of_int)),
-  ("int_of_string", (Arrow(String, Int), Impl.int_of_string)),
-  ("string_of_float", (Arrow(Float, String), Impl.string_of_float)),
-  ("float_of_string", (Arrow(String, Float), Impl.float_of_string)),
-  ("string_of_bool", (Arrow(Bool, String), Impl.string_of_bool)),
-  ("bool_of_string", (Arrow(String, Bool), Impl.bool_of_string)),
-  ("length", (Arrow(String, Int), Impl.string_length)),
+let builtins: list(Builtin.t) = [
+  Builtin.mk_zero("PI", Float, Impls.pi),
+  Builtin.mk_one("int_of_float", Arrow(Float, Int), Impls.int_of_float),
+  Builtin.mk_one("float_of_int", Arrow(Int, Float), Impls.float_of_int),
+  Builtin.mk_two("mod", Arrow(Int, Arrow(Int, Int)), Impls.int_mod),
 ];
 
-let ctx: VarCtx.t = List.map(((x, (ty, _))) => (x, ty), builtins);
+let ctx: VarCtx.t =
+  List.map(({ident, ty, _}: Builtin.t) => (ident, ty), builtins);
+let forms =
+  List.map(
+    ({ident, ty: _ty, eval, elab}: Builtin.t) => (ident, (eval, elab)),
+    builtins,
+  );
 
-let impls: VarMap.t_(Impl.t) =
-  List.map(((x, (_, impl))) => (x, impl(x)), builtins);
-
-let lookup_type = x => VarMap.lookup(ctx, x);
-
-let lookup_impl = x =>
-  VarMap.lookup(builtins, x) |> Option.map(((_, impl)) => impl(x));
+let lookup_type = VarMap.lookup(ctx);
+let lookup_form = VarMap.lookup(forms);

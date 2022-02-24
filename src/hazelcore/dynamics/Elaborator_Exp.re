@@ -883,20 +883,18 @@ and ana_elab_rule =
   };
 };
 
+/* Bind built-ins before an elaborated expression. */
+let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
+  List.fold_left(
+    (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
+    d,
+    Builtins.forms,
+  );
+
 let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
   switch (syn_elab(ctx, delta, e)) {
   | Elaborates(d, ty, delta) =>
-    let d' =
-      List.fold_left(
-        (d', (x, _)) =>
-          DHExp.Let(
-            Var(x),
-            Lam(Var("x"), ty, ApBuiltin(x, [BoundVar("x")])),
-            d',
-          ),
-        d,
-        Builtins.impls,
-      );
+    let d' = elab_wrap_builtins(d);
     Elaborates(d', ty, delta);
   | DoesNotElaborate => DoesNotElaborate
   };
