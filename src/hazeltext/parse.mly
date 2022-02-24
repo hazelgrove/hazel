@@ -48,12 +48,9 @@
     let pat = UHPat.mk_OpSeq pat in
     UHExp.Rule(pat, expr)
 
-  let mk_case expr rules =
-    let e = UHExp.case expr rules in
-    Seq.wrap e
+  let mk_case expr rules = UHExp.case expr rules
 
-  let mk_empty_list =
-    Seq.wrap (UHExp.listnil ())
+  let mk_empty_list = UHExp.listnil ()
 %}
 
 %token LET
@@ -110,7 +107,7 @@ main:
 ;
 
 block:
-  | exp_line { [$1] }
+  exp_line { [$1] }
   | line block { $1::$2 }
   | exp_line SEMICOLON block { $1::$3 }
 ;
@@ -190,16 +187,16 @@ pat_:
 ;
 
 expr:
-  simple_expr { Seq.wrap $1 }
-  | CASE block rule+ END { mk_case $2 $3 }
-  | simple_expr simple_expr+ { mk_application $1 $2 }
+  expr_ { Seq.wrap $1 }
+  | expr_ expr_+ { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
-  | LBRACK RBRACK { mk_empty_list }
 ;
 
-simple_expr:
-  LPAREN block RPAREN { UHExp.Parenthesized($2) }
+expr_:
+  LBRACK RBRACK { mk_empty_list }
+  | CASE block rule+ END { mk_case $2 $3 }
+  | LPAREN block RPAREN { UHExp.Parenthesized($2) }
   | expr_constant { $1 }
   | IDENT {
     if Var.is_valid $1 then

@@ -134,3 +134,6 @@ let%test "block within case" =
      | 5 => true\n\
      | _ => false\n\
      end"
+
+let%test "case in function position" =
+  test_parse "case true\n    | true => \\f.{f+1}\n   end 2"
