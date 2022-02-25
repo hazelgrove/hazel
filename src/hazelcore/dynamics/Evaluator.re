@@ -573,7 +573,6 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
   | ListNil(_)
-  | Deferral(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

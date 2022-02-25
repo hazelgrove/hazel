@@ -50,7 +50,6 @@ module Delim = {
   };
 
   let list_nil = mk("[]");
-  let deferral = mk("~");
   let triv = mk("()");
   let wild = mk("_");
 

@@ -42,7 +42,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Deferral(_)
   | Triv => d2
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -301,7 +300,6 @@ and matches_cast_Inj =
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
-  | Deferral(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -368,7 +366,6 @@ and matches_cast_Pair =
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
-  | Deferral(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
@@ -440,7 +437,6 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
-  | Deferral(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
@@ -808,9 +804,7 @@ and syn_elab_operand =
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
-  | Deferral(NotInHole) =>
-    let elt_ty = HTyp.Hole;
-    Elaborates(Deferral(elt_ty), List(elt_ty), delta);
+  | Deferral(NotInHole) => DoesNotElaborate
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
@@ -1235,11 +1229,7 @@ and ana_elab_operand =
     | None => DoesNotElaborate
     | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
     }
-  | Deferral(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => DoesNotElaborate
-    | Some(elt_ty) => Elaborates(Deferral(elt_ty), List(elt_ty), delta)
-    }
+  | Deferral(NotInHole) => DoesNotElaborate
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -1309,7 +1299,6 @@ let rec renumber_result_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Deferral(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -1408,7 +1397,6 @@ let rec renumber_sigmas_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Deferral(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
