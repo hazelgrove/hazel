@@ -1944,22 +1944,27 @@ and syn_perform_operand =
        ));
      }; */
   | (_, CaseZE(_, zscrut, rules)) =>
+    print_endline("SYN E 1");
     switch (Statics_Exp.syn(ctx, ZExp.erase(zscrut))) {
     | None => Failed
     | Some(ty1) =>
+      print_endline("SYN E 2");
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
+        print_endline("SYN E 3");
         syn_perform_operand(
           ctx,
           Action_common.escape(side),
           (zoperand, ty, u_gen),
-        )
+        );
       | Succeeded((zscrut, ty1, u_gen)) =>
+        print_endline("SYN E 4");
         let (rules, u_gen, rule_types, common_type) =
           Statics_Exp.syn_fix_holes_rules(ctx, u_gen, rules, ty1);
         switch (common_type) {
         | None =>
+          print_endline("SYN E 5");
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
@@ -1967,6 +1972,7 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
+          print_endline("SYN E 6");
           let pats = UHExp.get_pats(rules);
           let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
           let flags = Incon.generate_redundancy_list(cons);
@@ -1996,25 +2002,30 @@ and syn_perform_operand =
           let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
-      }
-    }
+      };
+    };
   | (_, CaseZR(_, scrut, zrules)) =>
+    print_endline("SYN R 1");
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
+      print_endline("SYN R 2");
       switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
       | Failed => Failed
       | CursorEscaped(side) =>
+        print_endline("SYN R 3");
         syn_perform_operand(
           ctx,
           Action_common.escape(side),
           (zoperand, ty, u_gen),
-        )
+        );
       | Succeeded((new_zrules, u_gen)) =>
+        print_endline("SYN R 4");
         let (new_zrules, rule_types, common_type, u_gen) =
           Statics_Exp.syn_fix_holes_zrules(ctx, u_gen, new_zrules, pat_ty);
         switch (common_type) {
         | None =>
+          print_endline("SYN R 5");
           let (u, u_gen) = MetaVarGen.next(u_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
@@ -2022,6 +2033,7 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
+          print_endline("SYN R 6");
           let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
           let cons =
             Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
@@ -2052,8 +2064,8 @@ and syn_perform_operand =
           let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         };
-      }
-    }
+      };
+    };
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_rules =
@@ -3429,49 +3441,106 @@ and ana_perform_operand =
       };
     }
   | (_, CaseZE(_, zscrut, rules)) =>
+    print_endline("ANA E 1");
     switch (Statics_Exp.syn(ctx, zscrut |> ZExp.erase)) {
     | None => Failed
     | Some(ty1) =>
+      print_endline("ANA E 2");
       switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
+        print_endline("ANA E 3");
         ana_perform_operand(
           ctx,
           Action_common.escape(side),
           (zoperand, u_gen),
           ty,
-        )
+        );
       | Succeeded((zscrut, ty1, u_gen)) =>
+        print_endline("ANA E 4");
         let (rules, u_gen) =
           Statics_Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+        let pats = UHExp.get_pats(rules);
+        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
+        let flags = Incon.generate_redundancy_list(cons);
+        let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let new_rules =
+          List.map2(
+            (rule, flag) => {
+              let err = flag == 1 ? RuleErrStatus.Redundant(u) : NotRedundant;
+              UHExp.set_err_status_rule(err, rule);
+            },
+            rules,
+            flags,
           );
+        let (case_err, u_gen) =
+          if (Incon.is_exhaustive(con)) {
+            (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+          } else {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            (NotExhaustive(u), u_gen);
+          };
+        let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
         Succeeded(AnaDone((new_ze, u_gen)));
-      }
-    }
+      };
+    };
   | (_, CaseZR(_, scrut, zrules)) =>
+    print_endline("ANA R 1");
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
     | Some(pat_ty) =>
+      print_endline("ANA R 2");
       switch (ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, ty)) {
       | Failed => Failed
       | CursorEscaped(side) =>
+        print_endline("ANA R 3");
         ana_perform_operand(
           ctx,
           Action_common.escape(side),
           (zoperand, u_gen),
           ty,
-        )
+        );
       | Succeeded((new_zrules, u_gen)) =>
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+        print_endline("ANA R 4");
+        let (new_zrules, u_gen) =
+          Statics_Exp.ana_fix_holes_zrules(
+            ctx,
+            u_gen,
+            new_zrules,
+            pat_ty,
+            ty,
           );
+        let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
+        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
+        let flags = Incon.generate_redundancy_list(cons);
+        let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (new_zrules, _) =
+          List.fold_left(
+            ((rs, idx), flag) => {
+              let err =
+                if (flag == 1) {
+                  RuleErrStatus.Redundant(u);
+                } else {
+                  NotRedundant;
+                };
+              (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
+            },
+            (new_zrules, 0),
+            flags,
+          );
+        let (case_err, u_gen) =
+          if (Incon.is_exhaustive(con)) {
+            (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+          } else {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            (NotExhaustive(u), u_gen);
+          };
+        let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
         Succeeded(AnaDone((new_ze, u_gen)));
-      }
-    }
+      };
+    };
 
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)

@@ -81,6 +81,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
+  | AnaInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Analytic)
 
   | PatAnaTypeInconsistent(expected, actual)
   | PatAnaSubsumed(expected, actual) => (

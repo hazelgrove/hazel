@@ -112,6 +112,9 @@ let syn_fix_holes_zrules:
 
 let ana_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t, HTyp.t) => (ZExp.t, MetaVarGen.t);
+let ana_fix_holes_zrules:
+  (Contexts.t, MetaVarGen.t, ZExp.zrules, HTyp.t, HTyp.t) =>
+  (ZExp.zrules, MetaVarGen.t);
 
 let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);

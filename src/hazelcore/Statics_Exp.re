@@ -1428,6 +1428,29 @@ let ana_fix_holes_z =
   (ze, u_gen);
 };
 
+let ana_fix_holes_zrules =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      zrules: ZExp.zrules,
+      pat_ty: HTyp.t,
+      ty: HTyp.t,
+    )
+    : (ZExp.zrules, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zrules(zrules);
+  let rules = ZExp.erase_zrules(zrules);
+  let (rules, u_gen) = ana_fix_holes_rules(ctx, u_gen, rules, pat_ty, ty);
+  let zrules =
+    CursorPath_Exp.follow_rules(path, rules)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes_rules did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zrules, u_gen);
+};
+
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
     (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, MetaVarGen.t) =>

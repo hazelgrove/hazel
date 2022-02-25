@@ -213,6 +213,10 @@ let advanced_summary =
         syn,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | AnaInconsistentBranches(_) => [
+        ana,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
     | SynInconsistentBranchesArrow(_) => [
         syn,
         emphasize_text("Function Type"),
@@ -390,6 +394,11 @@ let novice_summary =
         message,
       )
     | SynInconsistentBranches(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
+    | AnaInconsistentBranches(_) => [
         Node.text("Got " ++ article),
         term_tag,
         emphasize_text("Inconsistent Branch Types"),
@@ -611,6 +620,7 @@ let view =
     | AnaWrongLength(_)
     | SynErrorArrow(_)
     | SynInconsistentBranches(_)
+    | AnaInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaTypeInconsistent(_)
     | PatAnaWrongLength(_) => TypeInconsistency

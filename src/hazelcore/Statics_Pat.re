@@ -759,18 +759,83 @@ and case_syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
     : option((HTyp.t, Contexts.t, Constraints.t)) =>
   case_syn_skel(ctx, skel, seq)
+
+// and syn_skel =
+//     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
+//     : option((HTyp.t, Contexts.t)) =>
+//   switch (skel) {
+//   | Placeholder(n) =>
+//     let pn = Seq.nth_operand(n, seq);
+//     syn_operand(ctx, pn);
+
+//   | BinOp(InHole(_), op, skel1, skel2) =>
+//     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+//     let+ (_, ctx) = syn_skel(ctx, skel_not_in_hole, seq);
+//     (HTyp.Hole, ctx);
+//   | BinOp(NotInHole, Comma, _, _) =>
+//     skel
+//     |> UHPat.get_tuple_elements
+//     |> ListUtil.map_with_accumulator_opt(
+//          (ctx, skel) =>
+//            syn_skel(ctx, skel, seq) |> Option.map(TupleUtil.swap),
+//          ctx,
+//        )
+//     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
+//   | BinOp(NotInHole, Space, skel1, skel2) =>
+//     let* ctx = ana_skel(ctx, skel1, seq, HTyp.Hole);
+//     let+ ctx = ana_skel(ctx, skel2, seq, HTyp.Hole);
+//     (HTyp.Hole, ctx);
+//   | BinOp(NotInHole, Cons, skel1, skel2) =>
+//     let* (ty1, ctx) = syn_skel(ctx, skel1, seq);
+//     let ty = HTyp.List(ty1);
+//     let+ ctx = ana_skel(ctx, skel2, seq, ty);
+//     (ty, ctx);
+//   }
+
 and case_syn_skel =
     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
-    : option((HTyp.t, Contexts.t, Constraints.t)) =>
+    : option((HTyp.t, Contexts.t, Constraints.t)) => {
+  print_endline("STATICS_PAT case_syn_skel");
+  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_skel(skel)));
+  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_seq(seq)));
   switch (skel) {
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
     case_syn_operand(ctx, pn);
-  | BinOp(InHole(_), _, _, _) => None // todo
-  | BinOp(NotInHole, Comma, _, _) => None // todo
-  | BinOp(NotInHole, Space, _, _) => None // todo
-  | BinOp(NotInHole, Cons, _, _) => None // todo list constr
-  }
+  | BinOp(InHole(_), op, skel1, skel2) =>
+    let+ (_, ctx) = syn_skel(ctx, BinOp(NotInHole, op, skel1, skel2), seq);
+    (HTyp.Hole, ctx, Constraints.Hole);
+  | BinOp(NotInHole, Comma, _, _) =>
+    let+ (ctx, tys_and_cons) =
+      skel
+      |> UHPat.get_tuple_elements
+      |> ListUtil.map_with_accumulator_opt(
+           (ctx, skel) => {
+             let+ (ty_elt, ctx, con_elt) = case_syn_skel(ctx, skel, seq);
+             (ctx, (ty_elt, con_elt));
+           },
+           ctx,
+         );
+    let (tys, cons) = List.split(tys_and_cons);
+    switch (cons) {
+    | [] => failwith("not implemented")
+    | [con0, ...cons] =>
+      let con =
+        List.fold_right(
+          (con, con_elt) => Constraints.Pair(con_elt, con),
+          cons,
+          con0,
+        );
+      (HTyp.Prod(tys), ctx, con);
+    };
+  | BinOp(NotInHole, Cons, skel1, skel2) =>
+    let* (ty_elt, ctx) = syn_skel(ctx, skel1, seq);
+    let* (ctx, left_con) = case_ana_skel(ctx, skel1, seq, ty_elt);
+    let+ (ctx, right_con) = case_ana_skel(ctx, skel2, seq, List(ty_elt));
+    (HTyp.List(ty_elt), ctx, Constraints.InjR(Pair(left_con, right_con)));
+  | BinOp(NotInHole, Space, _, _) => failwith("not implemented")
+  };
+}
 and case_syn_operand =
     (ctx: Contexts.t, operand: UHPat.operand)
     : option((HTyp.t, Contexts.t, Constraints.t)) =>
@@ -862,7 +927,6 @@ and case_ana_opseq =
     | [(skel, ty), ...skel_tys] =>
       switch (case_ana_skel(ctx, skel, seq, ty)) {
       | None => None
-
       | Some((ctx, con)) =>
         List.fold_left(
           (acc: option((Contexts.t, Constraints.t)), (skel, ty)) =>
