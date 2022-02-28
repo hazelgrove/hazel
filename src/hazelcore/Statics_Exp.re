@@ -30,7 +30,7 @@ let extend_let_def_ctx =
   };
 };
 
-let get_pattern_type = (ctx, UHExp.Rule(p, _)) =>
+let get_pattern_type = (ctx, UHExp.Rule(_, p, _)) =>
   p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty);
 
 let joined_pattern_type = (ctx, rules) => {
@@ -175,7 +175,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
       syn(ctx, arg);
     };
     Some(Sum(Elided(tag, ty_opt)));
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole), scrut, rules)
+  | Case(NotExhaustive(_), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
@@ -197,7 +198,7 @@ and syn_rules =
 }
 and syn_rule =
     (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
-  let Rule(p, clause) = rule;
+  let Rule(_, p, clause) = rule;
   let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
   syn(ctx, clause);
 }
@@ -348,7 +349,7 @@ and ana_operand =
       };
     | _ => None
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
@@ -382,7 +383,7 @@ and ana_rules =
 and ana_rule =
     (
       ctx: Contexts.t,
-      Rule(p, clause): UHExp.rule,
+      Rule(_, p, clause): UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
@@ -876,11 +877,35 @@ and syn_fix_holes_operand =
         HTyp.Hole,
         u_gen,
       );
-    | Some(common_type) => (
-        Case(StandardErrStatus(NotInHole), scrut, rules),
-        common_type,
-        u_gen,
-      )
+    | Some(common_type) =>
+      let pats = UHExp.get_pats(rules);
+      let cons =
+        Statics_Pat.generate_rules_constraints(ctx, pats, common_type);
+      let flags = Incon.generate_redundancy_list(cons);
+      let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let new_rules =
+        List.map2(
+          (rule, flag) => {
+            let err =
+              if (flag == 1) {
+                RuleErrStatus.Redundant(u);
+              } else {
+                NotRedundant;
+              };
+            UHExp.set_err_status_rule(err, rule);
+          },
+          rules,
+          flags,
+        );
+      let (case_err, u_gen) =
+        if (Incon.is_exhaustive(con)) {
+          (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+        } else {
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          (NotExhaustive(u), u_gen);
+        };
+      (Case(case_err, scrut, new_rules), common_type, u_gen);
     };
   };
 }
@@ -915,12 +940,12 @@ and syn_fix_holes_rule =
       pat_ty: HTyp.t,
     )
     : (UHExp.rule, MetaVarGen.t, HTyp.t) => {
-  let Rule(p, clause) = rule;
+  let Rule(err, p, clause) = rule;
   let (p, ctx, u_gen) =
     Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
   let (clause, clause_ty, u_gen) =
     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause);
-  (Rule(p, clause), u_gen, clause_ty);
+  (Rule(err, p, clause), u_gen, clause_ty);
 }
 and ana_fix_holes_rules =
     (
@@ -956,7 +981,7 @@ and ana_fix_holes_rule =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      Rule(p, clause): UHExp.rule,
+      Rule(err, p, clause): UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
@@ -965,7 +990,7 @@ and ana_fix_holes_rule =
     Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
   let (clause, u_gen) =
     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause, clause_ty);
-  (Rule(p, clause), u_gen);
+  (Rule(err, p, clause), u_gen);
 }
 and ana_fix_holes =
     (
@@ -1323,7 +1348,33 @@ and ana_fix_holes_operand =
         scrut_ty,
         ty,
       );
-    (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+    let pats = UHExp.get_pats(rules);
+    let cons = Statics_Pat.generate_rules_constraints(ctx, pats, scrut_ty);
+    let flags = Incon.generate_redundancy_list(cons);
+    let con = Statics_Pat.generate_one_constraints(ctx, pats, scrut_ty);
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let new_rules =
+      List.map2(
+        (rule, flag) => {
+          let err =
+            if (flag == 1) {
+              RuleErrStatus.Redundant(u);
+            } else {
+              NotRedundant;
+            };
+          UHExp.set_err_status_rule(err, rule);
+        },
+        rules,
+        flags,
+      );
+    let (case_err, u_gen) =
+      if (Incon.is_exhaustive(con)) {
+        (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+      } else {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (NotExhaustive(u), u_gen);
+      };
+    (Case(case_err, scrut, new_rules), u_gen);
   };
 }
 and extend_let_body_ctx =
@@ -1406,6 +1457,29 @@ let ana_fix_holes_z =
          )
        );
   (ze, u_gen);
+};
+
+let ana_fix_holes_zrules =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      zrules: ZExp.zrules,
+      pat_ty: HTyp.t,
+      ty: HTyp.t,
+    )
+    : (ZExp.zrules, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zrules(zrules);
+  let rules = ZExp.erase_zrules(zrules);
+  let (rules, u_gen) = ana_fix_holes_rules(ctx, u_gen, rules, pat_ty, ty);
+  let zrules =
+    CursorPath_Exp.follow_rules(path, rules)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes_rules did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zrules, u_gen);
 };
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */

@@ -63,18 +63,43 @@ let get_cursor_info = (program: t) => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) =
+  let (pat_err_holes, pat_var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map(hole_info =>
-         switch (CursorPath.get_sort(hole_info)) {
-         | TypHole => None
-         | TagHole(_, shape)
-         | PatHole(_, shape)
-         | ExpHole(_, shape) =>
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole
+         | TagHole(_)
+         | ExpHole(_) => None
+         | PatHole(_, shape) =>
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+           | TypeErr => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition((p: (CursorPath.pat_hole_shape, CursorPath.steps)) => {
+         let (shape, _) = p;
+         switch (shape) {
+         | CursorPath.TypeErr => true
+         | _ => false
+         };
+       })
+    |> TupleUtil.map2(List.map(snd));
+  let (exp_err_holes, exp_var_err_holes) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole
+         | TagHole(_)
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | CaseErr(_) => None
+           | RedundantRule => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
            }
          }
        )
@@ -84,12 +109,60 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
+  let (case_err_notex, case_err_incon) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole
+         | TagHole(_)
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty
+           | VarErr
+           | TypeErr
+           | RedundantRule => None
+           | CaseErr(_) => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition(
+         fun
+         | (CursorPath.CaseErr(NotExhaustive), _) => true
+         | (_case_err_incon, _) => false,
+       )
+    |> TupleUtil.map2(List.map(snd));
+  let rule_err_holes =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole
+         | TagHole(_)
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty
+           | VarErr
+           | TypeErr
+           | CaseErr(_) => None
+           | RedundantRule => Some((shape, steps))
+           }
+         }
+       )
+    |> List.map(snd);
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  {
+    rule_err_holes,
+    case_err_holes: (case_err_notex, case_err_incon),
+    current_term,
+    err_holes: pat_err_holes @ exp_err_holes,
+    var_uses,
+    var_err_holes: pat_var_err_holes @ exp_var_err_holes,
+  };
 };
 
 let rec renumber_result_only =

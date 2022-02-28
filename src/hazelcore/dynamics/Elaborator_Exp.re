@@ -380,7 +380,7 @@ and syn_elab_operand =
         Elaborates(Inj((sum_body, tag, Some(d))), Sum(sum_body), delta);
       }
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
@@ -434,7 +434,7 @@ and syn_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
@@ -658,6 +658,7 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
+  /* TODO: add support for not exhaustive */
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -845,7 +846,7 @@ and ana_elab_operand =
       }
     | _ => DoesNotElaborate
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
@@ -908,7 +909,7 @@ and ana_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>

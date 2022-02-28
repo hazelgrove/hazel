@@ -26,7 +26,7 @@ and operand =
   | Parenthesized(t)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t);
+  | Rule(RuleErrStatus.t, UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -160,7 +160,7 @@ let is_EmptyHole =
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let rule = Rule(OpSeq.wrap(p), Block.wrap(e));
+  let rule = Rule(NotRedundant, OpSeq.wrap(p), Block.wrap(e));
   (rule, u_gen);
 };
 
@@ -176,7 +176,7 @@ and get_err_status_operand =
   | EmptyHole(_)
   | InvalidText(_, _)
   | Inj(_, _, _)
-  | Case(InconsistentBranches(_), _, _) => NotInHole
+  | Case(InconsistentBranches(_) | NotExhaustive(_), _, _) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -208,6 +208,29 @@ and set_err_status_operand = (err, operand) =>
   | Inj(_, _, _) => operand
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  };
+
+let rec set_err_status_rules =
+        (err: RuleErrStatus.t, idx: int, rules: rules): rules => {
+  List.mapi(
+    (pos, rule) =>
+      if (pos == idx) {
+        set_err_status_rule(err, rule);
+      } else {
+        rule;
+      },
+    rules,
+  );
+}
+and set_err_status_rule = (err: RuleErrStatus.t, rule): rule =>
+  switch (rule) {
+  | Rule(_, pat, e) => Rule(err, pat, e)
+  };
+
+let is_inconsistent = operand =>
+  switch (operand |> get_err_status_operand) {
+  | InHole(TypeInconsistent, _) => true
+  | _ => false
   };
 
 /* put e in a new hole, if it is not already in a hole */
@@ -248,7 +271,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive(_),
       _,
       _,
     ) =>
@@ -297,7 +321,7 @@ and is_complete_block = (b: block): bool => {
 }
 and is_complete_rule = (rule: rule): bool => {
   switch (rule) {
-  | Rule(pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | Rule(_, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   };
 }
 and is_complete_rules = (rules: rules): bool => {
@@ -325,6 +349,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Inj(NotInHole, _, Some(body)) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
+  | Case(NotExhaustive(_), _, _) => false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
   | Parenthesized(body) => is_complete(body)
@@ -333,3 +358,10 @@ and is_complete_operand = (operand: 'operand): bool => {
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
 };
+
+let get_pats = (rs: rules): list(UHPat.t) =>
+  List.map(
+    fun
+    | Rule(_, pat, _) => pat,
+    rs,
+  );

@@ -304,6 +304,10 @@ let advanced_summary =
         syn,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | AnaInconsistentBranches(_) => [
+        ana,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
     | SynInconsistentBranchesArrow(_) => [
         syn,
         emphasize_text("Function Type"),
@@ -316,7 +320,9 @@ let advanced_summary =
     | OnSumBodyOperand => [emphasize_text("Sum body operand")]
     | OnSumBodyOperator => [emphasize_text("Sum body operator")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
-    | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | OnRule(NotRedundant) => /* TODO */ [emphasize_text("Rule")]
+    | OnRule(Redundant(_)) => /* TODO */ [emphasize_text("Redundant Rule")]
+    | CaseNotExhaustive(_) => [emphasize_text("Non-Exhaustive Case")]
     };
   };
   switch (typed) {
@@ -550,6 +556,11 @@ let novice_summary =
         term_tag,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | AnaInconsistentBranches(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
     | SynInconsistentBranchesArrow(_) => [
         Node.text("Expecting " ++ article),
         term_tag,
@@ -586,10 +597,14 @@ let novice_summary =
         /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
-    | OnRule => /* TODO */ [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Rule"),
+    | OnRule(Redundant(_)) => [
+        Node.text("Got a"),
+        emphasize_text("Redundant Rule"),
+      ]
+    | OnRule(NotRedundant) => [Node.text("Got a"), emphasize_text("Rule")]
+    | CaseNotExhaustive(_) => [
+        Node.text("Got a"),
+        emphasize_text("Non-Exhaustive Case"),
       ]
     };
   };
@@ -798,7 +813,7 @@ let view =
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule => OK
+    | OnRule(NotRedundant) => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | AnaInjExpectedTypeNotConsistentWithSums(_)
@@ -806,6 +821,7 @@ let view =
     | AnaInjUnexpectedArg(_)
     | SynErrorArrow(_)
     | SynInconsistentBranches(_)
+    | AnaInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaInjExpectedTypeNotConsistentWithSums(_)
     | PatAnaInjExpectedArg(_)
@@ -826,7 +842,9 @@ let view =
     | PatSynKeyword(_)
     | OnInvalidTag(_)
     | OnUnknownTag(_)
-    | OnDuplicateTag(_) => BindingError
+    | OnDuplicateTag(_)
+    | OnRule(Redundant(_))
+    | CaseNotExhaustive(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>

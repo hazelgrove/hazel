@@ -153,3 +153,50 @@ module VarErrHole = {
            ],
        );
 };
+
+module CaseErrHole = {
+  let view =
+      (
+        ~vtrim=0.,
+        reason: UHDecorationShape.CaseReason.t,
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Node.t => {
+    let class_str =
+      switch (reason) {
+      | InconsistentBranches => "case-err-hole-inconsistentbranches"
+      | NotExhaustive => "case-err-hole-notexhaustive"
+      };
+    subject
+    |> rects(~vtrim, {row: 0, col: offset})
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Attr.[
+             classes([class_str]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+  };
+};
+
+module RuleErrHole = {
+  let view =
+      (
+        ~vtrim=0.,
+        ~corner_radii: (float, float),
+        (offset, subject): MeasuredLayout.with_offset(_),
+      )
+      : Node.t =>
+    subject
+    |> rects(~vtrim, {row: 0, col: offset})
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Attr.[
+             classes(["rule-err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+};

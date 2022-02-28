@@ -32,8 +32,8 @@ and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
 and extract_from_zrule = (zrule: ZExp.zrule): cursor_term => {
   switch (zrule) {
   | CursorR(cursor_pos, uex_rule) => Rule(cursor_pos, uex_rule)
-  | RuleZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | RuleZE(_, zexp) => extract_cursor_term(zexp)
+  | RuleZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | RuleZE(_, _, zexp) => extract_cursor_term(zexp)
   };
 }
 and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): cursor_term => {
@@ -92,8 +92,8 @@ and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
 and get_zoperand_from_zrule = (zrule: ZExp.zrule): option(zoperand) => {
   switch (zrule) {
   | CursorR(_, _) => None
-  | RuleZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | RuleZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  | RuleZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | RuleZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
   };
 };
 
@@ -148,8 +148,8 @@ and get_outer_zrules_from_zrule =
     : option(ZExp.zrules) => {
   switch (zrule) {
   | CursorR(_, _)
-  | RuleZP(_, _) => outer_zrules
-  | RuleZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | RuleZP(_, _, _) => outer_zrules
+  | RuleZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   };
 };
 
@@ -530,6 +530,12 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, Case(NotExhaustive(_), _, _) as e) =>
+    switch (Statics_Exp.syn_operand(ctx, e)) {
+    | None => None
+    | Some(ty) =>
+      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
+    }
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -860,11 +866,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
-    | Case(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
-        _,
-        _,
-      ) =>
+    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -889,6 +891,14 @@ and ana_cursor_info_zoperand =
           cursor_term,
         ),
       )
+    | Case(InconsistentBranches(rule_types, _), _, _) =>
+      Some(
+        CursorInfo_common.mk(
+          AnaInconsistentBranches(rule_types, steps),
+          ctx,
+          cursor_term,
+        ),
+      )
     // AInjUnexpectedArg
     | Inj(InHole(UnexpectedArg, _), _, Some(arg)) =>
       let+ ty_arg = Statics_Exp.syn(ctx, arg);
@@ -907,6 +917,8 @@ and ana_cursor_info_zoperand =
       | _ => None
       }
     | Inj(InHole(_), _, _) => None
+    | Case(NotExhaustive(_), _, _) =>
+      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -1001,18 +1013,22 @@ and ana_cursor_info_zoperand =
       ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg);
     | _ => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
     }
-
-  | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
-    syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-  | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
+  | CaseZE(_, zscrut, rules) =>
+    let ty_join =
+      switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
+      | Some(ty) => ty
+      | _ => HTyp.Hole
+      };
+    ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
+  | CaseZR(_, scrut, (prefix, zrule, _)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
-    | Some(ty1) =>
+    | Some(pat_ty) =>
       ana_cursor_info_rule(
         ~steps=steps @ [1 + List.length(prefix)],
         ctx,
         zrule,
-        ty1,
+        pat_ty,
         ty,
       )
     }
@@ -1029,9 +1045,9 @@ and syn_cursor_info_rule =
     )
     : option(CursorInfo.t) =>
   switch (zrule) {
-  | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
-  | RuleZP(zp, clause) =>
+  | CursorR(_, Rule(err, _, _)) =>
+    Some(CursorInfo_common.mk(OnRule(err), ctx, extract_from_zrule(zrule)))
+  | RuleZP(_, zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
     ) {
@@ -1042,7 +1058,7 @@ and syn_cursor_info_rule =
       Some(deferred_ci(uses));
     }
 
-  | RuleZE(p, zclause) =>
+  | RuleZE(_, p, zclause) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
@@ -1076,9 +1092,9 @@ and ana_cursor_info_rule =
     )
     : option(CursorInfo.t) =>
   switch (zrule) {
-  | CursorR(_) =>
-    Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
-  | RuleZP(zp, clause) =>
+  | CursorR(_, Rule(err, _, _)) =>
+    Some(CursorInfo_common.mk(OnRule(err), ctx, extract_from_zrule(zrule)))
+  | RuleZP(_, zp, clause) =>
     switch (
       CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
     ) {
@@ -1088,7 +1104,7 @@ and ana_cursor_info_rule =
       let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
       Some(deferred_ci(uses));
     }
-  | RuleZE(p, zclause) =>
+  | RuleZE(_, p, zclause) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>

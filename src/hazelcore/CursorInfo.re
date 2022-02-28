@@ -84,6 +84,7 @@ type typed =
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
+  | AnaInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -130,7 +131,8 @@ type typed =
   | OnSumBodyOperator
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
-  | OnRule;
+  | OnRule(RuleErrStatus.t)
+  | CaseNotExhaustive(HTyp.t);
 
 [@deriving sexp]
 type cursor_term =

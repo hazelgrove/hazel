@@ -222,7 +222,7 @@ and mk_rule =
       (
         ~memoize: bool,
         ~enforce_inline as _: bool,
-        Rule(p, clause): UHExp.rule,
+        Rule(_, p, clause): UHExp.rule,
       ) =>
       (
         {

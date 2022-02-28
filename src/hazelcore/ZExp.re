@@ -22,8 +22,8 @@ and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
   | CursorR(CursorPosition.t, UHExp.rule)
-  | RuleZP(ZPat.t, UHExp.t)
-  | RuleZE(UHPat.t, t);
+  | RuleZP(RuleErrStatus.t, ZPat.t, UHExp.t)
+  | RuleZE(RuleErrStatus.t, UHPat.t, t);
 
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
@@ -232,7 +232,7 @@ and is_after_zoperand =
   | CaseZR(_) => false;
 let is_after_zrule =
   fun
-  | RuleZE(_, zclause) => is_after(zclause)
+  | RuleZE(_, _, zclause) => is_after(zclause)
   | _ => false;
 let is_after_zoperator: zoperator => bool =
   fun
@@ -347,8 +347,8 @@ and place_after_operand = operand =>
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   };
-let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
-  RuleZE(p, place_after(clause));
+let place_after_rule = (Rule(err, p, clause): UHExp.rule): zrule =>
+  RuleZE(err, p, place_after(clause));
 let place_after_operator = (op: UHExp.operator): option(zoperator) =>
   switch (op) {
   | Space => None
@@ -440,8 +440,8 @@ and erase_zrules =
 and erase_zrule =
   fun
   | CursorR(_, rule) => rule
-  | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
-  | RuleZE(p, zclause) => Rule(p, erase(zclause));
+  | RuleZP(err, zp, clause) => Rule(err, ZPat.erase(zp), clause)
+  | RuleZE(err, p, zclause) => Rule(err, p, erase(zclause));
 
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
@@ -490,6 +490,31 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
   };
 
+let rec set_err_status_zrules =
+        (err: RuleErrStatus.t, idx: int, zrules: zrules): zrules =>
+  ZList.mapi(
+    (pos, zrule) =>
+      if (pos == idx) {
+        set_err_status_zrule(err, zrule);
+      } else {
+        zrule;
+      },
+    (pos, rule) =>
+      if (pos == idx) {
+        UHExp.set_err_status_rule(err, rule);
+      } else {
+        rule;
+      },
+    zrules,
+  )
+and set_err_status_zrule = (err: RuleErrStatus.t, zrule: zrule): zrule =>
+  switch (zrule) {
+  | CursorR(cur, rule) =>
+    CursorR(cur, rule |> UHExp.set_err_status_rule(err))
+  | RuleZP(_, zpat, e) => RuleZP(err, zpat, e)
+  | RuleZE(_, pat, ze) => RuleZE(err, pat, ze)
+  };
+
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   ze |> mk_inconsistent_zblock(u_gen)
 and mk_inconsistent_zblock =
@@ -533,13 +558,15 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | LamZE(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive(_),
       _,
       _,
     )
   | CaseZR(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive(_),
       _,
       _,
     ) =>
@@ -556,7 +583,8 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
-  let zrule = RuleZP(ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
+  let zrule =
+    RuleZP(NotRedundant, ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
   (zrule, u_gen);
 };
 
@@ -742,18 +770,19 @@ and move_cursor_left_zrule =
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, After), rule) =>
     Some(CursorR(OnDelim(k, Before), rule))
-  | CursorR(OnDelim(_one, Before), Rule(p, clause)) =>
-    Some(RuleZP(ZPat.place_after(p), clause))
-  | RuleZP(zp, clause) =>
+  | CursorR(OnDelim(_one, Before), Rule(err, p, clause)) =>
+    Some(RuleZP(err, ZPat.place_after(p), clause))
+  | RuleZP(err, zp, clause) =>
     switch (ZPat.move_cursor_left(zp)) {
-    | Some(zp) => Some(RuleZP(zp, clause))
+    | Some(zp) => Some(RuleZP(err, zp, clause))
     | None =>
-      Some(CursorR(OnDelim(0, After), Rule(ZPat.erase(zp), clause)))
+      Some(CursorR(OnDelim(0, After), Rule(err, ZPat.erase(zp), clause)))
     }
-  | RuleZE(p, zclause) =>
+  | RuleZE(err, p, zclause) =>
     switch (move_cursor_left(zclause)) {
-    | Some(zclause) => Some(RuleZE(p, zclause))
-    | None => Some(CursorR(OnDelim(1, After), Rule(p, erase(zclause))))
+    | Some(zclause) => Some(RuleZE(err, p, zclause))
+    | None =>
+      Some(CursorR(OnDelim(1, After), Rule(err, p, erase(zclause))))
     };
 
 let rec move_cursor_right = (ze: t): option(t) =>
@@ -940,21 +969,21 @@ and move_cursor_right_zrule =
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, Before), rule) =>
     Some(CursorR(OnDelim(k, After), rule))
-  | CursorR(OnDelim(k, After), Rule(p, clause)) =>
+  | CursorR(OnDelim(k, After), Rule(err, p, clause)) =>
     // k == 0 || k == 1
     k == 0
-      ? Some(RuleZP(ZPat.place_before(p), clause))
-      : Some(RuleZE(p, place_before(clause)))
-  | RuleZP(zp, clause) =>
+      ? Some(RuleZP(err, ZPat.place_before(p), clause))
+      : Some(RuleZE(err, p, place_before(clause)))
+  | RuleZP(err, zp, clause) =>
     switch (ZPat.move_cursor_right(zp)) {
-    | Some(zp) => Some(RuleZP(zp, clause))
+    | Some(zp) => Some(RuleZP(err, zp, clause))
     | None =>
-      Some(CursorR(OnDelim(1, Before), Rule(ZPat.erase(zp), clause)))
+      Some(CursorR(OnDelim(1, Before), Rule(err, ZPat.erase(zp), clause)))
     }
-  | RuleZE(p, zclause) =>
+  | RuleZE(err, p, zclause) =>
     switch (move_cursor_right(zclause)) {
     | None => None
-    | Some(zclause) => Some(RuleZE(p, zclause))
+    | Some(zclause) => Some(RuleZE(err, p, zclause))
     };
 
 let rec cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
@@ -986,7 +1015,7 @@ and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
   | RuleZP(_) => None
-  | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+  | RuleZE(_, _, ze) => cursor_on_EmptyHole(ze);
 
 let rec cursor_on_EmptyTagHole = ze => cursor_on_EmptyTagHole_zblock(ze)
 and cursor_on_EmptyTagHole_zblock = ((_, zline, _)) =>
@@ -1015,8 +1044,8 @@ and cursor_on_EmptyTagHole_zoperand =
 and cursor_on_EmptyTagHole_zrule =
   fun
   | CursorR(_) => None
-  | RuleZP(zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
-  | RuleZE(_, ze) => cursor_on_EmptyTagHole(ze);
+  | RuleZP(_, zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
+  | RuleZE(_, _, ze) => cursor_on_EmptyTagHole(ze);
 
 let zline_is_just_empty_hole = (zline: zline): bool =>
   switch (zline) {

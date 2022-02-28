@@ -88,7 +88,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
     | None => []
     }
   | Case(
-      StandardErrStatus(NotInHole) | InconsistentBranches(_),
+      StandardErrStatus(NotInHole) | InconsistentBranches(_) |
+      NotExhaustive(_),
       scrut,
       rules,
     ) =>
@@ -103,5 +104,5 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }
 and find_uses_rule =
-    (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>
+    (~steps, x: Var.t, Rule(_, p, clause): UHExp.rule): uses_list =>
   binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, clause);

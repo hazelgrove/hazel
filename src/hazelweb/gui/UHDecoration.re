@@ -3,6 +3,42 @@ open Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+type rects = list(SvgUtil.Rect.t);
+
+let rects =
+    (~vtrim=0.0, start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
+  let mk_rect =
+      (
+        ~is_first=false,
+        ~is_last=false,
+        start: MeasuredPosition.t,
+        box: MeasuredLayout.box,
+      ) =>
+    SvgUtil.Rect.{
+      min: {
+        x: Float.of_int(start.col),
+        y: Float.of_int(start.row) +. (is_first ? vtrim : 0.0),
+      },
+      width: Float.of_int(box.width),
+      height:
+        Float.of_int(box.height)
+        -. (is_first ? vtrim : 0.0)
+        -. (is_last ? vtrim : 0.0),
+    };
+  let n = List.length(m.metrics);
+  m.metrics
+  |> List.mapi((i, box) => (i, box))
+  |> ListUtil.map_with_accumulator(
+       (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
+         (
+           {row: start.row + box.height, col: 0},
+           mk_rect(~is_first=i == 0, ~is_last=i == n - 1, start, box),
+         ),
+       start,
+     )
+  |> snd;
+};
+
 module VarUse = {
   let view =
       (
@@ -427,6 +463,40 @@ module VarErrHole = {
     Node.t =
     (~contains_current_term) =>
       Decoration_common.VarErrHole.view(
+        ~vtrim=
+          contains_current_term
+            ? 0.0 : CurrentTerm.inline_open_child_border_height,
+      );
+};
+
+module CaseErrHole = {
+  let view:
+    (
+      ~contains_current_term: bool,
+      UHDecorationShape.CaseReason.t,
+      ~corner_radii: (float, float),
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    (~contains_current_term, reason) =>
+      Decoration_common.CaseErrHole.view(
+        ~vtrim=
+          contains_current_term
+            ? 0.0 : CurrentTerm.inline_open_child_border_height,
+        reason,
+      );
+};
+
+module RuleErrHole = {
+  let view:
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      UHMeasuredLayout.with_offset
+    ) =>
+    Node.t =
+    (~contains_current_term) =>
+      Decoration_common.RuleErrHole.view(
         ~vtrim=
           contains_current_term
             ? 0.0 : CurrentTerm.inline_open_child_border_height,
