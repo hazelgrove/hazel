@@ -857,7 +857,22 @@ and ana_cursor_info_zoperand =
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
         _,
         _,
-      )
+      ) =>
+      let operand' =
+        zoperand
+        |> ZExp.erase_zoperand
+        |> UHExp.set_err_status_operand(NotInHole);
+      switch (Statics_Exp.syn_operand(ctx, operand')) {
+      | None => None
+      | Some(ty') =>
+        Some(
+          CursorInfo_common.mk(
+            AnaTypeInconsistent(ty, ty'),
+            ctx,
+            cursor_term,
+          ),
+        )
+      };
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
