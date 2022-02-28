@@ -194,7 +194,7 @@ and get_err_status_operand =
   | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | If(StandardErrStatus(err), _, _, _)
+  | If(StandardErrStatus(err), _, _, _) => err
   | Case(InconsistentBranches(_), _, _)
   | If(InconsistentBranches(_), _, _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -248,7 +248,10 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _) => (operand, u_gen)
+  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _) => (
+      operand,
+      u_gen,
+    )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)

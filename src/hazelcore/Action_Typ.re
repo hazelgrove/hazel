@@ -221,7 +221,8 @@ and perform_operand =
   /* Invalid actions at the type level */
   | (
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SCommentLine,
+        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SIf |
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown,

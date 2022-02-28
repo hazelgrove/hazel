@@ -144,7 +144,6 @@ and get_outer_zrules_from_zexp_operand =
   | IfZ1(_, t1, _, _) => get_outer_zrules_from_zexp(t1, outer_zrules)
   | IfZ2(_, _, t2, _) => get_outer_zrules_from_zexp(t2, outer_zrules)
   | IfZ3(_, _, _, t3) => get_outer_zrules_from_zexp(t3, outer_zrules)
-  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
 and get_outer_zrules_from_zrules = (zrules: ZExp.zrules): option(ZExp.zrules) => {
@@ -903,7 +902,8 @@ and ana_cursor_info_zoperand =
         _,
         _,
         _,
-      ) => None
+      ) =>
+      None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -969,7 +969,8 @@ and ana_cursor_info_zoperand =
       _,
       _,
       _,
-    ) => None
+    ) =>
+    None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)

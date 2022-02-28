@@ -90,7 +90,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(1)
       @ CursorPosition.delim_cursors_k(2);
     }
-  | Parenthesized(_) => CursorPosition.delim_cursors(2)
+  | Parenthesized(_) => CursorPosition.delim_cursors(2);
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -548,7 +548,10 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | IfZ1(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | IfZ2(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
-  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _) => (zoperand, u_gen)
+  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _) => (
+      zoperand,
+      u_gen,
+    )
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _)
   | LamZE(NotInHole | InHole(WrongLength, _), _, _)

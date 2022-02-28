@@ -275,7 +275,8 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _) => DoesNotElaborate
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _) =>
+    DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -708,7 +709,8 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _) => DoesNotElaborate /* not in hole */
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);

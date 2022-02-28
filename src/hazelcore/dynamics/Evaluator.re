@@ -836,7 +836,8 @@ and evaluate_case =
     }
   }
 and evaluate_if =
-    (inconsistent_info, d1: DHExp.t, d2: DHExp.t, d3: DHExp.t): result =>
+    (inconsistent_info, d1: DHExp.t, d2: DHExp.t, d3: DHExp.t)
+    : EvaluatorResult.t =>
   /* switch (evaluate(d1)) {
      | InvalidInput(msg) => InvalidInput(msg)
      | BoxedValue(d1)
@@ -866,7 +867,7 @@ and evaluate_if =
     }
   | Some((u, i, sigma)) =>
     let ifs = DHExp.If(d1, d2, d3);
-    Indet(InconsistentBranchesIf(u, i, sigma, ifs))
+    Indet(InconsistentBranchesIf(u, i, sigma, ifs));
   }
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =

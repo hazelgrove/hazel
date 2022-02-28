@@ -507,7 +507,7 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
-      | SCase => Some(ConstructEdit(shape))
+      | SCase
       | SIf => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
@@ -639,6 +639,24 @@ let get_new_action_group =
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
+              | If =>
+                switch (
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
+                ) {
+                | OnText(pos) =>
+                  if (pos == 2) {
+                    /* the caret is at the end of "if" */
+                    Some(
+                      ConstructEdit(SIf),
+                    );
+                  } else {
+                    Some(ConstructEdit(SOp(SSpace)));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
               }
             | Var(_, _, var) =>
               switch (pos) {
@@ -654,25 +672,6 @@ let get_new_action_group =
               | OnDelim(_, _)
               | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
               }
-            | If =>
-              switch (
-                UndoHistoryCore.get_cursor_pos(
-                  new_cursor_term_info.cursor_term_before,
-                )
-              ) {
-              | OnText(pos) =>
-                if (pos == 2) {
-                  /* the caret is at the end of "if" */
-                  Some(
-                    ConstructEdit(SIf),
-                  );
-                } else {
-                  Some(ConstructEdit(SOp(SSpace)));
-                }
-              | OnDelim(_, _)
-              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-              }
-            }
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
           | _ => Some(ConstructEdit(SOp(SSpace)))
