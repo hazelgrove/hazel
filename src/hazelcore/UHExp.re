@@ -210,12 +210,6 @@ and set_err_status_operand = (err, operand) =>
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
 
-let is_inconsistent = operand =>
-  switch (operand |> get_err_status_operand) {
-  | InHole(TypeInconsistent, _) => true
-  | _ => false
-  };
-
 /* put e in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   mk_inconsistent_block(u_gen, e)

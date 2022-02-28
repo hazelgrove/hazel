@@ -95,8 +95,6 @@ let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
-let is_inconsistent: operand => bool;
-
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 
 let mk_inconsistent_operand:
