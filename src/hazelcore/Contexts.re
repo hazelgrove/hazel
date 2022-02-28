@@ -1,12 +1,10 @@
 [@deriving sexp]
-type t = (VarCtx.t, PaletteCtx.t);
-let initial = (Builtins.ctx, PaletteCtx.empty);
+type t = VarCtx.t;
+let initial = Builtins.ctx;
 
-let gamma = ((gamma, _): t): VarCtx.t => gamma;
+let gamma = (gamma: t): VarCtx.t => gamma;
 let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
-  let (gamma, palette_ctx) = ctx;
+  let gamma = ctx;
   let gamma' = VarCtx.extend(gamma, binding);
-  (gamma', palette_ctx);
+  gamma';
 };
-
-let palette_ctx = ((_, palette_ctx): t): PaletteCtx.t => palette_ctx;
