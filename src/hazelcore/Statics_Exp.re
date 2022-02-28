@@ -289,7 +289,13 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
 
-  | Case(InconsistentBranches(_), _, _) => Some()
+  | Case(InconsistentBranches(_), scrut, rules) =>
+    let* ty1 = syn(ctx, scrut);
+    let* _ = ana_rules(ctx, rules, ty1, ty);
+    switch (syn_rules(ctx, rules, ty1)) {
+    | None => Some()
+    | Some(_) => None
+    };
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -1226,23 +1232,17 @@ and ana_fix_holes_operand =
       let (op, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       (op, u_gen);
-    | Unknown(Internal | TypHole) =>
-      let (scrut, ty1, u_gen) =
-        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-      let (rules, u_gen, rule_types, common_type) =
-        syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1);
-      switch (common_type) {
-      | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (
-          Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
-          u_gen,
-        );
-      | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
-      };
     | _ =>
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
+      let (_, _, rule_types, common_type) =
+        syn_fix_holes_rules(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          rules,
+          scrut_ty,
+        );
       let (rules, u_gen) =
         ana_fix_holes_rules(
           ctx,
@@ -1252,7 +1252,15 @@ and ana_fix_holes_operand =
           scrut_ty,
           ty,
         );
-      (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
+      switch (common_type) {
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (
+          Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
+          u_gen,
+        );
+      | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
+      };
     }
   }
 and extend_let_body_ctx =
