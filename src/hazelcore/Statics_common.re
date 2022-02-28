@@ -21,8 +21,8 @@ let tuple_zip =
   | None =>
     switch (skels, tys) {
     | ([_], _) => Some([(skel, ty)])
-    | (_, [Hole(l)]) =>
-      skels |> List.map(skel => (skel, HTyp.Hole(l))) |> Option.some
+    | (_, [Unknown(l)]) =>
+      skels |> List.map(skel => (skel, HTyp.Unknown(l))) |> Option.some
     | _ => None
     }
   };

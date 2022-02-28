@@ -59,7 +59,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | SynErrorArrow(_, actual)
   | SynMatchingArrow(actual, _) => (
-      Some(Hole(Some())),
+      Some(Unknown(Internal)),
       Some(actual),
       Synthetic,
     )
@@ -67,17 +67,25 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole(Some())), Some(actual), Synthetic)
+  | Synthesized(actual) => (
+      Some(Unknown(Internal)),
+      Some(actual),
+      Synthetic,
+    )
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole(Some())), Some(Hole(Some())), Synthetic)
+  | SynKeyword(_) => (
+      Some(Unknown(Internal)),
+      Some(Unknown(Internal)),
+      Synthetic,
+    )
 
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(ty, got_ty)) {
-        (Some(Hole(Some())), Some(got_ty), Synthetic);
+        (Some(Unknown(Internal)), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
@@ -85,8 +93,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (
-      Some(Hole(Some())),
-      Some(Hole(Some())),
+      Some(Unknown(Internal)),
+      Some(Unknown(Internal)),
       Synthetic,
     )
 
@@ -103,14 +111,14 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
   | PatSynthesized(actual) => (
-      Some(Hole(Some())),
+      Some(Unknown(Internal)),
       Some(actual),
       Synthetic,
     )
 
   | PatSynKeyword(_) => (
-      Some(Hole(Some())),
-      Some(Hole(Some())),
+      Some(Unknown(Internal)),
+      Some(Unknown(Internal)),
       Synthetic,
     )
 
@@ -149,7 +157,7 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
  */
 let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
-  | Hole(_) => "a"
+  | Unknown(_) => "a"
   | Int => "an Integer"
   | Float => "a Float"
   | Bool => "a Boolean"

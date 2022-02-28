@@ -93,7 +93,12 @@ and syn_elab_line =
               ),
             )
           };
-        let d1 = DHExp.cast(d1, ty1', ty1);
+        let d1 =
+          switch (ty1) {
+          // Don't cast if the unknown type originated from an unannotated pattern variable
+          | Unknown(SynPatternVar) => d1
+          | _ => DHExp.cast(d1, ty1', ty1)
+          };
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
@@ -125,10 +130,14 @@ and syn_elab_skel =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
+          (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
           delta,
         );
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
+      Elaborates(
+        NonEmptyHole(reason, u, 0, sigma, d),
+        Unknown(Internal),
+        delta,
+      );
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -270,10 +279,14 @@ and syn_elab_operand =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
+          (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
           delta,
         );
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
+      Elaborates(
+        NonEmptyHole(reason, u, 0, sigma, d),
+        Unknown(Internal),
+        delta,
+      );
     };
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -313,13 +326,13 @@ and syn_elab_operand =
         let delta =
           MetaVarMap.add(
             u,
-            (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
+            (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
             delta,
           );
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(
           InconsistentBranches(u, 0, sigma, d),
-          Hole(Some()),
+          Unknown(Internal),
           delta,
         );
       };
@@ -328,14 +341,14 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
-    let ty = HTyp.Hole(Some());
+    let ty = HTyp.Unknown(Internal);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
-    let ty = HTyp.Hole(Some());
+    let ty = HTyp.Unknown(Internal);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
@@ -350,7 +363,7 @@ and syn_elab_operand =
     let delta =
       MetaVarMap.add(
         u,
-        (Delta.ExpressionHole, HTyp.Hole(Some()), gamma),
+        (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
         delta,
       );
     let d =
@@ -358,7 +371,7 @@ and syn_elab_operand =
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
-    Elaborates(d, Hole(Some()), delta);
+    Elaborates(d, Unknown(Internal), delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)
@@ -371,7 +384,7 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Hole(Some());
+    let elt_ty = HTyp.Unknown(Internal);
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
@@ -389,11 +402,11 @@ and syn_elab_operand =
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      let d = DHExp.Inj(Hole(Some()), side, d1);
+      let d = DHExp.Inj(Unknown(Internal), side, d1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole(Some()))
-        | R => HTyp.Sum(Hole(Some()), ty1)
+        | L => HTyp.Sum(ty1, Unknown(Internal))
+        | R => HTyp.Sum(Unknown(Internal), ty1)
         };
       Elaborates(d, ty, delta);
     }
@@ -602,7 +615,7 @@ and ana_elab_opseq =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
           Elaborates(
             NonEmptyHole(reason, u, 0, sigma, d),
-            Hole(Some()),
+            Unknown(Internal),
             delta,
           );
         }
@@ -637,7 +650,7 @@ and ana_elab_skel =
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-      Elaborates(d, Hole(Some()), delta);
+      Elaborates(d, Unknown(Internal), delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
@@ -704,7 +717,11 @@ and ana_elab_operand =
       let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole(Some()), delta);
+      Elaborates(
+        NonEmptyHole(reason, u, 0, sigma, d),
+        Unknown(Internal),
+        delta,
+      );
     };
   | Case(InconsistentBranches(_, u, Syn), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {

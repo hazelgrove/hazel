@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Hole(None)),
+      HTypCode.view(HTyp.Unknown(Internal)),
       emphasize_text(")"),
     ],
   );
@@ -70,7 +70,8 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole(Some()))) {
+  if (HTyp.eq(expected_ty, got_ty)
+      || HTyp.eq(got_ty, HTyp.Unknown(Internal))) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg

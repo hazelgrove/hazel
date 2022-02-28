@@ -1,12 +1,15 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type hole_provenance = option(unit);
+type hole_provenance =
+  | SynPatternVar
+  | Internal
+  | TypHole;
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole(hole_provenance)
+  | Unknown(hole_provenance)
   | Int
   | Float
   | Bool
@@ -29,7 +32,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
-  | Hole(_)
+  | Unknown(_)
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -45,8 +48,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Hole(_), _)
-  | (_, Hole(_)) => true
+  | (Unknown(_), _)
+  | (_, Unknown(_)) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -82,7 +85,7 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole(prov) => Some((Hole(prov), Hole(prov)))
+  | Unknown(prov) => Some((Unknown(prov), Unknown(prov)))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
@@ -96,21 +99,21 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole(prov) => Some((Hole(prov), Hole(prov)))
+  | Unknown(prov) => Some((Unknown(prov), Unknown(prov)))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole(prov) => Some(Hole(prov))
+  | Unknown(prov) => Some(Unknown(prov))
   | List(ty) => Some(ty)
   | _ => None;
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole(_) => false
+  | Unknown(_) => false
   | Int => true
   | Float => true
   | Bool => true
@@ -121,14 +124,14 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole(_)) =>
+  | (_, Unknown(x)) =>
     switch (j) {
-    | GLB => Some(Hole(Some()))
+    | GLB => Some(Unknown(x))
     | LUB => Some(ty1)
     }
-  | (Hole(_), _) =>
+  | (Unknown(x), _) =>
     switch (j) {
-    | GLB => Some(Hole(Some()))
+    | GLB => Some(Unknown(x))
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)

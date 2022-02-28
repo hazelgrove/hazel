@@ -56,7 +56,7 @@ let contract = (ty: HTyp.t): t => {
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
       switch (ty) {
-      | Hole(_) => Seq.wrap(Hole)
+      | Unknown(_) => Seq.wrap(Hole)
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -114,7 +114,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | Hole => Hole(Some())
+  | Hole => Unknown(TypHole)
   | Unit => Prod([])
   | Int => Int
   | Float => Float
