@@ -1092,8 +1092,6 @@ and syn_perform_line =
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zdef, u_gen)) =>
-        let (new_zdef, u_gen) =
-          Statics_Exp.ana_fix_holes_z(def_ctx, u_gen, new_zdef, ty_p);
         let body_ctx =
           Statics_Exp.extend_let_body_ctx(ctx, p, ZExp.erase(new_zdef));
         Succeeded(
@@ -3440,6 +3438,8 @@ and ana_perform_operand =
           ZExp.ZBlock.wrap(
             CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
           );
+        let (new_ze, u_gen) =
+          Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty);
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
