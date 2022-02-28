@@ -62,7 +62,6 @@ let move =
     | None => ActionOutcome.CursorEscaped(After)
     | Some(z) => Succeeded((z, u_gen))
     }
-  | UpdateApPalette(_)
   | Delete
   | Backspace
   | Construct(_)
@@ -84,14 +83,12 @@ let perform =
   switch (a, ztag) {
   /* Invalid actions */
   | (
-      UpdateApPalette(_) |
       Construct(
         SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
         SParenthesized |
         SCloseParens |
         SCloseBraces |
         SCloseSquareBracket |
-        SApPalette(_) |
         SCommentLine,
       ) |
       SwapUp |

@@ -121,7 +121,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Inj(_, _, _) => indicate_words_view("injection")
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
 
@@ -341,7 +340,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SSpace => indicate_words_view("space")
       | _ => code_view(Action_common.shape_to_string(shape))
       }
-    | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {

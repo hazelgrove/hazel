@@ -177,7 +177,6 @@ let rec move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -247,7 +246,6 @@ and move_zsum_body =
     | None => ActionOutcome.CursorEscaped(After)
     | Some(z) => Succeeded((z, u_gen))
     }
-  | UpdateApPalette(_)
   | Delete
   | Backspace
   | Construct(_)
@@ -278,11 +276,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
-      Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SApPalette(_),
-      ) |
-      SwapUp |
+      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj | SCase) | SwapUp |
       SwapDown,
       _,
     )
@@ -433,10 +427,8 @@ and perform_operand =
   switch (a, zoperand) {
   /* Invalid actions */
   | (
-      UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SApPalette(_) |
-        SCommentLine,
+        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SCommentLine,
       ) |
       SwapUp |
       SwapDown,
@@ -927,11 +919,9 @@ and perform_zsum_body =
   switch (a, zseq) {
   /* Invalid actions on sum body operators */
   | (
-      UpdateApPalette(_) |
       Construct(
         SCommentLine | SList | SAnn | SLam | SListNil | SInj | SLet | SLine |
         SCase |
-        SApPalette(_) |
         SParenthesized |
         SCloseParens |
         SCloseBraces |
@@ -1496,10 +1486,8 @@ and perform_zsum_body_operand =
   switch (a, zoperand) {
   /* Invalid actions */
   | (
-      UpdateApPalette(_) |
       Construct(
         SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SOp(SPlus) |
-        SApPalette(_) |
         SCommentLine,
       ) |
       SwapUp |
