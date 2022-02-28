@@ -44,3 +44,5 @@ let matched_list: t => option(t);
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
+
+let is_unknown: t => bool;

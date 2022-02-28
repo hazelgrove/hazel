@@ -70,8 +70,7 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 
 let pat_ana_subsumed_msg =
     (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.eq(expected_ty, got_ty)
-      || HTyp.eq(got_ty, HTyp.Unknown(Internal))) {
+  if (HTyp.eq(expected_ty, got_ty) || HTyp.is_unknown(got_ty)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg

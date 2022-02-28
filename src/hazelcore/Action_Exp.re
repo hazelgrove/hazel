@@ -1514,8 +1514,13 @@ and syn_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
+    let ty_p =
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty, _)) => ty
+      | _ => failwith("syn_peform_operand syn failed")
+      };
     let (p, body_ctx, u_gen) =
-      Statics_Pat.ana_fix_holes(ctx, u_gen, p, Unknown(Internal));
+      Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty_p);
     let (body, body_ty, u_gen) =
       Statics_Exp.syn_fix_holes(body_ctx, u_gen, body);
     let new_ze =
@@ -3476,25 +3481,3 @@ and ana_perform_subsume =
       }
     }
   };
-
-let syn_perform =
-    (ctx: Contexts.t, a: Action.t, init_state: Statics.edit_state)
-    : ActionOutcome.t(syn_done) => {
-  switch (syn_perform(ctx, a, init_state)) {
-  | Succeeded((ze_final, ty_final, _)) as final_state =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(ze_final))) {
-    | None =>
-      failwith("syn_perform returned Succeeded but syn returned None.")
-    | Some(ty_final') =>
-      if (HTyp.eq(ty_final', ty_final)) {
-        final_state;
-      } else {
-        failwith(
-          "syn_perform returned Succeeded but syn returned inconsistent type.",
-        );
-      }
-    }
-  | CursorEscaped(e) => CursorEscaped(e)
-  | Failed => Failed
-  };
-};

@@ -174,3 +174,8 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let is_unknown: t => bool =
+  fun
+  | Unknown(_) => true
+  | _ => false;

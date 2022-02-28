@@ -24,7 +24,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Unknown(Internal)), tys)) {
+    if (List.for_all(HTyp.is_unknown, tys)) {
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;

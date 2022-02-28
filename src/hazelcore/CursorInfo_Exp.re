@@ -304,7 +304,7 @@ and syn_cursor_info_line =
     let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
       | Some(ty) => ty
-      | None => HTyp.Unknown(Internal)
+      | None => failwith("syn_cursor_info_line impossible")
       };
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
@@ -893,10 +893,9 @@ and ana_cursor_info_zoperand =
         )
       };
     | Case(InconsistentBranches(_, _, Ana), _, _) =>
-      //TODO: Do we want something else here?
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Case(InconsistentBranches(_, _, Syn), _, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
+      failwith("ana_cursor_info_zoperand impossible")
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
