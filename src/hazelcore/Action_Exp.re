@@ -2811,50 +2811,6 @@ and ana_perform_operand =
       when !ZExp.is_valid_cursor_operand(cursor, operand) =>
     Failed
 
-  | _ when ZExp.is_inconsistent(zoperand) =>
-    let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
-    let err = ZExp.get_err_status_zoperand(zoperand);
-    let operand' = zoperand' |> ZExp.erase_zoperand;
-    switch (Statics_Exp.syn_operand(ctx, operand')) {
-    | None => Failed
-    | Some(ty') =>
-      switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
-      | (Failed | CursorEscaped(_)) as outcome => outcome
-      | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
-      | Succeeded(SynDone((ze', ty', u_gen))) =>
-        if (HTyp.consistent(ty', ty)) {
-          // prune unnecessary type annotation
-          let ze' =
-            switch (ze') {
-            | (
-                [] as prefix,
-                ExpLineZ(
-                  ZOpSeq(skel, ZOperand(zoperand, (E, E) as surround)),
-                ),
-                [] as suffix,
-              ) => (
-                prefix,
-                ZExp.ExpLineZ(ZOpSeq(skel, ZOperand(zoperand, surround))),
-                suffix,
-              )
-            | _ => ze'
-            };
-          Succeeded(AnaDone((ze', u_gen)));
-        } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
-                   && HTyp.get_prod_arity(ty) > 1) {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
-          let new_ze = ze' |> ZExp.set_err_status(err);
-          Succeeded(AnaDone((new_ze, u_gen)));
-        } else {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, TypeInconsistent, u_gen);
-          let new_ze = ze' |> ZExp.set_err_status(err);
-          Succeeded(AnaDone((new_ze, u_gen)));
-        }
-      }
-    };
-
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), u_gen), ty)

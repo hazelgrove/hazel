@@ -1170,35 +1170,6 @@ and ana_perform_operand =
     ) =>
     Failed
 
-  /* switch to synthesis if in a hole */
-  | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>
-    let err = ZPat.get_err_status_zoperand(zoperand);
-    let zp = ZOpSeq.wrap(zoperand);
-    let zp' = zp |> ZPat.set_err_status(NotInHole);
-    let p' = zp' |> ZPat.erase;
-    switch (Statics_Pat.syn(ctx, p')) {
-    | None => Failed
-    | Some(_) =>
-      switch (syn_perform(ctx, u_gen, a, zp')) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded((zp, ty', ctx, u_gen)) =>
-        if (HTyp.consistent(ty, ty')) {
-          Succeeded((zp, ctx, u_gen));
-        } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
-                   && HTyp.get_prod_arity(ty) > 1) {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
-          let new_zp = zp |> ZPat.set_err_status(err);
-          Succeeded((new_zp, ctx, u_gen));
-        } else {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, TypeInconsistent, u_gen);
-          let new_zp = zp |> ZPat.set_err_status(err);
-          Succeeded((new_zp, ctx, u_gen));
-        }
-      }
-    };
-
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     ana_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand), ty)

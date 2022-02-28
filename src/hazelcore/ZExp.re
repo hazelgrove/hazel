@@ -551,9 +551,6 @@ let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   (zrule, u_gen);
 };
 
-let is_inconsistent = zoperand =>
-  zoperand |> erase_zoperand |> UHExp.is_inconsistent;
-
 let rec move_cursor_left = (ze: t): option(t) =>
   ze |> move_cursor_left_zblock
 and move_cursor_left_zblock =
