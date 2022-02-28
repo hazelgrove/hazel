@@ -23,12 +23,9 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | If(CaseErrStatus.t, t, t, t)
   | Parenthesized(t)
-  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t)
-and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+  | Rule(UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -98,8 +95,6 @@ let get_err_status_operand: operand => ErrStatus.t;
 let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
-
-let is_inconsistent: operand => bool;
 
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 

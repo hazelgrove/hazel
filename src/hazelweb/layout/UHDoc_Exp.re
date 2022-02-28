@@ -214,7 +214,6 @@ and mk_operand =
               mk_child(~memoize, ~enforce_inline, ~child_step=2, t3);
             UHDoc_common.mk_If(guard, then_branch, else_branch);
           }
-        | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
       )
     )

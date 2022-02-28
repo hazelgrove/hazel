@@ -150,7 +150,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Case(_, _, _)
     | If(_, _, _, _)
     | Parenthesized(_) => MaxLen
-    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
   | PatOperand(_, operand) =>
     switch (operand) {
