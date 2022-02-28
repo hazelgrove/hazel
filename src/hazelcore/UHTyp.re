@@ -56,7 +56,7 @@ let contract = (ty: HTyp.t): t => {
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
       switch (ty) {
-      | Unknown(_) => Seq.wrap(Hole)
+      | Unknown(Internal | SynPatternVar | TypHole) => Seq.wrap(Hole)
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)

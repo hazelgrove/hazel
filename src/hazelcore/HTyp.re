@@ -1,15 +1,15 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type hole_provenance =
+type unknown_type_provenance =
+  | TypHole
   | SynPatternVar
-  | Internal
-  | TypHole;
+  | Internal;
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Unknown(hole_provenance)
+  | Unknown(unknown_type_provenance)
   | Int
   | Float
   | Bool
@@ -110,28 +110,16 @@ let matched_list =
   | List(ty) => Some(ty)
   | _ => None;
 
-/* complete (i.e. does not have any holes) */
-let rec complete =
-  fun
-  | Unknown(_) => false
-  | Int => true
-  | Float => true
-  | Bool => true
-  | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty) => complete(ty);
-
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Unknown(x)) =>
+  | (_, Unknown(_)) =>
     switch (j) {
-    | GLB => Some(Unknown(x))
+    | GLB => Some(Unknown(Internal))
     | LUB => Some(ty1)
     }
-  | (Unknown(x), _) =>
+  | (Unknown(_), _) =>
     switch (j) {
-    | GLB => Some(Unknown(x))
+    | GLB => Some(Unknown(Internal))
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)

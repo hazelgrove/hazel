@@ -93,12 +93,7 @@ and syn_elab_line =
               ),
             )
           };
-        let d1 =
-          switch (ty1) {
-          // Don't cast if the unknown type originated from an unannotated pattern variable
-          | Unknown(SynPatternVar) => d1
-          | _ => DHExp.cast(d1, ty1', ty1)
-          };
+        let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>

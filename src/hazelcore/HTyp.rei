@@ -1,17 +1,17 @@
 /* types with holes */
 
 [@deriving sexp]
-type hole_provenance =
+type unknown_type_provenance =
+  | TypHole /* from an actual type hole; will add a MetaVar.t once we have unique IDs for type holes */
   | SynPatternVar
-  /* comes from a pattern var being asked to synthesize a type either directly or via matched arrow/prod/etc.
+  /* from a pattern var being asked to synthesize a type either directly or via matched arrow/prod/etc.
      When analyzing against such a type, expression can be treated as if synthetic when the distinction matters
      e.g. for inconsistent branches or cast insertion */
-  | Internal /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
-  | TypHole; /* comes from an actual type hole, will add an `of MetaVar.t`, once we have unique IDs for type holes */
+  | Internal; /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
 
 [@deriving sexp]
 type t =
-  | Unknown(hole_provenance)
+  | Unknown(unknown_type_provenance)
   | Int
   | Float
   | Bool
@@ -41,8 +41,6 @@ let get_prod_arity: t => int;
 let matched_arrow: t => option((t, t));
 let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
-
-let complete: t => bool;
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
