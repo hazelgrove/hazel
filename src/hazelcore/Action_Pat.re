@@ -301,7 +301,6 @@ let rec syn_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapUp
   | SwapDown
   | SwapLeft
@@ -365,7 +364,6 @@ let rec ana_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapUp
   | SwapDown
   | SwapLeft
@@ -418,9 +416,6 @@ and syn_perform_opseq =
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
-
-  /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, _) => Failed
@@ -629,10 +624,9 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | SLine | SLam | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
-      UpdateApPalette(_) |
       SwapUp |
       SwapDown,
       CursorP(_),
@@ -945,7 +939,6 @@ and ana_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
   | (SwapUp | SwapDown, _) => Failed
 
   /* Movement handled at top level */
@@ -1168,10 +1161,9 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | SLine | SLam | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
-      UpdateApPalette(_) |
       SwapUp |
       SwapDown,
       CursorP(_),

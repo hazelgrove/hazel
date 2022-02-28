@@ -13,9 +13,13 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-    | _ => false
+    | BoolLit(_, _)
+    | InvalidText(_) => true
+    | ListNil(_)
+    | Lam(_)
+    | Inj(_)
+    | Case(_)
+    | Parenthesized(_) => false
     }
   | PatOperand(_, pat) =>
     switch (pat) {
@@ -25,7 +29,11 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _) => true
-    | _ => false
+    | TypeAnn(_)
+    | InvalidText(_)
+    | ListNil(_)
+    | Parenthesized(_)
+    | Inj(_) => false
     }
   | TypOperand(_, _)
   | ExpOperator(_, _)

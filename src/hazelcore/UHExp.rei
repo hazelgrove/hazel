@@ -22,12 +22,9 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t)
-and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+  | Rule(UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
