@@ -162,11 +162,11 @@ and follow_operand =
         |> Option.map(zt1 => ZExp.IfZ1(err, zt1, t2, t3))
       | 1 =>
         t2
-        |> follow((xs, cursor))
+        |> follow_if_branch((xs, cursor))
         |> Option.map(zt2 => ZExp.IfZ2(err, t1, zt2, t3))
       | 2 =>
         t3
-        |> follow((xs, cursor))
+        |> follow_if_branch((xs, cursor))
         |> Option.map(zt3 => ZExp.IfZ3(err, t1, t2, zt3))
       | _ => None
       }
@@ -200,6 +200,13 @@ and follow_rule =
       |> Option.map(zclause => ZExp.RuleZE(p, zclause))
     | _ => None
     }
+  }
+and follow_if_branch =
+    ((steps, cursor): CursorPath.t, branch: UHExp.block)
+    : option(ZExp.zblock) =>
+  switch (steps) {
+  | [] => Some(branch |> ZExp.place_before_block)
+  | xs => branch |> follow((xs, cursor))
   };
 
 let rec of_steps =
