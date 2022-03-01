@@ -1075,7 +1075,6 @@ and case_ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(_, _), _, _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand')
@@ -1088,7 +1087,44 @@ and case_ana_operand =
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1
-      ? Some((ctx, Constraints.Hole)) : None /* not in hole */
+      ? Some((ctx, Constraints.Hole)) : None
+
+  | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, arg_opt) =>
+    switch (ty) {
+    | Hole
+    | Sum(_) => None
+    | _ =>
+      switch (arg_opt) {
+      | None => Some((ctx, Hole))
+      | Some(arg) =>
+        let+ _ = case_ana(ctx, arg, Hole);
+        (ctx, Constraints.Hole);
+      }
+    }
+  | Inj(InHole(UnexpectedArg, _), tag, Some(arg)) =>
+    switch (ty) {
+    | Sum(_) =>
+      let* tymap = HTyp.matched_finite_sum(ty);
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(None) => case_ana(ctx, arg, Hole)
+      | _ => None
+      };
+    | _ => None
+    }
+  | Inj(InHole(UnexpectedArg, _), _, None) => None
+  | Inj(InHole(ExpectedArg, _), tag, None) =>
+    switch (ty) {
+    | Sum(_) =>
+      let* tymap = HTyp.matched_finite_sum(ty);
+      switch (TagMap.find_opt(tag, tymap)) {
+      | Some(Some(_)) => Some((ctx, Constraints.Hole))
+      | _ => None
+      };
+    | _ => None
+    }
+  | Inj(InHole(ExpectedArg, _), _, Some(_)) => None
+
+  /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
   | Var(NotInHole, NotInVarHole, x) =>
@@ -1157,12 +1193,19 @@ and case_ana_operand =
     switch (ty) {
     | Sum(sum_body) =>
       let* tymap = HTyp.matched_finite_sum(ty);
-      let* ty_arg_opt = TagMap.find_opt(tag, tymap);
-      switch (ty_arg_opt) {
-      | Some(ty_arg) =>
-        let+ (ctx, c_arg) = case_ana(ctx, p_arg, ty_arg);
+      switch (tag) {
+      | EmptyTagHole(_)
+      | Tag(InTagHole(_), _) =>
+        let+ (_, ctx, c_arg) = case_syn(ctx, p_arg);
         (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
-      | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
+      | Tag(NotInTagHole, _) =>
+        let* ty_arg_opt = TagMap.find_opt(tag, tymap);
+        switch (ty_arg_opt) {
+        | Some(ty_arg) =>
+          let+ (ctx, c_arg) = case_ana(ctx, p_arg, ty_arg);
+          (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
+        | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
+        };
       };
     | _ => None
     }
