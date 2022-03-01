@@ -63,6 +63,29 @@ let get_cursor_info = (program: t) => {
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let (tag_err_holes, tag_var_err_holes) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps, _}) =>
+         switch (sort) {
+         | TypHole
+         | ExpHole(_)
+         | PatHole(_) => None
+         | TagHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition((p: (CursorPath.tag_hole_shape, CursorPath.steps)) => {
+         let (shape, _) = p;
+         switch (shape) {
+         | CursorPath.TypeErr => true
+         | _ => false
+         };
+       })
+    |> TupleUtil.map2(List.map(snd));
   let (pat_err_holes, pat_var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
@@ -159,9 +182,9 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     rule_err_holes,
     case_err_holes: (case_err_notex, case_err_incon),
     current_term,
-    err_holes: pat_err_holes @ exp_err_holes,
+    err_holes: pat_err_holes @ exp_err_holes @ tag_err_holes,
     var_uses,
-    var_err_holes: pat_var_err_holes @ exp_var_err_holes,
+    var_err_holes: pat_var_err_holes @ exp_var_err_holes @ tag_var_err_holes,
   };
 };
 
