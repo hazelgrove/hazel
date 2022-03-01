@@ -56,6 +56,18 @@ let is_inconsistent_float = (xis: list(Constraints.t)): bool => {
   };
 };
 
+let split_inj_constraints = xis =>
+  List.fold_left(
+    ((const_injs, arg_injs, other_xis), xi': Constraints.t) =>
+      switch (xi') {
+      | ConstInj(_) => ([xi', ...const_injs], arg_injs, other_xis)
+      | ArgInj(_) => (const_injs, [xi', ...arg_injs], other_xis)
+      | _ => (const_injs, arg_injs, [xi', ...other_xis])
+      },
+    ([], [], []),
+    xis,
+  );
+
 let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
   switch (xis) {
   | [] => false
@@ -68,39 +80,50 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
     | Or(xi1, xi2) =>
       is_inconsistent(~may, [xi1, ...xis'])
       && is_inconsistent(~may, [xi2, ...xis'])
-    | Inj(_, tag, xi_arg0_opt) =>
-      List.exists(
-        fun
-        | Constraints.Inj(_, tag', _) => !UHTag.consistent(tag, tag')
-        | _ => false,
-        xis,
-      )
-      || (
-        switch (
-          List.partition(
+    | ConstInj(_, tag0) =>
+      let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
+      switch (other_xis) {
+      | [] =>
+        // CINCInjTag
+        List.exists(
+          fun
+          | Constraints.ConstInj(_, tag) =>
+            may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+          | _ => false,
+          const_injs,
+        )
+        // CINCInjArg
+        || arg_injs != []
+      | _ =>
+        arg_injs != []
+        || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
+      };
+    | ArgInj(_, tag0, xi_arg0) =>
+      let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
+      switch (other_xis) {
+      | [] =>
+        let xi_args =
+          List.filter_map(
             fun
-            | Constraints.Inj(_, tag', _) => UHTag.consistent(tag, tag')
-            | _ => false,
-            xis,
-          )
-        ) {
-        | (injLs, []) =>
-          let unwrap =
-            List.filter_map(
-              fun
-              | Constraints.Inj(_, _, xi_arg_opt) => xi_arg_opt
-              | _ => None,
-              injLs,
-            );
-          let unwrap =
-            switch (xi_arg0_opt) {
-            | None => unwrap
-            | Some(xi_arg0) => [xi_arg0, ...unwrap]
-            };
-          is_inconsistent(~may, unwrap);
-        | (injLs, other) => is_inconsistent(~may, other @ injLs)
-        }
-      )
+            | Constraints.ArgInj(_, _, xi_arg) => Some(xi_arg)
+            | _ => None,
+            arg_injs,
+          );
+        // CINCInjTag
+        List.exists(
+          fun
+          | Constraints.ArgInj(_, tag, _) =>
+            may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+          | _ => false,
+          arg_injs,
+        )
+        // CINCInjArg
+        || const_injs != []
+        || is_inconsistent(~may, [xi_arg0, ...xi_args]);
+      | _ =>
+        const_injs != []
+        || is_inconsistent(~may, other_xis @ [xi, ...arg_injs])
+      };
     | Int(_)
     | NotInt(_) =>
       switch (
@@ -152,6 +175,19 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
       | (pairs, other) => is_inconsistent(~may, other @ pairs)
       }
     }
+  }
+and is_inconsistent_inj_tags = (tag0: UHTag.t, cs: list(Constraints.t)): bool =>
+  switch (tag0) {
+  | EmptyTagHole(_)
+  | Tag(InTagHole(_), _) => false
+  | Tag(NotInTagHole, t0) =>
+    List.exists(
+      fun
+      | Constraints.ConstInj(_, Tag(NotInTagHole, t))
+      | ArgInj(_, Tag(NotInTagHole, t), _) => !String.equal(t, t0)
+      | _ => false,
+      cs,
+    )
   };
 
 let is_redundant = (xi_cur: Constraints.t, xi_pre: Constraints.t): bool =>

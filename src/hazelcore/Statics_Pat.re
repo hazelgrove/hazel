@@ -917,7 +917,7 @@ and case_syn_skel =
     (
       HTyp.List(ty_elt),
       ctx,
-      Constraints.cons_constraint(Some(Pair(left_con, right_con))),
+      Constraints.cons_constraint(Pair(left_con, right_con)),
     );
   | BinOp(NotInHole, Space, _, _) => failwith("not implemented")
   };
@@ -968,20 +968,16 @@ and case_syn_operand =
       if (b) {Constraints.true_constraint} else {Constraints.false_constraint};
     Some((Bool, ctx, c));
   | ListNil(NotInHole) => Some((List(Hole), ctx, Truth)) // todo: fix when list constr is defined
+  | Inj(NotInHole, tag, None) =>
+    let sum_body = HTyp.Elided(tag, None);
+    Some((Sum(sum_body), ctx, Constraints.ConstInj(sum_body, tag)));
   | Inj(NotInHole, tag, Some(p_arg)) =>
     switch (case_syn(ctx, p_arg)) {
     | None => None
     | Some((ty_arg, ctx, c_arg)) =>
       let sum_body = HTyp.Elided(tag, Some(ty_arg));
-      Some((
-        Sum(sum_body),
-        ctx,
-        Constraints.Inj(sum_body, tag, Some(c_arg)),
-      ));
+      Some((Sum(sum_body), ctx, Constraints.ArgInj(sum_body, tag, c_arg)));
     }
-  | Inj(NotInHole, tag, None) =>
-    let sum_body = HTyp.Elided(tag, None);
-    Some((Sum(sum_body), ctx, Constraints.Inj(sum_body, tag, None)));
   | TypeAnn(NotInHole, op, ann) =>
     let ty = UHTyp.expand(ann);
     switch (case_ana_operand(ctx, op, ty)) {
@@ -1059,7 +1055,7 @@ and case_ana_skel =
         | Some((ctx, right_con)) =>
           Some((
             ctx,
-            Constraints.cons_constraint(Some(Pair(left_con, right_con))),
+            Constraints.cons_constraint(Pair(left_con, right_con)),
           ))
         }
       }
@@ -1141,52 +1137,34 @@ and case_ana_operand =
     | Some(_) => Some((ctx, Constraints.nil_constraint))
     }
   | Inj(NotInHole, tag, None) =>
-    switch (HTyp.matched_finite_sum(ty)) {
-    | None => None
-    | Some(tymap) =>
+    switch (ty) {
+    | Sum(sum_body) =>
+      let* tymap = HTyp.matched_finite_sum(ty);
       switch (tag) {
-      | EmptyTagHole(_) =>
-        switch (ty) {
-        | Sum(sum_body) => Some((ctx, Inj(sum_body, tag, None)))
-        | _ => None
-        }
-      | Tag(_) =>
-        switch (TagMap.find_opt(tag, tymap)) {
-        | None
-        | Some(Some(_)) => None
-        | Some(None) =>
-          switch (ty) {
-          | Sum(sum_body) => Some((ctx, Inj(sum_body, tag, None)))
-          | _ => None
-          }
-        }
-      }
+      | EmptyTagHole(_)
+      | Tag(InTagHole(_), _) =>
+        Some((ctx, Constraints.ConstInj(sum_body, tag)))
+      | Tag(NotInTagHole, _) =>
+        let* ty_arg_opt = TagMap.find_opt(tag, tymap);
+        switch (ty_arg_opt) {
+        | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
+        | Some(_) => Some((ctx, Constraints.ArgInj(sum_body, tag, Hole)))
+        };
+      };
+    | _ => None
     }
   | Inj(NotInHole, tag, Some(p_arg)) =>
-    switch (HTyp.matched_finite_sum(ty)) {
-    | None => None
-    | Some(tymap) =>
-      switch (TagMap.find_opt(tag, tymap)) {
-      | None
-      | Some(None) => None
-      | Some(Some(ty_arg)) =>
-        switch (tag) {
-        | EmptyTagHole(_) =>
-          switch (ty) {
-          | Sum(sum_body) => Some((ctx, Inj(sum_body, tag, None)))
-          | _ => None
-          }
-        | Tag(_) =>
-          switch (case_ana(ctx, p_arg, ty_arg)) {
-          | None => None
-          | Some((ctx', con')) =>
-            switch (ty) {
-            | Sum(sum_body) => Some((ctx', Inj(sum_body, tag, Some(con'))))
-            | _ => None
-            }
-          }
-        }
-      }
+    switch (ty) {
+    | Sum(sum_body) =>
+      let* tymap = HTyp.matched_finite_sum(ty);
+      let* ty_arg_opt = TagMap.find_opt(tag, tymap);
+      switch (ty_arg_opt) {
+      | Some(ty_arg) =>
+        let+ (ctx, c_arg) = case_ana(ctx, p_arg, ty_arg);
+        (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
+      | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
+      };
+    | _ => None
     }
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);

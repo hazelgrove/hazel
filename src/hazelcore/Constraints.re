@@ -11,7 +11,8 @@ type t =
   | NotFloat(float)
   | And(t, t)
   | Or(t, t)
-  | Inj(HTyp.sum_body, UHTag.t, option(t))
+  | ConstInj(HTyp.sum_body, UHTag.t)
+  | ArgInj(HTyp.sum_body, UHTag.t, t)
   | Pair(t, t);
 
 // Lists
@@ -19,17 +20,16 @@ let nil_tag = UHTag.Tag(NotInTagHole, "Nil");
 let cons_tag = UHTag.Tag(NotInTagHole, "Cons");
 let list_tagmap: TagMap.t(option(HTyp.t)) =
   TagMap.of_list([(nil_tag, None), (cons_tag, Some(HTyp.Hole))]);
-let nil_constraint = Inj(Finite(list_tagmap), nil_tag, None);
-let cons_constraint = (c_opt: option(t)) =>
-  Inj(Finite(list_tagmap), cons_tag, c_opt);
+let nil_constraint = ConstInj(Finite(list_tagmap), nil_tag);
+let cons_constraint = (c: t) => ArgInj(Finite(list_tagmap), cons_tag, c);
 
 // Booleans
 let false_tag = UHTag.Tag(NotInTagHole, "False");
 let true_tag = UHTag.Tag(NotInTagHole, "True");
 let bool_tagmap: TagMap.t(option(HTyp.t)) =
   TagMap.of_list([(false_tag, None), (true_tag, None)]);
-let false_constraint = Inj(Finite(bool_tagmap), false_tag, None);
-let true_constraint = Inj(Finite(bool_tagmap), true_tag, None);
+let false_constraint = ConstInj(Finite(bool_tagmap), false_tag);
+let true_constraint = ConstInj(Finite(bool_tagmap), true_tag);
 
 let rec constrains = (c: t, ty: HTyp.t): bool =>
   switch (c, ty) {
@@ -42,26 +42,24 @@ let rec constrains = (c: t, ty: HTyp.t): bool =>
   | (Float(_) | NotFloat(_), _) => false
   | (And(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
   | (Or(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
-  | (Inj(_, tag, c_arg_opt), Sum(Finite(tymap))) =>
-    switch (TagMap.find_opt(tag, tymap), c_arg_opt) {
-    | (None, _) => false
-    | (Some(None), None | Some(Truth)) => true
-    | (Some(None), _) => false
-    | (Some(Some(ty_arg)), Some(c_arg)) => constrains(c_arg, ty_arg)
-    | (Some(_), _) => false
+  | (ConstInj(sum_body, tag), Sum(_)) =>
+    {
+      open OptUtil.Syntax;
+      let* tymap0 = HTyp.matched_finite_sum(Sum(sum_body));
+      let+ ty_arg_opt = TagMap.find_opt(tag, tymap0);
+      Option.is_none(ty_arg_opt);
     }
-  | (Inj(_, tag, c_arg_opt), Sum(Elided(tag', ty_arg_opt))) =>
-    UHTag.equal(tag, tag')
-    && (
-      switch (c_arg_opt, ty_arg_opt) {
-      | (None, None)
-      | (Some(Truth), None) => true
-      | (None, Some(_))
-      | (Some(_), None) => false
-      | (Some(c_arg), Some(ty_arg)) => constrains(c_arg, ty_arg)
-      }
-    )
-  | (Inj(_), _) => false
+    |> Option.value(~default=false)
+  | (ArgInj(sum_body, tag, c_arg), Sum(_)) =>
+    {
+      open OptUtil.Syntax;
+      let* tymap0 = HTyp.matched_finite_sum(Sum(sum_body));
+      let* ty_arg_opt = TagMap.find_opt(tag, tymap0);
+      let+ ty_arg = ty_arg_opt;
+      constrains(c_arg, ty_arg);
+    }
+    |> Option.value(~default=false)
+  | (ConstInj(_) | ArgInj(_), _) => false
   | (Pair(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
   };
 
@@ -76,35 +74,35 @@ let rec dual = (c: t): t =>
   | NotFloat(n) => Float(n)
   | And(c1, c2) => Or(dual(c1), dual(c2))
   | Or(c1, c2) => And(dual(c1), dual(c2))
-  | Inj(Finite(tagmap) as sum_body, tag, c_arg_opt) =>
-    let c0 =
-      switch (c_arg_opt) {
-      | None => Inj(sum_body, tag, None)
-      | Some(c_arg) => Inj(sum_body, tag, Some(dual(c_arg)))
-      };
-    TagMap.bindings(tagmap)
-    |> List.filter_map(((tag', _)) =>
-         UHTag.equal(tag, tag')
-           ? None
-           : Some(
-               Inj(sum_body, tag, c_arg_opt == None ? None : Some(Truth)),
-             )
-       )
-    |> List.fold_left((cs, c) => Or(c, cs), c0);
-  | Inj(Elided(tag, _) as sum_body, tag', c_arg_opt) =>
-    if (UHTag.equal(tag, tag')) {
-      switch (c_arg_opt) {
-      | None => Inj(sum_body, tag, None)
-      | Some(c_arg) => Inj(sum_body, tag, Some(dual(c_arg)))
-      };
-    } else {
-      Inj(sum_body, tag, c_arg_opt == None ? None : Some(Truth));
-    }
+  | ConstInj(sum_body, tag) => dual_injs_constraint(sum_body, tag)
+  | ArgInj(sum_body, tag, c_arg) =>
+    Or(
+      ArgInj(sum_body, tag, dual(c_arg)),
+      dual_injs_constraint(sum_body, tag),
+    )
   | Pair(c1, c2) =>
     Or(
       Pair(c1, dual(c2)),
       Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
     )
+  }
+and dual_injs_constraint = (sum_body: HTyp.sum_body, tag0: UHTag.t): t =>
+  switch (HTyp.matched_finite_sum(Sum(sum_body))) {
+  | None => failwith(__LOC__ ++ ": impossible matched_finite_sum failure")
+  | Some(tymap) =>
+    let other_injs =
+      TagMap.bindings(tymap)
+      |> List.filter(((tag, _)) => !UHTag.equal(tag, tag0))
+      |> List.map(((tag, ty_arg_opt)) =>
+           switch (ty_arg_opt) {
+           | None => ConstInj(sum_body, tag)
+           | Some(_) => ArgInj(sum_body, tag, Truth)
+           }
+         );
+    switch (other_injs) {
+    | [] => Falsity
+    | [c1, ...cs] => List.fold_right((ci, join) => Or(ci, join), cs, c1)
+    };
   };
 
 /** substitute Truth for Hole */
@@ -119,8 +117,8 @@ let rec truify = (c: t): t =>
   | NotFloat(_) => c
   | And(c1, c2) => And(truify(c1), truify(c2))
   | Or(c1, c2) => Or(truify(c1), truify(c2))
-  | Inj(tagmap, tag, Some(c1)) => Inj(tagmap, tag, Some(truify(c1)))
-  | Inj(_, _, None) => c
+  | ConstInj(_) => c
+  | ArgInj(tagmap, tag, c_arg) => ArgInj(tagmap, tag, truify(c_arg))
   | Pair(c1, c2) => Pair(truify(c1), truify(c2))
   };
 
@@ -136,8 +134,8 @@ let rec falsify = (c: t): t =>
   | NotFloat(_) => c
   | And(c1, c2) => And(falsify(c1), falsify(c2))
   | Or(c1, c2) => Or(falsify(c1), falsify(c2))
-  | Inj(tagmap, tag, Some(c1)) => Inj(tagmap, tag, Some(falsify(c1)))
-  | Inj(tagmap, tag, None) => Inj(tagmap, tag, Some(Falsity))
+  | ConstInj(_) => c
+  | ArgInj(sum_body, tag, c_arg) => ArgInj(sum_body, tag, falsify(c_arg))
   | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
   };
 
