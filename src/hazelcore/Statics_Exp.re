@@ -145,21 +145,29 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
-  | Case(InconsistentBranches(rule_types, _, _), scrut, rules) =>
+  | Case(InconsistentBranches(rule_types, _, mode), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
-    /* Make sure the rule synthesizes the type the rule_types says it does */
-    let correct_rule_types =
-      List.for_all2(
-        (rule_ty, rule) => {
-          switch (syn_rule(ctx, rule, pat_ty)) {
-          | None => false
-          | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
-          }
-        },
-        rule_types,
-        rules,
-      );
-    correct_rule_types ? Some(HTyp.Unknown(Internal)) : None;
+    switch (mode) {
+    | Syn =>
+      /* Make sure the rule synthesizes the type the rule_types says it does if Syn */
+      let correct_rule_types =
+        List.for_all2(
+          (rule_ty, rule) => {
+            switch (syn_rule(ctx, rule, pat_ty)) {
+            | None => false
+            | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
+            }
+          },
+          rule_types,
+          rules,
+        );
+      correct_rule_types ? Some(HTyp.Unknown(Internal)) : None;
+    | Ana =>
+      /* in analytic position, we'd need a syn-fixed version of the rules to verify that
+         there is indeed no consistent type to synthesize, but we don't want to define
+         syn in terms of syn_fix or keep duplicated rules around so we don't check this */
+      Some(HTyp.Unknown(Internal))
+    };
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Unknown(Internal))
@@ -288,14 +296,6 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
-
-  | Case(InconsistentBranches(_), scrut, rules) =>
-    let* ty1 = syn(ctx, scrut);
-    let* _ = ana_rules(ctx, rules, ty1, ty);
-    switch (syn_rules(ctx, rules, ty1)) {
-    | None => Some()
-    | Some(_) => None
-    };
   /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -314,9 +314,15 @@ and ana_operand =
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
-    let* ty1 = syn(ctx, scrut);
-    ana_rules(ctx, rules, ty1, ty);
+  | Case(_, scrut, rules) =>
+    switch (ty) {
+    | HTyp.Unknown(SynPatternVar) =>
+      let+ _ = syn_operand(ctx, operand);
+      ();
+    | _ =>
+      let* ty1 = syn(ctx, scrut);
+      ana_rules(ctx, rules, ty1, ty);
+    }
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -1254,6 +1260,7 @@ and ana_fix_holes_operand =
         );
       switch (common_type) {
       | None =>
+        print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_rules(rules)));
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (
           Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
