@@ -582,9 +582,7 @@ let rec evaluate =
       let (ec, env'') =
         EvalEnv.extend(ec, env', (f, BoxedValue(FixF(f, ty, d''))));
       (ec, BoxedValue(Closure(env'', x, ty', d')));
-    | _ =>
-      exception FixFWithoutClosure;
-      raise(FixFWithoutClosure);
+    | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
   | Lam(dp, ty, d) => (ec, BoxedValue(Closure(env, dp, ty, d)))
   | Closure(_) => (ec, BoxedValue(d))

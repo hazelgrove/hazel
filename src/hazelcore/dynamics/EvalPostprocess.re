@@ -1,3 +1,9 @@
+type error =
+  | ClosureInsideClosure
+  | BoundVarOutsideClosure(Var.t)
+  | UnevalOutsideClosure;
+exception Exception(error);
+
 /* Postprocess outside evaluation boundary */
 let rec pp_uneval =
         (
@@ -76,11 +82,8 @@ let rec pp_uneval =
     let (hci, rules') = pp_uneval_rules(hci, env, rules, parent);
     (hci, ConsistentCase(Case(scrut', rules', i)));
 
-  /* This shouldn't occur within a lambda body. */
-  /* TODO: move this exception elsewhere. */
-  | Closure(_) =>
-    exception ClosureInsideLambdaBody;
-    raise(ClosureInsideLambdaBody);
+  /* Closures shouldn't exist inside other closures */
+  | Closure(_) => raise(Exception(ClosureInsideClosure))
 
   /* Hole expressions:
      - Use the closure environment as the hole environment.
@@ -234,14 +237,10 @@ and pp_eval =
     (hci, InvalidOperation(d'', reason));
 
   /* Bound variables should not appear outside holes or closures */
-  | BoundVar(x) =>
-    raise(EvaluatorError.Exception(EvaluatorError.FreeInvalidVar(x)))
+  | BoundVar(x) => raise(Exception(BoundVarOutsideClosure(x)))
 
   /* Lambda should not appear outside closure in evaluated result */
-  /* TODO: move this exception somewhere else */
-  | Lam(_) =>
-    exception LambdaOutsideClosure;
-    raise(LambdaOutsideClosure);
+  | Lam(_) => raise(Exception(UnevalOutsideClosure))
 
   /* Closure:
      - Fix environment recursively.
