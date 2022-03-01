@@ -1603,7 +1603,8 @@ and syn_perform_operand =
       ),
     )
   | (Construct(SAnn), CursorE(_)) => Failed
-  | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
+  | (Construct(SChar(s)), CursorE(_, EmptyHole(metavar))) =>
+    // TODO: construct hole
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
