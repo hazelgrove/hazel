@@ -88,7 +88,6 @@ and syn_operand =
         }
       };
     Some((Sum(Elided(tag, ty_opt)), ctx'));
-
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
@@ -968,15 +967,23 @@ and case_syn_operand =
       if (b) {Constraints.true_constraint} else {Constraints.false_constraint};
     Some((Bool, ctx, c));
   | ListNil(NotInHole) => Some((List(Hole), ctx, Truth)) // todo: fix when list constr is defined
-  | Inj(NotInHole, tag, None) =>
-    let sum_body = HTyp.Elided(tag, None);
-    Some((Sum(sum_body), ctx, Constraints.ConstInj(sum_body, tag)));
-  | Inj(NotInHole, tag, Some(p_arg)) =>
-    switch (case_syn(ctx, p_arg)) {
-    | None => None
-    | Some((ty_arg, ctx, c_arg)) =>
-      let sum_body = HTyp.Elided(tag, Some(ty_arg));
-      Some((Sum(sum_body), ctx, Constraints.ArgInj(sum_body, tag, c_arg)));
+  // SInj
+  | Inj(NotInHole, tag, arg_opt) =>
+    switch (arg_opt) {
+    | None =>
+      let sum_body = HTyp.Elided(tag, None);
+      Some((Sum(sum_body), ctx, Constraints.ConstInj(sum_body, tag)));
+    | Some(arg) =>
+      switch (case_syn(ctx, arg)) {
+      | None => None
+      | Some((ty_arg, ctx, c_arg)) =>
+        let sum_body = HTyp.Elided(tag, Some(ty_arg));
+        Some((
+          Sum(sum_body),
+          ctx,
+          Constraints.ArgInj(sum_body, tag, c_arg),
+        ));
+      }
     }
   | TypeAnn(NotInHole, op, ann) =>
     let ty = UHTyp.expand(ann);
@@ -1088,7 +1095,6 @@ and case_ana_operand =
   | TypeAnn(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1
       ? Some((ctx, Constraints.Hole)) : None
-
   | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, arg_opt) =>
     switch (ty) {
     | Hole
@@ -1123,7 +1129,6 @@ and case_ana_operand =
     | _ => None
     }
   | Inj(InHole(ExpectedArg, _), _, Some(_)) => None
-
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
@@ -1174,6 +1179,9 @@ and case_ana_operand =
     }
   | Inj(NotInHole, tag, None) =>
     switch (ty) {
+    | Hole =>
+      let sum_body = HTyp.Elided(tag, None);
+      Some((ctx, Constraints.ConstInj(sum_body, tag)));
     | Sum(sum_body) =>
       let* tymap = HTyp.matched_finite_sum(ty);
       switch (tag) {
@@ -1181,31 +1189,35 @@ and case_ana_operand =
       | Tag(InTagHole(_), _) =>
         Some((ctx, Constraints.ConstInj(sum_body, tag)))
       | Tag(NotInTagHole, _) =>
-        let* ty_arg_opt = TagMap.find_opt(tag, tymap);
-        switch (ty_arg_opt) {
-        | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
-        | Some(_) => Some((ctx, Constraints.ArgInj(sum_body, tag, Hole)))
-        };
+        switch (TagMap.find_opt(tag, tymap)) {
+        | None
+        | Some(Some(_)) => None
+        | Some(None) => Some((ctx, Constraints.ConstInj(sum_body, tag)))
+        }
       };
     | _ => None
     }
-  | Inj(NotInHole, tag, Some(p_arg)) =>
+  | Inj(NotInHole, tag, Some(arg)) =>
     switch (ty) {
+    | Hole =>
+      let+ (ctx, c_arg) = case_ana(ctx, arg, Hole);
+      let sum_body = HTyp.Elided(tag, Some(Hole));
+      (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
     | Sum(sum_body) =>
       let* tymap = HTyp.matched_finite_sum(ty);
       switch (tag) {
       | EmptyTagHole(_)
       | Tag(InTagHole(_), _) =>
-        let+ (_, ctx, c_arg) = case_syn(ctx, p_arg);
+        let+ (ctx, c_arg) = case_ana(ctx, arg, Hole);
         (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
       | Tag(NotInTagHole, _) =>
-        let* ty_arg_opt = TagMap.find_opt(tag, tymap);
-        switch (ty_arg_opt) {
-        | Some(ty_arg) =>
-          let+ (ctx, c_arg) = case_ana(ctx, p_arg, ty_arg);
+        switch (TagMap.find_opt(tag, tymap)) {
+        | None
+        | Some(None) => None
+        | Some(Some(ty_arg)) =>
+          let+ (ctx, c_arg) = case_ana(ctx, arg, ty_arg);
           (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
-        | None => Some((ctx, Constraints.ConstInj(sum_body, tag)))
-        };
+        }
       };
     | _ => None
     }
