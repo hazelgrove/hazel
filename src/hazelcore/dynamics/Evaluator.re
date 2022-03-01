@@ -536,9 +536,6 @@ let rec subst_vars_within_lambdas =
     }
 
   /* Non-hole expressions: expand recursively */
-  | Keyword(_)
-  | FreeVar(_)
-  | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -592,7 +589,8 @@ let rec subst_vars_within_lambdas =
     (hci, InvalidOperation(d'', reason));
   | ConsistentCase(Case(scrut, rules, i)) =>
     let (hci, scrut') = subst_vars_within_lambdas(hci, env, scrut, parent);
-    (hci, ConsistentCase(Case(scrut', rules, i)));
+    let (hci, rules') = subst_vars_within_rules(hci, env, rules, parent);
+    (hci, ConsistentCase(Case(scrut', rules', i)));
 
   /* This shouldn't occur within a lambda body. */
   /* TODO: move this exception elsewhere. */
@@ -631,9 +629,67 @@ let rec subst_vars_within_lambdas =
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, NonEmptyHole(reason, u, i, env, d''));
     };
-  | InconsistentBranches(_) => /* TODO */ (hci, d)
+  | Keyword(u, _, _, kw) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, Keyword(u, i, env, kw));
+    };
+  | FreeVar(u, _, _, x) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, FreeVar(u, i, env, x));
+    };
+  | InvalidText(u, _, _, text) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, InvalidText(u, i, env, text));
+    };
+  | InconsistentBranches(u, _, _, Case(d', rules, i)) =>
+    let (hci, d'') = subst_vars_within_lambdas(hci, env, d', parent);
+    let (hci, rules') = subst_vars_within_rules(hci, env, rules, parent);
+    let case' = DHExp.Case(d'', rules', i);
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (
+        hci,
+        InconsistentBranches(u, i, env, case'),
+      )
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, InconsistentBranches(u, i, env, case'));
+    };
   };
 }
+
+and subst_vars_within_rules =
+    (
+      hci: HoleClosureInfo_.t,
+      env: EvalEnv.t,
+      rules: list(DHExp.rule),
+      parent: HoleClosureParents.t_,
+    )
+    : (HoleClosureInfo_.t, list(DHExp.rule)) =>
+  List.fold_right(
+    (DHExp.Rule(dp, d), (hci, rules)) => {
+      let (hci, d') = subst_vars_within_lambdas(hci, env, d, parent);
+      (hci, [DHExp.Rule(dp, d'), ...rules]);
+    },
+    rules,
+    (hci, []),
+  )
 
 /* Perform substitution inside unevaluated expressions, and
    renumber holes. Recurses through hole environments.
@@ -644,9 +700,6 @@ and expand_closures_to_lambdas =
     : (HoleClosureInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
-  | Keyword(_)
-  | FreeVar(_)
-  | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -742,7 +795,46 @@ and expand_closures_to_lambdas =
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
       (hci, NonEmptyHole(reason, u, i, env, d''));
     };
-  | InconsistentBranches(_) => /* TODO */ (hci, d)
+  | Keyword(u, _, env, kw) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, Keyword(u, i, env, kw));
+    };
+  | FreeVar(u, _, env, x) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, FreeVar(u, i, env, x));
+    };
+  | InvalidText(u, _, env, text) =>
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, InvalidText(u, i, env, text));
+    };
+  | InconsistentBranches(u, _, env, Case(d', rules, case_i)) =>
+    let (hci, d'') = expand_closures_to_lambdas(hci, d', parent);
+    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
+    switch (hc_id_res) {
+    | ExistClosure(hci, i, env) =>
+      let (hci, rules') = subst_vars_within_rules(hci, env, rules, parent);
+      (hci, InconsistentBranches(u, i, env, Case(d'', rules', case_i)));
+    | NewClosure(hci, i) =>
+      let (hci, env) = expand_closures_in_holes(hci, env, (u, i));
+      let (hci, rules') = subst_vars_within_rules(hci, env, rules, parent);
+      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+      (hci, InconsistentBranches(u, i, env, Case(d'', rules', case_i)));
+    };
   }
 
 /* Apply expand_closures_to_lambdas to each expression in sigma,
@@ -1017,43 +1109,48 @@ let rec evaluate =
     };
   | ConsistentCase(Case(d1, rules, n)) =>
     evaluate_case(ec, env, None, d1, rules, n)
+
+  /* Hole expressions */
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
-  | EmptyHole(u, i, env') => (
-      ec,
-      Indet(
-        EmptyHole(
-          u,
-          i,
-          switch (env') {
-          | UnreachedEnv => env
-          | Env(_) => env'
-          },
-        ),
-      ),
-    )
-  | NonEmptyHole(reason, u, i, env', d1) =>
-    switch (evaluate(ec, env, d1)) {
-    | (ec, BoxedValue(d1'))
-    | (ec, Indet(d1')) => (
-        ec,
-        Indet(
-          NonEmptyHole(
-            reason,
-            u,
-            i,
-            switch (env') {
-            | UnreachedEnv => env
-            | Env(_) => env'
-            },
-            d1',
-          ),
-        ),
-      )
+    switch (sigma) {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv =>
+      evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
     }
-  | FreeVar(_)
-  | Keyword(_)
-  | InvalidText(_) => (ec, Indet(d))
+  | EmptyHole(u, i, env') =>
+    switch (env') {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv => (ec, Indet(EmptyHole(u, i, env)))
+    }
+  | NonEmptyHole(reason, u, i, env', d1) =>
+    switch (env') {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv =>
+      switch (evaluate(ec, env, d1)) {
+      | (ec, BoxedValue(d1'))
+      | (ec, Indet(d1')) => (
+          ec,
+          Indet(NonEmptyHole(reason, u, i, env, d1')),
+        )
+      }
+    }
+  | FreeVar(u, i, env', x) =>
+    switch (env') {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv => (ec, Indet(FreeVar(u, i, env, x)))
+    }
+  | Keyword(u, i, env', kw) =>
+    switch (env') {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv => (ec, Indet(Keyword(u, i, env, kw)))
+    }
+  | InvalidText(u, i, env', text) =>
+    switch (env') {
+    | Env(_) => (ec, Indet(d))
+    | UnreachedEnv => (ec, Indet(InvalidText(u, i, env, text)))
+    }
+
+  /* Cast calculus */
   | Cast(d1, ty, ty') =>
     switch (evaluate(ec, env, d1)) {
     | (ec, BoxedValue(d1') as result) =>
@@ -1166,8 +1263,7 @@ and evaluate_case =
         ec,
         switch (inconsistent_info) {
         | None => Indet(ConsistentCase(case))
-        | Some((u, i, sigma)) =>
-          Indet(InconsistentBranches(u, i, sigma, case))
+        | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
         },
       );
     | Some(Rule(dp, d)) =>
@@ -1178,8 +1274,7 @@ and evaluate_case =
           ec,
           switch (inconsistent_info) {
           | None => Indet(ConsistentCase(case))
-          | Some((u, i, sigma)) =>
-            Indet(InconsistentBranches(u, i, sigma, case))
+          | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
           },
         );
       | Matches(env') =>
