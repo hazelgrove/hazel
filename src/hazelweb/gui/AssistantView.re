@@ -181,7 +181,10 @@ let score_view = (subscore: float, describe_subscore: float => string) =>
         sign_view(subscore),
         text(describe_subscore(subscore)),
         //TODO(andrew): remove debug print
-        text(Printf.sprintf(" %.2f", subscore)),
+        div(
+          [Attr.create("style", "color: #888;")],
+          [text(Printf.sprintf(" %.2f", subscore))],
+        ),
       ]
     },
   );
