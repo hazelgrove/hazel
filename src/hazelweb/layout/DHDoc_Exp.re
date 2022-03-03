@@ -56,7 +56,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
-  | NonEmptyHole(_, _, _, _, d) => precedence'(d)
+  | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
 
@@ -158,20 +158,20 @@ let rec mk =
       };
     let fdoc = (~enforce_inline) =>
       switch (d) {
-      | EmptyHole(u, i, _sigma) =>
+      | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_closure) {
           | None => false
           | Some((u', i')) => u == u' && i == i'
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, _, d) =>
+      | NonEmptyHole(reason, u, i, d) =>
         go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
-      | Keyword(u, i, _, k) => DHDoc_common.mk_Keyword((u, i), k)
-      | FreeVar(u, i, _, x) =>
+      | Keyword(u, i, k) => DHDoc_common.mk_Keyword((u, i), k)
+      | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, _, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+      | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -208,7 +208,7 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _, Case(dscrut, drs, _)) =>
+      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
@@ -279,7 +279,6 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      // TODO: different handling of Closure?
       | Lam(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
@@ -297,6 +296,7 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       | Closure(_) =>
+        /* The only closures in the result should be around a hole expression */
         exception ClosureInResult;
         raise(ClosureInResult);
       | FixF(x, ty, dbody) =>

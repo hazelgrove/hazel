@@ -44,19 +44,13 @@ module BinFloatOp: {
 [@deriving sexp]
 type t =
   /* Hole types */
-  | EmptyHole(MetaVar.t, HoleClosureId.t, evalenv)
-  | NonEmptyHole(
-      ErrStatus.HoleReason.t,
-      MetaVar.t,
-      HoleClosureId.t,
-      evalenv,
-      t,
-    )
+  | EmptyHole(MetaVar.t, HoleClosureId.t)
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, HoleClosureId.t, evalenv, ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, HoleClosureId.t, evalenv, Var.t)
-  | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
-  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
+  | Keyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, HoleClosureId.t, Var.t)
+  | InvalidText(MetaVar.t, HoleClosureId.t, string)
+  | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
   | Closure(evalenv, t)
   /* Other expressions forms */

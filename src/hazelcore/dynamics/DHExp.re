@@ -131,19 +131,13 @@ module BinFloatOp = {
 [@deriving sexp]
 type t =
   /* Hole types */
-  | EmptyHole(MetaVar.t, HoleClosureId.t, evalenv)
-  | NonEmptyHole(
-      ErrStatus.HoleReason.t,
-      MetaVar.t,
-      HoleClosureId.t,
-      evalenv,
-      t,
-    )
+  | EmptyHole(MetaVar.t, HoleClosureId.t)
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, HoleClosureId.t, evalenv, ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, HoleClosureId.t, evalenv, Var.t)
-  | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
-  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
+  | Keyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, HoleClosureId.t, Var.t)
+  | InvalidText(MetaVar.t, HoleClosureId.t, string)
+  | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
   | Closure(evalenv, t)
   /* Other expressions forms */
@@ -181,10 +175,10 @@ and result =
 
 let constructor_string = (d: t): string =>
   switch (d) {
-  | EmptyHole(_, _, _) => "EmptyHole"
-  | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
-  | Keyword(_, _, _, _) => "Keyword"
-  | FreeVar(_, _, _, _) => "FreeVar"
+  | EmptyHole(_, _) => "EmptyHole"
+  | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
+  | Keyword(_, _, _) => "Keyword"
+  | FreeVar(_, _, _) => "FreeVar"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
@@ -204,7 +198,7 @@ let constructor_string = (d: t): string =>
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
   | ConsistentCase(_) => "ConsistentCase"
-  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
+  | InconsistentBranches(_, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
@@ -296,33 +290,22 @@ let rec fast_equals = (d1: t, d2: t): bool => {
      environment ID's are equal, don't check structural equality.
 
      (This resolves a performance issue with many nested holes.) */
-  | (EmptyHole(u1, i1, sigma1), EmptyHole(u2, i2, sigma2)) =>
-    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2)
-  | (
-      NonEmptyHole(reason1, u1, i1, sigma1, d1),
-      NonEmptyHole(reason2, u2, i2, sigma2, d2),
-    ) =>
-    reason1 == reason2
-    && u1 == u2
-    && i1 == i2
-    && evalenv_equals(sigma1, sigma2)
-    && fast_equals(d1, d2)
-  | (Keyword(u1, i1, sigma1, kw1), Keyword(u2, i2, sigma2, kw2)) =>
-    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && kw1 == kw2
-  | (FreeVar(u1, i1, sigma1, x1), FreeVar(u2, i2, sigma2, x2)) =>
-    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && x1 == x2
-  | (InvalidText(u1, i1, sigma1, text1), InvalidText(u2, i2, sigma2, text2)) =>
-    u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && text1 == text2
+  | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
+  | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
+    reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equals(d1, d2)
+  | (Keyword(u1, i1, kw1), Keyword(u2, i2, kw2)) =>
+    u1 == u2 && i1 == i2 && kw1 == kw2
+  | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
+    u1 == u2 && i1 == i2 && x1 == x2
+  | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
+    u1 == u2 && i1 == i2 && text1 == text2
   | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
     evalenv_equals(sigma1, sigma2) && fast_equals(d1, d2)
   | (
-      InconsistentBranches(u1, i1, sigma1, case1),
-      InconsistentBranches(u2, i2, sigma2, case2),
+      InconsistentBranches(u1, i1, case1),
+      InconsistentBranches(u2, i2, case2),
     ) =>
-    u1 == u2
-    && i1 == i2
-    && evalenv_equals(sigma1, sigma2)
-    && fast_equals_case(case1, case2)
+    u1 == u2 && i1 == i2 && fast_equals_case(case1, case2)
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _)
   | (Keyword(_), _)

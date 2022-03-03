@@ -98,56 +98,59 @@ let rec pp_uneval =
      to set the correct hole parents; however, this is only at most
      one depth of repeated traversal through the environment
      */
-  | EmptyHole(u, _, _) =>
+  | EmptyHole(u, _) =>
     let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
     switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | ExistClosure(hci, i, env) => (hci, Closure(env, EmptyHole(u, i)))
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, EmptyHole(u, i, env));
+      (hci, Closure(env, EmptyHole(u, i)));
     };
-  | NonEmptyHole(reason, u, _, _, d') =>
+  | NonEmptyHole(reason, u, _, d') =>
     let (hci, d'') = pp_uneval(hci, env, d', parent);
     let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
     switch (hc_id_res) {
     | ExistClosure(hci, i, env) => (
         hci,
-        NonEmptyHole(reason, u, i, env, d''),
+        Closure(env, NonEmptyHole(reason, u, i, d'')),
       )
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, NonEmptyHole(reason, u, i, env, d''));
+      (hci, Closure(env, NonEmptyHole(reason, u, i, d'')));
     };
-  | Keyword(u, _, _, kw) =>
+  | Keyword(u, _, kw) =>
     let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
     switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | ExistClosure(hci, i, env) => (hci, Closure(env, Keyword(u, i, kw)))
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, Keyword(u, i, env, kw));
+      (hci, Closure(env, Keyword(u, i, kw)));
     };
-  | FreeVar(u, _, _, x) =>
+  | FreeVar(u, _, x) =>
     let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
     switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | ExistClosure(hci, i, env) => (hci, Closure(env, FreeVar(u, i, x)))
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, FreeVar(u, i, env, x));
+      (hci, Closure(env, FreeVar(u, i, x)));
     };
-  | InvalidText(u, _, _, text) =>
+  | InvalidText(u, _, text) =>
     let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
     switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
+    | ExistClosure(hci, i, env) => (
+        hci,
+        Closure(env, InvalidText(u, i, text)),
+      )
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, InvalidText(u, i, env, text));
+      (hci, Closure(env, InvalidText(u, i, text)));
     };
-  | InconsistentBranches(u, _, _, Case(d', rules, i)) =>
+  | InconsistentBranches(u, _, Case(d', rules, i)) =>
     let (hci, d'') = pp_uneval(hci, env, d', parent);
     let (hci, rules') = pp_uneval_rules(hci, env, rules, parent);
     let case' = DHExp.Case(d'', rules', i);
@@ -155,12 +158,12 @@ let rec pp_uneval =
     switch (hc_id_res) {
     | ExistClosure(hci, i, env) => (
         hci,
-        InconsistentBranches(u, i, env, case'),
+        Closure(env, InconsistentBranches(u, i, case')),
       )
     | NewClosure(hci, i) =>
       let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
       let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, InconsistentBranches(u, i, env, case'));
+      (hci, Closure(env, InconsistentBranches(u, i, case')));
     };
   };
 }
@@ -240,7 +243,13 @@ and pp_eval =
   /* TODO: also move let and case here */
   | Let(_)
   | ConsistentCase(_)
-  | Lam(_) => raise(Exception(UnevalOutsideClosure))
+  | Lam(_)
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | Keyword(_)
+  | FreeVar(_)
+  | InvalidText(_)
+  | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
 
   /* Closure */
   | Closure(env', d') =>
@@ -258,74 +267,96 @@ and pp_eval =
       let (hci, scrut') = pp_eval(hci, scrut, parent);
       let (hci, rules') = pp_uneval_rules(hci, env', rules, parent);
       (hci, ConsistentCase(Case(scrut', rules', i)));
+
+    | EmptyHole(u, _) =>
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') => (hci, Closure(env', EmptyHole(u, i)))
+      | NewClosure(hci, i) =>
+        let (hci, env) = pp_eval_hole_env(hci, env', (u, i));
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
+        (hci, Closure(env', EmptyHole(u, i)));
+      };
+    | NonEmptyHole(reason, u, _, d') =>
+      let (hci, d'') = pp_eval(hci, d', parent);
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') => (
+          hci,
+          Closure(env', NonEmptyHole(reason, u, i, d'')),
+        )
+      | NewClosure(hci, i) =>
+        let (hci, env') = pp_eval_hole_env(hci, env', (u, i));
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env');
+        (hci, Closure(env', NonEmptyHole(reason, u, i, d'')));
+      };
+    | Keyword(u, _, kw) =>
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') => (
+          hci,
+          Closure(env', Keyword(u, i, kw)),
+        )
+      | NewClosure(hci, i) =>
+        let (hci, env') = pp_eval_hole_env(hci, env', (u, i));
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env');
+        (hci, Closure(env', Keyword(u, i, kw)));
+      };
+    | FreeVar(u, _, x) =>
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') => (
+          hci,
+          Closure(env', FreeVar(u, i, x)),
+        )
+      | NewClosure(hci, i) =>
+        let (hci, env') = pp_eval_hole_env(hci, env', (u, i));
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env');
+        (hci, Closure(env', FreeVar(u, i, x)));
+      };
+    | InvalidText(u, _, text) =>
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') => (
+          hci,
+          Closure(env', InvalidText(u, i, text)),
+        )
+      | NewClosure(hci, i) =>
+        let (hci, env') = pp_eval_hole_env(hci, env', (u, i));
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env');
+        (hci, Closure(env', InvalidText(u, i, text)));
+      };
+    | InconsistentBranches(u, _, Case(d', rules, case_i)) =>
+      let (hci, d'') = pp_eval(hci, d', parent);
+      let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
+      switch (hc_id_res) {
+      | ExistClosure(hci, i, env') =>
+        let (hci, rules') = pp_uneval_rules(hci, env', rules, parent);
+        (
+          hci,
+          Closure(
+            env',
+            InconsistentBranches(u, i, Case(d'', rules', case_i)),
+          ),
+        );
+      | NewClosure(hci, i) =>
+        let (hci, env') = pp_eval_hole_env(hci, env', (u, i));
+        let (hci, rules') = pp_uneval_rules(hci, env', rules, parent);
+        let hci = HoleClosureInfo_.update_hc_env(hci, u, env');
+        (
+          hci,
+          Closure(
+            env',
+            InconsistentBranches(u, i, Case(d'', rules', case_i)),
+          ),
+        );
+      };
     | _ => raise(Exception(InvalidClosureBody))
     }
   /* Hole expressions:
      - Fix environment recursively.
      - Number the hole closure appropriately.
      - Recurse through subexpressions if applicable. */
-  | EmptyHole(u, _, env) =>
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, EmptyHole(u, i, env));
-    };
-  | NonEmptyHole(reason, u, _, env, d') =>
-    let (hci, d'') = pp_eval(hci, d', parent);
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (
-        hci,
-        NonEmptyHole(reason, u, i, env, d''),
-      )
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, NonEmptyHole(reason, u, i, env, d''));
-    };
-  | Keyword(u, _, env, kw) =>
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, Keyword(u, i, env, kw));
-    };
-  | FreeVar(u, _, env, x) =>
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, FreeVar(u, i, env, x));
-    };
-  | InvalidText(u, _, env, text) =>
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) => (hci, EmptyHole(u, i, env))
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, InvalidText(u, i, env, text));
-    };
-  | InconsistentBranches(u, _, env, Case(d', rules, case_i)) =>
-    let (hci, d'') = pp_eval(hci, d', parent);
-    let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env, parent);
-    switch (hc_id_res) {
-    | ExistClosure(hci, i, env) =>
-      let (hci, rules') = pp_uneval_rules(hci, env, rules, parent);
-      (hci, InconsistentBranches(u, i, env, Case(d'', rules', case_i)));
-    | NewClosure(hci, i) =>
-      let (hci, env) = pp_eval_hole_env(hci, env, (u, i));
-      let (hci, rules') = pp_uneval_rules(hci, env, rules, parent);
-      let hci = HoleClosureInfo_.update_hc_env(hci, u, env);
-      (hci, InconsistentBranches(u, i, env, Case(d'', rules', case_i)));
-    };
   }
 
 /* Apply pp_eval to each expression in sigma,

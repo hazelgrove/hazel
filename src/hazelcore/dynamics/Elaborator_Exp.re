@@ -121,10 +121,9 @@ and syn_elab_skel =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = EvalEnv.unreached;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, d), Hole, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -262,10 +261,9 @@ and syn_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = EvalEnv.unreached;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, d), Hole, delta);
     };
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -301,24 +299,21 @@ and syn_elab_operand =
       | None => DoesNotElaborate
       | Some((drs, delta)) =>
         let gamma = Contexts.gamma(ctx);
-        let sigma = EvalEnv.unreached;
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
         let d = DHExp.Case(d1, drs, 0);
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+        Elaborates(InconsistentBranches(u, 0, d), Hole, delta);
       };
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
-    let d = DHExp.EmptyHole(u, 0, sigma);
+    let d = DHExp.EmptyHole(u, 0);
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
-    let d = DHExp.InvalidText(u, 0, sigma, t);
+    let d = DHExp.InvalidText(u, 0, t);
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
@@ -330,13 +325,12 @@ and syn_elab_operand =
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
     let delta =
       MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
     let d =
       switch (reason) {
-      | Free => DHExp.FreeVar(u, 0, sigma, x)
-      | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | Free => DHExp.FreeVar(u, 0, x)
+      | Keyword(k) => DHExp.Keyword(u, 0, k)
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -577,10 +571,9 @@ and ana_elab_opseq =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d, _, delta) =>
           let gamma = ctx |> Contexts.gamma;
-          let sigma = EvalEnv.unreached;
           let delta =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-          Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+          Elaborates(NonEmptyHole(reason, u, 0, d), Hole, delta);
         }
       };
     }
@@ -609,10 +602,9 @@ and ana_elab_skel =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = EvalEnv.unreached;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
+      let d = DHExp.NonEmptyHole(reason, u, 0, d1);
       Elaborates(d, Hole, delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -677,10 +669,9 @@ and ana_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, _, delta) =>
       let gamma = Contexts.gamma(ctx);
-      let sigma = EvalEnv.unreached;
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, d), Hole, delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
@@ -702,18 +693,16 @@ and ana_elab_operand =
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
-    let d = DHExp.EmptyHole(u, 0, sigma);
+    let d = DHExp.EmptyHole(u, 0);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     let d: DHExp.t =
       switch (reason) {
-      | Free => FreeVar(u, 0, sigma, x)
-      | Keyword(k) => Keyword(u, 0, sigma, k)
+      | Free => FreeVar(u, 0, x)
+      | Keyword(k) => Keyword(u, 0, k)
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
@@ -777,8 +766,7 @@ and ana_elab_operand =
     }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
-    let sigma = EvalEnv.unreached;
-    let d = DHExp.InvalidText(u, 0, sigma, t);
+    let d = DHExp.InvalidText(u, 0, t);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, _)

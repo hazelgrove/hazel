@@ -49,11 +49,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
-  | (_, EmptyHole(_, _, _)) => Indet
-  | (_, NonEmptyHole(_, _, _, _, _)) => Indet
+  | (_, EmptyHole(_, _)) => Indet
+  | (_, NonEmptyHole(_, _, _, _)) => Indet
   | (_, FailedCast(_, _, _)) => Indet
   | (_, InvalidOperation(_)) => Indet
-  | (_, FreeVar(_, _, _, _)) => Indet
+  | (_, FreeVar(_, _, _)) => Indet
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
   | (_, FixF(_, _, _)) => DoesNotMatch
@@ -196,9 +196,9 @@ and matches_cast_Inj =
   | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
+  | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -216,8 +216,8 @@ and matches_cast_Inj =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
+  | EmptyHole(_, _) => Indet
+  | NonEmptyHole(_, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
@@ -262,9 +262,9 @@ and matches_cast_Pair =
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
+  | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -283,8 +283,8 @@ and matches_cast_Pair =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
+  | EmptyHole(_, _) => Indet
+  | NonEmptyHole(_, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
   }
@@ -335,9 +335,9 @@ and matches_cast_Cons =
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _, _) => Indet
+  | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -355,8 +355,8 @@ and matches_cast_Cons =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _, _) => Indet
-  | NonEmptyHole(_, _, _, _, _) => Indet
+  | EmptyHole(_, _) => Indet
+  | NonEmptyHole(_, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
   };
@@ -399,10 +399,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Lam(dp, ty, d3);
     }
-  | Closure(_, d3) =>
+  | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
-    subst_var(d1, x, d3)
+    let env' = subst_var_env(d1, x, env);
+    let d3' = subst_var(d1, x, d3);
+    Closure(env', d3');
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -439,18 +441,14 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
     ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+  | InconsistentBranches(u, i, Case(d3, rules, n)) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
-    let sigma' = subst_var_env(d1, x, sigma);
-    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
-  | EmptyHole(u, i, sigma) =>
-    let sigma' = subst_var_env(d1, x, sigma);
-    EmptyHole(u, i, sigma');
-  | NonEmptyHole(reason, u, i, sigma, d3) =>
+    InconsistentBranches(u, i, Case(d3, rules, n));
+  | EmptyHole(u, i) => EmptyHole(u, i)
+  | NonEmptyHole(reason, u, i, d3) =>
     let d3' = subst_var(d1, x, d3);
-    let sigma' = subst_var_env(d1, x, sigma);
-    NonEmptyHole(reason, u, i, sigma', d3');
+    NonEmptyHole(reason, u, i, d3');
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
     Cast(d', ty1, ty2);
@@ -725,44 +723,23 @@ let rec evaluate =
     evaluate_case(ec, env, None, d1, rules, n)
 
   /* Hole expressions */
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    switch (sigma) {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv =>
-      evaluate_case(ec, env, Some((u, i, sigma)), d1, rules, n)
+  | InconsistentBranches(u, i, Case(d1, rules, n)) =>
+    evaluate_case(ec, env, Some((u, i)), d1, rules, n)
+  | EmptyHole(u, i) => (ec, Indet(Closure(env, EmptyHole(u, i))))
+  | NonEmptyHole(reason, u, i, d1) =>
+    switch (evaluate(ec, env, d1)) {
+    | (ec, BoxedValue(d1'))
+    | (ec, Indet(d1')) => (
+        ec,
+        Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))),
+      )
     }
-  | EmptyHole(u, i, env') =>
-    switch (env') {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv => (ec, Indet(EmptyHole(u, i, env)))
-    }
-  | NonEmptyHole(reason, u, i, env', d1) =>
-    switch (env') {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv =>
-      switch (evaluate(ec, env, d1)) {
-      | (ec, BoxedValue(d1'))
-      | (ec, Indet(d1')) => (
-          ec,
-          Indet(NonEmptyHole(reason, u, i, env, d1')),
-        )
-      }
-    }
-  | FreeVar(u, i, env', x) =>
-    switch (env') {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv => (ec, Indet(FreeVar(u, i, env, x)))
-    }
-  | Keyword(u, i, env', kw) =>
-    switch (env') {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv => (ec, Indet(Keyword(u, i, env, kw)))
-    }
-  | InvalidText(u, i, env', text) =>
-    switch (env') {
-    | Env(_) => (ec, Indet(d))
-    | UnreachedEnv => (ec, Indet(InvalidText(u, i, env, text)))
-    }
+  | FreeVar(u, i, x) => (ec, Indet(Closure(env, FreeVar(u, i, x))))
+  | Keyword(u, i, kw) => (ec, Indet(Closure(env, Keyword(u, i, kw))))
+  | InvalidText(u, i, text) => (
+      ec,
+      Indet(Closure(env, InvalidText(u, i, text))),
+    )
 
   /* Cast calculus */
   | Cast(d1, ty, ty') =>
@@ -861,7 +838,7 @@ and evaluate_case =
     (
       ec: EvalEnvIdGen.t,
       env: EvalEnv.t,
-      inconsistent_info,
+      inconsistent_info: option(HoleClosure.t),
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
@@ -877,7 +854,8 @@ and evaluate_case =
         ec,
         switch (inconsistent_info) {
         | None => Indet(Closure(env, ConsistentCase(case)))
-        | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
+        | Some((u, i)) =>
+          Indet(Closure(env, InconsistentBranches(u, i, case)))
         },
       );
     | Some(Rule(dp, d)) =>
@@ -888,7 +866,8 @@ and evaluate_case =
           ec,
           switch (inconsistent_info) {
           | None => Indet(Closure(env, ConsistentCase(case)))
-          | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
+          | Some((u, i)) =>
+            Indet(Closure(env, InconsistentBranches(u, i, case)))
           },
         );
       | Matches(env') =>
