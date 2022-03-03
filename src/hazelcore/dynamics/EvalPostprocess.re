@@ -1,8 +1,11 @@
+[@deriving sexp]
 type error =
   | ClosureInsideClosure
   | BoundVarOutsideClosure(Var.t)
   | UnevalOutsideClosure
   | InvalidClosureBody;
+
+[@deriving sexp]
 exception Exception(error);
 
 /* Postprocess outside evaluation boundary */
@@ -190,10 +193,6 @@ and pp_eval =
   | FloatLit(_)
   | ListNil(_)
   | Triv => (hci, d)
-  | Let(dp, d1, d2) =>
-    let (hci, d1') = pp_eval(hci, d1, parent);
-    let (hci, d2') = pp_eval(hci, d2, parent);
-    (hci, Let(dp, d1', d2'));
   | FixF(f, ty, d1) =>
     let (hci, d1') = pp_eval(hci, d1, parent);
     (hci, FixF(f, ty, d1'));
@@ -230,9 +229,6 @@ and pp_eval =
   | FailedCast(d', ty1, ty2) =>
     let (hci, d'') = pp_eval(hci, d', parent);
     (hci, FailedCast(d'', ty1, ty2));
-  | ConsistentCase(Case(scrut, rules, i)) =>
-    let (hci, scrut') = pp_eval(hci, scrut, parent);
-    (hci, ConsistentCase(Case(scrut', rules, i)));
   | InvalidOperation(d', reason) =>
     let (hci, d'') = pp_eval(hci, d', parent);
     (hci, InvalidOperation(d'', reason));
@@ -242,6 +238,8 @@ and pp_eval =
 
   /* Lambda should not appear outside closure in evaluated result */
   /* TODO: also move let and case here */
+  | Let(_)
+  | ConsistentCase(_)
   | Lam(_) => raise(Exception(UnevalOutsideClosure))
 
   /* Closure */
@@ -250,6 +248,16 @@ and pp_eval =
     | Lam(dp, ty, d'') =>
       let (hci, d'') = pp_uneval(hci, env', d'', parent);
       (hci, Lam(dp, ty, d''));
+    | Let(dp, d1, d2) =>
+      /* d1 should already be evaluated, d2 is not */
+      let (hci, d1') = pp_eval(hci, d1, parent);
+      let (hci, d2') = pp_uneval(hci, env', d2, parent);
+      (hci, Let(dp, d1', d2'));
+    | ConsistentCase(Case(scrut, rules, i)) =>
+      /* scrut should already be evaluated, rule bodies are not */
+      let (hci, scrut') = pp_eval(hci, scrut, parent);
+      let (hci, rules') = pp_uneval_rules(hci, env', rules, parent);
+      (hci, ConsistentCase(Case(scrut', rules', i)));
     | _ => raise(Exception(InvalidClosureBody))
     }
   /* Hole expressions:

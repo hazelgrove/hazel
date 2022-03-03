@@ -16,3 +16,14 @@
    and continues to the region outside the evaluation boundary (pp_uneval).
    */
 let postprocess: DHExp.t => (HoleClosureInfo.t, DHExp.t);
+
+/* Postprocessing invalid cases */
+[@deriving sexp]
+type error =
+  | ClosureInsideClosure
+  | BoundVarOutsideClosure(Var.t)
+  | UnevalOutsideClosure
+  | InvalidClosureBody;
+
+[@deriving sexp]
+exception Exception(error);

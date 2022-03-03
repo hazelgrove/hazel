@@ -104,6 +104,7 @@ let get_elaboration = (program: t): DHExp.t =>
   };
 
 exception EvalError(EvaluatorError.t);
+exception PostprocessError(EvalPostprocess.error);
 let (ec_init, env_init) = EvalEnv.empty;
 let evaluate =
   Memo.general(
@@ -118,7 +119,11 @@ let get_result = (program: t): Result.t => {
     );
   let timed_postprocess = d =>
     TimeUtil.measure_time("EvalPostprocess.postprocess", true, () =>
-      d |> EvalPostprocess.postprocess
+      switch (d |> EvalPostprocess.postprocess) {
+      | d => d
+      | exception (EvalPostprocess.Exception(reason)) =>
+        raise(PostprocessError(reason))
+      }
     );
   switch (program |> timed_eval) {
   | (_, BoxedValue(d)) =>

@@ -569,11 +569,7 @@ let rec evaluate =
     | (ec, Indet(d1)) =>
       switch (matches(dp, d1)) {
       | Indet
-      | DoesNotMatch =>
-        switch (evaluate(ec, env, d2)) {
-        | (ec, BoxedValue(d2'))
-        | (ec, Indet(d2')) => (ec, Indet(d2'))
-        }
+      | DoesNotMatch => (ec, Indet(Closure(env, Let(dp, d1, d2))))
       | Matches(env') =>
         let match_result_map = map_environment_to_result_map(ec, env, env');
         let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
@@ -880,7 +876,7 @@ and evaluate_case =
       (
         ec,
         switch (inconsistent_info) {
-        | None => Indet(ConsistentCase(case))
+        | None => Indet(Closure(env, ConsistentCase(case)))
         | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
         },
       );
@@ -891,7 +887,7 @@ and evaluate_case =
         (
           ec,
           switch (inconsistent_info) {
-          | None => Indet(ConsistentCase(case))
+          | None => Indet(Closure(env, ConsistentCase(case)))
           | Some((u, i, _)) => Indet(InconsistentBranches(u, i, env, case))
           },
         );
