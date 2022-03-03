@@ -2176,10 +2176,10 @@ and syn_perform_operand =
             List.fold_left(
               ((rs, idx), flag) => {
                 let err =
-                  if (flag == 1) {
-                    RuleErrStatus.Redundant(u);
-                  } else {
-                    NotRedundant;
+                  switch (flag) {
+                  | 1 => RuleErrStatus.Redundant(u)
+                  | 2 => IndeterminatelyRedundant
+                  | _ => NotRedundant
                   };
                 (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
               },

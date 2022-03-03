@@ -321,6 +321,9 @@ let advanced_summary =
     | OnSumBodyOperator => [emphasize_text("Sum body operator")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule(NotRedundant) => /* TODO */ [emphasize_text("Rule")]
+    | OnRule(IndeterminatelyRedundant) => /* TODO */ [
+        emphasize_text("Indeterminately Redundant Rule"),
+      ]
     | OnRule(Redundant(_)) => /* TODO */ [emphasize_text("Redundant Rule")]
     | CaseNotExhaustive(_) => [emphasize_text("Non-Exhaustive Case")]
     };
@@ -602,6 +605,10 @@ let novice_summary =
         emphasize_text("Redundant Rule"),
       ]
     | OnRule(NotRedundant) => [Node.text("Got a"), emphasize_text("Rule")]
+    | OnRule(IndeterminatelyRedundant) => [
+        Node.text("Got an"),
+        emphasize_text("Indeterminately Redundant Rule"),
+      ]
     | CaseNotExhaustive(_) => [
         Node.text("Got a"),
         emphasize_text("Non-Exhaustive Case"),
@@ -813,7 +820,7 @@ let view =
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule(NotRedundant) => OK
+    | OnRule(NotRedundant | IndeterminatelyRedundant) => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | AnaInjExpectedTypeNotConsistentWithSums(_)

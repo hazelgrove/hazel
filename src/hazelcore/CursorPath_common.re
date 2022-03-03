@@ -169,7 +169,8 @@ let holes_rule_err =
       hs: hole_list,
     ) =>
   switch (rerr) {
-  | NotRedundant => hs
+  | NotRedundant
+  | IndeterminatelyRedundant => hs
   | Redundant(u) => [
       mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
