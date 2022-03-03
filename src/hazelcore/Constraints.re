@@ -86,19 +86,35 @@ let rec dual = (c: t): t =>
       Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
     )
   }
-and dual_injs_constraint = (sum_body: HTyp.sum_body, tag0: UHTag.t): t =>
+and dual_injs_constraint = (sum_body: HTyp.sum_body, tag0: UHTag.t): t => {
+  let binding_to_constraint = ((tag, ty_arg_opt): TagMap.binding(_)): t => {
+    switch (ty_arg_opt) {
+    | None => ConstInj(sum_body, tag)
+    | Some(_) => ArgInj(sum_body, tag, Truth)
+    };
+  };
   switch (HTyp.matched_finite_sum(Sum(sum_body))) {
   | None => failwith(__LOC__ ++ ": impossible matched_finite_sum failure")
   | Some(tymap) =>
     let other_injs =
+      switch (tag0) {
+      | Tag(InTagHole(_), _)
+      | EmptyTagHole(_) =>
+        TagMap.bindings(tymap)
+        |> List.filter(((tag, _)) =>
+             switch (tag) {
+             | UHTag.Tag(NotInTagHole, _) => true
+             | Tag(InTagHole(_), _)
+             | EmptyTagHole(_) => false
+             }
+           )
+        |> List.map(binding_to_constraint)
+      // List.map(binding_to_constraint, TagMap.bindings(tymap));
+      | Tag(NotInTagHole, _) =>
       TagMap.bindings(tymap)
       |> List.filter(((tag, _)) => !UHTag.equal(tag, tag0))
-      |> List.map(((tag, ty_arg_opt)) =>
-           switch (ty_arg_opt) {
-           | None => ConstInj(sum_body, tag)
-           | Some(_) => ArgInj(sum_body, tag, Truth)
-           }
-         );
+        |> List.map(binding_to_constraint)
+      };
     switch (other_injs) {
     | [] => Falsity
     | [c1, ...cs] => List.fold_right((ci, join) => Or(ci, join), cs, c1)

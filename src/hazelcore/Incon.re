@@ -104,13 +104,12 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
           // CINCInjTag
           List.exists(
             fun
-            | Constraints.ConstInj(_, tag) =>
-              may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+              | Constraints.ConstInj(_, tag) => !UHTag.consistent(tag, tag0)
             | _ => false,
             const_injs,
           )
           // CINCInjArg
-          || arg_injs != []
+            || arg_injs != [];
         | _ =>
           arg_injs != []
           || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
@@ -132,8 +131,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
           // CINCInjTag
           List.exists(
             fun
-            | Constraints.ArgInj(_, tag, _) =>
-              may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+              | Constraints.ArgInj(_, tag, _) => !UHTag.consistent(tag, tag0)
             | _ => false,
             arg_injs,
           )
