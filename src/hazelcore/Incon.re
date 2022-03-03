@@ -56,6 +56,21 @@ let is_inconsistent_float = (xis: list(Constraints.t)): bool => {
   };
 };
 
+let rec inj_inconsistent: Constraints.t => bool =
+  fun
+  | ConstInj(_)
+  | ArgInj(_)
+  | Truth => false
+  | And(xi1, xi2)
+  | Or(xi1, xi2) => inj_inconsistent(xi1) || inj_inconsistent(xi2)
+  | Falsity
+  | Hole
+  | Int(_)
+  | NotInt(_)
+  | Float(_)
+  | NotFloat(_)
+  | Pair(_) => true;
+
 let split_inj_constraints = xis =>
   List.fold_left(
     ((const_injs, arg_injs, other_xis), xi': Constraints.t) =>
@@ -82,48 +97,54 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
       && is_inconsistent(~may, [xi2, ...xis'])
     | ConstInj(_, tag0) =>
       let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
-      switch (other_xis) {
-      | [] =>
-        // CINCInjTag
-        List.exists(
-          fun
-          | Constraints.ConstInj(_, tag) =>
-            may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
-          | _ => false,
-          const_injs,
-        )
-        // CINCInjArg
-        || arg_injs != []
-      | _ =>
-        arg_injs != []
-        || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
-      };
+      List.exists(inj_inconsistent, other_xis)
+      || (
+        switch (other_xis) {
+        | [] =>
+          // CINCInjTag
+          List.exists(
+            fun
+            | Constraints.ConstInj(_, tag) =>
+              may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+            | _ => false,
+            const_injs,
+          )
+          // CINCInjArg
+          || arg_injs != []
+        | _ =>
+          arg_injs != []
+          || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
+        }
+      );
     | ArgInj(_, tag0, xi_arg0) =>
       let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
-      switch (other_xis) {
-      | [] =>
-        let xi_args =
-          List.filter_map(
+      List.exists(inj_inconsistent, other_xis)
+      || (
+        switch (other_xis) {
+        | [] =>
+          let xi_args =
+            List.filter_map(
+              fun
+              | Constraints.ArgInj(_, _, xi_arg) => Some(xi_arg)
+              | _ => None,
+              arg_injs,
+            );
+          // CINCInjTag
+          List.exists(
             fun
-            | Constraints.ArgInj(_, _, xi_arg) => Some(xi_arg)
-            | _ => None,
+            | Constraints.ArgInj(_, tag, _) =>
+              may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
+            | _ => false,
             arg_injs,
-          );
-        // CINCInjTag
-        List.exists(
-          fun
-          | Constraints.ArgInj(_, tag, _) =>
-            may ? !UHTag.consistent(tag, tag0) : !UHTag.equal(tag, tag0)
-          | _ => false,
-          arg_injs,
-        )
-        // CINCInjArg
-        || const_injs != []
-        || is_inconsistent(~may, [xi_arg0, ...xi_args]);
-      | _ =>
-        const_injs != []
-        || is_inconsistent(~may, other_xis @ [xi, ...arg_injs])
-      };
+          )
+          // CINCInjArg
+          || const_injs != []
+          || is_inconsistent(~may, [xi_arg0, ...xi_args]);
+        | _ =>
+          const_injs != []
+          || is_inconsistent(~may, other_xis @ [xi, ...arg_injs])
+        }
+      );
     | Int(_)
     | NotInt(_) =>
       switch (
