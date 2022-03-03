@@ -130,6 +130,7 @@ module BinFloatOp = {
 
 [@deriving sexp]
 type t =
+  /* Hole types */
   | EmptyHole(MetaVar.t, HoleClosureId.t, evalenv)
   | NonEmptyHole(
       ErrStatus.HoleReason.t,
@@ -142,11 +143,14 @@ type t =
   | Keyword(MetaVar.t, HoleClosureId.t, evalenv, ExpandingKeyword.t)
   | FreeVar(MetaVar.t, HoleClosureId.t, evalenv, Var.t)
   | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
+  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
+  /* Generalized closures */
+  | Closure(evalenv, t)
+  /* Other expressions forms */
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
-  | Closure(evalenv, DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -160,7 +164,6 @@ type t =
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
@@ -187,7 +190,7 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
-  | Closure(_, _, _, _) => "Closure"
+  | Closure(_, _) => "Closure"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
@@ -310,8 +313,8 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && x1 == x2
   | (InvalidText(u1, i1, sigma1, text1), InvalidText(u2, i2, sigma2, text2)) =>
     u1 == u2 && i1 == i2 && evalenv_equals(sigma1, sigma2) && text1 == text2
-  | (Closure(sigma1, dp1, ty1, d1), Closure(sigma2, dp2, ty2, d2)) =>
-    evalenv_equals(sigma1, sigma2) && dp1 == dp2 && ty1 == ty2 && d1 == d2
+  | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
+    evalenv_equals(sigma1, sigma2) && fast_equals(d1, d2)
   | (
       InconsistentBranches(u1, i1, sigma1, case1),
       InconsistentBranches(u2, i2, sigma2, case2),

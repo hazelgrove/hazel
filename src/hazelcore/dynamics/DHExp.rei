@@ -43,6 +43,7 @@ module BinFloatOp: {
 
 [@deriving sexp]
 type t =
+  /* Hole types */
   | EmptyHole(MetaVar.t, HoleClosureId.t, evalenv)
   | NonEmptyHole(
       ErrStatus.HoleReason.t,
@@ -55,11 +56,14 @@ type t =
   | Keyword(MetaVar.t, HoleClosureId.t, evalenv, ExpandingKeyword.t)
   | FreeVar(MetaVar.t, HoleClosureId.t, evalenv, Var.t)
   | InvalidText(MetaVar.t, HoleClosureId.t, evalenv, string)
+  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
+  /* Generalized closures */
+  | Closure(evalenv, t)
+  /* Other expressions forms */
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
-  | Closure(evalenv, DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
@@ -73,7 +77,6 @@ type t =
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, HoleClosureId.t, evalenv, case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)

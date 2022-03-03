@@ -1,7 +1,8 @@
 type error =
   | ClosureInsideClosure
   | BoundVarOutsideClosure(Var.t)
-  | UnevalOutsideClosure;
+  | UnevalOutsideClosure
+  | InvalidClosureBody;
 exception Exception(error);
 
 /* Postprocess outside evaluation boundary */
@@ -240,15 +241,17 @@ and pp_eval =
   | BoundVar(x) => raise(Exception(BoundVarOutsideClosure(x)))
 
   /* Lambda should not appear outside closure in evaluated result */
+  /* TODO: also move let and case here */
   | Lam(_) => raise(Exception(UnevalOutsideClosure))
 
-  /* Closure:
-     - Fix environment recursively.
-     - Body is recursively substituted with its environment. */
-  | Closure(env', dp, ty, d') =>
-    let (hci, d'') = pp_uneval(hci, env', d', parent);
-    (hci, Lam(dp, ty, d''));
-
+  /* Closure */
+  | Closure(env', d') =>
+    switch (d') {
+    | Lam(dp, ty, d'') =>
+      let (hci, d'') = pp_uneval(hci, env', d'', parent);
+      (hci, Lam(dp, ty, d''));
+    | _ => raise(Exception(InvalidClosureBody))
+    }
   /* Hole expressions:
      - Fix environment recursively.
      - Number the hole closure appropriately.

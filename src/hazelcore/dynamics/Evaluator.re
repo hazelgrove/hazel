@@ -202,7 +202,7 @@ and matches_cast_Inj =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, _, _, _) => DoesNotMatch
+  | Closure(_, d') => matches_cast_Inj(side, dp, d', casts)
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -268,7 +268,8 @@ and matches_cast_Pair =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, _, _, _) => DoesNotMatch
+  | Closure(_, d') =>
+    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -340,7 +341,7 @@ and matches_cast_Cons =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, _, _, _) => DoesNotMatch
+  | Closure(_, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -391,14 +392,17 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Lam(dp, ty, d3)
-  | Closure(_, dp, ty, d3) =>
+  | Lam(dp, ty, d3) =>
     if (DHPat.binds_var(x, dp)) {
       d2;
     } else {
       let d3 = subst_var(d1, x, d3);
       Lam(dp, ty, d3);
     }
+  | Closure(_, d3) =>
+    /* Closure shouldn't appear during substitution (which
+       only is called from elaboration currently) */
+    subst_var(d1, x, d3)
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -578,17 +582,17 @@ let rec evaluate =
     }
   | FixF(f, ty, d) =>
     switch (evaluate(ec, env, d)) {
-    | (ec, BoxedValue(Closure(env', x, ty', d') as d'')) =>
+    | (ec, BoxedValue(Closure(env', Lam(_) as d''') as d'')) =>
       let (ec, env'') =
         EvalEnv.extend(ec, env', (f, BoxedValue(FixF(f, ty, d''))));
-      (ec, BoxedValue(Closure(env'', x, ty', d')));
+      (ec, BoxedValue(Closure(env'', d''')));
     | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
-  | Lam(dp, ty, d) => (ec, BoxedValue(Closure(env, dp, ty, d)))
+  | Lam(_) => (ec, BoxedValue(Closure(env, d)))
   | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
     switch (evaluate(ec, env, d1)) {
-    | (ec, BoxedValue(Closure(closure_env, dp, _, d3) as d1)) =>
+    | (ec, BoxedValue(Closure(closure_env, Lam(dp, _, d3)) as d1)) =>
       switch (evaluate(ec, env, d2)) {
       | (ec, BoxedValue(d2))
       | (ec, Indet(d2)) =>
