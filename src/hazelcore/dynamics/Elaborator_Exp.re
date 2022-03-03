@@ -304,7 +304,7 @@ and syn_elab_operand =
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
         let d = DHExp.Case(d1, drs, 0);
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+        Elaborates(InconsistentBranches(u, 0, sigma, d, None), Hole, delta);
       };
     }
 
@@ -387,7 +387,7 @@ and syn_elab_operand =
       switch (syn_elab_rules(ctx, delta, rules, ty)) {
       | None => DoesNotElaborate
       | Some((drs, glb, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0), None);
         Elaborates(d, glb, delta);
       }
     }
@@ -853,7 +853,7 @@ and ana_elab_operand =
       switch (ana_elab_rules(ctx, delta, rules, ty1, ty)) {
       | None => DoesNotElaborate
       | Some((drs, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0), None);
         Elaborates(d, ty, delta);
       }
     }

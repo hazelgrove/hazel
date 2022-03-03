@@ -125,7 +125,7 @@ let rec mk =
           : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs) =>
+    let go_case = (dscrut, drs, point) =>
       if (enforce_inline) {
         fail();
       } else {
@@ -141,8 +141,13 @@ let rec mk =
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
             drs
-            |> List.map(
-                 mk_rule(~settings, ~selected_instance, ~selected_tag_hole),
+            |> List.mapi(
+                 mk_rule(
+                   ~settings,
+                   ~selected_instance,
+                   ~selected_tag_hole,
+                   ~point,
+                 ),
                ),
             [DHDoc_common.Delim.close_Case],
           ]),
@@ -234,9 +239,11 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _), point) =>
+        go_case(dscrut, drs, point)
+        |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | ConsistentCase(Case(dscrut, drs, _), point) =>
+        go_case(dscrut, drs, point)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
@@ -356,6 +363,8 @@ and mk_rule =
       ~settings,
       ~selected_instance,
       ~selected_tag_hole,
+      ~point,
+      i,
       Rule(dp, dclause): DHExp.rule,
     )
     : DHDoc.t => {
@@ -377,14 +386,20 @@ and mk_rule =
           ]),
         ])
       : hcat(space(), hidden_clause);
-  hcats([
-    DHDoc_common.Delim.bar_Rule,
-    DHDoc_Pat.mk(~selected_tag_hole, dp)
-    |> DHDoc_common.pad_child(
-         ~inline_padding=(space(), space()),
-         ~enforce_inline=false,
-       ),
-    DHDoc_common.Delim.arrow_Rule,
-    clause_doc,
-  ]);
+  let rule_doc =
+    hcats([
+      DHDoc_common.Delim.bar_Rule,
+      DHDoc_Pat.mk(~selected_tag_hole, dp)
+      |> DHDoc_common.pad_child(
+           ~inline_padding=(space(), space()),
+           ~enforce_inline=false,
+         ),
+      DHDoc_common.Delim.arrow_Rule,
+      clause_doc,
+    ]);
+  switch (point) {
+  | Some(point) when i < point => rule_doc |> annot(DHAnnot.VisitedRule)
+  | Some(_)
+  | None => rule_doc
+  };
 };

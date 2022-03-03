@@ -154,8 +154,8 @@ type t =
   | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, inj)
   | Pair(t, t)
   | Triv
-  | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case)
+  | ConsistentCase(case, option(int))
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case, option(int))
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
@@ -192,8 +192,8 @@ let constructor_string = (d: t): string =>
   | InjError(_, _, _, _, _) => "InjError"
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
-  | ConsistentCase(_) => "ConsistentCase"
-  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
+  | ConsistentCase(_, _) => "ConsistentCase"
+  | InconsistentBranches(_, _, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"

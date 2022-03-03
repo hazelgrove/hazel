@@ -255,15 +255,15 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n)) =>
+  | ConsistentCase(Case(d1, rules, n), point) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, drules, n)), hii);
-  | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
+    (ConsistentCase(Case(d1, drules, n), point), hii);
+  | InconsistentBranches(u, _, sigma, Case(d1, rules, n), point) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
+    (InconsistentBranches(u, i, sigma, Case(d1, drules, n), point), hii);
   | EmptyHole(u, _, sigma) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (EmptyHole(u, i, sigma), hii);
@@ -374,16 +374,16 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n)) =>
+  | ConsistentCase(Case(d1, rules, n), point) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, rules, n)), hii);
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+    (ConsistentCase(Case(d1, rules, n), point), hii);
+  | InconsistentBranches(u, i, sigma, Case(d1, rules, n), point) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
+    (InconsistentBranches(u, i, sigma, Case(d1, rules, n), point), hii);
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);

@@ -1450,6 +1450,16 @@ h1 {
   font-size: 125%;
 }
 
+.DHCode .VisitedRule {
+  background: #999;
+  color: #ccc;
+  text-decoration: line-through;
+  vertical-align: middle;
+}
+.DHCode .VisitedRule .HoleLabel {
+  text-decoration: line-through;
+}
+
 .DHCode .EmptyHole,
 .DHCode .EmptyTagHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */

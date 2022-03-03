@@ -67,8 +67,8 @@ type t =
   | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, inj)
   | Pair(t, t)
   | Triv
-  | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case)
+  | ConsistentCase(case, option(int))
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case, option(int))
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
