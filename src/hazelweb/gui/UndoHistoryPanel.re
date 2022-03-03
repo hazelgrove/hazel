@@ -57,7 +57,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
-        if (Var.is_case(var_str) || Var.is_let(var_str)) {
+        if (Var.is_match(var_str) || Var.is_let(var_str)) {
           Vdom.(
             Node.span(
               [],
@@ -119,7 +119,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ListNil(_) => indicate_words_view("empty list")
     | Lam(_) => indicate_words_view("function")
     | Inj(_, _, _) => indicate_words_view("injection")
-    | Case(_, _, _) => code_keywords_view("case")
+    | Match(_, _, _) => code_keywords_view("match")
     | Parenthesized(_) => indicate_words_view("parentheses")
     };
   };
@@ -291,7 +291,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(
         Node.span(
           [],
-          [code_keywords_view("case"), indicate_words_view(" rule")],
+          [code_keywords_view("match"), indicate_words_view(" rule")],
         )
       )
     | SumBodyOperand(_, _) =>
@@ -317,11 +317,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("let"), indicate_words_view(" binding")],
         )
       )
-    | SCase =>
+    | SMatch =>
       Vdom.(
         Node.span(
           [],
-          [code_keywords_view("case"), indicate_words_view(" expression")],
+          [code_keywords_view("match"), indicate_words_view(" expression")],
         )
       )
     | SList
@@ -375,11 +375,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           )
         )
-      | SCase =>
+      | SMatch =>
         Vdom.(
           Node.span(
             [],
-            [indicate_words_view("construct "), code_keywords_view("case")],
+            [
+              indicate_words_view("construct "),
+              code_keywords_view("match"),
+            ],
           )
         )
       | SLam => indicate_words_view("construct function")
@@ -416,13 +419,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           )
         )
       }
-    | CaseRule =>
+    | MatchRule =>
       Vdom.(
         Node.span(
           [],
           [
             indicate_words_view("insert "),
-            code_keywords_view("case"),
+            code_keywords_view("match"),
             indicate_words_view(" rule"),
           ],
         )
@@ -472,7 +475,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
-      | SCase
+      | SMatch
       | SLam => Some(Exp)
       | SAnn => Some(Pat)
       | _ =>
@@ -488,7 +491,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
-    | CaseRule => Some(Exp)
+    | MatchRule => Some(Exp)
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up

@@ -94,9 +94,9 @@ module Delim = {
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
 
-  let open_Case = (): t => mk(~index=0, "case");
-  let close_Case = (): t => mk(~index=1, "end");
-  let close_Case_ann = (): t => mk(~index=1, "end :");
+  let open_Match = (): t => mk(~index=0, "match");
+  let close_Match = (): t => mk(~index=1, "end");
+  let close_Match_ann = (): t => mk(~index=1, "end :");
 
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
@@ -116,8 +116,8 @@ let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
 let annot_Operand = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
-let annot_Case: t => t =
-  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case, ()));
+let annot_Match: t => t =
+  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Match, ()));
 
 let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
@@ -378,9 +378,9 @@ let mk_Lam = (p: formatted_child, body: formatted_child): t => {
   |> annot_Operand(~sort=Exp);
 };
 
-let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
-  let open_group = Delim.open_Case() |> annot_Tessera;
-  let close_group = Delim.close_Case() |> annot_Tessera;
+let mk_Match = (scrut: formatted_child, rules: list(t)): t => {
+  let open_group = Delim.open_Match() |> annot_Tessera;
+  let close_group = Delim.close_Match() |> annot_Tessera;
   Doc.(
     vseps(
       [
@@ -393,7 +393,7 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
       @ [close_group],
     )
   )
-  |> annot_Case;
+  |> annot_Match;
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {

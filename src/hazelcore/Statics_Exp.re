@@ -130,7 +130,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Match(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -141,8 +141,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
-  | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
+  | Match(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
+  | Match(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
     let correct_rule_types =
@@ -175,8 +175,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) => {
       syn(ctx, arg);
     };
     Some(Sum(Elided(tag, ty_opt)));
-  | Case(StandardErrStatus(NotInHole), scrut, rules)
-  | Case(NotExhaustive(_), scrut, rules) =>
+  | Match(StandardErrStatus(NotInHole), scrut, rules)
+  | Match(NotExhaustive(_), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
@@ -275,7 +275,7 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Match(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -285,9 +285,9 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+  | Match(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
-  | Case(InconsistentBranches(_, _), _, _) => None
+  | Match(InconsistentBranches(_, _), _, _) => None
   | Inj(InHole(ExpectedTypeNotConsistentWithSums, _), _, arg_opt) =>
     switch (ty) {
     | Hole
@@ -349,7 +349,7 @@ and ana_operand =
       };
     | _ => None
     }
-  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
+  | Match(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
@@ -830,9 +830,9 @@ and syn_fix_holes_operand =
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
-          switch (Var.is_let(x), Var.is_case(x)) {
+          switch (Var.is_let(x), Var.is_match(x)) {
           | (true, _) => Keyword(Let)
-          | (_, true) => Keyword(Case)
+          | (_, true) => Keyword(Match)
           | _ => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
@@ -864,7 +864,7 @@ and syn_fix_holes_operand =
         (Some(arg'), Some(ty_arg), u_gen);
       };
     (Inj(NotInHole, tag', arg_opt'), Sum(Elided(tag', ty_opt)), u_gen);
-  | Case(_, scrut, rules) =>
+  | Match(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
     let (rules, u_gen, rule_types, common_type) =
@@ -873,7 +873,7 @@ and syn_fix_holes_operand =
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
-        Case(InconsistentBranches(rule_types, u), scrut, rules),
+        Match(InconsistentBranches(rule_types, u), scrut, rules),
         HTyp.Hole,
         u_gen,
       );
@@ -898,14 +898,14 @@ and syn_fix_holes_operand =
           rules,
           flags,
         );
-      let (case_err, u_gen) =
+      let (match_err, u_gen) =
         if (Incon.is_exhaustive(con)) {
-          (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+          (MatchErrStatus.StandardErrStatus(NotInHole), u_gen);
         } else {
           let (u, u_gen) = MetaVarGen.next(u_gen);
           (NotExhaustive(u), u_gen);
         };
-      (Case(case_err, scrut, new_rules), common_type, u_gen);
+      (Match(match_err, scrut, new_rules), common_type, u_gen);
     };
   };
 }
@@ -1336,7 +1336,7 @@ and ana_fix_holes_operand =
       (Inj(status, tag, arg_opt'), u_gen);
     };
 
-  | Case(_, scrut, rules) =>
+  | Match(_, scrut, rules) =>
     let (scrut, scrut_ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
     let (rules, u_gen) =
@@ -1367,14 +1367,14 @@ and ana_fix_holes_operand =
         rules,
         flags,
       );
-    let (case_err, u_gen) =
+    let (match_err, u_gen) =
       if (Incon.is_exhaustive(con)) {
-        (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+        (MatchErrStatus.StandardErrStatus(NotInHole), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (NotExhaustive(u), u_gen);
       };
-    (Case(case_err, scrut, new_rules), u_gen);
+    (Match(match_err, scrut, new_rules), u_gen);
   };
 }
 and extend_let_body_ctx =

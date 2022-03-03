@@ -20,7 +20,7 @@ and operand =
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(InjErrStatus.t, UHTag.t, option(t))
-  | Case(CaseErrStatus.t, t, rules)
+  | Match(MatchErrStatus.t, t, rules)
   | Parenthesized(t)
 and rules = list(rule)
 and rule =
@@ -46,7 +46,7 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
-let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
+let match: (~err: MatchErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 

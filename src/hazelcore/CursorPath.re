@@ -31,7 +31,7 @@ type tag_hole_shape =
   | Empty;
 
 [@deriving sexp]
-type case_hole_shape =
+type match_hole_shape =
   | InconsistentBranches
   | NotExhaustive;
 
@@ -40,7 +40,7 @@ type exp_hole_shape =
   | TypeErr
   | VarErr
   | Empty
-  | CaseErr(case_hole_shape)
+  | MatchErr(match_hole_shape)
   | RedundantRule;
 
 [@deriving sexp]

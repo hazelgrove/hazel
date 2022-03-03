@@ -194,7 +194,7 @@ module CurrentTerm = {
     | NTuple(_)
     | SumBody(_)
     | BinOp(_) => true
-    | Case
+    | Match
     | Rule
     | Operand => false;
 
@@ -212,8 +212,8 @@ module CurrentTerm = {
          ~annot=
            (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (Match | SubBlock(_), Step(_))
+             | (Match, Term({shape: Rule, _})) => go(m)
              | (_, Tessera) =>
                Decoration_common.rects(
                  ~indent,
@@ -239,10 +239,10 @@ module CurrentTerm = {
          ~annot=
            (~go, ~indent, ~start, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
-             // hack for case and subblocks
+             // hack for match and subblocks
              // TODO remove when we have tiles
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (Match | SubBlock(_), Step(_))
+             | (Match, Term({shape: Rule, _})) => go(m)
              | (_, Tessera) => go(m)
              | (_, ClosedChild({sort, _})) => [
                  (
@@ -268,8 +268,8 @@ module CurrentTerm = {
            ~annot=
              (go, annot: UHAnnot.t, m) =>
                switch (shape, annot) {
-               | (Case | SubBlock(_), Step(_))
-               | (Case, Term({shape: Rule, _})) => go(m)
+               | (Match | SubBlock(_), Step(_))
+               | (Match, Term({shape: Rule, _})) => go(m)
                | (_, OpenChild(Multiline)) => true
                | (_, _) => false
                },
@@ -311,8 +311,8 @@ module CurrentTerm = {
              };
 
              switch (shape, annot) {
-             | (Case | SubBlock(_), Step(_))
-             | (Case, Term({shape: Rule, _})) => go(m)
+             | (Match | SubBlock(_), Step(_))
+             | (Match, Term({shape: Rule, _})) => go(m)
              | (_, OpenChild(InlineWithBorder)) =>
                // TODO(d) specify indent?
                inline_open_child_rects(start, m)
@@ -324,7 +324,7 @@ module CurrentTerm = {
                  start,
                  m,
                )
-             | (Case, Tessera) =>
+             | (Match, Tessera) =>
                tessera_padding(
                  ~vtrim_top=start.row == 0,
                  ~vtrim_bot=start.row == subject_height - 1,
@@ -469,17 +469,17 @@ module VarErrHole = {
       );
 };
 
-module CaseErrHole = {
+module MatchErrHole = {
   let view:
     (
       ~contains_current_term: bool,
-      UHDecorationShape.CaseReason.t,
+      UHDecorationShape.MatchReason.t,
       ~corner_radii: (float, float),
       UHMeasuredLayout.with_offset
     ) =>
     Node.t =
     (~contains_current_term, reason) =>
-      Decoration_common.CaseErrHole.view(
+      Decoration_common.MatchErrHole.view(
         ~vtrim=
           contains_current_term
             ? 0.0 : CurrentTerm.inline_open_child_border_height,

@@ -40,7 +40,7 @@ type t =
   | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectTagHole(MetaVar.t)
-  | SelectCaseBranch(CursorPath.steps, int)
+  | SelectMatchBranch(CursorPath.steps, int)
   | FocusCell
   | BlurCell
   | Redo

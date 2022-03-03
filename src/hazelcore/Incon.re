@@ -83,118 +83,134 @@ let split_inj_constraints = xis =>
     xis,
   );
 
-let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
-  switch (xis) {
-  | [] => false
-  | [xi, ...xis'] =>
-    switch (xi) {
-    | Truth => is_inconsistent(~may, xis')
-    | Falsity => true
-    | Hole => may ? true : is_inconsistent(~may, xis')
-    | And(xi1, xi2) => is_inconsistent(~may, [xi1, xi2, ...xis'])
-    | Or(xi1, xi2) =>
-      is_inconsistent(~may, [xi1, ...xis'])
-      && is_inconsistent(~may, [xi2, ...xis'])
-    | ConstInj(_, tag0) =>
-      let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
-      List.exists(inj_inconsistent, other_xis)
-      || (
-        switch (other_xis) {
-        | [] =>
-          // CINCInjTag
-          List.exists(
-            fun
-              | Constraints.ConstInj(_, tag) => !UHTag.consistent(tag, tag0)
-            | _ => false,
-            const_injs,
-          )
-          // CINCInjArg
-            || arg_injs != [];
-        | _ =>
-          arg_injs != []
-          || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
-        }
-      );
-    | ArgInj(_, tag0, xi_arg0) =>
-      let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
-      List.exists(inj_inconsistent, other_xis)
-      || (
-        switch (other_xis) {
-        | [] =>
-          let xi_args =
-            List.filter_map(
-              fun
-              | Constraints.ArgInj(_, _, xi_arg) => Some(xi_arg)
-              | _ => None,
-              arg_injs,
+let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool => {
+  print_endline("INCON is_inconsistent may=" ++ Bool.to_string(may));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      Sexplib.Std.sexp_of_list(Constraints.sexp_of_t, xis),
+    ),
+  );
+  let result =
+    switch (xis) {
+    | [] => false
+    | [xi, ...xis'] =>
+      switch (xi) {
+      | Truth => is_inconsistent(~may, xis')
+      | Falsity => true
+      | Hole => may ? true : is_inconsistent(~may, xis')
+      | And(xi1, xi2) => is_inconsistent(~may, [xi1, xi2, ...xis'])
+      | Or(xi1, xi2) =>
+        is_inconsistent(~may, [xi1, ...xis'])
+        && is_inconsistent(~may, [xi2, ...xis'])
+      | ConstInj(_, tag0) =>
+        let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
+        List.exists(inj_inconsistent, other_xis)
+        || (
+          switch (other_xis) {
+          | [] =>
+            print_endline("AAA");
+            print_endline(
+              Sexplib.Sexp.to_string_hum(
+                Sexplib.Std.sexp_of_list(Constraints.sexp_of_t, xis),
+              ),
             );
-          // CINCInjTag
-          List.exists(
-            fun
+            // CINCInjTag
+            List.exists(
+              fun
+              | Constraints.ConstInj(_, tag) => !UHTag.consistent(tag, tag0)
+              | _ => false,
+              const_injs,
+            )
+            // CINCInjArg
+            || arg_injs != [];
+          | _ =>
+            arg_injs != []
+            || is_inconsistent(~may, other_xis @ [xi, ...const_injs])
+          }
+        );
+      | ArgInj(_, tag0, xi_arg0) =>
+        let (const_injs, arg_injs, other_xis) = split_inj_constraints(xis');
+        List.exists(inj_inconsistent, other_xis)
+        || (
+          switch (other_xis) {
+          | [] =>
+            let xi_args =
+              List.filter_map(
+                fun
+                | Constraints.ArgInj(_, _, xi_arg) => Some(xi_arg)
+                | _ => None,
+                arg_injs,
+              );
+            // CINCInjTag
+            List.exists(
+              fun
               | Constraints.ArgInj(_, tag, _) => !UHTag.consistent(tag, tag0)
+              | _ => false,
+              arg_injs,
+            )
+            // CINCInjArg
+            || const_injs != []
+            || is_inconsistent(~may, [xi_arg0, ...xi_args]);
+          | _ =>
+            const_injs != []
+            || is_inconsistent(~may, other_xis @ [xi, ...arg_injs])
+          }
+        );
+      | Int(_)
+      | NotInt(_) =>
+        switch (
+          List.partition(
+            fun
+            | Constraints.Int(_)
+            | NotInt(_) => true
             | _ => false,
-            arg_injs,
+            xis,
           )
-          // CINCInjArg
-          || const_injs != []
-          || is_inconsistent(~may, [xi_arg0, ...xi_args]);
-        | _ =>
-          const_injs != []
-          || is_inconsistent(~may, other_xis @ [xi, ...arg_injs])
+        ) {
+        | (ns, []) => is_inconsistent_nums(ns)
+        | (ns, other) => is_inconsistent(~may, other @ ns)
         }
-      );
-    | Int(_)
-    | NotInt(_) =>
-      switch (
-        List.partition(
-          fun
-          | Constraints.Int(_)
-          | NotInt(_) => true
-          | _ => false,
-          xis,
-        )
-      ) {
-      | (ns, []) => is_inconsistent_nums(ns)
-      | (ns, other) => is_inconsistent(~may, other @ ns)
+      | Float(_)
+      | NotFloat(_) =>
+        switch (
+          List.partition(
+            fun
+            | Constraints.Float(_)
+            | NotFloat(_) => true
+            | _ => false,
+            xis,
+          )
+        ) {
+        | (fs, []) => is_inconsistent_float(fs)
+        | (fs, other) => is_inconsistent(~may, other @ fs)
+        }
+      | Pair(_, _) =>
+        switch (
+          List.partition(
+            fun
+            | Constraints.Pair(_) => true
+            | _ => false,
+            xis,
+          )
+        ) {
+        | (pairs, []) =>
+          let (xisL, xisR) =
+            List.fold_left(
+              ((xisL, xisR), pair) => {
+                let (xiL, xiR) = Constraints.unwrap_pair(pair);
+                ([xiL, ...xisL], [xiR, ...xisR]);
+              },
+              ([], []),
+              pairs,
+            );
+          is_inconsistent(~may, xisL) || is_inconsistent(~may, xisR);
+        | (pairs, other) => is_inconsistent(~may, other @ pairs)
+        }
       }
-    | Float(_)
-    | NotFloat(_) =>
-      switch (
-        List.partition(
-          fun
-          | Constraints.Float(_)
-          | NotFloat(_) => true
-          | _ => false,
-          xis,
-        )
-      ) {
-      | (fs, []) => is_inconsistent_float(fs)
-      | (fs, other) => is_inconsistent(~may, other @ fs)
-      }
-    | Pair(_, _) =>
-      switch (
-        List.partition(
-          fun
-          | Constraints.Pair(_) => true
-          | _ => false,
-          xis,
-        )
-      ) {
-      | (pairs, []) =>
-        let (xisL, xisR) =
-          List.fold_left(
-            ((xisL, xisR), pair) => {
-              let (xiL, xiR) = Constraints.unwrap_pair(pair);
-              ([xiL, ...xisL], [xiR, ...xisR]);
-            },
-            ([], []),
-            pairs,
-          );
-        is_inconsistent(~may, xisL) || is_inconsistent(~may, xisR);
-      | (pairs, other) => is_inconsistent(~may, other @ pairs)
-      }
-    }
-  }
+    };
+  print_endline("INCON is_inconsistent >>>" ++ Bool.to_string(result));
+  result;
+}
 and is_inconsistent_inj_tags = (tag0: UHTag.t, cs: list(Constraints.t)): bool =>
   switch (tag0) {
   | EmptyTagHole(_)
@@ -209,14 +225,34 @@ and is_inconsistent_inj_tags = (tag0: UHTag.t, cs: list(Constraints.t)): bool =>
     )
   };
 
-let is_redundant = (xi_cur: Constraints.t, xi_pre: Constraints.t): bool =>
+let is_redundant = (xi_cur: Constraints.t, xi_pre: Constraints.t): bool => {
+  print_endline("INCON is_redundant");
+  print_endline(Sexplib.Sexp.to_string_hum(Constraints.sexp_of_t(xi_cur)));
+  print_endline(Sexplib.Sexp.to_string_hum(Constraints.sexp_of_t(xi_pre)));
+  let result =
+    is_inconsistent(
+      ~may=false,
+      Constraints.[And(truify(xi_cur), dual(falsify(xi_pre)))],
+    );
+  print_endline("INCON is_redundant >>> " ++ Bool.to_string(result));
+  result;
+};
+
+let is_indeterminately_redundant =
+    (xi_cur: Constraints.t, xi_pre: Constraints.t): bool =>
   is_inconsistent(
     ~may=false,
-    Constraints.[And(truify(xi_cur), dual(falsify(xi_pre)))],
+    Constraints.[And(falsify(xi_pre), dual(falsify(xi_cur)))],
   );
 
-let is_exhaustive = (xi: Constraints.t): bool =>
-  is_inconsistent(~may=true, Constraints.[dual(truify(xi))]);
+let is_exhaustive = (xi: Constraints.t): bool => {
+  print_endline("INCON is_exhaustive");
+  print_endline(Sexplib.Sexp.to_string_hum(Constraints.sexp_of_t(xi)));
+  let result = is_inconsistent(~may=true, Constraints.[dual(truify(xi))]);
+  print_endline("INCON is_exhaustive >>> " ++ Bool.to_string(result));
+  print_endline(Sexplib.Sexp.to_string_hum(Constraints.sexp_of_t(xi)));
+  result;
+};
 
 let generate_redundancy_list = (xi_list: list(Constraints.t)): list(int) =>
   switch (xi_list) {
@@ -227,6 +263,8 @@ let generate_redundancy_list = (xi_list: list(Constraints.t)): list(int) =>
         ((flags, xi_pre), xi_cur) =>
           if (is_redundant(xi_cur, xi_pre)) {
             ([1, ...flags], Constraints.Or(xi_pre, xi_cur));
+          } else if (is_indeterminately_redundant(xi_cur, xi_pre)) {
+            ([2, ...flags], Constraints.Or(xi_pre, xi_cur));
           } else {
             ([0, ...flags], Constraints.Or(xi_pre, xi_cur));
           },

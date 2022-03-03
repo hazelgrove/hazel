@@ -1,7 +1,7 @@
 [@deriving sexp]
 type t =
   | Rule
-  | Case
+  | Match
   | Operand
   | BinOp({op_index: int})
   | NTuple({comma_indices: list(int)})

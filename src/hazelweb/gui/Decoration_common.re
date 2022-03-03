@@ -154,19 +154,19 @@ module VarErrHole = {
        );
 };
 
-module CaseErrHole = {
+module MatchErrHole = {
   let view =
       (
         ~vtrim=0.,
-        reason: UHDecorationShape.CaseReason.t,
+        reason: UHDecorationShape.MatchReason.t,
         ~corner_radii: (float, float),
         (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Node.t => {
     let class_str =
       switch (reason) {
-      | InconsistentBranches => "case-err-hole-inconsistentbranches"
-      | NotExhaustive => "case-err-hole-notexhaustive"
+      | InconsistentBranches => "match-err-hole-inconsistentbranches"
+      | NotExhaustive => "match-err-hole-notexhaustive"
       };
     subject
     |> rects(~vtrim, {row: 0, col: offset})

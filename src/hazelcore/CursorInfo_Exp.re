@@ -19,8 +19,8 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZE(_, _, zexp)
-  | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
-  | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | MatchZE(_, zexp, _) => extract_cursor_term(zexp)
+  | MatchZR(_, _, zrules) => extract_from_zrules(zrules)
   | InjZT(_, ztag, _) => CursorInfo_Tag.extract_cursor_term(ztag)
   | InjZE(_, _, zexp) => extract_cursor_term(zexp)
   };
@@ -80,8 +80,8 @@ and get_zoperand_from_zexp_operand =
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
   | LamZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LamZE(_, _, zexp)
-  | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
-  | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | MatchZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | MatchZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   | InjZT(_, ztag, _) => CursorInfo_Tag.get_zoperand(ztag)
   | InjZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
   };
@@ -134,8 +134,8 @@ and get_outer_zrules_from_zexp_operand =
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | LamZP(_) => outer_zrules
   | LamZE(_, _, zexp)
-  | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
-  | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | MatchZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | MatchZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   | InjZT(_, ztag, _) => CursorInfo_Tag.get_outer_zrules(ztag, outer_zrules)
   | InjZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   };
@@ -164,7 +164,7 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _) =>
+        | Match(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
@@ -522,7 +522,7 @@ and syn_cursor_info_zoperand =
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
-  | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
+  | CursorE(_, Match(InconsistentBranches(rule_types, _), _, _)) =>
     Some(
       CursorInfo_common.mk(
         SynInconsistentBranches(rule_types, steps),
@@ -530,11 +530,11 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, Case(NotExhaustive(_), _, _) as e) =>
+  | CursorE(_, Match(NotExhaustive(_), _, _) as e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty) =>
-      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
+      Some(CursorInfo_common.mk(MatchNotExhaustive(ty), ctx, cursor_term))
     }
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
@@ -560,7 +560,7 @@ and syn_cursor_info_zoperand =
     CursorInfo_Tag.cursor_info(~steps=steps @ [0], ctx, ztag)
   | InjZE(_, _, zarg) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
-  | CaseZE(_, zscrut, rules) =>
+  | MatchZE(_, zscrut, rules) =>
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
@@ -571,7 +571,7 @@ and syn_cursor_info_zoperand =
      * the user in the case where some of pattern branches are already
      * populated with patterns having a consistent type. */
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
-  | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
+  | MatchZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(pat_ty) =>
@@ -859,14 +859,14 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _)
-    | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | Match(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
-    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    | Match(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -891,7 +891,7 @@ and ana_cursor_info_zoperand =
           cursor_term,
         ),
       )
-    | Case(InconsistentBranches(rule_types, _), _, _) =>
+    | Match(InconsistentBranches(rule_types, _), _, _) =>
       Some(
         CursorInfo_common.mk(
           AnaInconsistentBranches(rule_types, steps),
@@ -917,8 +917,8 @@ and ana_cursor_info_zoperand =
       | _ => None
       }
     | Inj(InHole(_), _, _) => None
-    | Case(NotExhaustive(_), _, _) =>
-      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
+    | Match(NotExhaustive(_), _, _) =>
+      Some(CursorInfo_common.mk(MatchNotExhaustive(ty), ctx, cursor_term))
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -931,7 +931,7 @@ and ana_cursor_info_zoperand =
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
     | ListNil(NotInHole)
-    | Case(StandardErrStatus(NotInHole), _, _) =>
+    | Match(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
@@ -958,20 +958,20 @@ and ana_cursor_info_zoperand =
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _)
   | LamZE(InHole(WrongLength, _), _, _)
-  | CaseZE(
+  | MatchZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
       _,
     )
-  | CaseZR(
+  | MatchZR(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
       _,
     )
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | MatchZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | MatchZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
@@ -1013,14 +1013,14 @@ and ana_cursor_info_zoperand =
       ana_cursor_info(~steps=steps @ [1], ctx, zarg, ty_arg);
     | _ => ana_cursor_info(~steps=steps @ [1], ctx, zarg, Hole)
     }
-  | CaseZE(_, zscrut, rules) =>
+  | MatchZE(_, zscrut, rules) =>
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
       | _ => HTyp.Hole
       };
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
-  | CaseZR(_, scrut, (prefix, zrule, _)) =>
+  | MatchZR(_, scrut, (prefix, zrule, _)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(pat_ty) =>

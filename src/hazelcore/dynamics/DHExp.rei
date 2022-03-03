@@ -67,14 +67,14 @@ type t =
   | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, inj)
   | Pair(t, t)
   | Triv
-  | ConsistentCase(case, option(int))
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case, option(int))
+  | ConsistentMatch(match, option(int))
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, match, option(int))
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and inj = (HTyp.sum_body, UHTag.t, option(t))
-and case =
-  | Case(t, list(rule), int)
+and match =
+  | Match(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
 /* same as Environment.t, reiterated here to avoid circularity */

@@ -68,8 +68,8 @@ module Delim = {
   let open_FixF = mk(".{");
   let close_FixF = mk("}");
 
-  let open_Case = mk("case");
-  let close_Case = mk("end");
+  let open_Match = mk("match");
+  let close_Match = mk("end");
 
   let bar_Rule = mk("|");
   let arrow_Rule = mk("=>");

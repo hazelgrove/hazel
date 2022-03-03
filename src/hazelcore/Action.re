@@ -32,7 +32,7 @@ type shape =
   | SInj
   | SLet
   | SLine
-  | SCase
+  | SMatch
   | SOp(operator_shape);
 
 [@deriving sexp]

@@ -48,7 +48,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
-  | ConsistentCase(_)
+  | ConsistentMatch(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
@@ -125,7 +125,7 @@ let rec mk =
           : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs, point) =>
+    let go_match = (dscrut, drs, point) =>
       if (enforce_inline) {
         fail();
       } else {
@@ -139,7 +139,7 @@ let rec mk =
           ]);
         vseps(
           List.concat([
-            [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
+            [hcat(DHDoc_common.Delim.open_Match, scrut_doc)],
             drs
             |> List.mapi(
                  mk_rule(
@@ -149,7 +149,7 @@ let rec mk =
                    ~point,
                  ),
                ),
-            [DHDoc_common.Delim.close_Case],
+            [DHDoc_common.Delim.close_Match],
           ]),
         );
       };
@@ -239,11 +239,11 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _), point) =>
-        go_case(dscrut, drs, point)
+      | InconsistentBranches(u, i, _sigma, Match(dscrut, drs, _), point) =>
+        go_match(dscrut, drs, point)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | ConsistentCase(Case(dscrut, drs, _), point) =>
-        go_case(dscrut, drs, point)
+      | ConsistentMatch(Match(dscrut, drs, _), point) =>
+        go_match(dscrut, drs, point)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;

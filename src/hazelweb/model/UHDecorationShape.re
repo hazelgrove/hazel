@@ -1,4 +1,4 @@
-module CaseReason = {
+module MatchReason = {
   /* Variable: `reason` */
   [@deriving sexp]
   type t =
@@ -8,7 +8,7 @@ module CaseReason = {
 
 [@deriving sexp]
 type t =
-  | CaseErrHole(CaseReason.t)
+  | MatchErrHole(MatchReason.t)
   | RuleErrHole
   | ErrHole
   | VarErrHole

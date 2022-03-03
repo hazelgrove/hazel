@@ -10,9 +10,9 @@
  let code = s => span([Vdom.Attr.classes(["code"])], [txt(s)]);
  let images_dir = "img/RCStudy/"
 
- let append_case =
+ let append_match =
    UHExp.(
-     case(
+     match(
        wrap_in_block(var("xs")),
        [
          Rule(UHPat.listnil(), wrap_in_block(var("ys"))),
@@ -45,7 +45,7 @@
    UHExp.(
      lam(
        UHPat.var("xs"),
-       wrap_in_block(lam(UHPat.var("ys"), wrap_in_block(append_case))),
+       wrap_in_block(lam(UHPat.var("ys"), wrap_in_block(append_match))),
      )
    );
  let append_letline =
@@ -161,7 +161,7 @@
                        )
                      ),
                      wrap_in_block(
-                       case(
+                       match(
                          var("is_melee") |> wrap_in_block,
                          [
                            Rule(
@@ -226,7 +226,7 @@
                  ),
                  code("damage"),
                  txt(" so that the "),
-                 code("case"),
+                 code("match"),
                  txt(" expression is bound to a new variable called "),
                  code("attack_score"),
                  txt(", then return twice the difference between "),
@@ -268,7 +268,7 @@
                        )
                      ),
                      wrap_in_block(
-                       case(
+                       match(
                          var("is_melee") |> wrap_in_block,
                          [
                            Rule(
@@ -346,7 +346,7 @@
                    lam(
                      UHPat.var("xs"),
                      wrap_in_block(
-                       case(
+                       match(
                          var("xs") |> wrap_in_block,
                          [
                            Rule(UHPat.listnil(), listnil() |> wrap_in_block),
@@ -525,7 +525,7 @@
                    lam(
                      UHPat.var("xs"),
                      wrap_in_block(
-                       case(
+                       match(
                          var("xs") |> wrap_in_block,
                          [
                            Rule(UHPat.listnil(), listnil() |> wrap_in_block),

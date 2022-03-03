@@ -1146,7 +1146,7 @@ h1 {
   position: relative;
 }
 .code.presentation .Term.Rule,
-.code.presentation .Term.Case,
+.code.presentation .Term.Match,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
 .code.presentation .Tessera {
@@ -1396,14 +1396,14 @@ h1 {
   fill: none;
 }
 
-.case-err-hole-inconsistentbranches {
+.match-err-hole-inconsistentbranches {
   stroke: red;
   stroke-dasharray: 3 2;
   stroke-width: 1;
   fill: none;
 }
 
-.case-err-hole-notexhaustive {
+.match-err-hole-notexhaustive {
   stroke: #ce5f00;
   stroke-dasharray: 3 2;
   stroke-width: 1;

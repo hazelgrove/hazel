@@ -198,7 +198,7 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Case(_, scrut, rules) =>
+        | Match(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();
           } else {
@@ -210,7 +210,7 @@ and mk_operand =
                    Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                    |> UHDoc_common.annot_Step(1 + i)
                  );
-            UHDoc_common.mk_Case(scrut, rules);
+            UHDoc_common.mk_Match(scrut, rules);
           }
         }: UHDoc.t
       )

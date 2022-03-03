@@ -28,9 +28,9 @@ let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 //   ];
 
 // let map_example: UHExp.t = {
-//   let case_node =
+//   let match_node =
 //     UHExp.(
-//       case(
+//       match(
 //         Block.wrap(var("xs")),
 //         [
 //           Rule(
@@ -79,7 +79,7 @@ let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 //       lam(
 //         OpSeq.wrap(UHPat.var("f")),
 //         Block.wrap(
-//           lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(case_node)),
+//           lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(match_node)),
 //         ),
 //       )
 //     );
@@ -112,26 +112,26 @@ let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 
 // let scale_example: UHExp.t =
 //   Sexplib.Sexp.of_string(
-//     "((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole scale)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))(A Arrow(S Int(A Arrow(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))E)))))))E))((ExpLine(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole scale)(A Space(S(Inj NotInHole(Tag NotInTagHole Pt)(((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 2)(A Comma(S(IntLit NotInHole 3)E))))))))(A Space(S(IntLit NotInHole 4)E)))))))))(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole pt)(OpSeq(Placeholder 0)(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole c)(OpSeq(Placeholder 0)(S Int E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole pt)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Pt)((OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Comma(S(Var NotInHole NotInVarHole y)E))))))E))((ExpLine(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Pt)(((ExpLine(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Times(Placeholder 0)(Placeholder 1))(BinOp NotInHole Times(Placeholder 2)(Placeholder 3)))(S(Var NotInHole NotInVarHole c)(A Times(S(Var NotInHole NotInVarHole x)(A Comma(S(Var NotInHole NotInVarHole c)(A Times(S(Var NotInHole NotInVarHole y)E))))))))))))E)))))))E)))))E)))))E))))))",
+//     "((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole scale)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))(A Arrow(S Int(A Arrow(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))E)))))))E))((ExpLine(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole scale)(A Space(S(Inj NotInHole(Tag NotInTagHole Pt)(((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 2)(A Comma(S(IntLit NotInHole 3)E))))))))(A Space(S(IntLit NotInHole 4)E)))))))))(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole pt)(OpSeq(Placeholder 0)(S(FiniteSum((OpSeq(Placeholder 0)(S(ArgTag(Tag NotInTagHole Pt)(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E))))E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole c)(OpSeq(Placeholder 0)(S Int E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Match(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole pt)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Pt)((OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Comma(S(Var NotInHole NotInVarHole y)E))))))E))((ExpLine(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Pt)(((ExpLine(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Times(Placeholder 0)(Placeholder 1))(BinOp NotInHole Times(Placeholder 2)(Placeholder 3)))(S(Var NotInHole NotInVarHole c)(A Times(S(Var NotInHole NotInVarHole x)(A Comma(S(Var NotInHole NotInVarHole c)(A Times(S(Var NotInHole NotInVarHole y)E))))))))))))E)))))))E)))))E)))))E))))))",
 //   )
 //   |> UHExp.t_of_sexp;
 
 // let option_example: UHExp.t =
 //   Sexplib.Sexp.of_string(
-//     "((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole map)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(S(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))(A Arrow(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))(A Arrow(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))E)))))))E))((ExpLine(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole map)(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n)E))((ExpLine(OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole n)(A Plus(S(IntLit NotInHole 1)E)))))))(A Space(S(Inj NotInHole(Tag NotInTagHole Some)(((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 3)E))))))E)))))))))(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole f)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole n_opt)(OpSeq(Placeholder 0)(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n_opt)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole None)())E))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n_opt)E)))))(Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Some)((OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n)E))))E))((ExpLine(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Some)(((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole f)(A Space(S(Var NotInHole NotInVarHole n)E))))))))E)))))))E)))))E)))))E))))))",
+//     "((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole map)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(S(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))(A Arrow(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))(A Arrow(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))E)))))))E))((ExpLine(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole map)(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n)E))((ExpLine(OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole n)(A Plus(S(IntLit NotInHole 1)E)))))))(A Space(S(Inj NotInHole(Tag NotInTagHole Some)(((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 3)E))))))E)))))))))(A Space(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole f)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole n_opt)(OpSeq(Placeholder 0)(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole None))(A Plus(S(ArgTag(Tag NotInTagHole Some)(OpSeq(Placeholder 0)(S Int E)))E))))))E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Match(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n_opt)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole None)())E))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n_opt)E)))))(Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Some)((OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole n)E))))E))((ExpLine(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole Some)(((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole f)(A Space(S(Var NotInHole NotInVarHole n)E))))))))E)))))))E)))))E)))))E))))))",
 //   )
 //   |> UHExp.t_of_sexp;
 
 // let xxx_example: UHExp.t =
 //   Sexplib.Sexp.of_string(
-//     "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole f)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Hole(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E)))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole f)(A Space(S(Inj NotInHole(Tag NotInTagHole B)())E)))))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole g)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole A))(A Plus(S(ConstTag(Tag NotInTagHole B))E))))))(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole A)())E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(Wild NotInHole)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 2)E)))))))E)))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole g)(A Space(S(Var NotInHole NotInVarHole x)E))))))",
+//     "((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole f)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Hole(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E)))))E)))))(LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole f)(A Space(S(Inj NotInHole(Tag NotInTagHole B)())E)))))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole g)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S(FiniteSum((OpSeq(BinOp NotInHole Plus(Placeholder 0)(Placeholder 1))(S(ConstTag(Tag NotInTagHole A))(A Plus(S(ConstTag(Tag NotInTagHole B))E))))))(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Match(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))))((Rule(OpSeq(Placeholder 0)(S(Inj NotInHole(Tag NotInTagHole A)())E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(Wild NotInHole)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 2)E)))))))E)))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole g)(A Space(S(Var NotInHole NotInVarHole x)E))))))",
 //   )
 //   |> UHExp.t_of_sexp;
 
 let qsort_example: UHExp.t = {
-  let append_case =
+  let append_match =
     UHExp.(
-      case(
+      match(
         Block.wrap(var("xs")),
         [
           Rule(
@@ -176,7 +176,7 @@ let qsort_example: UHExp.t = {
       lam(
         OpSeq.wrap(UHPat.var("xs")),
         Block.wrap(
-          lam(OpSeq.wrap(UHPat.var("ys")), Block.wrap(append_case)),
+          lam(OpSeq.wrap(UHPat.var("ys")), Block.wrap(append_match)),
         ),
       )
     );
@@ -202,10 +202,10 @@ let qsort_example: UHExp.t = {
         Block.wrap(append_lam),
       )
     );
-  let partition_case =
+  let partition_match =
     UHExp.(
       Operators_Exp.(
-        case(
+        match(
           Block.wrap(var("xs")),
           [
             Rule(
@@ -247,7 +247,7 @@ let qsort_example: UHExp.t = {
                   ),
                 ),
                 ExpLine(
-                  case(
+                  match(
                     Block.wrap'(
                       Seq.mk(var("f"), [(Space, var("y"))]) |> mk_OpSeq,
                     ),
@@ -297,7 +297,7 @@ let qsort_example: UHExp.t = {
       lam(
         OpSeq.wrap(UHPat.var("f")),
         Block.wrap(
-          lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(partition_case)),
+          lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(partition_match)),
         ),
       )
     );
@@ -388,7 +388,7 @@ let rec qsort_n = (n: int): UHExp.t =>
 // let inconsistent_branches: UHExp.t =
 //   UHExp.(
 //     Block.wrap(
-//       case(
+//       match(
 //         ~err=InconsistentBranches([Bool, Float, Float], 0),
 //         Block.wrap(UHExp.IntLit(NotInHole, "1")),
 //         [

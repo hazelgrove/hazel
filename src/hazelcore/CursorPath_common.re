@@ -141,7 +141,7 @@ let holes_verr =
 let holes_case_err =
     (
       ~hole_sort: MetaVar.t => hole_sort,
-      err: CaseErrStatus.t,
+      err: MatchErrStatus.t,
       rev_steps: rev_steps,
       hs: hole_list,
     ) =>

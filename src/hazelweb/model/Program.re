@@ -119,7 +119,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
-           | CaseErr(_) => None
+           | MatchErr(_) => None
            | RedundantRule => None
            | VarErr
            | TypeErr => Some((shape, steps))
@@ -132,7 +132,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
-  let (case_err_notex, case_err_incon) =
+  let (match_err_notex, match_err_incon) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
@@ -145,13 +145,13 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | VarErr
            | TypeErr
            | RedundantRule => None
-           | CaseErr(_) => Some((shape, steps))
+           | MatchErr(_) => Some((shape, steps))
            }
          }
        )
     |> List.partition(
          fun
-         | (CursorPath.CaseErr(NotExhaustive), _) => true
+         | (CursorPath.MatchErr(NotExhaustive), _) => true
          | (_case_err_incon, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
@@ -167,7 +167,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | Empty
            | VarErr
            | TypeErr
-           | CaseErr(_) => None
+           | MatchErr(_) => None
            | RedundantRule => Some((shape, steps))
            }
          }
@@ -180,7 +180,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     };
   {
     rule_err_holes,
-    case_err_holes: (case_err_notex, case_err_incon),
+    match_err_holes: (match_err_notex, match_err_incon),
     current_term,
     err_holes: pat_err_holes @ exp_err_holes @ tag_err_holes,
     var_uses,
@@ -255,15 +255,15 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n), point) =>
+  | ConsistentMatch(Match(d1, rules, n), point) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, drules, n), point), hii);
-  | InconsistentBranches(u, _, sigma, Case(d1, rules, n), point) =>
+    (ConsistentMatch(Match(d1, drules, n), point), hii);
+  | InconsistentBranches(u, _, sigma, Match(d1, rules, n), point) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, drules, n), point), hii);
+    (InconsistentBranches(u, i, sigma, Match(d1, drules, n), point), hii);
   | EmptyHole(u, _, sigma) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (EmptyHole(u, i, sigma), hii);
@@ -374,16 +374,16 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Cons(d1, d2), hii);
-  | ConsistentCase(Case(d1, rules, n), point) =>
+  | ConsistentMatch(Match(d1, rules, n), point) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (ConsistentCase(Case(d1, rules, n), point), hii);
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n), point) =>
+    (ConsistentMatch(Match(d1, rules, n), point), hii);
+  | InconsistentBranches(u, i, sigma, Match(d1, rules, n), point) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-    (InconsistentBranches(u, i, sigma, Case(d1, rules, n), point), hii);
+    (InconsistentBranches(u, i, sigma, Match(d1, rules, n), point), hii);
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
@@ -567,8 +567,8 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
-  let steps_to_branch = steps_to_case @ [1 + branch_index];
+let move_to_case_branch = (steps_to_match, branch_index): Action.t => {
+  let steps_to_branch = steps_to_match @ [1 + branch_index];
   Action.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 

@@ -868,21 +868,21 @@ let ana_fix_holes_z =
   (zp, ctx, u_gen);
 };
 
-let rec case_syn =
+let rec match_syn =
         (ctx: Contexts.t, p: UHPat.t)
         : option((HTyp.t, Contexts.t, Constraints.t)) =>
-  case_syn_opseq(ctx, p)
-and case_syn_opseq =
+  match_syn_opseq(ctx, p)
+and match_syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
     : option((HTyp.t, Contexts.t, Constraints.t)) =>
-  case_syn_skel(ctx, skel, seq)
-and case_syn_skel =
+  match_syn_skel(ctx, skel, seq)
+and match_syn_skel =
     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
     : option((HTyp.t, Contexts.t, Constraints.t)) => {
   switch (skel) {
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
-    case_syn_operand(ctx, pn);
+    match_syn_operand(ctx, pn);
   | BinOp(InHole(_), op, skel1, skel2) =>
     let+ (_, ctx) = syn_skel(ctx, BinOp(NotInHole, op, skel1, skel2), seq);
     (HTyp.Hole, ctx, Constraints.Hole);
@@ -892,7 +892,7 @@ and case_syn_skel =
       |> UHPat.get_tuple_elements
       |> ListUtil.map_with_accumulator_opt(
            (ctx, skel) => {
-             let+ (ty_elt, ctx, con_elt) = case_syn_skel(ctx, skel, seq);
+             let+ (ty_elt, ctx, con_elt) = match_syn_skel(ctx, skel, seq);
              (ctx, (ty_elt, con_elt));
            },
            ctx,
@@ -911,8 +911,8 @@ and case_syn_skel =
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     let* (ty_elt, ctx) = syn_skel(ctx, skel1, seq);
-    let* (ctx, left_con) = case_ana_skel(ctx, skel1, seq, ty_elt);
-    let+ (ctx, right_con) = case_ana_skel(ctx, skel2, seq, List(ty_elt));
+    let* (ctx, left_con) = match_ana_skel(ctx, skel1, seq, ty_elt);
+    let+ (ctx, right_con) = match_ana_skel(ctx, skel2, seq, List(ty_elt));
     (
       HTyp.List(ty_elt),
       ctx,
@@ -921,7 +921,7 @@ and case_syn_skel =
   | BinOp(NotInHole, Space, _, _) => failwith("not implemented")
   };
 }
-and case_syn_operand =
+and match_syn_operand =
     (ctx: Contexts.t, operand: UHPat.operand)
     : option((HTyp.t, Contexts.t, Constraints.t)) =>
   switch (operand) {
@@ -937,7 +937,7 @@ and case_syn_operand =
   | Inj(InHole(_, _), _, _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-    case_syn_operand(ctx, operand')
+    match_syn_operand(ctx, operand')
     |> Option.map(((_, gamma, con)) => (HTyp.Hole, gamma, con));
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -974,7 +974,7 @@ and case_syn_operand =
       let sum_body = HTyp.Elided(tag, None);
       Some((Sum(sum_body), ctx, Constraints.ConstInj(sum_body, tag)));
     | Some(arg) =>
-      switch (case_syn(ctx, arg)) {
+      switch (match_syn(ctx, arg)) {
       | None => None
       | Some((ty_arg, ctx, c_arg)) =>
         let sum_body = HTyp.Elided(tag, Some(ty_arg));
@@ -987,17 +987,17 @@ and case_syn_operand =
     }
   | TypeAnn(NotInHole, op, ann) =>
     let ty = UHTyp.expand(ann);
-    switch (case_ana_operand(ctx, op, ty)) {
+    switch (match_ana_operand(ctx, op, ty)) {
     | None => None
     | Some((ctx, con)) => Some((ty, ctx, con))
     };
-  | Parenthesized(p) => case_syn(ctx, p)
+  | Parenthesized(p) => match_syn(ctx, p)
   }
-and case_ana =
+and match_ana =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t)
     : option((Contexts.t, Constraints.t)) =>
-  case_ana_opseq(ctx, p, ty)
-and case_ana_opseq =
+  match_ana_opseq(ctx, p, ty)
+and match_ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
     : option((Contexts.t, Constraints.t)) =>
   switch (tuple_zip(skel, ty)) {
@@ -1012,9 +1012,9 @@ and case_ana_opseq =
   | Some(skel_tys) =>
     switch (List.rev(skel_tys)) {
     | [] => None
-    | [(skel, ty)] => case_ana_skel(ctx, skel, seq, ty)
+    | [(skel, ty)] => match_ana_skel(ctx, skel, seq, ty)
     | [(skel, ty), ...skel_tys] =>
-      switch (case_ana_skel(ctx, skel, seq, ty)) {
+      switch (match_ana_skel(ctx, skel, seq, ty)) {
       | None => None
       | Some((ctx, con)) =>
         List.fold_left(
@@ -1022,7 +1022,7 @@ and case_ana_opseq =
             switch (acc) {
             | None => None
             | Some((ctx, con)) =>
-              switch (case_ana_skel(ctx, skel, seq, ty)) {
+              switch (match_ana_skel(ctx, skel, seq, ty)) {
               | None => None
               | Some((ctx, con')) =>
                 Some((ctx, Constraints.Pair(con', con)))
@@ -1034,7 +1034,7 @@ and case_ana_opseq =
       }
     }
   }
-and case_ana_skel =
+and match_ana_skel =
     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
     : option((Contexts.t, Constraints.t)) =>
   switch (skel) {
@@ -1043,7 +1043,7 @@ and case_ana_skel =
     failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
-    case_ana_operand(ctx, pn, ty);
+    match_ana_operand(ctx, pn, ty);
   | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel(ctx, skel_not_in_hole, seq)) {
@@ -1054,10 +1054,10 @@ and case_ana_skel =
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_elt) =>
-      switch (case_ana_skel(ctx, skel1, seq, ty_elt)) {
+      switch (match_ana_skel(ctx, skel1, seq, ty_elt)) {
       | None => None
       | Some((ctx, left_con)) =>
-        switch (case_ana_skel(ctx, skel2, seq, HTyp.List(ty_elt))) {
+        switch (match_ana_skel(ctx, skel2, seq, HTyp.List(ty_elt))) {
         | None => None
         | Some((ctx, right_con)) =>
           Some((
@@ -1069,7 +1069,7 @@ and case_ana_skel =
     }
   | BinOp(NotInHole, Space, _, _) => failwith("not implemented")
   }
-and case_ana_operand =
+and match_ana_operand =
     (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t)
     : option((Contexts.t, Constraints.t)) =>
   switch (operand) {
@@ -1103,7 +1103,7 @@ and case_ana_operand =
       switch (arg_opt) {
       | None => Some((ctx, Hole))
       | Some(arg) =>
-        let+ _ = case_ana(ctx, arg, Hole);
+        let+ _ = match_ana(ctx, arg, Hole);
         (ctx, Constraints.Hole);
       }
     }
@@ -1112,7 +1112,7 @@ and case_ana_operand =
     | Sum(_) =>
       let* tymap = HTyp.matched_finite_sum(ty);
       switch (TagMap.find_opt(tag, tymap)) {
-      | Some(None) => case_ana(ctx, arg, Hole)
+      | Some(None) => match_ana(ctx, arg, Hole)
       | _ => None
       };
     | _ => None
@@ -1200,7 +1200,7 @@ and case_ana_operand =
   | Inj(NotInHole, tag, Some(arg)) =>
     switch (ty) {
     | Hole =>
-      let+ (ctx, c_arg) = case_ana(ctx, arg, Hole);
+      let+ (ctx, c_arg) = match_ana(ctx, arg, Hole);
       let sum_body = HTyp.Elided(tag, Some(Hole));
       (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
     | Sum(sum_body) =>
@@ -1208,14 +1208,14 @@ and case_ana_operand =
       switch (tag) {
       | EmptyTagHole(_)
       | Tag(InTagHole(_), _) =>
-        let+ (ctx, c_arg) = case_ana(ctx, arg, Hole);
+        let+ (ctx, c_arg) = match_ana(ctx, arg, Hole);
         (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
       | Tag(NotInTagHole, _) =>
         switch (TagMap.find_opt(tag, tymap)) {
         | None
         | Some(None) => None
         | Some(Some(ty_arg)) =>
-          let+ (ctx, c_arg) = case_ana(ctx, arg, ty_arg);
+          let+ (ctx, c_arg) = match_ana(ctx, arg, ty_arg);
           (ctx, Constraints.ArgInj(sum_body, tag, c_arg));
         }
       };
@@ -1223,8 +1223,8 @@ and case_ana_operand =
     }
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    HTyp.consistent(ty, ty_ann) ? case_ana_operand(ctx, op, ty_ann) : None;
-  | Parenthesized(p) => case_ana(ctx, p, ty)
+    HTyp.consistent(ty, ty_ann) ? match_ana_operand(ctx, op, ty_ann) : None;
+  | Parenthesized(p) => match_ana(ctx, p, ty)
   };
 
 let generate_rules_constraints =
@@ -1232,7 +1232,7 @@ let generate_rules_constraints =
     : list(Constraints.t) =>
   List.map(
     pat =>
-      switch (case_ana(ctx, pat, scrut_ty)) {
+      switch (match_ana(ctx, pat, scrut_ty)) {
       | None => failwith("No constraint generated")
       | Some((_, c)) => c
       },
