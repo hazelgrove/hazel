@@ -583,7 +583,6 @@ let rec evaluate =
     | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
   | Lam(_) => (ec, BoxedValue(Closure(env, d)))
-  | Closure(_) => (ec, BoxedValue(d))
   | Ap(d1, d2) =>
     switch (evaluate(ec, env, d1)) {
     | (ec, BoxedValue(Closure(closure_env, Lam(dp, _, d3)) as d1)) =>
@@ -721,6 +720,14 @@ let rec evaluate =
     };
   | ConsistentCase(Case(d1, rules, n)) =>
     evaluate_case(ec, env, None, d1, rules, n)
+
+  /* Generalized closures evaluate to themselves. Only
+     lambda closures are BoxedValues; other closures are all Indet. */
+  | Closure(_, d') =>
+    switch (d') {
+    | Lam(_) => (ec, BoxedValue(d))
+    | _ => (ec, Indet(d))
+    }
 
   /* Hole expressions */
   | InconsistentBranches(u, i, Case(d1, rules, n)) =>

@@ -268,6 +268,7 @@ and pp_eval =
       let (hci, rules') = pp_uneval_rules(hci, env', rules, parent);
       (hci, ConsistentCase(Case(scrut', rules', i)));
 
+    /* Holes: should be left in closures in the result */
     | EmptyHole(u, _) =>
       let hc_id_res = HoleClosureInfo_.get_hc_id(hci, u, env', parent);
       switch (hc_id_res) {

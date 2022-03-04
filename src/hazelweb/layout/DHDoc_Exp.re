@@ -158,6 +158,44 @@ let rec mk =
       };
     let fdoc = (~enforce_inline) =>
       switch (d) {
+      | Closure(_, d') =>
+        switch (d') {
+        | EmptyHole(u, i) =>
+          let selected =
+            switch (selected_hole_closure) {
+            | None => false
+            | Some((u', i')) => u == u' && i == i'
+            };
+          DHDoc_common.mk_EmptyHole(~selected, (u, i));
+        | NonEmptyHole(reason, u, i, d') =>
+          go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+        | Keyword(u, i, k) => DHDoc_common.mk_Keyword((u, i), k)
+        | FreeVar(u, i, x) =>
+          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+        | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
+          go_case(dscrut, drs)
+          |> annot(DHAnnot.InconsistentBranches((u, i)))
+
+        | _ =>
+          d |> DHExp.sexp_of_t |> JSUtil.log_sexp;
+          exception Test2Exception;
+          raise(Test2Exception);
+        }
+      /* The only closures in the result should be around a hole expression */
+      /* TODO: why can these exist outside of closures in the result? Need to investigate */
+      /* exception ClosureInResult;
+         raise(ClosureInResult); */
+      /* | EmptyHole(_)
+         | NonEmptyHole(_)
+         | Keyword(_)
+         | FreeVar(_)
+         | InvalidText(_)
+         | InconsistentBranches(_) =>
+           d |> DHExp.sexp_of_t |> JSUtil.log_sexp;
+           exception TestException;
+           raise(TestException); */
+
       | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_closure) {
@@ -165,13 +203,14 @@ let rec mk =
           | Some((u', i')) => u == u' && i == i'
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, d) =>
-        go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-
+      | NonEmptyHole(reason, u, i, d') =>
+        go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => DHDoc_common.mk_Keyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
+        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -208,8 +247,6 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
@@ -295,10 +332,6 @@ let rec mk =
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
-      | Closure(_) =>
-        /* The only closures in the result should be around a hole expression */
-        exception ClosureInResult;
-        raise(ClosureInResult);
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
