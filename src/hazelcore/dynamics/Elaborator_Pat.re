@@ -389,7 +389,8 @@ and ana_elab_operand =
   | TypeAnn(NotInHole, op, _) => ana_elab_operand(ctx, delta, op, ty)
   };
 
-/* TODO: remove */
+/* TODO: re-implement hole closure numbering for pattern holes.
+   Do pattern holes get used anywhere? */
 /* let rec renumber_result_only =
          (path: InstancePath.t, hii: HoleInstanceInfo.t, dp: DHPat.t)
          : (DHPat.t, HoleInstanceInfo.t) =>

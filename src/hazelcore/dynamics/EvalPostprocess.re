@@ -371,10 +371,7 @@ and pp_eval =
 and pp_eval_hole_env =
     (hci: HoleClosureInfo_.t, sigma: EvalEnv.t, parent_hc: HoleClosure.t)
     : (HoleClosureInfo_.t, EvalEnv.t) => {
-  let ei =
-    sigma
-    |> EvalEnv.id_of_evalenv
-    |> OptUtil.get(_ => raise(EvalEnv.InvalidEvalEnvType));
+  let ei = sigma |> EvalEnv.id_of_evalenv;
   let (hci, result_map) =
     (hci, [])
     |> List.fold_right(
@@ -392,7 +389,7 @@ and pp_eval_hole_env =
          },
          sigma |> EvalEnv.result_map_of_evalenv,
        );
-  (hci, Env(ei, result_map));
+  (hci, (ei, result_map));
 };
 
 /* Postprocessing driver.

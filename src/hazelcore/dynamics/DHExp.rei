@@ -79,9 +79,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t)
 and environment = VarMap.t_(t)
-and evalenv =
-  | Env(int, VarMap.t_(result))
-  | UnreachedEnv
+and evalenv = (EvalEnvId.t, VarMap.t_(result))
 and result =
   | BoxedValue(t)
   | Indet(t);

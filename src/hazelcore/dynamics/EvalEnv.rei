@@ -7,8 +7,10 @@
 
    Environment.t may be useful in certain cases, namely pattern matching,
    when an evaluated result is not needed. EvalEnv is used for environents
-   during evaluation, including hole environments. EvalEnvs are numbered
-   so that operations on them (e.g., during hole numbering) can be memoized.
+   during evaluation, including in closures. EvalEnvs are numbered
+   so that operations on them (e.g., during hole numbering) can be memoized;
+   the id allows for quick equality checking and allows environments to be
+   comparable (e.g., so that they can be stored in a map).
 
    Both EvalEnv.t and Environment.t are often named sigma (usually for hole
    environments) or env.
@@ -19,24 +21,25 @@
    (at the beginning of evaluation).
    */
 
-exception InvalidEvalEnvType;
-
 [@deriving sexp]
 type t = DHExp.evalenv
 and result = DHExp.result
 and result_map = VarMap.t_(result);
 
-let id_of_evalenv: t => option(int);
+let id_of_evalenv: t => EvalEnvId.t;
 let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
 
 let empty: (EvalEnvIdGen.t, t);
-let unreached: t;
 let is_empty: t => bool;
 let length: t => int;
 let to_list: t => list(VarMap.t__(result));
 let lookup: (t, Var.t) => option(result);
 let contains: (t, Var.t) => bool;
+
+/* Equals only needs to check environment ID's.
+   (faster than structural equality checking.) */
+let equals: (t, t) => bool;
 
 /* these functions require an EvalEnvIdGen.t because they generate a new
    EvalEnv.t */
@@ -59,3 +62,7 @@ let union_with_env:
    after evaluation. More functions may be added like this as-needed
    for similar purposes.) */
 let map_keep_id: (VarMap.t__(result) => result, t) => t;
+
+/* Placeholder used in DHCode. Is identified by an invalid
+   EvalEnvId.t, only used for display purposes. */
+let placeholder: t;

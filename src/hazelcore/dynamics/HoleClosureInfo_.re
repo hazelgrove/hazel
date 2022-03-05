@@ -12,10 +12,7 @@ type hc_id_result =
 let get_hc_id =
     (hci: t, u: MetaVar.t, sigma: EvalEnv.t, parent: HoleClosureParents.t_)
     : hc_id_result => {
-  let ei =
-    sigma
-    |> EvalEnv.id_of_evalenv
-    |> OptUtil.get(_ => raise(EvalEnv.InvalidEvalEnvType));
+  let ei = sigma |> EvalEnv.id_of_evalenv;
   switch (hci |> MetaVarMap.find_opt(u)) {
   /* Hole already exists in the HoleClosureInfo_.t */
   | Some(hcs) =>
@@ -75,10 +72,7 @@ let get_hc_id =
 };
 
 let update_hc_env = (hci: t, u: MetaVar.t, sigma: EvalEnv.t): t => {
-  let ei =
-    sigma
-    |> EvalEnv.id_of_evalenv
-    |> OptUtil.get(_ => raise(EvalEnv.InvalidEvalEnvType));
+  let ei = sigma |> EvalEnv.id_of_evalenv;
   hci
   |> MetaVarMap.update(
        u,

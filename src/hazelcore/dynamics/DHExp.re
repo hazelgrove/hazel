@@ -166,9 +166,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t)
 and environment = VarMap.t_(t)
-and evalenv =
-  | Env(EvalEnvId.t, VarMap.t_(result))
-  | UnreachedEnv
+and evalenv = (EvalEnvId.t, VarMap.t_(result))
 and result =
   | BoxedValue(t)
   | Indet(t);
@@ -226,14 +224,6 @@ let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
     d,
     casts,
   );
-
-/* Helper for fast_equals. */
-let evalenv_equals = (sigma1: evalenv, sigma2: evalenv): bool => {
-  switch (sigma1, sigma2) {
-  | (Env(ei1, _), Env(ei2, _)) => ei1 == ei2
-  | _ => false
-  };
-};
 
 let rec fast_equals = (d1: t, d2: t): bool => {
   switch (d1, d2) {
@@ -299,8 +289,9 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     u1 == u2 && i1 == i2 && x1 == x2
   | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
     u1 == u2 && i1 == i2 && text1 == text2
-  | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
-    evalenv_equals(sigma1, sigma2) && fast_equals(d1, d2)
+  | (Closure((ei1, _), d1), Closure((ei2, _), d2)) =>
+    /* Cannot use EvalEnv.equals here because it will create a dependency loop. */
+    ei1 == ei2 && fast_equals(d1, d2)
   | (
       InconsistentBranches(u1, i1, case1),
       InconsistentBranches(u2, i2, case2),

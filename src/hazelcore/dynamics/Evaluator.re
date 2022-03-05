@@ -475,20 +475,14 @@ and subst_var_rules =
      )
 
 and subst_var_env = (d1: DHExp.t, x: Var.t, sigma: EvalEnv.t): EvalEnv.t =>
-  switch (sigma) {
-  | UnreachedEnv =>
-    /* Do not recurse through empty environments */
-    sigma
-  | Env(_) =>
-    EvalEnv.map_keep_id(
-      ((_, dr)) =>
-        switch (dr) {
-        | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
-        | Indet(d) => Indet(subst_var(d1, x, d))
-        },
-      sigma,
-    )
-  };
+  EvalEnv.map_keep_id(
+    ((_, dr)) =>
+      switch (dr) {
+      | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
+      | Indet(d) => Indet(subst_var(d1, x, d))
+      },
+    sigma,
+  );
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
