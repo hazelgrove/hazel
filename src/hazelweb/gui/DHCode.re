@@ -110,8 +110,11 @@ let view_of_hole_closure =
     ~font_metrics,
     ~width,
     ~pos,
-    /* doesn't matter what the hole environment is here,
-       don't have to look it up */
+    /* Environment is a don't-care value. For display purposes,
+       the environment is ignored, only u, i are used.
+
+       It is here because hole expressions in the postprocessed result
+       must exist in a closure. */
     DHExp.Closure(UnreachedEnv, DHExp.EmptyHole(u, i)),
   );
 };

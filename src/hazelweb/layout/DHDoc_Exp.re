@@ -179,7 +179,9 @@ let rec mk =
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ =>
-          raise(EvalPostprocess.Exception(PostprocessedNonHoleInClosure))
+          raise(
+            EvalPostprocessError.Exception(PostprocessedNonHoleInClosure),
+          )
         }
 
       /* Hole expressions must appear within a closure in
@@ -190,7 +192,9 @@ let rec mk =
       | FreeVar(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
-        raise(EvalPostprocess.Exception(PostprocessedHoleOutsideClosure))
+        raise(
+          EvalPostprocessError.Exception(PostprocessedHoleOutsideClosure),
+        )
 
       /* Other, non-closure expressions */
       | BoundVar(x) => text(x)

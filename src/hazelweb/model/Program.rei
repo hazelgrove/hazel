@@ -46,7 +46,7 @@ let get_elaboration: t => DHExp.t;
  * Action because Action needs to return a well-typed edit state)
  */
 exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvalPostprocess.error);
+exception PostprocessError(EvalPostprocessError.t);
 let get_result: t => Result.t;
 
 /**
