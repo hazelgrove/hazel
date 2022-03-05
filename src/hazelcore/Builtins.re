@@ -8,7 +8,8 @@
  */
 
 module Impls = {
-  open DHExp;
+  /* Allow for use of BoxedValue/Indet without module prefix */
+  open EvaluatorResult;
 
   /* int_of_float implementation. */
   let int_of_float = (ident, r1) =>
