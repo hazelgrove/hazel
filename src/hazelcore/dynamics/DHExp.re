@@ -146,6 +146,7 @@ type t =
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
+  | ApBuiltin(string, list(t))
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
@@ -184,6 +185,7 @@ let constructor_string = (d: t): string =>
   | Lam(_, _, _) => "Lam"
   | Closure(_, _) => "Closure"
   | Ap(_, _) => "Ap"
+  | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"

@@ -1,7 +1,4 @@
 [@deriving sexp]
-type result = EvalEnv.result;
-
-[@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
@@ -204,6 +201,7 @@ and matches_cast_Inj =
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Inj(side, dp, d', casts)
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -271,6 +269,7 @@ and matches_cast_Pair =
   | Closure(_, d') =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -343,6 +342,7 @@ and matches_cast_Cons =
   | Lam(_, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -409,6 +409,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | ApBuiltin(ident, args) =>
+    let args = List.map(subst_var(d1, x), args);
+    ApBuiltin(ident, args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -501,7 +504,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoxedValue(BoolLit(true)))
   | (And, false) => Some(BoxedValue(BoolLit(false)))
@@ -535,14 +538,7 @@ let eval_bin_float_op =
 
 let rec evaluate =
         (ec: EvalEnvIdGen.t, env: EvalEnv.t, d: DHExp.t)
-        : (EvalEnvIdGen.t, result) => {
-  /* open Sexplib.Sexp;
-     print_endline(
-       "D: "
-       ++ to_string(DHExp.sexp_of_t(d))
-       ++ " ENV: "
-       ++ to_string(EvalEnv.sexp_of_t(env)),
-     ); */
+        : (EvalEnvIdGen.t, EvaluatorResult.t) => {
   switch (d) {
   | BoundVar(x) =>
     let dr =
@@ -611,6 +607,7 @@ let rec evaluate =
       | (ec, Indet(d2')) => (ec, Indet(Ap(d1', d2')))
       }
     }
+  | ApBuiltin(ident, args) => evaluate_ap_builtin(ec, env, ident, args)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
@@ -844,7 +841,7 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : (EvalEnvIdGen.t, result) =>
+    : (EvalEnvIdGen.t, EvaluatorResult.t) =>
   switch (evaluate(ec, env, scrut)) {
   | (ec, BoxedValue(scrut))
   | (ec, Indet(scrut)) =>
@@ -889,9 +886,10 @@ and evaluate_case =
       }
     }
   }
+
 and map_environment_to_result_map =
     (ec: EvalEnvIdGen.t, env: EvalEnv.t, sigma: Environment.t)
-    : VarMap.t_(result) =>
+    : VarMap.t_(EvaluatorResult.t) =>
   /* This function is specifically for wrapping final results from
      pattern matching subexpressions in the result type. Basically, if we
      call evaluate() on final expressions and using the same environment
@@ -905,4 +903,14 @@ and map_environment_to_result_map =
       dr;
     },
     sigma,
-  );
+  )
+
+/* Evaluate the application of a built-in function. */
+and evaluate_ap_builtin =
+    (ec: EvalEnvIdGen.t, env: EvalEnv.t, ident: string, args: list(DHExp.t))
+    : (EvalEnvIdGen.t, EvaluatorResult.t) => {
+  switch (Builtins.lookup_form(ident)) {
+  | Some((eval, _)) => eval(ec, env, args, evaluate)
+  | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
+  };
+};

@@ -1,9 +1,9 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, Evaluator.result);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t);
 
 let get_dhexp = ((d, _, _): t) => d;
 
-let final_dhexp_equals = (r1: Evaluator.result, r2: Evaluator.result): bool => {
+let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool => {
   switch (r1, r2) {
   | (BoxedValue(d1), BoxedValue(d2))
   | (Indet(d1), Indet(d2)) => DHExp.fast_equals(d1, d2)
