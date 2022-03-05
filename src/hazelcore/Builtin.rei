@@ -1,8 +1,14 @@
 [@deriving sexp]
+type evaluate =
+  (EvalEnvIdGen.t, EvalEnv.t, DHExp.t) => (EvalEnvIdGen.t, EvaluatorResult.t);
+
+[@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval = (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+type eval =
+  (EvalEnvIdGen.t, EvalEnv.t, args, evaluate) =>
+  (EvalEnvIdGen.t, EvaluatorResult.t);
 
 [@deriving sexp]
 type elab = DHExp.t;

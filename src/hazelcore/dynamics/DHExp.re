@@ -248,6 +248,8 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   | (Cons(d11, d21), Cons(d12, d22))
   | (Pair(d11, d21), Pair(d12, d22)) =>
     fast_equals(d11, d12) && fast_equals(d21, d22)
+  | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
+    f1 == f2 && List.for_all2(fast_equals, args1, args2)
   | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
     op1 == op2 && fast_equals(d11, d12) && fast_equals(d21, d22)
   | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
@@ -263,10 +265,13 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     fast_equals(d1, d2) && reason1 == reason2
   | (ConsistentCase(case1), ConsistentCase(case2)) =>
     fast_equals_case(case1, case2)
+  /* We can group these all into a `_ => false` clause; separating
+     these so that we get exhaustiveness checking. */
   | (Let(_), _)
   | (FixF(_), _)
   | (Lam(_), _)
   | (Ap(_), _)
+  | (ApBuiltin(_), _)
   | (Cons(_), _)
   | (Pair(_), _)
   | (BinBoolOp(_), _)

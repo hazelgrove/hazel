@@ -6,7 +6,7 @@
    wrapper around DHExp.t that indicates what kind of
    final result it is (BoxedValue/Indet). */
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, Evaluator.result);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t);
 
 let get_dhexp: t => DHExp.t;
 

@@ -8,7 +8,7 @@
  */
 
 module Impls = {
-  open EvaluatorResult;
+  open DHExp;
 
   /* int_of_float implementation. */
   let int_of_float = (ident, r1) =>

@@ -51,6 +51,17 @@ let rec pp_uneval =
     let (hci, d1') = pp_uneval(hci, env, d1, parent);
     let (hci, d2') = pp_uneval(hci, env, d2, parent);
     (hci, Ap(d1', d2'));
+  | ApBuiltin(f, args) =>
+    let (hci, args') =
+      List.fold_right(
+        (arg, (hci, args)) => {
+          let (hci, arg') = pp_uneval(hci, env, arg, parent);
+          (hci, [arg', ...args]);
+        },
+        args,
+        (hci, []),
+      );
+    (hci, ApBuiltin(f, args'));
   | BinBoolOp(op, d1, d2) =>
     let (hci, d1') = pp_uneval(hci, env, d1, parent);
     let (hci, d2') = pp_uneval(hci, env, d2, parent);
@@ -205,6 +216,17 @@ and pp_eval =
     let (hci, d1') = pp_eval(hci, d1, parent);
     let (hci, d2') = pp_eval(hci, d2, parent);
     (hci, Ap(d1', d2'));
+  | ApBuiltin(f, args) =>
+    let (hci, args') =
+      List.fold_right(
+        (arg, (hci, args)) => {
+          let (hci, arg') = pp_eval(hci, arg, parent);
+          (hci, [arg', ...args]);
+        },
+        args,
+        (hci, []),
+      );
+    (hci, ApBuiltin(f, args'));
   | BinBoolOp(op, d1, d2) =>
     let (hci, d1') = pp_eval(hci, d1, parent);
     let (hci, d2') = pp_eval(hci, d2, parent);
