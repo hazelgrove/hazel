@@ -156,8 +156,10 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let fdoc = (~enforce_inline) =>
+    let fdoc = (~enforce_inline) => {
       switch (d) {
+      /* A closure may only exist around hole expressions in
+         the postprocessed result */
       | Closure(_, d') =>
         switch (d') {
         | EmptyHole(u, i) =>
@@ -176,41 +178,21 @@ let rec mk =
         | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
-
         | _ =>
-          d |> DHExp.sexp_of_t |> JSUtil.log_sexp;
-          exception Test2Exception;
-          raise(Test2Exception);
+          raise(EvalPostprocess.Exception(PostprocessedNonHoleInClosure))
         }
-      /* The only closures in the result should be around a hole expression */
-      /* TODO: why can these exist outside of closures in the result? Need to investigate */
-      /* exception ClosureInResult;
-         raise(ClosureInResult); */
-      /* | EmptyHole(_)
-         | NonEmptyHole(_)
-         | Keyword(_)
-         | FreeVar(_)
-         | InvalidText(_)
-         | InconsistentBranches(_) =>
-           d |> DHExp.sexp_of_t |> JSUtil.log_sexp;
-           exception TestException;
-           raise(TestException); */
 
-      | EmptyHole(u, i) =>
-        let selected =
-          switch (selected_hole_closure) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
-          };
-        DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, d') =>
-        go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | Keyword(u, i, k) => DHDoc_common.mk_Keyword((u, i), k)
-      | FreeVar(u, i, x) =>
-        text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
-      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+      /* Hole expressions must appear within a closure in
+         the postprocessed result */
+      | EmptyHole(_)
+      | NonEmptyHole(_)
+      | Keyword(_)
+      | FreeVar(_)
+      | InvalidText(_)
+      | InconsistentBranches(_) =>
+        raise(EvalPostprocess.Exception(PostprocessedHoleOutsideClosure))
+
+      /* Other, non-closure expressions */
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -350,6 +332,7 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       };
+    };
     let doc =
       parenthesize
         ? hcats([

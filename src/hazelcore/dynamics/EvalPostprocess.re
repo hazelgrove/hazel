@@ -3,7 +3,9 @@ type error =
   | ClosureInsideClosure
   | BoundVarOutsideClosure(Var.t)
   | UnevalOutsideClosure
-  | InvalidClosureBody;
+  | InvalidClosureBody
+  | PostprocessedNonHoleInClosure
+  | PostprocessedHoleOutsideClosure;
 
 [@deriving sexp]
 exception Exception(error);

@@ -112,7 +112,7 @@ let view_of_hole_closure =
     ~pos,
     /* doesn't matter what the hole environment is here,
        don't have to look it up */
-    DHExp.EmptyHole(u, i),
+    DHExp.Closure(UnreachedEnv, DHExp.EmptyHole(u, i)),
   );
 };
 

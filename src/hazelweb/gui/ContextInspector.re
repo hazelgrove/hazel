@@ -186,89 +186,6 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
-  /* let view_of_path_item = ((inst, x)) =>
-       Node.div(
-         [Attr.classes(["path-item"])],
-         [
-           Node.div(
-             [Attr.classes(["inst"])],
-             [
-               DHCode.view_of_hole_closure(
-                 ~inject,
-                 ~width=30,
-                 ~selected_hole_closure,
-                 ~settings,
-                 ~font_metrics,
-                 inst,
-               ),
-             ],
-           ),
-           Node.div(
-             [Attr.classes(["inst-var-separator"])],
-             [Node.text("·")],
-           ),
-           Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
-         ],
-       );
-
-     let path_view = (inst, path: InstancePath.t) => {
-       let (titlebar_txt, path_area_children) =
-         switch (path) {
-         | [] => (
-             "which is in the result",
-             [
-               Node.div(
-                 [Attr.classes(["special-msg"])],
-                 [Node.div([], [Node.text("immediately")])],
-               ),
-             ],
-           )
-         | _ =>
-           let titlebar_txt = "which is in the result via path";
-           let path_area_children =
-             List.fold_left(
-               (acc, path_item) =>
-                 [
-                   view_of_path_item(path_item),
-                   Node.span(
-                     [Attr.classes(["path-item-separator"])],
-                     [Node.text(" 〉 ")],
-                   ),
-                   ...acc,
-                 ],
-               [
-                 Node.div(
-                   [Attr.classes(["trailing-inst"])],
-                   [
-                     DHCode.view_of_hole_instance(
-                       ~inject,
-                       ~width=30,
-                       ~selected_instance,
-                       ~settings,
-                       ~font_metrics,
-                       inst,
-                     ),
-                   ],
-                 ),
-               ],
-               path,
-             );
-
-           (
-             titlebar_txt,
-             [Node.div([Attr.classes(["path-area"])], path_area_children)],
-           );
-         };
-
-       Node.div(
-         [Attr.classes(["path-view-with-path"])],
-         [
-           Panel.view_of_other_title_bar(titlebar_txt),
-           Node.div([Attr.classes(["path-area-parent"])], path_area_children),
-         ],
-       );
-     }; */
-
   let hc_parents_view = (hc_parents: HoleClosureParents.t) => {
     let parents_info =
       hc_parents
@@ -316,61 +233,6 @@ let view =
         ...parents_info,
       ],
     );
-    /* let (titlebar_txt, path_area_children) =
-         switch (path) {
-         | [] => (
-             "which is in the result",
-             [
-               Node.div(
-                 [Attr.classes(["special-msg"])],
-                 [Node.div([], [Node.text("immediately")])],
-               ),
-             ],
-           )
-         | _ =>
-           let titlebar_txt = "which is in the result via path";
-           let path_area_children =
-             List.fold_left(
-               (acc, path_item) =>
-                 [
-                   view_of_path_item(path_item),
-                   Node.span(
-                     [Attr.classes(["path-item-separator"])],
-                     [Node.text(" 〉 ")],
-                   ),
-                   ...acc,
-                 ],
-               [
-                 Node.div(
-                   [Attr.classes(["trailing-inst"])],
-                   [
-                     DHCode.view_of_hole_instance(
-                       ~inject,
-                       ~width=30,
-                       ~selected_instance,
-                       ~settings,
-                       ~font_metrics,
-                       inst,
-                     ),
-                   ],
-                 ),
-               ],
-               path,
-             );
-
-           (
-             titlebar_txt,
-             [Node.div([Attr.classes(["path-area"])], path_area_children)],
-           );
-         };
-
-       Node.div(
-         [Attr.classes(["path-view-with-path"])],
-         [
-           Panel.view_of_other_title_bar(titlebar_txt),
-           Node.div([Attr.classes(["path-area-parent"])], path_area_children),
-         ],
-       ); */
   };
 
   let context_view = {
@@ -420,15 +282,7 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      /* let ctx =
-         program
-         |> Program.get_cursor_info
-         |> CursorInfo_common.get_ctx
-         |> Contexts.gamma; */
       let (_, hii, _) = program |> Program.get_result;
-      /* if (VarMap.is_empty(ctx)) {
-           Node.div([], []);
-         } else { */
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
@@ -463,7 +317,6 @@ let view =
           }
         };
       Node.div([Attr.classes(["the-path-viewer"])], children);
-      /* }; */
     } else {
       Node.div([], []);
     };
