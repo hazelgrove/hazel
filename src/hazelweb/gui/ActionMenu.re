@@ -23,6 +23,11 @@ let menu_entries: list(menu_entry) = [
     shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_S)),
     action: SerializeToConsole(ZExp),
   },
+  {
+    label: "Serialize compile result to console",
+    shortcut: None,
+    action: SerializeToConsole(Grain),
+  },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
   {label: "Open import popup", shortcut: None, action: ToggleImportPopup},

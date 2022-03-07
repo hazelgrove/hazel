@@ -51,7 +51,9 @@ let transform = Transformer.transform;
 
 let translate = (~opts=default_opts, d) =>
   if (opts.exp_only) {
-    Translator.translate_exp(d);
+    Translator.translate(
+      d //TODO: there is no public translate_exp
+    );
   } else {
     Translator.translate(d);
   };
