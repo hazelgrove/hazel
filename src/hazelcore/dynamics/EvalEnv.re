@@ -1,13 +1,15 @@
 [@deriving sexp]
-type t = DHExp.evalenv
-and result = DHExp.result
-and result_map = VarMap.t_(result);
+type t = DHExp.evalenv;
+
+[@deriving sexp]
+type result_map = VarBstMap.t(EvaluatorResult.t);
 
 let id_of_evalenv = ((ei, _): t): EvalEnvId.t => ei;
 
 let environment_of_evalenv = ((_, result_map): t): Environment.t =>
   result_map
-  |> List.map(((x, res: result)) =>
+  |> VarBstMap.bindings
+  |> List.map(((x, res: EvaluatorResult.t)) =>
        switch (res) {
        | Indet(d)
        | BoxedValue(d) => (x, d)
@@ -16,22 +18,26 @@ let environment_of_evalenv = ((_, result_map): t): Environment.t =>
 
 let result_map_of_evalenv = ((_, result_map): t): result_map => result_map;
 
+let alist_of_evalenv =
+    ((_, result_map): t): list((Var.t, EvaluatorResult.t)) =>
+  result_map |> VarBstMap.bindings;
+
 let empty: (EvalEnvIdGen.t, t) = {
   let (ec, ei) = EvalEnvIdGen.next(EvalEnvIdGen.empty);
-  let env: t = (ei, VarMap.empty);
+  let env: t = (ei, VarBstMap.empty);
   (ec, env);
 };
 
-let is_empty = (env: t) => VarMap.is_empty(result_map_of_evalenv(env));
+let is_empty = (env: t) => VarBstMap.is_empty(result_map_of_evalenv(env));
 
 let equals = (env1: t, env2: t): bool =>
   id_of_evalenv(env1) == id_of_evalenv(env2);
 
 let extend =
-    (ec: EvalEnvIdGen.t, env: t, xa: VarMap.t__(result))
+    (ec: EvalEnvIdGen.t, env: t, (x, a): (Var.t, EvaluatorResult.t))
     : (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
-  (ec, (ei, VarMap.extend(result_map_of_evalenv(env), xa)));
+  (ec, (ei, VarBstMap.add(x, a, result_map_of_evalenv(env))));
 };
 
 let union = (ec: EvalEnvIdGen.t, env1: t, env2: t): (EvalEnvIdGen.t, t) => {
@@ -40,7 +46,8 @@ let union = (ec: EvalEnvIdGen.t, env1: t, env2: t): (EvalEnvIdGen.t, t) => {
     ec,
     (
       ei,
-      VarMap.union(
+      VarBstMap.union(
+        (_, dr, _) => Some(dr),
         result_map_of_evalenv(env1),
         result_map_of_evalenv(env2),
       ),
@@ -51,37 +58,60 @@ let union = (ec: EvalEnvIdGen.t, env1: t, env2: t): (EvalEnvIdGen.t, t) => {
 let union_from_env =
     (ec: EvalEnvIdGen.t, env1: t, env2: result_map): (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
-  (ec, (ei, VarMap.union(result_map_of_evalenv(env1), env2)));
+  (
+    ec,
+    (
+      ei,
+      VarBstMap.union(
+        (_, dr, _) => Some(dr),
+        result_map_of_evalenv(env1),
+        env2,
+      ),
+    ),
+  );
 };
 
 let union_with_env =
     (ec: EvalEnvIdGen.t, env1: result_map, env2: t): (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
-  (ec, (ei, VarMap.union(env1, result_map_of_evalenv(env2))));
+  (
+    ec,
+    (
+      ei,
+      VarBstMap.union(
+        (_, dr, _) => Some(dr),
+        env1,
+        result_map_of_evalenv(env2),
+      ),
+    ),
+  );
 };
 
-let lookup = (env: t, x) => VarMap.lookup(result_map_of_evalenv(env), x);
+let lookup = (env: t, x) =>
+  env |> result_map_of_evalenv |> VarBstMap.find_opt(x);
 
 let contains = (env: t, x) =>
-  VarMap.contains(result_map_of_evalenv(env), x);
+  env |> result_map_of_evalenv |> VarBstMap.mem(x);
 
 let map = (ec: EvalEnvIdGen.t, f, env: t): (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
-  (ec, (ei, VarMap.map(f, result_map_of_evalenv(env))));
+  (ec, (ei, VarBstMap.mapi(f, result_map_of_evalenv(env))));
 };
 
 let map_keep_id = (f, env: t): t => (
   id_of_evalenv(env),
-  VarMap.map(f, result_map_of_evalenv(env)),
+  VarBstMap.mapi(f, result_map_of_evalenv(env)),
 );
 
 let filter = (ec: EvalEnvIdGen.t, f, env: t): (EvalEnvIdGen.t, t) => {
   let (ec, ei) = EvalEnvIdGen.next(ec);
-  (ec, (ei, VarMap.filter(f, result_map_of_evalenv(env))));
+  (ec, (ei, VarBstMap.filter(f, result_map_of_evalenv(env))));
 };
 
-let length = (env: t): int => List.length(result_map_of_evalenv(env));
+let length = (env: t): int =>
+  VarBstMap.cardinal(result_map_of_evalenv(env));
 
-let to_list = result_map_of_evalenv;
+let to_list = (env: t): list((Var.t, EvaluatorResult.t)) =>
+  env |> result_map_of_evalenv |> VarBstMap.bindings;
 
-let placeholder = ((-1), []);
+let placeholder = ((-1), VarBstMap.empty);

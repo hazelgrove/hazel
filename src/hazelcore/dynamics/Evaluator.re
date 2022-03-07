@@ -479,7 +479,7 @@ and subst_var_rules =
 
 and subst_var_env = (d1: DHExp.t, x: Var.t, sigma: EvalEnv.t): EvalEnv.t =>
   EvalEnv.map_keep_id(
-    ((_, dr)) =>
+    (_, dr) =>
       switch (dr) {
       | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
       | Indet(d) => Indet(subst_var(d1, x, d))
@@ -889,7 +889,7 @@ and evaluate_case =
 
 and map_environment_to_result_map =
     (ec: EvalEnvIdGen.t, env: EvalEnv.t, sigma: Environment.t)
-    : VarMap.t_(EvaluatorResult.t) =>
+    : EvalEnv.result_map =>
   /* This function is specifically for wrapping final results from
      pattern matching subexpressions in the result type. Basically, if we
      call evaluate() on final expressions and using the same environment
@@ -897,12 +897,13 @@ and map_environment_to_result_map =
      leave the final subexpressions unchanged and wrap them in a result
      type. This should also leave ec alone. If these assumptions are not
      met, then the hole environments may be changed. */
-  Environment.map(
-    ((_, d)) => {
+  List.fold_right(
+    ((x, d), env_map) => {
       let (_, dr) = evaluate(ec, env, d);
-      dr;
+      VarBstMap.add(x, dr, env_map);
     },
     sigma,
+    VarBstMap.empty,
   )
 
 /* Evaluate the application of a built-in function. */

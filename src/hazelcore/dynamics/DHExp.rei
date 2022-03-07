@@ -80,7 +80,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t)
 and environment = VarMap.t_(t)
-and evalenv = (EvalEnvId.t, VarMap.t_(result))
+and evalenv = (EvalEnvId.t, VarBstMap.t(result))
 and result =
   | BoxedValue(t)
   | Indet(t);

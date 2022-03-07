@@ -28,8 +28,8 @@ let fast_equals = ((_, hci1, r1): t, (_, hci2, r2): t): bool => {
                      /* Check that variable mappings in evalenv are equal */
                      ((x1, r1), (x2, r2)) =>
                        x1 == x2 && final_dhexp_equals(r1, r2),
-                     EvalEnv.result_map_of_evalenv(sigma1),
-                     EvalEnv.result_map_of_evalenv(sigma2),
+                     EvalEnv.alist_of_evalenv(sigma1),
+                     EvalEnv.alist_of_evalenv(sigma2),
                    ),
               hcs1,
               hcs2,

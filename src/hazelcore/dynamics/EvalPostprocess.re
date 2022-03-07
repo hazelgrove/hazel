@@ -395,22 +395,22 @@ and pp_eval_hole_env =
     : (HoleClosureInfo_.t, EvalEnv.t) => {
   let ei = sigma |> EvalEnv.id_of_evalenv;
   let (hci, result_map) =
-    (hci, [])
-    |> List.fold_right(
-         ((var, var_result: DHExp.result), (hci, result_map)) => {
-           let (hci, var_result: DHExp.result) =
-             switch (var_result) {
-             | BoxedValue(d) =>
-               let (hci, d) = pp_eval(hci, d, (var, parent_hc));
-               (hci, BoxedValue(d));
-             | Indet(d) =>
-               let (hci, d) = pp_eval(hci, d, (var, parent_hc));
-               (hci, Indet(d));
-             };
-           (hci, [(var, var_result), ...result_map]);
-         },
-         sigma |> EvalEnv.result_map_of_evalenv,
-       );
+    VarBstMap.fold(
+      (x, dr: EvaluatorResult.t, (hci, new_env)) => {
+        let (hci, dr: EvaluatorResult.t) =
+          switch (dr) {
+          | BoxedValue(d) =>
+            let (hci, d) = pp_eval(hci, d, (x, parent_hc));
+            (hci, BoxedValue(d));
+          | Indet(d) =>
+            let (hci, d) = pp_eval(hci, d, (x, parent_hc));
+            (hci, Indet(d));
+          };
+        (hci, VarBstMap.add(x, dr, new_env));
+      },
+      sigma |> EvalEnv.result_map_of_evalenv,
+      (hci, VarBstMap.empty),
+    );
   (hci, (ei, result_map));
 };
 

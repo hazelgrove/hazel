@@ -23,18 +23,18 @@
 
 [@deriving sexp]
 type t = DHExp.evalenv
-and result = DHExp.result
-and result_map = VarMap.t_(result);
+and result_map = VarBstMap.t(EvaluatorResult.t);
 
 let id_of_evalenv: t => EvalEnvId.t;
 let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
+let alist_of_evalenv: t => list((Var.t, EvaluatorResult.t));
 
 let empty: (EvalEnvIdGen.t, t);
 let is_empty: t => bool;
 let length: t => int;
-let to_list: t => list(VarMap.t__(result));
-let lookup: (t, Var.t) => option(result);
+let to_list: t => list((Var.t, EvaluatorResult.t));
+let lookup: (t, Var.t) => option(EvaluatorResult.t);
 let contains: (t, Var.t) => bool;
 
 /* Equals only needs to check environment ID's.
@@ -43,25 +43,26 @@ let equals: (t, t) => bool;
 
 /* these functions require an EvalEnvIdGen.t because they generate a new
    EvalEnv.t */
-let extend: (EvalEnvIdGen.t, t, VarMap.t__(result)) => (EvalEnvIdGen.t, t);
+let extend:
+  (EvalEnvIdGen.t, t, (Var.t, EvaluatorResult.t)) => (EvalEnvIdGen.t, t);
 let map:
-  (EvalEnvIdGen.t, VarMap.t__(result) => result, t) => (EvalEnvIdGen.t, t);
+  (EvalEnvIdGen.t, (Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) =>
+  (EvalEnvIdGen.t, t);
 let filter:
-  (EvalEnvIdGen.t, VarMap.t__(result) => bool, t) => (EvalEnvIdGen.t, t);
+  (EvalEnvIdGen.t, (Var.t, EvaluatorResult.t) => bool, t) =>
+  (EvalEnvIdGen.t, t);
 
 /* union(new_env, env) extends env with new_env (same argument order
    as in VarMap.union) */
 let union: (EvalEnvIdGen.t, t, t) => (EvalEnvIdGen.t, t);
-let union_from_env:
-  (EvalEnvIdGen.t, t, VarMap.t_(result)) => (EvalEnvIdGen.t, t);
-let union_with_env:
-  (EvalEnvIdGen.t, VarMap.t_(result), t) => (EvalEnvIdGen.t, t);
+let union_from_env: (EvalEnvIdGen.t, t, result_map) => (EvalEnvIdGen.t, t);
+let union_with_env: (EvalEnvIdGen.t, result_map, t) => (EvalEnvIdGen.t, t);
 
 /* same as map, but doesn't assign a new ID. (This is used when
    transforming an environment, such as in the closure->lambda stage
    after evaluation. More functions may be added like this as-needed
    for similar purposes.) */
-let map_keep_id: (VarMap.t__(result) => result, t) => t;
+let map_keep_id: ((Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) => t;
 
 /* Placeholder used in DHCode. Is identified by an invalid
    EvalEnvId.t, only used for display purposes. */

@@ -112,25 +112,22 @@ let evaluate =
     Evaluator.evaluate(ec_init, env_init),
   );
 let get_result = (program: t): Result.t => {
-  /* TODO: add timing options for these */
-  let timed_eval = program =>
-    TimeUtil.measure_time("Evaluator.evaluate", true, () =>
-      program |> get_elaboration |> evaluate
-    );
-  let timed_postprocess = d =>
-    TimeUtil.measure_time("EvalPostprocess.postprocess", true, () =>
+  switch (program |> get_elaboration |> evaluate) {
+  | (_, BoxedValue(d)) =>
+    let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
-      }
-    );
-  switch (program |> timed_eval) {
-  | (_, BoxedValue(d)) =>
-    let (hci, d) = d |> timed_postprocess;
+      };
     (d, hci, BoxedValue(d));
   | (_, Indet(d)) =>
-    let (hci, d) = d |> timed_postprocess;
+    let (hci, d) =
+      switch (d |> EvalPostprocess.postprocess) {
+      | d => d
+      | exception (EvalPostprocessError.Exception(reason)) =>
+        raise(PostprocessError(reason))
+      };
     (d, hci, Indet(d));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
