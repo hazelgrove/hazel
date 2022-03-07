@@ -18,10 +18,10 @@ let rec transform = (d: DHExp.t) => {
     let sigma = transform_var_map(sigma);
     IHExp.InvalidText(u, i, sigma, text);
   | BoundVar(x) => IHExp.BoundVar(x)
+  | Let(Var(_), FixF(x, ty0, Lam(dp, _, d3)), dlet) =>
+    IHExp.LetRec(x, ty0, transform_pat(dp), transform(d3), transform(dlet))
   | Let(dp, d1, d2) =>
     IHExp.Let(transform_pat(dp), transform(d1), transform(d2))
-  | FixF(x, ty0, Lam(dp, _, d3)) =>
-    IHExp.RecFun(x, ty0, transform_pat(dp), transform(d3))
   | FixF(_) => raise(FixF_Error)
   | Lam(dp, ty, d3) => IHExp.Lam(transform_pat(dp), ty, transform(d3))
   | Ap(d1, d2) => IHExp.Ap(transform(d1), transform(d2))
