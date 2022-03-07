@@ -28,6 +28,7 @@ let default_opts = {
   exp_only: false,
   grain: {
     grain: None,
+    // TODO: Fix this to include Hazel lib files.
     includes: None,
     optimize: None,
     debug: None,

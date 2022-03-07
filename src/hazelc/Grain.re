@@ -14,7 +14,7 @@ module Opts = {
   let identity = cmd => cmd;
 
   let use_grain = opts =>
-    Option.fold(~none="grain", ~some=v => v, opts.grain);
+    opts.grain |> Option.fold(~none="grain", ~some=v => v);
   let use_subcmd = (opts, subcmd) =>
     Printf.sprintf("%s %s", use_grain(opts), subcmd);
 
