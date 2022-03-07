@@ -1,25 +1,60 @@
-let usage = "hazelc [-o output] <file>";
-let inputs = ref([]);
-let output = ref("");
+[@deriving sexp]
+type action =
+  | Grain
+  | Wasm
+  | Wat;
 
-let anon_fun = input => inputs := [input, ...inputs^];
-let speclist = [("-o", Arg.Set_string(output), "Set output filename")];
-
-let parse = () => Arg.parse(speclist, anon_fun, usage);
-
-let () = {
-  parse();
-  let input = List.hd(inputs^);
-  let input_file = open_in(input);
-
-  let output =
-    if (String.length(output^) == 0) {
-      input ++ ".wasm";
-    } else {
-      output^;
+let hazelc = (action, sources, out, optimize, debug) => {
+  let out =
+    switch (out) {
+    | Some(out) => out
+    | None =>
+      switch (action) {
+      | Grain => "a.gr"
+      | Wasm => "a.wasm"
+      | Wat => "a.wat"
+      }
     };
 
-  let res = Compiler.compile_file(input_file, output);
+  let source = List.hd(sources);
+  let source_file = open_in(source);
+  let opts: Compiler.opts = {
+    exp_only: false,
+    grain: {
+      grain: None,
+      includes: None,
+      wat: Some(action == Wat),
+      optimize: Some(optimize),
+      debug: Some(debug),
+    },
+  };
+
+  print_endline(source);
+  print_endline(out);
+  print_endline(Sexplib.Sexp.to_string_hum(Compiler.sexp_of_opts(opts)));
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_action(action)));
+
+  let res =
+    switch (action) {
+    | Grain =>
+      let res = Compiler.grain_compile_file(~opts, source_file);
+      switch (res) {
+      | Ok(output) =>
+        let out_file = open_out(out);
+        Printf.fprintf(out_file, "%s", output);
+        close_out(out_file);
+        Ok();
+      | Error(err) => Error(err)
+      };
+    | Wasm
+    | Wat =>
+      let res = Compiler.compile_file(~opts, source_file, out);
+      switch (res) {
+      | Ok () => Ok()
+      | Error(err) => Error(err)
+      };
+    };
+
   switch (res) {
   | Ok () => ()
   | Error(err) =>
@@ -30,3 +65,77 @@ let () = {
     }
   };
 };
+
+open Cmdliner;
+
+let sources = {
+  let doc = "Source code file.";
+  let docv = "SOURCE";
+  Arg.(non_empty & pos_all(non_dir_file, []) & info([], ~docv, ~doc));
+};
+
+let out = {
+  let doc = "Output file.";
+  Arg.(
+    value
+    & opt(some(string), None)
+    & info(["o", "output"], ~docv="OUT", ~doc)
+  );
+};
+
+let action = {
+  let grain = {
+    let doc = "Emit Grain code.";
+    (Grain, Arg.info(["grain"], ~doc));
+  };
+  let wasm = {
+    let doc = "Emit WebAssembly.";
+    (Wasm, Arg.info(["wasm"], ~doc));
+  };
+  let wat = {
+    let doc = "Emit WebAssembly text.";
+    (Wat, Arg.info(["wat"], ~doc));
+  };
+  Arg.(last & vflag_all([Wasm], [grain, wasm, wat]));
+};
+
+let optimize_arg = {
+  let parse = s =>
+    try({
+      let n = int_of_string(s);
+      if (n < 3) {
+        Ok(n);
+      } else {
+        Error(`Msg("invalid optimization level"));
+      };
+    }) {
+    | Failure(_) => Error(`Msg("unable to parse integer"))
+    };
+  let print = (ppf, p) => Format.fprintf(ppf, "%s", string_of_int(p));
+  Arg.conv(~docv="LEVEL", (parse, print));
+};
+let optimize = {
+  let doc = "Set optimization level";
+  Arg.(value & opt(optimize_arg, 0) & info(["O"], ~docv="LEVEL", ~doc));
+};
+
+let debug = {
+  let doc = "Enable debug information.";
+  Arg.(value & flag & info(["g", "debug"], ~doc));
+};
+
+let cmd = {
+  let doc = "Hazel compiler.";
+  let man = [
+    `S(Manpage.s_bugs),
+    `P("Report bugs at <https://github.com/hazelgrove/hazel>"),
+  ];
+  let info = Cmd.info("hazelc", ~version="%%VERSION%%", ~doc, ~man);
+  Cmd.v(
+    info,
+    Term.(const(hazelc) $ action $ sources $ out $ optimize $ debug),
+  );
+};
+
+let main = () => exit(Cmd.eval(cmd));
+let () = main();

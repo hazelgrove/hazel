@@ -15,11 +15,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries hazelc)
- (modes js)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (libraries hazelc cmdliner)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
 
