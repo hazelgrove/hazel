@@ -25,6 +25,8 @@ let rec transform = (d: DHExp.t) => {
   | FixF(_) => raise(FixF_Error)
   | Lam(dp, ty, d3) => IHExp.Lam(transform_pat(dp), ty, transform(d3))
   | Ap(d1, d2) => IHExp.Ap(transform(d1), transform(d2))
+  | ApBuiltin(ident, args) =>
+    IHExp.ApBuiltin(ident, List.rev(List.rev_map(transform, args)))
   | BoolLit(b) => IHExp.BoolLit(b)
   | IntLit(i) => IHExp.IntLit(i)
   | FloatLit(f) => IHExp.FloatLit(f)

@@ -79,9 +79,12 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
     let (v2, prog) = translate_exp(d2, prog);
     let exp = sprintf("%s(%s)", v1, v2);
     Program.assign_tmp_var(prog, exp);
+  | ApBuiltin(_, _) => raise(NotImplemented)
   | BoolLit(b) => (b ? "true" : "false", prog)
   | IntLit(i) => (sprintf("%d", i), prog)
-  | FloatLit(f) => (sprintf("%f", f), prog)
+  | FloatLit(f) =>
+    (sprintf("%f", f), prog);
+    Printf.sprintf("%s(%s)", translate_exp(d1), translate_exp(d2));
   | BinBoolOp(op, d1, d2) =>
     let (v1, prog) = translate_exp(d1, prog);
     let (v2, prog) = translate_exp(d2, prog);

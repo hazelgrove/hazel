@@ -42,7 +42,7 @@ type t =
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | Import(UHExp.block)
-  | ToggleImportPopup
+  | ToggleTextEditorPopup
   | FocusCell
   | BlurCell
   | Redo

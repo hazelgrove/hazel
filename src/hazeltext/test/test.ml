@@ -3,18 +3,9 @@ module Parse = Hazeltext.Parse
 module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
-let fix_ast_holes ast : UHExp.block option =
-  match ast with
-  | Some ast ->
-      let ast, _, _ = Statics_Exp.fix_and_renumber_holes Contexts.empty ast in
-      Some ast
-  | None -> None
-
 let parse text : UHExp.block option =
   let lexbuf = Lexing.from_string text in
-  match Parsing.ast_of_lexbuf lexbuf with
-  | Ok ast -> fix_ast_holes (Some ast)
-  | Error _ -> None
+  match Parsing.ast_of_lexbuf lexbuf with Ok ast -> Some ast | Error _ -> None
 
 let test_parse text : bool =
   (*Get the first AST*)
