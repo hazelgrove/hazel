@@ -20,7 +20,7 @@
   (pps ppx_let ppx_sexp_conv)))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+ (write-file js-of-ocaml-flags-dev "(:standard)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
