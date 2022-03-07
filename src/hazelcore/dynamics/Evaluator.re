@@ -559,8 +559,7 @@ let rec evaluate =
       | Indet
       | DoesNotMatch => (ec, Indet(Closure(env, Let(dp, d1, d2))))
       | Matches(env') =>
-        let match_result_map = map_environment_to_result_map(ec, env, env');
-        let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
+        let (ec, env) = extend_evalenv_with_env(ec, env', env);
         evaluate(ec, env, d2);
       }
     }
@@ -585,9 +584,7 @@ let rec evaluate =
         | Matches(env') =>
           // evaluate a closure: extend the closure environment with the
           // new bindings introduced by the function application.
-          let match_result_map = map_environment_to_result_map(ec, env, env');
-          let (ec, env) =
-            EvalEnv.union_with_env(ec, match_result_map, closure_env);
+          let (ec, env) = extend_evalenv_with_env(ec, env', closure_env);
           evaluate(ec, env, d3);
         }
       }
@@ -870,10 +867,9 @@ and evaluate_case =
         );
       | Matches(env') =>
         // extend environment with new bindings introduced
-        // by the rule and evaluate the expression.
-        let match_result_map = map_environment_to_result_map(ec, env, env');
-        let (ec, env) = EvalEnv.union_with_env(ec, match_result_map, env);
+        let (ec, env) = extend_evalenv_with_env(ec, env', env);
         evaluate(ec, env, d);
+      // by the rule and evaluate the expression.
       | DoesNotMatch =>
         evaluate_case(
           ec,
@@ -887,24 +883,26 @@ and evaluate_case =
     }
   }
 
-and map_environment_to_result_map =
-    (ec: EvalEnvIdGen.t, env: EvalEnv.t, sigma: Environment.t)
-    : EvalEnv.result_map =>
-  /* This function is specifically for wrapping final results from
-     pattern matching subexpressions in the result type. Basically, if we
-     call evaluate() on final expressions and using the same environment
-     that the entire matched expression was called on, then this should
-     leave the final subexpressions unchanged and wrap them in a result
-     type. This should also leave ec alone. If these assumptions are not
-     met, then the hole environments may be changed. */
-  List.fold_right(
-    ((x, d), env_map) => {
-      let (_, dr) = evaluate(ec, env, d);
-      VarBstMap.add(x, dr, env_map);
-    },
-    sigma,
-    VarBstMap.empty,
-  )
+/* This function extends an EvalEnv.t with new bindings
+   (an Environment.t from match()). We need to wrap the new bindings
+   in a final judgment (BoxedValue or Indet), so we call evaluate()
+   on it again, but it shouldn't change the value of the expression. */
+and extend_evalenv_with_env =
+    (ec: EvalEnvIdGen.t, new_bindings: Environment.t, to_extend: EvalEnv.t)
+    : (EvalEnvIdGen.t, EvalEnv.t) => {
+  let (ec, ei) = EvalEnvIdGen.next(ec);
+  let result_map =
+    List.fold_left(
+      (new_env, (x, d)) => {
+        /* The value of environment doesn't matter here */
+        let (_, dr) = evaluate(ec, EvalEnv.placeholder, d);
+        VarBstMap.add(x, dr, new_env);
+      },
+      EvalEnv.result_map_of_evalenv(to_extend),
+      new_bindings,
+    );
+  (ec, (ei, result_map));
+}
 
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =

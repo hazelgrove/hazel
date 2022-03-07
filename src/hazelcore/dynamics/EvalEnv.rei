@@ -55,8 +55,6 @@ let filter:
 /* union(new_env, env) extends env with new_env (same argument order
    as in VarMap.union) */
 let union: (EvalEnvIdGen.t, t, t) => (EvalEnvIdGen.t, t);
-let union_from_env: (EvalEnvIdGen.t, t, result_map) => (EvalEnvIdGen.t, t);
-let union_with_env: (EvalEnvIdGen.t, result_map, t) => (EvalEnvIdGen.t, t);
 
 /* same as map, but doesn't assign a new ID. (This is used when
    transforming an environment, such as in the closure->lambda stage

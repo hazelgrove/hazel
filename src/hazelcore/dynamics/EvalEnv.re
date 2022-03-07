@@ -55,38 +55,6 @@ let union = (ec: EvalEnvIdGen.t, env1: t, env2: t): (EvalEnvIdGen.t, t) => {
   );
 };
 
-let union_from_env =
-    (ec: EvalEnvIdGen.t, env1: t, env2: result_map): (EvalEnvIdGen.t, t) => {
-  let (ec, ei) = EvalEnvIdGen.next(ec);
-  (
-    ec,
-    (
-      ei,
-      VarBstMap.union(
-        (_, dr, _) => Some(dr),
-        result_map_of_evalenv(env1),
-        env2,
-      ),
-    ),
-  );
-};
-
-let union_with_env =
-    (ec: EvalEnvIdGen.t, env1: result_map, env2: t): (EvalEnvIdGen.t, t) => {
-  let (ec, ei) = EvalEnvIdGen.next(ec);
-  (
-    ec,
-    (
-      ei,
-      VarBstMap.union(
-        (_, dr, _) => Some(dr),
-        env1,
-        result_map_of_evalenv(env2),
-      ),
-    ),
-  );
-};
-
 let lookup = (env: t, x) =>
   env |> result_map_of_evalenv |> VarBstMap.find_opt(x);
 
