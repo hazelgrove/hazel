@@ -92,7 +92,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, ConsistentCase(Case(_, _, _))) => Indet
+  | (_, ConsistentMatch(Match(_, _, _), _)) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
       Matches(Environment.empty);
@@ -272,7 +272,7 @@ and matches_cast_Inj =
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
-  | ConsistentCase(_)
+  | ConsistentMatch(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
@@ -339,7 +339,7 @@ and matches_cast_Pair =
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
-  | ConsistentCase(_)
+  | ConsistentMatch(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
@@ -412,7 +412,7 @@ and matches_cast_Cons =
   | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
-  | ConsistentCase(_)
+  | ConsistentMatch(_)
   | InconsistentBranches(_) => Indet
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
@@ -495,15 +495,15 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Pair(d3, d4);
-  | ConsistentCase(Case(d3, rules, n)) =>
+  | ConsistentMatch(Match(d3, rules, n), point) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+    ConsistentMatch(Match(d3, rules, n), point);
+  | InconsistentBranches(u, i, sigma, Match(d3, rules, n), point) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
     let sigma' = subst_var_env(d1, x, sigma);
-    InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+    InconsistentBranches(u, i, sigma', Match(d3, rules, n), point);
   | EmptyHole(u, i, sigma) =>
     let sigma' = subst_var_env(d1, x, sigma);
     EmptyHole(u, i, sigma');
@@ -771,9 +771,10 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
     | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
-  | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(Some((u, i, sigma)), d1, rules, n)
+  | ConsistentMatch(Match(d1, rules, n), _) =>
+    evaluate_match(None, d1, rules, n)
+  | InconsistentBranches(u, i, sigma, Match(d1, rules, n), _) =>
+    evaluate_match(Some((u, i, sigma)), d1, rules, n)
   | EmptyHole(_) => Indet(d)
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     switch (evaluate(d1)) {
@@ -874,40 +875,56 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
   }
-and evaluate_case =
+and evaluate_match =
     (
       inconsistent_info,
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : EvaluatorResult.t =>
+    : EvaluatorResult.t => {
   switch (evaluate(scrut)) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
+      let match = DHExp.Match(scrut, rules, current_rule_index);
       switch (inconsistent_info) {
-      | None => Indet(ConsistentCase(case))
+      | None => Indet(ConsistentMatch(match, Some(current_rule_index)))
       | Some((u, i, sigma)) =>
-        Indet(InconsistentBranches(u, i, sigma, case))
+        Indet(
+          InconsistentBranches(u, i, sigma, match, Some(current_rule_index)),
+        )
       };
     | Some(Rule(dp, d)) =>
       switch (matches(dp, scrut)) {
       | Indet =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
+        let match = DHExp.Match(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
-        | None => Indet(ConsistentCase(case))
+        | None => Indet(ConsistentMatch(match, Some(current_rule_index)))
         | Some((u, i, sigma)) =>
-          Indet(InconsistentBranches(u, i, sigma, case))
+          Indet(
+            InconsistentBranches(
+              u,
+              i,
+              sigma,
+              match,
+              Some(current_rule_index),
+            ),
+          )
         };
       | Matches(env) => evaluate(subst(env, d))
       | DoesNotMatch =>
-        evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
+        evaluate_match(
+          inconsistent_info,
+          scrut,
+          rules,
+          current_rule_index + 1,
+        )
       }
     }
-  }
+  };
+}
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
     (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {

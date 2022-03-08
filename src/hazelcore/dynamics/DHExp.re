@@ -154,14 +154,14 @@ type t =
   | InjError(InjErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, env, inj)
   | Pair(t, t)
   | Triv
-  | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, case)
+  | ConsistentMatch(match, option(int))
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, env, match, option(int))
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and inj = (HTyp.sum_body, UHTag.t, option(t))
-and case =
-  | Case(t, list(rule), int)
+and match =
+  | Match(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
 /* same as Environment.t, reiterated here to avoid circularity */
@@ -192,8 +192,8 @@ let constructor_string = (d: t): string =>
   | InjError(_, _, _, _, _) => "InjError"
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
-  | ConsistentCase(_) => "ConsistentCase"
-  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
+  | ConsistentMatch(_, _) => "ConsistentMatch"
+  | InconsistentBranches(_, _, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"

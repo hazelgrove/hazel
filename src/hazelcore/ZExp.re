@@ -16,14 +16,14 @@ and zoperand =
   | LamZE(ErrStatus.t, UHPat.t, t)
   | InjZT(InjErrStatus.t, ZTag.t, option(UHExp.t))
   | InjZE(InjErrStatus.t, UHTag.t, t)
-  | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
-  | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
+  | MatchZE(MatchErrStatus.t, t, list(UHExp.rule))
+  | MatchZR(MatchErrStatus.t, UHExp.t, zrules)
 and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
   | CursorR(CursorPosition.t, UHExp.rule)
-  | RuleZP(ZPat.t, UHExp.t)
-  | RuleZE(UHPat.t, t);
+  | RuleZP(RuleErrStatus.t, ZPat.t, UHExp.t)
+  | RuleZE(RuleErrStatus.t, UHPat.t, t);
 
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
@@ -39,8 +39,8 @@ let line_can_be_swapped = (line: zline): bool =>
   | LetLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZT(_) | InjZE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(MatchZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(MatchZR(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _))) => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
@@ -80,7 +80,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     }
   | Inj(_, _, None) => CursorPosition.delim_cursors(2)
   | Inj(_, _, Some(_)) => CursorPosition.delim_cursors(3)
-  | Case(_) => CursorPosition.delim_cursors(2)
+  | Match(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2);
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
@@ -139,15 +139,15 @@ and is_before_zoperand =
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
-  | CursorE(cursor, Case(_))
+  | CursorE(cursor, Match(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_)
   | LamZP(_)
   | LamZE(_)
   | InjZT(_)
   | InjZE(_)
-  | CaseZE(_)
-  | CaseZR(_) => false;
+  | MatchZE(_)
+  | MatchZR(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
 // Check if the cursor at "OnDelim(After)" in a "CommentLine"
@@ -219,7 +219,7 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(2, After)
-  | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, Match(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_, _, None)) => cursor == OnDelim(1, After) // inj[T]
   | CursorE(cursor, Inj(_, _, Some(_))) => cursor == OnDelim(2, After) // inj[T](e)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
@@ -228,11 +228,11 @@ and is_after_zoperand =
   | LamZE(_)
   | InjZT(_)
   | InjZE(_)
-  | CaseZE(_)
-  | CaseZR(_) => false;
+  | MatchZE(_)
+  | MatchZR(_) => false;
 let is_after_zrule =
   fun
-  | RuleZE(_, zclause) => is_after(zclause)
+  | RuleZE(_, _, zclause) => is_after(zclause)
   | _ => false;
 let is_after_zoperator: zoperator => bool =
   fun
@@ -267,15 +267,15 @@ and is_outer_zoperand =
   | CursorE(_, BoolLit(_))
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
-  | CursorE(_, Case(_))
+  | CursorE(_, Match(_))
   | CursorE(_, Parenthesized(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | LamZP(_)
   | LamZE(_)
   | InjZT(_)
   | InjZE(_)
-  | CaseZE(_)
-  | CaseZR(_) => false;
+  | MatchZE(_)
+  | MatchZR(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -306,7 +306,7 @@ and place_before_operand = operand =>
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
-  | Case(_)
+  | Match(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
@@ -343,12 +343,12 @@ and place_after_operand = operand =>
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(2, After), operand)
-  | Case(_) => CursorE(OnDelim(1, After), operand)
+  | Match(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   };
-let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
-  RuleZE(p, place_after(clause));
+let place_after_rule = (Rule(err, p, clause): UHExp.rule): zrule =>
+  RuleZE(err, p, place_after(clause));
 let place_after_operator = (op: UHExp.operator): option(zoperator) =>
   switch (op) {
   | Space => None
@@ -432,16 +432,16 @@ and erase_zoperand =
   | LamZE(err, p, zbody) => Lam(err, p, erase(zbody))
   | InjZT(err, ztag, body) => Inj(err, ZTag.erase(ztag), body)
   | InjZE(err, tag, zbody) => Inj(err, tag, Some(erase(zbody)))
-  | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
-  | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
+  | MatchZE(err, zscrut, rules) => Match(err, erase(zscrut), rules)
+  | MatchZR(err, scrut, zrules) => Match(err, scrut, erase_zrules(zrules))
 and erase_zrules =
   fun
   | zrules => ZList.erase(zrules, erase_zrule)
 and erase_zrule =
   fun
   | CursorR(_, rule) => rule
-  | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
-  | RuleZE(p, zclause) => Rule(p, erase(zclause));
+  | RuleZP(err, zp, clause) => Rule(err, ZPat.erase(zp), clause)
+  | RuleZE(err, p, zclause) => Rule(err, p, erase(zclause));
 
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
@@ -484,10 +484,35 @@ and set_err_status_zoperand = (err, zoperand) =>
   | LamZE(_, p, zbody) => LamZE(err, p, zbody)
   | InjZT(_)
   | InjZE(_) => zoperand
-  | CaseZE(_, zscrut, rules) =>
-    CaseZE(StandardErrStatus(err), zscrut, rules)
-  | CaseZR(_, scrut, zrules) =>
-    CaseZR(StandardErrStatus(err), scrut, zrules)
+  | MatchZE(_, zscrut, rules) =>
+    MatchZE(StandardErrStatus(err), zscrut, rules)
+  | MatchZR(_, scrut, zrules) =>
+    MatchZR(StandardErrStatus(err), scrut, zrules)
+  };
+
+let rec set_err_status_zrules =
+        (err: RuleErrStatus.t, idx: int, zrules: zrules): zrules =>
+  ZList.mapi(
+    (pos, zrule) =>
+      if (pos == idx) {
+        set_err_status_zrule(err, zrule);
+      } else {
+        zrule;
+      },
+    (pos, rule) =>
+      if (pos == idx) {
+        UHExp.set_err_status_rule(err, rule);
+      } else {
+        rule;
+      },
+    zrules,
+  )
+and set_err_status_zrule = (err: RuleErrStatus.t, zrule: zrule): zrule =>
+  switch (zrule) {
+  | CursorR(cur, rule) =>
+    CursorR(cur, rule |> UHExp.set_err_status_rule(err))
+  | RuleZP(_, zpat, e) => RuleZP(err, zpat, e)
+  | RuleZE(_, pat, ze) => RuleZE(err, pat, ze)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -523,23 +548,25 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* already in hole */
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
+  | MatchZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | MatchZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       zoperand,
       u_gen,
     )
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _)
   | LamZE(NotInHole | InHole(WrongLength, _), _, _)
-  | CaseZE(
+  | MatchZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive(_),
       _,
       _,
     )
-  | CaseZR(
+  | MatchZR(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive(_),
       _,
       _,
     ) =>
@@ -556,7 +583,8 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
-  let zrule = RuleZP(ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
+  let zrule =
+    RuleZP(NotRedundant, ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
   (zrule, u_gen);
 };
 
@@ -659,13 +687,13 @@ and move_cursor_left_zoperand =
     | 2 => Some(LamZE(err, arg, place_after(body)))
     | _ => None
     }
-  | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
+  | CursorE(OnDelim(_k, Before), Match(err, scrut, rules)) =>
     // _k == 1
     switch (List.rev(rules)) {
-    | [] => Some(CaseZE(err, place_after(scrut), rules))
+    | [] => Some(MatchZE(err, place_after(scrut), rules))
     | [last_rule, ...rev_prefix] =>
       Some(
-        CaseZR(
+        MatchZR(
           err,
           scrut,
           (List.rev(rev_prefix), place_after_rule(last_rule), []),
@@ -708,16 +736,17 @@ and move_cursor_left_zoperand =
     | None =>
       Some(CursorE(OnDelim(1, After), Lam(err, arg, erase(zbody))))
     }
-  | CaseZE(err, zscrut, rules) =>
+  | MatchZE(err, zscrut, rules) =>
     switch (move_cursor_left(zscrut)) {
-    | Some(zscrut) => Some(CaseZE(err, zscrut, rules))
+    | Some(zscrut) => Some(MatchZE(err, zscrut, rules))
     | None =>
-      Some(CursorE(OnDelim(0, After), Case(err, erase(zscrut), rules)))
+      Some(CursorE(OnDelim(0, After), Match(err, erase(zscrut), rules)))
     }
-  | CaseZR(err, scrut, zrules) =>
+  | MatchZR(err, scrut, zrules) =>
     switch (zrules |> move_cursor_left_zrules) {
-    | Some(zrules) => Some(CaseZR(err, scrut, zrules))
-    | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
+    | Some(zrules) => Some(MatchZR(err, scrut, zrules))
+    | None =>
+      Some(MatchZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
 and move_cursor_left_zrules =
   fun
@@ -742,18 +771,19 @@ and move_cursor_left_zrule =
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, After), rule) =>
     Some(CursorR(OnDelim(k, Before), rule))
-  | CursorR(OnDelim(_one, Before), Rule(p, clause)) =>
-    Some(RuleZP(ZPat.place_after(p), clause))
-  | RuleZP(zp, clause) =>
+  | CursorR(OnDelim(_one, Before), Rule(err, p, clause)) =>
+    Some(RuleZP(err, ZPat.place_after(p), clause))
+  | RuleZP(err, zp, clause) =>
     switch (ZPat.move_cursor_left(zp)) {
-    | Some(zp) => Some(RuleZP(zp, clause))
+    | Some(zp) => Some(RuleZP(err, zp, clause))
     | None =>
-      Some(CursorR(OnDelim(0, After), Rule(ZPat.erase(zp), clause)))
+      Some(CursorR(OnDelim(0, After), Rule(err, ZPat.erase(zp), clause)))
     }
-  | RuleZE(p, zclause) =>
+  | RuleZE(err, p, zclause) =>
     switch (move_cursor_left(zclause)) {
-    | Some(zclause) => Some(RuleZE(p, zclause))
-    | None => Some(CursorR(OnDelim(1, After), Rule(p, erase(zclause))))
+    | Some(zclause) => Some(RuleZE(err, p, zclause))
+    | None =>
+      Some(CursorR(OnDelim(1, After), Rule(err, p, erase(zclause))))
     };
 
 let rec move_cursor_right = (ze: t): option(t) =>
@@ -852,9 +882,9 @@ and move_cursor_right_zoperand =
     | 1 => Some(LamZE(err, arg, place_before(body)))
     | _ => None // invalid cursor position
     }
-  | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
+  | CursorE(OnDelim(_k, After), Match(err, scrut, rules)) =>
     // _k == 0
-    Some(CaseZE(err, place_before(scrut), rules))
+    Some(MatchZE(err, place_before(scrut), rules))
   | CursorE(
       OnDelim(_),
       InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
@@ -895,25 +925,27 @@ and move_cursor_right_zoperand =
       Some(CursorE(OnDelim(2, Before), Lam(err, arg, erase(zbody))))
     | Some(zbody) => Some(LamZE(err, arg, zbody))
     }
-  | CaseZE(err, zscrut, rules) =>
+  | MatchZE(err, zscrut, rules) =>
     switch (move_cursor_right(zscrut)) {
-    | Some(zscrut) => Some(CaseZE(err, zscrut, rules))
+    | Some(zscrut) => Some(MatchZE(err, zscrut, rules))
     | None =>
       switch (rules) {
       | [] =>
-        Some(CursorE(OnDelim(1, Before), Case(err, erase(zscrut), rules)))
+        Some(
+          CursorE(OnDelim(1, Before), Match(err, erase(zscrut), rules)),
+        )
       | [r, ...rs] =>
-        Some(CaseZR(err, erase(zscrut), ([], place_before_rule(r), rs)))
+        Some(MatchZR(err, erase(zscrut), ([], place_before_rule(r), rs)))
       }
     }
-  | CaseZR(err, scrut, zrules) =>
+  | MatchZR(err, scrut, zrules) =>
     switch (zrules |> move_cursor_right_zrules) {
-    | Some(zrules) => Some(CaseZR(err, scrut, zrules))
+    | Some(zrules) => Some(MatchZR(err, scrut, zrules))
     | None =>
       Some(
         CursorE(
           OnDelim(1, Before),
-          Case(err, scrut, zrules |> erase_zrules),
+          Match(err, scrut, zrules |> erase_zrules),
         ),
       )
     }
@@ -940,21 +972,21 @@ and move_cursor_right_zrule =
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, Before), rule) =>
     Some(CursorR(OnDelim(k, After), rule))
-  | CursorR(OnDelim(k, After), Rule(p, clause)) =>
+  | CursorR(OnDelim(k, After), Rule(err, p, clause)) =>
     // k == 0 || k == 1
     k == 0
-      ? Some(RuleZP(ZPat.place_before(p), clause))
-      : Some(RuleZE(p, place_before(clause)))
-  | RuleZP(zp, clause) =>
+      ? Some(RuleZP(err, ZPat.place_before(p), clause))
+      : Some(RuleZE(err, p, place_before(clause)))
+  | RuleZP(err, zp, clause) =>
     switch (ZPat.move_cursor_right(zp)) {
-    | Some(zp) => Some(RuleZP(zp, clause))
+    | Some(zp) => Some(RuleZP(err, zp, clause))
     | None =>
-      Some(CursorR(OnDelim(1, Before), Rule(ZPat.erase(zp), clause)))
+      Some(CursorR(OnDelim(1, Before), Rule(err, ZPat.erase(zp), clause)))
     }
-  | RuleZE(p, zclause) =>
+  | RuleZE(err, p, zclause) =>
     switch (move_cursor_right(zclause)) {
     | None => None
-    | Some(zclause) => Some(RuleZE(p, zclause))
+    | Some(zclause) => Some(RuleZE(err, p, zclause))
     };
 
 let rec cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
@@ -980,13 +1012,13 @@ and cursor_on_EmptyHole_zoperand =
   | LamZP(_) => None
   | LamZE(_, _, ze)
   | ParenthesizedZ(ze)
-  | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
-  | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
+  | MatchZE(_, ze, _) => cursor_on_EmptyHole(ze)
+  | MatchZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
   | RuleZP(_) => None
-  | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+  | RuleZE(_, _, ze) => cursor_on_EmptyHole(ze);
 
 let rec cursor_on_EmptyTagHole = ze => cursor_on_EmptyTagHole_zblock(ze)
 and cursor_on_EmptyTagHole_zblock = ((_, zline, _)) =>
@@ -1010,13 +1042,13 @@ and cursor_on_EmptyTagHole_zoperand =
   | InjZE(_, _, ze)
   | LamZE(_, _, ze)
   | ParenthesizedZ(ze)
-  | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
-  | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyTagHole_zrule(zrule)
+  | MatchZE(_, ze, _) => cursor_on_EmptyHole(ze)
+  | MatchZR(_, _, (_, zrule, _)) => cursor_on_EmptyTagHole_zrule(zrule)
 and cursor_on_EmptyTagHole_zrule =
   fun
   | CursorR(_) => None
-  | RuleZP(zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
-  | RuleZE(_, ze) => cursor_on_EmptyTagHole(ze);
+  | RuleZP(_, zp, _) => ZPat.cursor_on_EmptyTagHole(zp)
+  | RuleZE(_, _, ze) => cursor_on_EmptyTagHole(ze);
 
 let zline_is_just_empty_hole = (zline: zline): bool =>
   switch (zline) {

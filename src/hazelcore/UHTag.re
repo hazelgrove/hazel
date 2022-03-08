@@ -7,8 +7,6 @@ type t =
 
 let compare = compare;
 
-let equal = (tag1: t, tag2: t): bool => tag1 == tag2;
-
 let new_TagHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
   (EmptyTagHole(u), u_gen);
@@ -78,18 +76,20 @@ module OrderedType = {
 module Set = Set.Make(OrderedType);
 module Map = Map.Make(OrderedType);
 
+let equal = (tag1: t, tag2: t): bool => tag1 == tag2;
+
 let consistent = (tag1: t, tag2: t): bool =>
   switch (tag1, tag2) {
   // TagCEHole1
-  | (EmptyTagHole(_), _) => true
+  | (EmptyTagHole(_), _)
   // TagCEHole2
-  | (_, EmptyTagHole(_)) => true
+  | (_, EmptyTagHole(_))
   // TagCNEHole1
-  | (Tag(InTagHole(_), _), _) => true
+  | (Tag(InTagHole(_), _), _)
   // TagCNEHole2
   | (_, Tag(InTagHole(_), _)) => true
   // TagCRefl
-  | (_, _) => equal(tag1, tag2)
+  | (Tag(NotInTagHole, _), Tag(NotInTagHole, _)) => equal(tag1, tag2)
   };
 
 let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>

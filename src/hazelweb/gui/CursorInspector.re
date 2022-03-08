@@ -304,6 +304,10 @@ let advanced_summary =
         syn,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | AnaInconsistentBranches(_) => [
+        ana,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
     | SynInconsistentBranchesArrow(_) => [
         syn,
         emphasize_text("Function Type"),
@@ -316,7 +320,14 @@ let advanced_summary =
     | OnSumBodyOperand => [emphasize_text("Sum body operand")]
     | OnSumBodyOperator => [emphasize_text("Sum body operator")]
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
-    | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | OnRule(NotRedundant) => /* TODO */ [emphasize_text("Rule")]
+    | OnRule(IndeterminatelyRedundant) => /* TODO */ [
+        emphasize_text("Indeterminately redundant pattern"),
+      ]
+    | OnRule(Redundant(_)) => [emphasize_text("Redundant pattern")]
+    | MatchNotExhaustive(_) => [
+        emphasize_text("Patterns are not exhaustive"),
+      ]
     };
   };
   switch (typed) {
@@ -550,6 +561,11 @@ let novice_summary =
         term_tag,
         emphasize_text("Inconsistent Branch Types"),
       ]
+    | AnaInconsistentBranches(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Branch Types"),
+      ]
     | SynInconsistentBranchesArrow(_) => [
         Node.text("Expecting " ++ article),
         term_tag,
@@ -586,10 +602,18 @@ let novice_summary =
         /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
-    | OnRule => /* TODO */ [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Rule"),
+    | OnRule(Redundant(_)) => [
+        Node.text("Got a"),
+        emphasize_text("Redundant pattern"),
+      ]
+    | OnRule(NotRedundant) => [Node.text("Got a"), emphasize_text("Rule")]
+    | OnRule(IndeterminatelyRedundant) => [
+        Node.text("Got"),
+        emphasize_text("Indeterminately redundant patterns"),
+      ]
+    | MatchNotExhaustive(_) => [
+        Node.text("Got"),
+        emphasize_text("Non-exhaustive patterns"),
       ]
     };
   };
@@ -693,7 +717,7 @@ let view =
     )
     : Node.t => {
   let inconsistent_branches_ty_bar =
-      (branch_types, path_to_case, skipped_index) =>
+      (branch_types, path_to_match, skipped_index) =>
     Node.div(
       [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
       List.mapi(
@@ -711,7 +735,7 @@ let view =
           Node.span(
             [
               Attr.on_click(_ => {
-                inject(SelectCaseBranch(path_to_case, shifted_index))
+                inject(SelectMatchBranch(path_to_match, shifted_index))
               }),
             ],
             [HTypCode.view(~inject, ~selected_tag_hole, ty)],
@@ -736,12 +760,12 @@ let view =
     expected_indicator("Expecting an expression of ", special_msg_bar(msg));
   let expected_any_indicator = expected_msg_indicator("any type");
   let expected_inconsistent_branches_indicator =
-      (branch_types, path_to_case, skipped_index) =>
+      (branch_types, path_to_match, skipped_index) =>
     expected_indicator(
       "No consistent expected type",
       inconsistent_branches_ty_bar(
         branch_types,
-        path_to_case,
+        path_to_match,
         Some(skipped_index),
       ),
     );
@@ -751,33 +775,34 @@ let view =
       [Attr.classes(["indicator", "got-indicator"])],
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
-  let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
+  let got_inconsistent_branches_indicator = (branch_types, path_to_match) =>
     got_indicator(
       "Got inconsistent branch types",
-      inconsistent_branches_ty_bar(branch_types, path_to_case, None),
+      inconsistent_branches_ty_bar(branch_types, path_to_match, None),
     );
 
   let expanded_msg =
     switch (cursor_info.typed) {
     | SynBranchClause(
-        InconsistentBranchTys(rule_types, path_to_case),
+        InconsistentBranchTys(rule_types, path_to_match),
         _,
         branch_index,
       ) =>
       let ind =
         expected_inconsistent_branches_indicator(
           rule_types,
-          path_to_case,
+          path_to_match,
           branch_index,
         );
       Some([ind]);
-    | SynInconsistentBranches(rule_types, path_to_case) =>
+    | SynInconsistentBranches(rule_types, path_to_match) =>
       let ind1 = expected_any_indicator;
       let ind2 =
-        got_inconsistent_branches_indicator(rule_types, path_to_case);
+        got_inconsistent_branches_indicator(rule_types, path_to_match);
       Some([ind1, ind2]);
-    | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
-      let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
+    | SynInconsistentBranchesArrow(rule_types, path_to_match) =>
+      let ind =
+        got_inconsistent_branches_indicator(rule_types, path_to_match);
       Some([ind]);
     | _ => None
     };
@@ -798,7 +823,7 @@ let view =
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule => OK
+    | OnRule(NotRedundant | IndeterminatelyRedundant) => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | AnaInjExpectedTypeNotConsistentWithSums(_)
@@ -806,6 +831,7 @@ let view =
     | AnaInjUnexpectedArg(_)
     | SynErrorArrow(_)
     | SynInconsistentBranches(_)
+    | AnaInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaInjExpectedTypeNotConsistentWithSums(_)
     | PatAnaInjExpectedArg(_)
@@ -826,7 +852,9 @@ let view =
     | PatSynKeyword(_)
     | OnInvalidTag(_)
     | OnUnknownTag(_)
-    | OnDuplicateTag(_) => BindingError
+    | OnDuplicateTag(_)
+    | OnRule(Redundant(_))
+    | MatchNotExhaustive(_) => BindingError
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -859,7 +887,7 @@ let view =
     );
   let above_or_below =
     switch (cursor_info.cursor_term) {
-    | ExpOperand(OnDelim(0, _), Case(_)) => "above"
+    | ExpOperand(OnDelim(0, _), Match(_)) => "above"
     | _ => "below"
     };
   let (show_strategy_guide_icon, strategy_guide) =
@@ -871,7 +899,7 @@ let view =
         ),
       )
     | (Rule(_), _)
-    | (ExpOperand(_, Case(_)), _)
+    | (ExpOperand(_, Match(_)), _)
     | (_, AfterBranchClause) =>
       switch (StrategyGuide.rules_view(cursor_info)) {
       | None => (false, None)

@@ -34,7 +34,7 @@ let holes =
   switch (tag) {
   | Tag(NotInTagHole, _) => hs
   | Tag(InTagHole(reason, u), _) =>
-    let shape: CursorPath.hole_shape =
+    let shape: CursorPath.tag_hole_shape =
       switch (reason) {
       | InvalidName => VarErr
       | NotInSum => TypeErr
@@ -52,7 +52,7 @@ let holes_z =
   switch (ztag |> ZTag.erase) {
   | Tag(NotInTagHole, _) => CursorPath.empty_zhole_list
   | Tag(InTagHole(reason, u), _) =>
-    let shape: CursorPath.hole_shape =
+    let shape: CursorPath.tag_hole_shape =
       switch (reason) {
       | InvalidName => VarErr
       | NotInSum => TypeErr

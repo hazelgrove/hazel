@@ -78,7 +78,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | ListNil(_)
   | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(_)), _, _) => []
+  | Match(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)
@@ -87,8 +87,9 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
     | Some(body) => find_uses(~steps=steps @ [1], x, body)
     | None => []
     }
-  | Case(
-      StandardErrStatus(NotInHole) | InconsistentBranches(_),
+  | Match(
+      StandardErrStatus(NotInHole) | InconsistentBranches(_) |
+      NotExhaustive(_),
       scrut,
       rules,
     ) =>
@@ -103,5 +104,5 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }
 and find_uses_rule =
-    (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>
+    (~steps, x: Var.t, Rule(_, p, clause): UHExp.rule): uses_list =>
   binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, clause);

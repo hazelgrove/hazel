@@ -32,9 +32,9 @@ type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
   | ConstructEdit(Action.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
-     so an extra type CaseRule is added for construction */
-  | CaseRule
+  /* SLine in Action_common.shape stands for both empty line and match rule,
+     so an extra type MatchRule is added for construction */
+  | MatchRule
   | SwapEdit(swap_group)
   | Init;
 

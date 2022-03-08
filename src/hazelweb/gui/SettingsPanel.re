@@ -64,7 +64,7 @@ let view =
           labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
-            ~label="Show case clauses",
+            ~label="Show match clauses",
             ~on_change=
               () =>
                 inject(

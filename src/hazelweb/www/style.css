@@ -1146,7 +1146,7 @@ h1 {
   position: relative;
 }
 .code.presentation .Term.Rule,
-.code.presentation .Term.Case,
+.code.presentation .Term.Match,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
 .code.presentation .Tessera {
@@ -1396,6 +1396,27 @@ h1 {
   fill: none;
 }
 
+.match-err-hole-inconsistentbranches {
+  stroke: red;
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+  fill: none;
+}
+
+.match-err-hole-notexhaustive {
+  stroke: #ce5f00;
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+  fill: none;
+}
+
+.rule-err-hole {
+  stroke: #ce5f00;
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+  fill: none;
+}
+
 .var-use {
   fill: var(--var-use-color);
   stroke-width: 0;
@@ -1427,6 +1448,16 @@ h1 {
 
 .result-view {
   font-size: 125%;
+}
+
+.DHCode .VisitedRule {
+  background: #999;
+  color: #ccc;
+  text-decoration: line-through;
+  vertical-align: middle;
+}
+.DHCode .VisitedRule .HoleLabel {
+  text-decoration: line-through;
 }
 
 .DHCode .EmptyHole,

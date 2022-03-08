@@ -19,11 +19,36 @@ type hole_shape =
   | Empty;
 
 [@deriving sexp]
+type pat_hole_shape =
+  | TypeErr
+  | VarErr
+  | Empty;
+
+[@deriving sexp]
+type tag_hole_shape =
+  | TypeErr
+  | VarErr
+  | Empty;
+
+[@deriving sexp]
+type match_hole_shape =
+  | InconsistentBranches
+  | NotExhaustive;
+
+[@deriving sexp]
+type exp_hole_shape =
+  | TypeErr
+  | VarErr
+  | Empty
+  | MatchErr(match_hole_shape)
+  | RedundantRule;
+
+[@deriving sexp]
 type hole_sort =
   | TypHole
-  | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape)
-  | TagHole(MetaVar.t, hole_shape);
+  | PatHole(MetaVar.t, pat_hole_shape)
+  | ExpHole(MetaVar.t, exp_hole_shape)
+  | TagHole(MetaVar.t, tag_hole_shape);
 
 [@deriving sexp]
 type hole_info = {

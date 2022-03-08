@@ -49,8 +49,8 @@ module Delim: {
   let middle_Inj: DHDoc.t;
   let close_Inj: bool => DHDoc.t;
 
-  let open_Case: DHDoc.t;
-  let close_Case: DHDoc.t;
+  let open_Match: DHDoc.t;
+  let close_Match: DHDoc.t;
 
   let bar_Rule: DHDoc.t;
   let arrow_Rule: DHDoc.t;

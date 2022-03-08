@@ -20,11 +20,11 @@ and operand =
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(InjErrStatus.t, UHTag.t, option(t))
-  | Case(CaseErrStatus.t, t, rules)
+  | Match(MatchErrStatus.t, t, rules)
   | Parenthesized(t)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t);
+  | Rule(RuleErrStatus.t, UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -46,7 +46,7 @@ let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
-let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
+let match: (~err: MatchErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
@@ -95,6 +95,12 @@ let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
+let set_err_status_rules: (RuleErrStatus.t, int, rules) => rules;
+
+let set_err_status_rule: (RuleErrStatus.t, rule) => rule;
+
+let is_inconsistent: operand => bool;
+
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 
 let mk_inconsistent_operand:
@@ -107,3 +113,6 @@ let associate: seq => Skel.t(Operators_Exp.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+// let is_complete: (t, bool) => bool;
+
+let get_pats: rules => list(UHPat.t);

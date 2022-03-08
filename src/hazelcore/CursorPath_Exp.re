@@ -26,8 +26,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZT(_, ztag, _) => cons'(0, CursorPath_Tag.of_z(ztag))
   | InjZE(_, _, zbody) => cons'(1, of_z(zbody))
-  | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
-  | CaseZR(_, _, zrules) =>
+  | MatchZE(_, zscrut, _) => cons'(0, of_z(zscrut))
+  | MatchZR(_, _, zrules) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
@@ -44,8 +44,8 @@ and of_zrules = (zrules: ZExp.zrules): CursorPath.t => {
 and of_zrule = (zrule: ZExp.zrule): CursorPath.t =>
   switch (zrule) {
   | CursorR(cursor, _) => ([], cursor)
-  | RuleZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
-  | RuleZE(_, zclause) => cons'(1, of_z(zclause))
+  | RuleZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | RuleZE(_, _, zclause) => cons'(1, of_z(zclause))
   };
 
 let rec follow = (path: CursorPath.t, e: UHExp.t): option(ZExp.t) =>
@@ -143,19 +143,19 @@ and follow_operand =
         ZExp.InjZE(err, tag, zarg);
       | _ => None
       }
-    | Case(err, scrut, rules) =>
+    | Match(err, scrut, rules) =>
       switch (x) {
       | 0 =>
         scrut
         |> follow((xs, cursor))
-        |> Option.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
+        |> Option.map(zscrut => ZExp.MatchZE(err, zscrut, rules))
       | _ =>
         switch (ZList.split_at(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
           split_rules
           |> ZList.optmap_z(follow_rule((xs, cursor)))
-          |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
+          |> Option.map(zrules => ZExp.MatchZR(err, scrut, zrules))
         }
       }
     }
@@ -173,7 +173,10 @@ and follow_rules =
     }
   }
 and follow_rule =
-    ((steps, cursor): CursorPath.t, Rule(p, clause) as rule: UHExp.rule)
+    (
+      (steps, cursor): CursorPath.t,
+      Rule(err, p, clause) as rule: UHExp.rule,
+    )
     : option(ZExp.zrule) =>
   switch (steps) {
   | [] => rule |> ZExp.place_cursor_rule(cursor)
@@ -182,11 +185,11 @@ and follow_rule =
     | 0 =>
       p
       |> CursorPath_Pat.follow((xs, cursor))
-      |> Option.map(zp => ZExp.RuleZP(zp, clause))
+      |> Option.map(zp => ZExp.RuleZP(err, zp, clause))
     | 1 =>
       clause
       |> follow((xs, cursor))
-      |> Option.map(zclause => ZExp.RuleZE(p, zclause))
+      |> Option.map(zclause => ZExp.RuleZE(err, p, zclause))
     | _ => None
     }
   };
@@ -316,7 +319,7 @@ and of_steps_operand =
         cons'(1, path);
       | _ => None
       }
-    | Case(_, scrut, rules) =>
+    | Match(_, scrut, rules) =>
       switch (x) {
       | 0 =>
         scrut |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
@@ -342,7 +345,7 @@ and of_steps_rule =
       };
     Some(of_zrule(place_cursor(rule)));
   | [x, ...xs] =>
-    let Rule(p, clause) = rule;
+    let Rule(_, p, clause) = rule;
     switch (x) {
     | 0 =>
       p
@@ -357,10 +360,25 @@ and of_steps_rule =
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_case_err = err =>
+  switch (err) {
+  | MatchErrStatus.NotExhaustive(_) =>
+    CursorPath_common.holes_case_err(
+      ~hole_sort=hole_sort(MatchErr(NotExhaustive)),
+      err,
+    )
+  | InconsistentBranches(_, _) =>
+    CursorPath_common.holes_case_err(
+      ~hole_sort=hole_sort(MatchErr(InconsistentBranches)),
+      err,
+    )
+  | StandardErrStatus(_) =>
+    CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr), err)
+  };
 
-let holes_case_err =
-  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+let holes_rule_err =
+  CursorPath_common.holes_rule_err(~hole_sort=hole_sort(RedundantRule));
 
 let rec holes =
         (
@@ -443,7 +461,7 @@ and holes_operand =
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
-  | Case(err, scrut, rules) =>
+  | Match(err, scrut, rules) =>
     hs
     |> ListUtil.fold_right_i(
          ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
@@ -454,14 +472,15 @@ and holes_operand =
   }
 and holes_rule =
     (
-      Rule(p, clause): UHExp.rule,
+      Rule(rerr, p, clause): UHExp.rule,
       rev_steps: CursorPath.rev_steps,
       hs: CursorPath.hole_list,
     )
     : CursorPath.hole_list => {
   hs
   |> holes(clause, [1, ...rev_steps])
-  |> CursorPath_Pat.holes(p, [0, ...rev_steps]);
+  |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  |> holes_rule_err(rerr, rev_steps);
 };
 
 let rec holes_z =
@@ -677,12 +696,25 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
+  | CursorE(OnDelim(k, _), Match(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
-      | StandardErrStatus(InHole(_, u))
+      | NotExhaustive(u) =>
+        Some(
+          mk_hole_sort(
+            ExpHole(u, MatchErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        )
       | InconsistentBranches(_, u) =>
+        Some(
+          mk_hole_sort(
+            ExpHole(u, MatchErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        )
+      | StandardErrStatus(InHole(_, u)) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
@@ -708,7 +740,7 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Match(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
@@ -796,12 +828,23 @@ and holes_zoperand =
       ~holes_after,
       (),
     );
-  | CaseZE(err, zscrut, rules) =>
+  | MatchZE(err, zscrut, rules) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
+      | NotExhaustive(u) => [
+          mk_hole_sort(
+            ExpHole(u, MatchErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        ]
       | InconsistentBranches(_, u) => [
+          mk_hole_sort(
+            CursorPath.ExpHole(u, MatchErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        ]
+      | StandardErrStatus(InHole(_, u)) => [
           mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
@@ -819,13 +862,24 @@ and holes_zoperand =
       ~holes_after=holes_after @ holes_rules,
       (),
     );
-  | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
+  | MatchZR(err, scrut, (prefix, zrule, suffix)) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
+      | NotExhaustive(u) => [
+          mk_hole_sort(
+            CursorPath.ExpHole(u, MatchErr(NotExhaustive)),
+            List.rev(rev_steps),
+          ),
+        ]
       | InconsistentBranches(_, u) => [
-          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(
+            ExpHole(u, MatchErr(InconsistentBranches)),
+            List.rev(rev_steps),
+          ),
+        ]
+      | StandardErrStatus(InHole(_, u)) => [
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
@@ -859,7 +913,7 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   | CursorR(OnOp(_) | OnText(_), _) =>
     // invalid cursor position
     CursorPath_common.no_holes
-  | CursorR(OnDelim(k, _), Rule(p, clause)) =>
+  | CursorR(OnDelim(k, _), Rule(_, p, clause)) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_clause = holes(clause, [1, ...rev_steps], []);
     switch (k) {
@@ -873,11 +927,11 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
       )
     | _ => CursorPath_common.no_holes
     };
-  | RuleZP(zp, clause) =>
+  | RuleZP(_, zp, clause) =>
     let zholes_p = CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
     let holes_clause = holes(clause, [1, ...rev_steps], []);
     {...zholes_p, holes_after: zholes_p.holes_after @ holes_clause};
-  | RuleZE(p, zclause) =>
+  | RuleZE(_, p, zclause) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let zholes_clause = holes_z(zclause, [1, ...rev_steps]);
     {...zholes_clause, holes_before: holes_p @ zholes_clause.holes_before};

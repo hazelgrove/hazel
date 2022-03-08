@@ -255,7 +255,7 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
+  | Match(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -273,9 +273,9 @@ and syn_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+  | Match(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate
-  | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
+  | Match(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, pat_ty, delta) =>
@@ -303,8 +303,8 @@ and syn_elab_operand =
         let sigma = Environment.id_env(gamma);
         let delta =
           MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
-        let d = DHExp.Case(d1, drs, 0);
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+        let d = DHExp.Match(d1, drs, 0);
+        Elaborates(InconsistentBranches(u, 0, sigma, d, None), Hole, delta);
       };
     }
 
@@ -380,14 +380,14 @@ and syn_elab_operand =
         Elaborates(Inj((sum_body, tag, Some(d))), Sum(sum_body), delta);
       }
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Match(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
       switch (syn_elab_rules(ctx, delta, rules, ty)) {
       | None => DoesNotElaborate
       | Some((drs, glb, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        let d = DHExp.ConsistentMatch(DHExp.Match(d1, drs, 0), None);
         Elaborates(d, glb, delta);
       }
     }
@@ -434,7 +434,7 @@ and syn_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
@@ -647,7 +647,7 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
+  | Match(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -658,7 +658,8 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
-  | Case(InconsistentBranches(_, u), _, _) =>
+  /* TODO: add support for not exhaustive */
+  | Match(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
@@ -745,7 +746,7 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+  | Match(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -845,14 +846,14 @@ and ana_elab_operand =
       }
     | _ => DoesNotElaborate
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Match(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
       switch (ana_elab_rules(ctx, delta, rules, ty1, ty)) {
       | None => DoesNotElaborate
       | Some((drs, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        let d = DHExp.ConsistentMatch(DHExp.Match(d1, drs, 0), None);
         Elaborates(d, ty, delta);
       }
     }
@@ -908,7 +909,7 @@ and ana_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  let UHExp.Rule(p, clause) = r;
+  let UHExp.Rule(_, p, clause) = r;
   switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>

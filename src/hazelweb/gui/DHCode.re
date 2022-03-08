@@ -82,6 +82,7 @@ let view_of_layout =
                    [DHDecoration.ErrHole.view(~corner_radii, (offset, m))],
                  );
                (txt, [decoration, ...ds]);
+             | VisitedRule => ([with_cls("VisitedRule", txt)], ds)
              };
            },
        );

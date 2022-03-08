@@ -54,7 +54,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
   | SelectTagHole(_)
-  | SelectCaseBranch(_)
+  | SelectMatchBranch(_)
   | FocusCell
   | BlurCell
   | Undo
@@ -128,8 +128,8 @@ let apply_action =
       | PrevCard => Model.prev_card(model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectTagHole(u) => model |> Model.select_tag_hole(u)
-      | SelectCaseBranch(path_to_case, branch_index) =>
-        Model.select_case_branch(path_to_case, branch_index, model)
+      | SelectMatchBranch(path_to_match, branch_index) =>
+        Model.select_case_branch(path_to_match, branch_index, model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>

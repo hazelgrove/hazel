@@ -276,7 +276,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj | SCase) | SwapUp |
+      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj | SMatch) | SwapUp |
       SwapDown,
       _,
     )
@@ -428,7 +428,7 @@ and perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SCommentLine,
+        SAnn | SLet | SLine | SLam | SListNil | SInj | SMatch | SCommentLine,
       ) |
       SwapUp |
       SwapDown,
@@ -921,7 +921,7 @@ and perform_zsum_body =
   | (
       Construct(
         SCommentLine | SList | SAnn | SLam | SListNil | SInj | SLet | SLine |
-        SCase |
+        SMatch |
         SParenthesized |
         SCloseParens |
         SCloseBraces |
@@ -1487,7 +1487,7 @@ and perform_zsum_body_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj | SCase | SOp(SPlus) |
+        SAnn | SLet | SLine | SLam | SListNil | SInj | SMatch | SOp(SPlus) |
         SCommentLine,
       ) |
       SwapUp |

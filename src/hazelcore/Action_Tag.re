@@ -84,7 +84,7 @@ let perform =
   /* Invalid actions */
   | (
       Construct(
-        SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SCase |
+        SAnn | SLet | SLine | SLam | SList | SListNil | SInj | SMatch |
         SParenthesized |
         SCloseParens |
         SCloseBraces |

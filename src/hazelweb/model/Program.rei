@@ -63,8 +63,8 @@ let move_to_hole: (MetaVar.t, t) => Action.t;
 
 /**
  * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
- * the `n`th branch in case expression found at `steps` (when the user
- * clicks on a branch type in the error message for a case expression with
+ * the `n`th branch in match expression found at `steps` (when the user
+ * clicks on a branch type in the error message for a match expression with
  * inconsistent branches)
  */
 let move_to_case_branch: (CursorPath.steps, int) => Action.t;

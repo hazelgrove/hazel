@@ -25,7 +25,7 @@ let is_false = eq("false");
 
 let is_let = eq("let");
 
-let is_case = eq("case");
+let is_match = eq("match");
 
 let is_wild = eq("_");
 

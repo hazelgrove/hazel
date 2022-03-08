@@ -34,9 +34,9 @@ type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
   | ConstructEdit(Action.shape)
-  /* SLine in Action.shape stands for both empty line and case rule,
-     so an extra type CaseRule is added for construction */
-  | CaseRule
+  /* SLine in Action.shape stands for both empty line and match rule,
+     so an extra type MatchRule is added for construction */
+  | MatchRule
   | SwapEdit(swap_group)
   | Init;
 
@@ -95,8 +95,8 @@ let is_var_group = (action_group): bool => {
 let group_action_group =
     (action_group_prev: action_group, action_group_next: action_group): bool =>
   switch (action_group_prev, action_group_next) {
-  | (CaseRule, CaseRule) => true
-  | (CaseRule, _) => false
+  | (MatchRule, MatchRule) => true
+  | (MatchRule, _) => false
   | (VarGroup(_), VarGroup(_)) => true
   | (VarGroup(_), DeleteEdit(delete_group)) =>
     switch (delete_group) {
@@ -108,7 +108,7 @@ let group_action_group =
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
-    | SCase => true
+    | SMatch => true
     | _ => false
     }
   | (VarGroup(_), _) => false
@@ -150,7 +150,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | ListNil(_)
     | Lam(_)
     | Inj(_, _, _)
-    | Case(_, _, _)
+    | Match(_, _, _)
     | Parenthesized(_) => MaxLen
     }
   | PatOperand(_, operand) =>

@@ -421,10 +421,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         info([
           text("Type \""),
-          mono_text("case "),
-          text("\" to add a case expression"),
+          mono_text("match "),
+          text("\" to add a match expression"),
         ]),
-        combo(Alt_C, simple("Insert case expression")),
+        combo(Alt_C, simple("Insert match expression")),
         combo(Enter, simple("Add new rule")),
       ],
     ),
@@ -491,7 +491,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SListNil) => Added
   | Construct(SOp(SCons)) => Added
   | Construct(SInj) => Added
-  | Construct(SCase) => Added
+  | Construct(SMatch) => Added
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added

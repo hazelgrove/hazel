@@ -80,3 +80,21 @@ let syn_fix_holes_z:
 let ana_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZPat.t, HTyp.t) =>
   (ZPat.t, Contexts.t, MetaVarGen.t);
+
+let match_syn:
+  (Contexts.t, UHPat.t) => option((HTyp.t, Contexts.t, Constraints.t));
+
+let generate_rules_constraints:
+  (Contexts.t, list(UHPat.t), HTyp.t) => list(Constraints.t);
+
+/** for compile */
+let match_ana_operand:
+  (Contexts.t, UHPat.operand, HTyp.t) => option((Contexts.t, Constraints.t));
+
+/** for compile */
+let match_ana_skel:
+  (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) =>
+  option((Contexts.t, Constraints.t));
+
+let generate_one_constraints:
+  (Contexts.t, list(UHPat.t), HTyp.t) => Constraints.t;

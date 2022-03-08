@@ -387,9 +387,9 @@ let exp_hole_view =
           [Attr.classes(["option"])],
           [
             Node.text("Consider by "),
-            keyword_node("case"),
+            keyword_node("match"),
             fill_space,
-            example_lit_node("\"case \""),
+            example_lit_node("\"match \""),
             Node.text(" or "),
             AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_C),
           ],
@@ -518,7 +518,7 @@ let exp_hole_view =
 let rules_view = (cursor_info: CursorInfo.t) => {
   switch (cursor_info.cursor_term, cursor_info.parent_info) {
   | (Rule(OnDelim(0, After), _), _)
-  | (ExpOperand(OnDelim(1, Before), Case(_)), _) =>
+  | (ExpOperand(OnDelim(1, Before), Match(_)), _) =>
     Some(
       type_driven([
         Node.div(

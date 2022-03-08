@@ -485,7 +485,7 @@ let get_new_action_group =
           | None => Some(ConstructEdit(shape))
           | Some(zrules_after) =>
             if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
-              Some(CaseRule);
+              Some(MatchRule);
             } else {
               Some(ConstructEdit(shape));
             }
@@ -507,7 +507,7 @@ let get_new_action_group =
       | SListNil
       | SInj
       | SLet
-      | SCase => Some(ConstructEdit(shape))
+      | SMatch => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
@@ -620,7 +620,7 @@ let get_new_action_group =
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
 
-              | Case =>
+              | Match =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
                     new_cursor_term_info.cursor_term_before,
@@ -628,9 +628,9 @@ let get_new_action_group =
                 ) {
                 | OnText(pos) =>
                   if (pos == 4) {
-                    /* the caret is at the end of "case" */
+                    /* the caret is at the end of "match" */
                     Some(
-                      ConstructEdit(SCase),
+                      ConstructEdit(SMatch),
                     );
                   } else {
                     Some(ConstructEdit(SOp(SSpace)));
@@ -645,8 +645,8 @@ let get_new_action_group =
                 let (left_var, _) = Var.split(index, var);
                 if (Var.is_let(left_var)) {
                   Some(ConstructEdit(SLet));
-                } else if (Var.is_case(left_var)) {
-                  Some(ConstructEdit(SCase));
+                } else if (Var.is_match(left_var)) {
+                  Some(ConstructEdit(SMatch));
                 } else {
                   Some(ConstructEdit(SOp(SSpace)));
                 };

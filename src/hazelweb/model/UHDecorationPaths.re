@@ -2,6 +2,8 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t = {
+  rule_err_holes: list(CursorPath.steps),
+  match_err_holes: (list(CursorPath.steps), list(CursorPath.steps)),
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
@@ -9,17 +11,32 @@ type t = {
 };
 
 let is_empty = (dpaths: t): bool =>
-  ListUtil.is_empty(dpaths.err_holes)
+  ListUtil.is_empty(dpaths.rule_err_holes)
+  && ListUtil.is_empty(fst(dpaths.match_err_holes))
+  && ListUtil.is_empty(snd(dpaths.match_err_holes))
+  && ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
   && dpaths.current_term == None;
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+  let {
+    rule_err_holes,
+    match_err_holes,
+    err_holes,
+    var_err_holes,
+    current_term,
+    var_uses,
+  } = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
     | _ => None;
+  let rule_err_holes = rule_err_holes |> List.filter_map(remove_step);
+  let match_err_holes = (
+    fst(match_err_holes) |> List.filter_map(remove_step),
+    snd(match_err_holes) |> List.filter_map(remove_step),
+  );
   let err_holes = err_holes |> List.filter_map(remove_step);
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
   let var_uses = var_uses |> List.filter_map(remove_step);
@@ -27,7 +44,14 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term};
+  {
+    rule_err_holes,
+    match_err_holes,
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+  };
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
@@ -40,9 +64,26 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       List.exists(n => steps == [n], plus_indices)
     | BinOp({op_index, _}) => steps == [op_index]
     | Operand
-    | Case
+    | Match
     | Rule => steps == []
     };
+  let rule_err_holes =
+    dpaths.rule_err_holes
+    |> List.find_opt(is_current)
+    |> Option.map(_ => UHDecorationShape.RuleErrHole)
+    |> Option.to_list;
+  let match_err_holes_notex =
+    dpaths.match_err_holes
+    |> fst
+    |> List.find_opt(is_current)
+    |> Option.map(_ => UHDecorationShape.MatchErrHole(NotExhaustive))
+    |> Option.to_list;
+  let match_err_holes_incon =
+    dpaths.match_err_holes
+    |> snd
+    |> List.find_opt(is_current)
+    |> Option.map(_ => UHDecorationShape.MatchErrHole(InconsistentBranches))
+    |> Option.to_list;
   let err_holes =
     dpaths.err_holes
     |> List.find_opt(is_current)
@@ -65,5 +106,13 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
       ]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
+  List.concat([
+    rule_err_holes,
+    match_err_holes_notex,
+    match_err_holes_incon,
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+  ]);
 };

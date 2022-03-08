@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type join_of_branches =
   | NoBranches
-  // steps to the case
+  // steps to the match
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
@@ -60,7 +60,7 @@ type typed =
   | SynFreeArrow(HTyp.t)
   // cursor is on a keyword in the function position of an ap
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
-  // cursor is on a case with inconsistent branch types
+  // cursor is on a match with inconsistent branch types
   // in the function position of an ap
   | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath.steps)
   // cursor is on invalid text in the fuction position of an ap
@@ -71,7 +71,7 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
-  // cursor is on the clause of a case
+  // cursor is on the clause of a match
   | SynBranchClause
       // lub of other branches
       (
@@ -81,9 +81,10 @@ type typed =
         // index of the branch
         int,
       )
-  // cursor is on a case with branches of inconsistent types
+  // cursor is on a match with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
+  | AnaInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -130,7 +131,8 @@ type typed =
   | OnSumBodyOperator
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
-  | OnRule;
+  | OnRule(RuleErrStatus.t)
+  | MatchNotExhaustive(HTyp.t);
 
 [@deriving sexp]
 type cursor_term =

@@ -18,4 +18,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
+  | VisitedRule
   | DivideByZero;

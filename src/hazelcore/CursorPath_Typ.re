@@ -277,7 +277,7 @@ and of_steps_sum_body_operator =
   };
 
 let hole_sort = _ => CursorPath.TypHole;
-let sum_body_hole_sort = (shape: CursorPath.hole_shape, u: MetaVar.t) =>
+let sum_body_hole_sort = (shape: CursorPath.tag_hole_shape, u: MetaVar.t) =>
   CursorPath.TagHole(u, shape);
 
 let is_space = _ => false;
