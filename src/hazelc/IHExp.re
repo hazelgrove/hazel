@@ -5,35 +5,6 @@ module BinBoolOp = {
   type t =
     | And
     | Or;
-
-  let of_op = (op: UHExp.operator): option(t) =>
-    switch (op) {
-    | And => Some(And)
-    | Or => Some(Or)
-    | Minus
-    | Plus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FGreaterThan
-    | FEquals
-    | Space
-    | Cons
-    | Comma => None
-    };
-
-  let to_op = (op: t): UHExp.operator =>
-    switch (op) {
-    | And => And
-    | Or => Or
-    };
 };
 
 module BinIntOp = {
@@ -46,40 +17,6 @@ module BinIntOp = {
     | LessThan
     | GreaterThan
     | Equals;
-
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
-    switch (op) {
-    | Minus => Some((Minus, Int))
-    | Plus => Some((Plus, Int))
-    | Times => Some((Times, Int))
-    | Divide => Some((Divide, Int))
-    | LessThan => Some((LessThan, Bool))
-    | GreaterThan => Some((GreaterThan, Bool))
-    | Equals => Some((Equals, Bool))
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FGreaterThan
-    | FEquals
-    | And
-    | Or
-    | Space
-    | Cons
-    | Comma => None
-    };
-
-  let to_op = (bio: t): UHExp.operator =>
-    switch (bio) {
-    | Minus => Minus
-    | Plus => Plus
-    | Times => Times
-    | Divide => Divide
-    | LessThan => LessThan
-    | GreaterThan => GreaterThan
-    | Equals => Equals
-    };
 };
 
 module BinFloatOp = {
@@ -92,40 +29,6 @@ module BinFloatOp = {
     | FLessThan
     | FGreaterThan
     | FEquals;
-
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
-    switch (op) {
-    | FPlus => Some((FPlus, Float))
-    | FMinus => Some((FMinus, Float))
-    | FTimes => Some((FTimes, Float))
-    | FDivide => Some((FDivide, Float))
-    | FLessThan => Some((FLessThan, Bool))
-    | FGreaterThan => Some((FGreaterThan, Bool))
-    | FEquals => Some((FEquals, Bool))
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals
-    | And
-    | Or
-    | Space
-    | Cons
-    | Comma => None
-    };
-
-  let to_op = (bfo: t): UHExp.operator =>
-    switch (bfo) {
-    | FPlus => FPlus
-    | FMinus => FMinus
-    | FTimes => FTimes
-    | FDivide => FDivide
-    | FLessThan => FLessThan
-    | FGreaterThan => FGreaterThan
-    | FEquals => FEquals
-    };
 };
 
 [@deriving sexp]
