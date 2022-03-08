@@ -29,11 +29,6 @@ let hazelc = (action, sources, out, optimize, debug) => {
     },
   };
 
-  print_endline(source);
-  print_endline(out);
-  print_endline(Sexplib.Sexp.to_string_hum(Compiler.sexp_of_opts(opts)));
-  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_action(action)));
-
   let res =
     switch (action) {
     | Grain =>
