@@ -322,10 +322,12 @@ let advanced_summary =
     | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
     | OnRule(NotRedundant) => /* TODO */ [emphasize_text("Rule")]
     | OnRule(IndeterminatelyRedundant) => /* TODO */ [
-        emphasize_text("Indeterminately Redundant Rule"),
+        emphasize_text("Indeterminately redundant pattern"),
       ]
-    | OnRule(Redundant(_)) => /* TODO */ [emphasize_text("Redundant Rule")]
-    | MatchNotExhaustive(_) => [emphasize_text("Non-Exhaustive Match")]
+    | OnRule(Redundant(_)) => [emphasize_text("Redundant pattern")]
+    | MatchNotExhaustive(_) => [
+        emphasize_text("Patterns are not exhaustive"),
+      ]
     };
   };
   switch (typed) {
@@ -602,16 +604,16 @@ let novice_summary =
       ]
     | OnRule(Redundant(_)) => [
         Node.text("Got a"),
-        emphasize_text("Redundant Rule"),
+        emphasize_text("Redundant pattern"),
       ]
     | OnRule(NotRedundant) => [Node.text("Got a"), emphasize_text("Rule")]
     | OnRule(IndeterminatelyRedundant) => [
-        Node.text("Got an"),
-        emphasize_text("Indeterminately Redundant Rule"),
+        Node.text("Got"),
+        emphasize_text("Indeterminately redundant patterns"),
       ]
     | MatchNotExhaustive(_) => [
-        Node.text("Got a"),
-        emphasize_text("Non-Exhaustive Match"),
+        Node.text("Got"),
+        emphasize_text("Non-exhaustive patterns"),
       ]
     };
   };
