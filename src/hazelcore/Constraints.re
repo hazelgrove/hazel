@@ -115,18 +115,10 @@ and dual_injs_constraint = (sum_body: HTyp.sum_body, tag0: UHTag.t): t => {
         |> List.filter(((tag, _)) => !UHTag.equal(tag, tag0))
         |> List.map(binding_to_constraint)
       };
-    let result =
-      switch (other_injs) {
-      | [] => Falsity
-      | [c1, ...cs] => List.fold_right((ci, join) => Or(ci, join), cs, c1)
-      };
-    print_endline("CONSTRAINTS dual_inj_constraint");
-    print_endline(Sexplib.Sexp.to_string_hum(UHTag.sexp_of_t(tag0)));
-    print_endline(
-      Sexplib.Sexp.to_string_hum(HTyp.sexp_of_sum_body(sum_body)),
-    );
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(result)));
-    result;
+    switch (other_injs) {
+    | [] => Falsity
+    | [c1, ...cs] => List.fold_right((ci, join) => Or(ci, join), cs, c1)
+    };
   };
 };
 

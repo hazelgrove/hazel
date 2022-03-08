@@ -2171,7 +2171,6 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
         | Some(ty) =>
-          print_endline("XXX");
           let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
           let cons =
             Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);

@@ -883,12 +883,6 @@ and evaluate_match =
       current_rule_index: int,
     )
     : EvaluatorResult.t => {
-  print_endline("EVALUATOR evaluate_match");
-  print_endline(
-    Sexplib.Sexp.to_string_hum(
-      Sexplib.Std.sexp_of_list(DHExp.sexp_of_rule, rules),
-    ),
-  );
   switch (evaluate(scrut)) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
