@@ -37,6 +37,7 @@ type match_result =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
+  | (_, Closure(_, d)) => matches(dp, d)
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => Indet
