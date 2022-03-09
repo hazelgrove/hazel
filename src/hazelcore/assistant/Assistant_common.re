@@ -20,19 +20,19 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
-let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let rec compatible_funs = right_ty =>
-    if (HTyp.consistent(Contexts.tyvars(ctx), right_ty, typ)) {
+let fun_vars = (ctx: Contexts.t, ty: HTyp.t) => {
+  let rec compatible_funs = (right_ty: HTyp.t) =>
+    if (HTyp.consistent(Contexts.tyvars(ctx), right_ty, ty)) {
       true;
     } else {
-      switch (right_ty) {
+      switch (HTyp.head_normalize(Contexts.tyvars(ctx), right_ty)) {
       | Arrow(_, right_ty) => compatible_funs(right_ty)
       | _ => false
       };
     };
   let can_extract = ((_, ty: HTyp.t)) => {
-    switch (ty) {
-    | Arrow(_, t2) => compatible_funs(t2)
+    switch (HTyp.head_normalize(Contexts.tyvars(ctx), ty)) {
+    | Arrow(_, ty2) => compatible_funs(ty2)
     | _ => false
     };
   };
@@ -45,9 +45,9 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    */
 let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   switch (typed) {
-  | AnaAnnotatedLambda(expected, actual)
+  | AnaAnnotatedLambda(_, expected, actual)
   | AnaTypeInconsistent(expected, actual)
-  | AnaSubsumed(expected, actual) => (
+  | AnaSubsumed(_, expected, actual) => (
       Some(expected),
       Some(actual),
       Analytic,
@@ -60,32 +60,40 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
   | SynErrorArrow(_, actual)
-  | SynMatchingArrow(actual, _) => (Some(Hole), Some(actual), Synthetic)
+  | SynMatchingArrow(actual, _) => (
+      Some(HTyp.hole),
+      Some(actual),
+      Synthetic,
+    )
 
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(HTyp.hole), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | SynKeyword(_) => (Some(HTyp.hole), Some(HTyp.hole), Synthetic)
 
-  | SynBranchClause(join, typed, _) =>
+  | SynBranchClause(join, typed, _, tyvars) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (HTyp.normalized_consistent(ty, got_ty)) {
-        (Some(Hole), Some(got_ty), Synthetic);
+      if (HTyp.consistent(tyvars, ty, got_ty)) {
+        (Some(HTyp.hole), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
     | _ => get_types_and_mode(typed)
     }
   | SynInconsistentBranchesArrow(_, _)
-  | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
+  | SynInconsistentBranches(_, _) => (
+      Some(HTyp.hole),
+      Some(HTyp.hole),
+      Synthetic,
+    )
 
   | PatAnaTypeInconsistent(expected, actual)
-  | PatAnaSubsumed(expected, actual) => (
+  | PatAnaSubsumed(_, expected, actual) => (
       Some(expected),
       Some(actual),
       Analytic,
@@ -96,15 +104,15 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (Some(HTyp.hole), Some(actual), Synthetic)
 
-  | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | PatSynKeyword(_) => (Some(HTyp.hole), Some(HTyp.hole), Synthetic)
 
   | OnTPat(_) => (None, None, UnknownMode)
-  | OnTPatHole => (None, Some(Hole), UnknownMode)
+  | OnTPatHole => (None, Some(HTyp.hole), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
-  | TypFree => (None, Some(Hole), UnknownMode)
+  | TypFree => (None, Some(HTyp.hole), UnknownMode)
 
   | OnType(_)
   | OnNonLetLine
@@ -133,25 +141,6 @@ let get_mode = (cursor_info: CursorInfo.t) => {
 let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
   CursorInfo_common.on_empty_expr_hole(term)
   || CursorInfo_common.on_expr_var(term);
-};
-
-/**
- * Gets the type in string format.
- * Return string
- */
-let type_to_str = (ty: HTyp.t) => {
-  switch (ty) {
-  | Hole => "a"
-  | TyVarHole(_) => "a"
-  | TyVar(_, name) => "a " ++ name
-  | Int => "an Integer"
-  | Float => "a Float"
-  | Bool => "a Boolean"
-  | Arrow(_, _) => "a Function"
-  | Sum(_, _) => "a Sum"
-  | Prod(_) => "a Product"
-  | List(_) => "a List"
-  };
 };
 
 /**

@@ -11,7 +11,7 @@ type join_of_branches =
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
-  | AnaAnnotatedLambda(HTyp.t, HTyp.t)
+  | AnaAnnotatedLambda(TyVarCtx.t, HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple of the wrong length
@@ -33,7 +33,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(TyVarCtx.t, HTyp.t, HTyp.t)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -74,6 +74,8 @@ type typed =
         typed,
         // index of the branch
         int,
+        // type variables bound during elaboration
+        TyVarCtx.t,
       )
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
@@ -100,7 +102,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
+  | PatAnaSubsumed(TyVarCtx.t, HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)

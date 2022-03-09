@@ -59,7 +59,7 @@ let contract = (ty: HTyp.t): t => {
     )
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
-      switch (ty) {
+      switch (HTyp.unsafe(ty)) {
       | Hole => Seq.wrap(Hole)
       | TyVar(i, name) => Seq.wrap(TyVar(NotInHole(i), name))
       | TyVarHole(reason, u, name) =>
@@ -68,27 +68,44 @@ let contract = (ty: HTyp.t): t => {
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
       | Arrow(ty1, ty2) =>
-        mk_seq_operand(HTyp.precedence_Arrow, Operators_Typ.Arrow, ty1, ty2)
+        mk_seq_operand(
+          HTyp.precedence_Arrow,
+          Operators_Typ.Arrow,
+          HTyp.of_unsafe(ty1),
+          HTyp.of_unsafe(ty2),
+        )
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
         |> List.map(elementType =>
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(elementType) > HTyp.precedence_Prod,
-               elementType,
+                 HTyp.precedence(HTyp.of_unsafe(elementType))
+                 > HTyp.precedence_Prod,
+               HTyp.of_unsafe(elementType),
              )
            )
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) > HTyp.precedence_Prod,
-               head,
+               ~parenthesize=
+                 HTyp.precedence(HTyp.of_unsafe(head)) > HTyp.precedence_Prod,
+               HTyp.of_unsafe(head),
              ),
            )
-      | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
+      | Sum(ty1, ty2) =>
+        mk_seq_operand(
+          HTyp.precedence_Sum,
+          Sum,
+          HTyp.of_unsafe(ty1),
+          HTyp.of_unsafe(ty2),
+        )
       | List(ty1) =>
-        Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
+        Seq.wrap(
+          List(
+            HTyp.of_unsafe(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
+          ),
+        )
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -109,27 +126,27 @@ and expand_skel = (skel, seq) =>
   | BinOp(_, Arrow, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
-    Arrow(ty1, ty2);
+    HTyp.arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
-    Prod(
+    HTyp.product(
       skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
-    Sum(ty1, ty2);
+    HTyp.sum(ty1, ty2);
   }
 and expand_operand =
   fun
-  | TyVar(NotInHole(i), name) => TyVar(i, name)
-  | TyVar(InHole(reason, u), name) => TyVarHole(reason, u, name)
-  | Hole => Hole
-  | Unit => Prod([])
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
+  | TyVar(NotInHole(i), name) => HTyp.tyvar(i, name)
+  | TyVar(InHole(reason, u), name) => HTyp.tyvarhole(reason, u, name)
+  | Hole => HTyp.hole
+  | Unit => HTyp.product([])
+  | Int => HTyp.int
+  | Float => HTyp.float
+  | Bool => HTyp.bool
   | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
+  | List(opseq) => HTyp.list(expand(opseq));
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {

@@ -294,21 +294,21 @@ let mk_syn_text =
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
+      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.hole, u_gen)));
     } else {
       let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
-      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+      Succeeded(SynDone((ze, HTyp.hole, u_gen)));
     }
   | IntLit(n) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
-    Succeeded(SynDone((ze, HTyp.Int, u_gen)));
+    Succeeded(SynDone((ze, HTyp.int, u_gen)));
   | FloatLit(f) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
-    Succeeded(SynDone((ze, HTyp.Float, u_gen)));
+    Succeeded(SynDone((ze, HTyp.float, u_gen)));
   | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
-    Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+    Succeeded(SynDone((ze, HTyp.bool, u_gen)));
   | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
@@ -317,11 +317,11 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    Succeeded(SynDone((ze, HTyp.hole, u_gen)));
   | Underscore =>
     let (it, u_gen) = UHExp.new_InvalidText(u_gen, "_");
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
-    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    Succeeded(SynDone((ze, HTyp.hole, u_gen)));
   | Var(x) =>
     switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
@@ -331,7 +331,7 @@ let mk_syn_text =
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-      Succeeded(SynDone((new_ze, Hole, u_gen)));
+      Succeeded(SynDone((new_ze, HTyp.hole, u_gen)));
     }
   };
 };
@@ -1543,11 +1543,11 @@ and syn_perform_operand =
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_before;
     ze |> ZExp.is_after
-      ? Succeeded(SynDone((ze, Hole, u_gen))) : CursorEscaped(Before);
+      ? Succeeded(SynDone((ze, HTyp.hole, u_gen))) : CursorEscaped(Before);
   | (Delete, CursorE(_, EmptyHole(_) as operand)) =>
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_after;
     ze |> ZExp.is_before
-      ? Succeeded(SynDone((ze, Hole, u_gen))) : CursorEscaped(After);
+      ? Succeeded(SynDone((ze, HTyp.hole, u_gen))) : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
@@ -1564,7 +1564,7 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     let new_ze = ZExp.ZBlock.wrap(zhole);
-    Succeeded(SynDone((new_ze, Hole, u_gen)));
+    Succeeded(SynDone((new_ze, HTyp.hole, u_gen)));
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
@@ -1590,12 +1590,12 @@ and syn_perform_operand =
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
     let (p, body_ctx, u_gen) =
-      Statics_Pat.ana_fix_holes(ctx, u_gen, p, Hole);
+      Statics_Pat.ana_fix_holes(ctx, u_gen, p, HTyp.hole);
     let (body, body_ty, u_gen) =
       Statics_Exp.syn_fix_holes(body_ctx, u_gen, body);
     let new_ze =
       ZExp.ZBlock.wrap(LamZP(NotInHole, ZPat.place_after(p), body));
-    ActionOutcome.Succeeded((new_ze, HTyp.Arrow(Hole, body_ty), u_gen))
+    ActionOutcome.Succeeded((new_ze, HTyp.arrow(HTyp.hole, body_ty), u_gen))
     |> wrap_in_SynDone;
 
   | (
@@ -1714,7 +1714,7 @@ and syn_perform_operand =
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
     let new_ze =
       UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
-    let new_ty = HTyp.List(Hole);
+    let new_ty = HTyp.list(HTyp.hole);
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
   | (Construct(SListNil), CursorE(_)) => Failed
 
@@ -1728,8 +1728,8 @@ and syn_perform_operand =
       ZExp.ZBlock.wrap(InjZ(NotInHole, side, ZExp.ZBlock.wrap(zoperand)));
     let new_ty =
       switch (side) {
-      | L => HTyp.Sum(ty, Hole)
-      | R => HTyp.Sum(Hole, ty)
+      | L => HTyp.sum(ty, HTyp.hole)
+      | R => HTyp.sum(HTyp.hole, ty)
       };
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
 
@@ -1739,7 +1739,7 @@ and syn_perform_operand =
       ZExp.ZBlock.wrap(
         LamZP(NotInHole, ZOpSeq.wrap(zhole), UHExp.Block.wrap(operand)),
       );
-    Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), u_gen)));
+    Succeeded(SynDone((new_ze, HTyp.arrow(HTyp.hole, ty), u_gen)));
 
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
@@ -1962,7 +1962,7 @@ and syn_perform_operand =
     | Succeeded((zp, ty_p, body_ctx, u_gen)) =>
       let (body, ty_body, u_gen) =
         Statics_Exp.syn_fix_holes(body_ctx, u_gen, body);
-      let new_ty = HTyp.Arrow(ty_p, ty_body);
+      let new_ty = HTyp.arrow(ty_p, ty_body);
       let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
@@ -1982,7 +1982,7 @@ and syn_perform_operand =
             (zoperand, ty, u_gen),
           )
         | Succeeded((zbody, new_ty_body, u_gen)) =>
-          let new_ty = HTyp.Arrow(ty_p, new_ty_body);
+          let new_ty = HTyp.arrow(ty_p, new_ty_body);
           let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
           Succeeded(SynDone((new_ze, new_ty, u_gen)));
         }
@@ -1990,7 +1990,7 @@ and syn_perform_operand =
     }
 
   | (_, InjZ(_, side, zbody)) =>
-    switch (ty) {
+    switch (HTyp.head_normalize(Contexts.tyvars(ctx), ty)) {
     | Sum(ty1, ty2) =>
       let ty_side = InjSide.pick(side, ty1, ty2);
       switch (syn_perform(ctx, a, (zbody, ty_side, u_gen))) {
@@ -2004,8 +2004,8 @@ and syn_perform_operand =
       | Succeeded((zbody, ty_side', u_gen)) =>
         let new_ty =
           switch (side) {
-          | L => HTyp.Sum(ty_side', ty2)
-          | R => HTyp.Sum(ty1, ty_side')
+          | L => HTyp.sum(ty_side', ty2)
+          | R => HTyp.sum(ty1, ty_side')
           };
         let new_ze = ZExp.ZBlock.wrap(InjZ(NotInHole, side, zbody));
         Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -2052,7 +2052,7 @@ and syn_perform_operand =
             ZExp.ZBlock.wrap(
               CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
             );
-          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          Succeeded(SynDone((new_ze, HTyp.hole, u_gen)));
         | Some(ty) =>
           let new_ze =
             ZExp.ZBlock.wrap(
@@ -2084,7 +2084,7 @@ and syn_perform_operand =
             ZExp.ZBlock.wrap(
               CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
             );
-          Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          Succeeded(SynDone((new_ze, HTyp.hole, u_gen)));
         | Some(ty) =>
           let new_ze =
             ZExp.ZBlock.wrap(

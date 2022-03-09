@@ -85,15 +85,24 @@ and syn_elab_line =
           | Some(x) =>
             FixF(
               x,
-              ty1',
+              (Contexts.tyvars(ctx), ty1'),
               Evaluator.subst_var(
-                DHExp.cast(BoundVar(x), ty1', ty1),
+                DHExp.cast(
+                  BoundVar(x),
+                  (Contexts.tyvars(ctx), ty1'),
+                  (Contexts.tyvars(ctx), ty1),
+                ),
                 x,
                 d1,
               ),
             )
           };
-        let d1 = DHExp.cast(d1, ty1', ty1);
+        let d1 =
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1'),
+            (Contexts.tyvars(ctx), ty1),
+          );
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
@@ -132,8 +141,8 @@ and syn_elab_skel =
       let gamma = Contexts.gamma(ctx);
       let sigma = Environment.id_env(gamma);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Expression(HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+        MetaVarMap.add(u, Delta.Hole.Expression(HTyp.hole, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), HTyp.hole, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -143,15 +152,25 @@ and syn_elab_skel =
       switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty1)) {
       | None => DoesNotElaborate
       | Some((ty2, ty)) =>
-        let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
+        let ty2_arrow_ty = HTyp.arrow(ty2, ty);
         switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d1, ty1', delta) =>
           switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
+            let dc1 =
+              DHExp.cast(
+                d1,
+                (Contexts.tyvars(ctx), ty1'),
+                (Contexts.tyvars(ctx), ty2_arrow_ty),
+              );
+            let dc2 =
+              DHExp.cast(
+                d2,
+                (Contexts.tyvars(ctx), ty2'),
+                (Contexts.tyvars(ctx), ty2),
+              );
             let d = DHExp.Ap(dc1, dc2);
             Elaborates(d, ty, delta);
           }
@@ -175,7 +194,7 @@ and syn_elab_skel =
            (DHExp.Pair(dp1, dp2), delta),
          )
       |> Option.map((((dp_acc, delta), tys)) =>
-           (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), delta)
+           (dp_acc, HTyp.product([ty1, ty2, ...tys]), delta)
          )
       |> ElaborationResult.from_option;
     | _ =>
@@ -189,25 +208,40 @@ and syn_elab_skel =
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      let ty = HTyp.List(ty1);
+      let ty = HTyp.list(ty1);
       switch (ana_elab_skel(ctx, delta, skel2, seq, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let d2c = DHExp.cast(d2, ty2, ty);
+        let d2c =
+          DHExp.cast(
+            d2,
+            (Contexts.tyvars(ctx), ty2),
+            (Contexts.tyvars(ctx), ty),
+          );
         let d = DHExp.Cons(d1, d2c);
         Elaborates(d, ty, delta);
       };
     }
   | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
   | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Int)) {
+    switch (ana_elab_skel(ctx, delta, skel1, seq, HTyp.int)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, Int)) {
+      switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.int)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Int);
-        let dc2 = DHExp.cast(d2, ty2, Int);
+        let dc1 =
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1),
+            (TyVarCtx.empty, HTyp.int),
+          );
+        let dc2 =
+          DHExp.cast(
+            d2,
+            (Contexts.tyvars(ctx), ty2),
+            (TyVarCtx.empty, HTyp.int),
+          );
         switch (DHExp.BinIntOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -218,14 +252,24 @@ and syn_elab_skel =
     }
   | BinOp(NotInHole, (FPlus | FMinus | FTimes | FDivide) as op, skel1, skel2)
   | BinOp(NotInHole, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Float)) {
+    switch (ana_elab_skel(ctx, delta, skel1, seq, HTyp.float)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, Float)) {
+      switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.float)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Float);
-        let dc2 = DHExp.cast(d2, ty2, Float);
+        let dc1 =
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1),
+            (TyVarCtx.empty, HTyp.float),
+          );
+        let dc2 =
+          DHExp.cast(
+            d2,
+            (Contexts.tyvars(ctx), ty2),
+            (TyVarCtx.empty, HTyp.float),
+          );
         switch (DHExp.BinFloatOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -235,19 +279,29 @@ and syn_elab_skel =
       }
     }
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
+    switch (ana_elab_skel(ctx, delta, skel1, seq, HTyp.bool)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, Bool)) {
+      switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.bool)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, Bool);
-        let dc2 = DHExp.cast(d2, ty2, Bool);
+        let dc1 =
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1),
+            (TyVarCtx.empty, HTyp.bool),
+          );
+        let dc2 =
+          DHExp.cast(
+            d2,
+            (Contexts.tyvars(ctx), ty2),
+            (TyVarCtx.empty, HTyp.bool),
+          );
         switch (DHExp.BinBoolOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some(op) =>
           let d = DHExp.BinBoolOp(op, dc1, dc2);
-          Elaborates(d, Bool, delta);
+          Elaborates(d, HTyp.bool, delta);
         };
       }
     }
@@ -273,8 +327,8 @@ and syn_elab_operand =
       let gamma = Contexts.gamma(ctx);
       let sigma = Environment.id_env(gamma);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Expression(HTyp.Hole, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+        MetaVarMap.add(u, Delta.Hole.Expression(HTyp.hole, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), HTyp.hole, delta);
     };
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -312,23 +366,23 @@ and syn_elab_operand =
         let gamma = Contexts.gamma(ctx);
         let sigma = Environment.id_env(gamma);
         let delta =
-          MetaVarMap.add(u, Delta.Hole.Expression(HTyp.Hole, gamma), delta);
+          MetaVarMap.add(u, Delta.Hole.Expression(HTyp.hole, gamma), delta);
         let d = DHExp.Case(d1, drs, 0);
-        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+        Elaborates(InconsistentBranches(u, 0, sigma, d), HTyp.hole, delta);
       };
     } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
-    let ty = HTyp.Hole;
+    let ty = HTyp.hole;
     let delta = MetaVarMap.add(u, Delta.Hole.Expression(ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
-    let ty = HTyp.Hole;
+    let ty = HTyp.hole;
     let delta = MetaVarMap.add(u, Delta.Hole.Expression(ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
@@ -341,27 +395,31 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let delta =
-      MetaVarMap.add(u, Delta.Hole.Expression(HTyp.Hole, gamma), delta);
+      MetaVarMap.add(u, Delta.Hole.Expression(HTyp.hole, gamma), delta);
     let d =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
-    Elaborates(d, Hole, delta);
+    Elaborates(d, HTyp.hole, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
-    | Some(n) => Elaborates(IntLit(n), Int, delta)
+    | Some(n) => Elaborates(IntLit(n), HTyp.int, delta)
     | None => DoesNotElaborate
     }
   | FloatLit(NotInHole, f) =>
     switch (TextShape.hazel_float_of_string_opt(f)) {
-    | Some(f) => Elaborates(FloatLit(f), Float, delta)
+    | Some(f) => Elaborates(FloatLit(f), HTyp.float, delta)
     | None => DoesNotElaborate
     }
-  | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
+  | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), HTyp.bool, delta)
   | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Hole;
-    Elaborates(ListNil(elt_ty), List(elt_ty), delta);
+    let elt_ty = HTyp.hole;
+    Elaborates(
+      ListNil((Contexts.tyvars(ctx), elt_ty)),
+      HTyp.list(elt_ty),
+      delta,
+    );
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
@@ -370,19 +428,19 @@ and syn_elab_operand =
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Lam(dp, ty1, d1);
-        Elaborates(d, Arrow(ty1, ty2), delta);
+        let d = DHExp.Lam(dp, (Contexts.tyvars(ctx), ty1), d1);
+        Elaborates(d, HTyp.arrow(ty1, ty2), delta);
       }
     }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      let d = DHExp.Inj(Hole, side, d1);
+      let d = DHExp.Inj((Contexts.tyvars(ctx), HTyp.hole), side, d1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
+        | L => HTyp.sum(ty1, HTyp.hole)
+        | R => HTyp.sum(HTyp.hole, ty1)
         };
       Elaborates(d, ty, delta);
     }
@@ -472,7 +530,17 @@ and syn_elab_rule =
     switch (syn_elab(ctx, delta, clause)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, delta) =>
-      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
+      Some((
+        Rule(
+          dp,
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1),
+            (Contexts.tyvars(ctx), clause_ty),
+          ),
+        ),
+        delta,
+      ))
     }
   };
 }
@@ -532,7 +600,7 @@ and ana_elab_opseq =
             switch (rev_tys) {
             | [] => failwith("expected at least 1 element")
             | [ty] => ty
-            | _ => HTyp.Prod(rev_tys |> List.rev)
+            | _ => HTyp.product(rev_tys |> List.rev)
             };
           Elaborates(d, ty, delta);
         }
@@ -566,7 +634,7 @@ and ana_elab_opseq =
               switch (rev_tys) {
               | [] => failwith("expected at least 1 element")
               | [ty] => ty
-              | _ => HTyp.Prod(rev_tys |> List.rev)
+              | _ => HTyp.product(rev_tys |> List.rev)
               };
             Elaborates(d, ty, delta);
           }
@@ -589,7 +657,7 @@ and ana_elab_opseq =
           let sigma = gamma |> Environment.id_env;
           let delta =
             MetaVarMap.add(u, Delta.Hole.Expression(ty, gamma), delta);
-          Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+          Elaborates(NonEmptyHole(reason, u, 0, sigma, d), HTyp.hole, delta);
         }
       };
     }
@@ -621,7 +689,7 @@ and ana_elab_skel =
       let sigma = Environment.id_env(gamma);
       let delta = MetaVarMap.add(u, Delta.Hole.Expression(ty, gamma), delta);
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-      Elaborates(d, Hole, delta);
+      Elaborates(d, HTyp.hole, delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
@@ -630,12 +698,22 @@ and ana_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty_elt', delta) =>
-        let d1c = DHExp.cast(d1, ty_elt', ty_elt);
-        let ty_list = HTyp.List(ty_elt);
+        let d1c =
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty_elt'),
+            (Contexts.tyvars(ctx), ty_elt),
+          );
+        let ty_list = HTyp.list(ty_elt);
         switch (ana_elab_skel(ctx, delta, skel2, seq, ty_list)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, delta) =>
-          let d2c = DHExp.cast(d2, ty2, ty_list);
+          let d2c =
+            DHExp.cast(
+              d2,
+              (Contexts.tyvars(ctx), ty2),
+              (Contexts.tyvars(ctx), ty_list),
+            );
           let d = DHExp.Cons(d1c, d2c);
           Elaborates(d, ty_list, delta);
         };
@@ -687,7 +765,7 @@ and ana_elab_operand =
       let gamma = Contexts.gamma(ctx);
       let sigma = Environment.id_env(gamma);
       let delta = MetaVarMap.add(u, Delta.Hole.Expression(ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), HTyp.hole, delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
@@ -741,8 +819,8 @@ and ana_elab_operand =
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Lam(dp, ty1p, d1);
+            let ty = HTyp.arrow(ty1p, ty2);
+            let d = DHExp.Lam(dp, (Contexts.tyvars(ctx), ty1p), d1);
             Elaborates(d, ty, delta);
           }
         }
@@ -758,10 +836,10 @@ and ana_elab_operand =
       | Elaborates(d1, e1ty', delta) =>
         let (ann_ty, ty) =
           switch (side) {
-          | L => (ty2, HTyp.Sum(e1ty', ty2))
-          | R => (ty1, HTyp.Sum(ty1, e1ty'))
+          | L => (ty2, HTyp.sum(e1ty', ty2))
+          | R => (ty1, HTyp.sum(ty1, e1ty'))
           };
-        let d = DHExp.Inj(ann_ty, side, d1);
+        let d = DHExp.Inj((Contexts.tyvars(ctx), ann_ty), side, d1);
         Elaborates(d, ty, delta);
       };
     }
@@ -779,7 +857,12 @@ and ana_elab_operand =
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
     | None => DoesNotElaborate
-    | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
+    | Some(elt_ty) =>
+      Elaborates(
+        ListNil((Contexts.tyvars(ctx), elt_ty)),
+        HTyp.list(elt_ty),
+        delta,
+      )
     }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
@@ -835,7 +918,17 @@ and ana_elab_rule =
     switch (ana_elab(ctx, delta, clause, clause_ty)) {
     | DoesNotElaborate => None
     | Elaborates(d1, ty1, delta) =>
-      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
+      Some((
+        Rule(
+          dp,
+          DHExp.cast(
+            d1,
+            (Contexts.tyvars(ctx), ty1),
+            (Contexts.tyvars(ctx), clause_ty),
+          ),
+        ),
+        delta,
+      ))
     }
   };
 };

@@ -158,7 +158,7 @@ let rec mk =
     );
     let cast =
       switch (d) {
-      | Cast(_, ty1, ty2) => Some((ty1, ty2))
+      | Cast(_, (_, ty1), (_, ty2)) => Some((ty1, ty2))
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
@@ -270,7 +270,8 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ])
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+      | FailedCast(Cast(d, (_, ty1), dty2), dty2', (_, ty3))
+          when DHTyp.equivalent(dty2, dty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -314,7 +315,7 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      | Lam(dp, ty, dbody) =>
+      | Lam(dp, (_, ty), dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -330,7 +331,7 @@ let rec mk =
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
-      | FixF(x, ty, dbody) =>
+      | FixF(x, (_, ty), dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
             go(~enforce_inline, dbody) |> mk_cast;

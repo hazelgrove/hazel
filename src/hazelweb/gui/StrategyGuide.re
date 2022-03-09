@@ -63,7 +63,7 @@ let lit_msg = (ty: HTyp.t) => {
       fill_space,
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
-  switch (ty) {
+  switch (HTyp.unsafe(ty)) {
   | Hole => [
       int_lit,
       float_lit,
@@ -182,7 +182,7 @@ let operator_options = cursor_info => {
       ],
     );
 
-  switch (Assistant_common.get_type(cursor_info)) {
+  switch (Assistant_common.get_type(cursor_info) |> Option.map(HTyp.unsafe)) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
@@ -297,9 +297,7 @@ let exp_hole_view =
   let lit =
     subsection_header(
       Toggle_strategy_guide_lit,
-      "Will "
-      ++ Assistant_common.type_to_str(typ)
-      ++ " literal give what you need?",
+      "Will " ++ HTyp.to_string(typ) ++ " literal give what you need?",
       lit_open,
     );
   let lit_body =

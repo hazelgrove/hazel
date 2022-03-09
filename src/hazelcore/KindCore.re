@@ -2,4 +2,4 @@
 type t =
   | KHole
   | Type
-  | Singleton(HTypCore.t);
+  | Singleton(HTypSyntax.t);

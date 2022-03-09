@@ -357,7 +357,7 @@ let inconsistent_branches: UHExp.t =
   UHExp.(
     Block.wrap(
       case(
-        ~err=InconsistentBranches([Bool, Float, Float], 0),
+        ~err=InconsistentBranches([HTyp.bool, HTyp.float, HTyp.float], 0),
         Block.wrap(UHExp.IntLit(NotInHole, "1")),
         [
           Rule(

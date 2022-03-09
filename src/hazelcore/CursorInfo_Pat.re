@@ -85,7 +85,7 @@ and syn_cursor_info_zopseq =
     |> Option.map(((rev_tys, _)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
-             PatSynthesized(Prod(rev_tys |> List.rev)),
+             PatSynthesized(HTyp.product(rev_tys |> List.rev)),
              ctx,
              extract_cursor_pat_zseq(zseq),
            ),
@@ -157,12 +157,13 @@ and syn_cursor_info_skel =
         "Pat.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole)) {
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole)) {
         | None => None
-        | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
+        | Some(ctx) =>
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole)
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
@@ -172,7 +173,7 @@ and syn_cursor_info_skel =
         switch (Statics_Pat.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some((ty_elt, ctx)) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.List(ty_elt))
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.list(ty_elt))
         }
       }
     };
@@ -390,12 +391,13 @@ and ana_cursor_info_skel =
         "Pat.ana_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole)) {
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole)) {
         | None => None
-        | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
+        | Some(ctx) =>
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole)
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -408,7 +410,7 @@ and ana_cursor_info_skel =
           switch (Statics_Pat.ana_skel(ctx, skel1, seq, ty_elt)) {
           | None => None
           | Some(ctx) =>
-            ana_cursor_info_skel(~steps, ctx, skel2, zseq, List(ty_elt))
+            ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.list(ty_elt))
           }
         }
       }
@@ -431,7 +433,11 @@ and ana_cursor_info_zoperand =
     | EmptyHole(_) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.hole),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | Wild(InHole(TypeInconsistent, _))
@@ -495,19 +501,31 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.int),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | FloatLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.float),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | BoolLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.bool),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | Inj(NotInHole, _, _) =>

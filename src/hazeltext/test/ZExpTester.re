@@ -73,21 +73,27 @@ let read =
   Ok((e, Statics_Exp.fix_and_renumber_holes_z(Contexts.empty, ze)));
 };
 
-let run =
+let rec eval =
+        (
+          ~i: int=1,
+          actions: list(Action.t),
+          (ze, _, _) as edit_state: Statics.edit_state,
+        ) =>
+  switch (actions) {
+  | [action, ...actions'] =>
+    switch (Action_Exp.syn_perform(Contexts.empty, action, edit_state)) {
+    | Failed => Error(ActionFailed(i, action, ze))
+    | CursorEscaped(_) => Error(CursorEscaped(i, action, ze))
+    | Succeeded(edit_state) => eval(~i=i + 1, actions', edit_state)
+    }
+  | [] => Ok(edit_state)
+  };
+
+let read_eval_print =
     (input: string, path: CursorPath.t, actions: list(Action.t))
     : Result.t(Success.t, Failure.t) => {
   let* (parsed, (zipped, _, _) as edit_state) = read(input, path);
-  let rec loop = (i, actions, (ze, _, _) as edit_state) =>
-    switch (actions) {
-    | [action, ...actions'] =>
-      switch (Action_Exp.syn_perform(Contexts.empty, action, edit_state)) {
-      | Failed => Error(ActionFailed(i, action, ze))
-      | CursorEscaped(_) => Error(CursorEscaped(i, action, ze))
-      | Succeeded(edit_state) => loop(i + 1, actions', edit_state)
-      }
-    | [] => Ok(ze)
-    };
-  let* edited = loop(1, actions, edit_state);
+  let* (edited, _, _) = eval(actions, edit_state);
   let+ printed = print_z(edited);
   Success.{parsed, zipped, edited, printed};
 };
@@ -162,4 +168,4 @@ let test =
       expect: string,
     )
     : bool =>
-  run(input, path, actions) |> report(input, path, expect);
+  read_eval_print(input, path, actions) |> report(input, path, expect);

@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Hole),
+      HTypCode.view(HTyp.hole),
       emphasize_text(")"),
     ],
   );
@@ -69,9 +69,9 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
   };
 
 let pat_ana_subsumed_msg =
-    (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.normalized_equivalent(expected_ty, got_ty)
-      || HTyp.normalized_equivalent(got_ty, HTyp.Hole)) {
+    (tyvars, expected_ty, got_ty, expecting_msg, consistency_msg) =>
+  if (HTyp.equivalent(tyvars, expected_ty, got_ty)
+      || HTyp.equivalent(tyvars, got_ty, HTyp.hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -86,10 +86,11 @@ let syn_branch_clause_msg =
       join_type_inconsistent_expecting,
       join_type_inconsistent_msg,
       other,
+      tyvars,
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.normalized_consistent(ty, got_ty)) {
+    if (HTyp.consistent(tyvars, ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
@@ -122,10 +123,16 @@ let advanced_summary =
       | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    | AnaAnnotatedLambda(expected_ty, got_ty)
-    | AnaSubsumed(expected_ty, got_ty)
-    | PatAnaSubsumed(expected_ty, got_ty) =>
-      pat_ana_subsumed_msg(expected_ty, got_ty, [ana], consistent_symbol)
+    | AnaAnnotatedLambda(tyvars, expected_ty, got_ty)
+    | AnaSubsumed(tyvars, expected_ty, got_ty)
+    | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
+      pat_ana_subsumed_msg(
+        tyvars,
+        expected_ty,
+        got_ty,
+        [ana],
+        consistent_symbol,
+      )
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
@@ -201,7 +208,7 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _) =>
+    | SynBranchClause(join, typed, _, tyvars) =>
       syn_branch_clause_msg(
         join,
         typed,
@@ -209,6 +216,7 @@ let advanced_summary =
         [syn],
         inconsistent_symbol,
         message,
+        tyvars,
       )
     | SynInconsistentBranches(_) => [
         syn,
@@ -248,10 +256,11 @@ let novice_summary =
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    | AnaAnnotatedLambda(expected_ty, got_ty)
-    | AnaSubsumed(expected_ty, got_ty)
-    | PatAnaSubsumed(expected_ty, got_ty) =>
+    | AnaAnnotatedLambda(tyvars, expected_ty, got_ty)
+    | AnaSubsumed(tyvars, expected_ty, got_ty)
+    | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
+        tyvars,
         expected_ty,
         got_ty,
         expecting_of_type,
@@ -383,7 +392,7 @@ let novice_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _) =>
+    | SynBranchClause(join, typed, _, tyvars) =>
       syn_branch_clause_msg(
         join,
         typed,
@@ -391,6 +400,7 @@ let novice_summary =
         expecting_of_type,
         Node.text("but got inconsistent type"),
         message,
+        tyvars,
       )
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
@@ -594,6 +604,7 @@ let view =
         InconsistentBranchTys(rule_types, path_to_case),
         _,
         branch_index,
+        _,
       ) =>
       let ind =
         expected_inconsistent_branches_indicator(
@@ -649,10 +660,10 @@ let view =
     | PatSynKeyword(_)
     | TypFree
     | TypKeyword(_) => BindingError
-    | SynBranchClause(join, typed, _) =>
+    | SynBranchClause(join, typed, _, tyvars) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.normalized_consistent(ty, got_ty)) {
+        if (HTyp.consistent(tyvars, ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;

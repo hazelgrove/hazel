@@ -1,11 +1,83 @@
 open OptUtil.Syntax;
 
-include HTypCore;
+/* escape hatch for unsafe type operations */
+type unsafe = HTypSyntax.t;
+
+/* types */
+[@deriving sexp]
+type t = HTypSyntax.t;
+
+/* head normalized types */
+type head_normalized =
+  | TyVar(Index.t, string)
+  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, string)
+  | Hole
+  | Int
+  | Float
+  | Bool
+  | Arrow(t, t)
+  | Sum(t, t)
+  | Prod(list(t))
+  | List(t);
+
+/* normalized types */
+type normalized = HTypSyntax.t;
+
+/**
+ * Gets the type in string format.
+ * Return string
+ */
+let to_string = (ty: t): string => {
+  switch (ty) {
+  | Hole => "a"
+  | TyVarHole(_) => "a"
+  | TyVar(_, name) => "a " ++ name
+  | Int => "an Integer"
+  | Float => "a Float"
+  | Bool => "a Boolean"
+  | Arrow(_, _) => "a Function"
+  | Sum(_, _) => "a Sum"
+  | Prod(_) => "a Product"
+  | List(_) => "a List"
+  };
+};
+
+let of_unsafe: unsafe => t = t => t;
+let unsafe: t => unsafe = t => t;
+
+let of_head_normalized: head_normalized => t =
+  fun
+  | TyVar(i, name) => TyVar(i, name)
+  | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+  | Hole => Hole
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+  | Sum(tyL, tyR) => Sum(tyL, tyR)
+  | Prod(tys) => Prod(tys)
+  | List(ty) => List(ty);
+
+let of_normalized: normalized => t = t => t;
 
 [@deriving sexp]
 type join =
   | GLB
   | LUB;
+
+let tyvar = (i: Index.t, name: string): t => TyVar(i, name);
+let tyvarhole = (reason: TyVar.HoleReason.t, i: Index.t, name: string): t =>
+  TyVarHole(reason, i, name);
+let hole: t = Hole;
+let int: t = Int;
+let float: t = Float;
+let bool: t = Bool;
+let arrow = (ty1: t, ty2: t): t => Arrow(ty1, ty2);
+let sum = (tyL: t, tyR: t): t => Sum(tyL, tyR);
+let product = (tys: list(t)): t => Prod(tys);
+let list = (ty: t): t => List(ty);
+
+let is_hole = (ty: t): bool => ty == Hole;
 
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
@@ -26,36 +98,31 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-/* equality
-   At the moment, this coincides with default equality,
-   but this will change when polymorphic types are implemented */
-let eq = (==);
-
 /* type variable normalization */
-let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): t =>
+let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
   switch (ty) {
-  | TyVar(i, _) =>
+  | TyVar(i, name) =>
     switch (TyVarCtx.kind(tyvars, i)) {
     | Some(Singleton(ty1)) => head_normalize(tyvars, ty1)
-    | Some(_) => ty
+    | Some(_) => TyVar(i, name)
     | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
-  | TyVarHole(_)
-  | Hole
-  | Int
-  | Float
-  | Bool
-  | Arrow(_, _)
-  | Sum(_, _)
-  | Prod(_)
-  | List(_) => ty
+  | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+  | Hole => Hole
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+  | Sum(tyL, tyR) => Sum(tyL, tyR)
+  | Prod(tys) => Prod(tys)
+  | List(ty) => List(ty)
   };
 
 /*
  Type normalization replaces each type variable of singleton kind with the
- (recursively nomalized) type embedded in the kind.
+ (recursively normalized) type embedded in the kind.
  */
-let rec normalize = (tyvars: TyVarCtx.t, ty: t): t =>
+let rec normalize = (tyvars: TyVarCtx.t, ty: t): normalized =>
   switch (ty) {
   | TyVar(i, _) =>
     switch (TyVarCtx.kind(tyvars, i)) {
@@ -76,13 +143,13 @@ let rec normalize = (tyvars: TyVarCtx.t, ty: t): t =>
   };
 
 /* type equivalence for normalized types is context independent */
-let rec normalized_equivalent = (ty: t, ty': t): bool =>
+let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
   | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
   | (TyVar(_), _) => false
   | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
   | (TyVarHole(_, _, _), _) => false
-  | (Hole | Int | Float | Bool, _) => eq(ty, ty')
+  | (Hole | Int | Float | Bool, _) => ty == ty'
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
@@ -95,8 +162,29 @@ let rec normalized_equivalent = (ty: t, ty': t): bool =>
   | (List(_), _) => false
   };
 
+/* context-dependent type equivalence */
+let rec equivalent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+  switch (ty, ty') {
+  | (TyVar(_), TyVar(_)) =>
+    normalized_equivalent(normalize(tyvars, ty), normalize(tyvars, ty'))
+  | (TyVar(_), _) => false
+  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+  | (TyVarHole(_, _, _), _) => false
+  | (Hole | Int | Float | Bool, _) => ty == ty'
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    equivalent(tyvars, ty1, ty1') && equivalent(tyvars, ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(_, _), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    List.for_all2(equivalent(tyvars), tys1, tys2)
+  | (Prod(_), _) => false
+  | (List(ty), List(ty')) => equivalent(tyvars, ty, ty')
+  | (List(_), _) => false
+  };
+
 /* type consistency for normalized types is context independent */
-let rec normalized_consistent = (ty: t, ty': t): bool =>
+let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
   | (TyVar(i, _), TyVar(i', _)) =>
     // normalization eliminates all type variables of singleton kind, so these
@@ -116,18 +204,24 @@ let rec normalized_consistent = (ty: t, ty': t): bool =>
   | (List(_), _) => false
   };
 
-/* context-dependent type equivalence */
-let equivalent = (ctx: TyVarCtx.t, ty: t, ty': t): bool => {
-  let ty = normalize(ctx, ty);
-  let ty' = normalize(ctx, ty');
-  normalized_equivalent(ty, ty');
-};
+let rec consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+  switch (ty, ty') {
+  | (TyVar(_), TyVar(_)) =>
+    normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'))
+  | (TyVar(_) | TyVarHole(_) | Hole, _)
+  | (_, TyVar(_) | TyVarHole(_) | Hole) => true
+  | (Int | Float | Bool, _) => ty == ty'
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    consistent(tyvars, ty1, ty1') && consistent(tyvars, ty2, ty2')
+  | (Arrow(_) | Sum(_), _) => false
+  | (Prod(tys), Prod(tys')) => List.for_all2(consistent(tyvars), tys, tys')
+  | (Prod(_), _) => false
+  | (List(ty1), List(ty1')) => consistent(tyvars, ty1, ty1')
+  | (List(_), _) => false
+  };
 
-/* context-dependent type consistency */
-let consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
-  normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
-
-let inconsistent = (tyvars: TyVarCtx.t, ty1: t, ty2: t) =>
+let inconsistent = (tyvars: TyVarCtx.t, ty1: t, ty2: t): bool =>
   !consistent(tyvars, ty1, ty2);
 
 let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
@@ -137,7 +231,6 @@ let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
     !List.exists(inconsistent(tyvars, hd), tl) || consistent_all(tyvars, tl)
   };
 
-/* matched arrow types */
 let matched_arrow = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
@@ -175,7 +268,7 @@ let matched_list = (tyvars: TyVarCtx.t, ty: t): option(t) =>
   };
 
 /* complete (i.e. does not have any holes) */
-let rec complete =
+let rec complete: t => bool =
   fun
   | Hole
   | TyVarHole(_) => false
@@ -198,7 +291,6 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     | LUB => Some(ty)
     }
   | (TyVar(i, _), _) =>
-    open OptUtil.Syntax;
     let* k = TyVarCtx.kind(tyvars, i);
     switch (k) {
     | Singleton(ty) => join(tyvars, j, ty, ty2)
@@ -206,29 +298,28 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     | Type => failwith("impossible for bounded type variables (currently) 1")
     };
   | (_, TyVar(i, _)) =>
-    open OptUtil.Syntax;
     let* k = TyVarCtx.kind(tyvars, i);
     switch (k) {
     | KindCore.Singleton(ty) => join(tyvars, j, ty1, ty)
     | KHole => join(tyvars, j, ty1, Hole)
     | Type => failwith("impossible for bounded type variables (currently) 2")
     };
-  | (Int | Float | Bool, _) => eq(ty1, ty2) ? Some(ty1) : None
+  | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join(tyvars, j, ty1, ty1');
     let+ ty2 = join(tyvars, j, ty2, ty2');
-    Arrow(ty1, ty2);
+    HTypSyntax.Arrow(ty1, ty2);
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     let* ty1 = join(tyvars, j, ty1, ty1');
     let+ ty2 = join(tyvars, j, ty2, ty2');
-    Sum(ty1, ty2);
+    HTypSyntax.Sum(ty1, ty2);
   | (Prod(tys1), Prod(tys2)) =>
     let+ joined_tys =
       List.map2(join(tyvars, j), tys1, tys2) |> OptUtil.sequence;
-    Prod(joined_tys);
+    HTypSyntax.Prod(joined_tys);
   | (List(ty), List(ty')) =>
     let+ ty = join(tyvars, j, ty, ty');
-    List(ty);
+    HTypSyntax.List(ty);
   | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
   };
 
@@ -247,4 +338,35 @@ let join_all = (tyvars: TyVarCtx.t, j: join, types: list(t)): option(t) =>
           Some(hd),
           tl,
         )
+  };
+
+[@deriving sexp]
+type ground_cases =
+  | Hole
+  | Ground
+  | NotGroundOrHole(t) /* the argument is the corresponding ground type */;
+
+let grounded_Arrow = NotGroundOrHole(arrow(hole, hole));
+let grounded_Sum = NotGroundOrHole(sum(hole, hole));
+let grounded_Prod = length =>
+  NotGroundOrHole(product(ListUtil.replicate(length, hole)));
+let grounded_List = NotGroundOrHole(list(hole));
+
+let ground_cases_of = (ty: normalized): ground_cases =>
+  switch (ty) {
+  | TyVarHole(_)
+  | Hole => Hole
+  | Bool
+  | Int
+  | Float
+  | Arrow(Hole, Hole)
+  | Sum(Hole, Hole)
+  | List(Hole) => Ground
+  | TyVar(_) => Ground
+  | Prod(tys) =>
+    let equiv = ty => normalized_equivalent(Hole, ty);
+    List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
+  | Arrow(_, _) => grounded_Arrow
+  | Sum(_, _) => grounded_Sum
+  | List(_) => grounded_List
   };

@@ -39,7 +39,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     ),
   );
   let (doc, parenthesize) =
-    switch (ty) {
+    switch (HTyp.unsafe(ty)) {
     | Hole => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
@@ -57,7 +57,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           mk_delim("["),
           (
             (~enforce_inline) =>
-              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+              annot(
+                HTypAnnot.Step(0),
+                mk(~enforce_inline, HTyp.of_unsafe(ty)),
+              )
           )
           |> pad_child(~enforce_inline),
           mk_delim("]"),
@@ -66,7 +69,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
       )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
+        mk_right_associative_operands(
+          HTyp.precedence_Arrow,
+          HTyp.of_unsafe(ty1),
+          HTyp.of_unsafe(ty2),
+        );
       (
         hcats([
           d1,
@@ -85,8 +92,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           annot(
             HTypAnnot.Step(0),
             mk'(
-              ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
-              head,
+              ~parenthesize=
+                HTyp.precedence(HTyp.of_unsafe(head)) <= HTyp.precedence_Prod,
+              HTyp.of_unsafe(head),
             ),
           ),
           ...List.mapi(
@@ -95,8 +103,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
                    HTypAnnot.Step(i + 1),
                    mk'(
                      ~parenthesize=
-                       HTyp.precedence(ty) <= HTyp.precedence_Prod,
-                     ty,
+                       HTyp.precedence(HTyp.of_unsafe(ty))
+                       <= HTyp.precedence_Prod,
+                     HTyp.of_unsafe(ty),
                    ),
                  ),
                tail,
@@ -109,7 +118,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
       (center, true);
     | Sum(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
+        mk_right_associative_operands(
+          HTyp.precedence_Sum,
+          HTyp.of_unsafe(ty1),
+          HTyp.of_unsafe(ty2),
+        );
       (
         hcats([
           d1,

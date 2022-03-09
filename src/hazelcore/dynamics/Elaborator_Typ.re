@@ -33,8 +33,8 @@ and syn_elab_skel = (tyvars, delta, skel, seq) =>
       );
     let delta =
       deltas |> List.fold_left((d1, d2) => Delta.union(d1, d2), Delta.empty);
-    let ty = HTyp.Prod(tys);
-    (ty, Kind.Singleton(ty), delta);
+    let ty = HTyp.product(tys);
+    (ty, Kind.singleton(ty), delta);
   | BinOp(_, op, skel1, skel2) =>
     let* (ty1, _, delta1) =
       ana_elab_skel(tyvars, delta, skel1, seq, Kind.Type);
@@ -42,31 +42,31 @@ and syn_elab_skel = (tyvars, delta, skel, seq) =>
       ana_elab_skel(tyvars, delta, skel2, seq, Kind.Type);
     let ty: HTyp.t =
       switch (op) {
-      | Arrow => Arrow(ty1, ty2)
-      | Sum => Sum(ty1, ty2)
+      | Arrow => HTyp.arrow(ty1, ty2)
+      | Sum => HTyp.sum(ty1, ty2)
       | Prod => failwith("Impossible, Prod is matched first")
       };
-    (ty, Kind.Singleton(ty), Delta.union(delta1, delta2));
+    (ty, Kind.singleton(ty), Delta.union(delta1, delta2));
   }
 and syn_elab_operand =
     (tyvars: TyVarCtx.t, delta: Delta.t, operand: UHTyp.operand)
     : ElaborationResult.t => {
-  let const = (ty: HTyp.t) => Some((ty, Kind.Singleton(ty), delta));
+  let const = (ty: HTyp.t) => Some((ty, Kind.singleton(ty), delta));
   switch (operand) {
-  | Hole => Some((Hole, Kind.KHole, delta))
-  | TyVar(NotInHole(i), name) => const(TyVar(i, name))
+  | Hole => Some((HTyp.hole, Kind.KHole, delta))
+  | TyVar(NotInHole(i), name) => const(HTyp.tyvar(i, name))
   | TyVar(InHole(reason, u), name) =>
-    let ty = HTyp.TyVarHole(reason, u, name);
+    let ty = HTyp.tyvarhole(reason, u, name);
     Some((ty, Kind.KHole, Delta.add(u, Delta.Hole.Type, delta)));
-  | Unit => const(Prod([]))
-  | Int => const(Int)
-  | Float => const(Float)
-  | Bool => const(Bool)
+  | Unit => const(HTyp.product([]))
+  | Int => const(HTyp.int)
+  | Float => const(HTyp.float)
+  | Bool => const(HTyp.bool)
   | Parenthesized(ty) => syn_elab(tyvars, delta, ty)
   | List(ty) =>
     let+ (ty_elt, _, delta) = syn_elab(tyvars, delta, ty);
-    let ty = HTyp.List(ty_elt);
-    (ty, Kind.Singleton(ty), delta);
+    let ty = HTyp.list(ty_elt);
+    (ty, Kind.singleton(ty), delta);
   };
 }
 
@@ -88,9 +88,9 @@ and ana_elab_operand =
     (tyvars: TyVarCtx.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
     : ElaborationResult.t => {
   switch (operand) {
-  | Hole => Some((HTyp.Hole, Kind.KHole, delta))
+  | Hole => Some((HTyp.hole, Kind.KHole, delta))
   | TyVar(InHole(reason, u), t) =>
-    Some((HTyp.TyVarHole(reason, u, t), Kind.KHole, delta))
+    Some((HTyp.tyvarhole(reason, u, t), Kind.KHole, delta))
   | Parenthesized(opseq) => ana_elab(tyvars, delta, opseq, k)
   // subsumption
   | TyVar(NotInHole(_), _)
@@ -139,7 +139,7 @@ and syn_fix_holes_operand =
   switch (operand) {
   | Hole => (Hole, Kind.KHole, u_gen)
   | TyVar(NotInHole(i), name) =>
-    let k' = Kind.Singleton(HTyp.TyVar(i, name));
+    let k' = Kind.singleton(HTyp.tyvar(i, name));
     switch (TyVarCtx.kind(tyvars, i)) {
     | Some(k) when Kind.consistent_subkind(tyvars, k', k) => (
         operand,
@@ -180,7 +180,7 @@ and syn_fix_holes_operand =
   | Unit
   | Int
   | Float
-  | Bool => (operand, Kind.Singleton(UHTyp.expand_operand(operand)), u_gen)
+  | Bool => (operand, Kind.singleton(UHTyp.expand_operand(operand)), u_gen)
   | Parenthesized(body) =>
     let (block, k, u_gen) = syn_fix_holes(tyvars, u_gen, body);
     (Parenthesized(block), k, u_gen);

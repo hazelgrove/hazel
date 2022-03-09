@@ -28,7 +28,7 @@ let bind = (tyvars: t, name: string, k: KindCore.t): t => {
   let increment_singleton: binding => binding =
     fun
     | (name, Singleton(ty)) => {
-        let k = KindCore.Singleton(HTypCore.increment_indices(ty));
+        let k = KindCore.Singleton(HTypSyntax.increment_indices(ty));
         (name, k);
       }
     | binding => binding;

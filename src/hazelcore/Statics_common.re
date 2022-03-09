@@ -15,14 +15,14 @@ let tuple_zip =
     )
     : option(list((Skel.t('op), HTyp.t))) => {
   let skels = skel |> get_tuple_elements;
-  let tys = ty |> HTyp.get_prod_elements;
+  let tys = HTyp.get_prod_elements(ty);
   switch (ListUtil.opt_zip(skels, tys)) {
   | Some(_) as zipped => zipped
   | None =>
     switch (skels, tys) {
     | ([_], _) => Some([(skel, ty)])
-    | (_, [Hole]) =>
-      skels |> List.map(skel => (skel, HTyp.Hole)) |> Option.some
+    | (_, [ty]) when HTyp.is_hole(ty) =>
+      skels |> List.map(skel => (skel, HTyp.hole)) |> Option.some
     | _ => None
     }
   };
