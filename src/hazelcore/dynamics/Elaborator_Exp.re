@@ -262,8 +262,7 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
+  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -288,10 +287,8 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
-    DoesNotElaborate
-  | Case(InconsistentBranches(rule_types, u, _), scrut, rules) =>
+  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Case(InconsistentBranches(u, _), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, pat_ty, delta) =>
@@ -309,7 +306,7 @@ and syn_elab_operand =
               }
             },
           Some(([], delta)),
-          rule_types,
+          Statics_Exp.case_rule_types(ctx, scrut, rules),
           rules,
         );
       switch (elab_rules) {
@@ -404,7 +401,7 @@ and syn_elab_operand =
         };
       Elaborates(d, ty, delta);
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(CaseNotInHole, scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
@@ -674,8 +671,7 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
-  | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
+  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -690,7 +686,7 @@ and ana_elab_operand =
         delta,
       );
     };
-  | Case(InconsistentBranches(_, u, Syn), _, _) =>
+  | Case(InconsistentBranches(u, Syn), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, e_ty, delta) =>
@@ -705,9 +701,7 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
-    DoesNotElaborate /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -767,8 +761,8 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       };
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules)
-  | Case(InconsistentBranches(_, _, Ana), scrut, rules) =>
+  | Case(CaseNotInHole, scrut, rules)
+  | Case(InconsistentBranches(_, Ana), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>

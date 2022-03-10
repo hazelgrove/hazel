@@ -141,3 +141,5 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
  * Precondition: provided pattern and expression have consistent types
  */
 let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
+
+let case_rule_types: (Contexts.t, UHExp.t, UHExp.rules) => list(HTyp.t);

@@ -476,10 +476,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | LamZP(_, zp, body) => LamZP(err, zp, body)
   | LamZE(_, p, zbody) => LamZE(err, p, zbody)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
-  | CaseZE(_, zscrut, rules) =>
-    CaseZE(StandardErrStatus(err), zscrut, rules)
-  | CaseZR(_, scrut, zrules) =>
-    CaseZR(StandardErrStatus(err), scrut, zrules)
+  | CaseZE(_, zscrut, rules) => CaseZE(CaseNotInHole, zscrut, rules)
+  | CaseZR(_, scrut, zrules) => CaseZR(CaseNotInHole, scrut, zrules)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -512,28 +510,13 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* already in hole */
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
-  | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
-      zoperand,
-      u_gen,
-    )
+  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _)
   | LamZE(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
-  | CaseZE(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_),
-      _,
-      _,
-    )
-  | CaseZR(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_),
-      _,
-      _,
-    ) =>
+  | CaseZE(CaseNotInHole | InconsistentBranches(_), _, _)
+  | CaseZR(CaseNotInHole | InconsistentBranches(_), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));

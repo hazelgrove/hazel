@@ -132,8 +132,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Unknown(Internal);
@@ -143,10 +142,9 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
-  | Case(InconsistentBranches(_, _, _mode), scrut, _rules) =>
-    let* _pat_ty = syn(ctx, scrut);
+  | Inj(InHole(WrongLength, _), _, _) => None
+  | Case(InconsistentBranches(_), scrut, _) =>
+    let* _ = syn(ctx, scrut);
     // TODO(andrew): check branches are actually inconsistent branches
     Some(HTyp.Unknown(Internal));
   /* not in hole */
@@ -166,7 +164,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | L => HTyp.Sum(ty, Unknown(Internal))
     | R => Sum(Unknown(Internal), ty)
     };
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(CaseNotInHole, scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
@@ -263,8 +261,7 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -274,8 +271,7 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+  | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   /* not in hole */
   | ListNil(NotInHole) =>
@@ -812,18 +808,18 @@ and syn_fix_holes_operand =
   | Case(_, scrut, rules) =>
     let (scrut, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-    let (rules, u_gen, rule_types, common_type) =
+    let (rules, u_gen, _, common_type) =
       syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1);
     switch (common_type) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (
-        Case(InconsistentBranches(rule_types, u, Syn), scrut, rules),
+        Case(InconsistentBranches(u, Syn), scrut, rules),
         HTyp.Unknown(Internal),
         u_gen,
       );
     | Some(common_type) => (
-        Case(StandardErrStatus(NotInHole), scrut, rules),
+        Case(CaseNotInHole, scrut, rules),
         common_type,
         u_gen,
       )
@@ -1124,6 +1120,13 @@ and ana_fix_holes_skel =
       (skel, seq, u_gen);
     };
   }
+and case_rule_types =
+    (ctx: Contexts.t, scrut: UHExp.t, rules: UHExp.rules): list(HTyp.t) => {
+  let (_, scrut_ty, _) = syn_fix_holes(ctx, MetaVarGen.init, scrut);
+  let (_, _, rule_types, _) =
+    syn_fix_holes_rules(ctx, MetaVarGen.init, rules, scrut_ty);
+  rule_types;
+}
 and ana_fix_holes_operand =
     (
       ctx: Contexts.t,
@@ -1222,7 +1225,7 @@ and ana_fix_holes_operand =
     | _ =>
       let (scrut, scrut_ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-      let (_, _, rule_types, common_type) =
+      let (_, _, _, common_type) =
         syn_fix_holes_rules(
           ctx,
           u_gen,
@@ -1241,13 +1244,9 @@ and ana_fix_holes_operand =
         );
       switch (common_type) {
       | None =>
-        print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_rules(rules)));
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (
-          Case(InconsistentBranches(rule_types, u, Ana), scrut, rules),
-          u_gen,
-        );
-      | Some(_) => (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen)
+        (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
+      | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
       };
     }
   }

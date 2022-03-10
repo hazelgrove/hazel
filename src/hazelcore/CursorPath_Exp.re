@@ -625,11 +625,10 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => None
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u, Syn) =>
+      | CaseNotInHole => None
+      | InconsistentBranches(u, Syn) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
-      | InconsistentBranches(_, _, Ana) => None // NOTE: Don't draw a hole in this case
+      | InconsistentBranches(_, Ana) => None // NOTE: Don't draw a hole in this case
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -711,12 +710,11 @@ and holes_zoperand =
   | CaseZE(err, zscrut, rules) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u, Syn) => [
+      | CaseNotInHole => []
+      | InconsistentBranches(u, Syn) => [
           mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
-      | InconsistentBranches(_, _, Ana) => [] // NOTE: Don't draw a hole in this case
+      | InconsistentBranches(_, Ana) => [] // NOTE: Don't draw a hole in this case
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zscrut, [0, ...rev_steps]);
@@ -735,12 +733,11 @@ and holes_zoperand =
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u, Syn) => [
+      | CaseNotInHole => []
+      | InconsistentBranches(u, Syn) => [
           mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
-      | InconsistentBranches(_, _, Ana) => [] // NOTE: Don't draw a hole in this case
+      | InconsistentBranches(_, Ana) => [] // NOTE: Don't draw a hole in this case
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_prefix =

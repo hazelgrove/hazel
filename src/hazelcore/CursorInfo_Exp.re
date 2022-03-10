@@ -155,29 +155,33 @@ type err_status_result =
   | VarErr(VarErrStatus.HoleReason.t)
   | InconsistentBranchesErr(list(HTyp.t));
 
-let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
-  fun
-  | CursorE(_, operand) => {
+let rec cursor_on_outer_expr:
+  (ZExp.zoperand, Contexts.t) => option(err_status_result) =
+  (zoperand, ctx) =>
+    switch (zoperand) {
+    | CursorE(_, operand) =>
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _, _), _, _) =>
-          InconsistentBranchesErr(types)
+        | Case(InconsistentBranches(_, _), scrut, rules) =>
+          InconsistentBranchesErr(
+            Statics_Exp.case_rule_types(ctx, scrut, rules),
+          )
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
-    }
-  | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
-    if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
-      switch (skel, zseq) {
-      | (BinOp(err, _, _, _), _) => Some(StandardErr(err))
-      | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
-      | _ => None
-      };
-    } else {
-      None;
-    }
-  | _ => None;
+    | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
+      if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+        switch (skel, zseq) {
+        | (BinOp(err, _, _, _), _) => Some(StandardErr(err))
+        | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand, ctx)
+        | _ => None
+        };
+      } else {
+        None;
+      }
+    | _ => None
+    };
 
 let caret_is_after_zoperand = (zexp: ZExp.t): bool => {
   switch (get_zoperand(zexp)) {
@@ -432,7 +436,7 @@ and syn_cursor_info_skel =
           };
         let mk = typed =>
           CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
-        switch (cursor_on_outer_expr(zoperand)) {
+        switch (cursor_on_outer_expr(zoperand, ctx)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
         | Some(StandardErr(InHole(WrongLength, _))) => None
         | Some(StandardErr(InHole(TypeInconsistent, _))) =>
@@ -541,10 +545,13 @@ and syn_cursor_info_zoperand =
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
-  | CursorE(_, Case(InconsistentBranches(rule_types, _, _), _, _)) =>
+  | CursorE(_, Case(InconsistentBranches(_, _), scrut, rules)) =>
     Some(
       CursorInfo_common.mk(
-        SynInconsistentBranches(rule_types, steps),
+        SynInconsistentBranches(
+          Statics_Exp.case_rule_types(ctx, scrut, rules),
+          steps,
+        ),
         ctx,
         cursor_term,
       ),
@@ -868,8 +875,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+    | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -885,9 +891,9 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
-    | Case(InconsistentBranches(_, _, Ana), _, _) =>
+    | Case(InconsistentBranches(_, Ana), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-    | Case(InconsistentBranches(_, _, Syn), _, _) =>
+    | Case(InconsistentBranches(_, Syn), _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
@@ -895,8 +901,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _)
-    | Inj(InHole(WrongLength, _), _, _)
-    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    | Inj(InHole(WrongLength, _), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -925,7 +930,7 @@ and ana_cursor_info_zoperand =
       }
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
-    | Case(StandardErrStatus(NotInHole), _, _) =>
+    | Case(CaseNotInHole, _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
@@ -947,18 +952,11 @@ and ana_cursor_info_zoperand =
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _)
   | LamZE(InHole(WrongLength, _), _, _)
-  | InjZ(InHole(WrongLength, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
+  | InjZ(InHole(WrongLength, _), _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(
-      StandardErrStatus(InHole(TypeInconsistent, _)) |
-      InconsistentBranches(_),
-      _,
-      _,
-    ) =>
+  | CaseZE(InconsistentBranches(_), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | LamZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
@@ -994,13 +992,9 @@ and ana_cursor_info_zoperand =
         InjSide.pick(position, ty1, ty2),
       )
     }
-  | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
+  | CaseZE(CaseNotInHole, zscrut, _) =>
     syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-  | CaseZR(
-      StandardErrStatus(_) | InconsistentBranches(_),
-      scrut,
-      (prefix, zrule, _),
-    ) =>
+  | CaseZR(_, scrut, (prefix, zrule, _)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(ty1) =>
