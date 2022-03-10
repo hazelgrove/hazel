@@ -302,24 +302,33 @@ let load_undo_history =
      are exactly two comments meeting the specification
      and that the tester and prelude are empty
    */
-let tester_prelude_empty = (model: t): bool => {};
-let instructor_mode_comments_present = (model: t): bool => {};
+let tester_prelude_empty = (model: t): bool => {
+  get_edit_state(model).prelude == UHExp.empty_block;
+};
+
+// opening comment present and comes before also present closing comment
+// TODO(ygaitonde)
+let instructor_mode_comments_present = () /*model: t*/: bool => {
+  false;
+};
 
 let in_instructor_mode = (model: t): bool => {
-  tester_prelude_empty(model) && instructor_mode_comments_present(model);
+  tester_prelude_empty(model) && instructor_mode_comments_present() /*model*/;
 };
 
 /*
-   we're in student mode if either the prelude or tester are nonempty
+  we're in student mode if either the prelude or tester are nonempty
+  if we're in instructor mode, switch to student mode - split the edit states based on comments
+  if we're in student mode, switch to instructor mode - merge everything into the template
  */
-let toggle_instructor_mode = (model: t): t =>
-  if (in_instructor_mode(model)) {
-    let program = get_program(model);
-    let new_program = {
-      ...program.
-      edit_state: split_edit_states(edit_state);
-    }
-    put_program(new_program, model)
-  } else {
-    {};
-  };
+let toggle_instructor_mode = (model: t): t => {
+  let program = get_program(model);
+  let new_edit_state =
+    if (in_instructor_mode(model)) {
+      get_edit_state(model) |> Statics.split_edit_states;
+    } else {
+      get_edit_state(model) |> Statics.combine_to_template;
+    };
+  let new_program = Program.put_edit_state(new_edit_state, program);
+  put_program(new_program, model);
+};

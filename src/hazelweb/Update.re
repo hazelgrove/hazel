@@ -131,9 +131,7 @@ let apply_action =
         Model.select_case_branch(path_to_case, branch_index, model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
-      | ToggleInstructorMode =>
-        JSUtil.log("ToggleInstructorMode");
-        model;
+      | ToggleInstructorMode => model |> Model.toggle_instructor_mode
       | Undo =>
         let new_history =
           model.undo_history

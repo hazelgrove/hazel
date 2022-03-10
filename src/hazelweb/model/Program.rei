@@ -79,3 +79,5 @@ let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
 
 let get_path_to_test: (t, KeywordID.t) => option(CursorPath.t);
+
+let put_edit_state: (Statics.edit_state, t) => t;
