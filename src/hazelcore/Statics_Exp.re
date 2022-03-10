@@ -145,29 +145,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
-  | Case(InconsistentBranches(rule_types, _, mode), scrut, rules) =>
-    let* pat_ty = syn(ctx, scrut);
-    switch (mode) {
-    | Syn =>
-      /* Make sure the rule synthesizes the type the rule_types says it does if Syn */
-      let correct_rule_types =
-        List.for_all2(
-          (rule_ty, rule) => {
-            switch (syn_rule(ctx, rule, pat_ty)) {
-            | None => false
-            | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
-            }
-          },
-          rule_types,
-          rules,
-        );
-      correct_rule_types ? Some(HTyp.Unknown(Internal)) : None;
-    | Ana =>
-      /* in analytic position, we'd need a syn-fixed version of the rules to verify that
-         there is indeed no consistent type to synthesize, but we don't want to define
-         syn in terms of syn_fix or keep duplicated rules around so we don't check this */
-      Some(HTyp.Unknown(Internal))
-    };
+  | Case(InconsistentBranches(_, _, _mode), scrut, _rules) =>
+    let* _pat_ty = syn(ctx, scrut);
+    // TODO(andrew): check branches are actually inconsistent branches
+    Some(HTyp.Unknown(Internal));
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Unknown(Internal))

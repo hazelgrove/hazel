@@ -151,7 +151,7 @@ let holes_case_err =
       mk_hole_sort(hole_sort(u), List.rev(rev_steps)),
       ...hs,
     ]
-  | InconsistentBranches(_, _, Ana) => []
+  | InconsistentBranches(_, _, Ana) => hs
   // NOTE: don't draw a hole in this case
   };
 

@@ -888,7 +888,7 @@ and ana_cursor_info_zoperand =
     | Case(InconsistentBranches(_, _, Ana), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Case(InconsistentBranches(_, _, Syn), _, _) =>
-      failwith("ana_cursor_info_zoperand impossible")
+      syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -958,14 +958,8 @@ and ana_cursor_info_zoperand =
       InconsistentBranches(_),
       _,
       _,
-    )
-  | CaseZR(
-      StandardErrStatus(InHole(TypeInconsistent, _)) |
-      InconsistentBranches(_),
-      _,
-      _,
     ) =>
-    syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
+    syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | LamZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
     let+ defferrable =
@@ -1002,7 +996,11 @@ and ana_cursor_info_zoperand =
     }
   | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
     syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-  | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
+  | CaseZR(
+      StandardErrStatus(_) | InconsistentBranches(_),
+      scrut,
+      (prefix, zrule, _),
+    ) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(ty1) =>

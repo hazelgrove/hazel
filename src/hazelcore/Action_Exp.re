@@ -3266,14 +3266,14 @@ and ana_perform_operand =
           (zoperand, u_gen),
           ty,
         )
-      | Succeeded((zscrut, ty1, u_gen)) =>
-        let (rules, u_gen) =
-          Statics_Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
+      | Succeeded((zscrut, _, u_gen)) =>
         let new_ze =
           ZExp.ZBlock.wrap(
-            CaseZE(StandardErrStatus(NotInHole), zscrut, rules) // This isn't correct, shouldn't always be NotInHole
+            CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
           );
-        Succeeded(AnaDone((new_ze, u_gen)));
+        Succeeded(
+          AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+        );
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
@@ -3292,11 +3292,11 @@ and ana_perform_operand =
       | Succeeded((new_zrules, u_gen)) =>
         let new_ze =
           ZExp.ZBlock.wrap(
-            CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules) // This isn't correct either
+            CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
           );
-        let (new_ze, u_gen) =
-          Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty);
-        Succeeded(AnaDone((new_ze, u_gen)));
+        Succeeded(
+          AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+        );
       }
     }
 
