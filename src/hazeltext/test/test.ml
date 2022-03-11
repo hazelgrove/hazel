@@ -3,18 +3,8 @@ module Parse = Hazeltext.Parse
 module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
-let fix_ast_holes ast : UHExp.block option =
-  match ast with
-  | Some ast ->
-      let ast, _, _ = Statics_Exp.fix_and_renumber_holes Contexts.initial ast in
-      Some ast
-  | None -> None
-
 let parse text : UHExp.block option =
-  let lexbuf = Lexing.from_string text in
-  match Parsing.ast_of_lexbuf lexbuf with
-  | Ok ast -> fix_ast_holes (Some ast)
-  | Error _ -> None
+  match Parsing.ast_of_string text with Ok ast -> Some ast | Error _ -> None
 
 let test_parse text : bool =
   (*Get the first AST*)
@@ -143,3 +133,6 @@ let%test "block within case" =
      | 5 => true\n\
      | _ => false\n\
      end"
+
+let%test "case in function position" =
+  test_parse "case true\n    | true => \\f.{f+1}\n   end 2"

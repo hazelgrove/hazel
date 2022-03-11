@@ -31,7 +31,12 @@ let rec parse lexbuf c =
   | I.Rejected -> raise (SyntaxError (None, Some "Rejected"))
 
 let ast_of_lexbuf l =
-  try Ok (parse l (Parse.Incremental.main l.lex_curr_p)) with
+  try
+    Ok
+      ( parse l (Parse.Incremental.main l.lex_curr_p)
+      |> Statics_Exp.fix_and_renumber_holes Contexts.initial
+      |> fun (ast, _, _) -> ast )
+  with
   | SyntaxError (Some (line, col), tok) ->
       let tok_string =
         match tok with
@@ -41,3 +46,5 @@ let ast_of_lexbuf l =
       Error
         (Printf.sprintf "ERROR on line %d, column %d. %s" line col tok_string)
   | SyntaxError (None, _) -> Error "Unknown Error"
+
+let ast_of_string str = Lexing.from_string str |> ast_of_lexbuf
