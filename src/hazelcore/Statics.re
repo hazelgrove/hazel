@@ -20,14 +20,15 @@ type type_mode =
   Assumption: both start and end comment appear exactly once, and in the right order
  */
 let split_edit_states = (edit_state: edit_state): edit_state => {
-  let (prelude, rest) = ListUtil.split_at(ZExp.erase(edit_state.template), UHExp.CommentLine("START_TEMPLATE"));
-  let (template, tester) = ListUtil.split_at(rest, UHExp.CommentLine("END_TEMPLATE"));
-  {
-    ...edit_state,
-    prelude,
-    template: ZExp.place_before(template),
-    tester,
-  }
+  let (prelude, rest) =
+    ListUtil.split_at(
+      ZExp.erase(edit_state.template),
+      UHExp.CommentLine("START_TEMPLATE"),
+    );
+  let (template, tester) =
+    ListUtil.split_at(rest, UHExp.CommentLine("END_TEMPLATE"));
+    //TODO preserve cursor location
+  {...edit_state, prelude, template: ZExp.place_before(template), tester};
 };
 
 // Merge split edit states into one, and re insert comments
@@ -38,6 +39,7 @@ let combine_to_template = (edit_state: edit_state): edit_state => {
     @ ZExp.erase(edit_state.template)
     @ [UHExp.CommentLine("END_TEMPLATE")]
     @ edit_state.tester;
+    //TODO preserve cursor location
   {
     prelude: [],
     template: ZExp.place_before(new_template_unzipped),
