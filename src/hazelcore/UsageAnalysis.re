@@ -121,8 +121,7 @@ and find_tyuses_operand =
   | ListNil(_)
   | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(_)), _, _)
-  | ApPalette(_) => []
+  | Case(StandardErrStatus(InHole(_)), _, _) => []
   // | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, body) =>
     find_tyuses_pat(~steps=steps @ [0], name, p)
@@ -198,8 +197,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | ListNil(_)
   | Lam(InHole(_), _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(_)), _, _)
-  | ApPalette(_) => []
+  | Case(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)

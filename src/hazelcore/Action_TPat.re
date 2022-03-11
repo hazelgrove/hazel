@@ -60,7 +60,6 @@ let rec move = (a: Action.t, ztp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -78,7 +77,6 @@ let rec perform =
         : ActionOutcome.t((ZTPat.t, MetaVarGen.t)) =>
   switch (a, ztp) {
   | (
-      UpdateApPalette(_) |
       Construct(
         SCloseParens | SCloseBraces | SCloseSquareBracket | SCommentLine | SAnn |
         SLet |
@@ -88,7 +86,6 @@ let rec perform =
         SInj(_) |
         SCase |
         STyAlias |
-        SApPalette(_) |
         SList |
         SParenthesized,
       ) |

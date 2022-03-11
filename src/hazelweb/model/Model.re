@@ -283,7 +283,7 @@ let import_uhexp = (model: t, e: UHExp.t): t => {
     Program.mk(
       ~width=model.cell_width,
       Statics_Exp.fix_and_renumber_holes_z(
-        Contexts.empty,
+        Contexts.initial,
         ZExp.place_before(e),
       ),
     );

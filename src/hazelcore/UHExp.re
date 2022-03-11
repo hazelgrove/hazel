@@ -25,12 +25,9 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t)
-and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+  | Rule(UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -188,8 +185,7 @@ and get_err_status_operand =
   | ListNil(err)
   | Lam(err, _, _)
   | Inj(err, _, _)
-  | Case(StandardErrStatus(err), _, _)
-  | ApPalette(err, _, _, _) => err
+  | Case(StandardErrStatus(err), _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -214,14 +210,7 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  };
-
-let is_inconsistent = operand =>
-  switch (operand |> get_err_status_operand) {
-  | InHole(TypeInconsistent, _) => true
-  | _ => false
   };
 
 /* put e in a new hole, if it is not already in a hole */
@@ -247,8 +236,10 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
+      operand,
+      u_gen,
+    )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -262,8 +253,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       InconsistentBranches(_, _),
       _,
       _,
-    )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -340,8 +330,6 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body) && is_complete_rules(rules)
   | Parenthesized(body) => is_complete(body)
-  | ApPalette(InHole(_), _, _, _) => false
-  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
 }
 and is_complete = (exp: t): bool => {

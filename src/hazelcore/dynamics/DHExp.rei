@@ -61,6 +61,7 @@ type t =
   | FixF(Var.t, DHTyp.t, t)
   | Lam(DHPat.t, DHTyp.t, t)
   | Ap(t, t)
+  | ApBuiltin(string, list(t))
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)

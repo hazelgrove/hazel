@@ -1,9 +1,4 @@
-[@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
-let evaluate: DHExp.t => result;
+let evaluate: DHExp.t => EvaluatorResult.t;
 
 /* closed substitution [d1/x]d2*/
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;

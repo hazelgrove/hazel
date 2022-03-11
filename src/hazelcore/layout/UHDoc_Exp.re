@@ -231,7 +231,6 @@ module Make = (Memo: Memo.S) => {
                    );
               UHDoc_common.mk_Case(scrut, rules);
             }
-          | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
           }: UHDoc.t
         )
       )

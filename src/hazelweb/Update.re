@@ -132,7 +132,7 @@ let apply_action =
         Model.select_case_branch(path_to_case, branch_index, model)
       | Import(ast) =>
         let (ast, _, _) =
-          Statics_Exp.syn_fix_holes(Contexts.empty, MetaVarGen.init, ast);
+          Statics_Exp.syn_fix_holes(Contexts.initial, MetaVarGen.init, ast);
         Model.import_uhexp(model, ast);
       | ToggleImportPopup => Model.toggle_import_popup(model)
       | FocusCell => model |> Model.focus_cell

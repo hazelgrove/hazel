@@ -6,7 +6,7 @@ module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 let fix_ast_holes ast : UHExp.block option =
   match ast with
   | Some ast ->
-      let ast, _, _ = Statics_Exp.fix_and_renumber_holes Contexts.empty ast in
+      let ast, _, _ = Statics_Exp.fix_and_renumber_holes Contexts.initial ast in
       Some ast
   | None -> None
 

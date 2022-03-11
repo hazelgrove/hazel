@@ -157,7 +157,6 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -217,10 +216,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
-      Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
-      ) |
+      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
       SwapUp |
       SwapDown,
       _,
@@ -353,10 +349,8 @@ and perform_operand =
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
       Construct(
         SAnn | SLet | STyAlias | SLine | SLam | SListNil | SInj(_) | SCase |
-        SApPalette(_) |
         SCommentLine,
       ) |
       SwapUp |

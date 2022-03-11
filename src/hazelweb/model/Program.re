@@ -53,7 +53,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
+    CursorInfo_Exp.syn_cursor_info(Contexts.initial),
   );
 let get_cursor_info = (program: t) => {
   program
@@ -129,6 +129,17 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(ident, args) =>
+    let (hii, args) =
+      List.fold_right(
+        (d1, (hii, acc)) => {
+          let (d1, hii) = renumber_result_only(path, hii, d1);
+          (hii, [d1, ...acc]);
+        },
+        List.rev(args),
+        (hii, []),
+      );
+    (ApBuiltin(ident, args), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -230,6 +241,17 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(ident, args) =>
+    let (hii, args) =
+      List.fold_right(
+        (d1, (hii, acc)) => {
+          let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+          (hii, [d1, ...acc]);
+        },
+        List.rev(args),
+        (hii, []),
+      );
+    (ApBuiltin(ident, args), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -354,7 +376,7 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
+    Elaborator_Exp.elab(Contexts.initial, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
@@ -416,8 +438,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-
-  switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+  switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
