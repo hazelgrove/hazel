@@ -162,27 +162,6 @@ let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
   | (List(_), _) => false
   };
 
-/* context-dependent type equivalence */
-let rec equivalent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
-  switch (ty, ty') {
-  | (TyVar(_), TyVar(_)) =>
-    normalized_equivalent(normalize(tyvars, ty), normalize(tyvars, ty'))
-  | (TyVar(_), _) => false
-  | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
-  | (TyVarHole(_, _, _), _) => false
-  | (Hole | Int | Float | Bool, _) => ty == ty'
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    equivalent(tyvars, ty1, ty1') && equivalent(tyvars, ty2, ty2')
-  | (Arrow(_, _), _) => false
-  | (Sum(_, _), _) => false
-  | (Prod(tys1), Prod(tys2)) =>
-    List.for_all2(equivalent(tyvars), tys1, tys2)
-  | (Prod(_), _) => false
-  | (List(ty), List(ty')) => equivalent(tyvars, ty, ty')
-  | (List(_), _) => false
-  };
-
 /* type consistency for normalized types is context independent */
 let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
@@ -204,22 +183,12 @@ let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   | (List(_), _) => false
   };
 
-let rec consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
-  switch (ty, ty') {
-  | (TyVar(_), TyVar(_)) =>
-    normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'))
-  | (TyVar(_) | TyVarHole(_) | Hole, _)
-  | (_, TyVar(_) | TyVarHole(_) | Hole) => true
-  | (Int | Float | Bool, _) => ty == ty'
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    consistent(tyvars, ty1, ty1') && consistent(tyvars, ty2, ty2')
-  | (Arrow(_) | Sum(_), _) => false
-  | (Prod(tys), Prod(tys')) => List.for_all2(consistent(tyvars), tys, tys')
-  | (Prod(_), _) => false
-  | (List(ty1), List(ty1')) => consistent(tyvars, ty1, ty1')
-  | (List(_), _) => false
-  };
+/* context-dependent type equivalence */
+let equivalent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+  normalized_equivalent(normalize(tyvars, ty), normalize(tyvars, ty'));
+
+let consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+  normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
 
 let inconsistent = (tyvars: TyVarCtx.t, ty1: t, ty2: t): bool =>
   !consistent(tyvars, ty1, ty2);
