@@ -307,13 +307,20 @@ let tester_prelude_empty = (model: t): bool => {
 };
 
 // opening comment present and comes before also present closing comment
-// TODO(ygaitonde)
-let instructor_mode_comments_present = () /*model: t*/: bool => {
-  false;
+let instructor_mode_comments_present = (model: t): bool => {
+  let template = ZExp.erase(get_edit_state(model).template);
+  let start_idx =
+    ListUtil.index_of(template, UHExp.CommentLine("START_TEMPLATE"));
+  let end_idx =
+    ListUtil.index_of(template, UHExp.CommentLine("END_TEMPLATE"));
+  switch (start_idx, end_idx) {
+  | (Some(start), Some(ending)) => start < ending
+  | _ => false
+  };
 };
 
 let in_instructor_mode = (model: t): bool => {
-  tester_prelude_empty(model) && instructor_mode_comments_present() /*model*/;
+  tester_prelude_empty(model) && instructor_mode_comments_present(model);
 };
 
 /*

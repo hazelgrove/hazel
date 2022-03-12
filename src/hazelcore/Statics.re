@@ -27,7 +27,7 @@ let split_edit_states = (edit_state: edit_state): edit_state => {
     );
   let (template, tester) =
     ListUtil.split_at(rest, UHExp.CommentLine("END_TEMPLATE"));
-    //TODO preserve cursor location
+  //TODO preserve cursor location
   {...edit_state, prelude, template: ZExp.place_before(template), tester};
 };
 
@@ -39,7 +39,7 @@ let combine_to_template = (edit_state: edit_state): edit_state => {
     @ ZExp.erase(edit_state.template)
     @ [UHExp.CommentLine("END_TEMPLATE")]
     @ edit_state.tester;
-    //TODO preserve cursor location
+  //TODO preserve cursor location
   {
     prelude: [],
     template: ZExp.place_before(new_template_unzipped),

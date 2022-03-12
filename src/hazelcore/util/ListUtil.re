@@ -288,3 +288,9 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
+
+let rec index_of = (~acc=0, xs: list('a), n: 'a): option(int) =>
+  switch (xs) {
+  | [] => None
+  | [hd, ...tl] => hd == n ? Some(acc) : index_of(~acc=acc + 1, tl, n)
+  };

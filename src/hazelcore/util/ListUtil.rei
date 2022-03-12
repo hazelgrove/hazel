@@ -109,3 +109,5 @@ let map_with_accumulator_opt:
 let disjoint_pairs: list('x) => list(('x, 'x));
 
 let rotate: list('x) => list('x);
+
+let index_of: (~acc: int=?, list('a), 'a) => option(int);
