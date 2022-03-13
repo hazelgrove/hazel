@@ -42,3 +42,7 @@ let shift_end: t('a, 'a) => t('a, 'a);
 let shift_begin: t('a, 'a) => t('a, 'a);
 
 let shift_to: (int, t('a, 'a)) => option(t('a, 'a));
+
+let prepend: (list('a), t('z, 'a)) => t('z, 'a);
+
+let append: (list('a), t('z, 'a)) => t('z, 'a);

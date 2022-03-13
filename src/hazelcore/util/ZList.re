@@ -141,3 +141,12 @@ let shift_to = (n: int, xs: t('a, 'a)): option(t('a, 'a)) => {
   let lst = prefix @ [z, ...suffix];
   split_at(n, lst);
 };
+
+let prepend = (n: list('a), xs: t('z, 'a)): t('z, 'a) => {
+  let (prefix, z, suffix) = xs;
+  (prefix @ List.rev(n), z, suffix);
+};
+let append = (n: list('a), xs: t('z, 'a)): t('z, 'a) => {
+  let (prefix, z, suffix) = xs;
+  (prefix, z, suffix @ n);
+};

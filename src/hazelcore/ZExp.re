@@ -987,3 +987,7 @@ let zline_is_just_empty_hole = (zline: zline): bool =>
     true
   | _ => false
   };
+
+let prepend = (exp: UHExp.t, zexp: t): t => ZList.prepend(exp, zexp);
+
+let append = (exp: UHExp.t, zexp: t) => ZList.append(exp, zexp);

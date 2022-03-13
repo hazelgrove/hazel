@@ -51,10 +51,8 @@ let combine_to_template = (edit_state: edit_state): edit_state => {
 
 // combine edit states into one zexp
 let merge_edit_states = (state: edit_state): ZExp.t => {
-  let unzipped_template = ZExp.erase(state.template);
-
-  // TODO: place cursor where it was before
-  ZExp.place_before(state.prelude @ unzipped_template @ state.tester);
+  let prepended = ZExp.prepend(state.prelude, state.template);
+  ZExp.append(state.tester, prepended);
 };
 
 // convert new edit state into the old edit state that the evaluator uses
