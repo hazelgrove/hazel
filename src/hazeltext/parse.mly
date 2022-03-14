@@ -153,7 +153,7 @@ typ_:
     | "Int" -> UHTyp.Int
     | "Bool" -> UHTyp.Bool
     | "Float" -> UHTyp.Float
-    | _ -> failwith ("Unknown Type: "^$1)
+    | _ -> UHTyp.TyVar (NotInHole 0, $1)
   }
   | EMPTY_HOLE { UHTyp.Hole }
 ;
