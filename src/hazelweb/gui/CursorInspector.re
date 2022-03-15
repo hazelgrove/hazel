@@ -427,9 +427,24 @@ let novice_summary =
         emphasize_text(~only_right=true, "Rule"),
       ]
     | OnTPatHole => [
-        Node.text("Got " ++ article),
+        Node.text("Expecting a"),
+        emphasize_text("Type Pattern"),
         term_tag,
-        emphasize_text(~only_right=true, "Type Pattern Hole"),
+        Node.text("Got a "),
+        emphasize_text("Type Pattern Hole"),
+      ]
+    | OnTPat(Some(InHole(reason, _))) => [
+        Node.text("Expecting a"),
+        emphasize_text("Type Pattern"),
+        term_tag,
+        Node.text(" but got " ++ article),
+        emphasize_text(
+          switch (reason) {
+          | ReservedKeyword => "Reserved Keyword"
+          | BuiltinType => "Builtin Type"
+          | InvalidName => "Invalid Type Name"
+          },
+        ),
       ]
     | OnTPat(_) => [
         Node.text("Got " ++ article),
@@ -437,14 +452,18 @@ let novice_summary =
         emphasize_text(~only_right=true, "Type Pattern"),
       ]
     | TypFree => [
-        Node.text("Got " ++ article),
+        Node.text("Expecting a"),
+        emphasize_text("Type"),
         term_tag,
-        emphasize_text(~only_right=true, "Free Type Variable"),
+        Node.text(" but got " ++ article),
+        emphasize_text("Free Type Variable"),
       ]
     | TypKeyword(_) => [
-        Node.text("Got " ++ article),
+        Node.text("Expecting a"),
+        emphasize_text("Type"),
         term_tag,
-        emphasize_text(~only_right=true, "Type Keyword"),
+        Node.text(" but got " ++ article),
+        emphasize_text("Reserved Keyword"),
       ]
     };
   };
