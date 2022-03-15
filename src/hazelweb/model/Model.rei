@@ -5,6 +5,7 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  instructor_mode_open: bool,
   font_metrics: FontMetrics.t,
   /**
    * Preview on undo history entry mainly implemented by

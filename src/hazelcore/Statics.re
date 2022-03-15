@@ -33,16 +33,15 @@ let split_edit_states = (edit_state: edit_state): edit_state => {
 
 // Merge split edit states into one, and re insert comments
 let combine_to_template = (edit_state: edit_state): edit_state => {
-  let new_template_unzipped =
-    edit_state.prelude
-    @ [UHExp.CommentLine("START_TEMPLATE")]
-    @ ZExp.erase(edit_state.template)
-    @ [UHExp.CommentLine("END_TEMPLATE")]
-    @ edit_state.tester;
-  //TODO preserve cursor location
+  let new_prelude =
+    [UHExp.CommentLine("START_TEMPLATE")] @ edit_state.prelude;
+  let new_tester = [UHExp.CommentLine("END_TEMPLATE")] @ edit_state.prelude;
+  let prepended = ZExp.prepend(new_prelude, edit_state.template);
+  let new_template = ZExp.append(new_tester, prepended);
+  //TODO fix why this doesn't elaborate
   {
     prelude: [],
-    template: ZExp.place_before(new_template_unzipped),
+    template: new_template,
     tester: [],
     id_gen: IDGen.init,
     ty: Hole,

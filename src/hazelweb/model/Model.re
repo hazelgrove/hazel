@@ -1,3 +1,5 @@
+module Js = Js_of_ocaml.Js;
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -5,6 +7,7 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  instructor_mode_open: bool,
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
@@ -73,6 +76,7 @@ let init = (): t => {
     undo_history,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    instructor_mode_open: false,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -311,12 +315,6 @@ let instructor_mode_comments_present = (model: t): bool => {
   };
 };
 
-let in_instructor_mode = (model: t) => {
-  let edit_state = get_edit_state(model);
-  edit_state.prelude == UHExp.empty_block
-  && edit_state.tester == UHExp.empty_block;
-};
-
 /*
   we're in student mode if either the prelude or tester are nonempty
   if we're in instructor mode, switch to student mode - split the edit states based on comments
@@ -329,11 +327,18 @@ let toggle_instructor_mode = (model: t): t => {
          are exactly two comments meeting the specification
          and that the tester and prelude are empty
        */
-    if (in_instructor_mode(model) && instructor_mode_comments_present(model)) {
+    if (model.instructor_mode_open && instructor_mode_comments_present(model)) {
       get_edit_state(model) |> Statics.split_edit_states;
     } else {
       get_edit_state(model) |> Statics.combine_to_template;
     };
   let new_program = Program.put_edit_state(new_edit_state, program);
-  put_program(new_program, model);
+  let new_model = put_program(new_program, model);
+  new_model
+  |> get_program
+  |> Program.get_uhexp
+  |> Serialization.string_of_exp
+  |> Js.string
+  |> JSUtil.log;
+  {...new_model, instructor_mode_open: !model.instructor_mode_open};
 };
