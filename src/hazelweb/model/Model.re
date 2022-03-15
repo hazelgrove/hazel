@@ -298,14 +298,6 @@ let load_undo_history =
   |> map_selected_instances(update_selected_instances);
 };
 
-/* instructor mode -> student mode, we assume that
-     are exactly two comments meeting the specification
-     and that the tester and prelude are empty
-   */
-let tester_prelude_empty = (model: t): bool => {
-  get_edit_state(model).prelude == UHExp.empty_block;
-};
-
 // opening comment present and comes before also present closing comment
 let instructor_mode_comments_present = (model: t): bool => {
   let template = ZExp.erase(get_edit_state(model).template);
@@ -319,8 +311,10 @@ let instructor_mode_comments_present = (model: t): bool => {
   };
 };
 
-let in_instructor_mode = (model: t): bool => {
-  tester_prelude_empty(model) && instructor_mode_comments_present(model);
+let in_instructor_mode = (model: t) => {
+  let edit_state = get_edit_state(model);
+  edit_state.prelude == UHExp.empty_block
+  && edit_state.tester == UHExp.empty_block;
 };
 
 /*
@@ -331,7 +325,11 @@ let in_instructor_mode = (model: t): bool => {
 let toggle_instructor_mode = (model: t): t => {
   let program = get_program(model);
   let new_edit_state =
-    if (in_instructor_mode(model)) {
+    /* instructor mode -> student mode, we assume that
+         are exactly two comments meeting the specification
+         and that the tester and prelude are empty
+       */
+    if (in_instructor_mode(model) && instructor_mode_comments_present(model)) {
       get_edit_state(model) |> Statics.split_edit_states;
     } else {
       get_edit_state(model) |> Statics.combine_to_template;
