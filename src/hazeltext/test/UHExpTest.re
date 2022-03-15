@@ -6,12 +6,14 @@ let read = (ctx: Contexts.t, text: string): option(UHExp.t) => {
   switch (Parsing.ast_of_string_with_contexts(ctx, text)) {
   | Ok(e) =>
     if (verbose) {
-      print_endline("PARSED:");
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
+      Format.printf(
+        "PARSED:\n%s\n",
+        Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)),
+      );
     };
     Some(e);
   | Error(msg) =>
-    print_endline("PARSER " ++ msg);
+    Format.printf("PARSER %s\n", msg);
     None;
   };
 };

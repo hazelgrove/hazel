@@ -117,8 +117,10 @@ let report =
         | SyntaxError(msg) => Printf.printf("SYNTAX %s", msg)
         | ParseFailed(msg) => Printf.printf("Parse Failed: %s", msg)
         | CantFollowPath =>
-          print_endline("Can't Follow Cursor Path: ");
-          print_endline(show_sexp(CursorPath.sexp_of_t(path)));
+          Format.printf(
+            "Can't Follow Cursor Path: %s",
+            show_sexp(CursorPath.sexp_of_t(path)),
+          )
         | ActionFailed(i, action, ze) =>
           Printf.printf(
             "Action %i Failed: %s\nOn ZExp:\n%s",

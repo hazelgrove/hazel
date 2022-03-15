@@ -7,18 +7,22 @@ let read = (ty_text: string): option(HTyp.t) => {
   switch (Parsing.ast_of_string(e_text)) {
   | Ok([LetLine(OpSeq(_, S(TypeAnn(_, _, uty), E)), _), _]) =>
     if (verbose) {
-      print_endline("EXTRACTED:");
-      print_endline(Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_t(uty)));
+      Format.printf(
+        "EXTRACTED:\n%s\n",
+        Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_t(uty)),
+      );
     };
     Some(UHTyp.expand(uty));
   | Ok(e) =>
     if (verbose) {
-      print_endline("PARSED:");
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
+      Format.printf(
+        "PARSED:\n%s\n",
+        Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)),
+      );
     };
     None;
   | Error(msg) =>
-    print_endline("PARSER " ++ msg);
+    Format.printf("PARSER %s\n", msg);
     None;
   };
 };

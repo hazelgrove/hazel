@@ -45,8 +45,14 @@ let test_tyvar_actions =
         let+ i = TyVarCtx.index(tyvars, name);
         let t = HTyp.tyvar(i, name);
         if (verbose) {
-          print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_t(ze)));
-          print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+          Format.printf(
+            "%s\n",
+            Sexplib.Sexp.to_string_hum(ZExp.sexp_of_t(ze)),
+          );
+          Format.printf(
+            "%s\n",
+            Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)),
+          );
         };
         HTyp.equivalent(tyvars, ty, t);
       | Error(_) => None
