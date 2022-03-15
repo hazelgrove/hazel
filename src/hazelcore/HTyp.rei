@@ -55,6 +55,9 @@ let product: list(t) => t;
 let list: t => t;
 
 let is_hole: t => bool;
+let is_tyvar: t => bool;
+
+let tyvar_name: t => option(string);
 
 let precedence_Prod: int;
 let precedence_Arrow: int;

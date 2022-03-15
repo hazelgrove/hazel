@@ -15,7 +15,12 @@ let view =
   /**
    * Shows typing info for a context entry.
    */
-  let static_info = ((x, ty)) =>
+  let static_info = ((x, ty)) => {
+    let tyvars =
+      program
+      |> Program.get_cursor_info
+      |> CursorInfo_common.get_ctx
+      |> Contexts.tyvars;
     Node.div(
       [Attr.classes(["static-info"])],
       [
@@ -25,10 +30,27 @@ let view =
             Node.span([Attr.classes(["var"])], [Node.text(x)]),
             Node.text(" : "),
             HTypCode.view(~width=30, ~pos=Var.length(x) + 3, ty),
-          ],
+          ]
+          @ (
+            HTyp.is_tyvar(ty)
+              ? [
+                Node.text(" = "),
+                HTypCode.view(
+                  ~width=30,
+                  ~pos=
+                    String.length(
+                      HTyp.tyvar_name(ty) |> Option.value(~default="???"),
+                    )
+                    + 3,
+                  HTyp.of_head_normalized(HTyp.head_normalize(tyvars, ty)),
+                ),
+              ]
+              : []
+          ),
         ),
       ],
     );
+  };
 
   /**
    * Shows runtime value for a context entry.

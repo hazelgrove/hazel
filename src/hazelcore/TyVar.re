@@ -14,6 +14,7 @@ module Status = {
     | NotInHole(Index.t)
     | InHole(HoleReason.t, MetaVar.t);
 };
+
 let valid_name: string => bool = {
   let re = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
   s => Re.Str.string_match(re, s, 0);

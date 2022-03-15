@@ -78,6 +78,25 @@ let product = (tys: list(t)): t => Prod(tys);
 let list = (ty: t): t => List(ty);
 
 let is_hole = (ty: t): bool => ty == Hole;
+let is_tyvar = (ty: t): bool =>
+  switch (ty) {
+  | TyVar(_) => true
+  | _ => false
+  };
+
+let tyvar_name = (ty: t): option(string) =>
+  switch (ty) {
+  | TyVar(_, name) => Some(name)
+  | TyVarHole(_)
+  | Hole
+  | Int
+  | Float
+  | Bool
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | List(_) => None
+  };
 
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
