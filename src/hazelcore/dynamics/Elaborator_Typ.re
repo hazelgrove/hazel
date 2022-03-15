@@ -141,7 +141,10 @@ and syn_fix_holes_operand =
   | TyVar(NotInHole(i), name) =>
     let k' = Kind.singleton(HTyp.tyvar(i, name));
     switch (TyVarCtx.kind(tyvars, i)) {
-    | Some(k) when Kind.consistent_subkind(tyvars, k', k) => (
+    | Some(k)
+        when
+          TyVarCtx.name(tyvars, i) == Some(name)
+          && Kind.consistent_subkind(tyvars, k', k) => (
         operand,
         k',
         u_gen,

@@ -44,6 +44,9 @@ let binding = (tyvars: t, i: Index.t): option((string, KindCore.t)) =>
 let kind = (vars: t, i: Index.t): option(KindCore.t) =>
   List.nth_opt(vars, i) |> Option.map(snd);
 
+let name = (tyvars: t, i: Index.t): option(string) =>
+  List.nth_opt(tyvars, i) |> Option.map(fst);
+
 let rec index = (tyvars: t, name: string): option(Index.t) =>
   switch (tyvars) {
   | [] => None
