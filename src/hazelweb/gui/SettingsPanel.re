@@ -62,6 +62,15 @@ let view =
             evaluation.evaluate,
           ),
           labeled_checkbox(
+            ~id="show_kinds",
+            ~classes=["indented-option"],
+            ~label="Show kinds",
+            ~on_change=
+              () => inject(UpdateSettings(Evaluation(Toggle_show_kinds))),
+            ~disabled=!evaluation.evaluate,
+            evaluation.show_kinds,
+          ),
+          labeled_checkbox(
             ~id="show_case_clauses",
             ~classes=["indented-option"],
             ~label="Show case clauses",

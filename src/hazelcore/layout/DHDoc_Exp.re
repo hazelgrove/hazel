@@ -257,31 +257,39 @@ let rec mk =
         ]);
       | TyAlias(p, (tyvars, ty), dbody) =>
         vseps([
-          hcats([
-            DHDoc_common.Delim.mk("type"),
-            DHDoc_TPat.mk(p)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.mk("="),
-            DHDoc_Typ.mk(ty)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline=false,
-               ),
-            DHDoc_common.Delim.mk("::"),
-            switch (Statics_Typ.syn(tyvars, ty)) {
-            | Some(k) =>
-              DHDoc_Kind.mk(k)
+          hcats(
+            [
+              DHDoc_common.Delim.mk("type"),
+              DHDoc_TPat.mk(p)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
-                 )
-            | None => failwith("can't synthesize kind of TyAlias type")
-            },
-            DHDoc_common.Delim.mk("in"),
-          ]),
+                 ),
+              DHDoc_common.Delim.mk("="),
+              DHDoc_Typ.mk(ty)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+            ]
+            @ (
+              settings.show_kinds
+                ? [
+                  DHDoc_common.Delim.mk("::"),
+                  switch (Statics_Typ.syn(tyvars, ty)) {
+                  | Some(k) =>
+                    DHDoc_Kind.mk(k)
+                    |> DHDoc_common.pad_child(
+                         ~inline_padding=(space(), space()),
+                         ~enforce_inline,
+                       )
+                  | None => failwith("can't synthesize kind of TyAlias type")
+                  },
+                ]
+                : []
+            )
+            @ [DHDoc_common.Delim.mk("in")],
+          ),
           mk_cast(go(~enforce_inline=false, dbody)),
         ])
       | FailedCast(Cast(d, (_, ty1), dty2), dty2', (_, ty3))
