@@ -1113,19 +1113,19 @@ and syn_perform_line =
       }
     }
   | (_, TyAliasLineT(tp, zty)) =>
-    switch (
-      Elaborator_Typ.syn_elab(
-        Contexts.tyvars(ctx),
-        Delta.empty,
-        ZTyp.erase(zty),
-      )
-    ) {
-    | None => Failed
-    | Some((_, k, _)) =>
-      switch (Action_Typ.perform(ctx, a, zty, u_gen)) {
-      | Failed => Failed
-      | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded((new_zty, ctx, u_gen)) =>
+    switch (Action_Typ.perform(ctx, a, zty, u_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((new_zty, ctx, u_gen)) =>
+      switch (
+        Elaborator_Typ.syn_elab(
+          Contexts.tyvars(ctx),
+          Delta.empty,
+          ZTyp.erase(new_zty),
+        )
+      ) {
+      | None => Failed
+      | Some((_, k, _)) =>
         let (body_ctx, new_p, u_gen) =
           Statics_TPat.fix_holes(ctx, tp, k, u_gen);
         let new_zline = ZExp.TyAliasLineT(new_p, new_zty);
