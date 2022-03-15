@@ -11,7 +11,7 @@ let tuple_zip =
     (
       ~get_tuple_elements: Skel.t('op) => list(Skel.t('op)),
       skel: Skel.t('op),
-      ty: HTyp.t,
+      ty: HTyp.head_normalized,
     )
     : option(list((Skel.t('op), HTyp.t))) => {
   let skels = skel |> get_tuple_elements;
@@ -20,7 +20,7 @@ let tuple_zip =
   | Some(_) as zipped => zipped
   | None =>
     switch (skels, tys) {
-    | ([_], _) => Some([(skel, ty)])
+    | ([_], _) => Some([(skel, HTyp.of_head_normalized(ty))])
     | (_, [ty]) when HTyp.is_hole(ty) =>
       skels |> List.map(skel => (skel, HTyp.hole)) |> Option.some
     | _ => None

@@ -544,8 +544,9 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   // handle n-tuples
-  switch (Statics_Exp.tuple_zip(skel, ty)) {
+  switch (Statics_Exp.tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
@@ -579,7 +580,7 @@ and ana_elab_opseq =
         }
     )
   | None =>
-    if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+    if (List.length(HTyp.get_prod_elements(ty_h)) == 1) {
       skel
       |> UHExp.get_tuple_elements
       |> List.fold_left(

@@ -730,6 +730,7 @@ and ana_cursor_info_zopseq =
     )
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_zseq(zseq);
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -739,7 +740,7 @@ and ana_cursor_info_zopseq =
     | NotInHole =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | InHole(WrongLength, _) =>
-      let expected_length = ty |> HTyp.get_prod_elements |> List.length;
+      let expected_length = ty_h |> HTyp.get_prod_elements |> List.length;
       let got_length = skel |> UHExp.get_tuple_elements |> List.length;
       Some(
         CursorInfo_common.mk(
@@ -761,7 +762,7 @@ and ana_cursor_info_zopseq =
     };
   | _ =>
     // cursor in tuple element
-    switch (Statics_Exp.tuple_zip(skel, ty)) {
+    switch (Statics_Exp.tuple_zip(skel, ty_h)) {
     | None =>
       // wrong length, switch to syn
       let zopseq_not_in_hole =

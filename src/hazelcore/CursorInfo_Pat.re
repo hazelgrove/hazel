@@ -251,6 +251,7 @@ and ana_cursor_info_zopseq =
   // but we want all comma operators in an opseq to
   // show the complete product type
   let seq = zseq |> ZPat.erase_zseq;
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -268,7 +269,7 @@ and ana_cursor_info_zopseq =
         ),
       )
     | InHole(WrongLength, _) =>
-      let expected_length = List.length(HTyp.get_prod_elements(ty));
+      let expected_length = List.length(HTyp.get_prod_elements(ty_h));
       let got_length = List.length(UHPat.get_tuple_elements(skel));
       Some(
         CursorNotOnDeferredVarPat(
@@ -294,7 +295,7 @@ and ana_cursor_info_zopseq =
     };
   | _ =>
     // cursor in tuple element
-    switch (Statics_Pat.tuple_zip(skel, ty)) {
+    switch (Statics_Pat.tuple_zip(skel, ty_h)) {
     | None =>
       // wrong length, switch to syn
       let zopseq_not_in_hole =

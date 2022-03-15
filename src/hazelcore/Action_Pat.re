@@ -946,7 +946,8 @@ and ana_perform_opseq =
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1040,16 +1041,16 @@ and ana_perform_opseq =
       when
         ZPat.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
-        && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+        && List.length(HTyp.get_prod_elements(ty_h)) >= 2 =>
     let (OpSeq(_, seq), ctx, u_gen) =
       Statics_Pat.ana_fix_holes_opseq(
         ctx,
         u_gen,
         zopseq |> ZPat.erase_zopseq,
         // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
+        ty_h |> HTyp.get_prod_elements |> List.hd,
       );
-    let (new_zopseq, u_gen) = complete_tuple(u_gen, seq, ty);
+    let (new_zopseq, u_gen) = complete_tuple(u_gen, seq, ty_h);
     Succeeded((new_zopseq, ctx, u_gen));
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
@@ -1150,7 +1151,8 @@ and ana_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_operand =
     (
       ctx: Contexts.t,
@@ -1159,7 +1161,8 @@ and ana_perform_operand =
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1347,8 +1350,8 @@ and ana_perform_operand =
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty);
+      when List.length(HTyp.get_prod_elements(ty_h)) >= 2 =>
+    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty_h);
     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
     mk_ana_result(ctx, u_gen, new_zp, ty);
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -1537,3 +1540,4 @@ and ana_perform_operand =
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

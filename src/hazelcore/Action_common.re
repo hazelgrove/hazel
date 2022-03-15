@@ -284,7 +284,7 @@ let complete_tuple_ =
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       first_seq: Seq.t('operand, 'operator),
-      ty: HTyp.t,
+      ty: HTyp.head_normalized,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   let (new_suffix: Seq.affix(_), u_gen) = {

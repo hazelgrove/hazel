@@ -2558,7 +2558,8 @@ and ana_perform_opseq =
       (ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2694,16 +2695,16 @@ and ana_perform_opseq =
       when
         ZExp.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
-        && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+        && List.length(HTyp.get_prod_elements(ty_h)) >= 2 =>
     let (OpSeq(_, opseq), u_gen) =
       Statics_Exp.ana_fix_holes_opseq(
         ctx,
         u_gen,
         zopseq |> ZExp.erase_zopseq,
         // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
+        ty_h |> HTyp.get_prod_elements |> List.hd,
       );
-    let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+    let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty_h);
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
 
   | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
@@ -2891,7 +2892,8 @@ and ana_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_operand =
     (
       ctx: Contexts.t,
@@ -2899,7 +2901,8 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3098,8 +3101,8 @@ and ana_perform_operand =
   | (Construct(SAnn), CursorE(_)) => Failed
 
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty);
+      when List.length(HTyp.get_prod_elements(ty_h)) >= 2 =>
+    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty_h);
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
@@ -3408,7 +3411,8 @@ and ana_perform_operand =
 
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform_subsume =
     (
       ctx: Contexts.t,

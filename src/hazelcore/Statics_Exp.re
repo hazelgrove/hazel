@@ -216,10 +216,11 @@ and ana_block =
 }
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
-    : option(unit) =>
-  switch (tuple_zip(skel, ty)) {
+    : option(unit) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  switch (tuple_zip(skel, ty_h)) {
   | None =>
-    switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+    switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty_h)) {
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
@@ -233,7 +234,8 @@ and ana_opseq =
       |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
       |> OptUtil.sequence;
     ();
-  }
+  };
+}
 and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
@@ -291,7 +293,11 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+    ty
+    |> HTyp.head_normalize(Contexts.tyvars(ctx))
+    |> HTyp.get_prod_elements
+    |> List.length > 1
+      ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
@@ -423,7 +429,7 @@ and ana_nth_type_mode =
     )
     : option(Statics.type_mode) => {
   // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
+  switch (tuple_zip(skel, HTyp.head_normalize(Contexts.tyvars(ctx), ty))) {
   | None =>
     syn_nth_type_mode(ctx, n, UHExp.set_err_status_opseq(NotInHole, opseq))
   | Some(skel_tys) =>
@@ -962,8 +968,9 @@ and ana_fix_holes_opseq =
       ty: HTyp.t,
     )
     : (UHExp.opseq, MetaVarGen.t) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
+  switch (tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
@@ -992,7 +999,7 @@ and ana_fix_holes_opseq =
         }
     )
   | None =>
-    if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+    if (List.length(HTyp.get_prod_elements(ty_h)) == 1) {
       skel
       |> UHExp.get_tuple_elements
       |> List.fold_left(

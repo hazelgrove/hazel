@@ -96,10 +96,11 @@ and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
-    : option(Contexts.t) =>
-  switch (tuple_zip(skel, ty)) {
+    : option(Contexts.t) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  switch (tuple_zip(skel, ty_h)) {
   | None =>
-    switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+    switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty_h)) {
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
@@ -116,7 +117,8 @@ and ana_opseq =
          },
          Some(ctx),
        )
-  }
+  };
+}
 and ana_skel =
     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
     : option(Contexts.t) =>
@@ -164,7 +166,11 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
+    ty
+    |> HTyp.head_normalize(Contexts.tyvars(ctx))
+    |> HTyp.get_prod_elements
+    |> List.length > 1
+      ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
@@ -235,7 +241,7 @@ and ana_nth_type_mode =
     )
     : option(Statics.type_mode) => {
   // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
+  switch (tuple_zip(skel, HTyp.head_normalize(Contexts.tyvars(ctx), ty))) {
   | None =>
     syn_nth_type_mode(ctx, n, UHPat.set_err_status_opseq(NotInHole, opseq))
   | Some(skel_tys) =>
@@ -470,8 +476,9 @@ and ana_fix_holes_opseq =
       ty: HTyp.t,
     )
     : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
+  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
   // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
+  switch (tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
@@ -505,7 +512,7 @@ and ana_fix_holes_opseq =
         }
     )
   | None =>
-    if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+    if (List.length(HTyp.get_prod_elements(ty_h)) == 1) {
       skel
       |> UHPat.get_tuple_elements
       |> List.fold_left(

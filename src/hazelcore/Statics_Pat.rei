@@ -1,4 +1,5 @@
-let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
+let tuple_zip:
+  (UHPat.skel, HTyp.head_normalized) => option(list((UHPat.skel, HTyp.t)));
 
 /**
  * Get type mode of nth operand of an opseq in synthetic position

@@ -69,8 +69,8 @@ let normalized_equivalent: (normalized, normalized) => bool;
 let consistent: (TyVarCtx.t, t, t) => bool;
 let equivalent: (TyVarCtx.t, t, t) => bool;
 
-let get_prod_elements: t => list(t);
-let get_prod_arity: t => int;
+let get_prod_elements: head_normalized => list(t);
+let get_prod_arity: head_normalized => int;
 
 let matched_arrow: (TyVarCtx.t, t) => option((t, t));
 let matched_sum: (TyVarCtx.t, t) => option((t, t));

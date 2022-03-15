@@ -209,10 +209,10 @@ let matched_arrow = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
   | _ => None
   };
 
-let get_prod_elements: t => list(t) =
+let get_prod_elements: head_normalized => list(t) =
   fun
   | Prod(tys) => tys
-  | _ as ty => [ty];
+  | _ as ty => [of_head_normalized(ty)];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
