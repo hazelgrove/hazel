@@ -40,10 +40,7 @@ let combine_to_template = (edit_state: edit_state): edit_state => {
       [UHExp.CommentLine("END_TEMPLATE")]
       @ UHExp.Block.wrap(UHExp.EmptyHole(0));
     } else {
-      {
-        [UHExp.CommentLine("END_TEMPLATE")] @ edit_state.tester;
-      }
-      @ edit_state.tester;
+      [UHExp.CommentLine("END_TEMPLATE")] @ edit_state.tester;
     };
   let prepended = ZExp.prepend(new_prelude, edit_state.template);
   let new_template = ZExp.append(new_tester, prepended);

@@ -220,7 +220,6 @@ let perform_edit_action = (a, program) => {
     let new_edit_state: Statics.edit_state =
       if (UHExp.is_complete(ZExp.erase(new_template))) {
         {
-          // (new_template, ty, IDGen.reset_metavar(id_gen));
           prelude: edit_state.prelude,
           template: new_template,
           tester: edit_state.tester,
@@ -229,7 +228,6 @@ let perform_edit_action = (a, program) => {
         };
       } else {
         {
-          // (new_template, ty, id_gen);
           prelude: edit_state.prelude,
           template: new_template,
           tester: edit_state.tester,
