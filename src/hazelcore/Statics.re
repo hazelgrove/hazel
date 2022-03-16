@@ -35,14 +35,22 @@ let split_edit_states = (edit_state: edit_state): edit_state => {
 let combine_to_template = (edit_state: edit_state): edit_state => {
   let new_prelude =
     [UHExp.CommentLine("START_TEMPLATE")] @ edit_state.prelude;
-  let new_tester = [UHExp.CommentLine("END_TEMPLATE")] @ edit_state.prelude;
+  let new_tester =
+    if (edit_state.tester == UHExp.empty_block) {
+      [UHExp.CommentLine("END_TEMPLATE")]
+      @ UHExp.Block.wrap(UHExp.EmptyHole(0));
+    } else {
+      {
+        [UHExp.CommentLine("END_TEMPLATE")] @ edit_state.tester;
+      }
+      @ edit_state.tester;
+    };
   let prepended = ZExp.prepend(new_prelude, edit_state.template);
   let new_template = ZExp.append(new_tester, prepended);
-  //TODO fix why this doesn't elaborate
   {
-    prelude: [],
+    prelude: UHExp.empty_block,
     template: new_template,
-    tester: [],
+    tester: UHExp.empty_block,
     id_gen: IDGen.init,
     ty: Hole,
   };

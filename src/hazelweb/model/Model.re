@@ -334,11 +334,5 @@ let toggle_instructor_mode = (model: t): t => {
     };
   let new_program = Program.put_edit_state(new_edit_state, program);
   let new_model = put_program(new_program, model);
-  new_model
-  |> get_program
-  |> Program.get_uhexp
-  |> Serialization.string_of_exp
-  |> Js.string
-  |> JSUtil.log;
   {...new_model, instructor_mode_open: !model.instructor_mode_open};
 };
