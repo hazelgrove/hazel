@@ -163,11 +163,14 @@ let view =
     )
     : t => {
   let dhcode_view = dhcode_view(~inject, ~model);
+  let header_text =
+    model.instructor_mode_open
+      ? "Tests (Instructor Mode)" : "Tests (Student Mode)";
   div_if(
     test_map != [],
     [Attr.classes(["panel", "test-panel"])],
     [
-      Panel.view_of_main_title_bar("Tests"),
+      Panel.view_of_main_title_bar(header_text),
       test_reports_view(~inject, ~test_path, ~dhcode_view, test_map),
       test_summary(~inject, ~test_path, ~test_map),
     ],
