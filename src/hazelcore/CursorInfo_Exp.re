@@ -623,7 +623,7 @@ and syn_cursor_info_zoperand =
   | IfZ1(_, t1, _, _) =>
     ana_cursor_info(~steps=steps @ [0], ctx, t1, HTyp.Bool)
   | IfZ2(_, _, t2, _) => syn_cursor_info(~steps=steps @ [1], ctx, t2)
-  | IfZ3(_, _, _, t3) => syn_cursor_info(~steps=steps @ [1], ctx, t3)
+  | IfZ3(_, _, _, t3) => syn_cursor_info(~steps=steps @ [2], ctx, t3)
   };
 }
 and ana_cursor_info =
