@@ -36,9 +36,12 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let selected_hole_closure = Model.get_selected_hole_closure(model);
   let (_, ty, _) = program.edit_state;
   let result =
-    settings.evaluation.show_unevaluated_elaboration
-      ? program |> Program.get_elaboration
-      : program |> Program.get_result |> Result.get_dhexp;
+    if (settings.evaluation.show_unevaluated_elaboration) {
+      let (d, _) = program |> Program.get_elaboration;
+      d;
+    } else {
+      program |> Program.get_result |> Result.get_dhexp;
+    };
   div(
     [],
     [

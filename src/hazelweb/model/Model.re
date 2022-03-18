@@ -166,17 +166,19 @@ let select_hole_closure = ((u, i): HoleClosure.t, model: t): t =>
 let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
+    /* Decide between regular evaluation or fill-and-resume. */
     let old_result = Program.get_result(old_program);
-    let new_result = Program.get_result(new_program);
+    let new_result =
+      switch (FillAndResume.is_fill_viable(old_program, new_program)) {
+      | None => new_program |> Program.get_result
+      | Some((e, u)) => old_result |> FillAndResume.fill(e, u)
+      };
+
+    /* Do not reset selected hole instances if the program result does
+       not change (e.g., for a move action). */
     let si =
       Result.fast_equals(old_result, new_result)
         ? si : UserSelectedInstances.init;
-    /* TimeUtil.measure_time("Result.fast_equals", true, () =>
-         Result.fast_equals(old_result, new_result)
-           ? si : UserSelectedInstances.init
-       ); */
-    /* TODO: remove timing here */
-    /* Compare performance to old_result == new_result */
 
     switch (
       model.settings.evaluation.evaluate,

@@ -97,10 +97,10 @@ let elaborate =
     ~cache_size_bound=1000,
     Elaborator_Exp.elab(Contexts.initial, Delta.empty),
   );
-let get_elaboration = (program: t): DHExp.t =>
+let get_elaboration = (program: t): (DHExp.t, Delta.t) =>
   switch (program |> get_uhexp |> elaborate) {
   | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, _) => d
+  | Elaborates(d, _, delta) => (d, delta)
   };
 
 exception EvalError(EvaluatorError.t);
@@ -112,7 +112,11 @@ let evaluate =
     Evaluator.evaluate(ec_init, env_init),
   );
 let get_result = (program: t): Result.t => {
-  switch (program |> get_elaboration |> evaluate) {
+  let (d_elab, delta) = program |> get_elaboration;
+
+  delta |> Delta.sexp_of_t |> JSUtil.log_sexp;
+
+  switch (d_elab |> evaluate) {
   | (_, BoxedValue(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
@@ -120,7 +124,7 @@ let get_result = (program: t): Result.t => {
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, BoxedValue(d));
+    (d, delta, hci, BoxedValue(d));
   | (_, Indet(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
@@ -128,7 +132,7 @@ let get_result = (program: t): Result.t => {
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, Indet(d));
+    (d, delta, hci, Indet(d));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

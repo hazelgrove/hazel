@@ -243,7 +243,7 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let (_, hii, _) = program |> Program.get_result;
+        let (_, _, hii, _) = program |> Program.get_result;
         switch (selected_hole_closure) {
         | None => Environment.empty
         | Some((u, i)) =>
@@ -282,7 +282,7 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      let (_, hii, _) = program |> Program.get_result;
+      let (_, _, hii, _) = program |> Program.get_result;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
