@@ -499,7 +499,7 @@ let view =
     )
     : Node.t => {
   let inconsistent_branches_ty_bar =
-      (branch_types, path_to_case, skipped_index) =>
+      (branch_types, path_to_expr, skipped_index) =>
     Node.div(
       [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
       List.mapi(
@@ -514,10 +514,30 @@ let view =
                 index;
               }
             };
+          let path_to_branch = path_to_expr @ [1 + shifted_index];
+          let move_to =
+            switch (cursor_info.cursor_term) {
+            | ExpOperand(_, Case(_, _, _)) => (
+                path_to_branch,
+                CursorPosition.OnDelim(1, After),
+              )
+            | ExpOperand(_, If(_, _, then_branch, else_branch)) =>
+              let branch =
+                if (shifted_index == 0) {
+                  then_branch;
+                } else {
+                  else_branch;
+                };
+              let (steps_in_branch, side) =
+                CursorPath_Exp.of_zblock(ZExp.place_before_block(branch));
+              (path_to_branch @ steps_in_branch, side);
+            | _ => assert(false)
+            };
+
           Node.span(
             [
               Attr.on_click(_ => {
-                inject(SelectCaseBranch(path_to_case, shifted_index))
+                inject(EditAction(Action.MoveTo(move_to)))
               }),
             ],
             [HTypCode.view(ty)],

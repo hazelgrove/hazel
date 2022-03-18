@@ -60,11 +60,6 @@ let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
 
 /**
- * See `Program.move_to_case_branch`
- */
-let select_case_branch: (CursorPath.steps, int, t) => t;
-
-/**
  * Show/hide sidebars
  */
 let toggle_left_sidebar: t => t;

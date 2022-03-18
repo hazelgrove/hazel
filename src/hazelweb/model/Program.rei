@@ -61,14 +61,6 @@ let move_via_click:
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => Action.t;
 
-/**
- * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
- * the `n`th branch in case expression found at `steps` (when the user
- * clicks on a branch type in the error message for a case expression with
- * inconsistent branches)
- */
-let move_to_case_branch: (CursorPath.steps, int) => Action.t;
-
 let get_layout: (~settings: Settings.t, t) => UHLayout.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);

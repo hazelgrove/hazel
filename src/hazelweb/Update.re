@@ -53,7 +53,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateSettings(_)
   | UpdateCursorInspector(_)
   | SelectHoleInstance(_)
-  | SelectCaseBranch(_)
   | FocusCell
   | BlurCell
   | Undo
@@ -127,8 +126,6 @@ let apply_action =
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
-      | SelectCaseBranch(path_to_case, branch_index) =>
-        Model.select_case_branch(path_to_case, branch_index, model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>

@@ -250,18 +250,6 @@ let move_via_click = (row_col, model) => {
   model |> update_program(model_action, new_program);
 };
 
-let select_case_branch =
-    (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
-  let program = model |> get_program;
-  let action = Program.move_to_case_branch(path_to_case, branch_index);
-  let new_program = Program.perform_edit_action(action, program);
-  let model_action = ModelAction.EditAction(action);
-  model
-  |> put_program(new_program)
-  |> update_program(model_action, new_program)
-  |> focus_cell;
-};
-
 let toggle_left_sidebar = (model: t): t => {
   ...model,
   left_sidebar_open: !model.left_sidebar_open,
