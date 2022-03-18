@@ -17,12 +17,6 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
-  | ApPaletteZ(
-      ErrStatus.t,
-      PaletteName.t,
-      SerializedModel.t,
-      ZSpliceInfo.t(UHExp.t, t),
-    )
 and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
@@ -46,8 +40,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => false
+  | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _))) => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
@@ -86,8 +79,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     }
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
-  | Parenthesized(_) => CursorPosition.delim_cursors(2)
-  | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
+  | Parenthesized(_) => CursorPosition.delim_cursors(2);
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -147,14 +139,12 @@ and is_before_zoperand =
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
-  | CursorE(cursor, ApPalette(_)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
   | ParenthesizedZ(_)
   | FunZP(_)
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_)
-  | ApPaletteZ(_) => false;
+  | CaseZR(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
 // Check if the cursor at "OnDelim(After)" in a "CommentLine"
@@ -229,14 +219,12 @@ and is_after_zoperand =
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
-  | CursorE(_, ApPalette(_)) => false /* TODO[livelits] */
   | ParenthesizedZ(_) => false
   | FunZP(_)
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_)
-  | ApPaletteZ(_) => false;
+  | CaseZR(_) => false;
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -275,15 +263,13 @@ and is_outer_zoperand =
   | CursorE(_, Fun(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
-  | CursorE(_, Parenthesized(_))
-  | CursorE(_, ApPalette(_)) => true
+  | CursorE(_, Parenthesized(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | FunZP(_)
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_)
-  | ApPaletteZ(_) => false;
+  | CaseZR(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -316,7 +302,6 @@ and place_before_operand = operand =>
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
-  | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -355,7 +340,6 @@ and place_after_operand = operand =>
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
-  | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
@@ -443,10 +427,6 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
-  | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
-      let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
-      ApPalette(err, palette_name, serialized_model, psi);
-    }
 and erase_zrules =
   fun
   | zrules => ZList.erase(zrules, erase_zrule)
@@ -500,7 +480,6 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
-  | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -535,8 +514,10 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
+  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
+      zoperand,
+      u_gen,
+    )
   /* not in hole */
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
@@ -552,8 +533,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       InconsistentBranches(_, _),
       _,
       _,
-    )
-  | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
@@ -570,9 +550,6 @@ let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let zrule = RuleZP(ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
   (zrule, u_gen);
 };
-
-let is_inconsistent = zoperand =>
-  zoperand |> erase_zoperand |> UHExp.is_inconsistent;
 
 let rec move_cursor_left = (ze: t): option(t) =>
   ze |> move_cursor_left_zblock
@@ -678,7 +655,6 @@ and move_cursor_left_zoperand =
         ),
       )
     }
-  | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
       InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
@@ -720,7 +696,6 @@ and move_cursor_left_zoperand =
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
-  | ApPaletteZ(_, _, _, _) => None
 and move_cursor_left_zrules =
   fun
   | (prefix, zrule, suffix) =>
@@ -849,7 +824,6 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
-  | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
       InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
@@ -902,7 +876,6 @@ and move_cursor_right_zoperand =
         ),
       )
     }
-  | ApPaletteZ(_, _, _, _) => None
 and move_cursor_right_zrules =
   fun
   | (prefix, zrule, suffix) =>
@@ -966,7 +939,6 @@ and cursor_on_EmptyHole_zoperand =
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
-  | ApPaletteZ(_) => failwith("unimplemented")
   | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
 and cursor_on_EmptyHole_zrule =
   fun

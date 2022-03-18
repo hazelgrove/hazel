@@ -520,7 +520,6 @@ let rec syn_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -579,7 +578,6 @@ let rec ana_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -1036,7 +1034,7 @@ and syn_perform_line =
     let new_zline = ZExp.ExpLineZ(zhole |> ZOpSeq.wrap);
     syn_perform_line(ctx, a, (new_zline, u_gen));
 
-  | (Construct(_) | UpdateApPalette(_), CursorL(OnDelim(_, side), _))
+  | (Construct(_), CursorL(OnDelim(_, side), _))
       when !ZExp.is_before_zline(zline) && !ZExp.is_after_zline(zline) =>
     let move_cursor =
       switch (side) {
@@ -1047,7 +1045,7 @@ and syn_perform_line =
     | None => Failed
     | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
     };
-  | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
+  | (Construct(_), CursorL(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_)) => Failed
@@ -1126,9 +1124,6 @@ and syn_perform_opseq =
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
-
-  /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1442,14 +1437,12 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
-        Parenthesized(_) |
-        ApPalette(_),
+        Parenthesized(_),
       ),
     ) =>
     Failed
@@ -1735,72 +1728,6 @@ and syn_perform_operand =
     )
   | (Construct(SCloseBraces), CursorE(_)) => Failed
 
-  | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
-    | None => Failed
-    | Some(palette_defn) =>
-      let init_model_cmd = palette_defn.init_model;
-      let (init_model, init_splice_info, u_gen) =
-        SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
-      switch (Statics_Exp.ana_splice_map(ctx, init_splice_info.splice_map)) {
-      | None => Failed
-      | Some(splice_ctx) =>
-        let expansion_ty = palette_defn.expansion_ty;
-        let expand = palette_defn.expand;
-        let expansion = expand(init_model);
-        switch (Statics_Exp.ana(splice_ctx, expansion, expansion_ty)) {
-        | None => Failed
-        | Some(_) =>
-          Succeeded(
-            SynDone((
-              ZExp.(
-                ZBlock.wrap(
-                  place_before_operand(
-                    ApPalette(NotInHole, name, init_model, init_splice_info),
-                  ),
-                )
-              ),
-              expansion_ty,
-              u_gen,
-            )),
-          )
-        };
-      };
-    };
-  | (Construct(SApPalette(_)), CursorE(_)) => Failed
-  /* TODO
-     | (UpdateApPalette(_), CursorE(_, ApPalette(_, _name, _, _hole_data))) =>
-        let (_, palette_ctx) = ctx;
-        switch (PaletteCtx.lookup(palette_ctx, name)) {
-        | Some(palette_defn) =>
-          let (q, u_gen') = UHExp.HoleRefs.exec(monad, hole_data, u_gen);
-          let (serialized_model, hole_data') = q;
-          let expansion_ty = UHExp.PaletteDefinition.expansion_ty(palette_defn);
-          let expansion =
-            (UHExp.PaletteDefinition.to_exp(palette_defn))(serialized_model);
-          let (_, hole_map') = hole_data';
-          let expansion_ctx =
-            UHExp.PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map');
-          switch (Statics_common.ana(expansion_ctx, expansion, expansion_ty)) {
-          | Some(_) =>
-            Succeeded((
-              CursorE(
-                After,
-                Tm(
-                  NotInHole,
-                  ApPalette(name, serialized_model, hole_data'),
-                ),
-              ),
-              expansion_ty,
-              u_gen,
-            ))
-          | None => Failed
-          };
-        | None => Failed
-        }; */
-  | (UpdateApPalette(_), CursorE(_)) => Failed
-
   | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
       when !ZExp.is_after_zoperand(zoperand) =>
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
@@ -1937,24 +1864,6 @@ and syn_perform_operand =
       };
     | _ => Failed /* should never happen */
     }
-  | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
-  /* TODO let (next_lbl, z_nat_map) = z_hole_data;
-     let (rest_map, z_data) = z_nat_map;
-     let (cell_lbl, cell_data) = z_data;
-     let (cell_ty, cell_ze) = cell_data;
-     switch (ana_perform_operand(ctx, a, (cell_ze, u_gen), cell_ty)) {
-     | Failed => Failed
-          | Succeeded((cell_ze', u_gen')) =>
-       let z_hole_data' = (
-         next_lbl,
-         (rest_map, (cell_lbl, (cell_ty, cell_ze'))),
-       );
-       Succeeded((
-         ApPaletteZ(NotInHole, name, serialized_model, z_hole_data'),
-         ty,
-         u_gen',
-       ));
-     }; */
   | (_, CaseZE(_, zscrut, rules)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zscrut))) {
     | None => Failed
@@ -2106,7 +2015,7 @@ and syn_perform_rules =
     );
     Succeeded((new_zrules, u_gen));
 
-  | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_, side), _))
+  | (Construct(_), CursorR(OnDelim(_, side), _))
       when !ZExp.is_before_zrule(zrule) && !ZExp.is_after_zrule(zrule) =>
     switch (escape(side)) {
     | Failed
@@ -2114,7 +2023,7 @@ and syn_perform_rules =
     | Succeeded((zrules, u_gen)) =>
       syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)
     }
-  | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+  | (Construct(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
   | (SwapLeft | SwapRight, CursorR(_)) => Failed
@@ -2255,7 +2164,7 @@ and ana_perform_rules =
     );
     Succeeded((new_zrules, u_gen));
 
-  | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_, side), _))
+  | (Construct(_), CursorR(OnDelim(_, side), _))
       when !ZExp.is_before_zrule(zrule) && !ZExp.is_after_zrule(zrule) =>
     switch (escape(side)) {
     | Failed
@@ -2263,7 +2172,7 @@ and ana_perform_rules =
     | Succeeded((zrules, u_gen)) =>
       ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, clause_ty)
     }
-  | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+  | (Construct(_), CursorR(OnDelim(_), _)) => Failed
 
   /* Invalid swap actions */
   | (SwapLeft | SwapRight, CursorR(_)) => Failed
@@ -2561,9 +2470,6 @@ and ana_perform_opseq =
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
-
-  /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2908,14 +2814,12 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
-        Parenthesized(_) |
-        ApPalette(_),
+        Parenthesized(_),
       ),
     ) =>
     Failed
@@ -2923,50 +2827,6 @@ and ana_perform_operand =
   | (_, CursorE(cursor, operand))
       when !ZExp.is_valid_cursor_operand(cursor, operand) =>
     Failed
-
-  | _ when ZExp.is_inconsistent(zoperand) =>
-    let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
-    let err = ZExp.get_err_status_zoperand(zoperand);
-    let operand' = zoperand' |> ZExp.erase_zoperand;
-    switch (Statics_Exp.syn_operand(ctx, operand')) {
-    | None => Failed
-    | Some(ty') =>
-      switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
-      | (Failed | CursorEscaped(_)) as outcome => outcome
-      | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
-      | Succeeded(SynDone((ze', ty', u_gen))) =>
-        if (HTyp.consistent(ty', ty)) {
-          // prune unnecessary type annotation
-          let ze' =
-            switch (ze') {
-            | (
-                [] as prefix,
-                ExpLineZ(
-                  ZOpSeq(skel, ZOperand(zoperand, (E, E) as surround)),
-                ),
-                [] as suffix,
-              ) => (
-                prefix,
-                ZExp.ExpLineZ(ZOpSeq(skel, ZOperand(zoperand, surround))),
-                suffix,
-              )
-            | _ => ze'
-            };
-          Succeeded(AnaDone((ze', u_gen)));
-        } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
-                   && HTyp.get_prod_arity(ty) > 1) {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
-          let new_ze = ze' |> ZExp.set_err_status(err);
-          Succeeded(AnaDone((new_ze, u_gen)));
-        } else {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, TypeInconsistent, u_gen);
-          let new_ze = ze' |> ZExp.set_err_status(err);
-          Succeeded(AnaDone((new_ze, u_gen)));
-        }
-      }
-    };
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -3319,6 +3179,9 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
 
+  | (Construct(SListNil), _) =>
+    ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | FunZP(_)) => Failed
   | (SwapLeft | SwapRight, CursorE(_)) => Failed
@@ -3443,9 +3306,6 @@ and ana_perform_operand =
       }
     }
 
-  /* Subsumption */
-  | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
-  | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
   }

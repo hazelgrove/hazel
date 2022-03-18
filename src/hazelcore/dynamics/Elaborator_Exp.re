@@ -255,8 +255,7 @@ and syn_elab_operand =
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -274,8 +273,8 @@ and syn_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -388,32 +387,6 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-    DoesNotElaborate /* let (_, palette_ctx) = ctx in
-     begin match (VarMap.lookup palette_ctx name) with
-     | Some palette_defn ->
-       let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-       let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
-       let expansion = to_exp serialized_model in
-       let (_, hole_map) = hole_data in
-       (* bind each free variable in expansion by wrapping expansion
-        * in lambda, then apply lambda to args in hole data
-        *)
-       let bound_expansion :=
-           NatMap.fold hole_map
-             (fun bound entry ->
-               let (n, typ_exp) = entry in
-               let (htyp, hexp) = typ_exp in
-               let lam = UHExp.Tm NotInHole (UHExp.Fun (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-               let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
-               let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
-               UHExp.Tm NotInHole ap
-             )
-             expansion in
-       ana_elab_exp ctx bound_expansion expansion_ty
-     | None -> DoesNotElaborate
-     end */ /* TODO fix me */
   }
 and syn_elab_rules =
     (
@@ -670,8 +643,7 @@ and ana_elab_operand =
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -698,8 +670,8 @@ and ana_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -784,8 +756,7 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
-  | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | FloatLit(NotInHole, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
   }
@@ -831,5 +802,22 @@ and ana_elab_rule =
     | Elaborates(d1, ty1, delta) =>
       Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
     }
+  };
+};
+
+/* Bind built-ins before an elaborated expression. */
+let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
+  List.fold_left(
+    (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
+    d,
+    Builtins.forms,
+  );
+
+let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
+  switch (syn_elab(ctx, delta, e)) {
+  | Elaborates(d, ty, delta) =>
+    let d' = elab_wrap_builtins(d);
+    Elaborates(d', ty, delta);
+  | DoesNotElaborate => DoesNotElaborate
   };
 };

@@ -661,15 +661,11 @@ let get_new_action_group =
               | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
               }
 
-            | ApPalette(_, _, _, _) =>
-              failwith("ApPalette is not implemented")
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
           | _ => Some(ConstructEdit(SOp(SSpace)))
           }
         }
-
-      | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | SwapUp => Some(SwapEdit(Up))
     | SwapDown => Some(SwapEdit(Down))
@@ -681,8 +677,6 @@ let get_new_action_group =
     | MoveToNextHole
     | MoveToPrevHole
     | Init => None
-    | UpdateApPalette(_) =>
-      failwith("ApPalette is not implemented in undo_history")
     }
   | _ => None
   };
