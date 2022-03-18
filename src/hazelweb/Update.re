@@ -233,7 +233,7 @@ let apply_action =
           let d = model |> Model.get_program |> Program.get_elaboration;
           d
           |> CHExp.of_DHExp
-          |> Translator.print_grain
+          |> PrintGrain.print_grain
           |> Js.string
           |> JSUtil.log;
         };
