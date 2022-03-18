@@ -654,6 +654,8 @@ let get_new_action_group =
                   Some(ConstructEdit(SLet));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));
+                } else if (Var.is_fun(left_var)) {
+                  Some(ConstructEdit(SFun));
                 } else {
                   Some(ConstructEdit(SOp(SSpace)));
                 };

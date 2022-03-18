@@ -105,7 +105,8 @@ let group_action_group =
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
-    | SCase => true
+    | SCase
+    | SFun => true
     | _ => false
     }
   | (VarGroup(_), _) => false

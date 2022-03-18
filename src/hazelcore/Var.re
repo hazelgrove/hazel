@@ -25,11 +25,13 @@ let is_false = eq("false");
 
 let is_let = eq("let");
 
-let is_lam = eq("fun");
+let is_fun = eq("fun");
 
 let is_case = eq("case");
 
 let is_wild = eq("_");
+
+let is_keyword = s => is_let(s) || is_fun(s) || is_case(s);
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);
