@@ -851,7 +851,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _)
+    | Fun(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
