@@ -117,7 +117,9 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-/* type variable normalization */
+/*
+ Replaces a singleton-kinded type variable with a head-normalized type.
+ */
 let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
   switch (ty) {
   | TyVar(i, name) =>
@@ -138,8 +140,7 @@ let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
   };
 
 /*
- Type normalization replaces each type variable of singleton kind with the
- (recursively normalized) type embedded in the kind.
+ Replaces every singleton-kinded type variable with a normalized type.
  */
 let rec normalize = (tyvars: TyVarCtx.t, ty: t): normalized =>
   switch (ty) {
@@ -147,7 +148,7 @@ let rec normalize = (tyvars: TyVarCtx.t, ty: t): normalized =>
     switch (TyVarCtx.kind(tyvars, i)) {
     | Some(Singleton(ty1)) => normalize(tyvars, ty1)
     | Some(_) => ty
-    | None => failwith(__LOC__ ++ ": unbound type variable index")
+    | None => failwith(__LOC__ ++ ": unknown type variable index")
     }
   | TyVarHole(_)
   | Hole
