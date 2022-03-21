@@ -1,0 +1,8 @@
+// TODO: Stop-gap solution
+export let pi = 3.1415926535897931
+
+export let intOfFloat = f => Number.round(f)
+
+export let floatOfInt = n => n
+
+export let mod = (n, m) => n % m
