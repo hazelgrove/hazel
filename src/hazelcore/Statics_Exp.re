@@ -80,8 +80,8 @@ and syn_lines =
     );
 
   // second pass: fold over groups
-
-  groups
+  let (_, groups_list) = groups;
+  groups_list
   |> List.fold_left(
        (ctx_group: option(Contexts.t), group: list(UHExp.line)) => {
          // in each group, fold over each line to extend the ctx
@@ -94,33 +94,35 @@ and syn_lines =
                | ExpLine(opseq) =>
                  let* ctx = ctx_line;
                  let+ _ = syn_opseq(ctx, opseq);
-                 Some(ctx);
+                 //  Some(ctx);
+                 ctx;
                | LetLine(_, p, def) =>
                  let* ctx = ctx_line;
                  Some(extend_let_def_ctx(ctx, p, def));
                }
              },
-             ctx.group,
+             ctx_group,
              group,
            );
 
          // analyze against to check type
-         group
-         |> List.fold_left(
-              (ctx_line: option(Contexts.t), line: UHExp.line) => {
-                switch (line) {
-                | EmptyLine
-                | CommentLine(_)
-                | ExpLine(_) => ctx_line
-                | LetLine(_, p, def) =>
-                  let* def_ctx = ctx_line;
-                  let* ty_def = syn(def_ctx, def);
-                  Statics_Pat.ana(def_ctx, p, ty_def);
-                }
-              },
-              new_ctx,
-              group,
-            );
+         //  group
+         //  |> List.fold_left(
+         List.fold_left(
+           (ctx_line: option(Contexts.t), line: UHExp.line) => {
+             switch (line) {
+             | EmptyLine
+             | CommentLine(_)
+             | ExpLine(_) => ctx_line
+             | LetLine(_, p, def) =>
+               let* def_ctx = ctx_line;
+               let* ty_def = syn(def_ctx, def);
+               Statics_Pat.ana(def_ctx, p, ty_def);
+             }
+           },
+           new_ctx,
+           group,
+         );
        },
        Some(ctx),
      );
