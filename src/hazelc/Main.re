@@ -99,22 +99,23 @@ let verbose = {
   Arg.(value & flag & info(["v", "verbose"], ~doc));
 };
 
-let optimize_arg = {
-  let parse = s =>
-    try({
-      let n = int_of_string(s);
-      if (n < 3) {
-        Ok(n);
-      } else {
-        Error(`Msg("invalid optimization level"));
-      };
-    }) {
-    | Failure(_) => Error(`Msg("unable to parse integer"))
-    };
-  let print = (ppf, p) => Format.fprintf(ppf, "%s", string_of_int(p));
-  Arg.conv(~docv="LEVEL", (parse, print));
-};
 let optimize = {
+  let optimize_arg = {
+    let parse = s =>
+      try({
+        let n = int_of_string(s);
+        if (n < 3) {
+          Ok(n);
+        } else {
+          Error(`Msg("invalid optimization level"));
+        };
+      }) {
+      | Failure(_) => Error(`Msg("unable to parse integer"))
+      };
+    let print = (ppf, p) => Format.fprintf(ppf, "%s", string_of_int(p));
+    Arg.conv(~docv="LEVEL", (parse, print));
+  };
+
   let doc = "Set optimization level";
   Arg.(value & opt(optimize_arg, 0) & info(["O"], ~docv="LEVEL", ~doc));
 };
