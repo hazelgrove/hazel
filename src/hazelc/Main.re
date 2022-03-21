@@ -4,7 +4,7 @@ type action =
   | Wasm
   | Wat;
 
-let hazelc = (action, sources, out, optimize, debug) => {
+let hazelc = (action, sources, out, _verbose, optimize, debug) => {
   let out =
     switch (out) {
     | Some(out) => out
@@ -94,6 +94,11 @@ let action = {
   Arg.(last & vflag_all([Wasm], [grain, wasm, wat]));
 };
 
+let verbose = {
+  let doc = "Enable verbose output.";
+  Arg.(value & flag & info(["v", "verbose"], ~doc));
+};
+
 let optimize_arg = {
   let parse = s =>
     try({
@@ -128,7 +133,9 @@ let cmd = {
   let info = Cmd.info("hazelc", ~version="%%VERSION%%", ~doc, ~man);
   Cmd.v(
     info,
-    Term.(const(hazelc) $ action $ sources $ out $ optimize $ debug),
+    Term.(
+      const(hazelc) $ action $ sources $ out $ verbose $ optimize $ debug
+    ),
   );
 };
 
