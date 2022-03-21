@@ -1,6 +1,13 @@
-exception NotImplemented;
-
 let sprintf = Printf.sprintf;
+
+module type ImportMeta = {
+  let path: string;
+  let name: string;
+};
+
+module Import = (M: ImportMeta) => {
+  let symbol = symbol => GHExp.Named(sprintf("%s.%s", M.name, symbol));
+};
 
 module Consts = {
   let truelit = "true";
@@ -17,28 +24,60 @@ module Consts = {
   let prim_greater_than_op = "<";
   let prim_equals_op = "<";
 
-  let hazel_mod = "Hazel";
-  let hazel_mk = (f: string) => hazel_mod ++ "." ++ f;
-
-  let hazel_and = hazel_mk("and");
-  let hazel_or = hazel_mk("or");
-
-  let hazel_plus = hazel_mk("plus");
-  let hazel_minus = hazel_mk("minus");
-  let hazel_times = hazel_mk("times");
-  let hazel_divide = hazel_mk("divide");
-  let hazel_less_than = hazel_mk("less_than");
-  let hazel_greater_than = hazel_mk("greater_than");
-  let hazel_equals = hazel_mk("equals");
-
-  let hazel_fplus = hazel_mk("fplus");
-  let hazel_fminus = hazel_mk("fminus");
-  let hazel_ftimes = hazel_mk("ftimes");
-  let hazel_fdivide = hazel_mk("fdivide");
-  let hazel_fless_than = hazel_mk("fless_than");
-  let hazel_fgreater_than = hazel_mk("fgreater_than");
-  let hazel_fequals = hazel_mk("fequals");
+  let inj_left = "L";
+  let inj_right = "R";
 };
+
+module HazelMod = {
+  module Mod =
+    Import({
+      let path = "hazel/hazel";
+      let name = "Hazel";
+    });
+
+  let hazel_and = Mod.symbol("and");
+  let hazel_or = Mod.symbol("or");
+
+  let hazel_plus = Mod.symbol("plus");
+  let hazel_minus = Mod.symbol("minus");
+  let hazel_times = Mod.symbol("times");
+  let hazel_divide = Mod.symbol("divide");
+  let hazel_less_than = Mod.symbol("less_than");
+  let hazel_greater_than = Mod.symbol("greater_than");
+  let hazel_equals = Mod.symbol("equals");
+
+  let hazel_fplus = Mod.symbol("fplus");
+  let hazel_fminus = Mod.symbol("fminus");
+  let hazel_ftimes = Mod.symbol("ftimes");
+  let hazel_fdivide = Mod.symbol("fdivide");
+  let hazel_fless_than = Mod.symbol("fless_than");
+  let hazel_fgreater_than = Mod.symbol("fgreater_than");
+  let hazel_fequals = Mod.symbol("fequals");
+};
+
+module BuiltinsMod = {
+  module Mod =
+    Import({
+      let path = "hazel/builtins";
+      let name = "Builtins";
+    });
+
+  let builtins =
+    [
+      ("int_of_float", "intOfFloat"),
+      ("float_of_int", "floatOfInt"),
+      ("PI", "pi"),
+      ("mod", "mod"),
+    ]
+    |> List.map(((name, libname)) => (name, Mod.symbol(libname)));
+
+  let lookup = VarMap.lookup(builtins);
+};
+
+/*
+   Raise a CodegenError.Exception.
+ */
+let codegen_raise = err => raise(CodegenError.Exception(err));
 
 let codegen_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
 
@@ -73,9 +112,16 @@ and codegen_expr = (e: GHExp.expr) =>
     sprintf("[%s]", es);
   | Triv => Consts.voidlit
   | Var(var) => codegen_var(var)
-  | Lam(params, e') => raise(NotImplemented)
-  | Ap(lam, args) => raise(NotImplemented)
-  | Match(e', rules) => raise(NotImplemented)
+  | Builtin(name) =>
+    let builtin = BuiltinsMod.lookup(name);
+    switch (builtin) {
+    | Some(builtin) => codegen_expr(Var(builtin))
+    | None => codegen_raise(BadBuiltin(name))
+    };
+  | Inj(side, e') => codegen_inj(side, e')
+  | Lam(_params, _e') => codegen_raise(NotImplemented)
+  | Ap(_lam, _args) => codegen_raise(NotImplemented)
+  | Match(_e', _rules) => codegen_raise(NotImplemented)
   }
 
 and codegen_bin_op = (op: GHExp.bin_op, e1: GHExp.expr, e2: GHExp.expr) =>
@@ -111,24 +157,35 @@ and codegen_bin_op_hazel =
     (op: GHExp.BinOp.op, e1: GHExp.expr, e2: GHExp.expr) => {
   let f =
     switch (op) {
-    | And => Consts.hazel_and
-    | Or => Consts.hazel_or
-    | Plus => Consts.hazel_plus
-    | Minus => Consts.hazel_minus
-    | Times => Consts.hazel_times
-    | Divide => Consts.hazel_divide
-    | LessThan => Consts.hazel_less_than
-    | GreaterThan => Consts.hazel_greater_than
-    | Equals => Consts.hazel_equals
-    | FPlus => Consts.hazel_fplus
-    | FMinus => Consts.hazel_fminus
-    | FTimes => Consts.hazel_ftimes
-    | FDivide => Consts.hazel_fdivide
-    | FLessThan => Consts.hazel_fless_than
-    | FGreaterThan => Consts.hazel_fgreater_than
-    | FEquals => Consts.hazel_fequals
+    | And => HazelMod.hazel_and
+    | Or => HazelMod.hazel_or
+    | Plus => HazelMod.hazel_plus
+    | Minus => HazelMod.hazel_minus
+    | Times => HazelMod.hazel_times
+    | Divide => HazelMod.hazel_divide
+    | LessThan => HazelMod.hazel_less_than
+    | GreaterThan => HazelMod.hazel_greater_than
+    | Equals => HazelMod.hazel_equals
+    | FPlus => HazelMod.hazel_fplus
+    | FMinus => HazelMod.hazel_fminus
+    | FTimes => HazelMod.hazel_ftimes
+    | FDivide => HazelMod.hazel_fdivide
+    | FLessThan => HazelMod.hazel_fless_than
+    | FGreaterThan => HazelMod.hazel_fgreater_than
+    | FEquals => HazelMod.hazel_fequals
     };
-  codegen_expr(Ap(Var(Named(f)), [e1, e2]));
+  codegen_expr(Ap(Var(f), [e1, e2]));
+}
+
+and codegen_inj = (side: GHExp.side, e': GHExp.expr) => {
+  let ctor =
+    switch (side) {
+    | L => Consts.inj_left
+    | R => Consts.inj_right
+    };
+
+  // TODO: Use separate expr variant for variant constructor?
+  codegen_expr(Ap(Var(Named(ctor)), [e']));
 }
 
 and codegen_var = (var: GHExp.var) =>

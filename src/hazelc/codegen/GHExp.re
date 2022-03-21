@@ -55,10 +55,15 @@ type expr =
   | List(list(expr))
   | Triv
   | Var(var)
+  | Builtin(Var.t)
+  | Inj(side, expr)
   | Lam(params, expr)
   | Ap(expr, args)
   | Match(expr, list(rule))
 and args = list(expr)
+and side =
+  | L
+  | R
 and rule =
   | Rule(pat, expr);
 
