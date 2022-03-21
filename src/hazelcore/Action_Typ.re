@@ -222,8 +222,8 @@ and perform_operand =
   | (
       Construct(
         SAnn | SLet | SAnd | SLine | SLam | SListNil | SInj(_) | SCase |
-        SApPalette(_) |
-        SCommentLine
+        // SApPalette(_) |
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown,

@@ -273,8 +273,8 @@ and syn_cursor_info_line =
     (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline, suffix)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zline) {
-  | CursorL(_, LetLine(p, def)) =>
-    let+ ty = Statics_Exp.syn(ctx, [LetLine(p, def), ...suffix]);
+  | CursorL(_, LetLine(_key, p, def)) =>
+    let+ ty = Statics_Exp.syn(ctx, [LetLine(_key, p, def), ...suffix]);
     CursorInfo_common.CursorNotOnDeferredVarPat(
       CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
     );
@@ -635,8 +635,10 @@ and ana_cursor_info_zblock =
         }
       | [_, ..._] =>
         switch (zline) {
-        | CursorL(_, LetLine(p, def)) =>
-          switch (Statics_Exp.ana(ctx, [LetLine(p, def), ...suffix], ty)) {
+        | CursorL(_, LetLine(_key, p, def)) =>
+          switch (
+            Statics_Exp.ana(ctx, [LetLine(_key, p, def), ...suffix], ty)
+          ) {
           | None => None
           | Some () =>
             Some(
