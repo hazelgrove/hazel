@@ -90,19 +90,40 @@ module Run = {
   type opts = {wasm: string};
 
   [@deriving sexp]
-  type run_result = result(unit, int);
+  type run_result = result(string, int);
 
   let args_list = (_, ropts) => [Opts.use_arg(ropts.wasm)];
+
+  let input_lines = channel => {
+    let lines = ref([]);
+    try(
+      {
+        while (true) {
+          let line = input_line(channel);
+          lines := [line, ...lines^];
+        };
+        ();
+      }
+    ) {
+    | End_of_file => ()
+    };
+    List.rev(lines^);
+  };
 
   let run = (~opts, ropts) => {
     let cmd =
       Opts.use_subcmd(opts, "compile")
       |> Opts.use_args(args_list(opts, ropts));
 
-    let code = Sys.command(cmd);
-    switch (code) {
-    | 0 => Ok()
-    | _ => Error(code)
+    let stdout = Unix.open_process_in(cmd);
+    let stdout_lines = input_lines(stdout);
+
+    let status = Unix.close_process_in(stdout);
+    switch (status) {
+    | WEXITED(0) => Ok(String.concat("\n", stdout_lines))
+    | WEXITED(code)
+    | WSIGNALED(code)
+    | WSTOPPED(code) => Error(code)
     };
   };
 };

@@ -27,7 +27,7 @@ module Run: {
   type opts = {wasm: string};
 
   [@deriving sexp]
-  type run_result = result(unit, int);
+  type run_result = result(string, int);
 
   let run: (~opts: Opts.t, opts) => run_result;
 };
