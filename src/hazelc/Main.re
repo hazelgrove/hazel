@@ -32,7 +32,8 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
   let res =
     switch (action) {
     | Grain =>
-      let res = Compiler.grain_compile_file(~opts, source_file);
+      let res =
+        Compiler.compile_grain(~opts, out, SourceChannel(source_file));
       switch (res) {
       | Ok(output) =>
         let out_file = open_out(out);
@@ -43,9 +44,9 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       };
     | Wasm
     | Wat =>
-      let res = Compiler.compile_file(~opts, source_file, out);
+      let res = Compiler.compile(~opts, out, SourceChannel(source_file));
       switch (res) {
-      | Ok () => Ok()
+      | Ok(_) => Ok()
       | Error(err) => Error(err)
       };
     };
@@ -54,9 +55,9 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
   | Ok () => ()
   | Error(err) =>
     switch (err) {
-    | Parse(err) => print_endline(err)
-    | Elab => print_endline("elaboration error")
-    | Grain => print_endline("grain error")
+    | ParseError(err) => print_endline(err)
+    | ElaborateError => print_endline("elaboration error")
+    | GrainError => print_endline("grain error")
     }
   };
 };

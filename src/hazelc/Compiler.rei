@@ -8,25 +8,46 @@ type opts = {
 };
 
 [@deriving sexp]
-type err =
-  | Parse(string)
-  | Elab
-  | Grain;
+type source =
+  | SourceString(string)
+  | SourceLexbuf(Lexing.lexbuf)
+  | SourceChannel(in_channel);
 
 [@deriving sexp]
-type compile_result = result(unit, err);
-
-let compile_uhexp: (~opts: opts=?, UHExp.t, string) => compile_result;
-let compile_dhexp: (~opts: opts=?, DHExp.t, string) => compile_result;
-let compile_buf: (~opts: opts=?, Lexing.lexbuf, string) => compile_result;
-let compile_string: (~opts: opts=?, string, string) => compile_result;
-let compile_file: (~opts: opts=?, in_channel, string) => compile_result;
+type state =
+  | Source(source)
+  | Parsed(UHExp.t)
+  | Elaborated(DHExp.t)
+  | Transformed(IHExp.t)
+  | Grainized(string)
+  | Wasmized(string);
 
 [@deriving sexp]
-type grain_result = result(string, err);
+type next_error =
+  | ParseError(string)
+  | ElaborateError
+  | GrainError;
 
-let grain_compile_uhexp: (~opts: opts=?, UHExp.t) => grain_result;
-let grain_compile_dhexp: (~opts: opts=?, DHExp.t) => grain_result;
-let grain_compile_buf: (~opts: opts=?, Lexing.lexbuf) => grain_result;
-let grain_compile_string: (~opts: opts=?, string) => grain_result;
-let grain_compile_file: (~opts: opts=?, in_channel) => grain_result;
+[@deriving sexp]
+type next_result = result(state, next_error);
+
+[@deriving sexp]
+type resume_action =
+  | Continue(state)
+  | Stop;
+
+let next: (~opts: opts=?, string, state) => next_result;
+
+let resume:
+  (~opts: opts=?, ~hook: state => resume_action=?, string, state) =>
+  next_result;
+
+let stop_after_parsed: state => resume_action;
+let stop_after_elaborated: state => resume_action;
+let stop_after_transformed: state => resume_action;
+let stop_after_grainized: state => resume_action;
+let stop_after_wasmized: state => resume_action;
+
+let compile_grain:
+  (~opts: opts=?, string, source) => result(string, next_error);
+let compile: (~opts: opts=?, string, source) => result(string, next_error);

@@ -14,30 +14,47 @@ type expect =
 [@deriving sexp]
 type t = (exp, expect);
 
-let compile = exp => {
-  let opts: Compiler.opts = {
-    exp_only: true,
-    grain: {
-      grain: None,
-      optimize: None,
-      includes: None,
-      debug: Some(true),
-      wat: None,
-    },
-  };
+let opts: Compiler.opts = {
+  exp_only: true,
+  grain: {
+    grain: None,
+    optimize: None,
+    includes: None,
+    debug: Some(true),
+    wat: None,
+  },
+};
 
+let compile = (exp, outpath) => {
   switch (exp) {
-  | Str(s) => Compiler.grain_compile_string(~opts, s)
-  | UH(e) => Compiler.grain_compile_uhexp(~opts, e)
-  | DH(d) => Compiler.grain_compile_dhexp(~opts, d)
+  | Str(s) => Compiler.resume(~opts, outpath, Source(SourceString(s)))
+  | UH(e) => Compiler.resume(~opts, outpath, Parsed(e))
+  | DH(d) => Compiler.resume(~opts, outpath, Elaborated(d))
   };
 };
 
+/*
+   Unexpected state (indicative of an error in Compiler.resume).
+ */
+exception BadState;
+
 let test = ((exp, expect)) => {
+  // TODO: Use temporary file
+  let outpath = "a.wasm";
+
   let res =
-    switch (compile(exp)) {
-    | Ok(output) => Pass(output)
+    switch (compile(exp, outpath)) {
+    | Ok(state) =>
+      switch (state) {
+      | Wasmized(path) =>
+        switch (Grain.run(~opts=opts.grain, {wasm: path})) {
+        | Error(_) => Fail
+        | Ok(s) => Pass(s)
+        }
+      | _ => raise(BadState)
+      }
     | Error(_) => Fail
     };
+
   res == expect;
 };

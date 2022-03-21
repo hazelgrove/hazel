@@ -12,17 +12,63 @@ type opts = {
   grain: grain_opts,
 };
 
-[@deriving sexp]
-type err =
-  | Parse(string)
-  | Elab
-  | Grain;
+type source =
+  | SourceString(string)
+  | SourceLexbuf(Lexing.lexbuf)
+  | SourceChannel(in_channel);
+
+let sexp_of_source = source => {
+  Sexplib.Sexp.(
+    switch (source) {
+    | SourceString(s) => List([Atom("string"), sexp_of_string(s)])
+    | SourceLexbuf(_) => List([Atom("lexbuf"), Atom("<Lexing.lexbuf>")])
+    | SourceChannel(_) => List([Atom("channel"), Atom("<in_channel>")])
+    }
+  );
+};
+
+let source_of_sexp = sexp => {
+  Sexplib0.(
+    Sexplib.Sexp.(
+      {
+        let of_sexp_error = (what, sexp) =>
+          raise(Sexp.Of_sexp_error(Failure(what), sexp));
+
+        switch (sexp) {
+        | List([Atom("string"), el]) => SourceString(string_of_sexp(el))
+        | List([Atom("lexbuf"), _]) =>
+          of_sexp_error("source_of_sexp: cannot deseralize for lexbuf", sexp)
+        | List([Atom("channel"), _]) =>
+          of_sexp_error(
+            "source_of_sexp: cannot deseralize for in_channel",
+            sexp,
+          )
+        | List(_) =>
+          of_sexp_error("source_of_sexp: list must be (string el)", sexp)
+        | Atom(_) => of_sexp_error("source_of_sexp: list needed", sexp)
+        };
+      }
+    )
+  );
+};
 
 [@deriving sexp]
-type compile_result = result(unit, err);
+type state =
+  | Source(source)
+  | Parsed(UHExp.t)
+  | Elaborated(DHExp.t)
+  | Transformed(IHExp.t)
+  | Grainized(string)
+  | Wasmized(string);
 
 [@deriving sexp]
-type grain_result = result(string, err);
+type next_error =
+  | ParseError(string)
+  | ElaborateError
+  | GrainError;
+
+[@deriving sexp]
+type next_result = result(state, next_error);
 
 let default_opts = {
   exp_only: false,
@@ -36,94 +82,137 @@ let default_opts = {
   },
 };
 
-let parse = lexbuf => {
-  let res = lexbuf |> Parsing.ast_of_lexbuf;
-
-  switch (res) {
-  | Ok(lines) => Ok(lines)
-  | Error(err) => Error(Parse(err))
-  };
+let parse = source => {
+  let lexbuf =
+    switch (source) {
+    | SourceString(s) => s |> Lexing.from_string
+    | SourceLexbuf(lexbuf) => lexbuf
+    | SourceChannel(channel) => channel |> Lexing.from_channel
+    };
+  lexbuf |> Parsing.ast_of_lexbuf;
 };
-
-let elaborate = Elaborator_Exp.syn_elab(Contexts.initial, Delta.empty);
-
+let elaborate = Elaborator_Exp.elab(Contexts.initial, Delta.empty);
 let transform = Transformer.transform;
 
-let translate = (~opts=default_opts, d) =>
+let grainize = (~opts=default_opts, d) =>
   if (opts.exp_only) {
-    Translator.translate(
-      d //TODO: there is no public translate_exp
-    );
+    // TODO: Fix this
+    Translator.translate(d);
   } else {
     Translator.translate(d);
   };
 
-let grain_compile_dhexp = (~opts=default_opts, d) => {
-  Ok(d |> transform |> translate(~opts));
-};
+let wasmize = (~opts=default_opts, path, g) => {
+  let write_temporary = contents => {
+    let (outpath, f) = Filename.open_temp_file("hazel", "compile.gr");
+    Printf.fprintf(f, "%s\n", contents);
+    close_out(f);
 
-let grain_compile_uhexp = (~opts=default_opts, e) => {
-  let res = e |> elaborate;
-  switch (res) {
-  | Elaborates(d, _, _) => grain_compile_dhexp(~opts, d)
-  | DoesNotElaborate => Error(Elab)
+    outpath;
+  };
+
+  let grain_outpath = write_temporary(g);
+  switch (
+    Grain.compile(
+      ~opts=opts.grain,
+      {file: grain_outpath, output: Some(path)},
+    )
+  ) {
+  | Ok(_) => Ok()
+  | Error(_) => Error()
   };
 };
 
-let grain_compile_buf = (~opts=default_opts, lexbuf) => {
-  switch (parse(lexbuf)) {
-  | Ok(e) => grain_compile_uhexp(~opts, e)
+let next = (~opts=default_opts, path, state) => {
+  switch (state) {
+  | Source(source) =>
+    parse(source)
+    |> Result.map(e => Parsed(e))
+    |> Result.map_error(err => ParseError(err))
+  | Parsed(e) =>
+    switch (elaborate(e)) {
+    | Elaborates(d, _ty, _delta) => Ok(Elaborated(d))
+    | DoesNotElaborate => Error(ElaborateError)
+    }
+  | Elaborated(d) => Ok(Transformed(transform(d)))
+  | Transformed(u) => Ok(Grainized(grainize(u)))
+  | Grainized(g) =>
+    wasmize(~opts, path, g)
+    |> Result.map(() => Wasmized(path))
+    |> Result.map_error(() => GrainError)
+  | Wasmized(path) => Ok(Wasmized(path))
+  };
+};
+
+[@deriving sexp]
+type resume_action =
+  | Continue(state)
+  | Stop;
+
+let rec resume = (~opts=default_opts, ~hook=?, path, state) => {
+  switch (next(~opts, path, state)) {
+  | Ok(next_state) =>
+    switch (hook) {
+    | Some(hookf) =>
+      switch (hookf(next_state)) {
+      | Continue(state) => resume(~opts, ~hook?, path, state)
+      | Stop => Ok(next_state)
+      }
+    | None =>
+      switch (next_state) {
+      | Wasmized(_) => Ok(next_state)
+      | _ => resume(~opts, ~hook?, path, state)
+      }
+    }
   | Error(err) => Error(err)
   };
 };
 
-let grain_compile_string = (~opts=default_opts, s) =>
-  s |> Lexing.from_string |> grain_compile_buf(~opts);
+let stop_after_parsed =
+  fun
+  | Parsed(_) => Stop
+  | state => Continue(state);
 
-let grain_compile_file = (~opts=default_opts, f) =>
-  f |> Lexing.from_channel |> grain_compile_buf(~opts);
+let stop_after_elaborated =
+  fun
+  | Elaborated(_) => Stop
+  | state => Continue(state);
 
-let write_temporary = contents => {
-  let (outpath, f) = Filename.open_temp_file("hazel", "compile.gr");
-  Printf.fprintf(f, "%s\n", contents);
-  close_out(f);
+let stop_after_transformed =
+  fun
+  | Transformed(_) => Stop
+  | state => Continue(state);
 
-  outpath;
-};
+let stop_after_grainized =
+  fun
+  | Grainized(_) => Stop
+  | state => Continue(state);
 
-let compile_grain = (~opts=default_opts, outpath, grain_res) => {
-  switch (grain_res) {
-  | Ok(grain_output) =>
-    let grain_outpath = write_temporary(grain_output);
-    switch (
-      Grain.compile(
-        ~opts=opts.grain,
-        {file: grain_outpath, output: Some(outpath)},
-      )
-    ) {
-    | Ok(_) => Ok()
-    | Error(_) => Error(Grain)
-    };
+let stop_after_wasmized =
+  fun
+  | Wasmized(_) => Stop
+  | state => Continue(state);
+
+exception BadState;
+
+let compile_grain = (~opts=default_opts, path, source) => {
+  switch (resume(~opts, ~hook=stop_after_grainized, path, Source(source))) {
+  | Ok(state) =>
+    switch (state) {
+    | Grainized(g) => Ok(g)
+    | _ => raise(BadState)
+    }
   | Error(err) => Error(err)
   };
 };
 
-let compile_dhexp = (~opts=default_opts, d, outpath) => {
-  d |> grain_compile_dhexp(~opts) |> compile_grain(~opts, outpath);
-};
-
-let compile_uhexp = (~opts=default_opts, e, outpath) => {
-  e |> grain_compile_uhexp(~opts) |> compile_grain(~opts, outpath);
-};
-
-let compile_buf = (~opts=default_opts, lexbuf, outpath) => {
-  lexbuf |> grain_compile_buf(~opts) |> compile_grain(~opts, outpath);
-};
-
-let compile_string = (~opts=default_opts, s, outpath) => {
-  s |> grain_compile_string(~opts) |> compile_grain(~opts, outpath);
-};
-
-let compile_file = (~opts=default_opts, f, outpath) => {
-  f |> grain_compile_file(~opts) |> compile_grain(~opts, outpath);
+let compile = (~opts=default_opts, path, source) => {
+  switch (resume(~opts, ~hook=stop_after_wasmized, path, Source(source))) {
+  | Ok(state) =>
+    switch (state) {
+    | Wasmized(path) => Ok(path)
+    | _ => raise(BadState)
+    }
+  | Error(err) => Error(err)
+  };
 };
