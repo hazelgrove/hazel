@@ -7,7 +7,15 @@ import Result from "result"
 import String from "string"
 
 import Sexp from "./sexp"
-import ListUtil from "./list_util"
+
+let revMap = (f, l) => {
+  let rec rmap = (accu, lst) =>
+    match (lst) {
+      [] => accu,
+      [a, ...l] => rmap([f(a), ...accu], l),
+    }
+  rmap([], l)
+}
 
 export exception OfSexpError(String,Sexp.Sexp)
 export let ofSexpError = (conv, what, sexp) =>
@@ -40,7 +48,7 @@ export let sexpOfTriple = (sexpOfA, sexpOfB, sexpOfC, (a, b, c)) =>
   Sexp.List([sexpOfA(a), sexpOfB(b), sexpOfC(c)])
 
 export let sexpOfList = (sexpOfA, lst) =>
-  Sexp.List(List.reverse(ListUtil.revMap(sexpOfA, lst)))
+  Sexp.List(List.reverse(revMap(sexpOfA, lst)))
 
 export let sexpOfMap = (sexpOfKey, sexpOfVal, map) => {
   let coll = (k, v, acc) => [Sexp.List([sexpOfKey(k), sexpOfVal(v)]), ...acc]
@@ -143,7 +151,7 @@ export let tripleOfSexp = (aOfSexp, bOfSexp, cOfSexp, sexp) =>
 
 export let listOfSexp = (aOfSexp, sexp) =>
   match (sexp) {
-    Sexp.List(lst) => ListUtil.revMap(aOfSexp, lst),
+    Sexp.List(lst) => revMap(aOfSexp, lst),
     _ => ofSexpError("listOfSexp", "list needed", sexp),
   }
 
