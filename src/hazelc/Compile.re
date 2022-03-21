@@ -92,14 +92,14 @@ let parse = source => {
   lexbuf |> Parsing.ast_of_lexbuf;
 };
 let elaborate = Elaborator_Exp.elab(Contexts.initial, Delta.empty);
-let transform = Transformer.transform;
+let transform = Transform.transform;
 
 let grainize = (~opts=default_opts, d) =>
   if (opts.exp_only) {
     // TODO: Fix this
-    Translator.translate(d);
+    Translate.translate(d);
   } else {
-    Translator.translate(d);
+    Translate.translate(d);
   };
 
 let wasmize = (~opts=default_opts, path, g) => {

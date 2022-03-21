@@ -18,7 +18,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
 
   let source = List.hd(sources);
   let source_file = open_in(source);
-  let opts: Compiler.opts = {
+  let opts: Compile.opts = {
     exp_only: false,
     grain: {
       grain: None,
@@ -33,7 +33,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     switch (action) {
     | Grain =>
       let res =
-        Compiler.compile_grain(~opts, out, SourceChannel(source_file));
+        Compile.compile_grain(~opts, out, SourceChannel(source_file));
       switch (res) {
       | Ok(output) =>
         let out_file = open_out(out);
@@ -44,7 +44,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       };
     | Wasm
     | Wat =>
-      let res = Compiler.compile(~opts, out, SourceChannel(source_file));
+      let res = Compile.compile(~opts, out, SourceChannel(source_file));
       switch (res) {
       | Ok(_) => Ok()
       | Error(err) => Error(err)

@@ -240,9 +240,9 @@ let apply_action =
           model
           |> Model.get_program
           |> Program.get_uhexp
-          |> (e => Compiler.Parsed(e))
-          |> Compiler.resume(~hook=Compiler.stop_after_grainized, "")
-          |> Compiler.sexp_of_next_result
+          |> (e => Compile.Parsed(e))
+          |> Compile.resume(~hook=Compile.stop_after_grainized, "")
+          |> Compile.sexp_of_next_result
           |> Sexplib.Sexp.to_string
           |> Js.string
           |> JSUtil.log

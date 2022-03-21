@@ -12,5 +12,5 @@ type expect =
 [@deriving sexp]
 type t = (exp, expect);
 
-let compile: (exp, string) => Compiler.next_result;
+let compile: (exp, string) => Compile.next_result;
 let test: t => bool;
