@@ -1488,7 +1488,7 @@ and ana_perform_operand =
       // systematically as part of an opseq, so we have to reassociate the annotation
       // onto the trailing operand.
       let (ann, _, u_gen) =
-        Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+        Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
       let newseq = annotate_last_operand(zseq, ann);
       let (zpat, ctx, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, newseq, ty);
       Succeeded((zpat, ctx, u_gen));

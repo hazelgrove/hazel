@@ -566,7 +566,7 @@ and syn_fix_holes_line =
       (TyAliasLine(p, ty), ctx, u_gen);
     | None =>
       let (ty, _, u_gen) =
-        Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ty);
+        Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ty);
       (TyAliasLine(p, ty), ctx, u_gen);
     }
   | LetLine(p, def) =>

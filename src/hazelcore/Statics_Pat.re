@@ -431,7 +431,7 @@ and syn_fix_holes_operand =
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
     let (ann, _, u_gen) =
-      Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+      Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
     switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
     | Some((ty_ann, _, _)) =>
       if (HTyp.complete(ty_ann)) {
@@ -446,7 +446,7 @@ and syn_fix_holes_operand =
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
       } else {
         let (ann, _, u_gen) =
-          Elaborator_Typ.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+          Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
       }
     | None =>
