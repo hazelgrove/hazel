@@ -10,21 +10,21 @@ type req =
  * Modifier key requirements for a key combo
  */
 type t = {
-  c: req,
-  s: req,
-  a: req,
-  m: req,
+  ctrl: req,
+  shift: req,
+  alt: req,
+  meta: req,
 };
 
 let not_held: t;
+let ctrlOrCmd: t;
 let ctrl: t;
 let shift: t;
-let alt: t;
-let meta: t;
-let no_ctrl_alt_meta: t;
 let ctrl_shift: t;
-let ctrl_alt: t;
-let meta_shift: t;
+let alt: t;
+let no_ctrlOrCmd_alt: t;
+let ctrlOrCmd_shift: t;
+let ctrlOrCmd_alt: t;
 
 let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
 

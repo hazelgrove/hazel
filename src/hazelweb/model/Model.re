@@ -6,15 +6,17 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
-  is_mac: bool,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  cursor_inspector: CursorInspectorModel.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
-  TutorialCards.cardstack,
+  Examples.cardstack,
+  Examples.teststack,
+  // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];
 
@@ -32,7 +34,7 @@ let init = (): t => {
       cardstacks_after_action: cardstacks,
       cardstacks_after_move: cardstacks,
       cursor_term_info,
-      previous_action: Init,
+      previous_action: EditAction(Init),
       action_group: Init,
       timestamp,
     };
@@ -52,6 +54,7 @@ let init = (): t => {
     };
   };
   let settings = Settings.init;
+  let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -76,9 +79,9 @@ let init = (): t => {
         row_height: 1.0,
         col_width: 1.0,
       },
-    is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    cursor_inspector,
   };
 };
 
@@ -118,6 +121,14 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
 let get_cardstack = model => model |> get_cardstacks |> ZCardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
 
+let get_cards_info = (model: t): list(CardInfo.t) =>
+  switch (
+    model.cardstacks |> ZList.prefix_length |> List.nth_opt(cardstack_info)
+  ) {
+  | None => []
+  | Some(cardinfo) => cardinfo.cards
+  };
+
 let map_selected_instances =
     (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
   ...model,
@@ -152,7 +163,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: Action.t, new_program, model) => {
+let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -201,6 +212,12 @@ let next_card = model => {
   |> focus_cell;
 };
 
+let nth_card = (n, model) => {
+  model
+  |> map_cardstacks(ZCardstacks.map_z(Cardstack.nth_card(n)))
+  |> focus_cell;
+};
+
 let perform_edit_action = (a: Action.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
@@ -209,7 +226,8 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(a, new_program);
+      let ma = ModelAction.EditAction(a);
+      model |> update_program(ma, new_program);
     },
   );
 };
@@ -219,7 +237,8 @@ let move_via_key = (move_key, model) => {
     model
     |> get_program
     |> Program.move_via_key(~settings=model.settings, move_key);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let move_via_click = (row_col, model) => {
@@ -227,7 +246,8 @@ let move_via_click = (row_col, model) => {
     model
     |> get_program
     |> Program.move_via_click(~settings=model.settings, row_col);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let select_case_branch =
@@ -235,9 +255,10 @@ let select_case_branch =
   let program = model |> get_program;
   let action = Program.move_to_case_branch(path_to_case, branch_index);
   let new_program = Program.perform_edit_action(action, program);
+  let model_action = ModelAction.EditAction(action);
   model
   |> put_program(new_program)
-  |> update_program(action, new_program)
+  |> update_program(model_action, new_program)
   |> focus_cell;
 };
 
@@ -249,18 +270,6 @@ let toggle_right_sidebar = (model: t): t => {
   ...model,
   right_sidebar_open: !model.right_sidebar_open,
 };
-
-let load_example = (model: t, e: UHExp.t): t =>
-  model
-  |> put_program(
-       Program.mk(
-         ~width=model.cell_width,
-         Statics_Exp.fix_and_renumber_holes_z(
-           Contexts.empty,
-           ZExp.place_before(e),
-         ),
-       ),
-     );
 
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;

@@ -16,30 +16,37 @@ type shift_history_info = {
   elt_id: int,
   call_by_mouseenter: bool,
 };
+
 [@deriving sexp]
 type group_id = int;
+
+[@deriving sexp]
+type serialize_object =
+  | UHExp
+  | DHExp
+  | ZExp;
+
 [@deriving sexp]
 type t =
   | EditAction(EditAction.t)
   | MoveAction(move_input)
   | ToggleLeftSidebar
   | ToggleRightSidebar
-  | LoadExample(Examples.id)
+  | LoadCard(int)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
-  | InvalidVar(string)
   | FocusCell
   | BlurCell
   | Redo
   | Undo
   | ShiftHistory(shift_history_info)
-  | ShiftWhenScroll
   | ToggleHistoryGroup(group_id)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | UpdateIsMac(bool);
+  | SerializeToConsole(serialize_object);

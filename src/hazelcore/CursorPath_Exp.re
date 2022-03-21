@@ -1,3 +1,4 @@
+let mk_hole_sort = CursorPath.mk_hole_sort;
 let cons' = CursorPath_common.cons';
 let rec of_z = (ze: ZExp.t): CursorPath.t => of_zblock(ze)
 and of_zblock = (zblock: ZExp.zblock): CursorPath.t => {
@@ -26,10 +27,6 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zhole_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
-    cons'(n, of_z(ze));
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -153,19 +150,6 @@ and follow_operand =
           |> ZList.optmap_z(follow_rule((xs, cursor)))
           |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
         }
-      }
-    | ApPalette(err, name, serialized_model, splice_info) =>
-      switch (
-        ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
-          switch (follow((xs, cursor), e)) {
-          | None => None
-          | Some(ze) => Some((ty, ze))
-          }
-        )
-      ) {
-      | None => None
-      | Some(zsplice_info) =>
-        Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
     }
   }
@@ -325,13 +309,6 @@ and of_steps_operand =
           z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
       }
-    | ApPalette(_, _, _, splice_info) =>
-      let splice_map = splice_info.splice_map;
-      switch (IntMap.find_opt(x, splice_map)) {
-      | None => None
-      | Some((_, e)) =>
-        e |> of_steps(xs, ~side) |> Option.map(path => cons'(x, path))
-      };
     }
   }
 and of_steps_rule =
@@ -418,11 +395,11 @@ and holes_operand =
     : CursorPath.hole_list =>
   switch (operand) {
   | EmptyHole(u) => [
-      {sort: ExpHole(u, Empty), steps: List.rev(rev_steps)},
+      mk_hole_sort(ExpHole(u, Empty), List.rev(rev_steps)),
       ...hs,
     ]
   | InvalidText(u, _) => [
-      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
+      mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps)),
       ...hs,
     ]
   | Var(err, verr, _) =>
@@ -447,19 +424,6 @@ and holes_operand =
        )
     |> holes(scrut, [0, ...rev_steps])
     |> holes_case_err(err, rev_steps)
-  | ApPalette(err, _, _, psi) =>
-    let splice_map = psi.splice_map;
-    let splice_order = psi.splice_order;
-    List.fold_right(
-      (i, hs) =>
-        switch (IntMap.find_opt(i, splice_map)) {
-        | None => hs
-        | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
-        },
-      splice_order,
-      hs,
-    )
-    |> holes_err(err, rev_steps);
   }
 and holes_rule =
     (
@@ -567,13 +531,13 @@ and holes_zoperand =
   | CursorE(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({sort: ExpHole(u, Empty), steps: List.rev(rev_steps)}),
+        Some(mk_hole_sort(ExpHole(u, Empty), List.rev(rev_steps))),
       (),
     )
   | CursorE(_, InvalidText(u, _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
+        Some(mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps))),
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
@@ -582,13 +546,13 @@ and holes_zoperand =
     | (InHole(_, u), _) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps))),
         (),
       )
     }
@@ -601,7 +565,7 @@ and holes_zoperand =
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
+          Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     }
@@ -617,10 +581,9 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({
-          sort: CursorPath.ExpHole(u, TypeErr),
-          steps: List.rev(rev_steps),
-        })
+        Some(
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
+        )
       };
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
@@ -639,7 +602,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_body = holes(body, [1, ...rev_steps], []);
@@ -665,7 +628,7 @@ and holes_zoperand =
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) =>
-        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -693,14 +656,13 @@ and holes_zoperand =
   | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
@@ -717,7 +679,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -734,7 +696,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
@@ -751,10 +713,7 @@ and holes_zoperand =
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          {
-            sort: CursorPath.ExpHole(u, TypeErr),
-            steps: List.rev(rev_steps),
-          },
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
@@ -777,7 +736,7 @@ and holes_zoperand =
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
@@ -804,39 +763,6 @@ and holes_zoperand =
       holes_before: holes_err @ holes_scrut @ holes_prefix @ holes_before,
       hole_selected,
       holes_after: holes_after @ holes_suffix,
-    };
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zsplice_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);
-    let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_z(ze, [n, ...rev_steps]);
-    let splice_order = zpsi.splice_order;
-    let splice_map = ZIntMap.prj_map(zsplice_map);
-    let (splices_before, splices_after) = ListUtil.split_at(splice_order, n);
-    let holes_splices_before =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_before,
-      );
-    let holes_splices_after =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_after,
-      );
-    {
-      holes_before: holes_splices_before @ holes_before,
-      hole_selected,
-      holes_after: holes_after @ holes_splices_after,
     };
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>

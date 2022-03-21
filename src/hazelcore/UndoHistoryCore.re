@@ -55,12 +55,12 @@ type timestamp = float;
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
-  | Exp(cursor_pos, _)
-  | Pat(cursor_pos, _)
-  | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
-  | TypOp(cursor_pos, _)
+  | ExpOperand(cursor_pos, _)
+  | PatOperand(cursor_pos, _)
+  | TypOperand(cursor_pos, _)
+  | ExpOperator(cursor_pos, _)
+  | PatOperator(cursor_pos, _)
+  | TypOperator(cursor_pos, _)
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
   };
@@ -136,7 +136,7 @@ let comp_len_lt =
 
 let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   switch (cursor_term) {
-  | Exp(_, operand) =>
+  | ExpOperand(_, operand) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
     | InvalidText(_, t) => Len(String.length(t))
@@ -149,9 +149,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
-    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
-  | Pat(_, operand) =>
+  | PatOperand(_, operand) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
@@ -165,7 +164,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
-  | Typ(_, operand) =>
+  | TypOperand(_, operand) =>
     switch (operand) {
     | Hole => MinLen
     | Unit
@@ -175,9 +174,9 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_)
     | List(_) => MaxLen
     }
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
+  | ExpOperator(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
   | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
@@ -203,7 +202,7 @@ let cursor_term_len_larger =
 
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, exp) =>
+  | ExpOperand(_, exp) =>
     switch (exp) {
     | Lam(_) => true
     | _ => false
