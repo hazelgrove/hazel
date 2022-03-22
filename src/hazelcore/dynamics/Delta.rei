@@ -14,3 +14,6 @@ let union: (t, t) => t;
 let add: (int, Hole.t, t) => t;
 
 let subst_tyvar: (t, Index.t, HTyp.t) => t;
+
+let sexp_of_t: t => Sexplib.Sexp.t;
+let t_of_sexp: Sexplib.Sexp.t => t;

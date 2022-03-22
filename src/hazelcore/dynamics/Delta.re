@@ -30,3 +30,9 @@ let subst_tyvar = (delta: t, i: Index.t, ty: HTyp.t): t =>
      )
   |> List.to_seq
   |> IntMap.of_seq;
+
+let sexp_of_t = (delta: t): Sexplib.Sexp.t =>
+  IntMap.sexp_of_t(Hole.sexp_of_t, delta);
+
+let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
+  IntMap.t_of_sexp(Hole.t_of_sexp, sexp);
