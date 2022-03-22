@@ -35,3 +35,9 @@ let binds_tyvar = (name: string): (t => bool) =>
   | EmptyHole
   | TyVar(InHole(_), _) => false
   | TyVar(NotInHole, name') => String.equal(name, name');
+
+let tyvar_name: t => option(string) =
+  fun
+  | EmptyHole
+  | TyVar(InHole(_), _) => None
+  | TyVar(NotInHole, name) => Some(name);

@@ -8,3 +8,4 @@ let to_int: t => int = i => i;
 
 let equal: (t, t) => bool = (==);
 let increment: t => t = Int.succ;
+let decrement: t => t = Int.pred;

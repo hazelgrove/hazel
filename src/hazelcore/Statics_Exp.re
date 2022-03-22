@@ -43,8 +43,28 @@ let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   syn_block(ctx, e)
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
-  let* ctx = syn_lines(ctx, leading);
-  syn_opseq(ctx, conclusion);
+  let* new_ctx = syn_lines(ctx, leading);
+  let n =
+    List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
+    - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
+  let rec go = (new_ctx, m, local_tyvars) =>
+    if (m < n) {
+      switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
+      | Some(kind) =>
+        let ty = Kind.canonical_type(kind);
+        let new_ctx = Contexts.unbind0(new_ctx);
+        go(new_ctx, m + 1, [(m, ty), ...local_tyvars]);
+      | None => failwith(__LOC__ ++ ": unbound type variable index")
+      };
+    } else {
+      let+ ty = syn_opseq(new_ctx, conclusion);
+      List.fold_left(
+        (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i),
+        ty,
+        local_tyvars,
+      );
+    };
+  go(new_ctx, 0, []);
 }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
@@ -211,8 +231,25 @@ and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
-  let* ctx = syn_lines(ctx, leading);
-  ana_opseq(ctx, conclusion, ty);
+  let* new_ctx = syn_lines(ctx, leading);
+  let n =
+    List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
+    - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
+  let rec go = (new_ctx, m, local_tyvars) =>
+    if (m < n) {
+      switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
+      | Some(kind) =>
+        let ty_m = Kind.canonical_type(kind);
+        let new_ctx = Contexts.unbind0(new_ctx);
+        go(new_ctx, m + 1, [(m, ty_m), ...local_tyvars]);
+      | None => failwith(__LOC__ ++ ": unboun type variable index")
+      };
+    } else {
+      let subst_ty = (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i);
+      let ty = List.fold_left(subst_ty, ty, local_tyvars);
+      ana_opseq(new_ctx, conclusion, ty);
+    };
+  go(new_ctx, 0, []);
 }
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)

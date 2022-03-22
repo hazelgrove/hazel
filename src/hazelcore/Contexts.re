@@ -14,3 +14,8 @@ let extend_tyvars =
     ((gamma, builtins, tyvars): t, name: string, kind: Kind.t) => {
   (gamma, builtins, TyVarCtx.bind(tyvars, name, kind));
 };
+let unbind0 = ((gamma, builtins, tyvars): t): t => {
+  let kind = TyVarCtx.kind(tyvars, 0) |> Option.value(~default=Kind.KHole);
+  let gamma = VarCtx.subst_tyvar(gamma, 0, Kind.canonical_type(kind));
+  (gamma, builtins, TyVarCtx.unbind0(tyvars));
+};

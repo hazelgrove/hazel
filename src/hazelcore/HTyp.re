@@ -126,7 +126,10 @@ let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
     switch (TyVarCtx.kind(tyvars, i)) {
     | Some(Singleton(ty1)) => head_normalize(tyvars, ty1)
     | Some(_) => TyVar(i, name)
-    | None => failwith(__LOC__ ++ ": unknown type variable index")
+    | None =>
+      failwith(
+        __LOC__ ++ ": unknown type variable index " ++ Int.to_string(i),
+      )
     }
   | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
   | Hole => Hole
@@ -148,7 +151,10 @@ let rec normalize = (tyvars: TyVarCtx.t, ty: t): normalized =>
     switch (TyVarCtx.kind(tyvars, i)) {
     | Some(Singleton(ty1)) => normalize(tyvars, ty1)
     | Some(_) => ty
-    | None => failwith(__LOC__ ++ ": unknown type variable index")
+    | None =>
+      failwith(
+        __LOC__ ++ ": unknown type variable index " ++ Int.to_string(i),
+      )
     }
   | TyVarHole(_)
   | Hole
@@ -359,3 +365,5 @@ let ground_cases_of = (ty: normalized): ground_cases =>
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
+
+let subst = HTypSyntax.subst;

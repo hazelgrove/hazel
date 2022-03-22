@@ -12,3 +12,5 @@ let empty: t;
 let union: (t, t) => t;
 
 let add: (int, Hole.t, t) => t;
+
+let subst_tyvar: (t, Index.t, HTyp.t) => t;

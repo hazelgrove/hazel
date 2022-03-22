@@ -1,4 +1,4 @@
-let verbose = true;
+let verbose = false;
 
 let mk_TyAliasLine =
     (ctx, name: string, ty: HTyp.t): (UHExp.line, MetaVarGen.t) => {

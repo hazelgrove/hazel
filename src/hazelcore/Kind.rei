@@ -5,3 +5,5 @@ include (module type of {
 let singleton: HTyp.t => t;
 
 let consistent_subkind: (TyVarCtx.t, t, t) => bool;
+
+let canonical_type: t => HTyp.t;

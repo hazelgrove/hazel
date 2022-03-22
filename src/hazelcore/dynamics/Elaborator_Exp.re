@@ -36,11 +36,48 @@ and syn_elab_block =
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
     | LinesDoNotElaborate => DoesNotElaborate
-    | LinesElaborate(prelude, ctx, delta) =>
-      switch (syn_elab_opseq(ctx, delta, conclusion)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
-      }
+    | LinesElaborate(prelude, new_ctx, delta) =>
+      let n =
+        List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
+        - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
+      let rec go = (ctx, m, local_tyvars) =>
+        if (m < n) {
+          switch (TyVarCtx.kind(Contexts.tyvars(ctx), m)) {
+          | Some(kind) =>
+            let ty = Kind.canonical_type(kind);
+            let new_ctx = Contexts.unbind0(ctx);
+            go(new_ctx, m + 1, [(m, ty), ...local_tyvars]);
+          | None => failwith(__LOC__ ++ ": unbound type variable index")
+          };
+        } else {
+          switch (syn_elab_opseq(ctx, delta, conclusion)) {
+          | DoesNotElaborate => (
+              ElaborationResult.DoesNotElaborate,
+              local_tyvars,
+            )
+          | Elaborates(d, ty, delta) => (
+              Elaborates(prelude(d), ty, delta),
+              local_tyvars,
+            )
+          };
+        };
+      switch (go(new_ctx, 0, [])) {
+      | (DoesNotElaborate, _) => DoesNotElaborate
+      | (Elaborates(d, ty, delta), local_tyvars) =>
+        let ty =
+          List.fold_left(
+            (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i),
+            ty,
+            local_tyvars,
+          );
+        let delta =
+          List.fold_left(
+            (delta, (i, ty_i)) => Delta.subst_tyvar(delta, i, ty_i),
+            delta,
+            local_tyvars,
+          );
+        Elaborates(d, ty, delta);
+      };
     }
   }
 and syn_elab_lines =
@@ -78,32 +115,18 @@ and syn_elab_line =
       let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotElaborate
-      | Elaborates(d1, ty1', delta) =>
+      | Elaborates(d1, ty1', delta') =>
+        let dty1' = (Contexts.tyvars(ctx), ty1');
+        let dty1 = (Contexts.tyvars(ctx), ty1);
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
           | Some(x) =>
-            FixF(
-              x,
-              (Contexts.tyvars(ctx), ty1'),
-              Evaluator.subst_var(
-                DHExp.cast(
-                  BoundVar(x),
-                  (Contexts.tyvars(ctx), ty1'),
-                  (Contexts.tyvars(ctx), ty1),
-                ),
-                x,
-                d1,
-              ),
-            )
+            let d1 = DHExp.cast(BoundVar(x), dty1', dty1);
+            FixF(x, dty1', Evaluator.subst_var(d1, x, d1));
           };
-        let d1 =
-          DHExp.cast(
-            d1,
-            (Contexts.tyvars(ctx), ty1'),
-            (Contexts.tyvars(ctx), ty1),
-          );
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+        let d1 = DHExp.cast(d1, dty1', dty1);
+        switch (Elaborator_Pat.ana_elab(ctx, delta', p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
@@ -529,11 +552,41 @@ and ana_elab_block =
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
     | LinesDoNotElaborate => DoesNotElaborate
-    | LinesElaborate(prelude, ctx, delta) =>
-      switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
-      }
+    | LinesElaborate(prelude, new_ctx, delta) =>
+      let n =
+        List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
+        - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
+      let rec go = (new_ctx, m, local_tyvars) =>
+        if (m < n) {
+          switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
+          | Some(kind) =>
+            let ty_m = Kind.canonical_type(kind);
+            let ctx = Contexts.unbind0(new_ctx);
+            go(ctx, m + 1, [(m, ty_m), ...local_tyvars]);
+          | None => failwith(__LOC__ ++ ": unbound type variable index")
+          };
+        } else {
+          switch (ana_elab_opseq(new_ctx, delta, conclusion, ty)) {
+          | DoesNotElaborate => (
+              ElaborationResult.DoesNotElaborate,
+              local_tyvars,
+            )
+          | Elaborates(d, ty, delta) => (
+              Elaborates(prelude(d), ty, delta),
+              local_tyvars,
+            )
+          };
+        };
+      switch (go(new_ctx, 0, [])) {
+      | (DoesNotElaborate, _) => DoesNotElaborate
+      | (Elaborates(d, ty, delta), local_tyvars) =>
+        let subst_ty = (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i);
+        let subst_delta = (delta, (i, ty_i)) =>
+          Delta.subst_tyvar(delta, i, ty_i);
+        let ty = List.fold_left(subst_ty, ty, local_tyvars);
+        let delta = List.fold_left(subst_delta, delta, local_tyvars);
+        Elaborates(d, ty, delta);
+      };
     }
   }
 and ana_elab_opseq =

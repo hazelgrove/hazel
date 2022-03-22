@@ -34,13 +34,8 @@ let of_unsafe: unsafe => t;
 let to_string: t => string;
 
 /* abstraction */
-// let of_syntax: s => t;
 let of_head_normalized: head_normalized => t;
 let of_normalized: normalized => t;
-
-/* realization */
-// let syntax_of_h: h => s;
-// let syntax_of_n: n => s;
 
 /* construction */
 let tyvar: (Index.t, string) => t;
@@ -96,3 +91,5 @@ let grounded_Prod: int => ground_cases;
 let grounded_List: ground_cases;
 
 let ground_cases_of: normalized => ground_cases;
+
+let subst: (t, Index.t, t) => t;

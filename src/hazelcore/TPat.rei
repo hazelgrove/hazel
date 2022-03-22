@@ -23,3 +23,4 @@ type t =
 let is_complete: t => bool;
 let of_string: string => t;
 let binds_tyvar: (string, t) => bool;
+let tyvar_name: t => option(string);

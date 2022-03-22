@@ -12,3 +12,6 @@ let consistent_subkind = (tyvars: TyVarCtx.t, k: t, k': t): bool =>
   | (Type, Singleton(_)) => false
   | (Type, Type) => true
   };
+
+let canonical_type = (kind: t): HTyp.t =>
+  KindCore.canonical_type(kind) |> HTyp.of_unsafe;
