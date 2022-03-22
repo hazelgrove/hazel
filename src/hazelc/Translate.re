@@ -1,6 +1,6 @@
 open Format;
 
-exception NotImplemented;
+exception NotImplemented(string);
 
 module Program = {
   type t = {
@@ -79,7 +79,14 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
     let (v2, prog) = translate_exp(d2, prog);
     let exp = sprintf("%s(%s)", v1, v2);
     Program.assign_tmp_var(prog, exp);
-  | ApBuiltin(_, _) => raise(NotImplemented)
+  | ApBuiltin(func, args) =>
+    let map_func = ((vlist, prog), arg) => {
+      let (v1, prog) = translate_exp(arg, prog);
+      (vlist @ [v1], prog);
+    };
+    let (vlist, prog) = List.fold_left(map_func, ([], prog), args);
+    let exp = sprintf("%s(%s)", func, String.concat(", ", vlist)); // TODO: Not checking `func` is correct
+    Program.assign_tmp_var(prog, exp);
   | BoolLit(b) => (b ? "true" : "false", prog)
   | IntLit(i) => (sprintf("%d", i), prog)
   | FloatLit(f) => (sprintf("%f", f), prog)
@@ -143,7 +150,7 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
   // | Cast(_)
   // | FailedCast(_)
   // | InvalidOperation(_) => raise(NotImplemented)
-  | _ => raise(NotImplemented)
+  | _ => raise(NotImplemented("expressions"))
   };
 }
 and translate_rule = (r: IHExp.rule) => {
@@ -164,9 +171,9 @@ and translate_pat = (dp: IHPat.t) => {
   | InvalidText(_)
   | Inj(_)
   | Triv
-  | Ap(_) => raise(NotImplemented)
+  | Ap(_) => raise(NotImplemented("patterns"))
   | ListNil => "[]"
-  | Cons(dp1, dp2) => 
+  | Cons(dp1, dp2) =>
     sprintf("[%s, ...%s]", translate_pat(dp1), translate_pat(dp2))
   | Wild => "_"
   | Var(v) => v
