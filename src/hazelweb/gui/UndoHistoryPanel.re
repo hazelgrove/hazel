@@ -51,7 +51,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
-        if (Var.is_case(var_str) || Var.is_let(var_str)) {
+        if (Var.is_case(var_str)
+            || Var.is_let(var_str)
+            || Var.is_type(var_str)) {
           Vdom.(
             Node.span(
               [],
@@ -395,6 +397,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           )
         )
       | SLam => indicate_words_view("construct function")
+      | STyAlias =>
+        Vdom.(
+          Node.span(
+            [],
+            [
+              indicate_words_view("construct "),
+              code_keywords_view("type"),
+              indicate_words_view(" binding"),
+            ],
+          )
+        )
       | _ =>
         Vdom.(
           Node.span(
@@ -470,6 +483,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
+      | STyAlias
       | SCase
       | SLam => Some(Exp)
       | SAnn => Some(Pat)

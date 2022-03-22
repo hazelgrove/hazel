@@ -660,6 +660,8 @@ let get_new_action_group =
                   Some(ConstructEdit(SLet));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));
+                } else if (Var.is_type(left_var)) {
+                  Some(ConstructEdit(STyAlias));
                 } else {
                   Some(ConstructEdit(SOp(SSpace)));
                 };

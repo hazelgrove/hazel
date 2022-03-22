@@ -27,6 +27,8 @@ let is_let = eq("let");
 
 let is_case = eq("case");
 
+let is_type = eq("type");
+
 let is_wild = eq("_");
 
 let split = (pos, name) => {
