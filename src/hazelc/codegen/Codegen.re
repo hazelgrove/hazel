@@ -6,6 +6,8 @@ module type ImportMeta = {
 };
 
 module Import = (M: ImportMeta) => {
+  let code = (): GHExp.top_block => [Import(M.name, M.path)];
+
   let symbol = symbol => GHExp.Named(sprintf("%s.%s", M.name, symbol));
 };
 
@@ -23,9 +25,21 @@ module Consts = {
   let prim_less_than_op = "<";
   let prim_greater_than_op = "<";
   let prim_equals_op = "<";
+};
 
+module Pervasives = {
   let inj_left = "L";
   let inj_right = "R";
+
+  let code = (): GHExp.top_block => [
+    Decl(
+      Enum(
+        "HazelSum",
+        ["a", "b"],
+        [(inj_right, ["a"]), (inj_right, ["b"])],
+      ),
+    ),
+  ];
 };
 
 module HazelMod = {
@@ -34,6 +48,8 @@ module HazelMod = {
       let path = "hazel/hazel";
       let name = "Hazel";
     });
+
+  let code = Mod.code;
 
   let hazel_and = Mod.symbol("and");
   let hazel_or = Mod.symbol("or");
@@ -62,6 +78,8 @@ module BuiltinsMod = {
       let name = "Builtins";
     });
 
+  let code = Mod.code;
+
   let builtins =
     [
       ("int_of_float", "intOfFloat"),
@@ -74,16 +92,68 @@ module BuiltinsMod = {
   let lookup = VarMap.lookup(builtins);
 };
 
+module Preamble = {
+  let code = () =>
+    [Pervasives.code(), HazelMod.code(), BuiltinsMod.code()]
+    |> GHExp.TopBlock.join;
+};
+
 /*
    Raise a CodegenError.Exception.
  */
 let codegen_raise = err => raise(CodegenError.Exception(err));
 
 let codegen_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
+let codegen_lines = ss => ss |> String.concat("\n");
+let codegen_comma_sep = ss => ss |> String.concat(", ");
 
-let rec codegen = (b: GHExp.t) => codegen_block(b)
+let rec codegen = ((tb, b): GHExp.program) => {
+  let preamble = GHExp.TopBlock.join([Preamble.code(), tb]);
+
+  [codegen_top_block(preamble), codegen_block_nowrap(b)] |> codegen_lines;
+}
+
+and codegen_top_block = (tb: GHExp.top_block) => {
+  tb |> List.map(codegen_top_statement) |> codegen_lines;
+}
+
+and codegen_top_statement = (tstmt: GHExp.top_statement) => {
+  switch (tstmt) {
+  | Import(name, path) => codegen_import(name, path)
+  | Decl(decl) => codegen_decl(decl)
+  };
+}
+
+and codegen_import = (name: Var.t, path: string) =>
+  // TODO: Relative import?
+  sprintf("import %s from \"%s\"", name, path)
+
+and codegen_decl = (decl: GHExp.decl) => {
+  switch (decl) {
+  | Enum(name, type_vars, variants) =>
+    let type_vars =
+      List.length(type_vars) == 0
+        ? "" : type_vars |> codegen_comma_sep |> sprintf("<%s>");
+    let variants =
+      variants
+      |> List.map(((vname, vbody)) =>
+           if (List.length(vbody) == 0) {
+             vname;
+           } else {
+             vbody |> codegen_comma_sep |> sprintf("%s(%s)", vname);
+           }
+         )
+      |> codegen_comma_sep;
+
+    sprintf("enum %s%s { %s }", name, type_vars, variants);
+  };
+}
+
+and codegen_block_nowrap = (b: GHExp.block) => {
+  b |> List.map(codegen_statement) |> codegen_lines;
+}
 and codegen_block = (b: GHExp.block) => {
-  let s = b |> List.map(codegen_statement) |> String.concat("\n");
+  let s = codegen_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
@@ -122,6 +192,7 @@ and codegen_expr = (e: GHExp.expr) =>
   | Lam(_params, _e') => codegen_raise(NotImplemented)
   | Ap(_lam, _args) => codegen_raise(NotImplemented)
   | Match(_e', _rules) => codegen_raise(NotImplemented)
+  | Block(b) => codegen_block(b)
   }
 
 and codegen_bin_op = (op: GHExp.bin_op, e1: GHExp.expr, e2: GHExp.expr) =>
@@ -180,8 +251,8 @@ and codegen_bin_op_hazel =
 and codegen_inj = (side: GHExp.side, e': GHExp.expr) => {
   let ctor =
     switch (side) {
-    | L => Consts.inj_left
-    | R => Consts.inj_right
+    | L => Pervasives.inj_left
+    | R => Pervasives.inj_right
     };
 
   // TODO: Use separate expr variant for variant constructor?

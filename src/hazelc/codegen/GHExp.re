@@ -1,12 +1,22 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type var =
-  | Named(Var.t)
-  | Tmp(int);
+type top_block = list(top_statement)
+and top_statement =
+  | Import(Var.t, string)
+  | Decl(decl)
+and decl =
+  | Enum(Var.t, list(Var.t), list((Var.t, list(Var.t))));
+
+module TopBlock = {
+  let join = tbs => List.concat(tbs);
+};
 
 [@deriving sexp]
-type params = list(var);
+type var =
+  | Named(Var.t)
+  | Tmp(int)
+and params = list(var);
 
 module BinOp = {
   [@deriving sexp]
@@ -47,7 +57,17 @@ type pat =
   | Triv;
 
 [@deriving sexp]
-type expr =
+type side =
+  | L
+  | R;
+
+[@deriving sexp]
+type block = list(statement)
+and statement =
+  | Let(params, expr)
+  | LetRec(params, expr)
+  | Expr(expr)
+and expr =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
@@ -60,25 +80,14 @@ type expr =
   | Lam(params, expr)
   | Ap(expr, args)
   | Match(expr, list(rule))
+  | Block(block)
 and args = list(expr)
-and side =
-  | L
-  | R
 and rule =
   | Rule(pat, expr);
 
-[@deriving sexp]
-type statement =
-  | Let(params, expr)
-  | LetRec(params, expr)
-  | Expr(expr);
-
-[@deriving sexp]
-type block = list(statement);
-
 module Block = {
-  let append = (b1, b2) => List.append(b1, b2);
+  let join = bs => List.concat(bs);
 };
 
 [@deriving sexp]
-type t = block;
+type program = (top_block, block);
