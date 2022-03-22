@@ -84,6 +84,20 @@ let is_tyvar = (ty: t): bool =>
   | _ => false
   };
 
+let tyvar_index = (ty: t): option(Index.t) =>
+  switch (ty) {
+  | TyVar(i, _) => Some(i)
+  | TyVarHole(_)
+  | Hole
+  | Int
+  | Float
+  | Bool
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | List(_) => None
+  };
+
 let tyvar_name = (ty: t): option(string) =>
   switch (ty) {
   | TyVar(_, name) => Some(name)

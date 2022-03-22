@@ -283,7 +283,7 @@ let rec mk =
                          ~inline_padding=(space(), space()),
                          ~enforce_inline,
                        )
-                  | None => failwith("can't synthesize kind of TyAlias type")
+                  | None => failwith("can't synthesize kind of type alias")
                   },
                 ]
                 : []

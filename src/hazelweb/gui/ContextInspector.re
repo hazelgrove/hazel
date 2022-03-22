@@ -21,6 +21,19 @@ let view =
       |> Program.get_cursor_info
       |> CursorInfo_common.get_ctx
       |> Contexts.tyvars;
+    let ty' =
+      if (HTyp.is_tyvar(ty)) {
+        open OptUtil.Syntax;
+        let* i = HTyp.tyvar_index(ty);
+        let* kind = TyVarCtx.kind(tyvars, i);
+        switch (kind) {
+        | KHole => Some(HTyp.hole)
+        | Type => None
+        | Singleton(ty') => Some(HTyp.of_unsafe(ty'))
+        };
+      } else {
+        None;
+      };
     Node.div(
       [Attr.classes(["static-info"])],
       [
@@ -32,7 +45,7 @@ let view =
             HTypCode.view(~width=30, ~pos=Var.length(x) + 3, ty),
           ]
           @ (
-            HTyp.is_tyvar(ty)
+            Option.is_some(ty')
               ? [
                 Node.text(" = "),
                 HTypCode.view(
@@ -42,7 +55,7 @@ let view =
                       HTyp.tyvar_name(ty) |> Option.value(~default="???"),
                     )
                     + 3,
-                  HTyp.of_head_normalized(HTyp.head_normalize(tyvars, ty)),
+                  Option.get(ty'),
                 ),
               ]
               : []

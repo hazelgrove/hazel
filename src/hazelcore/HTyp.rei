@@ -52,6 +52,7 @@ let list: t => t;
 let is_hole: t => bool;
 let is_tyvar: t => bool;
 
+let tyvar_index: t => option(Index.t);
 let tyvar_name: t => option(string);
 
 let precedence_Prod: int;
