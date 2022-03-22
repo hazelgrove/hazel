@@ -299,6 +299,11 @@ and syn_cursor_info_line =
     CursorInfo_common.CursorNotOnDeferredVarPat(
       CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
     );
+  | CursorL(_, TyAliasLine(tp, ty)) =>
+    let+ ty = Statics_Exp.syn(ctx, [TyAliasLine(tp, ty), ...suffix]);
+    CursorInfo_common.CursorNotOnDeferredVarPat(
+      CursorInfo_common.mk(Synthesized(ty), ctx, extract_from_zline(zline)),
+    );
   | CursorL(_) =>
     Some(
       CursorNotOnDeferredVarPat(
