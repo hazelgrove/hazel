@@ -429,6 +429,20 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo(Enter, simple("Add new rule")),
       ],
     ),
+    section(
+      "Type Aliases",
+      [
+        info([
+          text("Type alias regex: "),
+          mono_text("[_a-zA-Z][_a-zA-Z0-9']*"),
+        ]),
+        info([
+          text("Type \""),
+          mono_text("type "),
+          text("\" to add a type alias expression"),
+        ]),
+      ],
+    ),
   ];
 };
 
