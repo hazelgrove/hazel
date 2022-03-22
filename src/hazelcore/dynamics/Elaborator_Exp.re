@@ -42,7 +42,7 @@ and syn_elab_block =
         - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
       let rec go = (ctx, m, local_tyvars) =>
         if (m < n) {
-          switch (TyVarCtx.kind(Contexts.tyvars(ctx), m)) {
+          switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
           | Some(kind) =>
             let ty = Kind.canonical_type(kind);
             let new_ctx = Contexts.unbind0(ctx);
