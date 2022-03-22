@@ -33,6 +33,8 @@ let fill: (UHExp.t, MetaVar.t, Result.t) => Result.t;
    Essentially performs a structural diff on the programs' edit states,
    and returns a hole if the root of the diff lies in a hole.
 
+   See `DiffUHExp.rei` for more details about the diff-ing process.
+
    TODO: This can be applied on multiple past states. Currently, it is
    only applied on the most recent state. This should be a relatively
    inexpensive computation, so this should be reasonable. */
