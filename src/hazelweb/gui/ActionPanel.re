@@ -317,14 +317,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           mono_text("false"),
           text(" directly"),
         ]),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"B\""),
-            text(" to insert a Bool type"),
-          ],
-          Action.Construct(SChar("B")),
-        ),
+        info([
+          text("Type "),
+          mono_text("\"Bool\""),
+          text(" to insert a Bool type"),
+        ]),
         operator_list(~on_type=false, "Operators", [Ampersand, VBar]),
       ],
     ),
@@ -335,26 +332,20 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           text("Enter number literals directly e.g. "),
           mono_text("1.0, 2"),
         ]),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"I\""),
-            text(" to insert an "),
-            mono_text("Int"),
-            text(" type"),
-          ],
-          Action.Construct(SChar("I")),
-        ),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"F\""),
-            text(" to insert a "),
-            mono_text("Float"),
-            text(" type"),
-          ],
-          Action.Construct(SChar("F")),
-        ),
+        info([
+          text("Type "),
+          mono_text("\"Int\""),
+          text(" to insert an "),
+          mono_text("Int"),
+          text(" type"),
+        ]),
+        info([
+          text("Type "),
+          mono_text("\"Float\""),
+          text(" to insert a "),
+          mono_text("Float"),
+          text(" type"),
+        ]),
         operator_list(
           ~on_type=false,
           "Integer operators",
