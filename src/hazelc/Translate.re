@@ -163,10 +163,11 @@ and translate_pat = (dp: IHPat.t) => {
   | Keyword(_)
   | InvalidText(_)
   | Inj(_)
-  | ListNil
-  | Cons(_)
   | Triv
   | Ap(_) => raise(NotImplemented)
+  | ListNil => "[]"
+  | Cons(dp1, dp2) => 
+    sprintf("[%s, ...%s]", translate_pat(dp1), translate_pat(dp2))
   | Wild => "_"
   | Var(v) => v
   | IntLit(i) => sprintf("%i", i)
