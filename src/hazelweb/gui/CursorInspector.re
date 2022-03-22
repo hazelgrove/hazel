@@ -231,8 +231,8 @@ let advanced_summary =
     | OnType(_) => [emphasize_text("Type")]
     | OnNonLetLine => [emphasize_text("Line")]
     | OnRule => [emphasize_text("Rule")]
-    | OnTPat(_) => [emphasize_text("Type Pattern")]
-    | OnTPatHole => [emphasize_text("Pattern Hole")]
+    | OnTPat(_) => [emphasize_text("Type Alias")]
+    | OnTPatHole => [emphasize_text("Type Alias Hole")]
     | TypFree => [emphasize_text("Free Type Variable")]
     | TypKeyword(_) => [emphasize_text("Reserved Keyword")]
     };
@@ -428,14 +428,14 @@ let novice_summary =
       ]
     | OnTPatHole => [
         Node.text("Expecting a"),
-        emphasize_text("Type Pattern"),
+        emphasize_text("Type Alias"),
         term_tag,
         Node.text("Got a "),
-        emphasize_text("Type Pattern Hole"),
+        emphasize_text("Type Alias Hole"),
       ]
     | OnTPat(Some(InHole(reason, _))) => [
         Node.text("Expecting a"),
-        emphasize_text("Type Pattern"),
+        emphasize_text("Type Alias"),
         term_tag,
         Node.text(" but got " ++ article),
         emphasize_text(
@@ -449,7 +449,7 @@ let novice_summary =
     | OnTPat(_) => [
         Node.text("Got " ++ article),
         term_tag,
-        emphasize_text(~only_right=true, "Type Pattern"),
+        emphasize_text(~only_right=true, "Type Alias"),
       ]
     | TypFree => [
         Node.text("Expecting a"),
