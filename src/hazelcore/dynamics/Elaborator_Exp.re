@@ -40,17 +40,17 @@ and syn_elab_block =
       let n =
         List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
         - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
-      let rec go = (ctx, m, local_tyvars) =>
+      let rec go = (new_ctx, m, local_tyvars) =>
         if (m < n) {
           switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
           | Some(kind) =>
             let ty = Kind.canonical_type(kind);
-            let new_ctx = Contexts.unbind0(ctx);
+            let new_ctx = Contexts.unbind0(new_ctx);
             go(new_ctx, m + 1, [(m, ty), ...local_tyvars]);
           | None => failwith(__LOC__ ++ ": unbound type variable index")
           };
         } else {
-          switch (syn_elab_opseq(ctx, delta, conclusion)) {
+          switch (syn_elab_opseq(new_ctx, delta, conclusion)) {
           | DoesNotElaborate => (
               ElaborationResult.DoesNotElaborate,
               local_tyvars,
