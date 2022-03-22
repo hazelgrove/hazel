@@ -33,13 +33,24 @@ let get_hole_number_of_operand = (operand: UHExp.operand): option(int) =>
   switch (operand) {
   | EmptyHole(u)
   | InvalidText(u, _) => Some(u)
-  | Var(err_status, _, _)
   | IntLit(err_status, _)
   | FloatLit(err_status, _)
   | BoolLit(err_status, _)
   | ListNil(err_status)
   | Lam(err_status, _, _)
   | Inj(err_status, _, _) => err_status |> get_hole_number_of_err_status
+  | Var(err_status, var_err_status, _) =>
+    let hole_num = err_status |> get_hole_number_of_err_status;
+    let var_hole_num =
+      switch (var_err_status) {
+      | NotInVarHole => None
+      | InVarHole(_, u) => Some(u)
+      };
+    /* Use either regular hole or variable hole, if applicable */
+    switch (hole_num, var_hole_num) {
+    | (Some(u), _) => Some(u)
+    | (_, u) => u
+    };
   | Case(case_err_status, _, _) =>
     switch (case_err_status) {
     | StandardErrStatus(err_status) =>

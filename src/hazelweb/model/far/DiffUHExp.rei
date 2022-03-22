@@ -46,8 +46,11 @@ type block_diff_result =
   | BFillDiff(UHExp.opseq, option(MetaVar.t));
 
 /* Note: `diff_operand` doesn't simply take two `UHExp.operand`,
-   because an operand may be `Skel.Placeholder`, which requires
-   information about the `Seq.t`. */
+   because an operand may be `Skel.Placeholder`, which is not
+   self-contained (requires information about the `Seq.t`).
+
+   `diff_operand(placeholder1_index, seq1, placeholder2_index, seq2)`
+   */
 let diff_operand:
   (
     int,
