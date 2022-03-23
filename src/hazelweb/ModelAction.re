@@ -23,7 +23,8 @@ type group_id = int;
 [@deriving sexp]
 type serialize_object =
   | UHExp
-  | DHExp;
+  | DHExp
+  | ZExp;
 
 [@deriving sexp]
 type t =
@@ -36,6 +37,7 @@ type t =
   | NextCard
   | PrevCard
   | UpdateSettings(Settings.update)
+  | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | FocusCell
