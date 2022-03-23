@@ -711,47 +711,20 @@ let rec evaluate = (d: DHExp.t): result =>
     | (Indet(d1'), Indet(d2'))
     | (Indet(d1'), BoxedValue(d2'))
     | (BoxedValue(d1'), Indet(d2')) => Indet(Cons(d1', d2'))
-    | (BoxedValue(IntLit(n1)), BoxedValue(d2')) =>
+    | (BoxedValue(d1'), BoxedValue(d2')) =>
       switch (d2') {
-      | ListLit(x1, x2, x3, x4, List(Int), lst) =>
+      | ListLit(x1, x2, x3, x4, x5, lst) =>
+        BoxedValue(ListLit(x1, x2, x3, x4, x5, [d1', ...lst]))
+      | Cast(ListLit(x1, x2, x3, x4, x5, lst), List(ty), List(ty')) =>
         BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
+          Cast(
+            ListLit(x1, x2, x3, x4, x5, [d1', ...lst]),
+            List(ty),
+            List(ty'),
+          ),
         )
-      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
-        )
-      | _ => BoxedValue(Cons(IntLit(n1), d2'))
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
       }
-    | (BoxedValue(Cast(IntLit(n1), Int, Hole)), BoxedValue(d2')) =>
-      switch (d2') {
-      | ListLit(x1, x2, x3, x4, List(Int), lst) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
-        )
-      | Cast(ListLit(x1, x2, x3, x4, List(Int), lst), List(Int), List(Hole)) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
-        )
-      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Int), [IntLit(n1), ...lst]),
-        )
-      | _ => BoxedValue(Cons(IntLit(n1), d2'))
-      }
-    | (BoxedValue(BoolLit(n1)), BoxedValue(d2)) =>
-      switch (d2) {
-      | ListLit(x1, x2, x3, x4, List(Bool), lst) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Bool), [BoolLit(n1), ...lst]),
-        )
-      | ListLit(x1, x2, x3, x4, List(Hole), lst) =>
-        BoxedValue(
-          ListLit(x1, x2, x3, x4, List(Bool), [BoolLit(n1), ...lst]),
-        )
-      | _ => BoxedValue(Cons(BoolLit(n1), d2))
-      }
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
     }
   | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
   | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
