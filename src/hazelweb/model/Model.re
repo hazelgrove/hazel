@@ -174,6 +174,18 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       | Some((e, u)) => old_result |> FillAndResume.fill(e, u)
       };
 
+    /* TODO: remove; for testing purposes */
+    print_endline("Entire program elaborates to:");
+    switch (
+      new_program
+      |> Program.get_uhexp
+      |> Elaborator_Exp.syn_elab(Contexts.initial, Delta.empty)
+    ) {
+    | Elaborates(d, _, _) =>
+      d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline
+    | DoesNotElaborate => ()
+    };
+
     /* Do not reset selected hole instances if the program result does
        not change (e.g., for a move action). */
     let si =

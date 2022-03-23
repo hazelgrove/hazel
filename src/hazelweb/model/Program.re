@@ -114,7 +114,9 @@ let evaluate =
 let get_result = (program: t): Result.t => {
   let (d_elab, delta) = program |> get_elaboration;
 
-  delta |> Delta.sexp_of_t |> JSUtil.log_sexp;
+  /* TODO: remove; for diagnostics */
+  print_endline("Program.get_result: Current DHExp.t");
+  delta |> Delta.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
   switch (d_elab |> evaluate) {
   | (_, BoxedValue(d)) =>
