@@ -108,7 +108,7 @@ exception PostprocessError(EvalPostprocessError.t);
 let evaluate =
   Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(EvalEnvIdGen.initial, EvalEnv.empty),
+    Evaluator.evaluate(EvalState.initial, EvalEnv.empty),
   );
 let get_result = (program: t): Result.t => {
   let (d_elab, delta) = program |> get_elaboration;

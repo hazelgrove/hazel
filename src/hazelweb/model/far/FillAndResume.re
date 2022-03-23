@@ -10,7 +10,7 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("In hole: " ++ string_of_int(u));
 
   /* Get the hole type from the hole context. */
-  let (d_result, delta, hci, _, ec) = prev_result;
+  let (d_result, delta, _, _, es) = prev_result;
   let (_, hole_ty, var_ctx) = delta |> MetaVarMap.find(u);
 
   /* Elaborate the expression in analytic position against the hole type. */
@@ -33,28 +33,32 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("Elaborates to (casted):");
   d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
-  /* TODO: Evaluation; need to change the `evaluate` function to be
-     able to fill hole whenever it is encountered.Action
+  /* Perform evaluation with new fill information */
+  let es = es |> EvalState.set_far_info(Fill(u, d));
+  let (es, dr_result) = Evaluator.evaluate(es, EvalEnv.empty, d_result);
 
-     Changes:
-     - Make `Evaluator.evaluate` take an optional parameter `hci`.
-     */
-  let (ec, dr_result) = Evaluator.evaluate(ec, EvalEnv.empty, d);
+  /* Ordinary postprocessing */
+  let (hci, d_result, dr_result) =
+    switch (dr_result) {
+    | Indet(d) =>
+      let (hci, d) = EvalPostprocess.postprocess(d);
+      (hci, d, EvaluatorResult.Indet(d));
+    | BoxedValue(d) =>
+      let (hci, d) = EvalPostprocess.postprocess(d);
+      (hci, d, EvaluatorResult.BoxedValue(d));
+    };
 
-  /* TODO: Postprocessing */
-  /* (hci, result) = postprocess(dr) */
-
-  (d_result, delta, hci, dr_result, ec);
+  (d_result, delta, hci, dr_result, es);
 };
 
 let is_fill_viable =
     (old_prog: Program.t, new_prog: Program.t): option((UHExp.t, MetaVar.t)) => {
-  let print_uhexp = (e: UHExp.t): unit =>
-    e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
   let e1 = old_prog |> Program.get_uhexp;
   let e2 = new_prog |> Program.get_uhexp;
 
   /* TODO: remove print statements; for diagnostics */
+  let print_uhexp = (e: UHExp.t): unit =>
+    e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
   print_endline("Old program:");
   e1 |> print_uhexp;
   print_endline("New program:");

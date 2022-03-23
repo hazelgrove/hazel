@@ -4,7 +4,7 @@ type t = (
   Delta.t,
   HoleClosureInfo.t,
   EvaluatorResult.t,
-  EvalEnvIdGen.t,
+  EvalState.t,
 );
 
 let get_dhexp = ((d, _, _, _, _): t) => d;

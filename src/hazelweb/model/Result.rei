@@ -14,7 +14,7 @@ type t = (
   Delta.t,
   HoleClosureInfo.t,
   EvaluatorResult.t,
-  EvalEnvIdGen.t,
+  EvalState.t,
 );
 
 let get_dhexp: t => DHExp.t;
