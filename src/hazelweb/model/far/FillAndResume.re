@@ -10,7 +10,7 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("In hole: " ++ string_of_int(u));
 
   /* Get the hole type from the hole context. */
-  let (d_result, delta, hci, _) = prev_result;
+  let (d_result, delta, hci, _, ec) = prev_result;
   let (_, hole_ty, var_ctx) = delta |> MetaVarMap.find(u);
 
   /* Elaborate the expression in analytic position against the hole type. */
@@ -38,14 +38,13 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
 
      Changes:
      - Make `Evaluator.evaluate` take an optional parameter `hci`.
-     - Store `ec` in the `Result.t`.
-     - Make the `EvalEnv.empty` a special thing.
      */
-  let (ec, env) = EvalEnv.empty;
-  let (_, dr_result) = Evaluator.evaluate(ec, env, d);
+  let (ec, dr_result) = Evaluator.evaluate(ec, EvalEnv.empty, d);
+
   /* TODO: Postprocessing */
   /* (hci, result) = postprocess(dr) */
-  (d_result, delta, hci, dr_result);
+
+  (d_result, delta, hci, dr_result, ec);
 };
 
 let is_fill_viable =

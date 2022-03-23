@@ -25,12 +25,15 @@
 type t = DHExp.evalenv
 and result_map = VarBstMap.t(EvaluatorResult.t);
 
+/* Special environment to begin evaluation at the top level
+   (empty environment). */
+let empty: t;
+
 let id_of_evalenv: t => EvalEnvId.t;
 let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
 let alist_of_evalenv: t => list((Var.t, EvaluatorResult.t));
 
-let empty: (EvalEnvIdGen.t, t);
 let is_empty: t => bool;
 let length: t => int;
 let to_list: t => list((Var.t, EvaluatorResult.t));

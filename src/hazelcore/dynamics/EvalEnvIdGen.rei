@@ -6,5 +6,8 @@
 [@deriving sexp]
 type t;
 
-let empty: t;
+/* Constructor used when beginning evaluation */
+let initial: t;
+
+/* Returns new `EvalEnvIdGen.t` and newly emitted `EvalEnvId.t` */
 let next: t => (t, EvalEnvId.t);

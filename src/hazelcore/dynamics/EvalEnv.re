@@ -4,6 +4,9 @@ type t = DHExp.evalenv;
 [@deriving sexp]
 type result_map = VarBstMap.t(EvaluatorResult.t);
 
+/* Environment with a special `EvalEnvId.t` of zero. */
+let empty: t = (EvalEnvId.empty, VarBstMap.empty);
+
 let id_of_evalenv = ((ei, _): t): EvalEnvId.t => ei;
 
 let environment_of_evalenv = ((_, result_map): t): Environment.t =>
@@ -21,12 +24,6 @@ let result_map_of_evalenv = ((_, result_map): t): result_map => result_map;
 let alist_of_evalenv =
     ((_, result_map): t): list((Var.t, EvaluatorResult.t)) =>
   result_map |> VarBstMap.bindings;
-
-let empty: (EvalEnvIdGen.t, t) = {
-  let (ec, ei) = EvalEnvIdGen.next(EvalEnvIdGen.empty);
-  let env: t = (ei, VarBstMap.empty);
-  (ec, env);
-};
 
 let is_empty = (env: t) => VarBstMap.is_empty(result_map_of_evalenv(env));
 

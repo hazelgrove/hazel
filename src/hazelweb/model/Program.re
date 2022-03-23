@@ -105,11 +105,10 @@ let get_elaboration = (program: t): (DHExp.t, Delta.t) =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvalPostprocessError.t);
-let (ec_init, env_init) = EvalEnv.empty;
 let evaluate =
   Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(ec_init, env_init),
+    Evaluator.evaluate(EvalEnvIdGen.initial, EvalEnv.empty),
   );
 let get_result = (program: t): Result.t => {
   let (d_elab, delta) = program |> get_elaboration;
@@ -119,22 +118,22 @@ let get_result = (program: t): Result.t => {
   delta |> Delta.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
   switch (d_elab |> evaluate) {
-  | (_, BoxedValue(d)) =>
+  | (ec, BoxedValue(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, delta, hci, BoxedValue(d));
-  | (_, Indet(d)) =>
+    (d, delta, hci, BoxedValue(d), ec);
+  | (ec, Indet(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, delta, hci, Indet(d));
+    (d, delta, hci, Indet(d), ec);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };
