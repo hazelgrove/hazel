@@ -196,6 +196,8 @@ let perform_edit_action = (a, program) => {
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
+    /* If the edit state is complete (no holes), then we can restart
+       hole numbers from 0. */
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
         (ze, ty, MetaVarGen.init);

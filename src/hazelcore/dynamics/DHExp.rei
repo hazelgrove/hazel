@@ -52,7 +52,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
-  | Closure(evalenv, t)
+  | Closure(evalenv, bool, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)

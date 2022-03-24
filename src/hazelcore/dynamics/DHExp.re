@@ -139,7 +139,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
-  | Closure(evalenv, t)
+  | Closure(evalenv, bool, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
@@ -183,7 +183,7 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
-  | Closure(_, _) => "Closure"
+  | Closure(_, _, _) => "Closure"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"
@@ -296,7 +296,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     u1 == u2 && i1 == i2 && x1 == x2
   | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
     u1 == u2 && i1 == i2 && text1 == text2
-  | (Closure((ei1, _), d1), Closure((ei2, _), d2)) =>
+  | (Closure((ei1, _), _, d1), Closure((ei2, _), _, d2)) =>
     /* Cannot use EvalEnv.equals here because it will create a dependency loop. */
     ei1 == ei2 && fast_equals(d1, d2)
   | (

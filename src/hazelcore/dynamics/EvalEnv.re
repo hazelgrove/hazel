@@ -78,5 +78,3 @@ let length = (env: t): int =>
 
 let to_list = (env: t): list((Var.t, EvaluatorResult.t)) =>
   env |> result_map_of_evalenv |> VarBstMap.bindings;
-
-let placeholder = ((-1), VarBstMap.empty);

@@ -161,7 +161,7 @@ let rec mk =
       switch (d) {
       /* A closure may only exist around hole expressions in
          the postprocessed result */
-      | Closure(_, d') =>
+      | Closure(_, _, d') =>
         switch (d') {
         | EmptyHole(u, i) =>
           let selected =

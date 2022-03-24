@@ -20,7 +20,14 @@ let set_far_info = (far_info: FARInfo.t, (ei, stats, _): t): t => (
 let get_fill_dhexp = (u: MetaVar.t, (_, _, far_info): t): option(DHExp.t) =>
   switch (far_info) {
   | NonFill => None
-  | Fill(u', d) => u == u' ? Some(d) : None
+  | Fill(u', d) =>
+    /* TODO: remove; for diagnostic purposes */
+    print_endline(
+      "Attemping to fill hole " ++ string_of_int(u) ++ " with expr:",
+    );
+    d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+
+    u == u' ? Some(d) : None;
   };
 
 let inc_steps = ((ei, stats, far_info): t): t => (

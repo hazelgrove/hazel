@@ -115,7 +115,7 @@ let view_of_hole_closure =
 
        It is here because hole expressions in the postprocessed result
        must exist in a closure. */
-    DHExp.Closure(EvalEnv.placeholder, DHExp.EmptyHole(u, i)),
+    DHExp.Closure(EvalEnv.empty, false, DHExp.EmptyHole(u, i)),
   );
 };
 

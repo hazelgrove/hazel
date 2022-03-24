@@ -37,7 +37,7 @@ type match_result =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, Closure(_, d)) => matches(dp, d)
+  | (_, Closure(_, _, d)) => matches(dp, d)
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => Indet
@@ -200,7 +200,7 @@ and matches_cast_Inj =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, d') => matches_cast_Inj(side, dp, d', casts)
+  | Closure(_, _, d') => matches_cast_Inj(side, dp, d', casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -267,7 +267,7 @@ and matches_cast_Pair =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, d') =>
+  | Closure(_, _, d') =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
@@ -341,7 +341,7 @@ and matches_cast_Cons =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Closure(_, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
+  | Closure(_, _, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -400,12 +400,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Lam(dp, ty, d3);
     }
-  | Closure(env, d3) =>
+  | Closure(env, re_eval, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
     let env' = subst_var_env(d1, x, env);
     let d3' = subst_var(d1, x, d3);
-    Closure(env', d3');
+    Closure(env', re_eval, d3');
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -561,7 +561,7 @@ let rec evaluate =
     | (es, Indet(d1)) =>
       switch (matches(dp, d1)) {
       | Indet
-      | DoesNotMatch => (es, Indet(Closure(env, Let(dp, d1, d2))))
+      | DoesNotMatch => (es, Indet(Closure(env, false, Let(dp, d1, d2))))
       | Matches(env') =>
         let (es, env) = extend_evalenv_with_env(es, env', env);
         evaluate(es, env, d2);
@@ -569,16 +569,16 @@ let rec evaluate =
     }
   | FixF(f, ty, d) =>
     switch (evaluate(es, env, d)) {
-    | (es, BoxedValue(Closure(env', Lam(_) as d''') as d'')) =>
+    | (es, BoxedValue(Closure(env', false, Lam(_) as d''') as d'')) =>
       let (es, env'') =
         EvalEnv.extend(es, env', (f, BoxedValue(FixF(f, ty, d''))));
-      (es, BoxedValue(Closure(env'', d''')));
+      (es, BoxedValue(Closure(env'', false, d''')));
     | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
-  | Lam(_) => (es, BoxedValue(Closure(env, d)))
+  | Lam(_) => (es, BoxedValue(Closure(env, false, d)))
   | Ap(d1, d2) =>
     switch (evaluate(es, env, d1)) {
-    | (es, BoxedValue(Closure(closure_env, Lam(dp, _, d3)) as d1)) =>
+    | (es, BoxedValue(Closure(closure_env, false, Lam(dp, _, d3)) as d1)) =>
       switch (evaluate(es, env, d2)) {
       | (es, BoxedValue(d2))
       | (es, Indet(d2)) =>
@@ -715,13 +715,15 @@ let rec evaluate =
 
   /* Generalized closures evaluate to themselves. Only
      lambda closures are BoxedValues; other closures are all Indet. */
-  | Closure(env', d') =>
+  | Closure(_, false, d') =>
+    switch (d') {
+    | Lam(_) => (es, BoxedValue(d))
+    | _ => (es, Indet(d))
+    }
+
+  | Closure(env', true, d') =>
     /* For purposes of fill-and-resume, `Closure` expressions are not final --
        should revise this later on for performance reasons */
-    /* switch (d') {
-       | Lam(_) => (es, BoxedValue(d))
-       | _ => (es, Indet(d))
-       } */
     evaluate(es, env', d')
 
   /* Hole expressions. During normal evaluation, wrap in closure.
@@ -735,7 +737,7 @@ let rec evaluate =
     }
   | EmptyHole(u, i) =>
     switch (es |> EvalState.get_fill_dhexp(u)) {
-    | None => (es, Indet(Closure(env, EmptyHole(u, i))))
+    | None => (es, Indet(Closure(env, false, EmptyHole(u, i))))
     | Some(d) => evaluate(es, env, d)
     }
   | NonEmptyHole(reason, u, i, d1) =>
@@ -745,24 +747,24 @@ let rec evaluate =
       | (es, BoxedValue(d1'))
       | (es, Indet(d1')) => (
           es,
-          Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))),
+          Indet(Closure(env, false, NonEmptyHole(reason, u, i, d1'))),
         )
       }
     | Some(d) => evaluate(es, env, d)
     }
   | FreeVar(u, i, x) =>
     switch (es |> EvalState.get_fill_dhexp(u)) {
-    | None => (es, Indet(Closure(env, FreeVar(u, i, x))))
+    | None => (es, Indet(Closure(env, false, FreeVar(u, i, x))))
     | Some(d) => evaluate(es, env, d)
     }
   | Keyword(u, i, kw) =>
     switch (es |> EvalState.get_fill_dhexp(u)) {
-    | None => (es, Indet(Closure(env, Keyword(u, i, kw))))
+    | None => (es, Indet(Closure(env, false, Keyword(u, i, kw))))
     | Some(d) => evaluate(es, env, d)
     }
   | InvalidText(u, i, text) =>
     switch (es |> EvalState.get_fill_dhexp(u)) {
-    | None => (es, Indet(Closure(env, InvalidText(u, i, text))))
+    | None => (es, Indet(Closure(env, false, InvalidText(u, i, text))))
     | Some(d) => evaluate(es, env, d)
     }
 
@@ -878,9 +880,9 @@ and evaluate_case =
       (
         es,
         switch (inconsistent_info) {
-        | None => Indet(Closure(env, ConsistentCase(case)))
+        | None => Indet(Closure(env, false, ConsistentCase(case)))
         | Some((u, i)) =>
-          Indet(Closure(env, InconsistentBranches(u, i, case)))
+          Indet(Closure(env, false, InconsistentBranches(u, i, case)))
         },
       );
     | Some(Rule(dp, d)) =>
@@ -890,9 +892,9 @@ and evaluate_case =
         (
           es,
           switch (inconsistent_info) {
-          | None => Indet(Closure(env, ConsistentCase(case)))
+          | None => Indet(Closure(env, false, ConsistentCase(case)))
           | Some((u, i)) =>
-            Indet(Closure(env, InconsistentBranches(u, i, case)))
+            Indet(Closure(env, false, InconsistentBranches(u, i, case)))
           },
         );
       | Matches(env') =>
@@ -925,7 +927,7 @@ and extend_evalenv_with_env =
     List.fold_left(
       (new_env, (x, d)) => {
         /* The value of environment doesn't matter here */
-        let (_, dr) = evaluate(es, EvalEnv.placeholder, d);
+        let (_, dr) = evaluate(es, EvalEnv.empty, d);
         VarBstMap.add(x, dr, new_env);
       },
       EvalEnv.result_map_of_evalenv(to_extend),

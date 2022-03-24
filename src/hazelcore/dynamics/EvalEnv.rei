@@ -62,7 +62,3 @@ let union: (EvalState.t, t, t) => (EvalState.t, t);
    after evaluation. More functions may be added like this as-needed
    for similar purposes.) */
 let map_keep_id: ((Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) => t;
-
-/* Placeholder used in DHCode. Is identified by an invalid
-   EvalEnvId.t, only used for display purposes. */
-let placeholder: t;
