@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
@@ -525,7 +527,28 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
         ),
       )
-    | ListLit(_, Some(body))
+    | ListLit(_, Some(opseq)) =>
+      switch (HTyp.matched_list(ty)) {
+      | Some(ty_el) =>
+        switch (opseq) {
+        | OpSeq(skel, seq) =>
+          let subskels = UHPat.get_tuple_elements(skel);
+          subskels
+          |> List.fold_left(
+               (acc: option(Contexts.t), skel) => {
+                 let* ctx = acc;
+                 Statics_Pat.ana_skel(ctx, skel, seq, ty_el);
+               },
+               Some(ctx),
+             )
+          |> Option.map(_ =>
+               CursorInfo_common.CursorNotOnDeferredVarPat(
+                 CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
+               )
+             );
+        }
+      | _ => None
+      }
     | Parenthesized(body) =>
       Statics_Pat.ana(ctx, body, ty)
       |> Option.map(_ =>
@@ -541,13 +564,6 @@ and ana_cursor_info_zoperand =
            )
          )
     }
-  // | ListLit(_, Some(body)) =>
-  //     Statics_Pat.ana(ctx, body, ty)
-  //     |> OptUtil.map(_ =>
-  //           CursorInfo_common.CursorNotOnDeferredVarPat(
-  //             CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
-  //           )
-  //         )
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
@@ -558,9 +574,13 @@ and ana_cursor_info_zoperand =
       let ty_body = InjSide.pick(position, tyL, tyR);
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
     }
-  | ParenthesizedZ(zbody)
-  | ListLitZ(_, zbody) =>
+  | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+  | ListLitZ(_, zbody) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => None
+    | Some(ty_el) => ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_el)
+    }
   | TypeAnnZP(err, zop, ann) =>
     switch (err) {
     | InHole(WrongLength, _) => None
