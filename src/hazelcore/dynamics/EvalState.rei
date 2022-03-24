@@ -21,3 +21,9 @@ let set_far_info: (FARInfo.t, t) => t;
 /* Gets the expression to fill if the hole number matches the hole number
    in the FAR info. */
 let get_fill_dhexp: (MetaVar.t, t) => option(DHExp.t);
+
+/* Getter for statistics */
+let get_stats: t => EvalStats.t;
+
+/* Update number of evaluation steps in statistics. */
+let inc_steps: t => t;

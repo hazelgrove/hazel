@@ -9,3 +9,7 @@
 type t;
 
 let initial: t;
+
+let inc_steps: t => t;
+
+let get_steps: t => int;

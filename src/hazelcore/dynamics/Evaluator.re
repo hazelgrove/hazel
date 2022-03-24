@@ -540,6 +540,9 @@ let eval_bin_float_op =
 let rec evaluate =
         (es: EvalState.t, env: EvalEnv.t, d: DHExp.t)
         : (EvalState.t, EvaluatorResult.t) => {
+  /* Update evaluation statistics */
+  let es = es |> EvalState.inc_steps;
+
   switch (d) {
   | BoundVar(x) =>
     let dr =

@@ -22,3 +22,11 @@ let get_fill_dhexp = (u: MetaVar.t, (_, _, far_info): t): option(DHExp.t) =>
   | NonFill => None
   | Fill(u', d) => u == u' ? Some(d) : None
   };
+
+let inc_steps = ((ei, stats, far_info): t): t => (
+  ei,
+  stats |> EvalStats.inc_steps,
+  far_info,
+);
+
+let get_stats = ((_, stats, _): t): EvalStats.t => stats;

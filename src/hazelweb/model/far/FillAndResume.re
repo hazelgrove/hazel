@@ -36,9 +36,21 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("Previous result:");
   d_result |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
+  /* TODO: remove; for diagnostics */
+  print_endline(
+    "Previous number of evaluation steps:"
+    ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
+  );
+
   /* Perform evaluation with new fill information */
   let es = es |> EvalState.set_far_info(Fill(u, d));
   let (es, dr_result) = Evaluator.evaluate(es, EvalEnv.empty, d_result);
+
+  /* TODO: remove; for diagnostics */
+  print_endline(
+    "Current number of evaluation steps:"
+    ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
+  );
 
   /* Ordinary postprocessing */
   let (hci, d_result, dr_result) =
