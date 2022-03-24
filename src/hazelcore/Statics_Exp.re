@@ -889,7 +889,7 @@ and syn_fix_holes_operand =
             StandardErrStatus(NotInHole),
             Some([UHExp.ExpLine(new_opseq)]),
           ),
-          common_type,
+          List(common_type),
           u_gen,
         )
       };

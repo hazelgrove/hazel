@@ -1444,11 +1444,11 @@ and syn_perform_operand =
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
     switch (syn_perform_operand(ctx, a, (zhole, HTyp.Hole, u_gen))) {
     | (Failed | CursorEscaped(_)) as failed => failed
-    | Succeeded(SynDone((zp, _, u_gen))) =>
+    | Succeeded(SynDone((zp, ty', u_gen))) =>
       switch (zp) {
       | ([], ExpLineZ(z), []) =>
         let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZExp.ZBlock.wrap'(z)));
-        Succeeded(SynDone((new_ze, ty, u_gen)));
+        Succeeded(SynDone((new_ze, List(ty'), u_gen)));
       | _ => Failed
       }
     | _ => Failed
@@ -3146,7 +3146,9 @@ and ana_perform_operand =
     let new_ze =
       ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
       |> ZExp.ZBlock.wrap;
-    Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
+    Succeeded(
+      AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, List(Hole))),
+    );
 
   /* TODO consider deletion of type ascription on case */
 
