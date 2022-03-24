@@ -16,3 +16,9 @@ let set_far_info = (far_info: FARInfo.t, (ei, stats, _): t): t => (
   stats,
   far_info,
 );
+
+let get_fill_dhexp = (u: MetaVar.t, (_, _, far_info): t): option(DHExp.t) =>
+  switch (far_info) {
+  | NonFill => None
+  | Fill(u', d) => u == u' ? Some(d) : None
+  };

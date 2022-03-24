@@ -17,3 +17,7 @@ let next_evalenvid: t => (t, EvalEnvId.t);
 
 /* Set the fill-and-resume information for the current evaluation. */
 let set_far_info: (FARInfo.t, t) => t;
+
+/* Gets the expression to fill if the hole number matches the hole number
+   in the FAR info. */
+let get_fill_dhexp: (MetaVar.t, t) => option(DHExp.t);

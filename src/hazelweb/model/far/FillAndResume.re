@@ -33,6 +33,9 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("Elaborates to (casted):");
   d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
+  print_endline("Previous result:");
+  d_result |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+
   /* Perform evaluation with new fill information */
   let es = es |> EvalState.set_far_info(Fill(u, d));
   let (es, dr_result) = Evaluator.evaluate(es, EvalEnv.empty, d_result);
@@ -42,9 +45,13 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
     switch (dr_result) {
     | Indet(d) =>
       let (hci, d) = EvalPostprocess.postprocess(d);
+      print_endline("Evaluates to:");
+      d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
       (hci, d, EvaluatorResult.Indet(d));
     | BoxedValue(d) =>
       let (hci, d) = EvalPostprocess.postprocess(d);
+      print_endline("Evaluates to:");
+      d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
       (hci, d, EvaluatorResult.BoxedValue(d));
     };
 

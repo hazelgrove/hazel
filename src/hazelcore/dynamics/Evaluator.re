@@ -712,30 +712,56 @@ let rec evaluate =
 
   /* Generalized closures evaluate to themselves. Only
      lambda closures are BoxedValues; other closures are all Indet. */
-  | Closure(_, d') =>
-    switch (d') {
-    | Lam(_) => (es, BoxedValue(d))
-    | _ => (es, Indet(d))
-    }
+  | Closure(env', d') =>
+    /* For purposes of fill-and-resume, `Closure` expressions are not final --
+       should revise this later on for performance reasons */
+    /* switch (d') {
+       | Lam(_) => (es, BoxedValue(d))
+       | _ => (es, Indet(d))
+       } */
+    evaluate(es, env', d')
 
-  /* Hole expressions */
+  /* Hole expressions. During normal evaluation, wrap in closure.
+
+     During fill-and-resume, if the hole is the filled hole, then
+     perform fill. */
   | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-    evaluate_case(es, env, Some((u, i)), d1, rules, n)
-  | EmptyHole(u, i) => (es, Indet(Closure(env, EmptyHole(u, i))))
-  | NonEmptyHole(reason, u, i, d1) =>
-    switch (evaluate(es, env, d1)) {
-    | (es, BoxedValue(d1'))
-    | (es, Indet(d1')) => (
-        es,
-        Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))),
-      )
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None => evaluate_case(es, env, Some((u, i)), d1, rules, n)
+    | Some(d) => evaluate(es, env, d)
     }
-  | FreeVar(u, i, x) => (es, Indet(Closure(env, FreeVar(u, i, x))))
-  | Keyword(u, i, kw) => (es, Indet(Closure(env, Keyword(u, i, kw))))
-  | InvalidText(u, i, text) => (
-      es,
-      Indet(Closure(env, InvalidText(u, i, text))),
-    )
+  | EmptyHole(u, i) =>
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None => (es, Indet(Closure(env, EmptyHole(u, i))))
+    | Some(d) => evaluate(es, env, d)
+    }
+  | NonEmptyHole(reason, u, i, d1) =>
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None =>
+      switch (evaluate(es, env, d1)) {
+      | (es, BoxedValue(d1'))
+      | (es, Indet(d1')) => (
+          es,
+          Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))),
+        )
+      }
+    | Some(d) => evaluate(es, env, d)
+    }
+  | FreeVar(u, i, x) =>
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None => (es, Indet(Closure(env, FreeVar(u, i, x))))
+    | Some(d) => evaluate(es, env, d)
+    }
+  | Keyword(u, i, kw) =>
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None => (es, Indet(Closure(env, Keyword(u, i, kw))))
+    | Some(d) => evaluate(es, env, d)
+    }
+  | InvalidText(u, i, text) =>
+    switch (es |> EvalState.get_fill_dhexp(u)) {
+    | None => (es, Indet(Closure(env, InvalidText(u, i, text))))
+    | Some(d) => evaluate(es, env, d)
+    }
 
   /* Cast calculus */
   | Cast(d1, ty, ty') =>

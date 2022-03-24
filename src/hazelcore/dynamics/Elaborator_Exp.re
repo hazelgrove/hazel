@@ -794,12 +794,13 @@ and ana_elab_rule =
 };
 
 /* Bind built-ins before an elaborated expression. */
-let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
-  List.fold_left(
-    (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
-    d,
-    Builtins.forms,
-  );
+/* TODO: uncomment builtins; commented out to debug FAR */
+let elab_wrap_builtins = (d: DHExp.t): DHExp.t => d;
+/* List.fold_left(
+     (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
+     d,
+     Builtins.forms,
+   ); */
 
 let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
   switch (syn_elab(ctx, delta, e)) {
