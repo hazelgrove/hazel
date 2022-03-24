@@ -1,15 +1,3 @@
-[@deriving sexp]
-type error =
-  | ClosureInsideClosure
-  | BoundVarOutsideClosure(Var.t)
-  | UnevalOutsideClosure
-  | InvalidClosureBody
-  | PostprocessedNonHoleInClosure
-  | PostprocessedHoleOutsideClosure;
-
-[@deriving sexp]
-exception Exception(error);
-
 /* Postprocess outside evaluation boundary */
 let rec pp_uneval =
         (
@@ -100,7 +88,7 @@ let rec pp_uneval =
     (hci, ConsistentCase(Case(scrut', rules', i)));
 
   /* Closures shouldn't exist inside other closures */
-  | Closure(_) => raise(Exception(ClosureInsideClosure))
+  | Closure(_) => raise(EvalPostprocessError.Exception(ClosureInsideClosure))
 
   /* Hole expressions:
      - Use the closure environment as the hole environment.
@@ -270,10 +258,10 @@ and pp_eval =
     (hci, InvalidOperation(d'', reason));
 
   /* Bound variables should not appear outside holes or closures */
-  | BoundVar(x) => raise(Exception(BoundVarOutsideClosure(x)))
+  | BoundVar(x) =>
+    raise(EvalPostprocessError.Exception(BoundVarOutsideClosure(x)))
 
   /* Lambda should not appear outside closure in evaluated result */
-  /* TODO: also move let and case here */
   | Let(_)
   | ConsistentCase(_)
   | Lam(_)
@@ -282,7 +270,8 @@ and pp_eval =
   | Keyword(_)
   | FreeVar(_)
   | InvalidText(_)
-  | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
+  | InconsistentBranches(_) =>
+    raise(EvalPostprocessError.Exception(UnevalOutsideClosure))
 
   /* Closure */
   | Closure(env', _, d') =>
@@ -390,7 +379,12 @@ and pp_eval =
           ),
         );
       };
-    | _ => raise(Exception(InvalidClosureBody))
+
+    /* Fill-and-resume: may be possible to have other expression
+       types inside a closure. */
+    | _ => pp_uneval(hci, env', d', parent)
+    /* TODO: remove; was impossible before FAR */
+    /* | _ => raise(EvalPostprocessError.Exception(InvalidClosureBody)) */
     }
   /* Hole expressions:
      - Fix environment recursively.

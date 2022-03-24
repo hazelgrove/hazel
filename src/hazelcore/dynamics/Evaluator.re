@@ -721,10 +721,21 @@ let rec evaluate =
     | _ => (es, Indet(d))
     }
 
-  | Closure(env', true, d') =>
-    /* For purposes of fill-and-resume, `Closure` expressions are not final --
-       should revise this later on for performance reasons */
-    evaluate(es, env', d')
+  /* For purposes of fill-and-resume, `Closure` expressions may not be final.
+     All closures are marked with a `re_eval` flag (the second parameter)
+     before resuming evaluation during fill-and-resume. After a Closure is
+     evaluated for the first time, then it does not need to be re-evaluated
+     when encountered in the future.
+
+     In addition, if a closure marks a filled hole, then the evaluation
+     may be memoized by hole closure. (See TODO, below.)
+
+     TODO: memoize the filling of the same hole instance. To do this, store
+     the hole instance in the `re_eval` field (make `re_eval` not only a
+     boolean flag) and store a mapping from ids to results in the
+     `EvalState.t` (replacing `FARInfo.t`).
+     */
+  | Closure(env', true, d') => evaluate(es, env', d')
 
   /* Hole expressions. During normal evaluation, wrap in closure.
 

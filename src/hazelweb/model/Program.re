@@ -125,13 +125,14 @@ let get_result = (program: t): Result.t => {
       ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
     );
 
-    let (hci, d) =
+    let (hci, d_postprocessed) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, delta, hci, BoxedValue(d), es);
+
+    Result.mk(BoxedValue(d_postprocessed), d, hci, delta, es);
   | (es, Indet(d)) =>
     /* TODO: remove; for diagnostics */
     print_endline(
@@ -139,13 +140,14 @@ let get_result = (program: t): Result.t => {
       ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
     );
 
-    let (hci, d) =
+    let (hci, d_postprocessed) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, delta, hci, Indet(d), es);
+
+    Result.mk(BoxedValue(d_postprocessed), d, hci, delta, es);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

@@ -243,11 +243,11 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let (_, _, hii, _, _) = program |> Program.get_result;
+        let hci = program |> Program.get_result |> Result.get_hci;
         switch (selected_hole_closure) {
         | None => Environment.empty
         | Some((u, i)) =>
-          switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
+          switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
@@ -282,7 +282,7 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      let (_, _, hii, _, _) = program |> Program.get_result;
+      let hci = program |> Program.get_result |> Result.get_hci;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
@@ -297,13 +297,13 @@ let view =
             ]
           | Some((u', i) as inst) =>
             if (MetaVar.eq(u, u')) {
-              switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
+              switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
               | Some((_, hc_parents)) => [
                   path_view_titlebar,
-                  hii_summary(hii, inst),
+                  hii_summary(hci, inst),
                   hc_parents_view(hc_parents),
                 ]
               };

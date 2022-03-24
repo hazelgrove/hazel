@@ -36,9 +36,24 @@ let rec preprocess = (u: MetaVar.t, d_fill: DHExp.t, d: DHExp.t): DHExp.t => {
           ),
         )
 
-  /* Generalized closures: need to set the `re_eval` field
-     to true. */
-  | Closure(env, _, d) => Closure(env, true, d |> preprocess)
+  /* Generalized closures: need to set the `re_eval` flag
+     to true, and recurse through the environment.
+
+     TODO: memoize environments so we don't need to re-preprocess
+     the same environment every time it is re-encountered.
+     */
+  | Closure(env, _, d) =>
+    Closure(
+      env
+      |> EvalEnv.map_keep_id((_, dr) =>
+           switch (dr) {
+           | Indet(d) => Indet(d |> preprocess)
+           | BoxedValue(d) => BoxedValue(d |> preprocess)
+           }
+         ),
+      true,
+      d |> preprocess,
+    )
 
   /* Other expressions forms: simply recurse through subexpressions. */
   | BoolLit(_)
@@ -82,12 +97,19 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("In hole: " ++ string_of_int(u));
 
   /* Get the hole type from the hole context. */
-  let (d_result, delta, _, _, es) = prev_result;
-  let (_, hole_ty, var_ctx) = delta |> MetaVarMap.find(u);
+  let (_, hole_ty, var_ctx) =
+    prev_result |> Result.get_delta |> MetaVarMap.find(u);
 
   /* Elaborate the expression in analytic position against the hole type. */
   let (d, delta, actual_ty) =
-    switch (Elaborator_Exp.ana_elab(var_ctx, delta, e, hole_ty)) {
+    switch (
+      Elaborator_Exp.ana_elab(
+        var_ctx,
+        prev_result |> Result.get_delta,
+        e,
+        hole_ty,
+      )
+    ) {
     | Elaborates(d, ty, delta) => (d, delta, ty)
     | DoesNotElaborate => raise(FillAndResumeException(FailedElaboration))
     };
@@ -106,16 +128,27 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
   print_endline("Previous result:");
-  d_result |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+  prev_result
+  |> Result.get_unpostprocessed_dhexp
+  |> DHExp.sexp_of_t
+  |> Sexplib.Sexp.to_string
+  |> print_endline;
 
   /* TODO: remove; for diagnostics */
   print_endline(
     "Previous number of evaluation steps:"
-    ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
+    ++ (
+      prev_result
+      |> Result.get_eval_state
+      |> EvalState.get_stats
+      |> EvalStats.get_steps
+      |> string_of_int
+    ),
   );
 
   /* Perform FAR preprocessing */
-  let d_result = d_result |> preprocess(u, d);
+  let d_result =
+    prev_result |> Result.get_unpostprocessed_dhexp |> preprocess(u, d);
 
   print_endline("Preprocessed previous result:");
   d_result |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
@@ -123,7 +156,9 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   /* TODO: remove FAR information from evaluate */
   /* Perform evaluation with new fill information */
   /* let es = es |> EvalState.set_far_info(Fill(u, d)); */
-  let (es, dr_result) = Evaluator.evaluate(es, EvalEnv.empty, d_result);
+  let (es, dr_result) =
+    d_result
+    |> Evaluator.evaluate(prev_result |> Result.get_eval_state, EvalEnv.empty);
 
   /* TODO: remove; for diagnostics */
   print_endline(
@@ -132,21 +167,53 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   );
 
   /* Ordinary postprocessing */
-  let (hci, d_result, dr_result) =
+  let (hci, d_result, dr_postprocessed) =
     switch (dr_result) {
     | Indet(d) =>
-      let (hci, d) = EvalPostprocess.postprocess(d);
-      print_endline("Evaluates to:");
+      print_endline("Resumed evaluation result:");
       d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
-      (hci, d, EvaluatorResult.Indet(d));
+
+      let (hci, d_postprocessed) =
+        switch (EvalPostprocess.postprocess(d)) {
+        | hci_d => hci_d
+        | exception (EvalPostprocessError.Exception(err)) =>
+          print_endline(
+            "fill and resume postprocessing error: "
+            ++ Sexplib.Sexp.to_string(err |> EvalPostprocessError.sexp_of_t),
+          );
+          raise(Program.PostprocessError(err));
+        };
+
+      print_endline("Postprocesses to:");
+      d_postprocessed
+      |> DHExp.sexp_of_t
+      |> Sexplib.Sexp.to_string
+      |> print_endline;
+      (hci, d, EvaluatorResult.Indet(d_postprocessed));
     | BoxedValue(d) =>
-      let (hci, d) = EvalPostprocess.postprocess(d);
-      print_endline("Evaluates to:");
+      print_endline("Resumed evaluation result:");
       d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
-      (hci, d, EvaluatorResult.BoxedValue(d));
+
+      let (hci, d_postprocessed) =
+        switch (EvalPostprocess.postprocess(d)) {
+        | hci_d => hci_d
+        | exception (EvalPostprocessError.Exception(err)) =>
+          print_endline(
+            "fill and resume postprocessing error: "
+            ++ Sexplib.Sexp.to_string(err |> EvalPostprocessError.sexp_of_t),
+          );
+          raise(Program.PostprocessError(err));
+        };
+
+      print_endline("Postprocesses to:");
+      d_postprocessed
+      |> DHExp.sexp_of_t
+      |> Sexplib.Sexp.to_string
+      |> print_endline;
+      (hci, d, EvaluatorResult.BoxedValue(d_postprocessed));
     };
 
-  (d_result, delta, hci, dr_result, es);
+  Result.mk(dr_postprocessed, d_result, hci, delta, es);
 };
 
 let is_fill_viable =
