@@ -892,11 +892,10 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
-    | ListLit(StandardErrStatus(NotInHole), None)
+    | ListLit(StandardErrStatus(NotInHole), _)
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-    | ListLit(_, Some(body))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
       |> Option.map(_ =>
@@ -912,7 +911,11 @@ and ana_cursor_info_zoperand =
       );
     /* zipper cases */
     }
-  | ListLitZ(_, zbody)
+  | ListLitZ(_, zbody) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => None
+    | Some(ty_el) => ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_el)
+    }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _)

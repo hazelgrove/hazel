@@ -449,10 +449,52 @@ and syn_fix_holes_operand =
     let (p, ty, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     (Parenthesized(p), ty, ctx, u_gen);
-  | ListLit(err, Some(p)) =>
-    let (p, ty, ctx, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-    (ListLit(err, Some(p)), ty, ctx, u_gen);
+  | ListLit(_, Some(opseq)) =>
+    switch (opseq) {
+    | OpSeq(skel, seq) =>
+      let subskels = UHPat.get_tuple_elements(skel);
+      let (skels_list, seq_final, ctx, u_gen, list_types) =
+        List.fold_left(
+          ((skels_list_f, seq_f, ctx_f, u_gen_f, list_types_f), skel_f) =>
+            switch (
+              syn_fix_holes_skel(
+                ctx_f,
+                u_gen_f,
+                ~renumber_empty_holes,
+                skel_f,
+                seq_f,
+              )
+            ) {
+            | (skel_t, seq_t, common_ty_t, ctx_t, u_gen_t) => (
+                skels_list_f @ [skel_t],
+                seq_t,
+                ctx_t,
+                u_gen_t,
+                list_types_f @ [common_ty_t],
+              )
+            },
+          ([], seq, ctx, u_gen, []),
+          subskels,
+        );
+      let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
+      switch (Statics_common.lub(list_types)) {
+      | None =>
+        print_endline("fix hole statics exp");
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (
+          ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
+          HTyp.Hole,
+          ctx,
+          u_gen,
+        );
+      | Some(common_type) => (
+          ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
+          List(common_type),
+          ctx,
+          u_gen,
+        )
+      };
+    }
   | Inj(_, side, p1) =>
     let (p1, ty1, ctx, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
