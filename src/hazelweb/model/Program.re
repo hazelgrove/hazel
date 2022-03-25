@@ -41,8 +41,17 @@ let get_zexp = program => {
     template;
 };
 
+let get_zexp_all = program => {
+  // figure out whether this should get the whole program and not just the template
+  Statics.merge_edit_states(
+    program.edit_state,
+  );
+};
+
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
 let get_uhexp = program => program |> get_zexp |> erase;
+
+let get_uhexp_all = program => program |> get_zexp_all |> erase;
 
 let get_path = program => program |> get_zexp |> CursorPath_Exp.of_z;
 let get_steps = program => {
@@ -61,7 +70,7 @@ let cursor_info =
   );
 let get_cursor_info = (program: t) => {
   program
-  |> get_zexp
+  |> get_zexp_all
   |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
@@ -73,7 +82,7 @@ let expand =
     Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
+  switch (program |> get_uhexp_all |> expand) {
   | DoesNotElaborate => raise(DoesNotElaborate)
   | Elaborates(d, _, _) => d
   };
@@ -205,12 +214,11 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-
   switch (
     Action_Exp.syn_perform(
       Contexts.empty,
       a,
-      Statics.wrap_edit_state(edit_state),
+      Statics.get_template_edit_state(edit_state),
     )
   ) {
   | Failed => raise(FailedAction)
@@ -235,7 +243,6 @@ let perform_edit_action = (a, program) => {
           id_gen,
         };
       };
-    ();
     program |> put_edit_state(new_edit_state);
   };
 };

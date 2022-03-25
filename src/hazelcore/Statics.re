@@ -60,6 +60,7 @@ let merge_edit_states = (state: edit_state): ZExp.t => {
 };
 
 // convert new edit state into the old edit state that the evaluator uses
-let wrap_edit_state = (state: edit_state): (ZExp.t, HTyp.t, IDGen.t) => {
-  (merge_edit_states(state), state.ty, state.id_gen);
+let get_template_edit_state = (state: edit_state): (ZExp.t, HTyp.t, IDGen.t) => {
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_edit_state(state)));
+  (state.template, state.ty, state.id_gen);
 };

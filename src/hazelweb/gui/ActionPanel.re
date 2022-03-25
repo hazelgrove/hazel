@@ -441,7 +441,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
       Action_Exp.syn_perform(
         Contexts.empty,
         a,
-        Statics.wrap_edit_state(edit_state),
+        Statics.get_template_edit_state(edit_state),
       )
     ) {
     | Failed => false
