@@ -438,3 +438,11 @@ let teststack: CardstackInfo.t = {
   title: "tests",
   cards: List.map(example_to_card, List.map(edit_state_of_block, tests)),
 };
+
+let assignments = [("filter odds", just_hole)];
+
+let assignment_stack: CardstackInfo.t = {
+  title: "assignments",
+  cards:
+    List.map(example_to_card, List.map(edit_state_of_block, assignments)),
+};
