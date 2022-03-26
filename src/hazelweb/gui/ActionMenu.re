@@ -19,6 +19,11 @@ let menu_entries: list(menu_entry) = [
     action: SerializeToConsole(DHExp),
   },
   {
+    label: "Serialize edit state to console",
+    shortcut: None,
+    action: SerializeToConsole(EditState),
+  },
+  {
     label: "Serialize Zexp to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_S)),
     action: SerializeToConsole(ZExp),
