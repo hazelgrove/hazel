@@ -109,9 +109,9 @@ let construct_operator_after_zoperand =
 //TBD
 let complete_tuple =
   Action_common.complete_tuple_(
-    ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
+    ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
+    ~place_before_operand=ZExp.place_before_operand,
     ~comma=Operators_Exp.Comma,
-    ~place_before_opseq=ZExp.place_before_opseq,
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 

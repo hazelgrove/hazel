@@ -237,9 +237,9 @@ let construct_operator_after_zoperand =
 
 let complete_tuple =
   Action_common.complete_tuple_(
-    ~mk_OpSeq=OpSeq.mk(~associate=UHPat.associate),
+    ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
+    ~place_before_operand=ZPat.place_before_operand,
     ~comma=Operators_Pat.Comma,
-    ~place_before_opseq=ZPat.place_before_opseq,
     ~new_EmptyHole=UHPat.new_EmptyHole,
   );
 
