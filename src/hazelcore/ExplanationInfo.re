@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Sexplib;
 
 [@deriving sexp]
 type pattern_info =
@@ -28,6 +29,10 @@ type explanation_info =
 
 let rec mk_explanation_info =
         (cursor_term: CursorInfo.cursor_term): explanation_info => {
+  print_endline(
+    "Cursor Term: "
+    ++ Sexp.to_string(CursorInfo.sexp_of_cursor_term(cursor_term)),
+  );
   switch (cursor_term) {
   | ExpOperand(_, operand) => extract_exp_operand_info(operand)
   | PatOperand(_, operand) => Pattern(extract_pat_operand_info(operand))
