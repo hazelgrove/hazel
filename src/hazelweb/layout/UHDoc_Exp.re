@@ -212,7 +212,6 @@ and mk_operand =
           let n1 = mk_child(~memoize, ~enforce_inline, ~child_step=1, n1);
           let n2 = mk_child(~memoize, ~enforce_inline, ~child_step=2, n2);
           UHDoc_common.mk_Subscript(s, n1, n2);
-        | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
       )
     )

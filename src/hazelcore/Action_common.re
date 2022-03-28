@@ -40,7 +40,6 @@ let shape_to_string = (shape: shape): string => {
     | SAnd => "&&"
     | SOr => "||"
     }
-  | SApPalette(_) => failwith("ApPalette not implemented")
   };
 };
 

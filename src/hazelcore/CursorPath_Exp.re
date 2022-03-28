@@ -30,10 +30,6 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | SubscriptZE1(_, zs, _, _) => cons'(0, of_z(zs))
   | SubscriptZE2(_, _, zn1, _) => cons'(1, of_z(zn1))
   | SubscriptZE3(_, _, _, zn2) => cons'(2, of_z(zn2))
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zhole_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
-    cons'(n, of_z(ze));
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -174,19 +170,6 @@ and follow_operand =
         |> follow((xs, cursor))
         |> Option.map(zn2 => ZExp.SubscriptZE3(err, s, n1, zn2))
       | _ => None
-      }
-    | ApPalette(err, name, serialized_model, splice_info) =>
-      switch (
-        ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
-          switch (follow((xs, cursor), e)) {
-          | None => None
-          | Some(ze) => Some((ty, ze))
-          }
-        )
-      ) {
-      | None => None
-      | Some(zsplice_info) =>
-        Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
     }
   }
@@ -354,13 +337,6 @@ and of_steps_operand =
       | 2 => n2 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
       | _ => None
       }
-    | ApPalette(_, _, _, splice_info) =>
-      let splice_map = splice_info.splice_map;
-      switch (IntMap.find_opt(x, splice_map)) {
-      | None => None
-      | Some((_, e)) =>
-        e |> of_steps(xs, ~side) |> Option.map(path => cons'(x, path))
-      };
     }
   }
 and of_steps_rule =
@@ -483,19 +459,6 @@ and holes_operand =
     |> holes(n1, [1, ...rev_steps])
     |> holes(s, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
-  | ApPalette(err, _, _, psi) =>
-    let splice_map = psi.splice_map;
-    let splice_order = psi.splice_order;
-    List.fold_right(
-      (i, hs) =>
-        switch (IntMap.find_opt(i, splice_map)) {
-        | None => hs
-        | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
-        },
-      splice_order,
-      hs,
-    )
-    |> holes_err(err, rev_steps);
   }
 and holes_rule =
     (
@@ -758,7 +721,6 @@ and holes_zoperand =
     ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
@@ -921,39 +883,6 @@ and holes_zoperand =
       ~holes_after,
       (),
     );
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zsplice_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);
-    let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_z(ze, [n, ...rev_steps]);
-    let splice_order = zpsi.splice_order;
-    let splice_map = ZIntMap.prj_map(zsplice_map);
-    let (splices_before, splices_after) = ListUtil.split_at(splice_order, n);
-    let holes_splices_before =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_before,
-      );
-    let holes_splices_after =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_after,
-      );
-    {
-      holes_before: holes_splices_before @ holes_before,
-      hole_selected,
-      holes_after: holes_after @ holes_splices_after,
-    };
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   switch (zrule) {

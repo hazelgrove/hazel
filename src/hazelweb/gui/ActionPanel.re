@@ -507,8 +507,6 @@ let _check_actions = (a: Action.t) =>
   | MoveLeft => Added
   | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_)) => failwith("Unimplemented")
-  | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };
