@@ -1,0 +1,71 @@
+digraph edit_action {
+  label = "Edit-action pipeline"
+  rank = LR
+
+  graph [ fontname = "Fira Code", fontsize = 10.0                                    ];
+  node  [ fontname = "Fira Code", fontsize = 10.0, colorscheme = ylgnbu9             ];
+  edge  [ fontname = "Fira Code", fontsize = 9.0, arrowhead = "vee", arrowsize = 0.5 ];
+
+  subgraph "cluster_view" {
+    label = "ui";
+    labelloc = b;
+    style = dashed;
+
+    node [ style = filled ];
+
+    keypress [ label = "keypress", shape = signature, fillcolor = 1 ];
+    view     [ label = "view", shape = component, fillcolor = 2 ];
+  }
+
+  subgraph "cluster_hazelweb" {
+    label = "hazelweb";
+    labelloc = b;
+    style = dashed;
+
+    node [ shape = box, style = filled, fillcolor = 3 ];
+
+    uhcode_kh [ label = "UHCode.key_handlers" ];
+    kca_gma   [ label = "KeyComboAction.get_model_action" ];
+
+    up_aa     [ label = "Update.apply_action" ];
+
+    model_pea [ label = "Model.perform_edit_action" ];
+    model_up  [ label = "Model.update_program" ];
+
+    prog_pea  [ label = "Program.perform_edit_action"  ];
+    prog_pes  [ label = "Program.put_edit_state" ];
+
+  }
+
+  subgraph "cluster_hazelcore" {
+    label = "hazelcore";
+    labelloc = b;
+    style = dashed;
+
+    node  [ shape = box, style = filled, fillcolor = 4 ];
+
+    ae_sp [ label = "Action_Exp.syn_perform", fillcolor = 5 ];
+    st_fh [ label = "Statics_Exp.syn_fix_holes_z" ];
+  }
+
+  keypress -> uhcode_kh [ label = "1" ];
+  uhcode_kh -> kca_gma  [ label = "2" ];
+  kca_gma -> uhcode_kh  [ label = "3", style = dotted ];
+
+  uhcode_kh -> up_aa    [ label = "4" ];
+  up_aa -> model_pea    [ label = "5" ];
+  model_pea -> prog_pea [ label = "6" ];
+
+  prog_pea -> ae_sp     [ label = "7" ];
+  ae_sp -> st_fh        [ label = "8" ];
+  st_fh -> ae_sp        [ label = "9", style = dotted ];
+  ae_sp -> prog_pea     [ label = "10", style = dotted ];
+
+  prog_pea -> prog_pes  [ label = "11" ];
+  prog_pes -> prog_pea  [ label = "12", style = dotted ];
+
+  prog_pea -> model_pea [ label = "13", style = dotted ];
+
+  model_pea -> model_up [ label = "14" ];
+  model_up -> view      [ label = "15" ];
+}
