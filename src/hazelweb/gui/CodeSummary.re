@@ -1,5 +1,11 @@
 open Virtual_dom.Vdom;
 //open Sexplib;
+
+/* TODO - Hannah - this is used (or something pretty similar) other places and should probably be refactored to somewhere
+   centeralized like AssistantView_common - or maybe the different uses are different enough... */
+let code_node = text =>
+  Node.span([Attr.classes(["code"])], [Node.text(text)]);
+
 let highlight =
     (msg: list(Node.t), steps: CursorPath.steps, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
@@ -68,7 +74,10 @@ let print_markdown = doc => {
           | Ul(_items) => print_endline("Ul")
           | Ulp(_items) => print_endline("Ul  PPPPPP")
           | Text(_) => print_endline("Text")
-          | Url(_) => print_endline("URL")
+          | Url(_, d, _) =>
+            print_endline("URL");
+            print_markdown'(d);
+          | Code(_) => print_endline("Code")
           | _ => print_endline("Something else")
           };
         },
@@ -85,6 +94,7 @@ let print_markdown = doc => {
  highlighty thing : [thing to highlight](int indices)
  bulleted list: - list item
                 - list item
+ code: `code`
  */
 let build_msg =
     (text: string, _show_highlight: bool): (list(Node.t), ColorSteps.t) => {
@@ -109,7 +119,7 @@ let build_msg =
               items,
             );
           (List.append(msg, [Node.ul([], bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
-        | Code(_name, t) => (List.append(msg, [Node.text(t)]), mapping)
+        | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(path, d, _title) =>
           let (d, mapping) = translate(d, mapping);
           let path =
@@ -159,16 +169,16 @@ let let_line_msg =
       failwith("Pattern info should handle type annotations directly")
     | InvalidText(_, text) =>
       build_msg(
-        "[Invalid text "
+        "[Invalid text `"
         ++ text
-        ++ "](0) will stand for the [definition](1) in the [body](2) when the invalid text is corrected",
+        ++ "`](0) will stand for the [definition](1) in the [body](2) when the invalid text is corrected",
         show_highlight,
       )
     | Var(_, _, var) =>
       build_msg(
-        "[Variable "
+        "[Variable `"
         ++ var
-        ++ "](0) will stand for the [definition](1) in the [body](2)",
+        ++ "`](0) will stand for the [definition](1) in the [body](2)",
         show_highlight,
       )
     | IntLit(_, _)
@@ -245,11 +255,14 @@ let lambda_msg =
       failwith("Pattern info should handle type annotations directly")
     | InvalidText(_, text) =>
       build_msg(
-        begin_msg ++ " when the [invalid text " ++ text ++ "](0) is corrected",
+        begin_msg
+        ++ " when the [invalid text `"
+        ++ text
+        ++ "`](0) is corrected",
         show_highlight,
       )
     | Var(_, _, var) =>
-      build_msg(begin_msg ++ "[ " ++ var ++ "](0)", show_highlight)
+      build_msg(begin_msg ++ "[`" ++ var ++ "`](0)", show_highlight)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -321,9 +334,9 @@ let rule_msg =
         is_first_rule ? "M" : if_scrut_msg ++ not_matched_msg ++ ", m";
       build_msg(
         begin_msg
-        ++ "atching on this rule is delayed until [invalid text "
+        ++ "atching on this rule is delayed until [invalid text `"
         ++ text
-        ++ "](0) is corrected",
+        ++ "`](0) is corrected",
         show_highlight,
       );
     | Var(_, _, var) =>
@@ -331,9 +344,9 @@ let rule_msg =
         is_first_rule ? "M" : if_scrut_msg ++ not_matched_msg ++ ", m";
       build_msg(
         begin_msg
-        ++ "atch on this rule, where [variable "
+        ++ "atch on this rule, where [variable `"
         ++ var
-        ++ "](0) will stand for the [scrutinee](-1 0) in the [clause](1)",
+        ++ "`](0) will stand for the [scrutinee](-1 0) in the [clause](1)",
         show_highlight,
       );
     | IntLit(_, lit)
@@ -342,9 +355,9 @@ let rule_msg =
         if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", ");
       build_msg(
         begin_msg
-        ++ "matches the [pattern "
+        ++ "matches the [pattern `"
         ++ lit
-        ++ "](0), evaluate the [clause](1)",
+        ++ "`](0), evaluate the [clause](1)",
         show_highlight,
       );
     | BoolLit(_, lit) =>
@@ -352,9 +365,9 @@ let rule_msg =
         if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", ");
       build_msg(
         begin_msg
-        ++ "matches the [pattern "
+        ++ "matches the [pattern `"
         ++ string_of_bool(lit)
-        ++ "](0), evaluate the [clause](1)",
+        ++ "`](0), evaluate the [clause](1)",
         show_highlight,
       );
     | ListNil(_) =>
@@ -362,7 +375,7 @@ let rule_msg =
         if_scrut_msg ++ (is_first_rule ? "" : not_matched_msg ++ ", "); /* TODO: The parsing doesn't work with the empty list pattern showing up as text */
       build_msg(
         begin_msg
-        ++ "matches the [empty list pattern \\[\\]](0), evaluate the [clause](1)",
+        ++ "matches the [empty list pattern `[]`](0), evaluate the [clause](1)",
         show_highlight,
       );
     | Inj(_, side, _arg) =>
@@ -445,7 +458,7 @@ let pattern_msg =
         show_highlight,
       )
     | TypeAnn(_) =>
-      /* TODO: Hannah - check this case */
+      /* TODO: Hannah - check this case and add the typing information (instead of having the filler "ty"*/
       build_msg(
         "[Type annotated pattern]("
         ++ typ_annot_step
@@ -454,9 +467,9 @@ let pattern_msg =
       )
     | InvalidText(_, text) =>
       build_msg(
-        "[Invalid text "
+        "[Invalid text `"
         ++ text
-        ++ "]("
+        ++ "`]("
         ++ typ_annot_step
         ++ ") is not a valid name or literal pattern",
         show_highlight,
@@ -471,9 +484,9 @@ let pattern_msg =
       )
     | IntLit(_, n) =>
       build_msg(
-        "[Integer literal pattern "
+        "[Integer literal pattern `"
         ++ n
-        ++ "]("
+        ++ "`]("
         ++ typ_annot_step
         ++ "). Matches the value "
         ++ n,
@@ -481,9 +494,9 @@ let pattern_msg =
       )
     | FloatLit(_, n) =>
       build_msg(
-        "[Floating point literal pattern "
+        "[Floating point literal pattern `"
         ++ n
-        ++ "]("
+        ++ "`]("
         ++ typ_annot_step
         ++ "). Matches the value "
         ++ n,
@@ -491,9 +504,9 @@ let pattern_msg =
       )
     | BoolLit(_, b) =>
       build_msg(
-        "[Boolean literal pattern "
+        "[Boolean literal pattern `"
         ++ string_of_bool(b)
-        ++ "]("
+        ++ "`]("
         ++ typ_annot_step
         ++ "). Matches the value "
         ++ string_of_bool(b),
@@ -503,7 +516,7 @@ let pattern_msg =
       build_msg(
         "[Empty list (nil) pattern]("
         ++ typ_annot_step
-        ++ "). Matches the empty list value []",
+        ++ "). Matches the empty list value `[]`",
         show_highlight,
       )
     | Inj(_, side, _) =>
@@ -535,7 +548,7 @@ let pattern_msg =
       ++ typ_annot_step
       ++ "). Matches any "
       ++ n
-      ++ "-tuple value where the elemets match in order the corresponding element patterns",
+      ++ "-tuple value where the elements match in order the corresponding element patterns",
       show_highlight,
     );
   | BinOperator(operator, _lpat, _rpat, _type) =>
@@ -589,7 +602,7 @@ let type_msg =
       )
     | Bool =>
       build_msg(
-        "[Boolean type](), which classifies expressions that evaluate to true or false",
+        "[Boolean type](), which classifies expressions that evaluate to `true` or `false`",
         show_highlight,
       )
     | Parenthesized(_) =>
@@ -618,7 +631,7 @@ let type_msg =
     | Prod => failwith("Type info should handle products directly")
     | Sum =>
       build_msg(
-        "Sum type of [left summand type](0) and [right summand type](1), which classifies expressions that evaluate to either left injection values (Inj[L](v)) with argument v of the left summand type or right injection values (Inj[R](v)) with argument v of the right summand type",
+        "Sum type of [left summand type](0) and [right summand type](1), which classifies expressions that evaluate to either left injection values (`Inj[L](v)`) with argument `v` of the left summand type or right injection values (`Inj[R](v)`) with argument `v` of the right summand type",
         show_highlight,
       )
     }
@@ -650,16 +663,20 @@ let summary_msg =
       )
     | InvalidText(_, t) =>
       build_msg(
-        "Invalid text " ++ t ++ " is not a valid name, keyword, or literal",
+        "Invalid text `" ++ t ++ "` is not a valid name, keyword, or literal",
         show_highlight,
       )
-    | Var(_, _, v) => build_msg("Variable " ++ v, show_highlight)
-    | IntLit(_, n) => build_msg("Integer literal " ++ n, show_highlight)
+    | Var(_, _, v) => build_msg("Variable `" ++ v ++ "`", show_highlight)
+    | IntLit(_, n) =>
+      build_msg("Integer literal `" ++ n ++ "`", show_highlight)
     | FloatLit(_, n) =>
-      build_msg("Floating point literal " ++ n, show_highlight)
+      build_msg("Floating point literal `" ++ n ++ "`", show_highlight)
     | BoolLit(_, b) =>
-      build_msg("Boolean literal " ++ string_of_bool(b), show_highlight)
-    | ListNil(_) => build_msg("Empty list []", show_highlight)
+      build_msg(
+        "Boolean literal `" ++ string_of_bool(b) ++ "`",
+        show_highlight,
+      )
+    | ListNil(_) => build_msg("Empty list `[]`", show_highlight)
     | Lam(_) => failwith("Explanation info should handle lambdas directly")
     | Inj(_, side, _exp) =>
       let side_str =
