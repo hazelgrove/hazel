@@ -47,25 +47,29 @@ and codegen_import = (name: Var.t, path: string) =>
   // TODO: Relative import?
   sprintf("import %s from \"%s\"", name, path)
 
-and codegen_decl = (decl: Gir.decl) => {
+and codegen_decl = (decl: Gir.decl) =>
   switch (decl) {
-  | Enum(name, type_vars, variants) =>
-    let type_vars =
-      List.length(type_vars) == 0
-        ? "" : type_vars |> codegen_comma_sep |> sprintf("<%s>");
-    let variants =
-      variants
-      |> List.map(((vname, vbody)) =>
-           if (List.length(vbody) == 0) {
-             vname;
-           } else {
-             vbody |> codegen_comma_sep |> sprintf("%s(%s)", vname);
-           }
-         )
-      |> codegen_comma_sep;
+  | Enum(en) => codegen_enum(en)
+  }
 
-    sprintf("enum %s%s { %s }", name, type_vars, variants);
-  };
+and codegen_enum = ({name, type_vars, variants}: Gir.enum) => {
+  let type_vars =
+    List.length(type_vars) == 0
+      ? "" : type_vars |> codegen_comma_sep |> sprintf("<%s>");
+  let variants =
+    variants
+    |> List.map((variant: Gir.enum_variant) =>
+         if (List.length(variant.params) == 0) {
+           variant.ctor;
+         } else {
+           variant.params
+           |> codegen_comma_sep
+           |> sprintf("%s(%s)", variant.ctor);
+         }
+       )
+    |> codegen_comma_sep;
+
+  sprintf("enum %s%s { %s }", name, type_vars, variants);
 }
 
 and codegen_block_nowrap = (b: Gir.block) => {
@@ -103,6 +107,7 @@ and codegen_expr = (e: Gir.expr) =>
   | Var(var) => codegen_var(var)
   | Lam(params, e') => codegen_lam(params, e')
   | Ap(lam, args) => codegen_ap(lam, args)
+  | Ctor(ctor, args) => codegen_ctor(ctor, args)
   | Match(scrut, rules) => codegen_match(scrut, rules)
   | Block(b) => codegen_block(b)
   }
@@ -134,13 +139,8 @@ and codegen_bin_op = (op: Gir.bin_op, e1: Gir.expr, e2: Gir.expr) => {
   sprintf("%s %s %s", e1, op, e2);
 }
 
-and codegen_var = (var: Gir.var) =>
-  switch (var) {
-  | Named(var) => codegen_sep(".", var)
-  | Tmp(n) => sprintf("t%d", n)
-  }
-and codegen_params = (ps: Gir.params) =>
-  ps |> List.map(codegen_var) |> String.concat(", ")
+and codegen_var = (var: Var.t) => var
+and codegen_params = (ps: Gir.params) => ps |> String.concat(", ")
 
 and codegen_lam = (params: Gir.params, e': Gir.expr) => {
   let params = codegen_params(params);
@@ -148,10 +148,16 @@ and codegen_lam = (params: Gir.params, e': Gir.expr) => {
   sprintf("(%s) => { %s }", params, e');
 }
 
-and codegen_ap = (lam, args) => {
+and codegen_ap = (lam: Gir.expr, args: Gir.args) => {
   let lam = codegen_expr(lam);
   let args = codegen_args(args);
   sprintf("%s(%s)", lam, args);
+}
+
+and codegen_ctor = (ctor: Var.t, args: Gir.args) => {
+  let ctor = codegen_var(ctor);
+  let args = codegen_args(args);
+  sprintf("%s(%s)", ctor, args);
 }
 
 and codegen_match = (scrut: Gir.expr, rules: list(Gir.rule)) => {

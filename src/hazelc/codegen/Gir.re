@@ -1,22 +1,36 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type params = list(Var.t);
+
+[@deriving sexp]
 type top_block = list(top_statement)
+
+[@deriving sexp]
 and top_statement =
   | Import(Var.t, string)
   | Decl(decl)
+
+[@deriving sexp]
 and decl =
-  | Enum(Var.t, list(Var.t), list((Var.t, list(Var.t))));
+  | Enum(enum)
+
+[@deriving sexp]
+and enum = {
+  name: Var.t,
+  type_vars: list(Var.t),
+  variants: list(enum_variant),
+}
+
+[@deriving sexp]
+and enum_variant = {
+  ctor: Var.t,
+  params,
+};
 
 module TopBlock = {
   let join = tbs => List.concat(tbs);
 };
-
-[@deriving sexp]
-type var =
-  | Named(list(Var.t))
-  | Tmp(int)
-and params = list(var);
 
 [@deriving sexp]
 type bin_op =
@@ -51,10 +65,14 @@ type pat =
 
 [@deriving sexp]
 type block = list(statement)
+
+[@deriving sexp]
 and statement =
   | Let(params, expr)
   | LetRec(params, expr)
   | Expr(expr)
+
+[@deriving sexp]
 and expr =
   | BoolLit(bool)
   | IntLit(int)
@@ -62,12 +80,17 @@ and expr =
   | BinOp(bin_op, expr, expr)
   | List(list(expr))
   | Triv
-  | Var(var)
+  | Var(Var.t)
   | Lam(params, expr)
   | Ap(expr, args)
+  | Ctor(Var.t, args)
   | Match(expr, list(rule))
   | Block(block)
+
+[@deriving sexp]
 and args = list(expr)
+
+[@deriving sexp]
 and rule =
   | Rule(pat, expr);
 
