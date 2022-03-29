@@ -88,6 +88,16 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
     ~is_open=model.settings.right_panel.panel_open,
     [
       (
+        model.settings.right_panel.syntactic_form,
+        Node.text("SF"),
+        inject(
+          ModelAction.UpdateSettings(RightPanel(Toggle_syntactic_form)),
+        ),
+        () => {
+          SyntacticForm.view() /* TODO: Ardi - Anything you need to pass to this view */;
+        },
+      ),
+      (
         model.settings.right_panel.code_summary,
         Node.text("SU"),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_summary))),

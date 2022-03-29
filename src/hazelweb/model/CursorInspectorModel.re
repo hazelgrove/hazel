@@ -1,3 +1,5 @@
+/* TODO: Ardi - Example for storing info of user selections */
+
 type t = {
   visible: bool,
   show_expanded: bool,

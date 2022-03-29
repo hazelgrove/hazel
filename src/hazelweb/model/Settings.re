@@ -121,6 +121,7 @@ module Performance = {
 module RightPanel = {
   type t = {
     panel_open: bool,
+    syntactic_form: bool,
     code_summary: bool,
     code_explanation: bool,
     cursor_inspector: bool,
@@ -132,7 +133,8 @@ module RightPanel = {
   /* TODO: Hannah - make sure to return this back to default settings */
   let init = {
     panel_open: true,
-    code_summary: true,
+    syntactic_form: true,
+    code_summary: false,
     code_explanation: false,
     cursor_inspector: false,
     context_inspector: false,
@@ -143,6 +145,7 @@ module RightPanel = {
   [@deriving sexp]
   type update =
     | Toggle_open
+    | Toggle_syntactic_form
     | Toggle_code_summary
     | Toggle_code_explanation
     | Toggle_cursor_inspector
@@ -153,6 +156,10 @@ module RightPanel = {
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_open => {...settings, panel_open: !settings.panel_open}
+    | Toggle_syntactic_form => {
+        ...settings,
+        syntactic_form: !settings.syntactic_form,
+      }
     | Toggle_code_summary => {
         ...settings,
         code_summary: !settings.code_summary,
