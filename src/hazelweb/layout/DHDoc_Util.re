@@ -60,7 +60,7 @@ module Delim = {
 
   let sym_Fun = mk(Unicode.lamSym);
   let colon_Fun = mk(":");
-  let open_Fun = mk(".{");
+  let open_Fun = mk("{");
   let close_Fun = mk("}");
 
   let fix_FixF = mk("fix");
