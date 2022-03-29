@@ -14,35 +14,28 @@ module TopBlock = {
 
 [@deriving sexp]
 type var =
-  | Named(Var.t)
+  | Named(list(Var.t))
   | Tmp(int)
 and params = list(var);
 
-module BinOp = {
-  [@deriving sexp]
-  type op =
-    | And
-    | Or
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FGreaterThan
-    | FEquals;
-};
-
 [@deriving sexp]
 type bin_op =
-  | Prim(BinOp.op)
-  | Hazel(BinOp.op);
+  | And
+  | Or
+  | Plus
+  | Minus
+  | Times
+  | Divide
+  | LessThan
+  | GreaterThan
+  | Equals
+  | FPlus
+  | FMinus
+  | FTimes
+  | FDivide
+  | FLessThan
+  | FGreaterThan
+  | FEquals;
 
 [@deriving sexp]
 type pat =
@@ -55,11 +48,6 @@ type pat =
   | Cons(pat, pat)
   | Pair(pat, pat)
   | Triv;
-
-[@deriving sexp]
-type side =
-  | L
-  | R;
 
 [@deriving sexp]
 type block = list(statement)
@@ -75,8 +63,6 @@ and expr =
   | List(list(expr))
   | Triv
   | Var(var)
-  | Builtin(Var.t)
-  | Inj(side, expr)
   | Lam(params, expr)
   | Ap(expr, args)
   | Match(expr, list(rule))

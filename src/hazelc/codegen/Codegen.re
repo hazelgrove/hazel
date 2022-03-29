@@ -1,16 +1,5 @@
 let sprintf = Printf.sprintf;
 
-module type ImportMeta = {
-  let path: string;
-  let name: string;
-};
-
-module Import = (M: ImportMeta) => {
-  let code = (): GHExp.top_block => [Import(M.name, M.path)];
-
-  let symbol = symbol => GHExp.Named(sprintf("%s.%s", M.name, symbol));
-};
-
 module Consts = {
   let truelit = "true";
   let falselit = "false";
@@ -25,77 +14,10 @@ module Consts = {
   let prim_less_than_op = "<";
   let prim_greater_than_op = "<";
   let prim_equals_op = "<";
-};
 
-module Pervasives = {
-  let inj_left = "L";
-  let inj_right = "R";
-
-  let code = (): GHExp.top_block => [
-    Decl(
-      Enum(
-        "HazelSum",
-        ["a", "b"],
-        [(inj_right, ["a"]), (inj_right, ["b"])],
-      ),
-    ),
-  ];
-};
-
-module HazelMod = {
-  module Mod =
-    Import({
-      let path = "hazel/hazel";
-      let name = "Hazel";
-    });
-
-  let code = Mod.code;
-
-  let hazel_and = Mod.symbol("and");
-  let hazel_or = Mod.symbol("or");
-
-  let hazel_plus = Mod.symbol("plus");
-  let hazel_minus = Mod.symbol("minus");
-  let hazel_times = Mod.symbol("times");
-  let hazel_divide = Mod.symbol("divide");
-  let hazel_less_than = Mod.symbol("less_than");
-  let hazel_greater_than = Mod.symbol("greater_than");
-  let hazel_equals = Mod.symbol("equals");
-
-  let hazel_fplus = Mod.symbol("fplus");
-  let hazel_fminus = Mod.symbol("fminus");
-  let hazel_ftimes = Mod.symbol("ftimes");
-  let hazel_fdivide = Mod.symbol("fdivide");
-  let hazel_fless_than = Mod.symbol("fless_than");
-  let hazel_fgreater_than = Mod.symbol("fgreater_than");
-  let hazel_fequals = Mod.symbol("fequals");
-};
-
-module BuiltinsMod = {
-  module Mod =
-    Import({
-      let path = "hazel/builtins";
-      let name = "Builtins";
-    });
-
-  let code = Mod.code;
-
-  let builtins =
-    [
-      ("int_of_float", "intOfFloat"),
-      ("float_of_int", "floatOfInt"),
-      ("PI", "pi"),
-      ("mod", "mod"),
-    ]
-    |> List.map(((name, libname)) => (name, Mod.symbol(libname)));
-
-  let lookup = VarMap.lookup(builtins);
-};
-
-module Preamble = {
-  let code = () =>
-    [Pervasives.code(), HazelMod.code(), BuiltinsMod.code()]
-    |> GHExp.TopBlock.join;
+  let pat_wild = "_";
+  let pat_list_nil = "[]";
+  let pat_triv = "void";
 };
 
 /*
@@ -105,30 +27,27 @@ let codegen_raise = err => raise(CodegenError.Exception(err));
 
 let codegen_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
 let codegen_lines = ss => ss |> String.concat("\n");
-let codegen_comma_sep = ss => ss |> String.concat(", ");
+let codegen_sep = (delim, ss) => ss |> String.concat(delim);
+let codegen_comma_sep = codegen_sep(", ");
 
-let rec codegen = ((tb, b): GHExp.program) => {
-  let preamble = GHExp.TopBlock.join([Preamble.code(), tb]);
+let rec codegen = ((tb, b): Gir.program) =>
+  [codegen_top_block(tb), codegen_block_nowrap(b)] |> codegen_lines
 
-  [codegen_top_block(preamble), codegen_block_nowrap(b)] |> codegen_lines;
-}
-
-and codegen_top_block = (tb: GHExp.top_block) => {
+and codegen_top_block = (tb: Gir.top_block) => {
   tb |> List.map(codegen_top_statement) |> codegen_lines;
 }
 
-and codegen_top_statement = (tstmt: GHExp.top_statement) => {
+and codegen_top_statement = (tstmt: Gir.top_statement) =>
   switch (tstmt) {
   | Import(name, path) => codegen_import(name, path)
   | Decl(decl) => codegen_decl(decl)
-  };
-}
+  }
 
 and codegen_import = (name: Var.t, path: string) =>
   // TODO: Relative import?
   sprintf("import %s from \"%s\"", name, path)
 
-and codegen_decl = (decl: GHExp.decl) => {
+and codegen_decl = (decl: Gir.decl) => {
   switch (decl) {
   | Enum(name, type_vars, variants) =>
     let type_vars =
@@ -149,15 +68,15 @@ and codegen_decl = (decl: GHExp.decl) => {
   };
 }
 
-and codegen_block_nowrap = (b: GHExp.block) => {
+and codegen_block_nowrap = (b: Gir.block) => {
   b |> List.map(codegen_statement) |> codegen_lines;
 }
-and codegen_block = (b: GHExp.block) => {
+and codegen_block = (b: Gir.block) => {
   let s = codegen_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
-and codegen_statement = (stmt: GHExp.statement) =>
+and codegen_statement = (stmt: Gir.statement) =>
   switch (stmt) {
   | Let(params, e) =>
     let params = codegen_params(params);
@@ -170,7 +89,7 @@ and codegen_statement = (stmt: GHExp.statement) =>
   | Expr(e) => codegen_expr(e)
   }
 
-and codegen_expr = (e: GHExp.expr) =>
+and codegen_expr = (e: Gir.expr) =>
   switch (e) {
   | BoolLit(b) => b ? Consts.truelit : Consts.falselit
   | IntLit(n) => string_of_int(n)
@@ -182,25 +101,15 @@ and codegen_expr = (e: GHExp.expr) =>
     sprintf("[%s]", es);
   | Triv => Consts.voidlit
   | Var(var) => codegen_var(var)
-  | Builtin(name) =>
-    let builtin = BuiltinsMod.lookup(name);
-    switch (builtin) {
-    | Some(builtin) => codegen_expr(Var(builtin))
-    | None => codegen_raise(BadBuiltin(name))
-    };
-  | Inj(side, e') => codegen_inj(side, e')
-  | Lam(_params, _e') => codegen_raise(NotImplemented)
-  | Ap(_lam, _args) => codegen_raise(NotImplemented)
-  | Match(_e', _rules) => codegen_raise(NotImplemented)
+  | Lam(params, e') => codegen_lam(params, e')
+  | Ap(lam, args) => codegen_ap(lam, args)
+  | Match(scrut, rules) => codegen_match(scrut, rules)
   | Block(b) => codegen_block(b)
   }
+and codegen_args = (args: Gir.args) =>
+  args |> List.map(codegen_expr) |> codegen_comma_sep
 
-and codegen_bin_op = (op: GHExp.bin_op, e1: GHExp.expr, e2: GHExp.expr) =>
-  switch (op) {
-  | Prim(op') => codegen_bin_op_prim(op', e1, e2)
-  | Hazel(op') => codegen_bin_op_hazel(op', e1, e2)
-  }
-and codegen_bin_op_prim = (op: GHExp.BinOp.op, e1: GHExp.expr, e2: GHExp.expr) => {
+and codegen_bin_op = (op: Gir.bin_op, e1: Gir.expr, e2: Gir.expr) => {
   let op =
     switch (op) {
     | And => Consts.prim_and_op
@@ -224,45 +133,59 @@ and codegen_bin_op_prim = (op: GHExp.BinOp.op, e1: GHExp.expr, e2: GHExp.expr) =
   let e2 = codegen_expr(e2);
   sprintf("%s %s %s", e1, op, e2);
 }
-and codegen_bin_op_hazel =
-    (op: GHExp.BinOp.op, e1: GHExp.expr, e2: GHExp.expr) => {
-  let f =
-    switch (op) {
-    | And => HazelMod.hazel_and
-    | Or => HazelMod.hazel_or
-    | Plus => HazelMod.hazel_plus
-    | Minus => HazelMod.hazel_minus
-    | Times => HazelMod.hazel_times
-    | Divide => HazelMod.hazel_divide
-    | LessThan => HazelMod.hazel_less_than
-    | GreaterThan => HazelMod.hazel_greater_than
-    | Equals => HazelMod.hazel_equals
-    | FPlus => HazelMod.hazel_fplus
-    | FMinus => HazelMod.hazel_fminus
-    | FTimes => HazelMod.hazel_ftimes
-    | FDivide => HazelMod.hazel_fdivide
-    | FLessThan => HazelMod.hazel_fless_than
-    | FGreaterThan => HazelMod.hazel_fgreater_than
-    | FEquals => HazelMod.hazel_fequals
-    };
-  codegen_expr(Ap(Var(f), [e1, e2]));
-}
 
-and codegen_inj = (side: GHExp.side, e': GHExp.expr) => {
-  let ctor =
-    switch (side) {
-    | L => Pervasives.inj_left
-    | R => Pervasives.inj_right
-    };
-
-  // TODO: Use separate expr variant for variant constructor?
-  codegen_expr(Ap(Var(Named(ctor)), [e']));
-}
-
-and codegen_var = (var: GHExp.var) =>
+and codegen_var = (var: Gir.var) =>
   switch (var) {
-  | Named(var) => var
+  | Named(var) => codegen_sep(".", var)
   | Tmp(n) => sprintf("t%d", n)
   }
-and codegen_params = (ps: GHExp.params) =>
-  ps |> List.map(codegen_var) |> String.concat(", ");
+and codegen_params = (ps: Gir.params) =>
+  ps |> List.map(codegen_var) |> String.concat(", ")
+
+and codegen_lam = (params: Gir.params, e': Gir.expr) => {
+  let params = codegen_params(params);
+  let e' = codegen_expr(e');
+  sprintf("(%s) => { %s }", params, e');
+}
+
+and codegen_ap = (lam, args) => {
+  let lam = codegen_expr(lam);
+  let args = codegen_args(args);
+  sprintf("%s(%s)", lam, args);
+}
+
+and codegen_match = (scrut: Gir.expr, rules: list(Gir.rule)) => {
+  let scrut = codegen_expr(scrut);
+  let rules = rules |> List.map(codegen_rule) |> codegen_comma_sep;
+  sprintf("match (%s) { %s }", scrut, rules);
+}
+and codegen_rule = (rule: Gir.rule) => {
+  switch (rule) {
+  | Rule(p, rhs) =>
+    let p = codegen_pat(p);
+    let rhs = codegen_expr(rhs);
+    sprintf("%s => %s", p, rhs);
+  };
+}
+
+and codegen_pat = (p: Gir.pat) => {
+  switch (p) {
+  | Wild => Consts.pat_wild
+  // TODO: Check if var conflicts with a keyword?
+  | Var(var) => var
+  | IntLit(i) => string_of_int(i)
+  | FloatLit(f) => string_of_float(f)
+  | BoolLit(b) => string_of_bool(b)
+  | ListNil => Consts.pat_list_nil
+  | Triv => Consts.pat_triv
+  // TODO: Optimize this?
+  | Cons(p1, p2) =>
+    let p1 = codegen_pat(p1);
+    let p2 = codegen_pat(p2);
+    sprintf("[%s, ...%s]", p1, p2);
+  | Pair(p1, p2) =>
+    let p1 = codegen_pat(p1);
+    let p2 = codegen_pat(p2);
+    sprintf("(%s, %s)", p1, p2);
+  };
+};
