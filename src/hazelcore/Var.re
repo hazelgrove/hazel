@@ -31,7 +31,11 @@ let is_case = eq("case");
 
 let is_wild = eq("_");
 
-let is_keyword = s => is_let(s) || is_fun(s) || is_case(s);
+let is_keyword = s =>
+  switch (ExpandingKeyword.mk(s)) {
+  | Some(_) => true
+  | None => false
+  };
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);

@@ -768,11 +768,9 @@ and syn_fix_holes_operand =
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
-          switch (Var.is_let(x), Var.is_case(x), Var.is_fun(x)) {
-          | (true, _, _) => Keyword(Let)
-          | (_, true, _) => Keyword(Case)
-          | (_, _, true) => Keyword(Fun)
-          | _ => Free
+          switch (ExpandingKeyword.mk(x)) {
+          | Some(t) => Keyword(t)
+          | None => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
