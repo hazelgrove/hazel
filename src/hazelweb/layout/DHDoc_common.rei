@@ -35,10 +35,10 @@ module Delim: {
   let open_Parenthesized: DHDoc.t;
   let close_Parenthesized: DHDoc.t;
 
-  let sym_Lam: DHDoc.t;
-  let colon_Lam: DHDoc.t;
-  let open_Lam: DHDoc.t;
-  let close_Lam: DHDoc.t;
+  let sym_Fun: DHDoc.t;
+  let colon_Fun: DHDoc.t;
+  let open_Fun: DHDoc.t;
+  let close_Fun: DHDoc.t;
 
   let fix_FixF: DHDoc.t;
   let colon_FixF: DHDoc.t;
