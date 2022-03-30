@@ -55,7 +55,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
   | (_, FixF(_, _, _)) => DoesNotMatch
-  | (_, Lam(_, _, _)) => DoesNotMatch
+  | (_, Fun(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
@@ -199,7 +199,7 @@ and matches_cast_Inj =
   | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Closure(_, _, d') => matches_cast_Inj(side, dp, d', casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
@@ -266,7 +266,7 @@ and matches_cast_Pair =
   | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Closure(_, _, d') =>
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Ap(_, _) => Indet
@@ -340,7 +340,7 @@ and matches_cast_Cons =
   | Keyword(_, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Closure(_, _, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
@@ -393,12 +393,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Lam(dp, ty, d3) =>
+  | Fun(dp, ty, d3) =>
     if (DHPat.binds_var(x, dp)) {
       d2;
     } else {
       let d3 = subst_var(d1, x, d3);
-      Lam(dp, ty, d3);
+      Fun(dp, ty, d3);
     }
   | Closure(env, re_eval, d3) =>
     /* Closure shouldn't appear during substitution (which
@@ -569,16 +569,16 @@ let rec evaluate =
     }
   | FixF(f, ty, d) =>
     switch (evaluate(es, env, d)) {
-    | (es, BoxedValue(Closure(env', false, Lam(_) as d''') as d'')) =>
+    | (es, BoxedValue(Closure(env', false, Fun(_) as d''') as d'')) =>
       let (es, env'') =
         EvalEnv.extend(es, env', (f, BoxedValue(FixF(f, ty, d''))));
       (es, BoxedValue(Closure(env'', false, d''')));
     | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
-  | Lam(_) => (es, BoxedValue(Closure(env, false, d)))
+  | Fun(_) => (es, BoxedValue(Closure(env, false, d)))
   | Ap(d1, d2) =>
     switch (evaluate(es, env, d1)) {
-    | (es, BoxedValue(Closure(closure_env, false, Lam(dp, _, d3)) as d1)) =>
+    | (es, BoxedValue(Closure(closure_env, false, Fun(dp, _, d3)) as d1)) =>
       switch (evaluate(es, env, d2)) {
       | (es, BoxedValue(d2))
       | (es, Indet(d2)) =>
@@ -601,7 +601,7 @@ let rec evaluate =
         evaluate(es, env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
     | (_, BoxedValue(d1')) =>
-      raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
     | (es, Indet(d1')) =>
       switch (evaluate(es, env, d2)) {
       | (es, BoxedValue(d2'))
@@ -717,7 +717,7 @@ let rec evaluate =
      lambda closures are BoxedValues; other closures are all Indet. */
   | Closure(_, false, d') =>
     switch (d') {
-    | Lam(_) => (es, BoxedValue(d))
+    | Fun(_) => (es, BoxedValue(d))
     | _ => (es, Indet(d))
     }
 

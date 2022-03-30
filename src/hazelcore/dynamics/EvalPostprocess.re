@@ -32,9 +32,9 @@ let rec pp_uneval =
   | FixF(f, ty, d1) =>
     let (hci, d1') = pp_uneval(hci, env, d1, parent);
     (hci, FixF(f, ty, d1'));
-  | Lam(dp, ty, d') =>
+  | Fun(dp, ty, d') =>
     let (hci, d'') = pp_uneval(hci, env, d', parent);
-    (hci, Lam(dp, ty, d''));
+    (hci, Fun(dp, ty, d''));
   | Ap(d1, d2) =>
     let (hci, d1') = pp_uneval(hci, env, d1, parent);
     let (hci, d2') = pp_uneval(hci, env, d2, parent);
@@ -264,7 +264,7 @@ and pp_eval =
   /* Lambda should not appear outside closure in evaluated result */
   | Let(_)
   | ConsistentCase(_)
-  | Lam(_)
+  | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | Keyword(_)
@@ -276,9 +276,9 @@ and pp_eval =
   /* Closure */
   | Closure(env', _, d') =>
     switch (d') {
-    | Lam(dp, ty, d'') =>
+    | Fun(dp, ty, d'') =>
       let (hci, d'') = pp_uneval(hci, env', d'', parent);
-      (hci, Lam(dp, ty, d''));
+      (hci, Fun(dp, ty, d''));
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
       let (hci, d1') = pp_eval(hci, d1, parent);

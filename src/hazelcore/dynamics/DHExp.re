@@ -144,7 +144,7 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
   | BoolLit(bool)
@@ -182,7 +182,7 @@ let constructor_string = (d: t): string =>
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
-  | Lam(_, _, _) => "Lam"
+  | Fun(_, _, _) => "Fun"
   | Closure(_, _, _) => "Closure"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
@@ -242,7 +242,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     dp1 == dp2 && fast_equals(d11, d12) && fast_equals(d21, d22)
   | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
     f1 == f2 && ty1 == ty2 && fast_equals(d1, d2)
-  | (Lam(dp1, ty1, d1), Lam(dp2, ty2, d2)) =>
+  | (Fun(dp1, ty1, d1), Fun(dp2, ty2, d2)) =>
     dp1 == dp2 && ty1 == ty2 && fast_equals(d1, d2)
   | (Ap(d11, d21), Ap(d12, d22))
   | (Cons(d11, d21), Cons(d12, d22))
@@ -269,7 +269,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
      these so that we get exhaustiveness checking. */
   | (Let(_), _)
   | (FixF(_), _)
-  | (Lam(_), _)
+  | (Fun(_), _)
   | (Ap(_), _)
   | (ApBuiltin(_), _)
   | (Cons(_), _)

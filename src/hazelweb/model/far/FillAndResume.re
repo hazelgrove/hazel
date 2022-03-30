@@ -63,7 +63,7 @@ let rec preprocess = (u: MetaVar.t, d_fill: DHExp.t, d: DHExp.t): DHExp.t => {
   | Triv => d
   | Let(dp, d1, d2) => Let(dp, d1 |> preprocess, d2 |> preprocess)
   | FixF(x, ty, d) => FixF(x, ty, d |> preprocess)
-  | Lam(dp, ty, d) => Lam(dp, ty, d |> preprocess)
+  | Fun(dp, ty, d) => Fun(dp, ty, d |> preprocess)
   | Ap(d1, d2) => Ap(d1 |> preprocess, d2 |> preprocess)
   | ApBuiltin(f, args) => ApBuiltin(f, args |> List.map(preprocess))
   | BinBoolOp(op, d1, d2) =>

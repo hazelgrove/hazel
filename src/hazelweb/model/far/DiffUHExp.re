@@ -37,7 +37,7 @@ let get_hole_number_of_operand = (operand: UHExp.operand): option(int) =>
   | FloatLit(err_status, _)
   | BoolLit(err_status, _)
   | ListNil(err_status)
-  | Lam(err_status, _, _)
+  | Fun(err_status, _, _)
   | Inj(err_status, _, _) => err_status |> get_hole_number_of_err_status
   | Var(err_status, var_err_status, _) =>
     let hole_num = err_status |> get_hole_number_of_err_status;
@@ -113,7 +113,7 @@ let rec diff_operand =
 
      Steps 2-4 are condensed into the helper function `get_diff_root_subexp`.
      */
-  | (Lam(err_status1, pat1, e1), Lam(err_status2, pat2, e2)) =>
+  | (Fun(err_status1, pat1, e1), Fun(err_status2, pat2, e2)) =>
     err_status1 != err_status2 || pat1 != pat2
       ? diff : get_diff_root_subexp(e1, e2)
   | (Inj(err_status1, side1, e1), Inj(err_status2, side2, e2)) =>

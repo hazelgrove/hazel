@@ -252,7 +252,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -269,7 +269,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate
@@ -347,14 +347,14 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Lam(dp, ty1, d1);
+        let d = DHExp.Fun(dp, ty1, d1);
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
@@ -633,7 +633,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -643,7 +643,7 @@ and ana_elab_operand =
       let gamma = Contexts.gamma(ctx);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, d), ty, delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
@@ -659,7 +659,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate /* not in hole */
@@ -678,7 +678,7 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
@@ -697,7 +697,7 @@ and ana_elab_operand =
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Lam(dp, ty1p, d1);
+            let d = DHExp.Fun(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
