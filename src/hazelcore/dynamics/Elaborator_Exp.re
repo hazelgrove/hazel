@@ -652,7 +652,7 @@ and ana_elab_operand =
       let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
