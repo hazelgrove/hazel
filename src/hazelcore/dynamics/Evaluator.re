@@ -37,7 +37,6 @@ type match_result =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, Closure(_, _, d)) => matches(dp, d)
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => Indet
@@ -61,6 +60,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
+
+  /* Closure should match like underlying expression */
+  | (_, Closure(_, _, Fun(_))) => DoesNotMatch
+  | (_, Closure(_, _, _)) => Indet
+
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
       Matches(Environment.empty);
@@ -200,7 +204,8 @@ and matches_cast_Inj =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Closure(_, _, d') => matches_cast_Inj(side, dp, d', casts)
+  | Closure(_, _, Fun(_)) => DoesNotMatch
+  | Closure(_, _, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -267,8 +272,8 @@ and matches_cast_Pair =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Closure(_, _, d') =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Closure(_, _, Fun(_)) => DoesNotMatch
+  | Closure(_, _, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
