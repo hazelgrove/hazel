@@ -4,18 +4,119 @@ type direction =
   | L
   | R;
 
-type hole_provenance =
+type raef_provenance = // this can still be called hole_provenance
   | Matched_arrow(direction)
   | Matched_sum(direction)
   | Matched_prod(int)
   | Matched_list;
 
-type hole_id = (MetaVar.t, list(hole_provenance));
+type andrew_provenance = // this could be called unknown_hole
+  | TypeHole
+  | SynPatternVar // let expr with no type annot
+  | Internal      // all of our provenance prob all here
+
+type hole_provenance = // this can still be called hole_provenance
+  | Matched_arrow(direction)
+  | Matched_sum(direction)
+  | Matched_prod(int)
+  | Matched_list;
+  // | SynPatternVar;
+
+type is_syn_pattern_var =
+| IsSynPatternVar
+| NotSynPatternVar;
+
+// let (x, y) = expr ?? Since (x, y) is a tuple pattern, would Matched_prod be called on it?
+// let x : ? = .. (TypeHole)
+// let x = case expr    (IsSynPatternVar)
+
+type hole_id = MetaVar.t;
+type internal_hole_id = (MetaVar.t, list(hole_provenance));
+
+type unknown_type =
+  | TypeHole(hole_id)
+  | Internal(internal_hole_id, is_syn_pattern_var);
+
+/*
+from UHPat.re
+and operand =
+  | EmptyHole(MetaVar.t)
+  | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
+  | InvalidText(MetaVar.t, string)
+  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+*/
+
+/*
+let mk_syn_text =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+    : ActionOutcome.t(syn_success) => {
+  let text_cursor = CursorPosition.OnText(caret_index);
+  switch (TextShape.of_text(text)) {
+  | InvalidTextShape(t) =>
+    if (text |> StringUtil.is_empty) {
+      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      Succeeded((ZOpSeq.wrap(zhole), HTyp.Unknown(Internal), ctx, u_gen));
+    } else {
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+      Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+    }
+  | Underscore =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
+    Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+  | IntLit(n) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
+    Succeeded((zp, HTyp.Int, ctx, u_gen));
+  | FloatLit(f) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
+    Succeeded((zp, HTyp.Float, ctx, u_gen));
+  | BoolLit(b) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
+    Succeeded((zp, HTyp.Bool, ctx, u_gen));
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let var =
+      UHPat.var(
+        ~var_err=InVarHole(Keyword(k), u),
+        k |> ExpandingKeyword.to_string,
+      );
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
+    Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+  | Var(x) =>
+        let ctx = Contexts.extend_gamma(ctx, (x, Unknown(SynPatternVar)));   TODO: ASK PROF OMAR ABOUT THIS. Why extend the context at all for this var? (Even before we were using Hole Provenances)
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
+    Succeeded((zp, HTyp.Unknown(SynPatternVar), ctx, u_gen));
+  };
+};
+*/
+
+type base_hole_provenance = 
+  | UserGenerated   // akin to Andrew's TypeHole provenance
+  | SynPatternVar;
+
+// TODO: ASK ANDREW AGAIN ABOUT INTERNAL and its purpose/role
+  
+type derived_hole_provenance = // this can still be called hole_provenance // by nature, these are Internal
+  | Matched_arrow(direction)
+  | Matched_sum(direction)
+  | Matched_prod(int)
+  | Matched_list;
+
+type base_hole_id = (MetaVar.t, base_hole_provenance);
+type derived_hole_id = (MetaVar.t, list(derived_hole_provenance))
+
+type unknown_type_2 = 
+  | Base(base_hole_id)
+  | Derived(internal_hole_id);
+
+// holes that exist with no ancestor
+// holes that have an ancestor
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Hole(hole_id) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
+  | Unknown(unknown_type) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
   // UHHole [1] used in (HHole [1.1] , HHole [1.2]) ; 
   // UHHole [1] used in (HHole [1.3] , HHole [1.4]) ;
   // HHole [1.3] used in (HHole [1.3.1], HHole [1.3.2])
