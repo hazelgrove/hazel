@@ -82,7 +82,7 @@
 %token INJL
 %token INJR
 %token <string> INT
-%token LAMBDA
+%token FUN
 %token LBRACE
 %token LBRACK
 %token LESSER
@@ -90,7 +90,6 @@
 %token LPAREN
 %token MINUS
 %token MULT
-%token PERIOD
 %token PLUS
 %token RBRACE
 %token RBRACK
@@ -203,7 +202,7 @@ expr_:
       let (it, _) = UHExp.new_InvalidText 0 "_" in
       it
   }
-  | LAMBDA pat PERIOD LBRACE block RBRACE { mk_fn $2 $5 }
+  | FUN pat LBRACE block RBRACE { mk_fn $2 $4 }
   | INJL LPAREN block RPAREN { mk_inj_l $3 }
   | INJR LPAREN block RPAREN { mk_inj_r $3 }
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
