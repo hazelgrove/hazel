@@ -1,29 +1,21 @@
 [@deriving sexp]
-type t = (
-  EvaluatorResult.t,
-  DHExp.t,
-  HoleClosureInfo.t,
-  Delta.t,
-  EvalState.t,
-);
+type t = (EvaluatorResult.t, DHExp.t, HoleClosureInfo.t, EvalState.t);
 
 let mk =
     (
       dr_result: EvaluatorResult.t,
       d_unpostprocessed: DHExp.t,
       hci: HoleClosureInfo.t,
-      delta: Delta.t,
       es: EvalState.t,
     )
     : t => (
   dr_result,
   d_unpostprocessed,
   hci,
-  delta,
   es,
 );
 
-let get_result = ((d, _, _, _, _): t) => d;
+let get_result = ((d, _, _, _): t) => d;
 
 let get_dhexp = (r: t) =>
   switch (r |> get_result) {
@@ -31,13 +23,11 @@ let get_dhexp = (r: t) =>
   | Indet(d) => d
   };
 
-let get_hci = ((_, _, hci, _, _): t) => hci;
+let get_hci = ((_, _, hci, _): t) => hci;
 
-let get_delta = ((_, _, _, delta, _): t) => delta;
+let get_eval_state = ((_, _, _, es): t) => es;
 
-let get_eval_state = ((_, _, _, _, es): t) => es;
-
-let get_unpostprocessed_dhexp = ((_, d_unpostprocessed, _, _, _): t) => d_unpostprocessed;
+let get_unpostprocessed_dhexp = ((_, d_unpostprocessed, _, _): t) => d_unpostprocessed;
 
 let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool => {
   switch (r1, r2) {
@@ -47,7 +37,7 @@ let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool =>
   };
 };
 
-let fast_equals = ((r1, _, hci1, _, _): t, (r2, _, hci2, _, _): t): bool => {
+let fast_equals = ((r1, _, hci1, _): t, (r2, _, hci2, _): t): bool => {
   /* Check that HoleClosureInstances are equal */
   MetaVarMap.cardinal(hci1) == MetaVarMap.cardinal(hci2)
   && List.for_all2(

@@ -14,8 +14,7 @@ type t;
 
 /* First argument is the postprocessed result, second argument is
    the un-postprocessed result (raw evaluation result). */
-let mk:
-  (EvaluatorResult.t, DHExp.t, HoleClosureInfo.t, Delta.t, EvalState.t) => t;
+let mk: (EvaluatorResult.t, DHExp.t, HoleClosureInfo.t, EvalState.t) => t;
 
 /* For displaying the result */
 let get_dhexp: t => DHExp.t;
@@ -23,7 +22,6 @@ let get_result: t => EvaluatorResult.t;
 let get_hci: t => HoleClosureInfo.t;
 
 /* For fill-and-resume/continuing evaluation */
-let get_delta: t => Delta.t;
 let get_eval_state: t => EvalState.t;
 let get_unpostprocessed_dhexp: t => DHExp.t;
 

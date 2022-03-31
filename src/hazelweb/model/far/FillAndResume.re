@@ -1,8 +1,3 @@
-/* Temporary -- later on try to consolidate these with existing errors */
-type error =
-  | FailedElaboration;
-exception FillAndResumeException(error);
-
 /* Preprocesses the previous evaluation result before re-evaluating with
    fill-and-resume. Performs two actions:
    - Set the `re_eval` flag of `DHExp.Closure` variants to `true` so they
@@ -90,42 +85,12 @@ let rec preprocess = (u: MetaVar.t, d_fill: DHExp.t, d: DHExp.t): DHExp.t => {
   };
 };
 
-let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
+let fill = (d: DHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   /* TODO: remove print statements; for diagnostics */
+  print_endline("==========\n\n\n");
   print_endline("Attempting to fill expression:");
-  e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+  d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
   print_endline("In hole: " ++ string_of_int(u));
-
-  /* Get the hole type from the hole context. */
-  let (_, hole_ty, var_ctx) =
-    prev_result |> Result.get_delta |> MetaVarMap.find(u);
-
-  /* Elaborate the expression in analytic position against the hole type. */
-  let (d, delta, actual_ty) =
-    switch (
-      Elaborator_Exp.ana_elab(
-        var_ctx,
-        prev_result |> Result.get_delta,
-        e,
-        hole_ty,
-      )
-    ) {
-    | Elaborates(d, ty, delta) => (d, delta, ty)
-    | DoesNotElaborate => raise(FillAndResumeException(FailedElaboration))
-    };
-
-  /* TODO: remove; for diagnostic purposes only */
-  print_endline("Analyzing against type:");
-  hole_ty |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
-  print_endline("Actual type:");
-  actual_ty |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
-  print_endline("Elaborates to:");
-  d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
-
-  /* Add cast to the correct type. Do we always need this? */
-  let d = DHExp.cast(d, actual_ty, hole_ty);
-  print_endline("Elaborates to (casted):");
-  d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
   print_endline("Previous result:");
   prev_result
@@ -153,12 +118,19 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
   print_endline("Preprocessed previous result:");
   d_result |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
-  /* TODO: remove FAR information from evaluate */
-  /* Perform evaluation with new fill information */
-  /* let es = es |> EvalState.set_far_info(Fill(u, d)); */
+  /* Re-start evaluation */
   let (es, dr_result) =
-    d_result
-    |> Evaluator.evaluate(prev_result |> Result.get_eval_state, EvalEnv.empty);
+    switch (
+      d_result
+      |> Evaluator.evaluate(
+           prev_result |> Result.get_eval_state,
+           EvalEnv.empty,
+         )
+    ) {
+    | (es, dr_result) => (es, dr_result)
+    | exception (EvaluatorError.Exception(err)) =>
+      raise(Program.EvalError(err))
+    };
 
   /* TODO: remove; for diagnostics */
   print_endline(
@@ -213,11 +185,11 @@ let fill = (e: UHExp.t, u: MetaVar.t, prev_result: Result.t): Result.t => {
       (hci, d, EvaluatorResult.BoxedValue(d_postprocessed));
     };
 
-  Result.mk(dr_postprocessed, d_result, hci, delta, es);
+  Result.mk(dr_postprocessed, d_result, hci, es);
 };
 
 let is_fill_viable =
-    (old_prog: Program.t, new_prog: Program.t): option((UHExp.t, MetaVar.t)) => {
+    (old_prog: Program.t, new_prog: Program.t): option((DHExp.t, MetaVar.t)) => {
   let e1 = old_prog |> Program.get_uhexp;
   let e2 = new_prog |> Program.get_uhexp;
 
@@ -231,28 +203,20 @@ let is_fill_viable =
   let print_dhexp = (d: DHExp.t): unit =>
     d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
 
-  print_endline("Old program d:");
-  e1 |> elaborate |> print_dhexp;
-  print_endline("New program d:");
-  e2 |> elaborate |> print_dhexp;
-  print_endline("DiffDHExp:");
-  DiffDHExp.diff_dhexp(e1 |> elaborate, e2 |> elaborate)
-  |> DiffDHExp.sexp_of_t
-  |> Sexplib.Sexp.to_string
-  |> print_endline;
-
-  /* TODO: remove print statements; for diagnostics */
-  let print_uhexp = (e: UHExp.t): unit =>
-    e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+  print_endline("==========\n\n\n");
   print_endline("Old program:");
-  e1 |> print_uhexp;
+  e1 |> elaborate |> print_dhexp;
   print_endline("New program:");
-  e2 |> print_uhexp;
+  e2 |> elaborate |> print_dhexp;
 
-  /* Check that only one line is different and has a valid diff */
-  switch (DiffUHExp.diff_block(e1, e2)) {
-  | DiffUHExp.BFillDiff(opseq, Some(u)) =>
-    Some(([UHExp.ExpLine(opseq)], u))
-  | _ => None
+  let diff = DiffDHExp.diff_dhexp(e1 |> elaborate, e2 |> elaborate);
+
+  print_endline("Fill diff:");
+  diff |> DiffDHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+
+  switch (diff) {
+  | NonFillDiff
+  | NoDiff => None
+  | FillDiff(d, u) => Some((d, u))
   };
 };

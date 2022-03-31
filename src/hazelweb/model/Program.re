@@ -97,10 +97,10 @@ let elaborate =
     ~cache_size_bound=1000,
     Elaborator_Exp.elab(Contexts.initial, Delta.empty),
   );
-let get_elaboration = (program: t): (DHExp.t, Delta.t) =>
+let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
   | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, delta) => (d, delta)
+  | Elaborates(d, _, _) => d
   };
 
 exception EvalError(EvaluatorError.t);
@@ -111,19 +111,19 @@ let evaluate =
     Evaluator.evaluate(EvalState.initial, EvalEnv.empty),
   );
 let get_result = (program: t): Result.t => {
-  let (d_elab, delta) = program |> get_elaboration;
+  let d_elab = program |> get_elaboration;
 
   /* TODO: remove; for diagnostics */
-  print_endline("Program.get_result: Unevaluated DHExp.t");
-  d_elab |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+  /* print_endline("Program.get_result: Unevaluated DHExp.t");
+     d_elab |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline; */
 
   switch (d_elab |> evaluate) {
   | (es, BoxedValue(d)) =>
     /* TODO: remove; for diagnostics */
-    print_endline(
-      "Number of evaluation steps:"
-      ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
-    );
+    /* print_endline(
+         "Number of evaluation steps:"
+         ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
+       ); */
 
     let (hci, d_postprocessed) =
       switch (d |> EvalPostprocess.postprocess) {
@@ -132,13 +132,13 @@ let get_result = (program: t): Result.t => {
         raise(PostprocessError(reason))
       };
 
-    Result.mk(BoxedValue(d_postprocessed), d, hci, delta, es);
+    Result.mk(BoxedValue(d_postprocessed), d, hci, es);
   | (es, Indet(d)) =>
     /* TODO: remove; for diagnostics */
-    print_endline(
-      "Number of evaluation steps:"
-      ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
-    );
+    /* print_endline(
+         "Number of evaluation steps:"
+         ++ (es |> EvalState.get_stats |> EvalStats.get_steps |> string_of_int),
+       ); */
 
     let (hci, d_postprocessed) =
       switch (d |> EvalPostprocess.postprocess) {
@@ -147,7 +147,7 @@ let get_result = (program: t): Result.t => {
         raise(PostprocessError(reason))
       };
 
-    Result.mk(BoxedValue(d_postprocessed), d, hci, delta, es);
+    Result.mk(BoxedValue(d_postprocessed), d, hci, es);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

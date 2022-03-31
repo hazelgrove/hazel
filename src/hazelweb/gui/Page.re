@@ -37,8 +37,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let (_, ty, _) = program.edit_state;
   let result =
     if (settings.evaluation.show_unevaluated_elaboration) {
-      let (d, _) = program |> Program.get_elaboration;
-      d;
+      program |> Program.get_elaboration;
     } else {
       program |> Program.get_result |> Result.get_dhexp;
     };
