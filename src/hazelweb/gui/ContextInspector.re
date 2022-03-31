@@ -42,7 +42,7 @@ let view =
           [Node.div([], [Node.span([], [Node.text("NONE!!!!!!")])])],
         ),
       )
-    | Some(DHExp.BoundVar(x')) when Var.eq(x, x') => None
+    // | Some(DHExp.BoundVar(x')) when Var.eq(x, x') => None
     | Some(d) =>
       Some(
         Node.div(
@@ -299,6 +299,22 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
+    // Debug..
+    print_endline(">>>>>>>>>>");
+    List.iter(
+      ((_var, _dhexp)) => {
+        // JSUtil.log(_var);
+        // JSUtil.log_sexp(DHExp.sexp_of_t(_dhexp));
+        print_endline(
+          _var
+          ++ " :: "
+          ++ (DHExp.sexp_of_t(_dhexp) |> Sexplib.Sexp.to_string),
+        );
+        ();
+      },
+      sigma,
+    );
+    print_endline("<<<<<<<<<<");
     switch (VarCtx.to_list(ctx)) {
     | [] =>
       Node.div(

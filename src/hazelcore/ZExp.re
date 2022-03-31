@@ -952,3 +952,69 @@ let zline_is_just_empty_hole = (zline: zline): bool =>
     true
   | _ => false
   };
+
+let append_vars:
+  (list(Var.t), (option(MetaVar.t), list(Var.t))) =>
+  (option(MetaVar.t), list(Var.t)) =
+  (vars, (meta_opt, vars')) => (meta_opt, vars' @ vars);
+
+exception NotImplemented;
+
+let rec next_hole_in_scope: t => option((MetaVar.t, list(Var.t))) =
+  zexp =>
+    switch (next_hole_in_scope_zblock(zexp)) {
+    | (Some(hole), vars_opt) =>
+      Some((hole, Option.value(vars_opt, ~default=[])))
+    | (None, _) => None
+    }
+and next_hole_in_scope_zblock:
+  t => (option(MetaVar.t), option(list(Var.t))) =
+  ((prefix, zline, suffix)) => {
+    switch (next_hole_in_scope_zline(zline)) {
+    | (Some(hole), vars) => (Some(hole), vars)
+    | (None, vars) =>
+      switch (suffix) {
+      | [] => (None, vars)
+      | [suffix_first, ...suffix_trailing] =>
+        next_hole_in_scope_zblock((
+          prefix @ [erase_zline(zline)],
+          place_before_line(suffix_first),
+          suffix_trailing,
+        ))
+      }
+    };
+  }
+and next_hole_in_scope_zline:
+  zline => (option(MetaVar.t), option(list(Var.t))) =
+  fun
+  | CursorL(_, _) => (None, None)
+  | ExpLineZ(zopseq) => next_hole_in_scope_zopseq(zopseq)
+  | LetLineZP(_zpat, _uhexp) => (None, None)
+  | LetLineZE(_uhpat, zexp) => next_hole_in_scope_zblock(zexp)
+and next_hole_in_scope_zopseq:
+  zopseq => (option(MetaVar.t), option(list(Var.t))) =
+  fun
+  | ZOpSeq(_, ZOperator(_)) as zopseq =>
+    switch (move_cursor_right_zopseq(zopseq)) {
+    | Some(zopseq) => next_hole_in_scope_zopseq(zopseq)
+    | None => (None, None)
+    }
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    next_hole_in_scope_zoperand(zoperand)
+and next_hole_in_scope_zoperand:
+  zoperand => (option(MetaVar.t), option(list(Var.t))) =
+  fun
+  | CursorE(_, EmptyHole(u)) => (Some(u), None)
+  | CursorE(_)
+  | LamZP(_) => (None, None)
+  | LamZE(_, _, ze)
+  | ParenthesizedZ(ze)
+  | InjZ(_, _, ze)
+  | CaseZE(_, ze, _) => next_hole_in_scope_zblock(ze)
+  | CaseZR(_, _, (_, zrule, _)) => next_hole_in_scope_zrule(zrule)
+and next_hole_in_scope_zrule:
+  zrule => (option(MetaVar.t), option(list(Var.t))) =
+  fun
+  | CursorR(_)
+  | RuleZP(_) => (None, None)
+  | RuleZE(_, ze) => next_hole_in_scope_zblock(ze);
