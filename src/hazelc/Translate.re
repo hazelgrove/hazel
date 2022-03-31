@@ -99,21 +99,22 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
       | Or => sprintf("Hazel.or(%s, %s)", v1, v2)
       };
     Program.assign_tmp_var(prog, exp);
-  // | BinIntOp(op, d1, d2) =>
-  //   // TODO: this is wrong
-  //   sprintf(
-  //     "(%s %s %s)",
-  //     translate_exp(d1),
-  //     translate_int_op(op),
-  //     translate_exp(d2),
-  //   )
-  // | BinFloatOp(op, d1, d2) =>
-  //   sprintf(
-  //     "(%s %s %s)",
-  //     translate_exp(d1),
-  //     translate_float_op(op),
-  //     translate_exp(d2),
-  //   )
+  | BinIntOp(op, d1, d2) =>
+    let (v1, prog) = translate_exp(d1, prog);
+    let (v2, prog) = translate_exp(d2, prog);
+    let exp =
+      switch (op) {
+      | Plus => sprintf("Hazel.add(%s, %s)", v1, v2)
+      | _ => sprintf("Hazel.add(%s, %s)", v1, v2) //This is wrong
+      };
+    Program.assign_tmp_var(prog, exp);
+//   | BinFloatOp(op, d1, d2) =>
+//     sprintf(
+//       "(%s %s %s)",
+//       translate_exp(d1),
+//       translate_float_op(op),
+//       translate_exp(d2),
+//     )
   | Pair(d1, d2) =>
     let (v1, prog) = translate_exp(d1, prog);
     let (v2, prog) = translate_exp(d2, prog);
