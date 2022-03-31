@@ -9,7 +9,7 @@ let shape_to_string = (shape: shape): string => {
   | SCloseSquareBracket => "closing square bracket"
   | SChar(str) => str
   | SAnn => "type annotation"
-  | SLam => "function"
+  | SFun => "function"
   | SListNil => "empty list"
   | SInj(side) =>
     switch (side) {
@@ -37,7 +37,6 @@ let shape_to_string = (shape: shape): string => {
     | SAnd => "&&"
     | SOr => "||"
     }
-  | SApPalette(_) => failwith("ApPalette not implemented")
   };
 };
 
