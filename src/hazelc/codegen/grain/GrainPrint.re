@@ -23,21 +23,21 @@ module Consts = {
 /*
    Raise a CodegenError.Exception.
  */
-let codegen_raise = err => raise(CodegenError.Exception(err));
+let codegen_raise = err => raise(GrainPrintError.Exception(err));
 
 let codegen_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
 let codegen_lines = ss => ss |> String.concat("\n");
 let codegen_sep = (delim, ss) => ss |> String.concat(delim);
 let codegen_comma_sep = codegen_sep(", ");
 
-let rec codegen = ((tb, b): Gir.program) =>
+let rec codegen = ((tb, b): GrainIR.program) =>
   [codegen_top_block(tb), codegen_block_nowrap(b)] |> codegen_lines
 
-and codegen_top_block = (tb: Gir.top_block) => {
+and codegen_top_block = (tb: GrainIR.top_block) => {
   tb |> List.map(codegen_top_statement) |> codegen_lines;
 }
 
-and codegen_top_statement = (tstmt: Gir.top_statement) =>
+and codegen_top_statement = (tstmt: GrainIR.top_statement) =>
   switch (tstmt) {
   | Import(name, path) => codegen_import(name, path)
   | Decl(decl) => codegen_decl(decl)
@@ -47,18 +47,18 @@ and codegen_import = (name: Var.t, path: string) =>
   // TODO: Relative import?
   sprintf("import %s from \"%s\"", name, path)
 
-and codegen_decl = (decl: Gir.decl) =>
+and codegen_decl = (decl: GrainIR.decl) =>
   switch (decl) {
   | Enum(en) => codegen_enum(en)
   }
 
-and codegen_enum = ({name, type_vars, variants}: Gir.enum) => {
+and codegen_enum = ({name, type_vars, variants}: GrainIR.enum) => {
   let type_vars =
     List.length(type_vars) == 0
       ? "" : type_vars |> codegen_comma_sep |> sprintf("<%s>");
   let variants =
     variants
-    |> List.map((variant: Gir.enum_variant) =>
+    |> List.map((variant: GrainIR.enum_variant) =>
          if (List.length(variant.params) == 0) {
            variant.ctor;
          } else {
@@ -72,15 +72,15 @@ and codegen_enum = ({name, type_vars, variants}: Gir.enum) => {
   sprintf("enum %s%s { %s }", name, type_vars, variants);
 }
 
-and codegen_block_nowrap = (b: Gir.block) => {
+and codegen_block_nowrap = (b: GrainIR.block) => {
   b |> List.map(codegen_statement) |> codegen_lines;
 }
-and codegen_block = (b: Gir.block) => {
+and codegen_block = (b: GrainIR.block) => {
   let s = codegen_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
-and codegen_statement = (stmt: Gir.statement) =>
+and codegen_statement = (stmt: GrainIR.statement) =>
   switch (stmt) {
   | Let(params, e) =>
     let params = codegen_params(params);
@@ -93,7 +93,7 @@ and codegen_statement = (stmt: Gir.statement) =>
   | Expr(e) => codegen_expr(e)
   }
 
-and codegen_expr = (e: Gir.expr) =>
+and codegen_expr = (e: GrainIR.expr) =>
   switch (e) {
   | BoolLit(b) => b ? Consts.truelit : Consts.falselit
   | IntLit(n) => string_of_int(n)
@@ -111,10 +111,10 @@ and codegen_expr = (e: Gir.expr) =>
   | Match(scrut, rules) => codegen_match(scrut, rules)
   | Block(b) => codegen_block(b)
   }
-and codegen_args = (args: Gir.args) =>
+and codegen_args = (args: GrainIR.args) =>
   args |> List.map(codegen_expr) |> codegen_comma_sep
 
-and codegen_bin_op = (op: Gir.bin_op, e1: Gir.expr, e2: Gir.expr) => {
+and codegen_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
   let op =
     switch (op) {
     | And => Consts.prim_and_op
@@ -140,32 +140,32 @@ and codegen_bin_op = (op: Gir.bin_op, e1: Gir.expr, e2: Gir.expr) => {
 }
 
 and codegen_var = (var: Var.t) => var
-and codegen_params = (ps: Gir.params) => ps |> String.concat(", ")
+and codegen_params = (ps: GrainIR.params) => ps |> String.concat(", ")
 
-and codegen_lam = (params: Gir.params, e': Gir.expr) => {
+and codegen_lam = (params: GrainIR.params, e': GrainIR.expr) => {
   let params = codegen_params(params);
   let e' = codegen_expr(e');
   sprintf("(%s) => { %s }", params, e');
 }
 
-and codegen_ap = (lam: Gir.expr, args: Gir.args) => {
+and codegen_ap = (lam: GrainIR.expr, args: GrainIR.args) => {
   let lam = codegen_expr(lam);
   let args = codegen_args(args);
   sprintf("%s(%s)", lam, args);
 }
 
-and codegen_ctor = (ctor: Var.t, args: Gir.args) => {
+and codegen_ctor = (ctor: Var.t, args: GrainIR.args) => {
   let ctor = codegen_var(ctor);
   let args = codegen_args(args);
   sprintf("%s(%s)", ctor, args);
 }
 
-and codegen_match = (scrut: Gir.expr, rules: list(Gir.rule)) => {
+and codegen_match = (scrut: GrainIR.expr, rules: list(GrainIR.rule)) => {
   let scrut = codegen_expr(scrut);
   let rules = rules |> List.map(codegen_rule) |> codegen_comma_sep;
   sprintf("match (%s) { %s }", scrut, rules);
 }
-and codegen_rule = (rule: Gir.rule) => {
+and codegen_rule = (rule: GrainIR.rule) => {
   switch (rule) {
   | Rule(p, rhs) =>
     let p = codegen_pat(p);
@@ -174,7 +174,7 @@ and codegen_rule = (rule: Gir.rule) => {
   };
 }
 
-and codegen_pat = (p: Gir.pat) => {
+and codegen_pat = (p: GrainIR.pat) => {
   switch (p) {
   | Wild => Consts.pat_wild
   // TODO: Check if var conflicts with a keyword?
