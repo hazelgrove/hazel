@@ -221,6 +221,26 @@ let is_fill_viable =
   let e1 = old_prog |> Program.get_uhexp;
   let e2 = new_prog |> Program.get_uhexp;
 
+  let elaborate = (e: UHExp.t): DHExp.t => {
+    exception DoesNotElaborateError;
+    switch (e |> Elaborator_Exp.syn_elab(VarCtx.empty, Delta.empty)) {
+    | Elaborator_Exp.ElaborationResult.Elaborates(d, _, _) => d
+    | _ => raise(DoesNotElaborateError)
+    };
+  };
+  let print_dhexp = (d: DHExp.t): unit =>
+    d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
+
+  print_endline("Old program d:");
+  e1 |> elaborate |> print_dhexp;
+  print_endline("New program d:");
+  e2 |> elaborate |> print_dhexp;
+  print_endline("DiffDHExp:");
+  DiffDHExp.diff_dhexp(e1 |> elaborate, e2 |> elaborate)
+  |> DiffDHExp.sexp_of_t
+  |> Sexplib.Sexp.to_string
+  |> print_endline;
+
   /* TODO: remove print statements; for diagnostics */
   let print_uhexp = (e: UHExp.t): unit =>
     e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string |> print_endline;
