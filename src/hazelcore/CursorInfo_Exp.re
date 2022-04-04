@@ -167,7 +167,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _) =>
+        | Case(InconsistentBranches(types, _), _, _)
+        | ListLit(InconsistentBranches(types, _), _) =>
           InconsistentBranchesErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
@@ -523,7 +524,11 @@ and syn_cursor_info_zoperand =
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
-  | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
+  | CursorE(
+      _,
+      Case(InconsistentBranches(rule_types, _), _, _) |
+      ListLit(InconsistentBranches(rule_types, _), _),
+    ) =>
     Some(
       CursorInfo_common.mk(
         SynInconsistentBranches(rule_types, steps),
