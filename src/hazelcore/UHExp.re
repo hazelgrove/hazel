@@ -331,3 +331,85 @@ and is_complete_operand = (operand: 'operand): bool => {
 and is_complete = (exp: t): bool => {
   is_complete_block(exp);
 };
+
+type hole_vars = (MetaVar.t, list(Var.t));
+
+let merge_vars =
+    (vars: list(Var.t), res: option(hole_vars)): option(hole_vars) => {
+  switch (res) {
+  | Some((u, vars')) => Some((u, vars' @ vars))
+  | None => None
+  };
+};
+
+let rec find_first_hole = (uhexp: t): option(hole_vars) => {
+  find_first_hole_block(uhexp);
+}
+and find_first_hole_block = (block: block): option(hole_vars) => {
+  block
+  |> List.fold_left(
+       (u, line) =>
+         switch (u) {
+         | None => find_first_hole_line(line)
+         | opt_u => opt_u
+         },
+       None,
+     );
+}
+and find_first_hole_line = (line: line): option(hole_vars) => {
+  switch (line) {
+  | LetLine(pat, uhexp) =>
+    find_first_hole(uhexp) |> merge_vars(pat |> UHPat.extract_all_vars)
+  | ExpLine(opseq) => find_first_hole_opseq(opseq)
+  | _ => None
+  };
+}
+
+and find_first_hole_opseq = (OpSeq.OpSeq(_, seq): opseq): option(hole_vars) => {
+  Seq.operands(seq)
+  |> List.fold_left(
+       (opt_u, operand) =>
+         switch (opt_u) {
+         | None => find_first_hole_operand(operand)
+         | opt_u => opt_u
+         },
+       None,
+     );
+}
+
+and find_first_hole_operand = (operand: operand): option(hole_vars) => {
+  switch (operand) {
+  | EmptyHole(u) => Some((u, []))
+  | InvalidText(u, _) => Some((u, []))
+  | Var(_, _, _) => None
+  | Lam(_, pat, uhexp) =>
+    find_first_hole(uhexp) |> merge_vars(pat |> UHPat.extract_all_vars)
+  | Inj(_, _, uhexp) => find_first_hole(uhexp)
+  | Case(_, uhexp, rules) =>
+    switch (find_first_hole(uhexp)) {
+    | None => find_first_hole_rules(rules)
+    | opt_hole_vars => opt_hole_vars
+    }
+  | Parenthesized(uhexp) => find_first_hole(uhexp)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil(_) => None
+  };
+}
+
+and find_first_hole_rules = (rules: rules): option(hole_vars) => {
+  rules
+  |> List.fold_left(
+       (opt_u, operand) =>
+         switch (opt_u) {
+         | None => find_first_hole_rule(operand)
+         | opt_u => opt_u
+         },
+       None,
+     );
+}
+
+and find_first_hole_rule = (Rule(pat, uhexp): rule): option(hole_vars) => {
+  find_first_hole(uhexp) |> merge_vars(pat |> UHPat.extract_all_vars);
+};

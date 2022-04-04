@@ -207,3 +207,18 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Inj(NotInHole, _, body) => is_complete(body)
   };
 };
+
+let rec extract_all_vars = (p: t): list(Var.t) => {
+  let OpSeq.OpSeq(_, oppats) = p;
+  let pats = oppats |> Seq.operands;
+  List.fold_right(extract_all_vars_operand, pats, []);
+}
+and extract_all_vars_operand = (pat, vars) => {
+  switch (pat) {
+  | TypeAnn(_, pat, _) => extract_all_vars_operand(pat, vars)
+  | Var(_, _, var) => [var, ...vars]
+  | Parenthesized(p)
+  | Inj(_, _, p) => extract_all_vars(p) @ vars
+  | _ => []
+  };
+};

@@ -107,3 +107,19 @@ let associate: seq => Skel.t(Operators_Exp.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+
+type hole_vars = (MetaVar.t, list(Var.t));
+
+let find_first_hole: t => option(hole_vars);
+
+let find_first_hole_block: block => option(hole_vars);
+
+let find_first_hole_line: line => option(hole_vars);
+
+let find_first_hole_opseq: opseq => option(hole_vars);
+
+let find_first_hole_operand: operand => option(hole_vars);
+
+let find_first_hole_rules: rules => option(hole_vars);
+
+let find_first_hole_rule: rule => option(hole_vars);

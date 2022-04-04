@@ -955,98 +955,97 @@ let zline_is_just_empty_hole = (zline: zline): bool =>
 
 exception NotImplemented;
 
-let cross_scope_right = (ze: t): (option(t), option(Var.t)) => {
-  raise(NotImplemented);
+type hole_vars = UHExp.hole_vars;
+type opt_hole_vars = (option(MetaVar.t), list(Var.t));
+
+let merge_vars =
+    (vars: list(Var.t), res: option(hole_vars))
+    : (option(MetaVar.t), list(Var.t)) => {
+  switch (res) {
+  | Some((u, vars')) => (Some(u), vars @ vars')
+  | None => (None, vars)
+  };
 };
 
-/// Attempt #1: move the cursor right while collecting the vars unneeded
-let next_hole_in_scope: t => option((MetaVar.t, list(Var.t))) =
-  ze => {
-    let rec next_hole_in_scope:
-      (t, option(list(Var.t))) => option((MetaVar.t, list(Var.t))) =
-      (ze, vars_opt) => {
-        switch (cursor_on_EmptyHole(ze)) {
-        | Some(u) => Some((u, Option.value(vars_opt, ~default=[])))
-        | None =>
-          let (ze', var_opt) = cross_scope_right(ze);
-          switch (ze') {
-          | Some(ze') =>
-            switch (vars_opt, var_opt) {
-            | (Some(vars), Some(var)) =>
-              next_hole_in_scope(ze', Some(vars @ [var]))
-            | (Some(_), None) => next_hole_in_scope(ze', vars_opt)
-            | (None, Some(var)) => next_hole_in_scope(ze', Some([var]))
-            | (None, None) => next_hole_in_scope(ze', None)
-            }
-          | None => None
-          };
-        };
-      };
-    next_hole_in_scope(ze, None);
-  };
+// let merge_vars_z =
+//     (vars: list(Var.t), res: (option(MetaVar.t), list(Var.t)))
+//     : (option(MetaVar.t), list(Var.t)) => {
+//   switch (res) {
+//   | (Some(u), vars') => (Some(u), vars @ vars')
+//   | (None, vars') => (None, vars @ vars')
+//   };
+// };
 
-/// Attempt #2: test in a region of code and decide whether there is a hole
-///             in the same scope; if not, move to the next element (?) and
-///             repeat
-let rec next_hole_in_scope: t => option((MetaVar.t, list(Var.t))) =
+let rec next_hole_in_scope: t => option(hole_vars) =
   zexp =>
     switch (next_hole_in_scope_zblock(zexp)) {
-    | (Some(hole), vars_opt) =>
-      Some((hole, Option.value(vars_opt, ~default=[])))
+    | (Some(hole), vars) => Some((hole, vars))
     | (None, _) => None
     }
-and next_hole_in_scope_zblock:
-  t => (option(MetaVar.t), option(list(Var.t))) =
-  ((prefix, zline, suffix)) => {
+and next_hole_in_scope_zblock: t => opt_hole_vars =
+  ((_, zline, suffix)) => {
     switch (next_hole_in_scope_zline(zline)) {
-    | (Some(hole), vars) => (Some(hole), vars)
+    | (Some(u), vars) => (Some(u), vars)
     | (None, vars) =>
-      switch (suffix) {
-      | [] => (None, vars)
-      | [suffix_first, ...suffix_trailing] =>
-        next_hole_in_scope_zblock((
-          prefix @ [erase_zline(zline)],
-          place_before_line(suffix_first),
-          suffix_trailing,
-        ))
-      }
+      suffix
+      |> List.fold_left(
+           ((hole, vars), line) => {
+             switch (hole) {
+             | None => UHExp.find_first_hole_line(line) |> merge_vars(vars)
+             | _ => (hole, vars)
+             }
+           },
+           (None, vars),
+         )
     };
   }
-and next_hole_in_scope_zline:
-  zline => (option(MetaVar.t), option(list(Var.t))) =
+and next_hole_in_scope_zline: zline => opt_hole_vars =
   fun
-  | CursorL(_, _) => (None, None)
+  | CursorL(_, _) => (None, [])
   | ExpLineZ(zopseq) => next_hole_in_scope_zopseq(zopseq)
-  | LetLineZP(_zpat, _uhexp) => (None, None)
+  | LetLineZP(_zpat, _uhexp) => raise(NotImplemented)
   | LetLineZE(_uhpat, zexp) => next_hole_in_scope_zblock(zexp)
 // find the next hole in zopseq, without worrying about hole
-and next_hole_in_scope_zopseq:
-  zopseq => (option(MetaVar.t), option(list(Var.t))) =
+and next_hole_in_scope_zopseq: zopseq => opt_hole_vars =
   fun
   | ZOpSeq(_, ZOperator(_)) as zopseq =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | Some(zopseq) => next_hole_in_scope_zopseq(zopseq)
-    | None => (None, None)
+    | None => (None, [])
     }
   | ZOpSeq(_, ZOperand(zoperand, _)) =>
     next_hole_in_scope_zoperand(zoperand)
-and next_hole_in_scope_zoperand:
-  zoperand => (option(MetaVar.t), option(list(Var.t))) =
+and next_hole_in_scope_zoperand: zoperand => opt_hole_vars =
   fun
-  | CursorE(_, EmptyHole(u)) => (Some(u), None)
-  | CursorE(_)
-  | LamZP(_) => (None, None)
-  | LamZE(_, _, ze) =>
-    switch (next_hole_in_scope_zblock(ze)) {
-    | (u_opt, _vars) => (u_opt, None)
+  | CursorE(_, EmptyHole(u)) => (Some(u), [])
+  | CursorE(_) => (None, [])
+  | LamZP(_, zpat, uhexp) => {
+      uhexp
+      |> UHExp.find_first_hole
+      |> merge_vars(zpat |> ZPat.erase |> UHPat.extract_all_vars);
     }
+  | LamZE(_, _pat, ze) =>
+    next_hole_in_scope_zblock(ze)
   | ParenthesizedZ(ze)
-  | InjZ(_, _, ze)
-  | CaseZE(_, ze, _) => next_hole_in_scope_zblock(ze)
-  | CaseZR(_, _, (_, zrule, _)) => next_hole_in_scope_zrule(zrule)
-and next_hole_in_scope_zrule:
-  zrule => (option(MetaVar.t), option(list(Var.t))) =
+  | InjZ(_, _, ze) => next_hole_in_scope_zblock(ze)
+  | CaseZE(_, ze, rules) => {
+      switch (next_hole_in_scope_zblock(ze)) {
+      | (None, vars) =>
+        UHExp.find_first_hole_rules(rules) |> merge_vars(vars)
+      | opt_hole_vars => opt_hole_vars
+      };
+    }
+  | CaseZR(_, _, zrules) => next_hole_in_scope_zrules(zrules)
+and next_hole_in_scope_zrules: zrules => opt_hole_vars =
+  zrules => {
+    zrules |> erase_zrules |> UHExp.find_first_hole_rules |> merge_vars([]);
+  }
+and next_hole_in_scope_zrule: zrule => opt_hole_vars =
   fun
-  | CursorR(_)
-  | RuleZP(_) => (None, None)
+  | CursorR(_) => (None, [])
+  | RuleZP(zpat, uhexp) => {
+      uhexp
+      |> UHExp.find_first_hole
+      |> merge_vars(zpat |> ZPat.erase |> UHPat.extract_all_vars);
+    }
   | RuleZE(_, ze) => next_hole_in_scope_zblock(ze);

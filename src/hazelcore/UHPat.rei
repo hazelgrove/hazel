@@ -75,3 +75,7 @@ let associate: seq => Skel.t(Operators_Pat.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
+
+let extract_all_vars: t => list(Var.t);
+
+let extract_all_vars_operand: (operand, list(Var.t)) => list(Var.t);
