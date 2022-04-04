@@ -225,25 +225,20 @@ and syn_list_body = (ctx: Contexts.t, body: UHExp.t): option(list(HTyp.t)) => {
   switch (body) {
   | [UHExp.ExpLine(OpSeq(skel, seq))] =>
     let subskels = UHExp.get_tuple_elements(skel);
-    let rec syn_subskels = subskels =>
-      switch (subskels) {
-      | [] => failwith("ListNil")
-      | [hd] =>
-        switch (syn_skel(ctx, hd, seq)) {
-        | Some(ty) => Some([ty])
-        | _ => None
-        }
-      | [hd, ...tl] =>
-        switch (syn_skel(ctx, hd, seq)) {
-        | Some(ty) =>
-          switch (syn_subskels(tl)) {
-          | Some(ty_list) => Some([ty, ...ty_list])
+    let syn_subskels = List.map(hd => syn_skel(ctx, hd, seq), subskels);
+    List.fold_right(
+      (ty_opt, ty_list_opt) =>
+        switch (ty_list_opt) {
+        | Some(ty_list) =>
+          switch (ty_opt) {
+          | Some(ty) => Some([ty, ...ty_list])
           | None => None
           }
-        | _ => None
-        }
-      };
-    syn_subskels(subskels);
+        | None => None
+        },
+      syn_subskels,
+      Some([]),
+    );
   | _ => None
   };
 }
