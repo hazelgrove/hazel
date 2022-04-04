@@ -1336,8 +1336,8 @@ and ana_fix_holes_operand =
     if (HTyp.consistent(ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
-      let (_, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_operand(NotInHole, e), u_gen);
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
     };
   | Parenthesized(body) =>
     let (body, u_gen) =
