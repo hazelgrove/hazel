@@ -151,12 +151,20 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | ListLit(InconsistentBranches(_, _), None) => None
   | ListLit(InconsistentBranches(list_types, _), Some(body)) =>
-    switch (syn_list_body(ctx, body)) {
-    | Some(ty_list) =>
-      let correct_rule_types =
-        List.for_all2((ty, ty') => {HTyp.eq(ty, ty')}, list_types, ty_list);
-      correct_rule_types ? Some(HTyp.Hole) : None;
-    | None => None
+    switch (Statics_common.lub(list_types)) {
+    | Some(_) => None
+    | None =>
+      switch (syn_list_body(ctx, body)) {
+      | Some(ty_list) =>
+        let correct_types =
+          List.for_all2(
+            (ty, ty') => {HTyp.eq(ty, ty')},
+            list_types,
+            ty_list,
+          );
+        correct_types ? Some(HTyp.Hole) : None;
+      | None => None
+      }
     }
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
