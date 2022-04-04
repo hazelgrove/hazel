@@ -162,7 +162,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
             list_types,
             ty_list,
           );
-        correct_types ? Some(HTyp.Hole) : None;
+        correct_types ? Some(List(Hole)) : None;
       | None => None
       }
     }
