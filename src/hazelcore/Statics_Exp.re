@@ -215,7 +215,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | Some(ty_list) =>
       switch (Statics_common.lub(ty_list)) {
       | Some(ty) => Some(List(ty))
-      | _ => Some(List(Hole))
+      | _ => None
       }
     | None => None
     }
