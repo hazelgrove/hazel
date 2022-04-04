@@ -3439,18 +3439,37 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, ListLitZ(_, zbody)) =>
-    switch (ana_perform(ctx, a, (zbody, u_gen), ty)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, u_gen),
-        ty,
-      )
-    | Succeeded((zbody, u_gen)) =>
-      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(zbody));
-      Succeeded(AnaDone((new_ze, u_gen)));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ty_el) =>
+      switch (zbody) {
+      | ([], ZExp.ExpLineZ(ZOpSeq.ZOpSeq(skel, _)), []) =>
+        let rec get_tuple_elements:
+          Skel.t('operator) => list(Skel.t('operator)) = (
+          fun
+          | BinOp(_, Operators_Exp.Comma, skel1, skel2) =>
+            get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+          | skel => [skel]
+        );
+        let length = List.length(get_tuple_elements(skel));
+        let ty_prod = HTyp.Prod(List.init(length, _ => ty_el));
+        switch (ana_perform(ctx, a, (zbody, u_gen), ty_prod)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform_operand(
+            ctx,
+            Action_common.escape(side),
+            (zoperand, u_gen),
+            ty,
+          )
+        | Succeeded((zbody, u_gen)) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(zbody));
+          let (new_ze, u_gen) =
+            Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty);
+          Succeeded(AnaDone((new_ze, u_gen)));
+        };
+      | _ => Failed
+      }
     }
   | (_, LamZP(_, zp, body)) =>
     switch (HTyp.matched_arrow(ty)) {
