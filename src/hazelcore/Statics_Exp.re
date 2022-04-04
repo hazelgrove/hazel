@@ -1378,17 +1378,13 @@ and ana_fix_holes_operand =
         u_gen,
       );
     | None =>
-      let (e', ty', u_gen) =
+      let (e', _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(ty, ty')) {
-        (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
-      } else {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-          u_gen,
-        );
-      };
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
     }
   | ListLit(_, _) =>
     let (e', ty', u_gen) =
