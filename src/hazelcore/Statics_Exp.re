@@ -926,7 +926,7 @@ and syn_fix_holes_operand =
             InconsistentBranches(list_types, u),
             Some([UHExp.ExpLine(new_opseq)]),
           ),
-          HTyp.Hole,
+          List(HTyp.Hole),
           u_gen,
         );
       | Some(common_type) => (
