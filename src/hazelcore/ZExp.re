@@ -1019,13 +1019,12 @@ and next_hole_in_scope_zoperand: zoperand => opt_hole_vars =
   fun
   | CursorE(_, EmptyHole(u)) => (Some(u), [])
   | CursorE(_) => (None, [])
-  | LamZP(_, zpat, uhexp) => {
+  | FunZP(_, zpat, uhexp) => {
       uhexp
       |> UHExp.find_first_hole
       |> merge_vars(zpat |> ZPat.erase |> UHPat.extract_all_vars);
     }
-  | LamZE(_, _pat, ze) =>
-    next_hole_in_scope_zblock(ze)
+  | FunZE(_, _pat, ze) => next_hole_in_scope_zblock(ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze) => next_hole_in_scope_zblock(ze)
   | CaseZE(_, ze, rules) => {

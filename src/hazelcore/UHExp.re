@@ -382,7 +382,7 @@ and find_first_hole_operand = (operand: operand): option(hole_vars) => {
   | EmptyHole(u) => Some((u, []))
   | InvalidText(u, _) => Some((u, []))
   | Var(_, _, _) => None
-  | Lam(_, pat, uhexp) =>
+  | Fun(_, pat, uhexp) =>
     find_first_hole(uhexp) |> merge_vars(pat |> UHPat.extract_all_vars)
   | Inj(_, _, uhexp) => find_first_hole(uhexp)
   | Case(_, uhexp, rules) =>
