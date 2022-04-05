@@ -735,12 +735,30 @@ let rec evaluate =
      In addition, if a closure marks a filled hole, then the evaluation
      may be memoized by hole closure. (See TODO, below.)
 
+     Also need to re-evaluate all bindings in closure environment.
+
      TODO: memoize the filling of the same hole instance. To do this, store
      the hole instance in the `re_eval` field (make `re_eval` not only a
      boolean flag) and store a mapping from ids to results in the
      `EvalState.t` (replacing `FARInfo.t`).
      */
-  | Closure(env', true, d') => evaluate(es, env', d')
+  | Closure(env', true, d') =>
+    /* Re-evaluate closure */
+    let (es, env_result_map) =
+      VarBstMap.fold(
+        (x, dr, (es, env)) =>
+          switch (dr) {
+          | EvaluatorResult.BoxedValue(d)
+          | EvaluatorResult.Indet(d) =>
+            let (es, dr) = evaluate(es, EvalEnv.empty, d);
+            (es, env |> VarBstMap.add(x, dr));
+          },
+        env' |> EvalEnv.result_map_of_evalenv,
+        (es, VarBstMap.empty),
+      );
+    let env' = (env' |> EvalEnv.id_of_evalenv, env_result_map);
+    /* Re-evaluate expression */
+    evaluate(es, env', d');
 
   /* Hole expressions. Wrap in closure. */
   | EmptyHole(_)
