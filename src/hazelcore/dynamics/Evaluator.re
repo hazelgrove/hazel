@@ -584,19 +584,19 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | Cons(d1, d2) =>
     let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_cons);
-  | FixF(_) when state.fuel <= 0 => (
-      Indet(InvalidOperation(d, OutOfFuel)),
-      state,
-    )
+  // | FixF(_) when state.fuel <= 0 => (
+  //     Indet(InvalidOperation(d, OutOfFuel)),
+  //     state,
+  //   )
   | FixF(x, _, d1) =>
-    print_endline("BURNING FUEL");
-    print_endline(
-      Sexplib.Sexp.to_string_hum(
-        EvalState.sexp_of_t(EvalState.burn_fuel(state)),
-      ),
-    );
-    let state = EvalState.burn_fuel(state);
-    evaluate(subst_var(d, x, d1), ~state);
+    // print_endline("BURNING FUEL");
+    // print_endline(
+    //   Sexplib.Sexp.to_string_hum(
+    //     EvalState.sexp_of_t(EvalState.burn_fuel(state)),
+    //   ),
+    // );
+    // let state = EvalState.burn_fuel(state);
+    evaluate(subst_var(d, x, d1), ~state)
   | Let(dp, d1, d2) =>
     eval_bind((d1, state), ((d1', state)) =>
       switch (matches(dp, d1')) {
