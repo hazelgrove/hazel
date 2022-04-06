@@ -144,7 +144,7 @@ let shift_to = (n: int, xs: t('a, 'a)): option(t('a, 'a)) => {
 
 let prepend = (n: list('a), xs: t('z, 'a)): t('z, 'a) => {
   let (prefix, z, suffix) = xs;
-  (prefix @ List.rev(n), z, suffix);
+  (List.rev(n) @ prefix, z, suffix);
 };
 let append = (n: list('a), xs: t('z, 'a)): t('z, 'a) => {
   let (prefix, z, suffix) = xs;

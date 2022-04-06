@@ -330,8 +330,11 @@ let toggle_instructor_mode = (model: t): t => {
        */
     if (model.instructor_mode_open && instructor_mode_comments_present(model)) {
       get_edit_state(model) |> Statics.split_edit_states;
-    } else {
+    } else if (!model.instructor_mode_open) {
       get_edit_state(model) |> Statics.combine_to_template;
+    } else {
+      print_endline("Couldn't switch from instructor to student mode.");
+      get_edit_state(model);
     };
   let new_program = Program.put_edit_state(new_edit_state, program);
   let new_model = put_program(new_program, model);

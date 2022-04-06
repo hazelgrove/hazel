@@ -28,7 +28,12 @@ let split_edit_states = (edit_state: edit_state): edit_state => {
   let (template, tester) =
     ListUtil.split_at(rest, UHExp.CommentLine("END_TEMPLATE"));
   //TODO preserve cursor location
-  {...edit_state, prelude, template: ZExp.place_before(template), tester};
+  {
+    ...edit_state,
+    prelude: List.rev(prelude),
+    template: ZExp.place_before(template),
+    tester,
+  };
 };
 
 // Merge split edit states into one, and re insert comments
