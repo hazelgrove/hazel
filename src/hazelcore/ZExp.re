@@ -953,8 +953,6 @@ let zline_is_just_empty_hole = (zline: zline): bool =>
   | _ => false
   };
 
-exception NotImplemented;
-
 type hole_vars = UHExp.hole_vars;
 type opt_hole_vars = (option(MetaVar.t), list(Var.t));
 
