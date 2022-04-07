@@ -290,7 +290,8 @@ let complete_tuple_ =
       first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
       ~triggered_by_paren: bool,
-    )
+      ~is_after_zopseq: bool,
+    ) // is_after_zopseq not needed when parenthesizing a tuple
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   // all top-level operators should be commas,
   // count the number of commas then add 1 to get the number of elements
@@ -313,10 +314,11 @@ let complete_tuple_ =
         fun
         | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
       );
-    // print_endline("first_seq_length = " ++ string_of_int(first_seq_length));
-    // print_endline(
-    //   "length of new_holes = " ++ string_of_int(List.length(new_holes)),
-    // );
+    print_endline("first_seq_length = " ++ string_of_int(first_seq_length));
+    print_endline(
+      "length of new_holes = " ++ string_of_int(List.length(new_holes)),
+    );
+    print_endline("is_after_zopseq = " ++ string_of_bool(is_after_zopseq));
 
     let new_zopseq =
       if (triggered_by_paren) {
@@ -337,19 +339,21 @@ let complete_tuple_ =
             List.tl(new_holes),
             Seq.E,
           );
-        mk_ZOpSeq(
-          ZOperand(
-            place_before_operand(first_new_hole),
-            (A(comma, Seq.rev(first_seq)), new_suffix),
-          ),
-          // let new_zopseq =
-          //   mk_ZOpSeq(
-          //     ZOperand(
-          //       place_before_operand(first_new_hole),
-          //       (new_suffix, A(comma, first_seq)),
-          //     ),
-          //   );
-        );
+        if (is_after_zopseq) {
+          mk_ZOpSeq(
+            ZOperand(
+              place_before_operand(first_new_hole),
+              (A(comma, Seq.rev(first_seq)), new_suffix),
+            ),
+          );
+        } else {
+          mk_ZOpSeq(
+            ZOperand(
+              place_before_operand(first_new_hole),
+              (new_suffix, A(comma, first_seq)),
+            ),
+          );
+        };
       };
     (new_zopseq, u_gen);
   };

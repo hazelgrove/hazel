@@ -2588,7 +2588,7 @@ and ana_perform_opseq =
         let ty_length = List.length(HTyp.get_prod_elements(ty));
         let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
         let first_seq_length = List.length(Seq.operands(first_seq));
-        ZExp.is_after_zopseq(zopseq)
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
         && ty_length >= 2
         && ty_length > first_seq_length;
       } =>
@@ -2607,7 +2607,13 @@ and ana_perform_opseq =
     //      ),
     // );
     let (ZOpSeq(_, new_zseq), u_gen) =
-      complete_tuple(u_gen, seq, ty, ~triggered_by_paren=false);
+      complete_tuple(
+        u_gen,
+        seq,
+        ty,
+        ~triggered_by_paren=false,
+        ~is_after_zopseq=ZExp.is_after_zopseq(zopseq),
+      );
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
 
   | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
@@ -2996,7 +3002,13 @@ and ana_perform_operand =
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
     let (zopseq, u_gen) =
-      complete_tuple(u_gen, Seq.wrap(hole), ty, ~triggered_by_paren=true);
+      complete_tuple(
+        u_gen,
+        Seq.wrap(hole),
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
