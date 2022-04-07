@@ -967,15 +967,6 @@ let merge_vars =
   };
 };
 
-// let merge_vars_z =
-//     (vars: list(Var.t), res: (option(MetaVar.t), list(Var.t)))
-//     : (option(MetaVar.t), list(Var.t)) => {
-//   switch (res) {
-//   | (Some(u), vars') => (Some(u), vars @ vars')
-//   | (None, vars') => (None, vars @ vars')
-//   };
-// };
-
 let rec next_hole_in_scope: t => option(hole_vars) =
   zexp =>
     switch (next_hole_in_scope_zblock(zexp)) {
@@ -985,7 +976,6 @@ let rec next_hole_in_scope: t => option(hole_vars) =
 and next_hole_in_scope_zblock: t => opt_hole_vars =
   ((_, zline, suffix)) => {
     switch (next_hole_in_scope_zline(zline)) {
-    | (Some(u), vars) => (Some(u), vars)
     | (None, vars) =>
       suffix
       |> List.fold_left(
@@ -997,24 +987,41 @@ and next_hole_in_scope_zblock: t => opt_hole_vars =
            },
            (None, vars),
          )
+    | opt_hole_vars => opt_hole_vars
     };
   }
 and next_hole_in_scope_zline: zline => opt_hole_vars =
   fun
   | CursorL(_, _) => (None, [])
   | ExpLineZ(zopseq) => next_hole_in_scope_zopseq(zopseq)
-  | LetLineZP(_zpat, _uhexp) => raise(NotImplemented)
-  | LetLineZE(_uhpat, zexp) => next_hole_in_scope_zblock(zexp)
-// find the next hole in zopseq, without worrying about hole
-and next_hole_in_scope_zopseq: zopseq => opt_hole_vars =
-  fun
-  | ZOpSeq(_, ZOperator(_)) as zopseq =>
-    switch (move_cursor_right_zopseq(zopseq)) {
-    | Some(zopseq) => next_hole_in_scope_zopseq(zopseq)
+  | LetLineZP(_zpat, uhexp) =>
+    switch (UHExp.find_first_hole(uhexp)) {
     | None => (None, [])
+    | Some((u, vars)) => (Some(u), vars)
     }
-  | ZOpSeq(_, ZOperand(zoperand, _)) =>
-    next_hole_in_scope_zoperand(zoperand)
+  | LetLineZE(_uhpat, zexp) =>
+    switch (next_hole_in_scope_zblock(zexp)) {
+    | (None, _) => (None, [])
+    | opt_hole_vars => opt_hole_vars
+    }
+and next_hole_in_scope_zopseq: zopseq => opt_hole_vars =
+  zopseq =>
+    switch (zopseq) {
+    | ZOpSeq(_, ZOperator(_)) =>
+      switch (move_cursor_right_zopseq(zopseq)) {
+      | Some(zopseq) => next_hole_in_scope_zopseq(zopseq)
+      | None => (None, [])
+      }
+    | ZOpSeq(_, ZOperand(zoperand, _)) =>
+      switch (next_hole_in_scope_zoperand(zoperand)) {
+      | (None, _vars) =>
+        switch (move_cursor_right_zopseq(zopseq)) {
+        | Some(zopseq) => next_hole_in_scope_zopseq(zopseq)
+        | None => (None, [])
+        }
+      | opt_hole_vars => opt_hole_vars
+      }
+    }
 and next_hole_in_scope_zoperand: zoperand => opt_hole_vars =
   fun
   | CursorE(_, EmptyHole(u)) => (Some(u), [])
@@ -1027,12 +1034,10 @@ and next_hole_in_scope_zoperand: zoperand => opt_hole_vars =
   | FunZE(_, _pat, ze) => next_hole_in_scope_zblock(ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze) => next_hole_in_scope_zblock(ze)
-  | CaseZE(_, ze, rules) => {
-      switch (next_hole_in_scope_zblock(ze)) {
-      | (None, vars) =>
-        UHExp.find_first_hole_rules(rules) |> merge_vars(vars)
-      | opt_hole_vars => opt_hole_vars
-      };
+  | CaseZE(_, ze, rules) =>
+    switch (next_hole_in_scope_zblock(ze)) {
+    | (None, vars) => UHExp.find_first_hole_rules(rules) |> merge_vars(vars)
+    | opt_hole_vars => opt_hole_vars
     }
   | CaseZR(_, _, zrules) => next_hole_in_scope_zrules(zrules)
 and next_hole_in_scope_zrules: zrules => opt_hole_vars =

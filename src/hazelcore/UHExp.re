@@ -401,10 +401,10 @@ and find_first_hole_operand = (operand: operand): option(hole_vars) => {
 and find_first_hole_rules = (rules: rules): option(hole_vars) => {
   rules
   |> List.fold_left(
-       (opt_u, operand) =>
-         switch (opt_u) {
+       (opt_hole_vars, operand) =>
+         switch (opt_hole_vars) {
          | None => find_first_hole_rule(operand)
-         | opt_u => opt_u
+         | opt_hole_vars => opt_hole_vars
          },
        None,
      );
