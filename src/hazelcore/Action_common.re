@@ -276,6 +276,10 @@ let delete_operator_ =
  */
 let complete_tuple_ =
     (
+      ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~place_before_opseq:
+         OpSeq.t('operand, 'operator) =>
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~mk_ZOpSeq:
          ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
@@ -285,13 +289,18 @@ let complete_tuple_ =
       u_gen: MetaVarGen.t,
       first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
+      ~triggered_by_paren: bool,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+  // all top-level operators should be commas,
+  // count the number of commas then add 1 to get the number of elements
+  // in first_seq before or after the cursor
+  let first_seq_length = List.length(Seq.operators(first_seq)) + 1;
   let (new_zopseq, u_gen) = {
     let (new_holes, u_gen) =
       ty
       |> HTyp.get_prod_elements
-      |> List.tl
+      |> ListUtil.drop(first_seq_length)
       // ensure that hole indices increase left to right
       |> List.fold_left(
            ((rev_holes, u_gen), _) => {
@@ -304,20 +313,44 @@ let complete_tuple_ =
         fun
         | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
       );
-    let first_new_hole = List.hd(new_holes);
-    let new_suffix =
-      List.fold_right(
-        (new_hole, suffix: Seq.affix(_)) => A(comma, S(new_hole, suffix)),
-        List.tl(new_holes),
-        Seq.E,
-      );
+    // print_endline("first_seq_length = " ++ string_of_int(first_seq_length));
+    // print_endline(
+    //   "length of new_holes = " ++ string_of_int(List.length(new_holes)),
+    // );
+
     let new_zopseq =
-      mk_ZOpSeq(
-        ZOperand(
-          place_before_operand(first_new_hole),
-          (A(comma, first_seq), new_suffix),
-        ),
-      );
+      if (triggered_by_paren) {
+        let new_suffix =
+          List.fold_right(
+            (new_hole, suffix: Seq.affix(_)) =>
+              A(comma, S(new_hole, suffix)),
+            new_holes,
+            Seq.E,
+          );
+        place_before_opseq(mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix)));
+      } else {
+        let first_new_hole = List.hd(new_holes);
+        let new_suffix =
+          List.fold_right(
+            (new_hole, suffix: Seq.affix(_)) =>
+              A(comma, S(new_hole, suffix)),
+            List.tl(new_holes),
+            Seq.E,
+          );
+        mk_ZOpSeq(
+          ZOperand(
+            place_before_operand(first_new_hole),
+            (A(comma, Seq.rev(first_seq)), new_suffix),
+          ),
+          // let new_zopseq =
+          //   mk_ZOpSeq(
+          //     ZOperand(
+          //       place_before_operand(first_new_hole),
+          //       (new_suffix, A(comma, first_seq)),
+          //     ),
+          //   );
+        );
+      };
     (new_zopseq, u_gen);
   };
   (new_zopseq, u_gen);
