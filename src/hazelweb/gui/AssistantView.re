@@ -81,8 +81,8 @@ let describe_delta_errors: float => string =
 let describe_type_specificity: float => string =
   fun
   | 0. => "Same type specificity"
-  | n when n < 0. => "Less granular type"
-  | _ => "More granular type";
+  | n when n < 0. => "Less specific type"
+  | _ => "More specific type";
 
 let describe_idiomaticity: float => string =
   fun
@@ -181,10 +181,10 @@ let score_view = (subscore: float, describe_subscore: float => string) =>
         sign_view(subscore),
         text(describe_subscore(subscore)),
         //TODO(andrew): remove debug print
-        div(
-          [Attr.create("style", "color: #888;")],
-          [text(Printf.sprintf(" %.2f", subscore))],
-        ),
+        /*div(
+            [Attr.create("style", "color: #888;")],
+            [text(Printf.sprintf(" %.2f", subscore))],
+          ),*/
       ]
     },
   );

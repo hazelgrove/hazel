@@ -358,6 +358,11 @@ let assistant_test =
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
 
+let assistant_test_2 =
+  {|((LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 4)(A Comma(S(Var NotInHole NotInVarHole foo)E)))))(OpSeq(Placeholder 0)(S Hole E)))E))((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(EmptyHole 1225)(A Comma(S(BoolLit NotInHole true)E)))))))E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole isSpoon)(OpSeq(Placeholder 0)(S Bool E)))E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 1)E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole numSpoons)(OpSeq(Placeholder 0)(S Int E)))E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 6)E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole makeForks)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 8)E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole toFloat)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Float E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 9)E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole toInt)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Float(A Arrow(S Int E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 10)E)))))(ExpLine(OpSeq(BinOp NotInHole FPlus(Placeholder 0)(Placeholder 1))(S(Parenthesized((ExpLine(OpSeq(BinOp(InHole TypeInconsistent 1261)Plus(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 111)(A Plus(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole(InVarHole Free 405)floatToInt)(A Space(S(IntLit NotInHole 222)E)))))))E)))))))(A FPlus(S(Var(InHole TypeInconsistent 1262)NotInVarHole numSpoons)E)))))EmptyLine(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 21)E))))|}
+  |> Sexplib.Sexp.of_string
+  |> UHExp.t_of_sexp;
+
 let inconsistent_branches: UHExp.t =
   UHExp.(
     Block.wrap(
@@ -389,6 +394,7 @@ let examples = [
   ("map", map_example),
   ("quicksort", qsort_example),
   ("assistant", assistant_test),
+  ("assistant2", assistant_test_2),
   ("inconsistent branches", inconsistent_branches),
 ];
 

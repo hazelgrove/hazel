@@ -101,6 +101,7 @@ let mk =
   ci
   |> collect_suggestions
   |> List.filter(dont_make_more_errors)
+  |> List.filter(s => Suggestion.score(s) >= (-0.5))
   |> List.filter(suggestion_isnt_noop(cursor_term))
   |> deduplicate_suggestions
   |> List.map(renumber_suggestion_holes(ctx, u_gen))

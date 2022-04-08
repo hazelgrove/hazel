@@ -94,8 +94,8 @@ let rec apply_update = (u: update, model: t) =>
       display_mode: m,
       choice_display_limit:
         switch (m) {
-        | Minimal => 5
-        | Normal => 7
+        | Minimal => 4
+        | Normal => 5
         },
     }
   | Set_type_editor(uty) =>

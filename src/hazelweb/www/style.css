@@ -2087,8 +2087,8 @@ h1 {
 .err-hole {
   stroke: red;
   stroke-dasharray: 3 2;
-  stroke-width: 1;
-  fill: none;
+  stroke-width: 0.75;
+  fill: #f001;
 }
 
 .var-err-hole {
@@ -2109,7 +2109,7 @@ h1 {
   margin-top: 20px;
   background-color: white;
   padding: 10px;
-  border: 2px solid #CCC;
+  /*border: 2px solid #CCC;*/
 }
 #cell:focus {
   outline: 0px;
