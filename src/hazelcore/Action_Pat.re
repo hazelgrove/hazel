@@ -625,7 +625,7 @@ and syn_perform_operand =
   | (
       Construct(
         // SApPalette(_) |
-        SList | SLet | SAnd | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | SAnd | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |
@@ -1163,7 +1163,7 @@ and ana_perform_operand =
   | (
       Construct(
         // SApPalette(_) |
-        SList | SLet | SAnd | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | SAnd | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |

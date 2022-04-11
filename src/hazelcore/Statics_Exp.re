@@ -8,7 +8,7 @@ let recursive_let_id =
   switch (p, def) {
   | (
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
-      [ExpLine(OpSeq(_, S(Lam(_), E)))],
+      [ExpLine(OpSeq(_, S(Fun(_), E)))],
     ) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => None
@@ -188,7 +188,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
+  | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -199,7 +199,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -224,7 +224,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
@@ -330,7 +330,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
+  | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -341,7 +341,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
@@ -357,7 +357,7 @@ and ana_operand =
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ty, ty') ? Some() : None;
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
@@ -828,10 +828,9 @@ and syn_fix_holes_operand =
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
-          switch (Var.is_let(x), Var.is_case(x)) {
-          | (true, _) => Keyword(Let)
-          | (_, true) => Keyword(Case)
-          | _ => Free
+          switch (ExpandingKeyword.mk(x)) {
+          | Some(t) => Keyword(t)
+          | None => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
@@ -844,12 +843,12 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
-  | Lam(_, p, body) =>
+  | Fun(_, p, body) =>
     let (p, ty_p, ctx_body, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     let (body, ty_body, u_gen) =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
+    (Fun(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
   | Inj(_, side, body) =>
     let (body, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1215,7 +1214,7 @@ and ana_fix_holes_operand =
     let (body, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
-  | Lam(_, p, def) =>
+  | Fun(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
       let (p, ctx, u_gen) =
@@ -1228,7 +1227,7 @@ and ana_fix_holes_operand =
         );
       let (def, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-      (UHExp.Lam(NotInHole, p, def), u_gen);
+      (UHExp.Fun(NotInHole, p, def), u_gen);
     | None =>
       let (e', _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

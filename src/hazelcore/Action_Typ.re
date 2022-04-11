@@ -106,7 +106,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      Construct(SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
+      Construct(SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase) |
       SwapUp |
       SwapDown,
       _,
@@ -221,7 +221,7 @@ and perform_operand =
   /* Invalid actions at the type level */
   | (
       Construct(
-        SAnn | SLet | SAnd | SLine | SLam | SListNil | SInj(_) | SCase |
+        SAnn | SLet | SAnd | SLine | SFun | SListNil | SInj(_) | SCase |
         // SApPalette(_) |
         SCommentLine,
       ) |
