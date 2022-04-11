@@ -70,7 +70,7 @@ and syn_elab_line =
       LinesElaborate(prelude, ctx, delta);
     }
   | EmptyLine
-  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
+  | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
   | LetLine(_key, p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotElaborate
