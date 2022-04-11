@@ -2999,12 +2999,30 @@ and ana_perform_operand =
 
   | (Construct(SAnn), CursorE(_)) => Failed
 
-  | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
+  | (Construct(SParenthesized), CursorE(_, operand))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+    print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_operand(operand)));
+    // the operand wrapped by the hole
+    let operand_inside_hole =
+      UHExp.set_err_status_operand(NotInHole, operand);
+    let operand =
+      switch (Statics_Exp.syn_operand(ctx, operand_inside_hole)) {
+      | Some(first_seq_ty) =>
+        print_endline(
+          "first_seq_ty: "
+          ++ Sexplib.Sexp.to_string(HTyp.sexp_of_t(first_seq_ty)),
+        );
+        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
+          operand_inside_hole;
+        } else {
+          operand;
+        };
+      | None => operand
+      };
     let (zopseq, u_gen) =
       complete_tuple(
         u_gen,
-        Seq.wrap(hole),
+        Seq.wrap(operand),
         ty,
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,

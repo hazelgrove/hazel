@@ -1337,12 +1337,29 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
-  | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
+  | (Construct(SParenthesized), CursorP(_, operand))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+    // the operand wrapped by the hole
+    let operand_inside_hole =
+      UHPat.set_err_status_operand(NotInHole, operand);
+    let operand =
+      switch (Statics_Pat.syn_operand(ctx, operand_inside_hole)) {
+      | Some((first_seq_ty, _)) =>
+        print_endline(
+          "first_seq_ty: "
+          ++ Sexplib.Sexp.to_string(HTyp.sexp_of_t(first_seq_ty)),
+        );
+        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
+          operand_inside_hole;
+        } else {
+          operand;
+        };
+      | None => operand
+      };
     let (zopseq, u_gen) =
       complete_tuple(
         u_gen,
-        Seq.wrap(hole),
+        Seq.wrap(operand),
         ty,
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,
