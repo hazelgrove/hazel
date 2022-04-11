@@ -618,6 +618,7 @@ let get_new_action_group =
                         switch (k) {
                         | Fun => SFun
                         | Let => SLet
+                        | And => SAnd
                         | Case => failwith("impossible")
                         },
                       ),
