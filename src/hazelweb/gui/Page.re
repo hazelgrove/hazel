@@ -98,28 +98,18 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         },
       ),
       (
-        model.settings.right_panel.code_summary,
-        Node.text("SU"),
-        inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_summary))),
-        () => {
-          let explanation_info =
-            ExplanationInfo.mk_explanation_info(
-              Program.get_cursor_info(program).cursor_term,
-            );
-          CodeSummary.view(
-            ~inject,
-            explanation_info,
-            model.explanations.highlight_summary,
-          );
-        },
-      ),
-      (
         model.settings.right_panel.code_explanation,
         Node.text("EX"),
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_code_explanation)),
         ),
-        () => CodeExplanation.view(),
+        () => CodeExplanation.view("test"),
+      ),
+      (
+        model.settings.right_panel.code_example,
+        Node.text("EG"),
+        inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
+        () => CodeExample.view(),
       ),
       (
         model.settings.right_panel.context_inspector,
@@ -135,14 +125,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
             ~font_metrics=model.font_metrics,
             program,
           ),
-      ),
-      (
-        model.settings.right_panel.undo_history_panel,
-        Node.text("H"),
-        inject(
-          ModelAction.UpdateSettings(RightPanel(Toggle_undo_history_panel)),
-        ),
-        () => UndoHistoryPanel.view(~inject, model),
       ),
       (
         model.settings.right_panel.settings_panel,

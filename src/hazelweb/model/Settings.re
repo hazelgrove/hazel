@@ -124,6 +124,7 @@ module RightPanel = {
     syntactic_form: bool,
     code_summary: bool,
     code_explanation: bool,
+    code_example: bool,
     cursor_inspector: bool,
     context_inspector: bool,
     undo_history_panel: bool,
@@ -135,7 +136,8 @@ module RightPanel = {
     panel_open: true,
     syntactic_form: true,
     code_summary: false,
-    code_explanation: false,
+    code_explanation: true,
+    code_example: true,
     cursor_inspector: false,
     context_inspector: false,
     undo_history_panel: false,
@@ -148,6 +150,7 @@ module RightPanel = {
     | Toggle_syntactic_form
     | Toggle_code_summary
     | Toggle_code_explanation
+    | Toggle_code_example
     | Toggle_cursor_inspector
     | Toggle_context_inspector
     | Toggle_undo_history_panel
@@ -167,6 +170,10 @@ module RightPanel = {
     | Toggle_code_explanation => {
         ...settings,
         code_explanation: !settings.code_explanation,
+      }
+    | Toggle_code_example => {
+        ...settings,
+        code_example: !settings.code_example,
       }
     | Toggle_cursor_inspector => {
         ...settings,
