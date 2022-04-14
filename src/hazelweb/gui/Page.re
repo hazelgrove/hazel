@@ -39,7 +39,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
       | Some((hole_inst, approach)) =>
         switch (approach) {
         | Exact => print_endline("exact_dhcode")
-        | Nearest => print_endline("nearest_dhcode")
+        | Nearest(_) => print_endline("nearest_dhcode")
         };
         Some(hole_inst);
       | None => None

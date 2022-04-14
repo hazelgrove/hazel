@@ -145,18 +145,18 @@ let is_cell_focused = model => {
 
 type hole_inst_approach =
   | Exact
-  | Nearest;
+  | Nearest(list(Var.t));
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
   | None =>
     switch (model |> get_program |> Program.next_hole_in_scope) {
-    | Some((u, _vars)) =>
+    | Some((u, vars)) =>
       let i =
         model.selected_instances
         |> UserSelectedInstances.find_opt(u)
         |> Option.value(~default=0);
-      Some(((u, i), Nearest));
+      Some(((u, i), Nearest(vars)));
     | None => None
     }
   | Some(u) =>

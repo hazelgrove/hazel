@@ -18,7 +18,7 @@ let view =
       | Some((hole_inst, approach)) =>
         switch (approach) {
         | Exact => print_endline("exact")
-        | Nearest => print_endline("nearest")
+        | Nearest(_) => print_endline("nearest")
         };
         Some(hole_inst);
       | None => None

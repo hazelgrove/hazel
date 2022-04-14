@@ -51,7 +51,7 @@ let select_hole_instance: (HoleInstance.t, t) => t;
 
 type hole_inst_approach =
   | Exact
-  | Nearest;
+  | Nearest(list(Var.t));
 
 let get_selected_hole_instance:
   t => option((HoleInstance.t, hole_inst_approach));
