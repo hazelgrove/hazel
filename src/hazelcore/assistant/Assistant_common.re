@@ -79,6 +79,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
       }
     | _ => get_types_and_mode(typed)
     }
+  | SynInconsistentElementsArrow(_, _)
+  | SynInconsistentElements(_, _)
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
 

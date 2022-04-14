@@ -160,7 +160,8 @@ and get_outer_zrules_from_zrule =
 type err_status_result =
   | StandardErr(ErrStatus.t)
   | VarErr(VarErrStatus.HoleReason.t)
-  | InconsistentBranchesErr(list(HTyp.t));
+  | InconsistentBranchesErr(list(HTyp.t))
+  | InconsistentElementsErr(list(HTyp.t));
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -168,9 +169,10 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
       let err_status =
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
-        | Case(InconsistentBranches(types, _), _, _)
-        | ListLit(InconsistentBranches(types, _), _) =>
+        | Case(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
+        | ListLit(InconsistentBranches(types, _), _) =>
+          InconsistentElementsErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -453,6 +455,8 @@ and syn_cursor_info_skel =
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
+        | Some(InconsistentElementsErr(rule_types)) =>
+          Some(mk(SynInconsistentElementsArrow(rule_types, steps @ [n])))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
         | Some(StandardErr(NotInHole)) =>
@@ -525,14 +529,18 @@ and syn_cursor_info_zoperand =
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
-  | CursorE(
-      _,
-      Case(InconsistentBranches(rule_types, _), _, _) |
-      ListLit(InconsistentBranches(rule_types, _), _),
-    ) =>
+  | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
     Some(
       CursorInfo_common.mk(
         SynInconsistentBranches(rule_types, steps),
+        ctx,
+        cursor_term,
+      ),
+    )
+  | CursorE(_, ListLit(InconsistentBranches(rule_types, _), _)) =>
+    Some(
+      CursorInfo_common.mk(
+        SynInconsistentElements(rule_types, steps),
         ctx,
         cursor_term,
       ),
