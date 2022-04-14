@@ -338,7 +338,9 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(NotInHole, _) => true
   | ListLit(StandardErrStatus(InHole(_)) | InconsistentBranches(_, _), _) =>
     false
-  | ListLit(StandardErrStatus(NotInHole), _) => true
+  | ListLit(StandardErrStatus(NotInHole), None) => true
+  | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
+    OpSeq.is_complete(is_complete_operand, opseq)
   | Lam(InHole(_), _, _) => false
   | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
