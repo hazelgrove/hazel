@@ -209,6 +209,16 @@ let advanced_summary =
         inconsistent_symbol,
         message,
       )
+    | SynInconsistentElements(_) => [
+        syn,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        syn,
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         syn,
         emphasize_text("Inconsistent Branch Types"),
@@ -387,6 +397,19 @@ let novice_summary =
         Node.text("but got inconsistent type"),
         message,
       )
+    | SynInconsistentElements(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("of"),
+        emphasize_text("Function Type"),
+        Node.text("but got"),
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
         term_tag,
@@ -604,6 +627,8 @@ let view =
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
+    | SynInconsistentElements(_)
+    | SynInconsistentElementsArrow(_)
     | SynInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaTypeInconsistent(_)
