@@ -73,5 +73,7 @@ let get_layout: (~settings: Settings.t, t) => UHLayout.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
 
+let next_hole_in_scope: t => option(UHExp.hole_vars);
+
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;

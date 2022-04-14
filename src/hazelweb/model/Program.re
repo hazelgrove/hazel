@@ -543,3 +543,8 @@ let move_via_key =
 let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
 let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+
+let next_hole_in_scope_ =
+  Memo.general(~cache_size_bound=1000, ZExp.next_hole_in_scope);
+
+let next_hole_in_scope = program => program |> get_zexp |> next_hole_in_scope_;

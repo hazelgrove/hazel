@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_instance: option((HoleInstance.t, Model.hole_inst_approach)),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
@@ -12,6 +12,19 @@ let view =
     : Vdom.Node.t => {
   open Vdom;
 
+  let selected_instance = {
+    Model.(
+      switch (selected_instance) {
+      | Some((hole_inst, approach)) =>
+        switch (approach) {
+        | Exact => print_endline("exact")
+        | Nearest => print_endline("nearest")
+        };
+        Some(hole_inst);
+      | None => None
+      }
+    );
+  };
   /**
    * Shows typing info for a context entry.
    */
@@ -299,22 +312,22 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
-    // Debug..
-    print_endline(">>>>>>>>>>");
-    List.iter(
-      ((_var, _dhexp)) => {
-        // JSUtil.log(_var);
-        // JSUtil.log_sexp(DHExp.sexp_of_t(_dhexp));
-        print_endline(
-          _var
-          ++ " :: "
-          ++ (DHExp.sexp_of_t(_dhexp) |> Sexplib.Sexp.to_string),
-        );
-        ();
-      },
-      sigma,
-    );
-    print_endline("<<<<<<<<<<");
+    // // Debug..
+    // print_endline(">>>>>>>>>>");
+    // List.iter(
+    //   ((_var, _dhexp)) => {
+    //     // JSUtil.log(_var);
+    //     // JSUtil.log_sexp(DHExp.sexp_of_t(_dhexp));
+    //     print_endline(
+    //       _var
+    //       ++ " :: "
+    //       ++ (DHExp.sexp_of_t(_dhexp) |> Sexplib.Sexp.to_string),
+    //     );
+    //     ();
+    //   },
+    //   sigma,
+    // );
+    // print_endline("<<<<<<<<<<");
     switch (VarCtx.to_list(ctx)) {
     | [] =>
       Node.div(

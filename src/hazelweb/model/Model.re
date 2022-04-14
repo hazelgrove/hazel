@@ -143,15 +143,28 @@ let is_cell_focused = model => {
   program.is_focused;
 };
 
+type hole_inst_approach =
+  | Exact
+  | Nearest;
+
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
-  | None => None
+  | None =>
+    switch (model |> get_program |> Program.next_hole_in_scope) {
+    | Some((u, _vars)) =>
+      let i =
+        model.selected_instances
+        |> UserSelectedInstances.find_opt(u)
+        |> Option.value(~default=0);
+      Some(((u, i), Nearest));
+    | None => None
+    }
   | Some(u) =>
     let i =
       model.selected_instances
       |> UserSelectedInstances.find_opt(u)
       |> Option.get;
-    Some((u, i));
+    Some(((u, i), Exact));
   };
 
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>

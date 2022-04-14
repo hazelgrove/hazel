@@ -33,7 +33,19 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
 
 let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
-  let selected_instance = Model.get_selected_hole_instance(model);
+  let selected_instance = {
+    Model.(
+      switch (get_selected_hole_instance(model)) {
+      | Some((hole_inst, approach)) =>
+        switch (approach) {
+        | Exact => print_endline("exact_dhcode")
+        | Nearest => print_endline("nearest_dhcode")
+        };
+        Some(hole_inst);
+      | None => None
+      }
+    );
+  };
   let (_, ty, _) = program.edit_state;
   let result =
     settings.evaluation.show_unevaluated_elaboration

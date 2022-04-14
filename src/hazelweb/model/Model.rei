@@ -48,7 +48,13 @@ let is_cell_focused: t => bool;
  * instance (in result or context inspector)
  */
 let select_hole_instance: (HoleInstance.t, t) => t;
-let get_selected_hole_instance: t => option(HoleInstance.t);
+
+type hole_inst_approach =
+  | Exact
+  | Nearest;
+
+let get_selected_hole_instance:
+  t => option((HoleInstance.t, hole_inst_approach));
 
 let prev_card: t => t;
 let next_card: t => t;
