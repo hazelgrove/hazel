@@ -221,9 +221,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     }
   | ListLit(StandardErrStatus(NotInHole), None) => Some(List(Hole))
   }
-and syn_list_body = (ctx: Contexts.t, body: UHExp.t): option(list(HTyp.t)) => {
+and syn_list_body =
+    (ctx: Contexts.t, body: UHExp.opseq): option(list(HTyp.t)) => {
   switch (body) {
-  | [UHExp.ExpLine(OpSeq(skel, seq))] =>
+  | OpSeq(skel, seq) =>
     let subskels = UHExp.get_tuple_elements(skel);
     let syn_subskels = List.map(hd => syn_skel(ctx, hd, seq), subskels);
     List.fold_right(
@@ -239,7 +240,6 @@ and syn_list_body = (ctx: Contexts.t, body: UHExp.t): option(list(HTyp.t)) => {
       syn_subskels,
       Some([]),
     );
-  | _ => None
   };
 }
 and syn_rules =
@@ -388,7 +388,7 @@ and ana_operand =
     HTyp.consistent(ty, ty') ? Some() : None;
   | ListLit(StandardErrStatus(NotInHole), Some(body)) =>
     switch (body) {
-    | [UHExp.ExpLine(OpSeq(skel, seq))] =>
+    | OpSeq(skel, seq) =>
       let* ty_el = HTyp.matched_list(ty);
       let subskels = UHExp.get_tuple_elements(skel);
       subskels
@@ -401,7 +401,6 @@ and ana_operand =
            },
            Some(),
          );
-    | _ => None
     }
   | Parenthesized(body) => ana(ctx, body, ty)
   }
@@ -891,7 +890,7 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
-  | ListLit(_, Some([UHExp.ExpLine(opseq)])) =>
+  | ListLit(_, Some(opseq)) =>
     switch (opseq) {
     | OpSeq(skel, seq) =>
       let subskels = UHExp.get_tuple_elements(skel);
@@ -922,24 +921,18 @@ and syn_fix_holes_operand =
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (
-          ListLit(
-            InconsistentBranches(list_types, u),
-            Some([UHExp.ExpLine(new_opseq)]),
-          ),
+          ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
           List(HTyp.Hole),
           u_gen,
         );
       | Some(common_type) => (
-          ListLit(
-            StandardErrStatus(NotInHole),
-            Some([UHExp.ExpLine(new_opseq)]),
-          ),
+          ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
           List(common_type),
           u_gen,
         )
       };
     }
-  | ListLit(_, _) => (e_nih, List(Hole), u_gen)
+  | ListLit(_, None) => (e_nih, List(Hole), u_gen)
   | Lam(_, p, body) =>
     let (p, ty_p, ctx_body, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
@@ -1343,7 +1336,7 @@ and ana_fix_holes_operand =
     let (body, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
-  | ListLit(_, Some([UHExp.ExpLine(OpSeq(skel, seq))])) =>
+  | ListLit(_, Some(OpSeq(skel, seq))) =>
     switch (HTyp.matched_list(ty)) {
     | Some(ty_el) =>
       let subskels = UHExp.get_tuple_elements(skel);
@@ -1370,13 +1363,7 @@ and ana_fix_holes_operand =
           subskels,
         );
       let new_opseq = OpSeq.OpSeq(UHExp.mk_tuple(skels_list), seq_final);
-      (
-        ListLit(
-          StandardErrStatus(NotInHole),
-          Some([UHExp.ExpLine(new_opseq)]),
-        ),
-        u_gen,
-      );
+      (ListLit(StandardErrStatus(NotInHole), Some(new_opseq)), u_gen);
     | None =>
       let (e', _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1386,18 +1373,6 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
-  | ListLit(_, _) =>
-    let (e', ty', u_gen) =
-      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-        u_gen,
-      );
-    };
   | Lam(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
