@@ -296,28 +296,24 @@ let view =
       |> Program.get_cursor_info
       |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
+    let lookup_sigma_and_filter = (hii, inst, vars) => {
+      switch (HoleInstanceInfo.lookup(hii, inst)) {
+      | None =>
+        // raise(InvalidInstance)
+        print_endline("[InvalidInstance]");
+        Environment.id_env(ctx);
+      | Some((sigma, _)) =>
+        sigma |> List.filter(((var, _)) => !List.mem(var, vars))
+      };
+    };
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
         switch (selected_instance_approach) {
         | None => Environment.id_env(ctx)
-        | Some((inst, Model.Exact)) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None =>
-            // raise(InvalidInstance)
-            print_endline("[InvalidInstance]");
-            Environment.id_env(ctx);
-          | Some((sigma, _)) => sigma
-          }
+        | Some((inst, Model.Exact)) => lookup_sigma_and_filter(hii, inst, [])
         | Some((inst, Model.Nearest(vars))) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None =>
-            // raise(InvalidInstance)
-            print_endline("[InvalidInstance]");
-            Environment.id_env(ctx);
-          | Some((sigma, _)) =>
-            sigma |> List.filter(((var, _)) => !List.mem(var, vars))
-          }
+          lookup_sigma_and_filter(hii, inst, vars)
         };
       } else {
         Environment.id_env(ctx);
