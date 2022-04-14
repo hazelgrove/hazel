@@ -147,7 +147,7 @@ type hole_inst_approach =
   | Exact
   | Nearest(list(Var.t));
 
-let get_selected_hole_instance = model =>
+let get_selected_hole_instance_approach = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
   | None =>
     switch (model |> get_program |> Program.next_hole_in_scope) {

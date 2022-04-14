@@ -35,7 +35,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
   let selected_instance = {
     Model.(
-      switch (get_selected_hole_instance(model)) {
+      switch (get_selected_hole_instance_approach(model)) {
       | Some((hole_inst, approach)) =>
         switch (approach) {
         | Exact => print_endline("exact_dhcode")
@@ -94,12 +94,13 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
-  let selected_instance = Model.get_selected_hole_instance(model);
+  let selected_instance_approach =
+    Model.get_selected_hole_instance_approach(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
       ContextInspector.view(
         ~inject,
-        ~selected_instance,
+        ~selected_instance_approach,
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
         program,

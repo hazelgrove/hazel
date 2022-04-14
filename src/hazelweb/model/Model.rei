@@ -53,7 +53,7 @@ type hole_inst_approach =
   | Exact
   | Nearest(list(Var.t));
 
-let get_selected_hole_instance:
+let get_selected_hole_instance_approach:
   t => option((HoleInstance.t, hole_inst_approach));
 
 let prev_card: t => t;

@@ -4,7 +4,8 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_instance: option((HoleInstance.t, Model.hole_inst_approach)),
+      ~selected_instance_approach:
+         option((HoleInstance.t, Model.hole_inst_approach)),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
@@ -14,7 +15,7 @@ let view =
 
   let selected_instance = {
     Model.(
-      switch (selected_instance) {
+      switch (selected_instance_approach) {
       | Some((hole_inst, approach)) =>
         switch (approach) {
         | Exact => print_endline("exact")
@@ -298,15 +299,24 @@ let view =
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
-        switch (selected_instance) {
+        switch (selected_instance_approach) {
         | None => Environment.id_env(ctx)
-        | Some(inst) =>
+        | Some((inst, Model.Exact)) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
             Environment.id_env(ctx);
           | Some((sigma, _)) => sigma
+          }
+        | Some((inst, Model.Nearest(vars))) =>
+          switch (HoleInstanceInfo.lookup(hii, inst)) {
+          | None =>
+            // raise(InvalidInstance)
+            print_endline("[InvalidInstance]");
+            Environment.id_env(ctx);
+          | Some((sigma, _)) =>
+            sigma |> List.filter(((var, _)) => !List.mem(var, vars))
           }
         };
       } else {
@@ -362,19 +372,17 @@ let view =
         Node.div([], []);
       } else {
         let children =
-          switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
+          switch (selected_instance_approach) {
           | None => [
               instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                // "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                "No hole instance found in scope. Move cursor to a hole, or click a hole instance in the result, to see closures.",
               ),
             ]
-          | Some(u) =>
-            switch (selected_instance) {
-            | None => [
-                instructional_msg("Click on a hole instance in the result"),
-              ]
-            | Some((u', _) as inst) =>
-              if (MetaVar.eq(u, u')) {
+          | Some((inst, approach)) =>
+            Model.(
+              switch (approach) {
+              | Exact =>
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
                 | None =>
                   // raise(InvalidInstance)
@@ -384,15 +392,21 @@ let view =
                     hii_summary(hii, inst),
                     path_view(inst, path),
                   ]
-                };
-              } else {
-                [
-                  instructional_msg(
-                    "Internal Error: cursor is not at the selected hole instance.",
-                  ),
-                ];
+                }
+              | Nearest(_) =>
+                switch (HoleInstanceInfo.lookup(hii, inst)) {
+                | None =>
+                  // raise(InvalidInstance)
+                  [instructional_msg("Internal Error: InvalidInstance")]
+                | Some((_, path)) => [
+                    path_view_titlebar,
+                    instructional_msg("Nearest hole in scope found at:"),
+                    hii_summary(hii, inst),
+                    path_view(inst, path),
+                  ]
+                }
               }
-            }
+            )
           };
         Node.div([Attr.classes(["the-path-viewer"])], children);
       };
