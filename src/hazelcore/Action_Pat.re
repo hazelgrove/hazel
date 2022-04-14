@@ -1051,6 +1051,63 @@ and ana_perform_opseq =
         ~is_after_zopseq=ZPat.is_after_zopseq(zopseq),
       );
     Succeeded((new_zopseq, ctx, u_gen));
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZPat.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length >= first_seq_length;
+      } =>
+    let OpSeq(_, first_seq) as opseq = zopseq |> ZPat.erase_zopseq;
+    let first_seq_length = List.length(Seq.operands(first_seq));
+    let (OpSeq(_, first_seq), ctx, u_gen) =
+      Statics_Pat.ana_fix_holes_opseq(
+        ctx,
+        u_gen,
+        opseq,
+        // safe because pattern guard
+        HTyp.Prod(
+          ty
+          |> HTyp.get_prod_elements
+          |> ListUtil.sublist(~lo=0, first_seq_length),
+        ),
+      );
+    print_endline(Sexplib.Sexp.to_string(UHPat.sexp_of_seq(first_seq)));
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        first_seq,
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
+    print_endline(
+      "After complete_tuple = "
+      ++ Sexplib.Sexp.to_string(
+           ZOpSeq.sexp_of_t(
+             UHPat.sexp_of_operand,
+             UHPat.sexp_of_operator,
+             ZPat.sexp_of_zoperand,
+             ZPat.sexp_of_zoperator,
+             zopseq,
+           ),
+         ),
+    );
+    let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+    mk_ana_result(ctx, u_gen, new_zp, ty);
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
+        && ty_length >= 2;
+      } =>
+    let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+    mk_ana_result(ctx, u_gen, new_zp, ty);
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>

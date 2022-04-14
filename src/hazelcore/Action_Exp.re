@@ -2616,6 +2616,64 @@ and ana_perform_opseq =
       );
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
 
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length >= first_seq_length;
+      } =>
+    let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
+    let first_seq_length = List.length(Seq.operands(first_seq));
+    let (OpSeq(_, first_seq), u_gen) =
+      Statics_Exp.ana_fix_holes_opseq(
+        ctx,
+        u_gen,
+        zopseq |> ZExp.erase_zopseq,
+        // safe because pattern guard
+        HTyp.Prod(
+          ty
+          |> HTyp.get_prod_elements
+          |> ListUtil.sublist(~lo=0, first_seq_length),
+        ),
+      );
+    print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_seq(first_seq)));
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        first_seq,
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
+    print_endline(
+      "After complete_tuple = "
+      ++ Sexplib.Sexp.to_string(
+           ZOpSeq.sexp_of_t(
+             UHExp.sexp_of_operand,
+             UHExp.sexp_of_operator,
+             ZExp.sexp_of_zoperand,
+             ZExp.sexp_of_zoperator,
+             zopseq,
+           ),
+         ),
+    );
+    let new_ze =
+      ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+    Succeeded(AnaDone((new_ze, u_gen)));
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
+        && ty_length >= 2;
+      } =>
+    let new_ze =
+      ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+    Succeeded(AnaDone((new_ze, u_gen)));
+
   | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
       when zoperand |> ZExp.is_after_zoperand =>
     let (new_line, u_gen) = {
