@@ -1427,9 +1427,9 @@ and syn_perform_operand =
   switch (a, zoperand) {
   | (
       Backspace,
-      CursorE(
+      ListLitZ(
         _,
-        ListLit(_, Some(OpSeq(Placeholder(0), S(EmptyHole(_), E)))),
+        ZOpSeq(Placeholder(0), ZOperand(CursorE(_, EmptyHole(_)), _)),
       ),
     ) =>
     let new_ze =
@@ -1437,6 +1437,10 @@ and syn_perform_operand =
       |> ZExp.ZBlock.wrap;
     let new_ty = HTyp.List(Hole);
     Succeeded(SynDone((new_ze, new_ty, u_gen)));
+  | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
+    let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+    Succeeded(SynDone((new_ze, List(ty), u_gen)));
   | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
     switch (syn_perform_operand(ctx, a, (zhole, HTyp.Hole, u_gen))) {
@@ -3161,7 +3165,10 @@ and ana_perform_operand =
   /* TODO consider deletion of type ascription on case */
 
   /* Construction */
-
+  | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
+    let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+    Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
     switch (ana_perform_operand(ctx, a, (zhole, u_gen), HTyp.Hole)) {
