@@ -17,7 +17,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | ListLit(ListErrStatus.t, option(t))
+  | ListLit(ListErrStatus.t, option(opseq))
   | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -53,7 +53,8 @@ let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 // let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
-let listlit: (~err: ListErrStatus.t=?, ~elems: option(t)=?, unit) => operand;
+let listlit:
+  (~err: ListErrStatus.t=?, ~elems: option(opseq)=?, unit) => operand;
 
 module Line: {
   let prune_empty_hole: line => line;

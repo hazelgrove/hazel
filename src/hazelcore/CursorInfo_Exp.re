@@ -22,7 +22,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
-  | ListLitZ(_, zexp) => extract_cursor_term(zexp)
+  | ListLitZ(_, zopseq) => extract_from_zexp_opseq(zopseq)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
@@ -84,7 +84,7 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
-  | ListLitZ(_, zexp) => get_zoperand_from_zexp(zexp)
+  | ListLitZ(_, zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -139,7 +139,8 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
-  | ListLitZ(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | ListLitZ(_, zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -542,7 +543,8 @@ and syn_cursor_info_zoperand =
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
-  | ListLitZ(_, zbody)
+  | ListLitZ(_, zopseq) =>
+    syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
     let+ defferrable =
@@ -916,10 +918,11 @@ and ana_cursor_info_zoperand =
       );
     /* zipper cases */
     }
-  | ListLitZ(_, zbody) =>
+  | ListLitZ(_, zopseq) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
-    | Some(ty_el) => ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_el)
+    | Some(ty_el) =>
+      ana_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq, ty_el)
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
