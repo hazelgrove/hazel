@@ -12,8 +12,13 @@ type t = {
 };
 
 let cutoff = (m1, m2) => m1 === m2;
+/* TODO relavanat Hannah note: The centralized model should keep track of all of the
+   different prompts (so add to the type t at the top of Model.re something like prompt: list(Prompt.t).*/
+// let prompt_1: Prompt.t =
+// let prompts = [];
 
 let cardstack_info = [
+  Examples.questionstack,
   Examples.cardstack,
   Examples.teststack,
   // TutorialCards.cardstack,

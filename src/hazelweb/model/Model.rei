@@ -17,7 +17,9 @@ type t = {
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
 };
-
+/* TODO - Corresponding Hannah note: The centralized model should keep track of all of the
+   different prompts (so add to the type t at the top of Model.re something like prompt: list(Prompt.t). */
+let prompts: list(Prompt.t);
 let cardstack_info: list(CardstackInfo.t);
 
 /**

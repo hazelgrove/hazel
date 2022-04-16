@@ -392,6 +392,14 @@ let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
   init_zexp: ZExp.place_before(e),
 };
 
+// TODO this needs to be fixed so the right data is passed in
+let question_to_card =
+    ((name: string, e: UHExp.t, prompt: Virtual_dom.Vdom.Node.t)): CardInfo.t => {
+  name,
+  caption: prompt,
+  init_zexp: ZExp.place_before(e),
+};
+
 let cardstack: CardstackInfo.t = {
   title: "examples",
   cards: List.map(example_to_card, examples),
@@ -406,4 +414,13 @@ let tests = [
 let teststack: CardstackInfo.t = {
   title: "tests",
   cards: List.map(example_to_card, tests),
+};
+
+let questions = [
+  ("hole", just_hole, Virtual_dom.Vdom.Node.Text("fdsfsdfs")),
+];
+
+let questionstack: CardstackInfo.t = {
+  title: "questions",
+  cards: List.map(question_to_card, questions),
 };
