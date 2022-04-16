@@ -1,18 +1,10 @@
 // TODO change this type to have the right kind of expression
 module Memo = Core_kernel.Memo;
 
-let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
-let get_elaboration = (program: UHExp.t): DHExp.t =>
-  switch (program |> elaborate) {
-  | DoesNotElaborate => raise(Program.DoesNotElaborate)
-  | Elaborates(d, _, _) => d
-  };
-// TODO need to call DHCode.view() to display this
-
 // General type for a single example
 type quest = {
   id: string,
-  expression: UHExp.t,
+  expressionz: UHExp.t,
   rank: int,
 };
 

@@ -1,7 +1,7 @@
 // General type for a single example
 type quest = {
   id: string,
-  expression: UHExp.t,
+  expressionz: UHExp.t,
   rank: int,
 };
 

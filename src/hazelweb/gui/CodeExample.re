@@ -1,4 +1,7 @@
 open Virtual_dom.Vdom;
+open Virtual_dom.Vdom.Event;
+open Prompt;
+open Node;
 /*
  let ranking_select = ((name: string, e: int)): RankedOptionInfo.t => {
    name,
@@ -51,7 +54,7 @@ let rank_selection_handler = x => {
 // ];
 
 // TODO make sure this is of type exampleExpression
-let example_expression =
+let a_single_example_expression =
     (example_id: string, example_body: UHExp.t, ranking_out_of: int) => {
   [
     Node.div(
@@ -71,40 +74,85 @@ let example_expression =
 };
 
 // One instance of a an example
-let question_with_id =
-    (quest_id: string, quest_expression: UHExp.t, quest_rank: int)
-    : Prompt.quest => {
-  id: quest_id,
-  expression: example_expression(quest_id, quest_expression, quest_rank),
-  rank: quest_rank,
-};
+
+let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
+let get_elaboration = (program: UHExp.t): DHExp.t =>
+  switch (program |> elaborate) {
+  | DoesNotElaborate => raise(Program.DoesNotElaborate)
+  | Elaborates(d, _, _) => d
+  };
+// TODO need to call DHCode.view() to display this
 
 // Create a list of examples
 // TODO: this may have to be a fixed size of defined by a parameter
-let examples_with_id_list = ranking_out_of => {
-  [
-    question_with_id("quest_id_1", "quest_body 1", ranking_out_of),
-    question_with_id("quest_id_2", "quest_body 2", ranking_out_of),
-  ];
-};
-// make them into a list
-let examples_ = list_of_examples => {
-  List.flatten(List.map(i => i.expression, list_of_examples));
-};
-let displayed_examples = examples_(examples_with_id_list(6));
+// let examples_with_id_list = ranking_out_of => {
+//   [
+//     question_with_id("quest_id_1", "quest_body 1", ranking_out_of),
+//     question_with_id("quest_id_2", "quest_body 2", ranking_out_of),
+//   ];
+// };
+// // make them into a list
+// let examples_ = list_of_examples => {
+//   List.flatten(List.map(i => i.expression, list_of_examples));
+// };
+// let displayed_examples = examples_(examples_with_id_list(6));
 
-let view = (): Node.t => {
+// Takes a list of Prompt.explain and returns a displayable list of Nodes
+let display_examples =
+    (
+      ~inject,
+      ~settings,
+      selected_instance,
+      font_metrics,
+      width,
+      pos,
+      examples_list,
+    ) => {
+  List.map(
+    d =>
+      DHCode.view(
+        ~inject,
+        ~settings,
+        ~selected_instance,
+        ~font_metrics,
+        ~width,
+        ~pos,
+        get_elaboration(d.expressionz),
+      ),
+    examples_list,
+  );
+};
+
+let view =
+    (
+      ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,
+      ~selected_instance: option(HoleInstance.t),
+      ~settings: Settings.Evaluation.t,
+      ~font_metrics: FontMetrics.t,
+      example_list: list(Prompt.quest),
+    )
+    : Node.t => {
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation"])],
       [
         Node.div(
           [Attr.classes(["context-is-empty-msg"])],
-          displayed_examples,
+          display_examples(
+            ~inject,
+            ~settings,
+            selected_instance,
+            font_metrics,
+            100,
+            0,
+            example_list,
+          ),
         ),
       ],
     );
   };
+
+  // TODO implement this top level function to generate and display examples
 
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],

@@ -79,6 +79,8 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
     [ActionPanel.view(~inject, model)]
   );
 
+let empty_list: list(Prompt.quest) = [];
+
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
@@ -109,7 +111,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         model.settings.right_panel.code_example,
         Node.text("EG"),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
-        () => CodeExample.view(),
+        () => CodeExample.view(empty_list),
       ),
       (
         model.settings.right_panel.context_inspector,
