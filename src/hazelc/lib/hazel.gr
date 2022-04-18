@@ -8,6 +8,7 @@ import * from "./syntax_tree"
 import * from "./syntax_tree_helper"
 import HPrinter from "./syntax_tree_printer"
 import * from "./hazel_util"
+import * from "./hazel_proxy"
 import * from "./hazel_function"
 
 export let print_prog = (prog) => {
@@ -26,6 +27,10 @@ export buildEmptyHole
 
 export and
 export or
+
+// for proxy-based casts
+export emb_bool
+export prj_bool
 
 export let htrue = bool_to_number(true)
 export let hfalse = bool_to_number(false)
