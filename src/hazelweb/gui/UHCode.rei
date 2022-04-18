@@ -3,6 +3,8 @@ open Virtual_dom;
 let root_id: string;
 let focus: unit => unit;
 
+let basic_view: (~settings: Settings.t, ~width: int, UHExp.t) => Vdom.Node.t;
+
 /**
  * Code representation of UHExp.
  */

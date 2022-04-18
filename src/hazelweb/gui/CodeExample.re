@@ -82,12 +82,6 @@ let a_single_example_expression_ =
 
 // One instance of a an example
 
-let elaborate = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty);
-let get_elaboration = (program: UHExp.t): DHExp.t =>
-  switch (program |> elaborate) {
-  | DoesNotElaborate => raise(Program.DoesNotElaborate)
-  | Elaborates(d, _, _) => d
-  };
 // TODO need to call DHCode.view() to display this
 
 // Create a list of examples
@@ -105,30 +99,13 @@ let get_elaboration = (program: UHExp.t): DHExp.t =>
 // let displayed_examples = examples_(examples_with_id_list(6));
 
 // Takes a list of Prompt.explain and returns a displayable list of Nodes
-let display_examples =
-    (
-      ~inject,
-      ~settings,
-      selected_instance,
-      font_metrics,
-      width,
-      pos,
-      examples_list_: list(quest),
-    ) => {
+let display_examples = (~settings, width, examples_list_: list(quest)) => {
   List.flatten(
     List.map(
       e =>
         a_single_example_expression_(
           e.idz,
-          DHCode.view(
-            ~inject,
-            ~settings,
-            ~selected_instance,
-            ~font_metrics,
-            ~width,
-            ~pos,
-            get_elaboration(e.expressionz),
-          ),
+          UHCode.basic_view(~settings, ~width, e.expressionz),
           e.rankz,
         ),
       examples_list_,
@@ -138,29 +115,14 @@ let display_examples =
 
 // TODO - Ensure correctness of the below.
 // TODO - may have to fix width
-let view =
-    (
-      ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,
-      ~settings: Settings.Evaluation.t,
-      ~font_metrics: FontMetrics.t,
-      example_list: list(Prompt.quest),
-    )
-    : Node.t => {
+let view = (~settings: Settings.t, example_list: list(Prompt.quest)): Node.t => {
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation"])],
       [
         Node.div(
           [Attr.classes(["context-is-empty-msg"])],
-          display_examples(
-            ~inject,
-            ~settings,
-            None,
-            font_metrics,
-            100,
-            0,
-            example_list,
-          ),
+          display_examples(~settings, 100, example_list),
         ),
       ],
     );

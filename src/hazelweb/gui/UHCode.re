@@ -250,6 +250,25 @@ let focus = () => {
   JSUtil.force_get_elem_by_id(root_id)##focus;
 };
 
+let basic_view =
+    (~settings: Settings.t, ~width: int, exp: UHExp.t): Vdom.Node.t => {
+  let doc =
+    Lazy.force(
+      UHDoc_Exp.mk,
+      ~memoize=settings.memoize_doc,
+      ~enforce_inline=false,
+      exp,
+    );
+
+  let layout =
+    Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)
+    |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+
+  let code_text = view_of_box(UHBox.mk(layout));
+
+  Vdom.Node.span([Vdom.Attr.classes(["code"])], code_text);
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
