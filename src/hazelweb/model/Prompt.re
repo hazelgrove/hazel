@@ -26,20 +26,109 @@ type t = {
   examples: list(quest),
 };
 
+let lambda_with_tuple =
+  UHExp.[
+    letline(
+      UHPat.(
+        OpSeq.wrap(
+          Parenthesized(
+            Seq.mk(var("x"), [(Operators_Pat.Comma, var("y"))])
+            |> mk_OpSeq,
+          ),
+        )
+      ),
+      Block.wrap(
+        Parenthesized(
+          Block.wrap'(
+            Seq.mk(intlit("1"), [(Operators_Exp.Comma, intlit("2"))])
+            |> mk_OpSeq,
+          ),
+        ),
+      ),
+    ),
+    ExpLine(
+      Seq.mk(var("x"), [(Operators_Exp.Plus, var("y"))]) |> mk_OpSeq,
+    ),
+  ];
+
+let lambda_with_tuple_ex_1 =
+  UHExp.[
+    letline(
+      UHPat.(
+        OpSeq.wrap(
+          Parenthesized(
+            Seq.mk(var("x"), [(Operators_Pat.Comma, var("y"))])
+            |> mk_OpSeq,
+          ),
+        )
+      ),
+      Block.wrap(
+        Parenthesized(
+          Block.wrap'(
+            Seq.mk(intlit("1"), [(Operators_Exp.Comma, intlit("2"))])
+            |> mk_OpSeq,
+          ),
+        ),
+      ),
+    ),
+    ExpLine(OpSeq.wrap(var("x"))),
+  ];
+
+let lambda_with_tuple_ex_2 =
+  UHExp.[
+    letline(
+      UHPat.(
+        OpSeq.wrap(
+          Parenthesized(
+            Seq.mk(
+              var("x"),
+              [
+                (Operators_Pat.Comma, var("y")),
+                (Operators_Pat.Comma, var("z")),
+              ],
+            )
+            |> mk_OpSeq,
+          ),
+        )
+      ),
+      Block.wrap(
+        Parenthesized(
+          Block.wrap'(
+            Seq.mk(
+              intlit("1"),
+              [
+                (Operators_Exp.Comma, intlit("2")),
+                (Operators_Exp.Comma, intlit("3")),
+              ],
+            )
+            |> mk_OpSeq,
+          ),
+        ),
+      ),
+    ),
+    ExpLine(OpSeq.wrap(var("y"))),
+  ];
+
 let prompts: list(t) = [
   {
-    key: "dummy-key",
-    program: ZExp.place_before(UHExp.Block.wrap(EmptyHole(0))),
+    key: "lambda_with_tuple_",
+    program: ZExp.place_before(lambda_with_tuple),
     prompt_message: "Pretend the user knows some things",
     explanation: [
-      {id: "dummy-exp-key", expression: "Some sort of explanation", rank: 6},
+      {
+        id: "explanation_1",
+        expression: "In the body `x + y`, the first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2` of the definition tuple.",
+        rank: (-1),
+      },
+      {
+        id: "explanation_2",
+        expression: "Bind the definition `(1, 2)` to the pattern `(x, y)` and evaluate the body `x + y`.\n - The first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2`.",
+        rank: (-1),
+      },
     ],
     examples: [
-      {
-        idz: "dummy-ex-key",
-        expressionz: UHExp.Block.wrap(EmptyHole(0)),
-        rankz: 6,
-      },
+      {idz: "example_1", expressionz: lambda_with_tuple_ex_1, rankz: (-1)},
+      {idz: "example_2", expressionz: lambda_with_tuple_ex_2, rankz: (-1)},
     ],
   },
 ];

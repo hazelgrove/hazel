@@ -58,7 +58,7 @@ let init = (): t => {
       cur_elt_id: 0,
     };
   };
-  let explanations: CodeExplanationSettings.t = {highlight_summary: true};
+  let explanations: CodeExplanationSettings.t = {highlight_summary: false};
   let settings = Settings.init;
   let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {

@@ -106,7 +106,7 @@ let display_examples = (~settings, width, examples_list_: list(quest)) => {
         a_single_example_expression_(
           e.idz,
           UHCode.basic_view(~settings, ~width, e.expressionz),
-          e.rankz,
+          List.length(examples_list_),
         ),
       examples_list_,
     ),
@@ -119,12 +119,7 @@ let view = (~settings: Settings.t, example_list: list(Prompt.quest)): Node.t => 
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation"])],
-      [
-        Node.div(
-          [Attr.classes(["context-is-empty-msg"])],
-          display_examples(~settings, 100, example_list),
-        ),
-      ],
+      [Node.div([], display_examples(~settings, 100, example_list))],
     );
   };
 

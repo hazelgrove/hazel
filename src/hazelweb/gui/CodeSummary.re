@@ -97,7 +97,7 @@ let print_markdown = doc => {
  code: `code`
  */
 let build_msg =
-    (text: string, _show_highlight: bool): (list(Node.t), ColorSteps.t) => {
+    (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   print_markdown(omd);
   let rec translate =
@@ -122,12 +122,17 @@ let build_msg =
         | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(path, d, _title) =>
           let (d, mapping) = translate(d, mapping);
-          let path =
-            List.map(
-              int_of_string,
-              Re.Str.split(Re.Str.regexp({| |}), path),
-            );
-          let (inner_msg, mapping) = highlight(d, path, mapping);
+          let (inner_msg, mapping) =
+            if (show_highlight) {
+              let path =
+                List.map(
+                  int_of_string,
+                  Re.Str.split(Re.Str.regexp({| |}), path),
+                );
+              highlight(d, path, mapping);
+            } else {
+              (Node.div([], d), mapping);
+            };
           (List.append(msg, [inner_msg]), mapping);
         | _ =>
           print_endline("OTHER");

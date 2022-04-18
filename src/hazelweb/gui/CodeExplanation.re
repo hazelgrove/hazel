@@ -10,6 +10,7 @@ let rank_selection_handler = (x, id) => {
 
 let a_single_example_expression =
     (example_id: string, example_body: string, ranking_out_of: int) => {
+  let (msg, _) = CodeSummary.build_msg(example_body, false);
   [
     Node.div(
       [Attr.name("question_wrapper")],
@@ -23,7 +24,7 @@ let a_single_example_expression =
           ],
           CodeExplanation_common.rank_list(1 + ranking_out_of),
         ),
-        Node.text(example_body),
+        Node.div([], msg),
       ],
     ),
   ];
@@ -33,7 +34,12 @@ let a_single_example_expression =
 let render_explanations = (explanations: list(Prompt.explain)): list(Node.t) => {
   List.flatten(
     List.map(
-      i => a_single_example_expression(i.id, i.expression, i.rank),
+      i =>
+        a_single_example_expression(
+          i.id,
+          i.expression,
+          List.length(explanations),
+        ),
       explanations,
     ),
   );
@@ -43,12 +49,7 @@ let view = (explanations: list(Prompt.explain)): Node.t => {
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation"])],
-      [
-        Node.div(
-          [Attr.classes(["context-is-empty-msg"])],
-          render_explanations(explanations),
-        ),
-      ],
+      [Node.div([], render_explanations(explanations))],
     );
   };
 
