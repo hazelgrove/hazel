@@ -142,15 +142,15 @@ and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
-  | CursorP(cursor, Wild(_))
-  // | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorP(cursor, Wild(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, IntLit(_, _))
   | CursorP(cursor, FloatLit(_, _))
+  | CursorP(cursor, ListLit(_, None))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   | CursorP(cursor, Inj(_, _, _))
-  | CursorP(cursor, ListLit(_, _))
+  | CursorP(cursor, ListLit(_, Some(_)))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
