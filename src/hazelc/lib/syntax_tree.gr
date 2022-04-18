@@ -3,6 +3,13 @@ export enum BinBoolOp {
     Or,
 }
 
+export enum BinIntOp {
+    Plus,
+    Minus,
+    Times,
+    Divide,
+}
+
 export enum DHExp {
     EmptyHole(Number),
     NonEmptyHole(
@@ -12,4 +19,5 @@ export enum DHExp {
     Ap(DHExp, DHExp),
     BoolLit(Bool),
     BinBoolOp(BinBoolOp, DHExp, DHExp),
+    BinIntOp(BinIntOp, DHExp, DHExp),
 }
