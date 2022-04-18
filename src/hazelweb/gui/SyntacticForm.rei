@@ -1,3 +1,4 @@
 open Virtual_dom;
 
-let view: unit => Vdom.Node.t;
+let view:
+  (~settings: Settings.t, ExplanationInfo.explanation_info) => Vdom.Node.t;

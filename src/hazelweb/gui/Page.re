@@ -89,6 +89,10 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
   let selected_instance = Model.get_selected_hole_instance(model);
+  let explanation_info =
+    ExplanationInfo.mk_explanation_info(
+      Model.get_cursor_info(model).cursor_term,
+    );
   Sidebar.right(
     ~inject,
     ~is_open=model.settings.right_panel.panel_open,
@@ -100,7 +104,10 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
           ModelAction.UpdateSettings(RightPanel(Toggle_syntactic_form)),
         ),
         () => {
-          SyntacticForm.view() /* TODO: Ardi - Anything you need to pass to this view */;
+          SyntacticForm.view(
+            ~settings,
+            explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
+          );
         },
       ),
       (

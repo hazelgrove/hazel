@@ -113,7 +113,7 @@ let prompts: list(t) = [
   {
     key: "lambda_with_tuple_",
     program: ZExp.place_before(lambda_with_tuple),
-    prompt_message: "Pretend the user knows some things",
+    prompt_message: "Rank the code explanations and examples for the code snippet below, targetting a user who is having their first exposure to functional programming concepts. The user is only trying to make small adjustments to starter code they have been given.",
     explanation: [
       {
         id: "explanation_1",
