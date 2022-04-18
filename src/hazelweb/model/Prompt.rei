@@ -22,3 +22,5 @@ type t = {
   explanation: list(explain),
   examples: list(quest),
 };
+
+let prompts: list(t);

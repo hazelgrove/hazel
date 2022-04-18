@@ -1,3 +1,10 @@
-open Virtual_dom;
-
-let view: list(Prompt.quest) => Vdom.Node.t;
+open Prompt;
+open Virtual_dom.Vdom;
+let view:
+  (
+    ~inject: ModelAction.t => Ui_event.t,
+    ~settings: Settings.Evaluation.t,
+    ~font_metrics: FontMetrics.t,
+    list(quest)
+  ) =>
+  Node.t;

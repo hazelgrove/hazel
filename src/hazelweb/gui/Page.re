@@ -111,7 +111,13 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         model.settings.right_panel.code_example,
         Node.text("EG"),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
-        () => CodeExample.view(empty_list),
+        () =>
+          CodeExample.view(
+            ~inject,
+            ~settings=settings.evaluation,
+            ~font_metrics=model.font_metrics,
+            empty_list,
+          ),
       ),
       (
         model.settings.right_panel.context_inspector,

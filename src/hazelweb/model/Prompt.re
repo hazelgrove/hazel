@@ -41,7 +41,7 @@ let prompts: list(t) = [
     examples: [
       {
         id: "dummy-ex-key",
-        expression: UHExp.Block.wrap(EmptyHole(0)),
+        expressionz: UHExp.Block.wrap(EmptyHole(0)),
         rank: (-1),
       },
     ],

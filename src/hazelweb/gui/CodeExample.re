@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
-open Virtual_dom.Vdom.Event;
+// open Virtual_dom.Vdom.Event;
 open Prompt;
-open Node;
+
 /*
  let ranking_select = ((name: string, e: int)): RankedOptionInfo.t => {
    name,
@@ -25,11 +25,11 @@ open Node;
  };
  */
 
-let rank_selection_handler = x => {
-  // update_chosen_rank
-  print_endline(x);
-  Event.Many([]);
-};
+// let rank_selection_handler = x => {
+//   // update_chosen_rank
+//   print_endline(x);
+//   Event.Many([]);
+// };
 
 // let update_chosen_rank = (u: update, settings: t) =>
 //   switch (u) {
@@ -54,24 +54,24 @@ let rank_selection_handler = x => {
 // ];
 
 // TODO make sure this is of type exampleExpression
-let a_single_example_expression =
-    (example_id: string, example_body: UHExp.t, ranking_out_of: int) => {
-  [
-    Node.div(
-      [Attr.name("question_wrapper")],
-      [
-        Node.select(
-          [
-            Attr.name(example_id),
-            Attr.on_change((_, xx) => rank_selection_handler(xx)),
-          ],
-          CodeExplanation_common.rank_list(1 + ranking_out_of),
-        ),
-        Node.text("TODO REPLACE"),
-      ],
-    ),
-  ];
-};
+// let a_single_example_expression =
+//     (example_id: string, example_body: UHExp.t, ranking_out_of: int) => {
+//   [
+//     Node.div(
+//       [Attr.name("question_wrapper")],
+//       [
+//         Node.select(
+//           [
+//             Attr.name(example_id),
+//             Attr.on_change((_, xx) => rank_selection_handler(xx)),
+//           ],
+//           CodeExplanation_common.rank_list(1 + ranking_out_of),
+//         ),
+//         Node.text("TODO REPLACE"),
+//       ],
+//     ),
+//   ];
+// };
 
 // One instance of a an example
 
@@ -123,10 +123,11 @@ let display_examples =
   );
 };
 
+// TODO - Ensure correctness of the below.
+// TODO - may have to fix width
 let view =
     (
       ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,
-      ~selected_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       example_list: list(Prompt.quest),
@@ -141,7 +142,7 @@ let view =
           display_examples(
             ~inject,
             ~settings,
-            selected_instance,
+            None,
             font_metrics,
             100,
             0,

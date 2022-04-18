@@ -1,3 +1,4 @@
+open Prompt;
 let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 
 let holey_lambda: UHExp.t = {
@@ -393,11 +394,10 @@ let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
 };
 
 // TODO this needs to be fixed so the right data is passed in
-let question_to_card =
-    ((name: string, e: UHExp.t, prompt: Virtual_dom.Vdom.Node.t)): CardInfo.t => {
-  name,
-  caption: prompt,
-  init_zexp: ZExp.place_before(e),
+let question_to_card = (prompt_: Prompt.t): CardInfo.t => {
+  name: prompt_.key,
+  caption: Virtual_dom.Vdom.Node.div([], []),
+  init_zexp: prompt_.program,
 };
 
 let cardstack: CardstackInfo.t = {
@@ -416,11 +416,9 @@ let teststack: CardstackInfo.t = {
   cards: List.map(example_to_card, tests),
 };
 
-let questions = [
-  ("hole", just_hole, Virtual_dom.Vdom.Node.Text("fdsfsdfs")),
-];
+let questions = Prompt.prompts;
 
 let questionstack: CardstackInfo.t = {
-  title: "questions",
+  title: "Questions",
   cards: List.map(question_to_card, questions),
 };
