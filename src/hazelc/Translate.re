@@ -148,7 +148,11 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
   // | FreeVar(_)
   // | InvalidText(_)
   // | InconsistentBranches(_)
-  // | Cast(_)
+  | Cast(d1, ty, ty') =>
+    let (v1, prog) = translate_exp(d1, prog);
+    let proxy = translate_proxy(ty, ty');
+    let exp = sprintf("%s(%s)", proxy, v1);
+    Program.assign_tmp_var(prog, exp)
   // | FailedCast(_)
   // | InvalidOperation(_) => raise(NotImplemented)
   | _ => raise(NotImplemented("expressions"))
@@ -184,7 +188,29 @@ and translate_pat = (dp: IHPat.t) => {
   | Pair(dp1, dp2) =>
     sprintf("(%s, %s)", translate_pat(dp1), translate_pat(dp2))
   };
+}
+and translate_proxy = (ty: HTyp.t, ty': HTyp.t) => {
+  let prefix = "Hazel.";
+  switch (ty, ty') {
+  | (Hole, ty'') =>
+    let typ_str = translate_typ(ty'');
+    sprintf("%sprj_%s", prefix, typ_str)
+  | (ty'', Hole) =>
+    let typ_str = translate_typ(ty'');
+    sprintf("%semb_%s", prefix, typ_str)
+  | _ => raise(NotImplemented("wip"))
+  };
+}
+and translate_typ = (ty: HTyp.t) => {
+  switch(ty) {
+  | Hole => "hole"
+  | Int => "int"
+  | Bool => "bool"
+  | Float => "float"
+  | _ => raise(NotImplemented("compound types wip"))
+  }
 };
+
 // and translate_bool_op = (op: IHExp.BinBoolOp.t) => {
 //   switch (op) {
 //   | And => "&&"
