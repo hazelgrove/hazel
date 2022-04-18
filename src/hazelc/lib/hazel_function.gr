@@ -22,3 +22,14 @@ export let or = (x : Number, y : Number) => {
         buildBinBoolOpAnd(x, y)
     }
 }
+
+@disableGC
+export let add = (x : Number, y : Number) => {
+    if (is_const(x) && is_const(y)) {
+        x + y
+    } else {
+        let x = builder(x)
+        let y = builder(y)
+        buildBinIntOpPlus(x, y)
+    }
+}
