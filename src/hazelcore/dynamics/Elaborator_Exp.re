@@ -838,7 +838,28 @@ and ana_elab_operand =
       );
     }
   | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
-    ana_elab_opseq(ctx, delta, opseq, ty)
+    switch (HTyp.matched_list(ty)) {
+    | None => DoesNotElaborate
+    | Some(elt_ty) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      switch (ana_elab_list(ctx, delta, opseq, elt_ty)) {
+      | None => DoesNotElaborate
+      | Some((elt_list, delta)) =>
+        Elaborates(
+          ListLit(
+            0,
+            0,
+            sigma,
+            StandardErrStatus(NotInHole),
+            List(elt_ty),
+            elt_list,
+          ),
+          List(elt_ty),
+          delta,
+        )
+      };
+    }
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
@@ -892,11 +913,6 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
-  // | ListNil(NotInHole) =>
-  //   switch (HTyp.matched_list(ty)) {
-  //   | None => DoesNotElaborate
-  //   | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
-  // }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -910,6 +926,27 @@ and ana_elab_operand =
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
+  }
+and ana_elab_list =
+    (ctx: Contexts.t, delta: Delta.t, opseq: UHExp.opseq, ele_ty: HTyp.t)
+    : option((list(DHExp.t), Delta.t)) =>
+  switch (opseq) {
+  | OpSeq(skel, seq) =>
+    let subskels = UHExp.get_tuple_elements(skel);
+    let rec ana_elab_subskels = (subskels, del) =>
+      switch (subskels) {
+      | [] => Some(([], del))
+      | [hd, ...tl] =>
+        switch (ana_elab_skel(ctx, del, hd, seq, ele_ty)) {
+        | Elaborates(hd, _, del) =>
+          switch (ana_elab_subskels(tl, del)) {
+          | Some((tl, del)) => Some(([hd, ...tl], del))
+          | None => None
+          }
+        | DoesNotElaborate => None
+        }
+      };
+    ana_elab_subskels(subskels, delta);
   }
 and ana_elab_rules =
     (
