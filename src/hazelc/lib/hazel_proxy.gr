@@ -1,0 +1,12 @@
+import * from "syntax_tree"
+
+export enum HTyp {
+  Indet(DHExp),
+  Int(Number),
+  Float(Float),
+  Bool(Bool),
+}
+
+// export let emb_bool(b : Bool) => {
+  
+// }
