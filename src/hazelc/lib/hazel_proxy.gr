@@ -7,6 +7,18 @@ export enum HTyp {
   Bool(Bool),
 }
 
-// export let emb_bool(b : Bool) => {
-  
-// }
+export let emb_bool = (b : Bool) => {
+  if (is_const(b)) {
+  Bool(b) : (HTyp)
+  } else {
+    print("failed cast: passed-in argument is an indet exp")
+    b // impossible case
+  }
+}
+
+export let prj_bool = (h : HTyp) => {
+  match (h) {
+    Bool(b) -> to_number(b),
+    _ -> print("failed cast")
+  }
+}
