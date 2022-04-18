@@ -36,5 +36,6 @@ and comp =
 and expr =
   | Let(Var.t, comp, expr)
   | LetRec(Var.t, comp, expr)
+  | Seq(comp, expr)
   | Comp(comp)
 and prog = {body: expr};

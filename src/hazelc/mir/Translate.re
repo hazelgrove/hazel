@@ -2,80 +2,37 @@ open Format;
 
 exception NotImplemented(string);
 
-module Program = {
-  type t = {
-    preamble: list(string),
-    statements: list(string),
-    tmp_counter: int,
-  };
-
-  let mk =
-      (
-        ~preamble: list(string),
-        ~statements: list(string),
-        ~tmp_counter: int,
-      ) => {
-    {preamble, statements, tmp_counter};
-  };
-  let sum_t = "enum HazelSum<a, b> { L(a), R(b) }";
-  let empty = mk(~preamble=[], ~statements=[], ~tmp_counter=0);
-  let top_empty = mk(~preamble=[sum_t], ~statements=[], ~tmp_counter=0);
-
-  let assign_tmp_var = (prog: t, exp: string) => {
-    let var = sprintf("tmp%d", prog.tmp_counter);
-    let newstmt = sprintf("let %s = %s", var, exp);
-    (
-      var,
-      {
-        ...prog,
-        tmp_counter: prog.tmp_counter + 1,
-        statements: prog.statements @ [newstmt],
-      },
-    );
-  };
-
-  let add_statement = (prog: t, stmt: string) => {
-    {...prog, statements: prog.statements @ [stmt]};
-  };
-
-  let to_string = (prog: t) => {
-    String.concat("\n", prog.preamble @ prog.statements);
-  };
-};
-
-let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
-  // return the variable name corresponding to this expression
-  //   and Program.t
+let rec translate_exp = (d: IHExp.t, counter: int) => {
   switch (d) {
-  | BoundVar(v) => (v, prog)
-  | Let(dp, d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let stmt1 = Printf.sprintf("let %s = %s", translate_pat(dp), v1);
-    let prog = Program.add_statement(prog, stmt1);
-    let (v2, prog) = translate_exp(d2, prog);
-    (v2, prog);
-  | Lam(dp, _, d1) =>
-    let (rval, iprog) = translate_exp(d1, Program.empty);
-    let iprog = Program.add_statement(iprog, rval);
-    let exp =
-      sprintf("(%s) => {%s}", translate_pat(dp), Program.to_string(iprog));
-    Program.assign_tmp_var(prog, exp);
-  // // TODO: Do this without copying Evaluator.subst_var?
-  | LetRec(var, _, dp, d1, dlet) =>
-    let (rval, iprog) = translate_exp(d1, Program.empty);
-    let iprog = Program.add_statement(iprog, rval);
-    let letstmt =
-      Printf.sprintf(
-        "let rec %s = (%s) => {%s}",
-        var,
-        translate_pat(dp),
-        Program.to_string(iprog),
-      );
-    let prog = Program.add_statement(prog, letstmt);
-    let (vlet, prog) = translate_exp(dlet, prog);
-    (vlet, prog);
+  | BoundVar(v) => (v, Comp(Imm(Var(v))))
+  // | Let(dp, d1, d2) =>
+  //   let (v1, prog) = translate_exp(d1, prog);
+  //   let stmt1 = Printf.sprintf("let %s = %s", translate_pat(dp), v1);
+  //   let prog = Program.add_statement(prog, stmt1);
+  //   let (v2, prog) = translate_exp(d2, prog);
+  //   (v2, prog);
+  // | Lam(dp, _, d1) =>
+  //   let (rval, iprog) = translate_exp(d1, Program.empty);
+  //   let iprog = Program.add_statement(iprog, rval);
+  //   let exp =
+  //     sprintf("(%s) => {%s}", translate_pat(dp), Program.to_string(iprog));
+  //   Program.assign_tmp_var(prog, exp);
+  // // // TODO: Do this without copying Evaluator.subst_var?
+  // | LetRec(var, _, dp, d1, dlet) =>
+  //   let (rval, iprog) = translate_exp(d1, Program.empty);
+  //   let iprog = Program.add_statement(iprog, rval);
+  //   let letstmt =
+  //     Printf.sprintf(
+  //       "let rec %s = (%s) => {%s}",
+  //       var,
+  //       translate_pat(dp),
+  //       Program.to_string(iprog),
+  //     );
+  //   let prog = Program.add_statement(prog, letstmt);
+  //   let (vlet, prog) = translate_exp(dlet, prog);
+  //   (vlet, prog);
   | Ap(d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
+    let (v1, prog) = translate_exp(d1, counter);
     let (v2, prog) = translate_exp(d2, prog);
     let exp = sprintf("%s(%s)", v1, v2);
     Program.assign_tmp_var(prog, exp);
