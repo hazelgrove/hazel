@@ -3,9 +3,9 @@ module Memo = Core_kernel.Memo;
 
 // General type for a single example
 type quest = {
-  id: string,
+  idz: string,
   expressionz: UHExp.t,
-  rank: int,
+  rankz: int,
 };
 
 type explain = {
@@ -32,17 +32,13 @@ let prompts: list(t) = [
     program: ZExp.place_before(UHExp.Block.wrap(EmptyHole(0))),
     prompt_message: "Pretend the user knows some things",
     explanation: [
-      {
-        id: "dummy-exp-key",
-        expression: "Some sort of explanation",
-        rank: (-1),
-      },
+      {id: "dummy-exp-key", expression: "Some sort of explanation", rank: 6},
     ],
     examples: [
       {
-        id: "dummy-ex-key",
+        idz: "dummy-ex-key",
         expressionz: UHExp.Block.wrap(EmptyHole(0)),
-        rank: (-1),
+        rankz: 6,
       },
     ],
   },

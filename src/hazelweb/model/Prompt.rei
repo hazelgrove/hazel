@@ -1,8 +1,8 @@
 // General type for a single example
 type quest = {
-  id: string,
+  idz: string,
   expressionz: UHExp.t,
-  rank: int,
+  rankz: int,
 };
 
 type explain = {

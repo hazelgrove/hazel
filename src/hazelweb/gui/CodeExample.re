@@ -25,11 +25,12 @@ open Prompt;
  };
  */
 
-// let rank_selection_handler = x => {
-//   // update_chosen_rank
-//   print_endline(x);
-//   Event.Many([]);
-// };
+let rank_selection_handler = (x, id) => {
+  // update_chosen_rank
+  let printing: string = String.concat(" ", [id, x]);
+  print_endline(printing);
+  Event.Many([]);
+};
 
 // let update_chosen_rank = (u: update, settings: t) =>
 //   switch (u) {
@@ -54,24 +55,30 @@ open Prompt;
 // ];
 
 // TODO make sure this is of type exampleExpression
-// let a_single_example_expression =
-//     (example_id: string, example_body: UHExp.t, ranking_out_of: int) => {
-//   [
-//     Node.div(
-//       [Attr.name("question_wrapper")],
-//       [
-//         Node.select(
-//           [
-//             Attr.name(example_id),
-//             Attr.on_change((_, xx) => rank_selection_handler(xx)),
-//           ],
-//           CodeExplanation_common.rank_list(1 + ranking_out_of),
-//         ),
-//         Node.text("TODO REPLACE"),
-//       ],
-//     ),
-//   ];
-// };
+let a_single_example_expression_ =
+    (example_id: string, example_body: Node.t, ranking_out_of: int) => {
+  [
+    Node.div(
+      [
+        Attr.name("question_wrapper"),
+        Attr.style(Css_gen.create(~field="float", ~value="left-block")),
+      ],
+      [
+        Node.select(
+          [
+            Attr.name(example_id),
+            Attr.style(Css_gen.create(~field="float", ~value="left-block")),
+            Attr.on_change((_, xx) =>
+              rank_selection_handler(xx, example_id)
+            ),
+          ],
+          CodeExplanation_common.rank_list(1 + ranking_out_of),
+        ),
+        example_body,
+      ],
+    ),
+  ];
+};
 
 // One instance of a an example
 
@@ -106,20 +113,26 @@ let display_examples =
       font_metrics,
       width,
       pos,
-      examples_list,
+      examples_list_: list(quest),
     ) => {
-  List.map(
-    d =>
-      DHCode.view(
-        ~inject,
-        ~settings,
-        ~selected_instance,
-        ~font_metrics,
-        ~width,
-        ~pos,
-        get_elaboration(d.expressionz),
-      ),
-    examples_list,
+  List.flatten(
+    List.map(
+      e =>
+        a_single_example_expression_(
+          e.idz,
+          DHCode.view(
+            ~inject,
+            ~settings,
+            ~selected_instance,
+            ~font_metrics,
+            ~width,
+            ~pos,
+            get_elaboration(e.expressionz),
+          ),
+          e.rankz,
+        ),
+      examples_list_,
+    ),
   );
 };
 

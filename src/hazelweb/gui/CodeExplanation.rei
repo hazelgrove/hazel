@@ -1,3 +1,3 @@
 open Virtual_dom;
 
-let view: string => Vdom.Node.t;
+let view: list(Prompt.explain) => Vdom.Node.t;

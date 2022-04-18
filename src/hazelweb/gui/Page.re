@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open Prompt;
 let logo_panel =
   a(
     [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
@@ -79,7 +80,10 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
     [ActionPanel.view(~inject, model)]
   );
 
-let empty_list: list(Prompt.quest) = [];
+let sample_examples: list(Prompt.quest) =
+  List.nth(Prompt.prompts, 0).examples;
+let sample_exaplanations: list(Prompt.explain) =
+  List.nth(Prompt.prompts, 0).explanation;
 
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
@@ -105,7 +109,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_code_explanation)),
         ),
-        () => CodeExplanation.view("test"),
+        () => CodeExplanation.view(sample_exaplanations),
       ),
       (
         model.settings.right_panel.code_example,
@@ -116,7 +120,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
             ~inject,
             ~settings=settings.evaluation,
             ~font_metrics=model.font_metrics,
-            empty_list,
+            sample_examples,
           ),
       ),
       (
