@@ -2,7 +2,7 @@ import Array from "array"
 import WasmI32 from "runtime/unsafe/wasmi32"
 import { coerceNumberToWasmI32 } from "runtime/numbers"
 import PrintWasm from "runtime/unsafe/printWasm"
-import * from "syntax_tree"
+import * from "./syntax_tree"
 
 @disableGC
 export let to_number = (arr : DHExp) => {

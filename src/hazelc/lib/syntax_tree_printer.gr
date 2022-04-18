@@ -1,6 +1,6 @@
 import String from "string"
 import RString from "runtime/string"
-import * from "syntax_tree"
+import * from "./syntax_tree"
 
 export let rec printer = (d : DHExp) => {
     match (d) {
@@ -26,5 +26,6 @@ export let rec printer = (d : DHExp) => {
             let ret = String.concat(ret, ")")
             ret
         },
+        _ => "PrinterNotImplemented",
     }
 }
