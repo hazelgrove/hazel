@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 type elab_result_lines =
   | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
   | LinesDoNotElaborate;
@@ -291,22 +293,16 @@ and syn_elab_operand =
   | Case(InconsistentBranches(u, _), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, pat_ty, delta) =>
+    | Elaborates(d1, ty_scrut, delta) =>
       let elab_rules =
-        List.fold_left2(
-          (b, r_t, r) =>
-            switch (b) {
-            | None => None
-            | Some((drs, delta)) =>
-              switch (syn_elab_rule(ctx, delta, r, pat_ty, r_t)) {
-              | None => None
-              | Some((dr, delta)) =>
-                let drs = drs @ [dr];
-                Some((drs, delta));
-              }
-            },
+        List.fold_left(
+          (b, r) => {
+            let* (drs, delta) = b;
+            let* r_t = Statics_Exp.syn_rule(ctx, ty_scrut, r);
+            let* (dr, delta) = syn_elab_rule(ctx, delta, r, ty_scrut, r_t);
+            Some((drs @ [dr], delta));
+          },
           Some(([], delta)),
-          Statics_Exp.case_rule_types(ctx, scrut, rules),
           rules,
         );
       switch (elab_rules) {
@@ -404,8 +400,8 @@ and syn_elab_operand =
   | Case(CaseNotInHole, scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty, delta) =>
-      switch (syn_elab_rules(ctx, delta, rules, ty)) {
+    | Elaborates(d1, ty_scrut, delta) =>
+      switch (syn_elab_rules(ctx, delta, rules, ty_scrut)) {
       | None => DoesNotElaborate
       | Some((drs, glb, delta)) =>
         let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
@@ -418,10 +414,10 @@ and syn_elab_rules =
       ctx: Contexts.t,
       delta: Delta.t,
       rules: list(UHExp.rule),
-      pat_ty: HTyp.t,
+      ty_scrut: HTyp.t,
     )
     : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
-  switch (Statics_Exp.syn_rules(ctx, rules, pat_ty)) {
+  switch (Statics_Exp.syn_rules(ctx, ty_scrut, rules)) {
   | None => None
   | Some(glb) =>
     let elabed_rule_info =
@@ -430,7 +426,7 @@ and syn_elab_rules =
           switch (b) {
           | None => None
           | Some((drs, delta)) =>
-            switch (syn_elab_rule(ctx, delta, r, pat_ty, glb)) {
+            switch (syn_elab_rule(ctx, delta, r, ty_scrut, glb)) {
             | None => None
             | Some((dr, delta)) =>
               let drs = drs @ [dr];
@@ -450,12 +446,12 @@ and syn_elab_rule =
       ctx: Contexts.t,
       delta: Delta.t,
       r: UHExp.rule,
-      pat_ty: HTyp.t,
+      ty_scrut: HTyp.t,
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
-  switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
+  switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_scrut)) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
     switch (syn_elab(ctx, delta, clause)) {

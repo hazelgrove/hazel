@@ -164,9 +164,14 @@ let rec cursor_on_outer_expr:
         switch (operand) {
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
         | Case(InconsistentBranches(_, _), scrut, rules) =>
-          InconsistentBranchesErr(
-            Statics_Exp.case_rule_types(ctx, scrut, rules),
-          )
+          switch (Statics_Exp.syn(ctx, scrut)) {
+          | Some(ty_scrut) =>
+            switch (Statics_Exp.syn_rule_types(ctx, ty_scrut, rules)) {
+            | Some(rule_types) => InconsistentBranchesErr(rule_types)
+            | _ => StandardErr(UHExp.get_err_status_operand(operand))
+            }
+          | None => StandardErr(UHExp.get_err_status_operand(operand))
+          }
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -545,16 +550,15 @@ and syn_cursor_info_zoperand =
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
   | CursorE(_, Case(InconsistentBranches(_, _), scrut, rules)) =>
+    let* ty_scrut = Statics_Exp.syn(ctx, scrut);
+    let* rule_types = Statics_Exp.syn_rule_types(ctx, ty_scrut, rules);
     Some(
       CursorInfo_common.mk(
-        SynInconsistentBranches(
-          Statics_Exp.case_rule_types(ctx, scrut, rules),
-          steps,
-        ),
+        SynInconsistentBranches(rule_types, steps),
         ctx,
         cursor_term,
       ),
-    )
+    );
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -601,7 +605,7 @@ and syn_cursor_info_zoperand =
                 switch (types_opt) {
                 | None => None
                 | Some(types) =>
-                  switch (Statics_Exp.syn_rule(ctx, r, pat_ty)) {
+                  switch (Statics_Exp.syn_rule(ctx, pat_ty, r)) {
                   | None => None
                   | Some(r_ty) => Some([r_ty, ...types])
                   }

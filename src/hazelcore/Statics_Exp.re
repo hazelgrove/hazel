@@ -143,9 +143,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => None
-  | Case(InconsistentBranches(_), scrut, _) =>
-    let* _ = syn(ctx, scrut);
-    // TODO(andrew): check branches are actually inconsistent branches
+  | Case(InconsistentBranches(_), scrut, rules) =>
+    //TODO(andrew): this change causes impossible syn
+    let* ty_scrut = syn(ctx, scrut);
+    let* clause_types = syn_rule_types(ctx, ty_scrut, rules);
+    let _ =
+      switch (HTyp.join_all(GLB, clause_types)) {
+      | None => Some(HTyp.Unknown(Internal))
+      | Some(_) => None
+      };
     Some(HTyp.Unknown(Internal));
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
@@ -165,32 +171,32 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | R => Sum(Unknown(Internal), ty)
     };
   | Case(CaseNotInHole, scrut, rules) =>
-    let* clause_ty = syn(ctx, scrut);
-    syn_rules(ctx, rules, clause_ty);
+    let* ty_scrut = syn(ctx, scrut);
+    syn_rules(ctx, ty_scrut, rules);
   | Parenthesized(body) => syn(ctx, body)
   }
+and syn_rule_types =
+    (ctx: Contexts.t, ty_scrut: HTyp.t, rules: UHExp.rules)
+    : option(list(HTyp.t)) =>
+  rules |> List.map(syn_rule(ctx, ty_scrut)) |> OptUtil.sequence
 and syn_rules =
-    (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
-  let* clause_types =
-    List.fold_left(
-      (types_opt, r) => {
-        let* types = types_opt;
-        let+ r_ty = syn_rule(ctx, r, pat_ty);
-        [r_ty, ...types];
-      },
-      Some([]),
-      rules,
-    );
+    (ctx: Contexts.t, ty_scrut: HTyp.t, rules: UHExp.rules): option(HTyp.t) => {
+  let* clause_types = syn_rule_types(ctx, ty_scrut, rules);
   HTyp.join_all(GLB, clause_types);
 }
 and syn_rule =
-    (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
-  let Rule(p, clause) = rule;
-  let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
+    (ctx: Contexts.t, ty_scrut: HTyp.t, Rule(p, clause): UHExp.rule)
+    : option(HTyp.t) => {
+  let* ctx = Statics_Pat.ana(ctx, p, ty_scrut);
   syn(ctx, clause);
 }
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
-  ana_block(ctx, e, ty)
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let+ _ = syn_block(ctx, e);
+    ();
+  | _ => ana_block(ctx, e, ty)
+  }
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
@@ -292,14 +298,8 @@ and ana_operand =
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
   | Case(_, scrut, rules) =>
-    switch (ty) {
-    | HTyp.Unknown(SynPatternVar) =>
-      let+ _ = syn_operand(ctx, operand);
-      ();
-    | _ =>
-      let* ty1 = syn(ctx, scrut);
-      ana_rules(ctx, rules, ty1, ty);
-    }
+    let* ty1 = syn(ctx, scrut);
+    ana_rules(ctx, rules, ty1, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -917,7 +917,13 @@ and ana_fix_holes =
       ty: HTyp.t,
     )
     : (UHExp.t, MetaVarGen.t) =>
-  ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let (op, _, u_gen) =
+      syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e);
+    (op, u_gen);
+  | _ => ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
+  }
 and ana_fix_holes_block =
     (
       ctx: Contexts.t,
@@ -1119,13 +1125,6 @@ and ana_fix_holes_skel =
       (skel, seq, u_gen);
     };
   }
-and case_rule_types =
-    (ctx: Contexts.t, scrut: UHExp.t, rules: UHExp.rules): list(HTyp.t) => {
-  let (_, scrut_ty, _) = syn_fix_holes(ctx, MetaVarGen.init, scrut);
-  let (_, _, rule_types, _) =
-    syn_fix_holes_rules(ctx, MetaVarGen.init, rules, scrut_ty);
-  rule_types;
-}
 and ana_fix_holes_operand =
     (
       ctx: Contexts.t,
@@ -1216,38 +1215,25 @@ and ana_fix_holes_operand =
       };
     }
   | Case(_, scrut, rules) =>
-    switch (ty) {
-    | Unknown(SynPatternVar) =>
-      let (op, _, u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      (op, u_gen);
-    | _ =>
-      let (scrut, scrut_ty, u_gen) =
-        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-      let (_, _, _, common_type) =
-        syn_fix_holes_rules(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          rules,
-          scrut_ty,
-        );
-      let (rules, u_gen) =
-        ana_fix_holes_rules(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          rules,
-          scrut_ty,
-          ty,
-        );
-      switch (common_type) {
-      | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
-      | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
-      };
-    }
+    let (scrut, scrut_ty, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
+    let (_, _, _, common_type) =
+      syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, scrut_ty);
+    let (rules, u_gen) =
+      ana_fix_holes_rules(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        rules,
+        scrut_ty,
+        ty,
+      );
+    switch (common_type) {
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
+    | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
+    };
   }
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {

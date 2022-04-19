@@ -21,9 +21,10 @@ let syn_lines: (Contexts.t, list(UHExp.line)) => option(Contexts.t);
 let syn_opseq: (Contexts.t, UHExp.opseq) => option(HTyp.t);
 let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
 let syn_operand: (Contexts.t, UHExp.operand) => option(HTyp.t);
-let syn_rules: (Contexts.t, UHExp.rules, HTyp.t) => option(HTyp.t);
-let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
-
+let syn_rules: (Contexts.t, HTyp.t, UHExp.rules) => option(HTyp.t);
+let syn_rule: (Contexts.t, HTyp.t, UHExp.rule) => option(HTyp.t);
+let syn_rule_types:
+  (Contexts.t, HTyp.t, UHExp.rules) => option(list(HTyp.t));
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
  */
@@ -141,5 +142,3 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
  * Precondition: provided pattern and expression have consistent types
  */
 let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
-
-let case_rule_types: (Contexts.t, UHExp.t, UHExp.rules) => list(HTyp.t);

@@ -189,7 +189,7 @@ and ana_operand =
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
+    (HTyp.consistent(ty, ty_ann)) ? ana_operand(ctx, op, ty_ann) : None;
   };
 
 let rec syn_nth_type_mode =
