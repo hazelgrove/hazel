@@ -13,7 +13,7 @@ let a_single_example_expression =
   let (msg, _) = CodeSummary.build_msg(example_body, false);
   [
     Node.div(
-      [Attr.name("question_wrapper")],
+      [Attr.name("question_wrapper"), Attr.class_("question_wrapper")],
       [
         Node.select(
           [

@@ -1654,3 +1654,19 @@ h1 {
 .term-tag-exp{
   background-color:rgb(197, 253, 197);
 }
+
+.the-explanation select {
+  float: left;
+  margin: 5px 5px 0 5px;
+}
+
+.question_wrapper{
+  border-top:  #063f23 1px dashed !important;
+  padding: 5px;
+}
+
+.syntactic_form {
+  padding: 5px;
+}
+
+

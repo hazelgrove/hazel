@@ -45,7 +45,7 @@ let view =
     : Node.t => {
   let explanation_view = {
     Node.div(
-      [Attr.classes(["the-explanation"])],
+      [Attr.classes(["the-explanation", "syntactic_form"])],
       [
         Node.div(
           [],

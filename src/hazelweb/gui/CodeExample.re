@@ -61,6 +61,7 @@ let a_single_example_expression_ =
     Node.div(
       [
         Attr.name("question_wrapper"),
+        Attr.class_("question_wrapper"),
         Attr.style(Css_gen.create(~field="float", ~value="left-block")),
       ],
       [

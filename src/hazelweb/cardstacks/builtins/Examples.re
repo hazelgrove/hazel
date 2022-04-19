@@ -396,7 +396,20 @@ let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
 // TODO this needs to be fixed so the right data is passed in
 let question_to_card = (prompt_: Prompt.t): CardInfo.t => {
   name: prompt_.key,
-  caption: Virtual_dom.Vdom.Node.div([], []),
+  caption:
+    Virtual_dom.Vdom.Node.div(
+      [],
+      [
+        Virtual_dom.Vdom.Node.h1(
+          [],
+          [Virtual_dom.Vdom.Node.text(prompt_.key)],
+        ),
+        Virtual_dom.Vdom.Node.p(
+          [],
+          [Virtual_dom.Vdom.Node.text(prompt_.prompt_message)],
+        ),
+      ],
+    ),
   init_zexp: prompt_.program,
 };
 
