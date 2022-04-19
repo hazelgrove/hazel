@@ -298,8 +298,8 @@ and ana_operand =
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
   | Case(_, scrut, rules) =>
-    let* ty1 = syn(ctx, scrut);
-    ana_rules(ctx, rules, ty1, ty);
+    let* ty_scrut = syn(ctx, scrut);
+    ana_rules(ctx, rules, ty_scrut, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -805,10 +805,10 @@ and syn_fix_holes_operand =
       };
     (Inj(NotInHole, side, body), ty, u_gen);
   | Case(_, scrut, rules) =>
-    let (scrut, ty1, u_gen) =
+    let (scrut, ty_scrut, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
     let (rules, u_gen, _, common_type) =
-      syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1);
+      syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty_scrut);
     switch (common_type) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
