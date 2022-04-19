@@ -307,11 +307,11 @@ and syn_cursor_info_line =
       )
     }
   | LetLineZP(zp, def) =>
-    let ty_def =
-      switch (Statics_Exp.syn(ctx, def)) {
-      | Some(ty) => ty
-      | None => failwith("syn_cursor_info_line impossible")
-      };
+    let p = ZPat.erase(zp);
+    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    let* _ = Statics_Exp.ana(def_ctx, def, ty_p);
+    let* ty_def = Statics_Exp.syn(def_ctx, def);
     switch (
       CursorInfo_Pat.ana_cursor_info_zopseq(
         ~steps=steps @ [0],
@@ -323,7 +323,7 @@ and syn_cursor_info_line =
     | None => None
     | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
     | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-      switch (Statics_Exp.recursive_let_id(ctx, ZPat.erase(zp), def)) {
+      switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
       | None => deferrable
       | Some(_) =>
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);

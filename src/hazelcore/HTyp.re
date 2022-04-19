@@ -50,8 +50,8 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   //TODO(andrew): this throws immediately
   /*| (Unknown(SynPatternVar), _)
-  | (_, Unknown(SynPatternVar)) =>
-    failwith("HTyp.consistent: SynPatternVar")*/
+    | (_, Unknown(SynPatternVar)) =>
+      failwith("HTyp.consistent: SynPatternVar")*/
   | (Unknown(_), _)
   | (_, Unknown(_)) => true
   | (Int, Int) => true
