@@ -326,9 +326,8 @@ and syn_cursor_info_line =
       }
     };
   | LetLineZE(p, zdef) =>
-    let def = ZExp.erase(zdef);
     let* (ty_p, _) = Statics_Pat.syn(ctx, p);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, ZExp.erase(zdef));
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
