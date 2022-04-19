@@ -74,27 +74,27 @@ and syn_elab_line =
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotElaborate
-    | Some((ty1, _)) =>
-      let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-      switch (ana_elab(ctx1, delta, def, ty1)) {
+    | Some((ty_p, _)) =>
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      switch (ana_elab(def_ctx, delta, def, ty_p)) {
       | DoesNotElaborate => LinesDoNotElaborate
-      | Elaborates(d1, ty1', delta) =>
+      | Elaborates(d1, ty_def, delta) =>
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
           | Some(x) =>
             FixF(
               x,
-              ty1',
+              ty_def,
               Evaluator.subst_var(
-                DHExp.cast(BoundVar(x), ty1', ty1),
+                DHExp.cast(BoundVar(x), ty_def, ty_p),
                 x,
                 d1,
               ),
             )
           };
-        let d1 = DHExp.cast(d1, ty1', ty1);
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
+        let d1 = DHExp.cast(d1, ty_def, ty_p);
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_def)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
