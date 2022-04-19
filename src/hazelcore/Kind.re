@@ -1,16 +1,18 @@
 include KindCore;
 
+type t = KindCore.t(Index.abs);
+
 let singleton = (ty: HTyp.t): t => Singleton(HTyp.unsafe(ty));
 
-let consistent_subkind = (tyvars: TyVarCtx.t, k: t, k': t): bool =>
+let consistent_subkind = (tyctx: TyCtx.t, k: t, k': t): bool =>
   switch (k, k') {
   | (KHole, _)
   | (_, KHole) => true
-  | (Singleton(_), Type) => true
+  | (Singleton(_), T) => true
   | (Singleton(ty), Singleton(ty')) =>
-    HTyp.equivalent(tyvars, HTyp.of_unsafe(ty), HTyp.of_unsafe(ty'))
-  | (Type, Singleton(_)) => false
-  | (Type, Type) => true
+    HTyp.equivalent(tyctx, HTyp.of_unsafe(ty), HTyp.of_unsafe(ty'))
+  | (T, Singleton(_)) => false
+  | (T, T) => true
   };
 
 let canonical_type = (kind: t): HTyp.t =>

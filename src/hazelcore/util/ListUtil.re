@@ -243,6 +243,16 @@ let combos3 =
   |> List.map(((x, y)) => zs |> List.map(z => (x, y, z)))
   |> List.flatten;
 
+let rec take = (xs: list('a), n: int): list('a) =>
+  n <= 0
+    ? []
+    : (
+      switch (xs) {
+      | [] => failwith("index too high")
+      | [x, ...xs'] => [x, ...take(xs', n - 1)]
+      }
+    );
+
 let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
   xs
   |> List.fold_left(
@@ -287,4 +297,23 @@ let rotate = (xs: list('x)): list('x) =>
   switch (xs) {
   | [] => []
   | [hd, ...tl] => tl @ [hd]
+  };
+
+let rec memf = (f: 'x => bool, xs: list('x)): bool =>
+  switch (xs) {
+  | [x, ...xs'] => f(x) || memf(f, xs')
+  | [] => false
+  };
+
+/* a short-circuiting fold */
+let rec fold_to =
+        (f: ('a, 'x) => option('a), init: 'a, xs: list('x))
+        : ('a, list('x)) =>
+  switch (xs) {
+  | [] => (init, xs)
+  | [x, ...xs'] =>
+    switch (f(init, x)) {
+    | Some(acc) => fold_to(f, acc, xs')
+    | None => (init, xs)
+    }
   };

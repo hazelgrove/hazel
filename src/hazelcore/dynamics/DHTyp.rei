@@ -1,9 +1,9 @@
 [@deriving sexp]
-type t = (TyVarCtx.t, HTyp.t);
+type t = (TyCtx.t, HTyp.t);
 
 let wrap: HTyp.t => t;
 
-let many: (TyVarCtx.t, list(HTyp.t)) => list(t);
+let many: (TyCtx.t, list(HTyp.t)) => list(t);
 
 let normalize: t => HTyp.normalized;
 let head_normalize: t => HTyp.head_normalized;

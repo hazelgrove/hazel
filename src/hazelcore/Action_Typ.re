@@ -35,7 +35,7 @@ let text_operand =
     let name = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(Reserved, u), name), ctx, u_gen);
   | TyVar(name) =>
-    switch (TyVarCtx.index(Contexts.tyvars(ctx), name)) {
+    switch (Contexts.tyvar_index(ctx, name)) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (TyVar(InHole(Unbound, u), name), ctx, u_gen);

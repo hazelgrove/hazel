@@ -1,7 +1,7 @@
 module Hole: {
   type t =
-    | Expression(HTyp.t, VarCtx.t)
-    | Pattern(HTyp.t, VarCtx.t)
+    | Expression(HTyp.t, Contexts.t)
+    | Pattern(HTyp.t, Contexts.t)
     | Type;
 };
 
@@ -13,7 +13,7 @@ let union: (t, t) => t;
 
 let add: (int, Hole.t, t) => t;
 
-let subst_tyvar: (t, Index.t, HTyp.t) => t;
+let subst_tyvar: (t, Index.abs, HTyp.t) => t;
 
 let sexp_of_t: t => Sexplib.Sexp.t;
 let t_of_sexp: Sexplib.Sexp.t => t;

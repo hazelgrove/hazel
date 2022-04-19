@@ -1,19 +1,7 @@
-/* type variable errors */
-module HoleReason = {
-  [@deriving sexp]
-  type t =
-    | Unbound
-    | Reserved
-    | InvalidName;
-};
+open Sexplib.Std;
 
-/* type variable hole status */
-module Status = {
-  [@deriving sexp]
-  type t =
-    | NotInHole(Index.t)
-    | InHole(HoleReason.t, MetaVar.t);
-};
+[@deriving sexp]
+type t = string;
 
 let valid_name: string => bool = {
   let re = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");

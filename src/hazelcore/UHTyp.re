@@ -7,7 +7,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | TyVar(TyVar.Status.t, string)
+  | TyVar(TyVarErrStatus.t, string)
   | Hole
   | Unit
   | Int
@@ -61,7 +61,7 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (HTyp.unsafe(ty)) {
       | Hole => Seq.wrap(Hole)
-      | TyVar(i, name) => Seq.wrap(TyVar(NotInHole(i), name))
+      | TyVar(i, name) => Seq.wrap(TyVar(NotInTyVarHole(i), name))
       | TyVarHole(reason, u, name) =>
         Seq.wrap(TyVar(InHole(reason, u), name))
       | Int => Seq.wrap(Int)
@@ -138,7 +138,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | TyVar(NotInHole(i), name) => HTyp.tyvar(i, name)
+  | TyVar(NotInTyVarHole(i), name) => HTyp.tyvar(i, name)
   | TyVar(InHole(reason, u), name) => HTyp.tyvarhole(reason, u, name)
   | Hole => HTyp.hole
   | Unit => HTyp.product([])
@@ -151,7 +151,7 @@ and expand_operand =
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
-  | TyVar(NotInHole(_), _) => true
+  | TyVar(NotInTyVarHole(_), _) => true
   | TyVar(InHole(_), _) => false
   | Unit => true
   | Int => true

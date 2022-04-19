@@ -90,6 +90,8 @@ let combos2: (list('x), list('y)) => list(('x, 'y));
 
 let combos3: (list('x), list('y), list('z)) => list(('x, 'y, 'z));
 
+let take: (list('a), int) => list('a);
+
 let take_while: ('x => bool, list('x)) => list('x);
 
 // mapAccumL from Haskell
@@ -109,3 +111,7 @@ let map_with_accumulator_opt:
 let disjoint_pairs: list('x) => list(('x, 'x));
 
 let rotate: list('x) => list('x);
+
+let memf: ('x => bool, list('x)) => bool;
+
+let fold_to: (('a, 'x) => option('a), 'a, list('x)) => ('a, list('x));

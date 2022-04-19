@@ -1,16 +1,16 @@
 open OptUtil.Syntax;
 
 /* escape hatch for unsafe type operations */
-type unsafe = HTypSyntax.t;
+type unsafe = HTypSyntax.t(Index.abs);
 
 /* types */
 [@deriving sexp]
-type t = HTypSyntax.t;
+type t = HTypSyntax.t(Index.abs);
 
 /* head normalized types */
 type head_normalized =
-  | TyVar(Index.t, string)
-  | TyVarHole(TyVar.HoleReason.t, MetaVar.t, string)
+  | TyVar(Index.t(Index.abs), string)
+  | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, string)
   | Hole
   | Int
   | Float
@@ -21,7 +21,7 @@ type head_normalized =
   | List(t);
 
 /* normalized types */
-type normalized = HTypSyntax.t;
+type normalized = HTypSyntax.t(Index.abs);
 
 /**
  * Gets the type in string format.
@@ -65,9 +65,10 @@ type join =
   | GLB
   | LUB;
 
-let tyvar = (i: Index.t, name: string): t => TyVar(i, name);
-let tyvarhole = (reason: TyVar.HoleReason.t, i: Index.t, name: string): t =>
-  TyVarHole(reason, i, name);
+let tyvar = (i: Index.t(Index.abs), name: string): t => TyVar(i, name);
+let tyvarhole =
+    (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, name: string): t =>
+  TyVarHole(reason, u, name);
 let hole: t = Hole;
 let int: t = Int;
 let float: t = Float;
@@ -84,7 +85,7 @@ let is_tyvar = (ty: t): bool =>
   | _ => false
   };
 
-let tyvar_index = (ty: t): option(Index.t) =>
+let tyvar_index = (ty: t): option(Index.t(Index.abs)) =>
   switch (ty) {
   | TyVar(i, _) => Some(i)
   | TyVarHole(_)
@@ -134,15 +135,15 @@ let precedence = (ty: t): int =>
 /*
  Replaces a singleton-kinded type variable with a head-normalized type.
  */
-let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
+let rec head_normalize = (tyvars: TyCtx.t, ty: t): head_normalized =>
   switch (ty) {
   | TyVar(i, name) =>
-    switch (TyVarCtx.kind(tyvars, i)) {
+    switch (TyCtx.tyvar_kind(tyvars, i)) {
     | Some(Singleton(ty1)) => head_normalize(tyvars, ty1)
     | Some(_) => TyVar(i, name)
     | None =>
       failwith(
-        __LOC__ ++ ": unknown type variable index " ++ Int.to_string(i),
+        __LOC__ ++ ": unknown type variable index " ++ Index.to_string(i),
       )
     }
   | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
@@ -159,15 +160,15 @@ let rec head_normalize = (tyvars: TyVarCtx.t, ty: t): head_normalized =>
 /*
  Replaces every singleton-kinded type variable with a normalized type.
  */
-let rec normalize = (tyvars: TyVarCtx.t, ty: t): normalized =>
+let rec normalize = (tyvars: TyCtx.t, ty: t): normalized =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (TyVarCtx.kind(tyvars, i)) {
+    switch (TyCtx.tyvar_kind(tyvars, i)) {
     | Some(Singleton(ty1)) => normalize(tyvars, ty1)
     | Some(_) => ty
     | None =>
       failwith(
-        __LOC__ ++ ": unknown type variable index " ++ Int.to_string(i),
+        __LOC__ ++ ": unknown type variable index " ++ Index.to_string(i),
       )
     }
   | TyVarHole(_)
@@ -224,23 +225,23 @@ let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   };
 
 /* context-dependent type equivalence */
-let equivalent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+let equivalent = (tyvars: TyCtx.t, ty: t, ty': t): bool =>
   normalized_equivalent(normalize(tyvars, ty), normalize(tyvars, ty'));
 
-let consistent = (tyvars: TyVarCtx.t, ty: t, ty': t): bool =>
+let consistent = (tyvars: TyCtx.t, ty: t, ty': t): bool =>
   normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
 
-let inconsistent = (tyvars: TyVarCtx.t, ty1: t, ty2: t): bool =>
+let inconsistent = (tyvars: TyCtx.t, ty1: t, ty2: t): bool =>
   !consistent(tyvars, ty1, ty2);
 
-let rec consistent_all = (tyvars: TyVarCtx.t, types: list(t)): bool =>
+let rec consistent_all = (tyvars: TyCtx.t, types: list(t)): bool =>
   switch (types) {
   | [] => true
   | [hd, ...tl] =>
     !List.exists(inconsistent(tyvars, hd), tl) || consistent_all(tyvars, tl)
   };
 
-let matched_arrow = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
+let matched_arrow = (tyvars: TyCtx.t, ty: t): option((t, t)) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
   | TyVarHole(_)
@@ -257,7 +258,7 @@ let get_prod_elements: head_normalized => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 /* matched sum types */
-let matched_sum = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
+let matched_sum = (tyvars: TyCtx.t, ty: t): option((t, t)) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
   | TyVarHole(_)
@@ -267,7 +268,7 @@ let matched_sum = (tyvars: TyVarCtx.t, ty: t): option((t, t)) =>
   };
 
 /* matched list types */
-let matched_list = (tyvars: TyVarCtx.t, ty: t): option(t) =>
+let matched_list = (tyvars: TyCtx.t, ty: t): option(t) =>
   switch (head_normalize(tyvars, ty)) {
   | Hole
   | TyVarHole(_)
@@ -290,7 +291,7 @@ let rec complete: t => bool =
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
-let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
+let rec join = (tyvars: TyCtx.t, j: join, ty1: t, ty2: t): option(t) =>
   switch (ty1, ty2) {
   | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
   | (ty, Hole | TyVarHole(_))
@@ -300,18 +301,18 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     | LUB => Some(ty)
     }
   | (TyVar(i, _), _) =>
-    let* k = TyVarCtx.kind(tyvars, i);
+    let* k = TyCtx.tyvar_kind(tyvars, i);
     switch (k) {
     | Singleton(ty) => join(tyvars, j, ty, ty2)
     | KHole => join(tyvars, j, Hole, ty2)
-    | Type => failwith("impossible for bounded type variables (currently) 1")
+    | T => failwith("impossible for bounded type variables (currently) 1")
     };
   | (_, TyVar(i, _)) =>
-    let* k = TyVarCtx.kind(tyvars, i);
+    let* k = TyCtx.tyvar_kind(tyvars, i);
     switch (k) {
     | KindCore.Singleton(ty) => join(tyvars, j, ty1, ty)
     | KHole => join(tyvars, j, ty1, Hole)
-    | Type => failwith("impossible for bounded type variables (currently) 2")
+    | T => failwith("impossible for bounded type variables (currently) 2")
     };
   | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
@@ -332,7 +333,7 @@ let rec join = (tyvars: TyVarCtx.t, j: join, ty1: t, ty2: t): option(t) =>
   | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
   };
 
-let join_all = (tyvars: TyVarCtx.t, j: join, types: list(t)): option(t) =>
+let join_all = (tyvars: TyCtx.t, j: join, types: list(t)): option(t) =>
   switch (types) {
   | [] => None
   | [hd] => Some(hd)

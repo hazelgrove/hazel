@@ -5,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | TyVar(TyVar.Status.t, string)
+  | TyVar(TyVarErrStatus.t, string)
   | Hole
   | Unit
   | Int

@@ -44,27 +44,34 @@ let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* new_ctx = syn_lines(ctx, leading);
+  let+ ty = syn_opseq(new_ctx, conclusion);
+  let new_tyvar_bindings = TyVarCtx.bindings(Contexts.tyvars(new_ctx));
   let n =
-    List.length(TyVarCtx.bindings(Contexts.tyvars(new_ctx)))
+    List.length(new_tyvar_bindings)
     - List.length(TyVarCtx.bindings(Contexts.tyvars(ctx)));
-  let rec go = (new_ctx, m, local_tyvars) =>
-    if (m < n) {
-      switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), 0)) {
-      | Some(kind) =>
-        let ty = Kind.canonical_type(kind);
-        let new_ctx = Contexts.unbind0(new_ctx);
-        go(new_ctx, m + 1, [(m, ty), ...local_tyvars]);
-      | None => failwith(__LOC__ ++ ": unbound type variable index")
-      };
-    } else {
-      let+ ty = syn_opseq(new_ctx, conclusion);
-      List.fold_left(
-        (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i),
-        ty,
-        local_tyvars,
-      );
-    };
-  go(new_ctx, 0, []);
+  List.fold_left(
+    (ty, (_, kind)) => HTyp.subst(ty, 0, Kind.canonical_type(kind)),
+    ty,
+    ListUtil.take(new_tyvar_bindings, n),
+  );
+  // let rec go = (new_ty, m) =>
+  //   if (m < n) {
+  //     switch (TyVarCtx.kind(Contexts.tyvars(new_ctx), m)) {
+  //     | Some(kind) =>
+  //       // let ty = Kind.canonical_type(kind);
+  //       let new_ty = HTyp.subst(ty, 0, Kind.canonical_type(kind));
+  //       // let new_ctx = Contexts.unbind0(new_ctx);
+  //       go(new_ty, m + 1);
+  //     | None => failwith(__LOC__ ++ ": unbound type variable index")
+  //     };
+  //   } else {
+  //     List.fold_left(
+  //       (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i),
+  //       ty,
+  //       local_tyvars,
+  //     );
+  //   };
+  // go(new_ctx, 0, []);
 }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
@@ -242,7 +249,7 @@ and ana_block =
         let ty_m = Kind.canonical_type(kind);
         let new_ctx = Contexts.unbind0(new_ctx);
         go(new_ctx, m + 1, [(m, ty_m), ...local_tyvars]);
-      | None => failwith(__LOC__ ++ ": unboun type variable index")
+      | None => failwith(__LOC__ ++ ": unbound type variable index")
       };
     } else {
       let subst_ty = (ty, (i, ty_i)) => HTyp.subst(ty, i, ty_i);
