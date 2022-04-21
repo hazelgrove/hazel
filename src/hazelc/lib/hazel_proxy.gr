@@ -2,19 +2,32 @@ import * from "./syntax_tree"
 import * from "./hazel_util"
 import fail from "pervasives"
 
-@disableGC
-export let emb_bool = (b : Number) => {
+export let emb_bool = (b : Bool) => {
   if (is_const(b)) {
-    Bool(b) : (HTyp)
+    Bool(b) : HTyp
   } else {
-    fail("failed cast: passed-in argument is an indet exp") // impossible case
+    fail("failed emb") // impossible case
   }
 }
 
-@disableGC
 export let prj_bool = (h : HTyp) => {
   match (h) {
     Bool(b) => b,
-    _ => fail("failed projection: passed-in argument isn't of Bool type") 
+    _ => fail("failed prj") 
+  }
+}
+
+export let emb_int = (i : Number) => {
+  if(is_const(b)) {
+    Int(b) : HTyp
+  } else {
+    fail("failed emb")
+  }
+}
+
+export let prj_int = (h : HTyp) => {
+  match (h) {
+    Int(i) => i,
+    _ => fail("failed prj")
   }
 }
