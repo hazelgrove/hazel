@@ -1,5 +1,6 @@
 import * from "./syntax_tree"
 import * from "./hazel_util"
+import fail from "pervasives"
 
 export enum HTyp {
   Indet(DHExp),
@@ -11,14 +12,13 @@ export let emb_bool = (b : Number) => {
   if (is_const(b)) {
     Bool(b) : (HTyp)
   } else {
-    print("failed cast: passed-in argument is an indet exp")
-    b // impossible case
+    fail("failed cast: passed-in argument is an indet exp") // impossible case
   }
 }
 
 export let prj_bool = (h : HTyp) => {
   match (h) {
     Bool(b) => b,
-    _ => print("failed projection: passed-in argument isn't of Bool type") 
+    _ => fail("failed projection: passed-in argument isn't of Bool type") 
   }
 }
