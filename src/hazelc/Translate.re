@@ -108,13 +108,13 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
       | _ => sprintf("Hazel.add(%s, %s)", v1, v2) //This is wrong
       };
     Program.assign_tmp_var(prog, exp);
-//   | BinFloatOp(op, d1, d2) =>
-//     sprintf(
-//       "(%s %s %s)",
-//       translate_exp(d1),
-//       translate_float_op(op),
-//       translate_exp(d2),
-//     )
+  //   | BinFloatOp(op, d1, d2) =>
+  //     sprintf(
+  //       "(%s %s %s)",
+  //       translate_exp(d1),
+  //       translate_float_op(op),
+  //       translate_exp(d2),
+  //     )
   | Pair(d1, d2) =>
     let (v1, prog) = translate_exp(d1, prog);
     let (v2, prog) = translate_exp(d2, prog);
@@ -152,8 +152,8 @@ let rec translate_exp = (d: IHExp.t, prog: Program.t) => {
     let (v1, prog) = translate_exp(d1, prog);
     let proxy = translate_proxy(ty, ty');
     let exp = sprintf("%s(%s)", proxy, v1);
-    Program.assign_tmp_var(prog, exp)
-  // | FailedCast(_)
+    Program.assign_tmp_var(prog, exp);
+  | FailedCast(_) => raise(NotImplemented("failed-casts"))
   // | InvalidOperation(_) => raise(NotImplemented)
   | _ => raise(NotImplemented("expressions"))
   };
@@ -194,21 +194,21 @@ and translate_proxy = (ty: HTyp.t, ty': HTyp.t) => {
   switch (ty, ty') {
   | (Hole, ty'') =>
     let typ_str = translate_typ(ty'');
-    sprintf("%sprj_%s", prefix, typ_str)
+    sprintf("%sprj_%s", prefix, typ_str);
   | (ty'', Hole) =>
     let typ_str = translate_typ(ty'');
-    sprintf("%semb_%s", prefix, typ_str)
+    sprintf("%semb_%s", prefix, typ_str);
   | _ => raise(NotImplemented("wip"))
   };
 }
 and translate_typ = (ty: HTyp.t) => {
-  switch(ty) {
+  switch (ty) {
   | Hole => "hole"
   | Int => "int"
   | Bool => "bool"
   | Float => "float"
   | _ => raise(NotImplemented("compound types wip"))
-  }
+  };
 };
 
 // and translate_bool_op = (op: IHExp.BinBoolOp.t) => {
