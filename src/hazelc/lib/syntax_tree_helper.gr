@@ -14,6 +14,13 @@ export let buildBinBoolOpAnd = (x, y) => {
 }
 
 @disableGC
+export let buildBinIntOpPlus = (x : Number, y : Number) => {
+    let x = to_DHExp(x)
+    let y = to_DHExp(y)
+    to_number(BinIntOp(Plus, x, y))
+}
+
+@disableGC
 export let buildEmptyHole = (metavar : Number) => {
     to_number(EmptyHole(metavar))
 }
