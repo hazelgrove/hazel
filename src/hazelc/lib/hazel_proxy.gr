@@ -2,12 +2,7 @@ import * from "./syntax_tree"
 import * from "./hazel_util"
 import fail from "pervasives"
 
-export enum HTyp {
-  Indet(DHExp),
-  Int(Number),
-  Bool(Number),
-}
-
+@disableGC
 export let emb_bool = (b : Number) => {
   if (is_const(b)) {
     Bool(b) : (HTyp)
@@ -16,6 +11,7 @@ export let emb_bool = (b : Number) => {
   }
 }
 
+@disableGC
 export let prj_bool = (h : HTyp) => {
   match (h) {
     Bool(b) => b,
