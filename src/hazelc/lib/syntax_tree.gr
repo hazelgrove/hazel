@@ -21,3 +21,9 @@ export enum DHExp {
     BinBoolOp(BinBoolOp, DHExp, DHExp),
     BinIntOp(BinIntOp, DHExp, DHExp),
 }
+
+export enum HTyp {
+  Indet(DHExp),
+  Int(Number),
+  Bool(Number),
+}
