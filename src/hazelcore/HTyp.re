@@ -13,7 +13,7 @@ type raef_provenance = // this can still be called hole_provenance
 type andrew_provenance = // this could be called unknown_hole
   | TypeHole
   | SynPatternVar // let expr with no type annot
-  | Internal      // all of our provenance prob all here
+  | Internal;      // all of our provenance prob all here
 
 type hole_provenance = // this can still be called hole_provenance
   | Matched_arrow(direction)
@@ -84,39 +84,196 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
   | Var(x) =>
-        let ctx = Contexts.extend_gamma(ctx, (x, Unknown(SynPatternVar)));   TODO: ASK PROF OMAR ABOUT THIS. Why extend the context at all for this var? (Even before we were using Hole Provenances)
+        let ctx = Contexts.extend_gamma(ctx, (x, Unknown(SynPatternVar)));   
+        // Above should maybe be Unknown(Internal); inj annot with prod
+        // TODO: ASK PROF OMAR ABOUT THIS. Why extend the context at all for this var? (Even before we were using Hole Provenances)
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Unknown(SynPatternVar), ctx, u_gen));
   };
 };
 */
 
-type base_hole_provenance = 
-  | UserGenerated   // akin to Andrew's TypeHole provenance
-  | SynPatternVar;
+// make_impossibler:
+// Currently it looks like the result of synthesis on holes results in Internal
+// THI prototype works off of ALFA semantics (unannotated means we dont' extend gamma until synthesizing edef)
 
+/*
+type base_hole_provenance =
+  | UserGenerated (includes placeholder holes and explicitly annotated type holes)
+  | Wrapped       (holes Hazel automatically inserts; should be ignored)
+  | ???
+  | SynPatternVar
+*/
+
+// Overarching Qs:
+// ---------------
+// Why is gamma extended to include a hole annot in unannotated lets?
 // TODO: ASK ANDREW AGAIN ABOUT INTERNAL and its purpose/role
+//    Seems used in glb -> already handled in case constraint rule so you wouldn't need to reason about cnstrnts on the glb hole
+// Should inference ignore the holes that Hazel wraps expressions in from one change to another? 
+// Like, do we want to generate inference on the 'fixed' result from the previous stage ever? Or should we only ever reason
+// about edits the user made themselves?
+//    if so, differentiating between internal wrapped holes and "user generated" could be useful
+//    it is of note that operations like glb with its returned hole should be constrained as eq to the hole used to generate the glb
+
+type base_hole_provenance = 
+  | UserGenerated   
+  // ^ akin to Andrew's TypHole provenance (explicitly, a hole that the user wrote in the editor that wasn't automatically generated)
+  // Missing internal (currently used to represent results of syn on a lot of different holes)
+  | SynPatternVar;
   
-type derived_hole_provenance = // this can still be called hole_provenance // by nature, these are Internal
+type derived_hole_provenance =
   | Matched_arrow(direction)
   | Matched_sum(direction)
   | Matched_prod(int)
   | Matched_list;
 
+// glb should spawn a fresh hole not derived from a user hole (its a base case of holes)
+//  maybe consider all the ways we can have a fresh hole that is not derived (ie all base cases)
+//  all other branches should be constrained to the glb spawned hole
+//  maybe make internal its own enveloping case for the things we reason about to avoid excessive pattern matching
+//  mutually recursive could be nice
+
+// like the base case of a provenace
+//  instead of lists, rec type
+// type unknown_prov = Matched of dir * unknown_prov | Base of base_prov * id
 type base_hole_id = (MetaVar.t, base_hole_provenance);
 type derived_hole_id = (MetaVar.t, list(derived_hole_provenance))
 
-type unknown_type_2 = 
-  | Base(base_hole_id)
-  | Derived(internal_hole_id);
+//REC OPTIONS
+//For all:
+type hole_id = (MetaVar.t, hole_provenance)
 
-// holes that exist with no ancestor
-// holes that have an ancestor
+// binary recursive type structures
+type binary_ctr =
+  | Arrow
+  | Sum
+  | Prod;
+
+// list and other unary type operators; could have option later, etc
+type unary_ctr =
+  | List;
+
+// Rec option 1: Without mutually recursive types
+type base_provenance =
+  | UserGenerated
+  | Internal
+  | SynPatternVar;
+
+type hole_provenance = 
+  | Base(base_provenance, MetaVar.t)
+  | Binary_Match(hole_provenance, binary_ctr)
+  | Unary_Match(hole_provenance, unary_ctr)
+
+// Rec option 2: gross because its kind of reversed
+type matched_provenance =
+  | BinaryMatch(binary_ctr, direction)
+  | UnaryMatch(unary_ctr);
+
+
+// NOTE: This is reversed (inside-out) but it's probably fine...
+// NOTE: This is close to what we need probably
+
+// (In HTyp)
+type hole_id = (MetaVar.t, hole_provenance);
+
+type hole_provenance =
+  | UserGenerated
+  | SynPatternVar
+  | Internal(internal_provenance)
+and internal_provenance =
+  | GLB
+  | SynRes
+  // enumerate other base cases here...
+  | Matched_arrow_L(hole_provenance)
+  | Matched_arrow_R(hole_provenance)
+  | Matched_sum_L(hole_provenance)
+  | Matched_sum_R(hole_provenance)
+  | Matched_prod_L(hole_provenance)
+  | Matched_prod_R(hole_provenance)
+  | Matched_list(hole_provenance);
+
+
+type hole_provenance =
+  | UserGenerated(MetaVar.t)
+  | SynPatternVar
+  | Internal(internal_provenance)
+and internal_provenance =
+  // enumerate other base cases here...
+  | Matched_arrow_L(hole_provenance)
+  | Matched_arrow_R(hole_provenance)
+  | Matched_sum_L(hole_provenance)
+  | Matched_sum_R(hole_provenance)
+  | Matched_prod_L(hole_provenance)
+  | Matched_prod_R(hole_provenance)
+  | Matched_list(hole_provenance);
+
+// type t = Unknown(hole_id) | ... | ...
+
+/*
+  left of the right of id 3
+  3's right's left Nil
+
+  UserGenererated 3's Nil
+  UserGenerated 3 (Matched R's (Matched L's (Nil)))
+*/
+
+// type hole_provenance =
+//   | UserGenerated of children
+//   | SynPatternVar of children
+//   | Internal(internal_provenance)
+// and internal_provenance =
+//   | Nil
+//   | GLB
+//   | SynRes //idk if this exists
+//   // enumerate other base cases here...
+//   | Matched_arrow_L(hole_provenance)
+//   | Matched_arrow_R(hole_provenance)
+//   | Matched_sum_L(hole_provenance)
+//   | Matched_sum_R(hole_provenance)
+//   | Matched_prod_L(hole_provenance)
+//   | Matched_prod_R(hole_provenance)
+//   | Matched_list(hole_provenance);
+
+
+// type t = Unknown(hole_id) | ...
+
+// Anand's scratch work for recursive option
+type hole_id = MetaVar.t;
+type hole_provenance =
+  | GLB
+  | MatchedList
+  | Matched_arrow_L(hole_provenance)
+  | Matched_arrow_R(hole_provenance)
+  | Matched_sum_L(hole_provenance)
+  | Matched_sum_R(hole_provenance)
+  | Matched_prod_L(hole_provenance)
+  | Matched_prod_R(hole_provenance);
+type unknown_type =
+  | UserGenerated(hole_id)
+  | SynPatternVar // alternatibely, SynPatternVar could be Internal(_, SynPatternVar) vs Internal(_, _)
+  | Internal(hole_id, hole_provenance);
+
+/*LLR of 2
+  Internal(
+    Matched(
+      Arrow left
+    )
+  )
+*/
+
+// Only base holes have a newly generated MetaVar.t
+// A derived hole's metavar.t must be that of a base hole
+//   possible albeit kinda convoluted change: type derived_hole_id = (base_hole_id, list(derived_hole_provenance));
+
+// type unknown_type = 
+//   | Base(base_hole_id)
+//   | Derived(internal_hole_id);
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | Unknown(unknown_type) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
+  | Unknown(hole_id) // UHHole [1] -> HHole [1.1.1.1.2.1], HHole [1.1.1.1.2.2]
   // UHHole [1] used in (HHole [1.1] , HHole [1.2]) ; 
   // UHHole [1] used in (HHole [1.3] , HHole [1.4]) ;
   // HHole [1.3] used in (HHole [1.3.1], HHole [1.3.2])
@@ -227,15 +384,43 @@ let matched_arrow: t => (option(t, t)) =
 //?0   unsolved   Num->?0.matched_right Bool->?0.matched_right
 //?0.matched_right   unsolved   Num//Bool
 
+/*
+type hole_id = (MetaVar.t, hole_provenance);
+
+type hole_provenance =
+  | Leaf or None or something
+  | UserGenerated
+  | SynPatternVar
+  | Internal(internal_provenance)
+and internal_provenance =
+  | GLB
+  | SynRes //idk if this exists
+  // enumerate other base cases here...
+  | Matched_arrow_L(hole_provenance)
+  | Matched_arrow_R(hole_provenance)
+  | Matched_sum_L(hole_provenance)
+  | Matched_sum_R(hole_provenance)
+  | Matched_prod_L(hole_provenance)
+  | Matched_prod_R(hole_provenance)
+  | Matched_list(hole_provenance);
+
+*/
+
 let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
-    | Hole(base, provenances) =>
-      let hole_left = Hole(base, provenances @ (Matched_arrow(L)));
-      let hole_right = Hole(base, provenances @ (Matched_arrow(R)));
-      let pair = (hole_left, hole_right);
-      let constraints = [(typ, Arrow(hole_left, hole_right))];
-      (Some(pair), constraints);
+    | Unknown(var, prov) =>
+      // let hole_left = Hole(base, provenances @ (Matched_arrow(L)));
+      // let hole_right = Hole(base, provenances @ (Matched_arrow(R)));
+      // let pair = (hole_left, hole_right);
+      // let constraints = [(typ, Arrow(hole_left, hole_right))];
+      // (Some(pair), constraints);
+      // =
+      let unknown_lt = Unknown(var, Matched_hole_L(prov));
+      let unknown_rt = Unknown(var, Matched_hole_R(prov));
+      let pair = (unknown_lt, unknown_rt);
+      let constraints = [(typ, Arrow(unknown_lt, unknown_rt))];
+      (Some(pair), constraints)
     | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
     | _ => (None, [])
   };
