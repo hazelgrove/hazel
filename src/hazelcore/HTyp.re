@@ -54,6 +54,35 @@ let precedence = (ty: t): int =>
   | (List(_), _) => false
   };
 
+let eq = (==);
+
+let rec consistent = (x, y) =>
+  switch (x, y) {
+  //TODO(andrew): this throws immediately
+  /*| (Unknown(SynPatternVar), _)
+    | (_, Unknown(SynPatternVar)) =>
+      failwith("HTyp.consistent: SynPatternVar")*/
+  | (Unknown(_), _)
+  | (_, Unknown(_)) => true
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    consistent(ty1, ty1') && consistent(ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(_, _), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.for_all2_opt(consistent, tys1, tys2)
+    |> Option.value(~default=false)
+  | (Prod(_), _) => false
+  | (List(ty), List(ty')) => consistent(ty, ty')
+  | (List(_), _) => false
+  };
+
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
 
 let rec consistent_all = (types: list(t)): bool =>
@@ -75,16 +104,16 @@ let get_prod_elements: t => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 let matched_arrow: t => (option(t, t)) =
-  (typ: t) =>
-  let pair, _ = matched_arrow_inf(typ);
-  pair;
+  (typ: t) => {
+  let (pair, _) = matched_arrow_inf(typ);
+  pair };
 
 let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
     | Unknown(prov) =>
-      let unknown_lt = Unknown(Matched_hole_L(prov));
-      let unknown_rt = Unknown(Matched_hole_R(prov));
+      let unknown_lt = Unknown(Matched_arrow_L(prov));
+      let unknown_rt = Unknown(Matched_arrow_R(prov));
       let pair = (unknown_lt, unknown_rt);
       let constraints = [(typ, Arrow(unknown_lt, unknown_rt))];
       (Some(pair), constraints)
@@ -92,36 +121,51 @@ let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
     | _ => (None, [])
   };
 
-let matched_sum: t => (option(t, t)) =
+// theoretical binary mp for holes only
+let matched_prod_inf: t => ((t, t), list(inf_constraint)) =
   (typ: t) =>
-  let pair, _ = matched_sum_inf(typ);
-  pair;
+  switch (typ) {
+    | Unknown(prov) =>
+      let unknown_lt = Unknown(Matched_prod_L(prov));
+      let unknown_rt = Unknown(Matched_prod_R(prov));
+      let pair = (unknown_lt, unknown_rt);
+      let constraints = [(typ, Prod([unknown_lt, unknown_rt]))];
+      (pair, constraints)
+    | _ => (typ, [])
+  };
+
+let matched_sum: t => (option(t, t)) =
+  (typ: t) => {
+  let (pair, _) = matched_sum_inf(typ);
+  pair
+  };
 
 let matched_sum_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
-    | Hole(base, provenances) =>
-      let hole_left = Hole(base, provenances @ (Matched_sum(L)));
-      let hole_right = Hole(base, provenances @ (Matched_sum(R)));
-      let pair = (hole_left, hole_right);
-      let constraints = [(typ, Sum(hole_left, hole_right))];
-      (Some(pair), constraints);
+    | Unknown(prov)  =>
+      let unknown_lt = Unknown(Matched_sum_L(prov));
+      let unknown_rt = Unknown(Matched_sum_R(prov));
+      let pair = (unknown_lt, unknown_rt);
+      let constraints = [(typ, Sum(unknown_lt, unknown_rt))];
+      (Some(pair), constraints)
     | Sum(ty1, ty2) => (Some((ty1, ty2)), [])
     | _ => (None, [])
   };
 
 let matched_list: t => (option(t, t)) =
-  (typ: t) =>
-  let pair, _ = matched_list_inf(typ);
-  pair;
+  (typ: t) => {
+  let (ty, _) = matched_list_inf(typ);
+  ty
+  };
 
 let matched_list_inf: t => (option(t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
     | Hole(base, provenances) =>
-      let hole_elt = Hole(base, provenances @ Matched_list);
-      let constraint = [(typ, List(hole_elt))];
-      (Some(hole_elt), constraint);
+      let unknown_list = Unknown(Matched_list(prov));
+      let constraints = [(typ, unknown_list)];
+      (Some(unknown_list), constraints)
     | List(ty_ls) => (Some(ty_ls), [])
     | _ => (None, [])
   };
