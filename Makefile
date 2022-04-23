@@ -23,7 +23,7 @@ echo-html:
 	@echo "$(HTML_FILE)"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
+	"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" "file://wsl.localhost/Ubuntu-18.04/home/hilbert/FPLab/Hazel/$(HTML_FILE)"
 
 win-firefox:
 	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
