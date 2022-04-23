@@ -17,7 +17,7 @@ branch is updated infrequently and is currently almost two years behind!
 
 ### Short version
 
-If you already have `ocaml` version 4.08.1 and least version 2.0 of `opam`
+If you already have `ocaml` version 4.12.1 and least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -134,6 +134,9 @@ The `make dev` and `make release` commands do three things:
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+
+For a smoother dev experience, use `make watch` to automatically watch 
+for file changes. This will require installing fswatch (see INSTALL.md).
    
 ### Debugging
 

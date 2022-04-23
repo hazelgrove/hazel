@@ -29,7 +29,6 @@ let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
-let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,
@@ -142,3 +141,5 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
  * Precondition: provided pattern and expression have consistent types
  */
 let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;
+
+let case_rule_types: (Contexts.t, UHExp.t, UHExp.rules) => list(HTyp.t);

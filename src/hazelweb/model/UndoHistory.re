@@ -8,7 +8,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
-  previous_action: Action.t,
+  previous_action: ModelAction.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
 };
@@ -163,7 +163,7 @@ let get_delete_action_group =
             elt.cursor_term_info.cursor_term_before,
             elt.cursor_term_info.cursor_term_after,
           ) {
-          | (Exp(_, exp_1), Exp(_, exp_2)) =>
+          | (ExpOperand(_, exp_1), ExpOperand(_, exp_2)) =>
             switch (exp_1, exp_2) {
             | (Var(_, _, _), Var(_, _, _))
             | (IntLit(_, _), IntLit(_, _))
@@ -182,7 +182,7 @@ let get_delete_action_group =
                 elt.cursor_term_info.cursor_term_after,
               )
             }
-          | (Pat(_, pat_1), Pat(_, pat_2)) =>
+          | (PatOperand(_, pat_1), PatOperand(_, pat_2)) =>
             switch (pat_1, pat_2) {
             | (Var(_, _, _), Var(_, _, _))
             | (IntLit(_, _), IntLit(_, _))
@@ -461,13 +461,11 @@ let get_new_action_group =
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
-      ~action: Action.t,
+      ~action: ModelAction.t,
     )
     : option(UndoHistoryCore.action_group) =>
-  if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
-    None;
-        /* It's a caret movement */
-  } else {
+  switch (action) {
+  | EditAction(action) =>
     switch (action) {
     | Delete =>
       delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
@@ -495,6 +493,14 @@ let get_new_action_group =
         }
       | SCommentLine
       | SParenthesized
+      /***
+       * SCloseParens, SCloseBraces and SCloseSquareBrackets are edit actions
+       * (with no structural change) which result in movement of the cursor,
+       * therefore undoing them should be supported
+       */
+      | SCloseParens
+      | SCloseBraces
+      | SCloseSquareBracket
       | SList
       | SAnn
       | SLam
@@ -543,6 +549,24 @@ let get_new_action_group =
                    || !
                         CursorInfo_common.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
+                          // <<<<<<< HEAD
+                          //                       )) {
+                          //         Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
+                          //       } else {
+                          //         Some(
+                          //           VarGroup(
+                          //             Edit({
+                          //               start_from: new_cursor_term_info.cursor_term_before,
+                          //               end_with: new_cursor_term_info.cursor_term_after,
+                          //             }),
+                          //           ),
+                          //         );
+                          //       }
+                          // =======
+                        )
+                   || !
+                        CursorInfo_common.cursor_term_is_editable(
+                          new_cursor_term_info.cursor_term_before,
                         )) {
           Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
         } else {
@@ -573,7 +597,7 @@ let get_new_action_group =
         | SOr => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
-          | Exp(pos, uexp_operand) =>
+          | ExpOperand(pos, uexp_operand) =>
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
@@ -630,15 +654,11 @@ let get_new_action_group =
               | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
               }
 
-            | ApPalette(_, _, _, _) =>
-              failwith("ApPalette is not implemented")
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
           | _ => Some(ConstructEdit(SOp(SSpace)))
           }
         }
-
-      | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | SwapUp => Some(SwapEdit(Up))
     | SwapDown => Some(SwapEdit(Down))
@@ -650,10 +670,10 @@ let get_new_action_group =
     | MoveToNextHole
     | MoveToPrevHole
     | Init => None
-    | UpdateApPalette(_) =>
-      failwith("ApPalette is not implemented in undo_history")
-    };
+    }
+  | _ => None
   };
+
 let get_cursor_term_info =
     (
       ~new_cardstacks_after: ZCardstacks.t,
@@ -688,7 +708,7 @@ let push_edit_state =
       undo_history: t,
       new_cardstacks_before: ZCardstacks.t,
       new_cardstacks_after: ZCardstacks.t,
-      action: Action.t,
+      action: ModelAction.t,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
