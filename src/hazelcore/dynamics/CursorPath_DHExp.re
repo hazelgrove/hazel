@@ -1,6 +1,12 @@
-let next_steppable = (_: DHExp.t): list(CursorPath.steps) =>
-  // return all paths to the next steppable sub-expression
-  failwith("todo") /* use the paired path with each result state to draw single highligh*/;
+// return all paths to the next steppable sub-expression
+let next_steppables: DHExp.t => list(CursorPath.steps) =
+  fun
+  | EmptyHole(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | NonEmptyHole(_) => [[]]
+  | _ => failwith("not implemented");
 
 // make dpaths using next_steppable
 // use dpaths + pretty printed dhexp to figure out yellow highlight
