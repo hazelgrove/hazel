@@ -6,7 +6,7 @@ type unknown_type_provenance =
   | SynPatternVar
   | Internal(internal_provenance)
 and internal_provenance =
-  // enumerate other base cases here...
+  // enumerate other base cases here if applicable; try to avoid
   | Matched_arrow_L(hole_provenance)
   | Matched_arrow_R(hole_provenance)
   | Matched_sum_L(hole_provenance)
@@ -67,13 +67,6 @@ let rec consistent_all = (types: list(t)): bool =>
     }
   };
 
-/* matched arrow types */
-// let matched_arrow =
-//   fun
-//   | Unknown(prov) => Some((Unknown(prov), Unknown(prov)))
-//   | Arrow(ty1, ty2) => Some((ty1, ty2))
-//   | _ => None;
-
 let get_prod_elements: t => list(t) =
   fun
   | Prod(tys) => tys
@@ -90,8 +83,8 @@ let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
   (typ: t) =>
   switch (typ) {
     | Unknown(prov) =>
-      let unknown_lt = Unknown(var, Matched_hole_L(prov));
-      let unknown_rt = Unknown(var, Matched_hole_R(prov));
+      let unknown_lt = Unknown(Matched_hole_L(prov));
+      let unknown_rt = Unknown(Matched_hole_R(prov));
       let pair = (unknown_lt, unknown_rt);
       let constraints = [(typ, Arrow(unknown_lt, unknown_rt))];
       (Some(pair), constraints)
@@ -135,7 +128,7 @@ let matched_list_inf: t => (option(t), list(inf_constraint)) =
 
 let rec load_type_variable = (typ: t) => {
   switch (typ) {
-  | Hole(id) =>
+  | Unknown(id) =>
     InfVar.type_variable := InfVar.recent(id + 1, InfVar.type_variable^)
   | Bool
   | Int
@@ -152,7 +145,7 @@ let rec load_type_variable = (typ: t) => {
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
-  | Hole(_) => false
+  | Unknown(_) => false
   | Int => true
   | Float => true
   | Bool => true
@@ -163,28 +156,14 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole(_) as hole) =>
+  | (_, Unknown(prov) as hole) =>
     switch (j) {
     | GLB => Some(hole)
     | LUB => Some(ty1)
     }
-  | (Hole(_) as hole, _) =>
+  | (Unknown(prov) as hole, _) =>
     switch (j) {
     | GLB => Some(hole)
-/* matched sum types */
-let matched_sum =
-  fun
-  | Unknown(prov) => Some((Unknown(prov), Unknown(prov)))
-  | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
-
-/* matched list types */
-let matched_list =
-    | GLB => Some(Unknown(Internal))
-    }
-  | (Unknown(_), _) =>
-    switch (j) {
-    | GLB => Some(Unknown(Internal))
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)
