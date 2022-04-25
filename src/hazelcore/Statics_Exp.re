@@ -143,15 +143,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => None
-  | Case(InconsistentBranches(_), scrut, rules) =>
-    //TODO(andrew): this change causes impossible syn
+  | Case(InconsistentBranches(_, Syn), scrut, rules) =>
     let* ty_scrut = syn(ctx, scrut);
     let* clause_types = syn_rule_types(ctx, ty_scrut, rules);
-    let _ =
-      switch (HTyp.join_all(GLB, clause_types)) {
-      | None => Some(HTyp.Unknown(Internal))
-      | Some(_) => None
-      };
+    switch (HTyp.join_all(GLB, clause_types)) {
+    | None => Some(HTyp.Unknown(Internal))
+    | Some(_) => None
+    };
+  | Case(InconsistentBranches(_, Ana), scrut, _) =>
+    let* _ty_scrut = syn(ctx, scrut);
     Some(HTyp.Unknown(Internal));
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
@@ -198,109 +198,135 @@ and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | _ => ana_block(ctx, e, ty)
   }
 and ana_block =
-    (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
-  let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
-  let* ctx = syn_lines(ctx, leading);
-  ana_opseq(ctx, conclusion, ty);
-}
+    (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let+ _ = syn_block(ctx, block);
+    ();
+  | _ =>
+    let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
+    let* ctx = syn_lines(ctx, leading);
+    ana_opseq(ctx, conclusion, ty);
+  }
+
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) =>
-  switch (tuple_zip(skel, ty)) {
-  | None =>
-    switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
-    | (InHole(TypeInconsistent, _), [_])
-    | (InHole(WrongLength, _), _) =>
-      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
-      let+ _ = syn_opseq(ctx, opseq');
-      ();
-    | _ => None
-    }
-  | Some(skel_tys) =>
-    let+ _ =
-      skel_tys
-      |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
-      |> OptUtil.sequence;
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let+ _ = syn_opseq(ctx, opseq);
     ();
+  | _ =>
+    switch (tuple_zip(skel, ty)) {
+    | None =>
+      switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+      | (InHole(TypeInconsistent, _), [_])
+      | (InHole(WrongLength, _), _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        let+ _ = syn_opseq(ctx, opseq');
+        ();
+      | _ => None
+      }
+    | Some(skel_tys) =>
+      let+ _ =
+        skel_tys
+        |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
+        |> OptUtil.sequence;
+      ();
+    }
   }
 and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
-  switch (skel) {
-  | BinOp(_, Comma, _, _)
-  | BinOp(InHole(WrongLength, _), _, _, _) =>
-    failwith(__LOC__ ++ ": tuples handled at opseq level")
-  | Placeholder(n) =>
-    let en = Seq.nth_operand(n, seq);
-    ana_operand(ctx, en, ty);
-  | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* ty_elt = HTyp.matched_list(ty);
-    let* _ = ana_skel(ctx, skel1, seq, ty_elt);
-    ana_skel(ctx, skel2, seq, List(ty_elt));
-  | BinOp(InHole(TypeInconsistent, _), _, _, _)
-  | BinOp(
-      NotInHole,
-      And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
-      FDivide |
-      LessThan |
-      GreaterThan |
-      Equals |
-      FLessThan |
-      FGreaterThan |
-      FEquals |
-      Space,
-      _,
-      _,
-    ) =>
-    let* ty' = syn_skel(ctx, skel, seq);
-    HTyp.consistent(ty, ty') ? Some() : None;
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let+ _ = syn_skel(ctx, skel, seq);
+    ();
+  | _ =>
+    switch (skel) {
+    | BinOp(_, Comma, _, _)
+    | BinOp(InHole(WrongLength, _), _, _, _) =>
+      failwith(__LOC__ ++ ": tuples handled at opseq level")
+    | Placeholder(n) =>
+      let en = Seq.nth_operand(n, seq);
+      ana_operand(ctx, en, ty);
+    | BinOp(NotInHole, Cons, skel1, skel2) =>
+      let* ty_elt = HTyp.matched_list(ty);
+      let* _ = ana_skel(ctx, skel1, seq, ty_elt);
+      ana_skel(ctx, skel2, seq, List(ty_elt));
+    | BinOp(InHole(TypeInconsistent, _), _, _, _)
+    | BinOp(
+        NotInHole,
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
+        GreaterThan |
+        Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
+        Space,
+        _,
+        _,
+      ) =>
+      let* ty' = syn_skel(ctx, skel, seq);
+      print_endline("consistent: ana_skel");
+      HTyp.consistent(ty, ty') ? Some() : None;
+    }
   }
 and ana_operand =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
-  switch (operand) {
-  /* in hole */
-  | EmptyHole(_) => Some()
-  | InvalidText(_) => Some()
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Fun(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
-    let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    let+ _ = syn_operand(ctx, operand');
-    (); /* this is a consequence of subsumption and hole universality */
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Fun(InHole(WrongLength, _), _, _)
-  | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
-  /* not in hole */
-  | ListNil(NotInHole) =>
-    let+ _ = HTyp.matched_list(ty);
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let+ _ = syn_operand(ctx, operand);
     ();
-  | Var(NotInHole, _, _)
-  | IntLit(NotInHole, _)
-  | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
-    let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    let* ty' = syn_operand(ctx, operand');
-    HTyp.consistent(ty, ty') ? Some() : None;
-  | Fun(NotInHole, p, body) =>
-    let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
-    let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
-    ana(ctx_body, body, ty_body);
-  | Inj(NotInHole, side, body) =>
-    let* (ty1, ty2) = HTyp.matched_sum(ty);
-    ana(ctx, body, InjSide.pick(side, ty1, ty2));
-  | Case(_, scrut, rules) =>
-    let* ty_scrut = syn(ctx, scrut);
-    ana_rules(ctx, rules, ty_scrut, ty);
-  | Parenthesized(body) => ana(ctx, body, ty)
+  | _ =>
+    switch (operand) {
+    /* in hole */
+    | EmptyHole(_) => Some()
+    | InvalidText(_) => Some()
+    | Var(InHole(TypeInconsistent, _), _, _)
+    | IntLit(InHole(TypeInconsistent, _), _)
+    | FloatLit(InHole(TypeInconsistent, _), _)
+    | BoolLit(InHole(TypeInconsistent, _), _)
+    | ListNil(InHole(TypeInconsistent, _))
+    | Fun(InHole(TypeInconsistent, _), _, _)
+    | Inj(InHole(TypeInconsistent, _), _, _) =>
+      let operand' = UHExp.set_err_status_operand(NotInHole, operand);
+      let+ _ = syn_operand(ctx, operand');
+      (); /* this is a consequence of subsumption and hole universality */
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Fun(InHole(WrongLength, _), _, _)
+    | Inj(InHole(WrongLength, _), _, _) =>
+      ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+    /* not in hole */
+    | ListNil(NotInHole) =>
+      let+ _ = HTyp.matched_list(ty);
+      ();
+    | Var(NotInHole, _, _)
+    | IntLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
+    | BoolLit(NotInHole, _) =>
+      let operand' = UHExp.set_err_status_operand(NotInHole, operand);
+      let* ty' = syn_operand(ctx, operand');
+      print_endline("consistent: ana_operand");
+      HTyp.consistent(ty, ty') ? Some() : None;
+    | Fun(NotInHole, p, body) =>
+      let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
+      let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
+      ana(ctx_body, body, ty_body);
+    | Inj(NotInHole, side, body) =>
+      let* (ty1, ty2) = HTyp.matched_sum(ty);
+      ana(ctx, body, InjSide.pick(side, ty1, ty2));
+    | Case(_, scrut, rules) =>
+      let* ty_scrut = syn(ctx, scrut);
+      ana_rules(ctx, rules, ty_scrut, ty);
+    | Parenthesized(body) => ana(ctx, body, ty)
+    }
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -406,61 +432,67 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : option(Statics.type_mode) => {
-  // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
-  | None =>
-    syn_nth_type_mode(ctx, n, UHExp.set_err_status_opseq(NotInHole, opseq))
-  | Some(skel_tys) =>
-    let (nskel, nty) =
-      skel_tys
-      |> List.find(((skel, _)) =>
-           Skel.leftmost_tm_index(skel) <= n
-           && n <= Skel.rightmost_tm_index(skel)
-         );
-    ana_nth_type_mode'(ctx, n, nskel, seq, nty);
-  };
-}
+    : option(Statics.type_mode) =>
+  switch (ty) {
+  | Unknown(SynPatternVar) => syn_nth_type_mode(ctx, n, opseq)
+  | _ =>
+    // handle n-tuples
+    switch (tuple_zip(skel, ty)) {
+    | None =>
+      syn_nth_type_mode(ctx, n, UHExp.set_err_status_opseq(NotInHole, opseq))
+    | Some(skel_tys) =>
+      let (nskel, nty) =
+        skel_tys
+        |> List.find(((skel, _)) =>
+             Skel.leftmost_tm_index(skel) <= n
+             && n <= Skel.rightmost_tm_index(skel)
+           );
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
+    }
+  }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
-    : option(Statics.type_mode) => {
-  let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
-  let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
-    switch (skel) {
-    | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength, _), _, _, _) =>
-      failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
-    | Placeholder(n') =>
-      assert(n == n');
-      Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
-      let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      syn_go(skel_not_in_hole);
-    | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
-      | None => None
-      | Some(ty_elt) =>
-        n <= Skel.rightmost_tm_index(skel1)
-          ? go(skel1, ty_elt) : go(skel2, ty)
-      }
-    | BinOp(
-        NotInHole,
-        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
-        FDivide |
-        LessThan |
-        GreaterThan |
-        Equals |
-        FLessThan |
-        FGreaterThan |
-        FEquals |
-        Space,
-        _,
-        _,
-      ) =>
-      syn_go(skel)
-    };
-  go(skel, ty);
-};
+    : option(Statics.type_mode) =>
+  switch (ty) {
+  | Unknown(SynPatternVar) => syn_nth_type_mode'(ctx, n, skel, seq)
+  | _ =>
+    let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
+    let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
+      switch (skel) {
+      | BinOp(_, Comma, _, _)
+      | BinOp(InHole(WrongLength, _), _, _, _) =>
+        failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
+      | Placeholder(n') =>
+        assert(n == n');
+        Some(Statics.Ana(ty));
+      | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+        let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+        syn_go(skel_not_in_hole);
+      | BinOp(NotInHole, Cons, skel1, skel2) =>
+        switch (HTyp.matched_list(ty)) {
+        | None => None
+        | Some(ty_elt) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? go(skel1, ty_elt) : go(skel2, ty)
+        }
+      | BinOp(
+          NotInHole,
+          And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+          FDivide |
+          LessThan |
+          GreaterThan |
+          Equals |
+          FLessThan |
+          FGreaterThan |
+          FEquals |
+          Space,
+          _,
+          _,
+        ) =>
+        syn_go(skel)
+      };
+    go(skel, ty);
+  };
 
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
@@ -684,6 +716,8 @@ and syn_fix_holes_skel =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
     switch (HTyp.matched_arrow(ty1)) {
     | Some((ty2, ty)) =>
+      print_endline("calling: ana_fix_holes_skel 1111");
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty2)));
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -737,6 +771,8 @@ and syn_fix_holes_skel =
     let (skel1, seq, ty_elt, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
     let ty = HTyp.List(ty_elt);
+    print_endline("calling: ana_fix_holes_skel 2222");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     let (skel2, seq, u_gen) =
       ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
     let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
@@ -919,9 +955,9 @@ and ana_fix_holes =
     : (UHExp.t, MetaVarGen.t) =>
   switch (ty) {
   | Unknown(SynPatternVar) =>
-    let (op, _, u_gen) =
+    let (e, _, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e);
-    (op, u_gen);
+    (e, u_gen);
   | _ => ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
   }
 and ana_fix_holes_block =
@@ -933,18 +969,31 @@ and ana_fix_holes_block =
       ty: HTyp.t,
     )
     : (UHExp.block, MetaVarGen.t) =>
-  switch (block |> UHExp.Block.split_conclusion) {
-  | None =>
-    let (leading, _ctx, u_gen) =
-      syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);
-    let (conclusion, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    (leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)], u_gen);
-  | Some((leading, conclusion)) =>
-    let (leading, ctx, u_gen) =
-      syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, leading);
-    let (conclusion, u_gen) =
-      ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, conclusion, ty);
-    (leading @ [UHExp.ExpLine(conclusion)], u_gen);
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let (block, _, u_gen) =
+      syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
+    (block, u_gen);
+  | _ =>
+    switch (block |> UHExp.Block.split_conclusion) {
+    | None =>
+      let (leading, _ctx, u_gen) =
+        syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);
+      let (conclusion, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      (leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)], u_gen);
+    | Some((leading, conclusion)) =>
+      let (leading, ctx, u_gen) =
+        syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, leading);
+      let (conclusion, u_gen) =
+        ana_fix_holes_opseq(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          conclusion,
+          ty,
+        );
+      (leading @ [UHExp.ExpLine(conclusion)], u_gen);
+    }
   }
 and ana_fix_holes_opseq =
     (
@@ -954,40 +1003,19 @@ and ana_fix_holes_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : (UHExp.opseq, MetaVarGen.t) => {
-  // handle n-tuples
-  switch (tuple_zip(skel, ty)) {
-  | Some(skel_tys) =>
-    skel_tys
-    |> List.fold_left(
-         (
-           (rev_skels: list(UHExp.skel), seq: UHExp.seq, u_gen: MetaVarGen.t),
-           (skel: UHExp.skel, ty: HTyp.t),
-         ) => {
-           let (skel, seq, u_gen) =
-             ana_fix_holes_skel(
-               ctx,
-               u_gen,
-               ~renumber_empty_holes,
-               skel,
-               seq,
-               ty,
-             );
-           ([skel, ...rev_skels], seq, u_gen);
-         },
-         ([], seq, u_gen),
-       )
-    |> (
-      fun
-      | (rev_skels, seq, u_gen) => {
-          let skel = rev_skels |> List.rev |> UHExp.mk_tuple;
-          (OpSeq.OpSeq(skel, seq), u_gen);
-        }
-    )
-  | None =>
-    if (List.length(HTyp.get_prod_elements(ty)) == 1) {
-      skel
-      |> UHExp.get_tuple_elements
+    : (UHExp.opseq, MetaVarGen.t) =>
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let (opseq, _, u_gen) =
+      syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq);
+    (opseq, u_gen);
+  | _ =>
+    print_endline("calling: ana_fix_holes_opseq");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    // handle n-tuples
+    switch (tuple_zip(skel, ty)) {
+    | Some(skel_tys) =>
+      skel_tys
       |> List.fold_left(
            (
              (
@@ -995,15 +1023,18 @@ and ana_fix_holes_opseq =
                seq: UHExp.seq,
                u_gen: MetaVarGen.t,
              ),
-             skel: UHExp.skel,
+             (skel: UHExp.skel, ty: HTyp.t),
            ) => {
-             let (skel, seq, _, u_gen) =
-               syn_fix_holes_skel(
+             print_endline("calling: ana_fix_holes_skel 3333");
+             print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+             let (skel, seq, u_gen) =
+               ana_fix_holes_skel(
                  ctx,
                  u_gen,
                  ~renumber_empty_holes,
                  skel,
                  seq,
+                 ty,
                );
              ([skel, ...rev_skels], seq, u_gen);
            },
@@ -1012,29 +1043,64 @@ and ana_fix_holes_opseq =
       |> (
         fun
         | (rev_skels, seq, u_gen) => {
-            let (u, u_gen) = MetaVarGen.next(u_gen);
-            let skel = UHExp.mk_tuple(List.rev(rev_skels));
-            let opseq =
-              UHExp.set_err_status_opseq(
-                InHole(TypeInconsistent, u),
-                OpSeq.OpSeq(skel, seq),
-              );
-            (opseq, u_gen);
+            let skel = rev_skels |> List.rev |> UHExp.mk_tuple;
+            (OpSeq.OpSeq(skel, seq), u_gen);
           }
-      );
-    } else {
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let (opseq, _, u_gen) =
-        syn_fix_holes_opseq(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          opseq |> UHExp.set_err_status_opseq(NotInHole),
+      )
+    | None =>
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
+        |> List.fold_left(
+             (
+               (
+                 rev_skels: list(UHExp.skel),
+                 seq: UHExp.seq,
+                 u_gen: MetaVarGen.t,
+               ),
+               skel: UHExp.skel,
+             ) => {
+               let (skel, seq, _, u_gen) =
+                 syn_fix_holes_skel(
+                   ctx,
+                   u_gen,
+                   ~renumber_empty_holes,
+                   skel,
+                   seq,
+                 );
+               ([skel, ...rev_skels], seq, u_gen);
+             },
+             ([], seq, u_gen),
+           )
+        |> (
+          fun
+          | (rev_skels, seq, u_gen) => {
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              let skel = UHExp.mk_tuple(List.rev(rev_skels));
+              let opseq =
+                UHExp.set_err_status_opseq(
+                  InHole(TypeInconsistent, u),
+                  OpSeq.OpSeq(skel, seq),
+                );
+              (opseq, u_gen);
+            }
         );
-      (opseq |> UHExp.set_err_status_opseq(InHole(WrongLength, u)), u_gen);
-    }
-  };
-}
+      } else {
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (opseq, _, u_gen) =
+          syn_fix_holes_opseq(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            opseq |> UHExp.set_err_status_opseq(NotInHole),
+          );
+        (
+          opseq |> UHExp.set_err_status_opseq(InHole(WrongLength, u)),
+          u_gen,
+        );
+      }
+    };
+  }
 and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
@@ -1045,84 +1111,100 @@ and ana_fix_holes_skel =
       ty: HTyp.t,
     )
     : (UHExp.skel, UHExp.seq, MetaVarGen.t) =>
-  switch (skel) {
-  | BinOp(_, Comma, _, _) =>
-    failwith("Exp.ana_fix_holes_skel: tuples handled at opseq level")
-  | Placeholder(n) =>
-    let en = seq |> Seq.nth_operand(n);
-    let (en, u_gen) =
-      ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en, ty);
-    let seq = seq |> Seq.update_nth_operand(n, en);
-    (skel, seq, u_gen);
-  | BinOp(_, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
-    | Some(ty_elt) =>
-      let (skel1, seq, u_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          skel1,
-          seq,
-          ty_elt,
-        );
-      let ty_list = HTyp.List(ty_elt);
-      let (skel2, seq, u_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          skel2,
-          seq,
-          ty_list,
-        );
-      let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
-      (skel, seq, u_gen);
-    | None =>
-      let (skel1, seq, ty_elt, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      let ty_list = HTyp.List(ty_elt);
-      let (skel2, seq, u_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          skel2,
-          seq,
-          ty_list,
-        );
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      let skel =
-        Skel.BinOp(
-          InHole(TypeInconsistent, u),
-          Operators_Exp.Cons,
-          skel1,
-          skel2,
-        );
-      (skel, seq, u_gen);
-    }
-  | BinOp(
-      _,
-      And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
-      FDivide |
-      LessThan |
-      GreaterThan |
-      Equals |
-      FLessThan |
-      FGreaterThan |
-      FEquals |
-      Space,
-      _,
-      _,
-    ) =>
-    let (skel, seq, ty', u_gen) =
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let (skel, seq, _, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
-    if (HTyp.consistent(ty, ty')) {
+    (skel, seq, u_gen);
+  | _ =>
+    print_endline("CALLED: ana_fix_holes_skel");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    switch (skel) {
+    | BinOp(_, Comma, _, _) =>
+      failwith("Exp.ana_fix_holes_skel: tuples handled at opseq level")
+    | Placeholder(n) =>
+      let en = seq |> Seq.nth_operand(n);
+      let (en, u_gen) =
+        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en, ty);
+      let seq = seq |> Seq.update_nth_operand(n, en);
       (skel, seq, u_gen);
-    } else {
-      let (OpSeq(skel, seq), u_gen) =
-        UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel, seq));
-      (skel, seq, u_gen);
+    | BinOp(_, Cons, skel1, skel2) =>
+      switch (HTyp.matched_list(ty)) {
+      | Some(ty_elt) =>
+        print_endline("calling: ana_fix_holes_skel 44444");
+        print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_elt)));
+        let (skel1, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel1,
+            seq,
+            ty_elt,
+          );
+        let ty_list = HTyp.List(ty_elt);
+        print_endline("calling: ana_fix_holes_skel 555555");
+        print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_list)));
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            ty_list,
+          );
+        let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
+        (skel, seq, u_gen);
+      | None =>
+        let (skel1, seq, ty_elt, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+        let ty_list = HTyp.List(ty_elt);
+        print_endline("calling: ana_fix_holes_skel 66666");
+        print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_list)));
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            ty_list,
+          );
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let skel =
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators_Exp.Cons,
+            skel1,
+            skel2,
+          );
+        (skel, seq, u_gen);
+      }
+    | BinOp(
+        _,
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
+        GreaterThan |
+        Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
+        Space,
+        _,
+        _,
+      ) =>
+      let (skel, seq, ty', u_gen) =
+        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
+      print_endline("consistent: ana_fix_holes_skel");
+      if (HTyp.consistent(ty, ty')) {
+        (skel, seq, u_gen);
+      } else {
+        let (OpSeq(skel, seq), u_gen) =
+          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel, seq));
+        (skel, seq, u_gen);
+      };
     };
   }
 and ana_fix_holes_operand =
@@ -1134,110 +1216,139 @@ and ana_fix_holes_operand =
       ty: HTyp.t,
     )
     : (UHExp.operand, MetaVarGen.t) =>
-  switch (e) {
-  | EmptyHole(_) =>
-    if (renumber_empty_holes) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (EmptyHole(u), u_gen);
-    } else {
-      (e, u_gen);
-    }
-  | InvalidText(_) => (e, u_gen)
-  | Var(_, _, _)
-  | IntLit(_, _)
-  | FloatLit(_, _)
-  | BoolLit(_, _) =>
-    let (e, ty', u_gen) =
+  switch (ty) {
+  | Unknown(SynPatternVar) =>
+    let (operand, _, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_operand(NotInHole, e), u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
-    };
-  | ListNil(_) =>
-    switch (HTyp.matched_list(ty)) {
-    | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
-    | None =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ListNil(InHole(TypeInconsistent, u)), u_gen);
-    }
-  | Parenthesized(body) =>
-    let (body, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
-    (Parenthesized(body), u_gen);
-  | Fun(_, p, def) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | Some((ty1_given, ty2)) =>
-      let (p, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          p,
-          ty1_given,
-        );
-      let (def, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-      (UHExp.Fun(NotInHole, p, def), u_gen);
-    | None =>
-      let (e', _, u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-        u_gen,
-      );
-    }
-  | Inj(_, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
-    | Some((ty1, ty2)) =>
-      let (e1, u_gen) =
-        ana_fix_holes(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          body,
-          InjSide.pick(side, ty1, ty2),
-        );
-      (Inj(NotInHole, side, e1), u_gen);
-    | None =>
-      let (e', ty', u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(ty, ty')) {
-        (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
+    (operand, u_gen);
+  | _ =>
+    switch (e) {
+    | EmptyHole(_) =>
+      if (renumber_empty_holes) {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (EmptyHole(u), u_gen);
       } else {
+        (e, u_gen);
+      }
+    | InvalidText(_) => (e, u_gen)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) =>
+      let (e, ty', u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      print_endline("consistent: ana_fix_holes_operand");
+      if (HTyp.consistent(ty, ty')) {
+        (UHExp.set_err_status_operand(NotInHole, e), u_gen);
+      } else {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (
+          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e),
+          u_gen,
+        );
+      };
+    | ListNil(_) =>
+      switch (HTyp.matched_list(ty)) {
+      | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (ListNil(InHole(TypeInconsistent, u)), u_gen);
+      }
+    | Parenthesized(body) =>
+      let (body, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
+      (Parenthesized(body), u_gen);
+    | Fun(_, p, def) =>
+      switch (HTyp.matched_arrow(ty)) {
+      | Some((ty1_given, ty2)) =>
+        let (p, ctx, u_gen) =
+          Statics_Pat.ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            p,
+            ty1_given,
+          );
+        let (def, u_gen) =
+          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
+        (UHExp.Fun(NotInHole, p, def), u_gen);
+      | None =>
+        let (e', _, u_gen) =
+          syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (
           UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
           u_gen,
         );
+      }
+    | Inj(_, side, body) =>
+      switch (HTyp.matched_sum(ty)) {
+      | Some((ty1, ty2)) =>
+        let (e1, u_gen) =
+          ana_fix_holes(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            body,
+            InjSide.pick(side, ty1, ty2),
+          );
+        (Inj(NotInHole, side, e1), u_gen);
+      | None =>
+        let (e', ty', u_gen) =
+          syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+        print_endline("consistent: ana_fix_holes_operand 2");
+        if (HTyp.consistent(ty, ty')) {
+          (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
+        } else {
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          (
+            UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+            u_gen,
+          );
+        };
+      }
+    | Case(_, scrut, rules) =>
+      let (scrut, ty_scrut, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
+      let (_, _, _, common_type) =
+        syn_fix_holes_rules(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          rules,
+          ty_scrut,
+        );
+      let (rules, u_gen) =
+        ana_fix_holes_rules(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          rules,
+          ty_scrut,
+          ty,
+        );
+      switch (common_type) {
+      | None =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
+      | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
       };
     }
-  | Case(_, scrut, rules) =>
-    let (scrut, scrut_ty, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-    let (_, _, _, common_type) =
-      syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, scrut_ty);
-    let (rules, u_gen) =
-      ana_fix_holes_rules(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        rules,
-        scrut_ty,
-        ty,
-      );
-    switch (common_type) {
-    | None =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
-    | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
-    };
   }
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
+  print_endline("AHHHHHHHHHHHH!");
+  print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      Sexplib.Std.sexp_of_option(
+        HTyp.sexp_of_t,
+        syn(extend_let_def_ctx(ctx, p, def), def),
+      ),
+    ),
+  );
+  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
   def
   |> syn(extend_let_def_ctx(ctx, p, def))
   |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))

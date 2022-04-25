@@ -398,6 +398,7 @@ let cardstack: CardstackInfo.t = {
 };
 
 let tests = [
+  ("hole", just_hole),
   ("quicksort x1", qsort_n(1)),
   ("quicksort x10", qsort_n(10)),
   ("quicksort x100", qsort_n(100)),

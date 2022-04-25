@@ -49,9 +49,12 @@ let eq = (==);
 let rec consistent = (x, y) =>
   switch (x, y) {
   //TODO(andrew): this throws immediately
-  /*| (Unknown(SynPatternVar), _)
-    | (_, Unknown(SynPatternVar)) =>
-      failwith("HTyp.consistent: SynPatternVar")*/
+  | (Unknown(SynPatternVar), _)
+  | (_, Unknown(SynPatternVar)) =>
+    print_endline("HTyp.consistent SynPatternVar");
+    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
+    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(y)));
+    failwith("HTyp.consistent: SynPatternVar");
   | (Unknown(_), _)
   | (_, Unknown(_)) => true
   | (Int, Int) => true
@@ -79,11 +82,12 @@ let rec consistent_all = (types: list(t)): bool =>
   switch (types) {
   | [] => true
   | [hd, ...tl] =>
+    print_endline("consistent: consistent_all");
     if (List.exists(inconsistent(hd), tl)) {
       false;
     } else {
       consistent_all(tl);
-    }
+    };
   };
 
 /* matched arrow types */
@@ -163,6 +167,7 @@ let join_all = (j: join, types: list(t)): option(t) => {
   | [] => None
   | [hd] => Some(hd)
   | [hd, ...tl] =>
+    print_endline("consistent: join_all");
     if (!consistent_all(types)) {
       None;
     } else {
@@ -175,7 +180,7 @@ let join_all = (j: join, types: list(t)): option(t) => {
         Some(hd),
         tl,
       );
-    }
+    };
   };
 };
 
