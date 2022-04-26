@@ -1,7 +1,12 @@
 // TODO change this type to have the right kind of expression
 module Memo = Core_kernel.Memo;
+open Sexplib;
+
+open Sexplib.Std;
 
 // General type for a single example
+[@deriving sexp]
+
 type quest = {
   idz: string,
   expressionz: UHExp.t,
@@ -9,6 +14,7 @@ type quest = {
   rankz: int,
 };
 
+[@deriving sexp]
 type explain = {
   id: string,
   expression: string,
@@ -18,7 +24,7 @@ type explain = {
 /*
  TODO: The centralized model should keep track of all of the different prompts (so add to the type t at the top of Model.re something like prompt: list(Prompt.t)
   */
-
+[@deriving sexp]
 type t = {
   key: string,
   program: ZExp.t,
@@ -26,6 +32,9 @@ type t = {
   explanation: list(explain),
   examples: list(quest),
 };
+
+// TODO - Ardi - This how to create a prompt
+// Sexp.to_string(sexp_of_t(Prompt))
 
 let lambda_with_tuple =
   UHExp.[
