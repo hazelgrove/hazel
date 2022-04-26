@@ -16,6 +16,7 @@ type t = {
   explanations: CodeExplanationSettings.t,
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
+  doc_study: DocumentationStudySettings.t,
 };
 /* TODO - Corresponding Hannah note: The centralized model should keep track of all of the
    different prompts (so add to the type t at the top of Model.re something like prompt: list(Prompt.t). */

@@ -87,8 +87,8 @@ let sample_exaplanations: list(Prompt.explain) =
 
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
-  let program = Model.get_program(model);
-  let selected_instance = Model.get_selected_hole_instance(model);
+  let _program = Model.get_program(model);
+  let _selected_instance = Model.get_selected_hole_instance(model);
   let explanation_info =
     ExplanationInfo.mk_explanation_info(
       Model.get_cursor_info(model).cursor_term,
@@ -103,12 +103,18 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_syntactic_form)),
         ),
-        () => {
-          SyntacticForm.view(
-            ~settings,
-            explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
-          );
-        },
+        () =>
+          if (model.doc_study.is_demo) {
+            SyntacticFormDemo.view(
+              ~settings,
+              explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
+            );
+          } else {
+            SyntacticForm.view(
+              ~settings,
+              explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
+            );
+          },
       ),
       (
         model.settings.right_panel.code_explanation,
@@ -116,37 +122,47 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_code_explanation)),
         ),
-        () => CodeExplanation.view(sample_exaplanations),
+        () =>
+          if (model.doc_study.is_demo) {
+            CodeExplanationDemo.view(explanation_info);
+          } else {
+            CodeExplanation.view(sample_exaplanations);
+          },
       ),
       (
         model.settings.right_panel.code_example,
         Node.text("EG"),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
-        () => CodeExample.view(~settings, sample_examples),
-      ),
-      (
-        model.settings.right_panel.context_inspector,
-        Node.text("CX"),
-        inject(
-          ModelAction.UpdateSettings(RightPanel(Toggle_context_inspector)),
-        ),
         () =>
-          ContextInspector.view(
-            ~inject,
-            ~selected_instance,
-            ~settings=settings.evaluation,
-            ~font_metrics=model.font_metrics,
-            program,
+          if (model.doc_study.is_demo) {
+            CodeExampleDemo.view(~settings, explanation_info);
+          } else {
+            CodeExample.view(~settings, sample_examples);
+          },
+      ),
+      /*(
+          model.settings.right_panel.context_inspector,
+          Node.text("CX"),
+          inject(
+            ModelAction.UpdateSettings(RightPanel(Toggle_context_inspector)),
           ),
-      ),
-      (
-        model.settings.right_panel.settings_panel,
-        Node.text("SE"),
-        inject(
-          ModelAction.UpdateSettings(RightPanel(Toggle_settings_panel)),
-        ),
-        () => SettingsPanel.view(~inject, settings),
-      ),
+          () =>
+            ContextInspector.view(
+              ~inject,
+              ~selected_instance,
+              ~settings=settings.evaluation,
+              ~font_metrics=model.font_metrics,
+              program,
+            ),
+        ),*/
+      /*(
+          model.settings.right_panel.settings_panel,
+          Node.text("SE"),
+          inject(
+            ModelAction.UpdateSettings(RightPanel(Toggle_settings_panel)),
+          ),
+          () => SettingsPanel.view(~inject, settings),
+        ),*/
     ],
   );
 };

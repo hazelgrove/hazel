@@ -9,6 +9,7 @@ type t = {
   explanations: CodeExplanationSettings.t,
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
+  doc_study: DocumentationStudySettings.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -18,9 +19,10 @@ let cutoff = (m1, m2) => m1 === m2;
 // let prompts = [];
 
 let cardstack_info = [
+  DocumentationStudyDemoCards.demostack,
   Examples.questionstack,
-  Examples.cardstack,
-  Examples.teststack,
+  // Examples.cardstack,
+  // Examples.teststack,
   // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];
@@ -61,6 +63,7 @@ let init = (): t => {
   let explanations: CodeExplanationSettings.t = {highlight_summary: false};
   let settings = Settings.init;
   let cursor_inspector = CursorInspectorModel.init;
+  let doc_study = DocumentationStudySettings.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -88,6 +91,7 @@ let init = (): t => {
     explanations,
     settings,
     cursor_inspector,
+    doc_study,
   };
 };
 
@@ -274,6 +278,14 @@ let toggle_left_sidebar = (model: t): t => {
 };
 
 let load_cardstack = (model, idx) => {
+  let is_demo = idx == 0;
+  let model = {
+    ...model,
+    doc_study: {
+      ...model.doc_study,
+      is_demo,
+    },
+  };
   model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
 };
 

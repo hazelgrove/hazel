@@ -69,6 +69,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
         sexp_of_timestamped_action(mk_timestamped_action(action)),
       ),
     )
+  | UpdateDocumentationStudySettings(_) => ()
   };
 };
 
@@ -210,6 +211,11 @@ let apply_action =
           ...model,
           cursor_inspector:
             CursorInspectorModel.apply_update(u, model.cursor_inspector),
+        }
+      | UpdateDocumentationStudySettings(u) => {
+          ...model,
+          doc_study:
+            DocumentationStudySettings.apply_update(u, model.doc_study),
         }
       | SerializeToConsole(obj) =>
         switch (obj) {
