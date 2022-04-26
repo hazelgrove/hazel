@@ -56,7 +56,12 @@ let rank_selection_handler = (x, id) => {
 
 // TODO make sure this is of type exampleExpression
 let a_single_example_expression_ =
-    (example_id: string, example_body: Node.t, ranking_out_of: int) => {
+    (
+      example_id: string,
+      caption: string,
+      example_body: Node.t,
+      ranking_out_of: int,
+    ) => {
   [
     Node.div(
       [
@@ -76,6 +81,10 @@ let a_single_example_expression_ =
           CodeExplanation_common.rank_list(1 + ranking_out_of),
         ),
         example_body,
+        Node.div(
+          [Attr.class_("example_explanation")],
+          [Node.text("Explanation: "), Node.text(caption)],
+        ),
       ],
     ),
   ];
@@ -106,6 +115,7 @@ let display_examples = (~settings, width, examples_list_: list(quest)) => {
       e =>
         a_single_example_expression_(
           e.idz,
+          e.caption,
           UHCode.basic_view(~settings, ~width, e.expressionz),
           List.length(examples_list_),
         ),
@@ -132,7 +142,27 @@ let view = (~settings: Settings.t, example_list: list(Prompt.quest)): Node.t => 
       Panel.view_of_main_title_bar("Code Example"),
       Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
-        [explanation_view],
+        [
+          Node.div(
+            [],
+            [
+              Node.div(
+                [Attr.classes(["right-panel-prompt"])],
+                [Node.text("Rank the examples below")],
+              ),
+              explanation_view,
+              Node.div(
+                [Attr.classes(["right-panel-textarea-div"])],
+                [
+                  Node.textarea(
+                    [Attr.classes(["right-panel-textarea"])],
+                    [Node.text("If none of the above please explain why")],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );

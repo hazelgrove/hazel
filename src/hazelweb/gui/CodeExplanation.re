@@ -59,7 +59,27 @@ let view = (explanations: list(Prompt.explain)): Node.t => {
       Panel.view_of_main_title_bar("Code Explanation"),
       Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
-        [explanation_view],
+        [
+          Node.div(
+            [],
+            [
+              Node.div(
+                [Attr.classes(["right-panel-prompt"])],
+                [Node.text("Rank the explanations below")],
+              ),
+              explanation_view,
+              Node.div(
+                [Attr.classes(["right-panel-textarea-div"])],
+                [
+                  Node.textarea(
+                    [Attr.classes(["right-panel-textarea"])],
+                    [Node.text("If none of the above please explain why")],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );

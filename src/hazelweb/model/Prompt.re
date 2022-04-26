@@ -5,6 +5,7 @@ module Memo = Core_kernel.Memo;
 type quest = {
   idz: string,
   expressionz: UHExp.t,
+  caption: string,
   rankz: int,
 };
 
@@ -123,12 +124,23 @@ let prompts: list(t) = [
       {
         id: "explanation_2",
         expression: "Bind the definition `(1, 2)` to the pattern `(x, y)` and evaluate the body `x + y`.\n - The first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2`.",
+
         rank: (-1),
       },
     ],
     examples: [
-      {idz: "example_1", expressionz: lambda_with_tuple_ex_1, rankz: (-1)},
-      {idz: "example_2", expressionz: lambda_with_tuple_ex_2, rankz: (-1)},
+      {
+        idz: "example_1",
+        expressionz: lambda_with_tuple_ex_1,
+        caption: "test caption",
+        rankz: (-1),
+      },
+      {
+        idz: "example_2",
+        expressionz: lambda_with_tuple_ex_2,
+        caption: "test caption",
+        rankz: (-1),
+      },
     ],
   },
 ];

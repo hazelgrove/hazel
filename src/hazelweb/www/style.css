@@ -1658,6 +1658,7 @@ h1 {
 .the-explanation select {
   float: left;
   margin: 5px 5px 0 5px;
+  width: 30px;
 }
 
 .question_wrapper{
@@ -1673,6 +1674,28 @@ h1 {
 
 .syntactic_form {
   padding: 5px;
+}
+
+.right-panel-prompt{
+  font-weight: 700;
+  text-align: center;
+  line-height: 2;
+}
+
+.example_explanation{
+  color: #073f24;;
+  font-weight: 800;
+  padding-left: 30px;
+}
+
+.right-panel-textarea{
+  width: 90%;
+  min-height: 50px;
+  font-family: Montserrat, sans-serif;
+}
+
+.right-panel-textarea-div{
+  text-align: center;
 }
 
 
