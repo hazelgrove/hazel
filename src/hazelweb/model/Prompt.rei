@@ -2,6 +2,7 @@
 type quest = {
   idz: string,
   expressionz: UHExp.t,
+  caption: string,
   rankz: int,
 };
 
