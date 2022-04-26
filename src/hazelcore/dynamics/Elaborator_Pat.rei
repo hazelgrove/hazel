@@ -6,9 +6,13 @@ module ElaborationResult: {
 
 module Let_syntax = ElaborationResult;
 
-let syn_elab: (Contexts.t, Delta.t, UHPat.t) => ElaborationResult.t;
+let syn_elab:
+  (Contexts.t, Delta.t, UHPat.t, ~moded: Statics_Pat.moded) =>
+  ElaborationResult.t;
 
-let ana_elab: (Contexts.t, Delta.t, UHPat.t, HTyp.t) => ElaborationResult.t;
+let ana_elab:
+  (Contexts.t, Delta.t, UHPat.t, HTyp.t, ~moded: Statics_Pat.moded) =>
+  ElaborationResult.t;
 
 let renumber_result_only:
   (InstancePath.t, HoleInstanceInfo.t, DHPat.t) =>

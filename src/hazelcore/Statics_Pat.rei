@@ -1,3 +1,8 @@
+[@deriving sexp]
+type moded =
+  | ModedVariable
+  | UnknownVariable;
+
 let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
 
 /**
@@ -16,6 +21,8 @@ let ana_nth_type_mode:
  * produces a new context with bindings introduced by `p` (if possible)
  */
 let syn: (Contexts.t, UHPat.t) => option((HTyp.t, Contexts.t));
+let syn_moded:
+  (Contexts.t, UHPat.t, ~moded: moded) => option((HTyp.t, Contexts.t));
 let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
   (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));
@@ -26,6 +33,7 @@ let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
  * produces a new context with bindings introduced by `p` if successful
  */
 let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
+let ana_opseq: (Contexts.t, UHPat.opseq, HTyp.t) => option(Contexts.t);
 let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);

@@ -1127,7 +1127,7 @@ and syn_perform_line =
       Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     }
   | (_, LetLineZE(p, zdef)) =>
-    switch (Statics_Pat.syn(ctx, p)) {
+    switch (Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable)) {
     | None => Failed
     | Some((ty_p, _)) =>
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, ZExp.erase(zdef));
