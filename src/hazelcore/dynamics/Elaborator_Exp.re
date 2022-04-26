@@ -464,30 +464,37 @@ and syn_elab_rule =
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
     : ElaborationResult.t =>
-  switch (ty) {
-  | Unknown(SynPatternVar) => syn_elab_block(ctx, delta, e)
-  | _ => ana_elab_block(ctx, delta, e, ty)
-  }
+  ana_elab_block(ctx, delta, e, ty)
 and ana_elab_block =
     (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (ty) {
   | Unknown(SynPatternVar) => syn_elab_block(ctx, delta, block)
-  | _ =>
-    switch (block |> UHExp.Block.split_conclusion) {
-    | None => DoesNotElaborate
-    | Some((leading, conclusion)) =>
-      switch (syn_elab_lines(ctx, delta, leading)) {
-      | LinesDoNotElaborate => DoesNotElaborate
-      | LinesElaborate(prelude, ctx, delta) =>
-        switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
-        }
+  | _ => ana_elab_block'(ctx, delta, block, ty)
+  }
+and ana_elab_block' =
+    (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
+    : ElaborationResult.t =>
+  switch (block |> UHExp.Block.split_conclusion) {
+  | None => DoesNotElaborate
+  | Some((leading, conclusion)) =>
+    switch (syn_elab_lines(ctx, delta, leading)) {
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaborate(prelude, ctx, delta) =>
+      switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
       }
     }
   }
 and ana_elab_opseq =
+    (ctx: Contexts.t, delta: Delta.t, opseq: UHExp.opseq, ty: HTyp.t)
+    : ElaborationResult.t =>
+  switch (ty) {
+  | Unknown(SynPatternVar) => syn_elab_opseq(ctx, delta, opseq)
+  | _ => ana_elab_opseq'(ctx, delta, opseq, ty)
+  }
+and ana_elab_opseq' =
     (
       ctx: Contexts.t,
       delta: Delta.t,
@@ -495,22 +502,53 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t =>
-  switch (ty) {
-  | Unknown(SynPatternVar) => syn_elab_opseq(ctx, delta, opseq)
-  | _ =>
+  switch (Statics_Exp.tuple_zip(skel, ty)) {
+  | Some(skel_tys) =>
     // handle n-tuples
-    switch (Statics_Exp.tuple_zip(skel, ty)) {
-    | Some(skel_tys) =>
-      skel_tys
+    skel_tys
+    |> List.fold_left(
+         (
+           acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
+           (skel: UHExp.skel, ty: HTyp.t),
+         ) =>
+           switch (acc) {
+           | None => None
+           | Some((rev_ds, rev_tys, delta)) =>
+             switch (ana_elab_skel(ctx, delta, skel, seq, ty)) {
+             | DoesNotElaborate => None
+             | Elaborates(d, ty, delta) =>
+               Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
+             }
+           },
+         Some(([], [], delta)),
+       )
+    |> (
+      fun
+      | None => ElaborationResult.DoesNotElaborate
+      | Some((rev_ds, rev_tys, delta)) => {
+          let d = rev_ds |> List.rev |> DHExp.mk_tuple;
+          let ty =
+            switch (rev_tys) {
+            | [] => failwith("expected at least 1 element")
+            | [ty] => ty
+            | _ => HTyp.Prod(rev_tys |> List.rev)
+            };
+          Elaborates(d, ty, delta);
+        }
+    )
+  | None =>
+    if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+      skel
+      |> UHExp.get_tuple_elements
       |> List.fold_left(
            (
              acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
-             (skel: UHExp.skel, ty: HTyp.t),
+             skel: UHExp.skel,
            ) =>
              switch (acc) {
              | None => None
              | Some((rev_ds, rev_tys, delta)) =>
-               switch (ana_elab_skel(ctx, delta, skel, seq, ty)) {
+               switch (syn_elab_skel(ctx, delta, skel, seq)) {
                | DoesNotElaborate => None
                | Elaborates(d, ty, delta) =>
                  Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
@@ -522,7 +560,7 @@ and ana_elab_opseq =
         fun
         | None => ElaborationResult.DoesNotElaborate
         | Some((rev_ds, rev_tys, delta)) => {
-            let d = rev_ds |> List.rev |> DHExp.mk_tuple;
+            let d = DHExp.mk_tuple(List.rev(rev_ds));
             let ty =
               switch (rev_tys) {
               | [] => failwith("expected at least 1 element")
@@ -531,70 +569,48 @@ and ana_elab_opseq =
               };
             Elaborates(d, ty, delta);
           }
-      )
-    | None =>
-      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
-        skel
-        |> UHExp.get_tuple_elements
-        |> List.fold_left(
-             (
-               acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
-               skel: UHExp.skel,
-             ) =>
-               switch (acc) {
-               | None => None
-               | Some((rev_ds, rev_tys, delta)) =>
-                 switch (syn_elab_skel(ctx, delta, skel, seq)) {
-                 | DoesNotElaborate => None
-                 | Elaborates(d, ty, delta) =>
-                   Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
-                 }
-               },
-             Some(([], [], delta)),
-           )
-        |> (
-          fun
-          | None => ElaborationResult.DoesNotElaborate
-          | Some((rev_ds, rev_tys, delta)) => {
-              let d = DHExp.mk_tuple(List.rev(rev_ds));
-              let ty =
-                switch (rev_tys) {
-                | [] => failwith("expected at least 1 element")
-                | [ty] => ty
-                | _ => HTyp.Prod(rev_tys |> List.rev)
-                };
-              Elaborates(d, ty, delta);
-            }
-        );
-      } else {
-        switch (opseq |> UHExp.get_err_status_opseq) {
-        | NotInHole
-        | InHole(TypeInconsistent, _) => DoesNotElaborate
-        | InHole(WrongLength as reason, u) =>
-          switch (
-            syn_elab_opseq(
-              ctx,
-              delta,
-              opseq |> UHExp.set_err_status_opseq(NotInHole),
-            )
-          ) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d, _, delta) =>
-            let gamma = ctx |> Contexts.gamma;
-            let sigma = gamma |> Environment.id_env;
-            let delta =
-              MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-            Elaborates(
-              NonEmptyHole(reason, u, 0, sigma, d),
-              Unknown(Internal),
-              delta,
-            );
-          }
-        };
-      }
+      );
+    } else {
+      switch (opseq |> UHExp.get_err_status_opseq) {
+      | NotInHole
+      | InHole(TypeInconsistent, _) => DoesNotElaborate
+      | InHole(WrongLength as reason, u) =>
+        switch (
+          syn_elab_opseq(
+            ctx,
+            delta,
+            opseq |> UHExp.set_err_status_opseq(NotInHole),
+          )
+        ) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d, _, delta) =>
+          let gamma = ctx |> Contexts.gamma;
+          let sigma = gamma |> Environment.id_env;
+          let delta =
+            MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+          Elaborates(
+            NonEmptyHole(reason, u, 0, sigma, d),
+            Unknown(Internal),
+            delta,
+          );
+        }
+      };
     }
   }
 and ana_elab_skel =
+    (
+      ctx: Contexts.t,
+      delta: Delta.t,
+      skel: UHExp.skel,
+      seq: UHExp.seq,
+      ty: HTyp.t,
+    )
+    : ElaborationResult.t =>
+  switch (ty) {
+  | Unknown(SynPatternVar) => syn_elab_skel(ctx, delta, skel, seq)
+  | _ => ana_elab_skel'(ctx, delta, skel, seq, ty)
+  }
+and ana_elab_skel' =
     (
       ctx: Contexts.t,
       delta: Delta.t,
