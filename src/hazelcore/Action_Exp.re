@@ -2883,7 +2883,7 @@ and ana_perform_opseq =
   switch (ty) {
   | Unknown(SynPatternVar) =>
     syn_success_to_ana(syn_perform_opseq(ctx, a, (zopseq, ty, u_gen)))
-  | _ => ana_perform_opseq(ctx, a, (zopseq, u_gen), ty)
+  | _ => ana_perform_opseq'(ctx, a, (zopseq, u_gen), ty)
   }
 and ana_perform_operand' =
     (
