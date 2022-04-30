@@ -2,12 +2,26 @@
 
 [@deriving sexp]
 type unknown_type_provenance =
-  | TypHole /* from an actual type hole; will add a MetaVar.t once we have unique IDs for type holes */
+  | UserGenerated(MetaVar.t)
   | SynPatternVar
-  /* from a pattern var being asked to synthesize a type either directly or via matched arrow/prod/etc.
-     When analyzing against such a type, expression can be treated as if synthetic when the distinction matters
-     e.g. for inconsistent branches or cast insertion */
-  | Internal; /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
+  | Internal(internal_provenance)
+and internal_provenance =
+  // enumerate other base cases here if applicable; try to avoid
+  | Matched_arrow_L(unknown_type_provenance)
+  | Matched_arrow_R(unknown_type_provenance)
+  | Matched_sum_L(unknown_type_provenance)
+  | Matched_sum_R(unknown_type_provenance)
+  | Matched_prod_L(unknown_type_provenance)
+  | Matched_prod_R(unknown_type_provenance)
+  | Matched_list(unknown_type_provenance);
+
+// type unknown_type_provenance =
+//   | TypHole /* from an actual type hole; will add a MetaVar.t once we have unique IDs for type holes */
+//   | SynPatternVar
+//   /* from a pattern var being asked to synthesize a type either directly or via matched arrow/prod/etc.
+//      When analyzing against such a type, expression can be treated as if synthetic when the distinction matters
+//      e.g. for inconsistent branches or cast insertion */
+//   | Internal; /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
 
 [@deriving sexp]
 type t =
@@ -39,10 +53,6 @@ let consistent: (t, t) => bool;
 
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
-
-let matched_arrow: t => (option((t, t)), list(inf_constraint));
-let matched_sum: t => (option((t, t)), list(inf_constraint));
-let matched_list: t => (option(t), list(inf_constraint));
 
 let load_type_variable: t => unit;
 

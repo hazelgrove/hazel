@@ -7,13 +7,13 @@ type unknown_type_provenance =
   | Internal(internal_provenance)
 and internal_provenance =
   // enumerate other base cases here if applicable; try to avoid
-  | Matched_arrow_L(hole_provenance)
-  | Matched_arrow_R(hole_provenance)
-  | Matched_sum_L(hole_provenance)
-  | Matched_sum_R(hole_provenance)
-  | Matched_prod_L(hole_provenance)
-  | Matched_prod_R(hole_provenance)
-  | Matched_list(hole_provenance);
+  | Matched_arrow_L(unknown_type_provenance)
+  | Matched_arrow_R(unknown_type_provenance)
+  | Matched_sum_L(unknown_type_provenance)
+  | Matched_sum_R(unknown_type_provenance)
+  | Matched_prod_L(unknown_type_provenance)
+  | Matched_prod_R(unknown_type_provenance)
+  | Matched_list(unknown_type_provenance);
 
 /* types with holes */
 [@deriving sexp]
@@ -49,9 +49,6 @@ let precedence = (ty: t): int =>
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
-    ListUtil.for_all2_opt(consistent, tys1, tys2)
-  | (Prod(_), _) => false
-  | (List(_), _) => false
   };
 
 let eq = (==);
@@ -103,88 +100,21 @@ let get_prod_elements: t => list(t) =
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
-let matched_arrow: t => (option(t, t)) =
-  (typ: t) => {
-  let (pair, _) = matched_arrow_inf(typ);
-  pair };
-
-let matched_arrow_inf: t => (option(t, t), list(inf_constraint)) =
-  (typ: t) =>
-  switch (typ) {
-    | Unknown(prov) =>
-      let unknown_lt = Unknown(Matched_arrow_L(prov));
-      let unknown_rt = Unknown(Matched_arrow_R(prov));
-      let pair = (unknown_lt, unknown_rt);
-      let constraints = [(typ, Arrow(unknown_lt, unknown_rt))];
-      (Some(pair), constraints)
-    | Arrow(ty1, ty2) => (Some((ty1, ty2)), [])
-    | _ => (None, [])
-  };
-
-// theoretical binary mp for holes only
-let matched_prod_inf: t => ((t, t), list(inf_constraint)) =
-  (typ: t) =>
-  switch (typ) {
-    | Unknown(prov) =>
-      let unknown_lt = Unknown(Matched_prod_L(prov));
-      let unknown_rt = Unknown(Matched_prod_R(prov));
-      let pair = (unknown_lt, unknown_rt);
-      let constraints = [(typ, Prod([unknown_lt, unknown_rt]))];
-      (pair, constraints)
-    | _ => (typ, [])
-  };
-
-let matched_sum: t => (option(t, t)) =
-  (typ: t) => {
-  let (pair, _) = matched_sum_inf(typ);
-  pair
-  };
-
-let matched_sum_inf: t => (option(t, t), list(inf_constraint)) =
-  (typ: t) =>
-  switch (typ) {
-    | Unknown(prov)  =>
-      let unknown_lt = Unknown(Matched_sum_L(prov));
-      let unknown_rt = Unknown(Matched_sum_R(prov));
-      let pair = (unknown_lt, unknown_rt);
-      let constraints = [(typ, Sum(unknown_lt, unknown_rt))];
-      (Some(pair), constraints)
-    | Sum(ty1, ty2) => (Some((ty1, ty2)), [])
-    | _ => (None, [])
-  };
-
-let matched_list: t => (option(t, t)) =
-  (typ: t) => {
-  let (ty, _) = matched_list_inf(typ);
-  ty
-  };
-
-let matched_list_inf: t => (option(t), list(inf_constraint)) =
-  (typ: t) =>
-  switch (typ) {
-    | Hole(base, provenances) =>
-      let unknown_list = Unknown(Matched_list(prov));
-      let constraints = [(typ, unknown_list)];
-      (Some(unknown_list), constraints)
-    | List(ty_ls) => (Some(ty_ls), [])
-    | _ => (None, [])
-  };
-
-let rec load_type_variable = (typ: t) => {
-  switch (typ) {
-  | Unknown(id) =>
-    InfVar.type_variable := InfVar.recent(id + 1, InfVar.type_variable^)
-  | Bool
-  | Int
-  | Float => ()
-  | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) =>
-    load_type_variable(ty1);
-    load_type_variable(ty2);
-  | Prod(tys) => List.iter(load_type_variable, tys)
-  | List(ty) => load_type_variable(typ)
-  };
-};
+// let rec load_type_variable = (typ: t) => {
+//   switch (typ) {
+//   | Unknown(id) =>
+//     InfVar.type_variable := InfVar.recent(id + 1, InfVar.type_variable^)
+//   | Bool
+//   | Int
+//   | Float => ()
+//   | Arrow(ty1, ty2)
+//   | Sum(ty1, ty2) =>
+//     load_type_variable(ty1);
+//     load_type_variable(ty2);
+//   | Prod(tys) => List.iter(load_type_variable, tys)
+//   | List(ty) => load_type_variable(typ)
+//   };
+// };
 
 /* complete (i.e. does not have any holes) */
 let rec complete =
@@ -200,12 +130,12 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Unknown(prov) as hole) =>
+  | (_, Unknown(_) as hole) =>
     switch (j) {
     | GLB => Some(hole)
     | LUB => Some(ty1)
     }
-  | (Unknown(prov) as hole, _) =>
+  | (Unknown(_) as hole, _) =>
     switch (j) {
     | GLB => Some(hole)
     | LUB => Some(ty2)
