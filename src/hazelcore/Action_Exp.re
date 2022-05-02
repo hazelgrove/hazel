@@ -1,3 +1,4 @@
+open Sexplib.Std;
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -110,8 +111,10 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
-    ~place_before_opseq=ZExp.place_before_opseq,
+    ~holes_opseq=CursorPath_Exp.holes_opseq,
+    ~follow_opseq=CursorPath_Exp.follow_opseq,
     ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
+    ~place_before_opseq=ZExp.place_before_opseq,
     ~place_before_operand=ZExp.place_before_operand,
     ~comma=Operators_Exp.Comma,
     ~new_EmptyHole=UHExp.new_EmptyHole,
@@ -214,6 +217,7 @@ let resurround_z =
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
 
+[@deriving sexp]
 type expanding_result = {
   kw: ExpandingKeyword.t,
   u_gen: MetaVarGen.t,
@@ -240,7 +244,9 @@ let wrap_in_SynDone:
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(syn_done) => Succeeded(SynDone(syn_done));
 
+[@deriving sexp]
 type ana_done = (ZExp.t, MetaVarGen.t);
+[@deriving sexp]
 type ana_success =
   | AnaExpands(expanding_result)
   | AnaDone(ana_done);

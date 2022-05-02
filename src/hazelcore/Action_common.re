@@ -277,11 +277,21 @@ let delete_operator_ =
 let complete_tuple_ =
     (
       ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
-      ~place_before_opseq:
-         OpSeq.t('operand, 'operator) =>
-         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+      ~holes_opseq:
+         (
+           CursorPath.rev_steps,
+           OpSeq.t('operand, 'operator),
+           CursorPath.hole_list
+         ) =>
+         CursorPath.hole_list,
+      ~follow_opseq:
+         (CursorPath.t, OpSeq.t('operand, 'operator)) =>
+         option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)),
       ~mk_ZOpSeq:
          ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+      ~place_before_opseq:
+         OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~place_before_operand: 'operand => 'zoperand,
       ~comma: 'operator,
@@ -329,7 +339,27 @@ let complete_tuple_ =
             new_holes,
             Seq.E,
           );
-        place_before_opseq(mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix)));
+        let opseq = mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix));
+        let hole_list = holes_opseq([], opseq, []);
+        // no hole detected, then place cursor at the beginning of opseq
+        switch (hole_list) {
+        | [] => place_before_opseq(opseq)
+        | [first_hole_info, ..._tl] =>
+          // has at least one hole, then place cursor at that hole
+          let first_hole_steps = first_hole_info.steps;
+          // place before the first hole in the completed tuple
+          let cursor_position =
+            switch (first_hole_info.sort) {
+            | CursorPath.PatHole(_, CursorPath.Empty)
+            | CursorPath.ExpHole(_, CursorPath.Empty) =>
+              CursorPosition.OnDelim(0, Side.Before)
+            | _ => CursorPosition.OnText(0)
+            };
+          Option.value(
+            follow_opseq((first_hole_steps, cursor_position), opseq),
+            ~default=place_before_opseq(opseq),
+          );
+        };
       } else {
         let first_new_hole = List.hd(new_holes);
         let new_suffix =

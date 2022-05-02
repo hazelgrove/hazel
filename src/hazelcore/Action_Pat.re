@@ -238,8 +238,10 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_OpSeq=OpSeq.mk(~associate=UHPat.associate),
-    ~place_before_opseq=ZPat.place_before_opseq,
+    ~holes_opseq=CursorPath_Pat.holes_opseq,
+    ~follow_opseq=CursorPath_Pat.follow_opseq,
     ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
+    ~place_before_opseq=ZPat.place_before_opseq,
     ~place_before_operand=ZPat.place_before_operand,
     ~comma=Operators_Pat.Comma,
     ~new_EmptyHole=UHPat.new_EmptyHole,
