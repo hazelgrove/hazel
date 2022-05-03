@@ -1711,3 +1711,15 @@ h1 {
   font-size: 10px;
 }
 
+.example_result{
+  font-weight: 600;
+  padding-left: 30px;
+  float: left;
+    width: 100%;
+}
+
+.example_result div{
+  padding-right: 32px;
+  float:left;
+}
+

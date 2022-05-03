@@ -4,6 +4,7 @@ type quest = {
   expressionz: UHExp.t,
   caption: string,
   rankz: int,
+  result: DHExp.t,
 };
 
 type explain = {

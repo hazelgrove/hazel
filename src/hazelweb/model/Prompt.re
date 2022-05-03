@@ -10,6 +10,7 @@ type quest = {
   expressionz: UHExp.t,
   caption: string,
   rankz: int,
+  result: DHExp.t,
 };
 
 [@deriving sexp]
@@ -149,12 +150,14 @@ let prompts: list(t) = [
         expressionz: lambda_with_tuple_ex_1,
         caption: "test caption",
         rankz: (-1),
+        result: DHExp.IntLit(99),
       },
       {
         idz: "example_2",
         expressionz: lambda_with_tuple_ex_2,
         caption: "test caption",
         rankz: (-1),
+        result: DHExp.IntLit(99),
       },
     ],
   },

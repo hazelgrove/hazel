@@ -61,6 +61,7 @@ let a_single_example_expression_ =
       caption: string,
       example_body: Node.t,
       ranking_out_of: int,
+      result: Node.t,
     ) => {
   [
     Node.div(
@@ -81,6 +82,10 @@ let a_single_example_expression_ =
           CodeExplanation_common.rank_list(1 + ranking_out_of),
         ),
         example_body,
+        Node.div(
+          [Attr.class_("example_result")],
+          [Node.div([], [Node.text("Result: ")]), result],
+        ),
         Node.div(
           [Attr.class_("example_explanation")],
           [Node.text("Explanation: "), Node.text(caption)],
@@ -109,7 +114,16 @@ let a_single_example_expression_ =
 // let displayed_examples = examples_(examples_with_id_list(6));
 
 // Takes a list of Prompt.explain and returns a displayable list of Nodes
-let display_examples = (~settings, width, examples_list_: list(quest)) => {
+let display_examples =
+    (
+      ~inject,
+      ~settings,
+      selected_instance,
+      font_metrics,
+      width,
+      pos,
+      examples_list_: list(quest),
+    ) => {
   List.flatten(
     List.map(
       e =>
@@ -118,6 +132,15 @@ let display_examples = (~settings, width, examples_list_: list(quest)) => {
           e.caption,
           UHCode.basic_view(~settings, ~width, e.expressionz),
           List.length(examples_list_),
+          DHCode.view(
+            ~inject,
+            ~settings=settings.evaluation,
+            ~selected_instance,
+            ~font_metrics,
+            ~width,
+            ~pos,
+            e.result,
+          ),
         ),
       examples_list_,
     ),
@@ -126,11 +149,31 @@ let display_examples = (~settings, width, examples_list_: list(quest)) => {
 
 // TODO - Ensure correctness of the below.
 // TODO - may have to fix width
-let view = (~settings: Settings.t, example_list: list(Prompt.quest)): Node.t => {
+let view =
+    (
+      ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,
+      ~settings: Settings.t,
+      ~font_metrics: FontMetrics.t,
+      example_list: list(Prompt.quest),
+    )
+    : Node.t => {
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation"])],
-      [Node.div([], display_examples(~settings, 100, example_list))],
+      [
+        Node.div(
+          [],
+          display_examples(
+            ~inject,
+            ~settings,
+            None,
+            font_metrics,
+            100,
+            0,
+            example_list,
+          ),
+        ),
+      ],
     );
   };
 

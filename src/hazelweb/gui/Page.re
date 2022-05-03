@@ -137,7 +137,12 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
           if (model.doc_study.is_demo) {
             CodeExampleDemo.view(~settings, explanation_info);
           } else {
-            CodeExample.view(~settings, sample_examples);
+            CodeExample.view(
+              ~inject,
+              ~settings,
+              ~font_metrics=model.font_metrics,
+              sample_examples,
+            );
           },
       ),
       /*(
