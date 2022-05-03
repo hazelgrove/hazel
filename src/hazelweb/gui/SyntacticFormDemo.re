@@ -71,7 +71,38 @@ let view =
       Panel.view_of_main_title_bar("Syntactic Form"),
       Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
-        [explanation_view],
+        [
+          explanation_view,
+          Node.div(
+            [Attr.classes(["slider-wrapper"])],
+            [
+              Node.input(
+                [
+                  Attr.type_("range"),
+                  Attr.min(1.0),
+                  Attr.max(3.0),
+                  Attr.value("2"),
+                ],
+                [
+                  Node.option(
+                    [Attr.value("1")],
+                    [Node.label([], [Node.text("1.0")])],
+                  ),
+                  Node.option([Attr.value("2")], [Node.text("2.0")]),
+                  Node.option([Attr.value("3")], [Node.text("3.0")]),
+                ],
+              ),
+              Node.div(
+                [],
+                [
+                  Node.div([], [Node.text("less specific")]),
+                  Node.div([], [Node.text("default")]),
+                  Node.div([], [Node.text("more specific")]),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );

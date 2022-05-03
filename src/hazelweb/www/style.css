@@ -1723,3 +1723,18 @@ h1 {
   float:left;
 }
 
+input[type=range] {
+  -webkit-appearance: none;
+  background-color: #187346;
+  width: 200px;
+  height:20px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+   -webkit-appearance: none;
+  background-color: #063f23;
+  opacity: 0.8;
+  width: 10px;
+  height: 26px;
+}
+

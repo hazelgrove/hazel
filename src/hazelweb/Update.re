@@ -92,34 +92,47 @@ let apply_action =
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
-        switch (model |> Model.perform_edit_action(a)) {
-        | new_model => new_model
-        | exception Program.FailedAction =>
-          JSUtil.log("[Program.FailedAction]");
-          model;
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
-          model;
-        | exception Program.MissingCursorInfo =>
-          JSUtil.log("[Program.MissingCursorInfo]");
-          model;
-        | exception (Program.EvalError(reason)) =>
-          let serialized =
-            reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-          JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
-          model;
-        | exception Program.DoesNotElaborate =>
-          JSUtil.log("[Program.DoesNotElaborate]");
+        if (model.doc_study.is_demo) {
+          switch (model |> Model.perform_edit_action(a)) {
+          | new_model => new_model
+          | exception Program.FailedAction =>
+            JSUtil.log("[Program.FailedAction]");
+            model;
+          | exception Program.CursorEscaped =>
+            JSUtil.log("[Program.CursorEscaped]");
+            model;
+          | exception Program.MissingCursorInfo =>
+            JSUtil.log("[Program.MissingCursorInfo]");
+            model;
+          | exception (Program.EvalError(reason)) =>
+            let serialized =
+              reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+            JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
+            model;
+          | exception Program.DoesNotElaborate =>
+            JSUtil.log("[Program.DoesNotElaborate]");
+            model;
+          };
+        } else {
           model;
         }
       | MoveAction(Key(move_key)) =>
-        switch (model |> Model.move_via_key(move_key)) {
-        | new_model => new_model
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
+        if (model.doc_study.is_demo) {
+          switch (model |> Model.move_via_key(move_key)) {
+          | new_model => new_model
+          | exception Program.CursorEscaped =>
+            JSUtil.log("[Program.CursorEscaped]");
+            model;
+          };
+        } else {
           model;
         }
-      | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
+      | MoveAction(Click(row_col)) =>
+        if (model.doc_study.is_demo) {
+          model |> Model.move_via_click(row_col);
+        } else {
+          model;
+        }
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | LoadCard(n) => Model.nth_card(n, model)
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
