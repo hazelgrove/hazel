@@ -2,9 +2,10 @@ open Sexplib.Std;
 type t = {
   is_demo: bool,
   prompt: option(Prompt.t),
+  prompts: list(Prompt.t),
 };
 
-let init = {is_demo: true, prompt: None};
+let init = {is_demo: true, prompt: None, prompts: Prompt.prompts};
 
 [@deriving sexp]
 type update =

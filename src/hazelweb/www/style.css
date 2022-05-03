@@ -1698,4 +1698,16 @@ h1 {
   text-align: center;
 }
 
+.slider-wrapper {
+  width: 100%;
+  text-align: center;
+}
+.slider-wrapper input {
+  width: 80%;
+}
+.slider-wrapper div div {
+  width: 33%;
+  float: left;
+  font-size: 10px;
+}
 

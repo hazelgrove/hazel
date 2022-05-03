@@ -10,8 +10,8 @@ type menu_entry = {
 let menu_entries: list(menu_entry) = [
   {
     label: "serialize participant's input",
-    shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
-    action: SerializeToConsole(UHExp),
+    shortcut: None,
+    action: SerializeToConsole(Prompt),
   },
   {
     label: "Serialize to console",

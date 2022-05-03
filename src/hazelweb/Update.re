@@ -240,6 +240,10 @@ let apply_action =
           |> Serialization.string_of_zexp
           |> Js.string
           |> JSUtil.log
+        | Prompt =>
+          Prompt.print_to_console(model.doc_study.prompts)
+          |> Js.string
+          |> JSUtil.log
         };
         model;
       };

@@ -25,3 +25,4 @@ type t = {
 };
 
 let prompts: list(t);
+let print_to_console: list(t) => string;

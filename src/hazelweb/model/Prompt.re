@@ -1,12 +1,10 @@
 // TODO change this type to have the right kind of expression
 module Memo = Core_kernel.Memo;
 open Sexplib;
-
 open Sexplib.Std;
 
 // General type for a single example
 [@deriving sexp]
-
 type quest = {
   idz: string,
   expressionz: UHExp.t,
@@ -35,6 +33,14 @@ type t = {
 
 // TODO - Ardi - This how to create a prompt
 // Sexp.to_string(sexp_of_t(Prompt))
+
+let print_to_console = stuff => {
+  List.fold_left(
+    (++),
+    "",
+    List.map(x => Sexp.to_string(sexp_of_t(x)), stuff),
+  );
+};
 
 let lambda_with_tuple =
   UHExp.[
