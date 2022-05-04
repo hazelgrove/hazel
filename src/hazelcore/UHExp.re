@@ -342,17 +342,19 @@ let merge_vars =
   };
 };
 
+let opt_or = (or_f, opt) =>
+  switch (opt) {
+  | None => or_f()
+  | opt => opt
+  };
+
 let rec find_first_hole = (uhexp: t): option(hole_vars) => {
   find_first_hole_block(uhexp);
 }
 and find_first_hole_block = (block: block): option(hole_vars) => {
   block
   |> List.fold_left(
-       (u, line) =>
-         switch (u) {
-         | None => find_first_hole_line(line)
-         | opt_u => opt_u
-         },
+       (opt_u, line) => opt_u |> opt_or(() => find_first_hole_line(line)),
        None,
      );
 }
@@ -369,10 +371,7 @@ and find_first_hole_opseq = (OpSeq.OpSeq(_, seq): opseq): option(hole_vars) => {
   Seq.operands(seq)
   |> List.fold_left(
        (opt_u, operand) =>
-         switch (opt_u) {
-         | None => find_first_hole_operand(operand)
-         | opt_u => opt_u
-         },
+         opt_u |> opt_or(() => find_first_hole_operand(operand)),
        None,
      );
 }
@@ -386,10 +385,7 @@ and find_first_hole_operand = (operand: operand): option(hole_vars) => {
     find_first_hole(uhexp) |> merge_vars(pat |> UHPat.extract_all_vars)
   | Inj(_, _, uhexp) => find_first_hole(uhexp)
   | Case(_, uhexp, rules) =>
-    switch (find_first_hole(uhexp)) {
-    | None => find_first_hole_rules(rules)
-    | opt_hole_vars => opt_hole_vars
-    }
+    find_first_hole(uhexp) |> opt_or(() => find_first_hole_rules(rules))
   | Parenthesized(uhexp) => find_first_hole(uhexp)
   | IntLit(_)
   | FloatLit(_)
@@ -401,11 +397,8 @@ and find_first_hole_operand = (operand: operand): option(hole_vars) => {
 and find_first_hole_rules = (rules: rules): option(hole_vars) => {
   rules
   |> List.fold_left(
-       (opt_hole_vars, operand) =>
-         switch (opt_hole_vars) {
-         | None => find_first_hole_rule(operand)
-         | opt_hole_vars => opt_hole_vars
-         },
+       (opt_u, operand) =>
+         opt_u |> opt_or(() => find_first_hole_rule(operand)),
        None,
      );
 }

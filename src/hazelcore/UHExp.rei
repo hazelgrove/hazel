@@ -110,6 +110,8 @@ let is_complete: t => bool;
 
 type hole_vars = (MetaVar.t, list(Var.t));
 
+let opt_or: (unit => option('a), option('a)) => option('a);
+
 let find_first_hole: t => option(hole_vars);
 
 let find_first_hole_block: block => option(hole_vars);
