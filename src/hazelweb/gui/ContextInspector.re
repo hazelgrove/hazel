@@ -94,7 +94,7 @@ let view =
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
 
   let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
+    Panel.view_of_other_title_bar("Nearest closure observed at ");
 
   let hii_summary = (hii, (u, i) as inst) => {
     let num_instances = HoleInstanceInfo.num_instances(hii, u);
@@ -318,22 +318,6 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
-    // // Debug..
-    // print_endline(">>>>>>>>>>");
-    // List.iter(
-    //   ((_var, _dhexp)) => {
-    //     // JSUtil.log(_var);
-    //     // JSUtil.log_sexp(DHExp.sexp_of_t(_dhexp));
-    //     print_endline(
-    //       _var
-    //       ++ " :: "
-    //       ++ (DHExp.sexp_of_t(_dhexp) |> Sexplib.Sexp.to_string),
-    //     );
-    //     ();
-    //   },
-    //   sigma,
-    // );
-    // print_endline("<<<<<<<<<<");
     switch (VarCtx.to_list(ctx)) {
     | [] =>
       Node.div(
@@ -396,7 +380,6 @@ let view =
                   [instructional_msg("Internal Error: InvalidInstance")]
                 | Some((_, path)) => [
                     path_view_titlebar,
-                    instructional_msg("Nearest hole in scope found at:"),
                     hii_summary(hii, inst),
                     path_view(inst, path),
                   ]
