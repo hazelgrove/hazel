@@ -7,36 +7,31 @@ type mode =
 /**
  * Extract from the context the variables that are consistent with the type that
  * we are looking for.
- * Return a VarCtx.t
  */
-let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  ctx
-  |> Contexts.gamma
-  |> VarMap.filter(((_, ty: HTyp.t)) =>
-       HTyp.consistent(Contexts.tyvars(ctx), ty, typ)
-     );
-};
+let extract_vars = (ctx: Contexts.t, ty: HTyp.t): VarMap.t(HTyp.t) =>
+  Contexts.vars(ctx)
+  |> VarMap.filter(((_, ty_x)) => Contexts.consistent(ctx, ty_x, ty));
 
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
 let fun_vars = (ctx: Contexts.t, ty: HTyp.t) => {
   let rec compatible_funs = (right_ty: HTyp.t) =>
-    if (HTyp.consistent(Contexts.tyvars(ctx), right_ty, ty)) {
+    if (Contexts.consistent(ctx, right_ty, ty)) {
       true;
     } else {
-      switch (HTyp.head_normalize(Contexts.tyvars(ctx), right_ty)) {
+      switch (Contexts.head_normalize(ctx, right_ty)) {
       | Arrow(_, right_ty) => compatible_funs(right_ty)
       | _ => false
       };
     };
   let can_extract = ((_, ty: HTyp.t)) => {
-    switch (HTyp.head_normalize(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.head_normalize(ctx, ty)) {
     | Arrow(_, ty2) => compatible_funs(ty2)
     | _ => false
     };
   };
-  ctx |> Contexts.gamma |> VarMap.filter(can_extract);
+  Contexts.vars(ctx) |> VarMap.filter(can_extract);
 };
 
 /**

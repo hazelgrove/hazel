@@ -334,7 +334,7 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
-    switch (VarCtx.to_list(ctx)) {
+    switch (VarMap.to_list(ctx)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],

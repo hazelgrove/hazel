@@ -1,16 +1,16 @@
 [@deriving sexp]
-type t = (TyCtx.t, HTyp.t);
+type t = (Contexts.t, HTyp.t);
 
-let wrap = (ty: HTyp.t): t => (TyCtx.empty, ty);
+let wrap = (ty: HTyp.t): t => (Contexts.initial, ty);
 
-let many = (tyvars: TyCtx.t, tys: list(HTyp.t)): list(t) =>
-  List.map(ty => (tyvars, ty), tys);
+let many = (ctx: Contexts.t, tys: list(HTyp.t)): list(t) =>
+  List.map(ty => (ctx, ty), tys);
 
-let normalize = ((tyvars, ty): t): HTyp.normalized =>
-  HTyp.normalize(tyvars, ty);
+let normalize = ((ctx, ty): t): HTyp.normalized =>
+  Contexts.normalize(ctx, ty);
 
-let head_normalize = ((tyvars, ty): t): HTyp.head_normalized =>
-  HTyp.head_normalize(tyvars, ty);
+let head_normalize = ((ctx, ty): t): HTyp.head_normalized =>
+  Contexts.head_normalize(ctx, ty);
 
 let equivalent = (dty1: t, dty2: t): bool =>
   HTyp.normalized_equivalent(normalize(dty1), normalize(dty2));

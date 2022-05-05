@@ -98,7 +98,7 @@ let lit_msg = (ty: HTyp.t) => {
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
  */
-let list_vars_view = (vars: VarCtx.t) => {
+let list_vars_view = (vars: VarMap.t(HTyp.t)) => {
   let b =
     VarMap.map(
       ((var, ty)) => {

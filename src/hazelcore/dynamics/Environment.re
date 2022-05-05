@@ -1,8 +1,9 @@
-[@deriving sexp]
-type t = VarMap.t_(DHExp.t);
 include VarMap;
 
-let id_env = (ctx: VarCtx.t): t =>
+[@deriving sexp]
+type nonrec t = t(DHExp.t);
+
+let id_env = (ctx: VarMap.t(HTyp.t)): t =>
   VarMap.map(
     xt => {
       let (x, _) = xt;

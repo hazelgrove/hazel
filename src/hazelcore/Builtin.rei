@@ -18,19 +18,24 @@ type t = {
 /*
    Create a built-in function.
  */
-let mk: (TyCtx.t, Var.t, HTyp.t, eval) => t;
+let mk: (Contexts.t, Var.t, HTyp.t, eval) => t;
 
 /*
    Create a built-in constant.
  */
-let mk_zero: (TyCtx.t, Var.t, HTyp.t, DHExp.t) => t;
+let mk_zero: (Contexts.t, Var.t, HTyp.t, DHExp.t) => t;
 
 /*
    Create a built-in function that takes a single argument. The given type
    must be correct.
  */
 let mk_one:
-  (TyCtx.t, Var.t, HTyp.t, (Var.t, EvaluatorResult.t) => EvaluatorResult.t) =>
+  (
+    Contexts.t,
+    Var.t,
+    HTyp.t,
+    (Var.t, EvaluatorResult.t) => EvaluatorResult.t
+  ) =>
   t;
 
 /*
@@ -39,7 +44,7 @@ let mk_one:
  */
 let mk_two:
   (
-    TyCtx.t,
+    Contexts.t,
     Var.t,
     HTyp.t,
     (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t

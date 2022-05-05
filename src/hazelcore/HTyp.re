@@ -1,15 +1,15 @@
 open OptUtil.Syntax;
 
 /* escape hatch for unsafe type operations */
-type unsafe = HTypSyntax.t(Index.abs);
+type unsafe = HTypSyntax.t(Index.absolute);
 
 /* types */
 [@deriving sexp]
-type t = HTypSyntax.t(Index.abs);
+type t = HTypSyntax.t(Index.absolute);
 
 /* head normalized types */
 type head_normalized =
-  | TyVar(Index.t(Index.abs), string)
+  | TyVar(Index.Abs.t, string)
   | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, string)
   | Hole
   | Int
@@ -21,7 +21,7 @@ type head_normalized =
   | List(t);
 
 /* normalized types */
-type normalized = HTypSyntax.t(Index.abs);
+type normalized = HTypSyntax.t(Index.absolute);
 
 /**
  * Gets the type in string format.
@@ -65,7 +65,7 @@ type join =
   | GLB
   | LUB;
 
-let tyvar = (i: Index.t(Index.abs), name: string): t => TyVar(i, name);
+let tyvar = (i: Index.Abs.t, name: string): t => TyVar(i, name);
 let tyvarhole =
     (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, name: string): t =>
   TyVarHole(reason, u, name);
@@ -85,7 +85,7 @@ let is_tyvar = (ty: t): bool =>
   | _ => false
   };
 
-let tyvar_index = (ty: t): option(Index.t(Index.abs)) =>
+let tyvar_index = (ty: t): option(Index.Abs.t) =>
   switch (ty) {
   | TyVar(i, _) => Some(i)
   | TyVarHole(_)
@@ -135,11 +135,11 @@ let precedence = (ty: t): int =>
 /*
  Replaces a singleton-kinded type variable with a head-normalized type.
  */
-let rec head_normalize = (tyvars: TyCtx.t, ty: t): head_normalized =>
+let rec head_normalize = (tyctx: TyCtx.t, ty: t): head_normalized =>
   switch (ty) {
   | TyVar(i, name) =>
-    switch (TyCtx.tyvar_kind(tyvars, i)) {
-    | Some(Singleton(ty1)) => head_normalize(tyvars, ty1)
+    switch (TyCtx.tyvar_kind(tyctx, i)) {
+    | Some(Singleton(ty1)) => head_normalize(tyctx, ty1)
     | Some(_) => TyVar(i, name)
     | None =>
       failwith(
@@ -160,11 +160,11 @@ let rec head_normalize = (tyvars: TyCtx.t, ty: t): head_normalized =>
 /*
  Replaces every singleton-kinded type variable with a normalized type.
  */
-let rec normalize = (tyvars: TyCtx.t, ty: t): normalized =>
+let rec normalize = (tyctx: TyCtx.t, ty: t): normalized =>
   switch (ty) {
   | TyVar(i, _) =>
-    switch (TyCtx.tyvar_kind(tyvars, i)) {
-    | Some(Singleton(ty1)) => normalize(tyvars, ty1)
+    switch (TyCtx.tyvar_kind(tyctx, i)) {
+    | Some(Singleton(ty1)) => normalize(tyctx, ty1)
     | Some(_) => ty
     | None =>
       failwith(
@@ -176,14 +176,12 @@ let rec normalize = (tyvars: TyCtx.t, ty: t): normalized =>
   | Int
   | Float
   | Bool => ty
-  | Arrow(ty1, ty2) =>
-    Arrow(normalize(tyvars, ty1), normalize(tyvars, ty2))
-  | Sum(ty1, ty2) => Sum(normalize(tyvars, ty1), normalize(tyvars, ty2))
-  | Prod(tys) => Prod(List.map(normalize(tyvars), tys))
-  | List(ty1) => List(normalize(tyvars, ty1))
+  | Arrow(ty1, ty2) => Arrow(normalize(tyctx, ty1), normalize(tyctx, ty2))
+  | Sum(ty1, ty2) => Sum(normalize(tyctx, ty1), normalize(tyctx, ty2))
+  | Prod(tys) => Prod(List.map(normalize(tyctx), tys))
+  | List(ty1) => List(normalize(tyctx, ty1))
   };
 
-/* type equivalence for normalized types is context independent */
 let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
   | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
@@ -203,7 +201,6 @@ let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
   | (List(_), _) => false
   };
 
-/* type consistency for normalized types is context independent */
 let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
   | (TyVar(i, _), TyVar(i', _)) =>
@@ -224,25 +221,24 @@ let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
   | (List(_), _) => false
   };
 
-/* context-dependent type equivalence */
-let equivalent = (tyvars: TyCtx.t, ty: t, ty': t): bool =>
-  normalized_equivalent(normalize(tyvars, ty), normalize(tyvars, ty'));
+let equivalent = (tyctx: TyCtx.t, ty: t, ty': t): bool =>
+  normalized_equivalent(normalize(tyctx, ty), normalize(tyctx, ty'));
 
-let consistent = (tyvars: TyCtx.t, ty: t, ty': t): bool =>
-  normalized_consistent(normalize(tyvars, ty), normalize(tyvars, ty'));
+let consistent = (tyctx: TyCtx.t, ty: t, ty': t): bool =>
+  normalized_consistent(normalize(tyctx, ty), normalize(tyctx, ty'));
 
-let inconsistent = (tyvars: TyCtx.t, ty1: t, ty2: t): bool =>
-  !consistent(tyvars, ty1, ty2);
+let inconsistent = (tyctx: TyCtx.t, ty1: t, ty2: t): bool =>
+  !consistent(tyctx, ty1, ty2);
 
-let rec consistent_all = (tyvars: TyCtx.t, types: list(t)): bool =>
+let rec consistent_all = (tyctx: TyCtx.t, types: list(t)): bool =>
   switch (types) {
   | [] => true
   | [hd, ...tl] =>
-    !List.exists(inconsistent(tyvars, hd), tl) || consistent_all(tyvars, tl)
+    !List.exists(inconsistent(tyctx, hd), tl) || consistent_all(tyctx, tl)
   };
 
-let matched_arrow = (tyvars: TyCtx.t, ty: t): option((t, t)) =>
-  switch (head_normalize(tyvars, ty)) {
+let matched_arrow = (tyctx: TyCtx.t, ty: t): option((t, t)) =>
+  switch (head_normalize(tyctx, ty)) {
   | Hole
   | TyVarHole(_)
   | TyVar(_) => Some((Hole, Hole))
@@ -258,8 +254,8 @@ let get_prod_elements: head_normalized => list(t) =
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
 /* matched sum types */
-let matched_sum = (tyvars: TyCtx.t, ty: t): option((t, t)) =>
-  switch (head_normalize(tyvars, ty)) {
+let matched_sum = (tyctx: TyCtx.t, ty: t): option((t, t)) =>
+  switch (head_normalize(tyctx, ty)) {
   | Hole
   | TyVarHole(_)
   | TyVar(_) => Some((Hole, Hole))
@@ -268,8 +264,8 @@ let matched_sum = (tyvars: TyCtx.t, ty: t): option((t, t)) =>
   };
 
 /* matched list types */
-let matched_list = (tyvars: TyCtx.t, ty: t): option(t) =>
-  switch (head_normalize(tyvars, ty)) {
+let matched_list = (tyctx: TyCtx.t, ty: t): option(t) =>
+  switch (head_normalize(tyctx, ty)) {
   | Hole
   | TyVarHole(_)
   | TyVar(_) => Some(Hole)
@@ -291,7 +287,7 @@ let rec complete: t => bool =
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
-let rec join = (tyvars: TyCtx.t, j: join, ty1: t, ty2: t): option(t) =>
+let rec join = (tyctx: TyCtx.t, j: join, ty1: t, ty2: t): option(t) =>
   switch (ty1, ty2) {
   | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
   | (ty, Hole | TyVarHole(_))
@@ -301,49 +297,49 @@ let rec join = (tyvars: TyCtx.t, j: join, ty1: t, ty2: t): option(t) =>
     | LUB => Some(ty)
     }
   | (TyVar(i, _), _) =>
-    let* k = TyCtx.tyvar_kind(tyvars, i);
+    let* k = TyCtx.tyvar_kind(tyctx, i);
     switch (k) {
-    | Singleton(ty) => join(tyvars, j, ty, ty2)
-    | KHole => join(tyvars, j, Hole, ty2)
+    | Singleton(ty) => join(tyctx, j, ty, ty2)
+    | KHole => join(tyctx, j, Hole, ty2)
     | T => failwith("impossible for bounded type variables (currently) 1")
     };
   | (_, TyVar(i, _)) =>
-    let* k = TyCtx.tyvar_kind(tyvars, i);
+    let* k = TyCtx.tyvar_kind(tyctx, i);
     switch (k) {
-    | KindCore.Singleton(ty) => join(tyvars, j, ty1, ty)
-    | KHole => join(tyvars, j, ty1, Hole)
+    | KindCore.Singleton(ty) => join(tyctx, j, ty1, ty)
+    | KHole => join(tyctx, j, ty1, Hole)
     | T => failwith("impossible for bounded type variables (currently) 2")
     };
   | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join(tyvars, j, ty1, ty1');
-    let+ ty2 = join(tyvars, j, ty2, ty2');
+    let* ty1 = join(tyctx, j, ty1, ty1');
+    let+ ty2 = join(tyctx, j, ty2, ty2');
     HTypSyntax.Arrow(ty1, ty2);
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    let* ty1 = join(tyvars, j, ty1, ty1');
-    let+ ty2 = join(tyvars, j, ty2, ty2');
+    let* ty1 = join(tyctx, j, ty1, ty1');
+    let+ ty2 = join(tyctx, j, ty2, ty2');
     HTypSyntax.Sum(ty1, ty2);
   | (Prod(tys1), Prod(tys2)) =>
     let+ joined_tys =
-      List.map2(join(tyvars, j), tys1, tys2) |> OptUtil.sequence;
+      List.map2(join(tyctx, j), tys1, tys2) |> OptUtil.sequence;
     HTypSyntax.Prod(joined_tys);
   | (List(ty), List(ty')) =>
-    let+ ty = join(tyvars, j, ty, ty');
+    let+ ty = join(tyctx, j, ty, ty');
     HTypSyntax.List(ty);
   | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
   };
 
-let join_all = (tyvars: TyCtx.t, j: join, types: list(t)): option(t) =>
+let join_all = (tyctx: TyCtx.t, j: join, types: list(t)): option(t) =>
   switch (types) {
   | [] => None
   | [hd] => Some(hd)
   | [hd, ...tl] =>
-    !consistent_all(tyvars, types)
+    !consistent_all(tyctx, types)
       ? None
       : List.fold_left(
           (common_opt, ty) => {
             let* common_ty = common_opt;
-            join(tyvars, j, common_ty, ty);
+            join(tyctx, j, common_ty, ty);
           },
           Some(hd),
           tl,

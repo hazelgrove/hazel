@@ -130,18 +130,18 @@ module BinFloatOp = {
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
+  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t(t))
   | NonEmptyHole(
       ErrStatus.HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(t),
+      VarMap.t(t),
       t,
     )
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
-  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
+  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t(t), ExpandingKeyword.t)
+  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t(t), Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | TyAlias(TPat.t, DHTyp.t, t)
@@ -161,7 +161,7 @@ type t =
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t(t), case)
   | Cast(t, DHTyp.t, DHTyp.t)
   | FailedCast(t, DHTyp.t, DHTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)

@@ -33,7 +33,7 @@ type t = {
    )
    )
  */
-let mk_elab = (tyvars: TyCtx.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
+let mk_elab = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
   let rec mk_elab_inner =
           (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
     switch (HTyp.unsafe(ty')) {
@@ -41,7 +41,7 @@ let mk_elab = (tyvars: TyCtx.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
       let var = "x" ++ string_of_int(n);
       Lam(
         Var(var),
-        (tyvars, ty'),
+        (ctx, ty'),
         mk_elab_inner(HTyp.of_unsafe(ty''), n + 1, [var, ...bindings]),
       );
     | _ =>
@@ -53,25 +53,24 @@ let mk_elab = (tyvars: TyCtx.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
   mk_elab_inner(ty, 0, []);
 };
 
-let mk = (tyvars: TyCtx.t, ident: Var.t, ty: HTyp.t, eval: eval): t => {
-  let elab = mk_elab(tyvars, ident, ty);
+let mk = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t, eval: eval): t => {
+  let elab = mk_elab(ctx, ident, ty);
   {ident, ty, eval, elab};
 };
 
-let mk_zero = (tyvars: TyCtx.t, ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
+let mk_zero = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
   let fn = (args, evaluate) => {
     switch (args) {
     | [] => evaluate(v)
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };
-
-  mk(tyvars, ident, ty, fn);
+  mk(ctx, ident, ty, fn);
 };
 
 let mk_one =
     (
-      tyvars: TyCtx.t,
+      ctx: Contexts.t,
       ident: Var.t,
       ty: HTyp.t,
       fn: (Var.t, EvaluatorResult.t) => EvaluatorResult.t,
@@ -86,12 +85,12 @@ let mk_one =
     };
   };
 
-  mk(tyvars, ident, ty, fn);
+  mk(ctx, ident, ty, fn);
 };
 
 let mk_two =
     (
-      tyvars: TyCtx.t,
+      ctx: Contexts.t,
       ident: Var.t,
       ty: HTyp.t,
       fn: (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t,
@@ -107,5 +106,5 @@ let mk_two =
     };
   };
 
-  mk(tyvars, ident, ty, fn);
+  mk(ctx, ident, ty, fn);
 };

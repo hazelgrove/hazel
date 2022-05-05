@@ -71,7 +71,7 @@ and syn_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
-      Some((HTyp.hole, Contexts.extend_gamma(ctx, (x, HTyp.hole)))),
+      Some((HTyp.hole, Contexts.bind_var(ctx, x, HTyp.hole))),
     )
   | IntLit(NotInHole, _) => Some((HTyp.int, ctx))
   | FloatLit(NotInHole, _) => Some((HTyp.float, ctx))
@@ -87,8 +87,7 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
-    let* (ty_ann, _, _) =
-      Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann);
+    let* (ty_ann, _, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ann);
     let+ op_ctx = ana_operand(ctx, op, ty_ann);
     (ty_ann, op_ctx);
   }
@@ -97,7 +96,7 @@ and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
     : option(Contexts.t) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (tuple_zip(skel, ty_h)) {
   | None =>
     switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty_h)) {
@@ -137,7 +136,7 @@ and ana_skel =
     let* ctx = ana_skel(ctx, skel1, seq, HTyp.hole);
     ana_skel(ctx, skel2, seq, HTyp.hole);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* ty_elt = HTyp.matched_list(Contexts.tyvars(ctx), ty);
+    let* ty_elt = Contexts.matched_list(ctx, ty);
     let* ctx = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, HTyp.list(ty_elt));
   }
@@ -167,7 +166,7 @@ and ana_operand =
   | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
     ty
-    |> HTyp.head_normalize(Contexts.tyvars(ctx))
+    |> Contexts.head_normalize(ctx)
     |> HTyp.get_prod_elements
     |> List.length > 1
       ? Some(ctx) : None
@@ -175,25 +174,24 @@ and ana_operand =
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
-    Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
+    Var.check_valid(x, Some(Contexts.bind_var(ctx, x, ty)))
   | Wild(NotInHole) => Some(ctx)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     let* (ty', ctx') = syn_operand(ctx, operand);
-    HTyp.consistent(Contexts.tyvars(ctx), ty, ty') ? Some(ctx') : None;
+    Contexts.consistent(ctx, ty, ty') ? Some(ctx') : None;
   | ListNil(NotInHole) =>
-    let+ _ = HTyp.matched_list(Contexts.tyvars(ctx), ty);
+    let+ _ = Contexts.matched_list(ctx, ty);
     ctx;
   | Inj(NotInHole, side, p1) =>
-    let* (tyL, tyR) = HTyp.matched_sum(Contexts.tyvars(ctx), ty);
+    let* (tyL, tyR) = Contexts.matched_sum(ctx, ty);
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
-    let* (ty_ann, _, _) =
-      Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann);
-    HTyp.consistent(Contexts.tyvars(ctx), ty, ty_ann)
+    let* (ty_ann, _, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ann);
+    Contexts.consistent(ctx, ty, ty_ann)
       ? ana_operand(ctx, op, ty_ann) : None;
   };
 
@@ -221,7 +219,7 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          let* (ty2, _) = HTyp.matched_arrow(Contexts.tyvars(ctx), ty1);
+          let* (ty2, _) = Contexts.matched_arrow(ctx, ty1);
           ana_go(skel2, ty2);
         }
       }
@@ -241,7 +239,7 @@ and ana_nth_type_mode =
     )
     : option(Statics.type_mode) => {
   // handle n-tuples
-  switch (tuple_zip(skel, HTyp.head_normalize(Contexts.tyvars(ctx), ty))) {
+  switch (tuple_zip(skel, Contexts.head_normalize(ctx, ty))) {
   | None =>
     syn_nth_type_mode(ctx, n, UHPat.set_err_status_opseq(NotInHole, opseq))
   | Some(skel_tys) =>
@@ -272,7 +270,7 @@ and ana_nth_type_mode' =
       n <= Skel.rightmost_tm_index(skel1)
         ? go(skel1, HTyp.hole) : go(skel2, HTyp.hole)
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      let* ty_elt = HTyp.matched_list(Contexts.tyvars(ctx), ty);
+      let* ty_elt = Contexts.matched_list(ctx, ty);
       n <= Skel.rightmost_tm_index(skel1)
         ? go(skel1, ty_elt) : go(skel2, ty);
     };
@@ -341,7 +339,7 @@ and syn_fix_holes_skel =
       let (skel1, seq, ty, ctx, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let (skel1, seq, u_gen) =
-        switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+        switch (Contexts.matched_arrow(ctx, ty)) {
         | Some(_) => (skel1, seq, u_gen)
         | None =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -409,7 +407,7 @@ and syn_fix_holes_operand =
       u_gen,
     )
   | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, HTyp.hole));
+    let ctx = Contexts.bind_var(ctx, x, HTyp.hole);
     (operand_nih, HTyp.hole, ctx, u_gen);
   | IntLit(_, _) => (operand_nih, HTyp.int, ctx, u_gen)
   | FloatLit(_, _) => (operand_nih, HTyp.float, ctx, u_gen)
@@ -430,9 +428,8 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
-    let (ann, _, u_gen) =
-      Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
-    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
+    let (ann, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ann);
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
     | Some((ty_ann, _, _)) =>
       if (HTyp.complete(ty_ann)) {
         let (op, ctx, u_gen) =
@@ -445,8 +442,7 @@ and syn_fix_holes_operand =
           );
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
       } else {
-        let (ann, _, u_gen) =
-          Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+        let (ann, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ann);
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
       }
     | None =>
@@ -476,7 +472,7 @@ and ana_fix_holes_opseq =
       ty: HTyp.t,
     )
     : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   // handle n-tuples
   switch (tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
@@ -591,7 +587,7 @@ and ana_fix_holes_skel =
       let (skel1, seq, ty, ctx, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let (skel1, seq, u_gen) =
-        switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+        switch (Contexts.matched_arrow(ctx, ty)) {
         | Some(_) => (skel1, seq, u_gen)
         | None =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -623,7 +619,7 @@ and ana_fix_holes_skel =
       );
     (skel, seq, ctx, u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_list(ctx, ty)) {
     | Some(ty_elt) =>
       let (skel1, seq, ctx, u_gen) =
         ana_fix_holes_skel(
@@ -693,14 +689,14 @@ and ana_fix_holes_operand =
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Contexts.bind_var(ctx, x, ty);
     (operand_nih, ctx, u_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) =>
     let (operand', ty', ctx, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
-    if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
+    if (Contexts.consistent(ctx, ty, ty')) {
       (UHPat.set_err_status_operand(NotInHole, operand'), ctx, u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -711,7 +707,7 @@ and ana_fix_holes_operand =
       );
     };
   | ListNil(_) =>
-    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_list(ctx, ty)) {
     | Some(_) => (ListNil(NotInHole), ctx, u_gen)
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -722,7 +718,7 @@ and ana_fix_holes_operand =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
     (Parenthesized(p1), ctx, u_gen);
   | Inj(_, side, p1) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let (p1, ctx, u_gen) =
@@ -735,9 +731,8 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
-    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
-    | Some((ty_ann, _, _))
-        when HTyp.consistent(Contexts.tyvars(ctx), ty, ty_ann) =>
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
+    | Some((ty_ann, _, _)) when Contexts.consistent(ctx, ty, ty_ann) =>
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
       (TypeAnn(NotInHole, op, ann), ctx, u_gen);

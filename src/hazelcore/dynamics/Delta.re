@@ -13,7 +13,7 @@ let empty: t = (MetaVarMap.empty: t);
 
 let union = (d1, d2) => MetaVarMap.union((_, a, _) => Some(a), d1, d2);
 
-let subst_tyvar = (delta: t, i: Index.t(Index.abs), ty: HTyp.t): t =>
+let subst_tyvar = (delta: t, i: Index.Abs.t, ty: HTyp.t): t =>
   IntMap.bindings(delta)
   |> List.map(((u, hole)) =>
        switch (hole) {
@@ -21,7 +21,7 @@ let subst_tyvar = (delta: t, i: Index.t(Index.abs), ty: HTyp.t): t =>
            u,
            Hole.Expression(
              HTyp.subst(ty_u, i, ty),
-             TyCtx.subst_tyvar(ctx, i, ty),
+             Contexts.subst_tyvar(ctx, i, ty),
            ),
          )
        | Pattern(ty_u, ctx) => (u, Pattern(ty_u, ctx))

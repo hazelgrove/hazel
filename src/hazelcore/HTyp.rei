@@ -4,7 +4,7 @@ type t;
 
 /* head normalized types */
 type head_normalized =
-  | TyVar(Index.t(Index.abs), string)
+  | TyVar(Index.Abs.t, string)
   | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, string)
   | Hole
   | Int
@@ -16,10 +16,10 @@ type head_normalized =
   | List(t);
 
 /* normalized types */
-type normalized = HTypSyntax.t(Index.abs);
+type normalized = HTypSyntax.t(Index.absolute);
 
 /* escape hatch for unsafe type operations */
-type unsafe = HTypSyntax.t(Index.abs);
+type unsafe = HTypSyntax.t(Index.absolute);
 
 type join =
   | GLB
@@ -35,7 +35,7 @@ let of_head_normalized: head_normalized => t;
 let of_normalized: normalized => t;
 
 /* construction */
-let tyvar: (Index.t(Index.abs), string) => t;
+let tyvar: (Index.Abs.t, string) => t;
 let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, string) => t;
 let hole: t;
 let int: t;
@@ -49,7 +49,7 @@ let list: t => t;
 let is_hole: t => bool;
 let is_tyvar: t => bool;
 
-let tyvar_index: t => option(Index.t(Index.abs));
+let tyvar_index: t => option(Index.Abs.t);
 let tyvar_name: t => option(string);
 
 let precedence_Prod: int;
@@ -90,4 +90,4 @@ let grounded_List: ground_cases;
 
 let ground_cases_of: normalized => ground_cases;
 
-let subst: (t, Index.t(Index.abs), t) => t;
+let subst: (t, Index.Abs.t, t) => t;

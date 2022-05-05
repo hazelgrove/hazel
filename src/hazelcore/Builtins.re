@@ -61,29 +61,30 @@ module Impls = {
 };
 
 let builtins: list(Builtin.t) = [
-  Builtin.mk_zero(TyCtx.empty, "PI", HTyp.float, Impls.pi),
+  Builtin.mk_zero(Contexts.initial, "PI", HTyp.float, Impls.pi),
   Builtin.mk_one(
-    TyCtx.empty,
+    Contexts.initial,
     "int_of_float",
     HTyp.arrow(HTyp.float, HTyp.int),
     Impls.int_of_float,
   ),
   Builtin.mk_one(
-    TyCtx.empty,
+    Contexts.initial,
     "float_of_int",
     HTyp.arrow(HTyp.int, HTyp.float),
     Impls.float_of_int,
   ),
   Builtin.mk_two(
-    TyCtx.empty,
+    Contexts.initial,
     "mod",
     HTyp.arrow(HTyp.int, HTyp.arrow(HTyp.int, HTyp.int)),
     Impls.int_mod,
   ),
 ];
 
-let ctx: VarCtx.t =
+let ctx: VarMap.t(HTyp.t) =
   List.map(({ident, ty, _}: Builtin.t) => (ident, ty), builtins);
+
 let forms =
   List.map(
     ({ident, ty: _ty, eval, elab}: Builtin.t) => (ident, (eval, elab)),

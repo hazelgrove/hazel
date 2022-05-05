@@ -40,9 +40,9 @@ let text_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (TyVar(InHole(Unbound, u), name), ctx, u_gen);
     | Some(i) =>
-      let kind = Kind.Singleton(TyVar(i, name));
-      let ctx = Contexts.extend_tyvars(ctx, name, kind);
-      (TyVar(NotInHole(i), name), ctx, u_gen);
+      let kind = Kind.singleton(HTyp.tyvar(i, name));
+      let ctx = Contexts.push_tyvar(ctx, name, kind);
+      (TyVar(NotInTyVarHole(i), name), ctx, u_gen);
     }
   };
 
@@ -102,13 +102,12 @@ let mk_syn_text =
       );
     Succeeded((zty, u_gen));
   | Some(TyVar(name)) =>
-    let tyvars = Contexts.tyvars(ctx);
-    let (status: TyVar.Status.t, u_gen) =
-      switch (TyVarCtx.index(tyvars, name)) {
+    let (status: TyVarErrStatus.t, u_gen) =
+      switch (Contexts.tyvar_index(ctx, name)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (InHole(Unbound, u), u_gen);
-      | Some(i) => (NotInHole(i), u_gen)
+      | Some(i) => (NotInTyVarHole(i), u_gen)
       };
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, name)));
     Succeeded((zty, u_gen));

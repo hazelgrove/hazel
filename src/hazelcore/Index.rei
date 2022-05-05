@@ -1,24 +1,38 @@
 /** De Bruijn indices */
 
 [@deriving sexp]
-type t('i);
+type t('pos) = pri int;
+
+let to_string: t('pos) => string;
+
+let equal: (t('pos), t('pos)) => bool;
+let increment: t('pos) => t('pos);
+let decrement: t('pos) => t('pos);
 
 [@deriving sexp]
 [@sexp.opaque]
-type abs;
+type absolute;
 
 [@deriving sexp]
 [@sexp.opaque]
-type rel;
+type relative;
 
-let abs_to_rel: (~offset: int=?, t(abs)) => t(rel);
-let rel_to_abs: (~offset: t(abs)=?, t(rel)) => t(abs);
+module Abs: {
+  type rel := t(relative);
 
-let of_int: int => t('i);
-let to_int: t('i) => int;
+  [@deriving sexp]
+  type nonrec t = t(absolute);
+  let of_int: int => t;
+  let to_int: t => int;
+  let to_rel: (~offset: int=?, t) => rel;
+};
 
-let to_string: t('i) => string;
+module Rel: {
+  type abs := t(absolute);
 
-let equal: (t('i), t('i)) => bool;
-let increment: t('i) => t('i);
-let decrement: t('i) => t('i);
+  [@deriving sexp]
+  type nonrec t = t(relative);
+  let of_int: int => t;
+  let to_int: t => int;
+  let to_abs: (~offset: int=?, t) => abs;
+};

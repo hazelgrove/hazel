@@ -31,18 +31,16 @@ let subst_tyvar = (k: t('i), i: Index.t('i), ty: HTypSyntax.t('i)): t('i) =>
   | Singleton(ty1) => Singleton(HTypSyntax.subst(ty1, i, ty))
   };
 
-let abs_to_rel = (~offset: int=0, k: t(Index.abs)): t(Index.rel) =>
+let to_rel = (~offset: int=0, k: t(Index.absolute)): t(Index.relative) =>
   switch (k) {
   | KHole => KHole
   | T => T
-  | Singleton(ty) => Singleton(HTypSyntax.abs_to_rel(~offset, ty))
+  | Singleton(ty) => Singleton(HTypSyntax.to_rel(~offset, ty))
   };
 
-let rel_to_abs =
-    (~offset: Index.t(Index.abs)=Index.of_int(0), k: t(Index.rel))
-    : t(Index.abs) =>
+let to_abs = (~offset: int=0, k: t(Index.relative)): t(Index.absolute) =>
   switch (k) {
   | KHole => KHole
   | T => T
-  | Singleton(ty) => Singleton(HTypSyntax.rel_to_abs(~offset, ty))
+  | Singleton(ty) => Singleton(HTypSyntax.to_abs(~offset, ty))
   };

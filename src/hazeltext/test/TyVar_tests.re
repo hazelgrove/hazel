@@ -20,7 +20,7 @@ let read_with_tyvar =
     : option((Contexts.t, UHExp.t, MetaVarGen.t)) => {
   open OptUtil.Syntax;
   let ctx = Contexts.initial;
-  let ctx = Contexts.extend_tyvars(ctx, name, Kind.singleton(ty));
+  let ctx = Contexts.push_tyvar(ctx, name, Kind.singleton(ty));
   let+ e = UHExpTest.read(ctx, text);
   let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int);
   (ctx, [line, ...e], u_gen);

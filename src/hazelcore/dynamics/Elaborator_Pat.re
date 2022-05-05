@@ -143,7 +143,7 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), HTyp.hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, HTyp.hole));
+    let ctx = Contexts.bind_var(ctx, x, HTyp.hole);
     Elaborates(Var(x), HTyp.hole, ctx, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
@@ -362,7 +362,7 @@ and ana_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Contexts.bind_var(ctx, x, ty);
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)

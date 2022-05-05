@@ -8,5 +8,5 @@ module HoleReason = {
 
 [@deriving sexp]
 type t =
-  | NotInTyVarHole(Index.t(Index.abs))
+  | NotInTyVarHole(Index.Abs.t)
   | InHole(HoleReason.t, MetaVar.t);

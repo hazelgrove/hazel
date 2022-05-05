@@ -7,7 +7,7 @@ type join_of_branches =
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
-[@deriving sexp]
+// [@deriving sexp] XXX
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */

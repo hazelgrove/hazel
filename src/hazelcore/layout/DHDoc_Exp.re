@@ -255,7 +255,7 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | TyAlias(p, (tyvars, ty), dbody) =>
+      | TyAlias(p, (ctx, ty), dbody) =>
         vseps([
           hcats(
             [
@@ -276,7 +276,7 @@ let rec mk =
               settings.show_kinds
                 ? [
                   DHDoc_common.Delim.mk("::"),
-                  switch (Statics_Typ.syn(tyvars, ty)) {
+                  switch (Statics_Typ.syn(ctx, ty)) {
                   | Some(k) =>
                     DHDoc_Kind.mk(k)
                     |> DHDoc_common.pad_child(
