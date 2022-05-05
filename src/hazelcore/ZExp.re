@@ -955,25 +955,20 @@ let zline_is_just_empty_hole = (zline: zline): bool =>
 
 type hole_vars = UHExp.hole_vars;
 let opt_or = UHExp.opt_or;
+open OptUtil.Syntax;
 
 let merge_vars =
-    (vars: list(Var.t), res: option(hole_vars)): option(hole_vars) =>
-  Option.bind(res, ((u, vars')) => Some((u, vars @ vars')));
+    (vars: list(Var.t), res: option(hole_vars)): option(hole_vars) => {
+  let* (u, vars') = res;
+  Some((u, vars @ vars'));
+};
 
 let rec next_hole_in_scope: t => option(hole_vars) =
   zexp => next_hole_in_scope_zblock(zexp)
 and next_hole_in_scope_zblock: t => option(hole_vars) =
   ((_, zline, suffix)) => {
     next_hole_in_scope_zline(zline)
-    |> opt_or(() =>
-         suffix
-         |> List.fold_left(
-              (opt_u, line) => {
-                opt_u |> opt_or(() => UHExp.find_first_hole_line(line))
-              },
-              None,
-            )
-       );
+    |> opt_or(() => UHExp.find_first_hole_block(suffix));
   }
 and next_hole_in_scope_zline: zline => option(hole_vars) =
   fun
@@ -985,16 +980,14 @@ and next_hole_in_scope_zopseq: zopseq => option(hole_vars) =
   zopseq =>
     switch (zopseq) {
     | ZOpSeq(_, ZOperator(_)) =>
-      Option.bind(move_cursor_right_zopseq(zopseq), zopseq =>
-        next_hole_in_scope_zopseq(zopseq)
-      )
+      let* zopseq = move_cursor_right_zopseq(zopseq);
+      next_hole_in_scope_zopseq(zopseq);
     | ZOpSeq(_, ZOperand(zoperand, _)) =>
       next_hole_in_scope_zoperand(zoperand)
-      |> opt_or(() =>
-           Option.bind(move_cursor_right_zopseq(zopseq), zopseq =>
-             next_hole_in_scope_zopseq(zopseq)
-           )
-         )
+      |> opt_or(() => {
+           let* zopseq = move_cursor_right_zopseq(zopseq);
+           next_hole_in_scope_zopseq(zopseq);
+         })
     }
 and next_hole_in_scope_zoperand: zoperand => option(hole_vars) =
   fun
