@@ -15,6 +15,26 @@ and internal_provenance =
   | Matched_prod_R(unknown_type_provenance)
   | Matched_list(unknown_type_provenance);
 
+/**
+   * option 1: use above and replace internals of andrew's code with usergen
+   * option 2:
+[@deriving sexp]
+type unknown_type_provenance =
+  | TypHole
+  | SynPatternVar
+  | Internal(internal_provenance)
+and internal_provenance =
+  // enumerate other base cases here if applicable; try to avoid
+  | UserVisible(MetaVar.t)
+  | Matched_arrow_L(unknown_type_provenance)
+  | Matched_arrow_R(unknown_type_provenance)
+  | Matched_sum_L(unknown_type_provenance)
+  | Matched_sum_R(unknown_type_provenance)
+  | Matched_prod_L(unknown_type_provenance)
+  | Matched_prod_R(unknown_type_provenance)
+  | Matched_list(unknown_type_provenance);
+  **/
+
 /* types with holes */
 [@deriving sexp]
 type t =
