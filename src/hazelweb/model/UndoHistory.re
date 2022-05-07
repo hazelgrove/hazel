@@ -503,7 +503,7 @@ let get_new_action_group =
       | SCloseSquareBracket
       | SList
       | SAnn
-      | SLam
+      | SFun
       | SListNil
       | SInj(_)
       | SLet
@@ -602,6 +602,7 @@ let get_new_action_group =
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
+              | Fun
               | Let =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
@@ -612,7 +613,14 @@ let get_new_action_group =
                   if (pos == 3) {
                     /* the caret is at the end of "let" */
                     Some(
-                      ConstructEdit(SLet),
+                      ConstructEdit(
+                        switch (k) {
+                        | Fun => SFun
+                        | Let => SLet
+                        | TyAlias
+                        | Case => failwith("impossible")
+                        },
+                      ),
                     );
                   } else {
                     Some(ConstructEdit(SOp(SSpace)));
@@ -656,7 +664,9 @@ let get_new_action_group =
               switch (pos) {
               | OnText(index) =>
                 let (left_var, _) = Var.split(index, var);
-                if (Var.is_let(left_var)) {
+                if (Var.is_fun(left_var)) {
+                  Some(ConstructEdit(SFun));
+                } else if (Var.is_let(left_var)) {
                   Some(ConstructEdit(SLet));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));

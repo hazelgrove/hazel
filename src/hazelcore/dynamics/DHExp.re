@@ -143,10 +143,10 @@ type t =
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t(t), Var.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
+  | Fun(DHPat.t, DHTyp.t, t)
   | Let(DHPat.t, t, t)
-  | TyAlias(TPat.t, DHTyp.t, t)
   | FixF(Var.t, DHTyp.t, t)
-  | Lam(DHPat.t, DHTyp.t, t)
+  | TyAlias(TPat.t, DHTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
   | BoolLit(bool)
@@ -181,7 +181,7 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | TyAlias(_) => "TyAlias"
   | FixF(_, _, _) => "FixF"
-  | Lam(_, _, _) => "Lam"
+  | Fun(_, _, _) => "Fun"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"

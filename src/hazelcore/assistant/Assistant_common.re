@@ -40,7 +40,7 @@ let fun_vars = (ctx: Contexts.t, ty: HTyp.t) => {
    */
 let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   switch (typed) {
-  | AnaAnnotatedLambda(_, expected, actual)
+  | AnaAnnotatedFun(_, expected, actual)
   | AnaTypeInconsistent(expected, actual)
   | AnaSubsumed(_, expected, actual) => (
       Some(expected),

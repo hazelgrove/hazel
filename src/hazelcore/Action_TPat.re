@@ -79,9 +79,9 @@ let rec perform =
   | (
       Construct(
         SCloseParens | SCloseBraces | SCloseSquareBracket | SCommentLine | SAnn |
+        SFun |
         SLet |
         SLine |
-        SLam |
         SListNil |
         SInj(_) |
         SCase |

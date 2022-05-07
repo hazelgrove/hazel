@@ -25,11 +25,19 @@ let is_false = eq("false");
 
 let is_let = eq("let");
 
+let is_fun = eq("fun");
+
 let is_case = eq("case");
 
 let is_type = eq("type");
 
 let is_wild = eq("_");
+
+let is_keyword = s =>
+  switch (ExpandingKeyword.mk(s)) {
+  | Some(_) => true
+  | None => false
+  };
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);

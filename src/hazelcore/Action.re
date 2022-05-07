@@ -27,7 +27,7 @@ type shape =
   | SCloseSquareBracket
   | SChar(string)
   | SAnn
-  | SLam
+  | SFun
   | SListNil
   | SInj(InjSide.t)
   | SLet

@@ -39,7 +39,7 @@ let mk_elab = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
     switch (HTyp.unsafe(ty')) {
     | Arrow(_, ty'') =>
       let var = "x" ++ string_of_int(n);
-      Lam(
+      Fun(
         Var(var),
         (ctx, ty'),
         mk_elab_inner(HTyp.of_unsafe(ty''), n + 1, [var, ...bindings]),

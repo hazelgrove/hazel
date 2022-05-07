@@ -624,7 +624,7 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SList | SLet | STyAlias | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | STyAlias | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |
@@ -1176,7 +1176,7 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SList | SLet | STyAlias | SLine | SLam | SCase | SCommentLine |
+        SList | SLet | STyAlias | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |

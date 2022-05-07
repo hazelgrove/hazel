@@ -106,6 +106,7 @@ let group_action_group =
     }
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
+    | SFun
     | SLet
     | SCase
     | STyAlias => true
@@ -149,7 +150,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
     | ListNil(_)
-    | Lam(_)
+    | Fun(_)
     | Inj(_, _, _)
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
@@ -215,7 +216,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | ExpOperand(_, exp) =>
     switch (exp) {
-    | Lam(_) => true
+    | Fun(_) => true
     | _ => false
     }
   | Line(_, line_content) =>

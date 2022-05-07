@@ -198,12 +198,12 @@ module Make = (Memo: Memo.S) => {
           | FloatLit(_, f) => mk_FloatLit(f)
           | BoolLit(_, b) => mk_BoolLit(b)
           | ListNil(_) => mk_ListNil()
-          | Lam(_, p, body) =>
+          | Fun(_, p, body) =>
             let p =
               UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
-            UHDoc_common.mk_Lam(p, body);
+            UHDoc_common.mk_Fun(p, body);
           | Inj(_, inj_side, body) =>
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
