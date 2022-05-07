@@ -30,5 +30,6 @@ let read = (ty_text: string): option(HTyp.t) => {
 let test_read = (text: string, expected_ty: HTyp.t): bool =>
   switch (read(text)) {
   | None => false
-  | Some(got_ty) => HTyp.equivalent(TyVarCtx.empty, got_ty, expected_ty)
+  | Some(got_ty) =>
+    Contexts.equivalent(Contexts.initial, got_ty, expected_ty)
   };

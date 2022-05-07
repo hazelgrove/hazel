@@ -31,6 +31,23 @@ let subst_tyvar = (delta: t, i: Index.Abs.t, ty: HTyp.t): t =>
   |> List.to_seq
   |> IntMap.of_seq;
 
+let eliminate_tyvars = (delta: t, tyvars: list((TyVar.t, Kind.t))): t =>
+  MetaVarMap.map(
+    fun
+    | Hole.Expression(ty, ctx) => {
+        let ty = HTyp.eliminate_tyvars(ty, tyvars);
+        let ctx = Contexts.eliminate_tyvars(ctx, tyvars);
+        Hole.Expression(ty, ctx);
+      }
+    | Pattern(ty, ctx) => {
+        let ty = HTyp.eliminate_tyvars(ty, tyvars);
+        let ctx = Contexts.eliminate_tyvars(ctx, tyvars);
+        Pattern(ty, ctx);
+      }
+    | Type as t => t,
+    delta,
+  );
+
 let sexp_of_t = (delta: t): Sexplib.Sexp.t =>
   IntMap.sexp_of_t(Hole.sexp_of_t, delta);
 

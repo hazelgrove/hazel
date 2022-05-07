@@ -36,9 +36,42 @@ let push_tyvar =
 
 let pop_tyvar =
     ((builtins, tyctx): t)
-    : (t, option((TyVar.t, KindCore.t(Index.absolute)))) => {
-  let (tyctx, popped) = TyCtx.pop_tyvar(tyctx);
+    : option((t, (TyVar.t, KindCore.t(Index.absolute)))) => {
+  open OptUtil.Syntax;
+  let+ (tyctx, popped) = TyCtx.pop_tyvar(tyctx);
   ((builtins, tyctx), popped);
+};
+
+let rec pop_tyvars =
+        (ctx: t, n: int)
+        : option((t, list((TyVar.t, KindCore.t(Index.absolute))))) =>
+  if (n == 0) {
+    Some((ctx, []));
+  } else {
+    open OptUtil.Syntax;
+    let* (ctx, head) = pop_tyvar(ctx);
+    let+ (ctx, tail) = pop_tyvars(ctx, n - 1);
+    (ctx, [head, ...tail]);
+  };
+
+let eliminate_new_tyvars =
+    (new_ctx: t, orig_ctx: t, ty: HTyp.t)
+    : option((HTyp.t, list((TyVar.t, KindCore.t(Index.absolute))))) => {
+  open OptUtil.Syntax;
+  let n = num_tyvars(new_ctx) - num_tyvars(orig_ctx);
+  let+ (_, popped) = pop_tyvars(orig_ctx, n);
+  let ty = HTyp.eliminate_tyvars(ty, popped);
+  (ty, popped);
+};
+
+let eliminate_tyvars =
+    (
+      (builtins, tyctx): t,
+      tyvars: list((TyVar.t, KindCore.t(Index.absolute))),
+    )
+    : t => {
+  let tyctx = TyCtx.eliminate_tyvars(tyctx, tyvars);
+  (builtins, tyctx);
 };
 
 let tyvar_index = ((_, tyctx): t, name: string): option(Index.Abs.t) =>

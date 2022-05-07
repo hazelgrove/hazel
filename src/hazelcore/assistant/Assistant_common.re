@@ -70,10 +70,10 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFree
   | SynKeyword(_) => (Some(HTyp.hole), Some(HTyp.hole), Synthetic)
 
-  | SynBranchClause(join, typed, _, tyvars) =>
+  | SynBranchClause(join, typed, _, ctx) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (HTyp.consistent(tyvars, ty, got_ty)) {
+      if (Contexts.consistent(ctx, ty, got_ty)) {
         (Some(HTyp.hole), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);

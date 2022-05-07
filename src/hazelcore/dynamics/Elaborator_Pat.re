@@ -40,9 +40,8 @@ and syn_elab_skel =
     switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, _, ctx, delta) =>
-      let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole, gamma), delta);
+        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole, ctx), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), HTyp.hole, ctx, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -114,9 +113,8 @@ and syn_elab_operand =
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, _, ctx, delta) =>
-      let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole, gamma), delta);
+        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole, ctx), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), HTyp.hole, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
@@ -127,16 +125,14 @@ and syn_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
-    let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
     let ty = HTyp.hole;
-    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(u, t) =>
-    let gamma = Contexts.gamma(ctx);
     let dp = DHPat.InvalidText(u, 0, t);
     let ty = HTyp.hole;
-    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, HTyp.hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -172,7 +168,7 @@ and syn_elab_operand =
       Elaborates(dp, ty, ctx, delta);
     }
   | TypeAnn(_, p1, ty1) =>
-    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), delta, ty1)) {
+    switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
     | None => DoesNotElaborate
     | Some((ty1, _, _)) => ana_elab_operand(ctx, delta, p1, ty1)
     }
@@ -189,7 +185,7 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   // handle n-tuples
   switch (Statics_Pat.tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
@@ -260,9 +256,7 @@ and ana_elab_opseq =
         ) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(dp, _, _, delta) =>
-          let gamma = ctx |> Contexts.gamma;
-          let delta =
-            MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+          let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
           Elaborates(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
         }
       };
@@ -292,8 +286,7 @@ and ana_elab_skel =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
-      let gamma = Contexts.gamma(ctx);
-      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -308,7 +301,7 @@ and ana_elab_skel =
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
@@ -341,8 +334,7 @@ and ana_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
-      let gamma = Contexts.gamma(ctx);
-      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
       Elaborates(dp, ty, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
@@ -354,9 +346,8 @@ and ana_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
-    let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, gamma), delta);
+    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
     Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
@@ -370,13 +361,13 @@ and ana_elab_operand =
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) => Elaborates(ListNil, HTyp.list(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
   | Inj(NotInHole, side, p1) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);

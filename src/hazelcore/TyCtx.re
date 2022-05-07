@@ -81,12 +81,42 @@ let subst_tyvar =
   go([], i, tyctx);
 };
 
-// List.map(
-//   fun
-//   | TyVarBinding(t, k) => TyVarBinding(t, KindCore.subst_tyvar(k, i, ty))
-//   | VarBinding(x, ty_x) => VarBinding(x, HTypSyntax.subst(ty_x, i, ty)),
-//   tyctx,
-// );
+let eliminate_tyvars =
+    (tyctx: t, tyvars: list((TyVar.t, KindCore.t(Index.absolute)))): t => {
+  let n = List.length(tyvars);
+  let do_htyp =
+      (ty: HTypSyntax.t(Index.absolute)): HTypSyntax.t(Index.absolute) =>
+    List.fold_left(
+      ((ty, j), (_, k)) => {
+        let ty_k = KindCore.canonical_type(k);
+        let ty = HTypSyntax.subst(ty, Index.Abs.of_int(n - j), ty_k);
+        (ty, j - 1);
+      },
+      (ty, n),
+      tyvars,
+    )
+    |> fst;
+  let do_kind = (k: KindCore.t(Index.absolute)): KindCore.t(Index.absolute) =>
+    switch (k) {
+    | KindCore.KHole
+    | T => k
+    | Singleton(ty) => Singleton(do_htyp(ty))
+    };
+  List.mapi(
+    (offset, binding) =>
+      switch (binding) {
+      | VarBinding(x, ty) =>
+        let ty = do_htyp(HTypSyntax.to_abs(~offset, ty));
+        let ty = HTypSyntax.to_rel(~offset, ty);
+        VarBinding(x, ty);
+      | TyVarBinding(t, k) =>
+        let k = do_kind(KindCore.to_abs(~offset, k));
+        let k = KindCore.to_rel(~offset, k);
+        TyVarBinding(t, k);
+      },
+    tyctx,
+  );
+};
 
 /* Expression Variables */
 
@@ -171,7 +201,7 @@ let push_tyvar =
 };
 
 let pop_tyvar =
-    (tyctx: t): (t, option((TyVar.t, KindCore.t(Index.absolute)))) => {
+    (tyctx: t): option((t, (TyVar.t, KindCore.t(Index.absolute)))) => {
   // skip any leading expression variables
   let (vars, tail) =
     ListUtil.fold_to(
@@ -186,8 +216,8 @@ let pop_tyvar =
   switch (tail) {
   | [TyVarBinding(tyvar, k), ...tyctx'] =>
     let tyctx = List.rev(vars) @ tyctx';
-    (tyctx, Some((tyvar, KindCore.to_abs(~offset=List.length(vars), k))));
+    Some((tyctx, (tyvar, KindCore.to_abs(~offset=List.length(vars), k))));
   | [VarBinding(_), ..._]
-  | [] => (List.rev(vars) @ tail, None)
+  | [] => None
   };
 };

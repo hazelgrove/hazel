@@ -378,3 +378,18 @@ let ground_cases_of = (ty: normalized): ground_cases =>
   };
 
 let subst = HTypSyntax.subst;
+
+let eliminate_tyvars =
+    (ty: t, tyvars: list((TyVar.t, KindCore.t(Index.absolute)))): t => {
+  let n = List.length(tyvars);
+  List.fold_left(
+    ((ty, j), (_, k)) => {
+      let ty_k = KindCore.canonical_type(k);
+      let ty = subst(ty, Index.Abs.of_int(n - j), ty_k);
+      (ty, j - 1);
+    },
+    (ty, n),
+    tyvars,
+  )
+  |> fst;
+};

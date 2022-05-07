@@ -91,3 +91,4 @@ let grounded_List: ground_cases;
 let ground_cases_of: normalized => ground_cases;
 
 let subst: (t, Index.Abs.t, t) => t;
+let eliminate_tyvars: (t, list((TyVar.t, KindCore.t(Index.absolute)))) => t;

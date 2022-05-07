@@ -221,7 +221,7 @@ and syn_cursor_info_zoperand =
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | TypeAnnZP(_, zop, ty) =>
-    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
     | None => None
     | Some((ty', _, _)) =>
       ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty')
@@ -251,7 +251,7 @@ and ana_cursor_info_zopseq =
   // but we want all comma operators in an opseq to
   // show the complete product type
   let seq = zseq |> ZPat.erase_zseq;
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -402,7 +402,7 @@ and ana_cursor_info_skel =
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(Contexts.tyvars(ctx), ty)) {
+      switch (Contexts.matched_list(ctx, ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
@@ -435,7 +435,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.hole),
+            PatAnaSubsumed(ctx, ty, HTyp.hole),
             ctx,
             cursor_term,
           ),
@@ -503,7 +503,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.int),
+            PatAnaSubsumed(ctx, ty, HTyp.int),
             ctx,
             cursor_term,
           ),
@@ -513,7 +513,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.float),
+            PatAnaSubsumed(ctx, ty, HTyp.float),
             ctx,
             cursor_term,
           ),
@@ -523,7 +523,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(Contexts.tyvars(ctx), ty, HTyp.bool),
+            PatAnaSubsumed(ctx, ty, HTyp.bool),
             ctx,
             cursor_term,
           ),
@@ -554,7 +554,7 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);
@@ -568,9 +568,7 @@ and ana_cursor_info_zoperand =
     | InHole(TypeInconsistent, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | NotInHole =>
-      switch (
-        Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)
-      ) {
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
       | None => None
       | Some((ty_ann, _, _)) =>
         ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zop, ty_ann)

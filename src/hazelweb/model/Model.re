@@ -16,7 +16,7 @@ let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
   Examples.cardstack,
-  Examples.teststack,
+  // Examples.teststack, XXX re-enable test stack
   // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];

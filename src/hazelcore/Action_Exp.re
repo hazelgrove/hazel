@@ -323,7 +323,7 @@ let mk_syn_text =
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
     Succeeded(SynDone((ze, HTyp.hole, u_gen)));
   | Var(x) =>
-    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+    switch (Contexts.var_type(ctx, x)) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
@@ -375,7 +375,7 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
+      if (Contexts.consistent(ctx, ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
@@ -1103,7 +1103,7 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zp, u_gen)) =>
-      switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ty)) {
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
       | None => Failed
       | Some((ty', k, _)) =>
         let (body_ctx, new_zp, u_gen) =
@@ -1117,13 +1117,7 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zty, ctx, u_gen)) =>
-      switch (
-        Elaborator_Typ.syn_elab(
-          Contexts.tyvars(ctx),
-          Delta.empty,
-          ZTyp.erase(new_zty),
-        )
-      ) {
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(new_zty))) {
       | None => Failed
       | Some((_, k, _)) =>
         let (body_ctx, new_p, u_gen) =
@@ -1894,7 +1888,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, LamZE(_, p, zbody)) =>
-    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty_p, ty_body)) =>
       switch (Statics_Pat.syn(ctx, p)) {
@@ -1917,7 +1911,7 @@ and syn_perform_operand =
     }
 
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.head_normalize(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.head_normalize(ctx, ty)) {
     | Sum(ty1, ty2) =>
       let ty_side = InjSide.pick(side, ty1, ty2);
       switch (syn_perform(ctx, a, (zbody, ty_side, u_gen))) {
@@ -2559,7 +2553,7 @@ and ana_perform_opseq =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2902,7 +2896,7 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -2983,7 +2977,7 @@ and ana_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
-    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let (p, body_ctx, u_gen) =
@@ -3112,7 +3106,7 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Construct(SInj(side)), CursorE(_)) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let (zbody, u_gen) =
@@ -3135,7 +3129,7 @@ and ana_perform_operand =
 
   | (Construct(SLam), CursorE(_)) =>
     let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
-    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_arrow(ctx, ty)) {
     | Some((_, ty2)) =>
       let (body, u_gen) = Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
@@ -3305,7 +3299,7 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
-    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1_given)) {
@@ -3324,7 +3318,7 @@ and ana_perform_operand =
       }
     }
   | (_, LamZE(_, p, zbody)) =>
-    switch (HTyp.matched_arrow(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       switch (Statics_Pat.ana(ctx, p, ty1_given)) {
@@ -3346,7 +3340,7 @@ and ana_perform_operand =
       }
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let picked = InjSide.pick(side, ty1, ty2);
@@ -3431,7 +3425,7 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
-      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty1)) {
+      if (Contexts.consistent(ctx, ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);

@@ -69,9 +69,9 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
   };
 
 let pat_ana_subsumed_msg =
-    (tyvars, expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.equivalent(tyvars, expected_ty, got_ty)
-      || HTyp.equivalent(tyvars, got_ty, HTyp.hole)) {
+    (ctx, expected_ty, got_ty, expecting_msg, consistency_msg) =>
+  if (Contexts.equivalent(ctx, expected_ty, got_ty)
+      || Contexts.equivalent(ctx, got_ty, HTyp.hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -86,11 +86,11 @@ let syn_branch_clause_msg =
       join_type_inconsistent_expecting,
       join_type_inconsistent_msg,
       other,
-      tyvars,
+      ctx,
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.consistent(tyvars, ty, got_ty)) {
+    if (Contexts.consistent(ctx, ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
@@ -123,11 +123,11 @@ let advanced_summary =
       | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    | AnaAnnotatedLambda(tyvars, expected_ty, got_ty)
-    | AnaSubsumed(tyvars, expected_ty, got_ty)
-    | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
+    | AnaAnnotatedLambda(ctx, expected_ty, got_ty)
+    | AnaSubsumed(ctx, expected_ty, got_ty)
+    | PatAnaSubsumed(ctx, expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
-        tyvars,
+        ctx,
         expected_ty,
         got_ty,
         [ana],
@@ -208,7 +208,7 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _, tyvars) =>
+    | SynBranchClause(join, typed, _, ctx) =>
       syn_branch_clause_msg(
         join,
         typed,
@@ -216,7 +216,7 @@ let advanced_summary =
         [syn],
         inconsistent_symbol,
         message,
-        tyvars,
+        ctx,
       )
     | SynInconsistentBranches(_) => [
         syn,
@@ -679,10 +679,10 @@ let view =
     | PatSynKeyword(_)
     | TypFree
     | TypKeyword(_) => BindingError
-    | SynBranchClause(join, typed, _, tyvars) =>
+    | SynBranchClause(join, typed, _, ctx) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(tyvars, ty, got_ty)) {
+        if (Contexts.consistent(ctx, ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;

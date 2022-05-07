@@ -16,19 +16,15 @@ let view =
    * Shows typing info for a context entry.
    */
   let static_info = ((x, ty)) => {
-    let tyvars =
-      program
-      |> Program.get_cursor_info
-      |> CursorInfo_common.get_ctx
-      |> Contexts.tyvars;
+    let ctx = program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
     let ty' =
       if (HTyp.is_tyvar(ty)) {
         open OptUtil.Syntax;
         let* i = HTyp.tyvar_index(ty);
-        let* kind = TyVarCtx.kind(tyvars, i);
+        let* kind = Contexts.tyvar_kind(ctx, i);
         switch (kind) {
         | KHole => Some(HTyp.hole)
-        | Type => None
+        | T => None
         | Singleton(ty') => Some(HTyp.of_unsafe(ty'))
         };
       } else {
@@ -312,29 +308,26 @@ let view =
   };
 
   let context_view = {
-    let ctx =
-      program
-      |> Program.get_cursor_info
-      |> CursorInfo_common.get_ctx
-      |> Contexts.gamma;
+    let ctx = program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
+    let gamma = Contexts.vars(ctx);
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
         switch (selected_instance) {
-        | None => Environment.id_env(ctx)
+        | None => Environment.id_env(gamma)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
-            Environment.id_env(ctx);
+            Environment.id_env(gamma);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Environment.id_env(ctx);
+        Environment.id_env(gamma);
       };
-    switch (VarMap.to_list(ctx)) {
+    switch (VarMap.to_list(gamma)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
@@ -359,12 +352,10 @@ let view =
   let path_viewer =
     if (settings.evaluate) {
       let ctx =
-        program
-        |> Program.get_cursor_info
-        |> CursorInfo_common.get_ctx
-        |> Contexts.gamma;
+        program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
+      let gamma = Contexts.vars(ctx);
       let (_, hii, _) = program |> Program.get_result;
-      if (VarMap.is_empty(ctx)) {
+      if (VarMap.is_empty(gamma)) {
         Node.div([], []);
       } else {
         let children =

@@ -129,7 +129,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
+      if (Contexts.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
@@ -888,7 +888,7 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (Elaborator_Typ.syn_elab(Contexts.tyvars(ctx), Delta.empty, ann)) {
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
     | None => Failed
     | Some((ty, _, _)) =>
       switch (ana_perform_operand(ctx, u_gen, a, zop, ty)) {
@@ -906,13 +906,7 @@ and syn_perform_operand =
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     | Succeeded((zann, ctx, u_gen)) =>
-      switch (
-        Elaborator_Typ.syn_elab(
-          Contexts.tyvars(ctx),
-          Delta.empty,
-          ZTyp.erase(zann),
-        )
-      ) {
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
       | None => Failed
       | Some((ty, _, _)) =>
         let (zpat, ctx, u_gen) =
@@ -947,7 +941,7 @@ and ana_perform_opseq =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1070,11 +1064,7 @@ and ana_perform_opseq =
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           switch (
-            Elaborator_Typ.syn_elab(
-              Contexts.tyvars(ctx),
-              Delta.empty,
-              ZTyp.erase(new_zann),
-            )
+            Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(new_zann))
           ) {
           | None => Failed
           | Some((ty', _, _)) =>
@@ -1162,7 +1152,7 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = HTyp.head_normalize(Contexts.tyvars(ctx), ty);
+  let ty_h = Contexts.head_normalize(ctx, ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1359,7 +1349,7 @@ and ana_perform_operand =
     mk_ana_result(ctx, u_gen, new_zp, ty);
 
   | (Construct(SInj(side)), CursorP(_)) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, u_gen) =
@@ -1452,7 +1442,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(Contexts.tyvars(ctx), ty)) {
+    switch (Contexts.matched_sum(ctx, ty)) {
     | None => Failed
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
@@ -1487,8 +1477,7 @@ and ana_perform_operand =
       // since the sorts on both sides differ. Thus an annotation is not parsed
       // systematically as part of an opseq, so we have to reassociate the annotation
       // onto the trailing operand.
-      let (ann, _, u_gen) =
-        Statics_UHTyp.syn_fix_holes(Contexts.tyvars(ctx), u_gen, ann);
+      let (ann, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ann);
       let newseq = annotate_last_operand(zseq, ann);
       let (zpat, ctx, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, newseq, ty);
       Succeeded((zpat, ctx, u_gen));
@@ -1505,19 +1494,13 @@ and ana_perform_operand =
         ty,
       )
     | Succeeded((zann, ctx, u_gen)) =>
-      switch (
-        Elaborator_Typ.syn_elab(
-          Contexts.tyvars(ctx),
-          Delta.empty,
-          ZTyp.erase(zann),
-        )
-      ) {
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
       | None => Failed
       | Some((ty', _, _)) =>
         let (new_op, ctx, u_gen) =
           Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
         let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-        if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
+        if (Contexts.consistent(ctx, ty, ty')) {
           Succeeded((new_zopseq, ctx, u_gen));
         } else {
           let (new_zopseq, u_gen) =
@@ -1531,7 +1514,7 @@ and ana_perform_operand =
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(Contexts.tyvars(ctx), ty, ty')) {
+      if (Contexts.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);

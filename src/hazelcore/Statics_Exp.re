@@ -46,20 +46,8 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* new_ctx = syn_lines(ctx, leading);
   let* ty = syn_opseq(new_ctx, conclusion);
-  let num_new_tyvars =
-    Contexts.num_tyvars(new_ctx) - Contexts.num_tyvars(ctx);
-  let rec go = (new_ctx: Contexts.t, ty: HTyp.t, j: int) => {
-    j > 0
-      ? switch (Contexts.pop_tyvar(new_ctx)) {
-        | (new_ctx, Some((_, k))) =>
-          let ty_k = Kind.canonical_type(k);
-          let ty = HTyp.subst(ty, Index.Abs.of_int(0), ty_k);
-          go(new_ctx, ty, j - 1);
-        | (_, None) => None
-        }
-      : Some(ty);
-  };
-  go(new_ctx, ty, num_new_tyvars);
+  let+ (ty, _) = Contexts.eliminate_new_tyvars(new_ctx, ctx, ty);
+  ty;
 }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
@@ -221,25 +209,10 @@ and syn_rule =
 }
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
-// XXX
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* new_ctx = syn_lines(ctx, leading);
-  let num_new_tyvars =
-    Contexts.num_tyvars(new_ctx) - Contexts.num_tyvars(ctx);
-  let rec go = (new_ctx: Contexts.t, ty: HTyp.t, j: int) => {
-    j > 0
-      ? switch (Contexts.pop_tyvar(new_ctx)) {
-        | (new_ctx, Some((_, k))) =>
-          let ty_k = Kind.canonical_type(k);
-          let ty = HTyp.subst(ty, Index.Abs.of_int(0), ty_k);
-          go(new_ctx, ty, j - 1);
-        | (_, None) => None
-        }
-      : Some(ty);
-  };
-  let* ty = go(new_ctx, ty, num_new_tyvars);
   ana_opseq(new_ctx, conclusion, ty);
 }
 and ana_opseq =

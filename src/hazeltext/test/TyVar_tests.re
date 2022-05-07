@@ -41,8 +41,7 @@ let test_tyvar_actions =
       let* ze = place_cursor_before_first_hole(e);
       switch (ZExpTest.eval(actions, (ze, HTyp.hole, u_gen))) {
       | Ok((ze, ty, _)) =>
-        let tyvars = Contexts.tyvars(ctx);
-        let+ i = TyVarCtx.index(tyvars, name);
+        let+ i = Contexts.tyvar_index(ctx, name);
         let t = HTyp.tyvar(i, name);
         if (verbose) {
           Format.printf(
@@ -54,7 +53,7 @@ let test_tyvar_actions =
             Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)),
           );
         };
-        HTyp.equivalent(tyvars, ty, t);
+        Contexts.equivalent(ctx, ty, t);
       | Error(_) => None
       };
     }
