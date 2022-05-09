@@ -2,8 +2,8 @@ module Parsing = Hazeltext.Parsing;
 
 let verbose = false;
 
-let read = (ctx: Contexts.t, text: string): option(UHExp.t) => {
-  switch (Parsing.ast_of_string_with_contexts(ctx, text)) {
+let read = (text: string): option(UHExp.t) => {
+  switch (Parsing.ast_of_string(text)) {
   | Ok(e) =>
     if (verbose) {
       Format.printf(

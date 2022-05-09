@@ -76,6 +76,7 @@
 %token FMINUS
 %token FMULT
 %token FPLUS
+%token FUN
 %token GREATER
 %token <string> IDENT
 %token IN
@@ -227,7 +228,8 @@ expr_:
 ;
 
 fn:
-  LAMBDA pat PERIOD LBRACE block RBRACE { mk_fn $2 $5 }
+  FUN pat LBRACE block RBRACE { mk_fn $2 $4 }
+  | LAMBDA pat PERIOD LBRACE block RBRACE { mk_fn $2 $5 }
 ;
 
 rule:

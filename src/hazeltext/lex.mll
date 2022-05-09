@@ -5,7 +5,8 @@ let keyword_table = Hashtbl.create 12
 let _ =
   List.iter
     (fun (keyword, token) -> Hashtbl.add keyword_table keyword token)
-    [ "let", LET;
+    [ "fun", FUN;
+      "let", LET;
       "in", IN;
       "case", CASE;
       "end", END;

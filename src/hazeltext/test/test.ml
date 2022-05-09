@@ -3,8 +3,17 @@ module Parse = Hazeltext.Parse
 module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
+let verbose = false
+
 let parse text : UHExp.block option =
-  match Parsing.ast_of_string text with Ok ast -> Some ast | Error _ -> None
+  if verbose then print_endline ("\nPARSE\n------------\n" ^ text ^ "\n------------");
+  match Parsing.ast_of_string text with
+  | Ok ast -> 
+    if verbose then print_endline @@ ">>> >>> >>> \n" ^ (Sexplib.Sexp.to_string_hum @@ UHExp.sexp_of_block ast) ^ "\n>>> >>> >>> ";
+    Some ast
+  | Error msg ->
+    if verbose then (print_endline @@ "FAILURE: " ^ msg);
+    None
 
 let test_parse text : bool =
   (*Get the first AST*)
@@ -31,7 +40,7 @@ let test_incorrect text = test_parse text = false
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
-let%test "basic lambda" = test_parse "\\f.{f}"
+let%test "basic lambda" = test_parse "fun f {f}"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)

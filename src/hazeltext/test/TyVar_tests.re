@@ -21,7 +21,8 @@ let read_with_tyvar =
   open OptUtil.Syntax;
   let ctx = Contexts.initial;
   let ctx = Contexts.push_tyvar(ctx, name, Kind.singleton(ty));
-  let+ e = UHExpTest.read(ctx, text);
+  // let+ e = UHExpTest.read(ctx, text);
+  let+ e = UHExpTest.read(text);
   let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int);
   (ctx, [line, ...e], u_gen);
 };
@@ -64,4 +65,4 @@ let test_tyvar_actions =
 let test_tyvar_action = (name: string, ty: HTyp.t, a: Action.t): bool =>
   test_tyvar_actions(name, ty, [a]);
 
-let%test _ = test_tyvar_actions("u", HTyp.int, construct_word("true"));
+// let%test _ = test_tyvar_actions("u", HTyp.int, construct_word("true"));
